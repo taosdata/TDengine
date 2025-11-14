@@ -9,25 +9,25 @@
       
       
       
-        <link rel="prev" href="../../NormalTables/Query/">
+        <link rel="prev" href="../../Databases/Flush/">
       
       
-        <link rel="next" href="../Alter/">
+        <link rel="next" href="../SubTables/">
       
       
         
       
       
-      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <link rel="icon" href="../../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
     
     
       
-        <title>01-Create - TDengine Case List</title>
+        <title>01-NormalTables - TDengine Case List</title>
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/main.618322db.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.618322db.min.css">
       
       
 
@@ -46,11 +46,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../../../../stylesheets/extra.css">
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -68,7 +68,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#01-create" class="md-skip">
+        <a href="#01-normaltables" class="md-skip">
           Skip to content
         </a>
       
@@ -86,7 +86,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+    <a href="../../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -106,7 +106,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              01-Create
+              01-NormalTables
             
           </span>
         </div>
@@ -179,7 +179,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../../.." class="md-tabs__link">
+      <a href="../../.." class="md-tabs__link">
         
   
   
@@ -202,7 +202,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../../DataTypes/" class="md-tabs__link">
+        <a href="../../DataTypes/" class="md-tabs__link">
           
   
   
@@ -210,36 +210,6 @@
 
         </a>
       </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../util_funcs_docs/new_test_framework/utils/" class="md-tabs__link">
-          
-  
-  
-  Util funcs docs
-
-        </a>
-      </li>
-    
-  
-
     
   
 
@@ -267,7 +237,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+    <a href="../../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -280,14 +250,14 @@
     
       <li>
       
-      <a href="../../../.." class="md-nav__link">Home</a>
+      <a href="../../.." class="md-nav__link">Home</a>
     </li>
       
       
     
       <li>
       
-      <a href="../../../DataTypes/" class="md-nav__link">Case list docs</a>
+      <a href="../../DataTypes/" class="md-nav__link">Case list docs</a>
     </li>
       
       
@@ -300,7 +270,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataTypes/" class="md-nav__link">
+      <a href="../../DataTypes/" class="md-nav__link">
         
   
   
@@ -377,7 +347,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Databases/Create/" class="md-nav__link">
+      <a href="../../Databases/Create/" class="md-nav__link">
         
   
   
@@ -405,7 +375,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Databases/Drop/" class="md-nav__link">
+      <a href="../../Databases/Drop/" class="md-nav__link">
         
   
   
@@ -433,7 +403,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Databases/Alter/" class="md-nav__link">
+      <a href="../../Databases/Alter/" class="md-nav__link">
         
   
   
@@ -461,7 +431,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Databases/Query/" class="md-nav__link">
+      <a href="../../Databases/Query/" class="md-nav__link">
         
   
   
@@ -489,7 +459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Databases/Sync/" class="md-nav__link">
+      <a href="../../Databases/Sync/" class="md-nav__link">
         
   
   
@@ -517,7 +487,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Databases/Precision/" class="md-nav__link">
+      <a href="../../Databases/Precision/" class="md-nav__link">
         
   
   
@@ -545,7 +515,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Databases/Flush/" class="md-nav__link">
+      <a href="../../Databases/Flush/" class="md-nav__link">
         
   
   
@@ -629,228 +599,6 @@
                 
   
   
-  
-  
-    
-    
-    
-    
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
-        
-          
-          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    01-NormalTables
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_1">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    01-NormalTables
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../NormalTables/Create/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    01-Create
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../NormalTables/Drop/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    02-Drop
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../NormalTables/Alter/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    03-Alter
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../NormalTables/Query/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    04-Query
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    02-SubTables
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_2">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    02-SubTables
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
     
   
   
@@ -870,7 +618,7 @@
   <span class="md-ellipsis">
     
   
-    01-Create
+    01-NormalTables
   
 
     
@@ -888,7 +636,7 @@
   <span class="md-ellipsis">
     
   
-    01-Create
+    01-NormalTables
   
 
     
@@ -939,8 +687,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_bigint.TestDatatypeBigInt.test_datatype_bigint" class="md-nav__link">
-        DataTypes: bigint 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_3.TestNormalTableAlter3.test_normal_table_alter_3" class="md-nav__link">
+        Alter: import old data 
       </a>
       
     </li>
@@ -950,8 +698,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob" class="md-nav__link">
-        DataTypes: blob 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_4.TestNormalTableAlter4.test_normal_table_alter_4" class="md-nav__link">
+        Alter: repeatedly add 
       </a>
       
     </li>
@@ -961,8 +709,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_bool.TestDatatypeBool.test_datatype_bool" class="md-nav__link">
-        DataTypes: bool 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_5.TestNormalTableAlter5.test_normal_table_alter_5" class="md-nav__link">
+        Alter: repeatedly drop 
       </a>
       
     </li>
@@ -972,8 +720,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_decimal.TestDatatypeDecimal.test_datatype_decimal" class="md-nav__link">
-        DataTypes: decimal 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_1.TestNormalTableAlter1.test_normal_table_alter_1" class="md-nav__link">
+        Alter: then desc 
       </a>
       
     </li>
@@ -983,8 +731,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_double.TestDatatypeDouble.test_datatype_double" class="md-nav__link">
-        DataTypes: double 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_2.TestNormalTableAlter2.test_normal_table_alter_2" class="md-nav__link">
+        Alter: then insert 
       </a>
       
     </li>
@@ -994,8 +742,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_float.TestDatatypeFloat.test_datatype_float" class="md-nav__link">
-        DataTypes: float 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_column_limit.TestNormalTableColumnNumLimit.test_normal_table_column_num_limit" class="md-nav__link">
+        Column num limit 
       </a>
       
     </li>
@@ -1005,8 +753,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_int.TestDatatypeInt.test_datatype_int" class="md-nav__link">
-        DataTypes: int 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="md-nav__link">
+        Normal table after drop 
       </a>
       
     </li>
@@ -1016,8 +764,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_json.TestDatatypeJson.test_datatype_json" class="md-nav__link">
-        DataTypes: json 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="md-nav__link">
+        Normal table aggregate 
       </a>
       
     </li>
@@ -1027,8 +775,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_nchar1.TestDatatypeNchar.test_datatype_nchar" class="md-nav__link">
-        DataTypes: nchar 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="md-nav__link">
+        Normal table composite key 
       </a>
       
     </li>
@@ -1038,8 +786,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_nchar2.TestNChar.test_nchar" class="md-nav__link">
-        DataTypes: nchar (Chinese) 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_100w.TestTb100wDataOrder.test_tb_100w_data_order" class="md-nav__link">
+        Normal table create 100w 
       </a>
       
     </li>
@@ -1049,8 +797,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_smallint.TestDatatypeSmallint.test_datatype_smallint" class="md-nav__link">
-        DataTypes: smallint 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_datatypes.TestNormalTableDatatypes.test_normal_table_datatypes" class="md-nav__link">
+        Normal table data types 
       </a>
       
     </li>
@@ -1060,8 +808,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_timestamp.TestDatatypeTimestamp.test_datatype_timestamp" class="md-nav__link">
-        DataTypes: timestamp 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_delete_writing.TestNormalTableDeleteWriting.test_normal_table_delete_writing" class="md-nav__link">
+        Normal table drop while writing 
       </a>
       
     </li>
@@ -1071,8 +819,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_tinyint.TestDatatypeTinyint.test_datatype_tinyint" class="md-nav__link">
-        DataTypes: tinyint 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="md-nav__link">
+        Normal table filter 
       </a>
       
     </li>
@@ -1082,8 +830,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_uint.TestDatatypeUint.test_datatype_uint" class="md-nav__link">
-        DataTypes: unsigned int 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_synatx.TestNormalTableSynatx.test_normal_table_synatx" class="md-nav__link">
+        Normal table syntax 
       </a>
       
     </li>
@@ -1093,8 +841,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_unsign.TestDatatypeUnsigned.test_datatype_unsigned" class="md-nav__link">
-        DataTypes: unsigned numeric 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_delete_reuse2.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="md-nav__link">
+        Repeatedly drop new name 
       </a>
       
     </li>
@@ -1104,41 +852,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_varbinary.TestDatatypeVarbinary.test_datatype_varbinary" class="md-nav__link">
-        DataTypes: varbinary 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_varchar.TestDatatypeVarchar.test_datatype_varchar" class="md-nav__link">
-        DataTypes: varchar 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#01-DataTypes.test_null_column.TestNullColumn.test_null_column" class="md-nav__link">
-        NULL: column 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#01-DataTypes.test_null_tag.TestNullTag.test_null_tag" class="md-nav__link">
-        NULL: tag 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_delete_reuse1.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="md-nav__link">
+        Repeatedly drop same name 
       </a>
       
     </li>
@@ -1161,14 +876,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../Alter/" class="md-nav__link">
+      <a href="../SubTables/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    03-Alter
+    02-SubTables
   
 
     
@@ -1177,42 +892,6 @@
   
 
       </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../Query/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    04-Query
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
     </li>
   
 
@@ -1282,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../SuperTables/Create/" class="md-nav__link">
+      <a href="../../SuperTables/Create/" class="md-nav__link">
         
   
   
@@ -1310,7 +989,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../SuperTables/Drop/" class="md-nav__link">
+      <a href="../../SuperTables/Drop/" class="md-nav__link">
         
   
   
@@ -1338,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../SuperTables/Alter/" class="md-nav__link">
+      <a href="../../SuperTables/Alter/" class="md-nav__link">
         
   
   
@@ -1366,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../SuperTables/Query/" class="md-nav__link">
+      <a href="../../SuperTables/Query/" class="md-nav__link">
         
   
   
@@ -1401,7 +1080,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../VirtualTables/" class="md-nav__link">
+      <a href="../../VirtualTables/" class="md-nav__link">
         
   
   
@@ -1478,7 +1157,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataIngestion/SQL/" class="md-nav__link">
+      <a href="../../DataIngestion/SQL/" class="md-nav__link">
         
   
   
@@ -1506,7 +1185,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataIngestion/STMT/" class="md-nav__link">
+      <a href="../../DataIngestion/STMT/" class="md-nav__link">
         
   
   
@@ -1534,7 +1213,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataIngestion/SML/" class="md-nav__link">
+      <a href="../../DataIngestion/SML/" class="md-nav__link">
         
   
   
@@ -1562,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataIngestion/Import/" class="md-nav__link">
+      <a href="../../DataIngestion/Import/" class="md-nav__link">
         
   
   
@@ -1597,7 +1276,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataDeletion/" class="md-nav__link">
+      <a href="../../DataDeletion/" class="md-nav__link">
         
   
   
@@ -1624,7 +1303,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataCompression/" class="md-nav__link">
+      <a href="../../DataCompression/" class="md-nav__link">
         
   
   
@@ -1701,7 +1380,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Select/" class="md-nav__link">
+      <a href="../../DataQuerying/Select/" class="md-nav__link">
         
   
   
@@ -1729,7 +1408,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Filter/" class="md-nav__link">
+      <a href="../../DataQuerying/Filter/" class="md-nav__link">
         
   
   
@@ -1757,7 +1436,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/GroupBy/" class="md-nav__link">
+      <a href="../../DataQuerying/GroupBy/" class="md-nav__link">
         
   
   
@@ -1785,7 +1464,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/OrderBy/" class="md-nav__link">
+      <a href="../../DataQuerying/OrderBy/" class="md-nav__link">
         
   
   
@@ -1813,7 +1492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Limit/" class="md-nav__link">
+      <a href="../../DataQuerying/Limit/" class="md-nav__link">
         
   
   
@@ -1841,7 +1520,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/SLimit/" class="md-nav__link">
+      <a href="../../DataQuerying/SLimit/" class="md-nav__link">
         
   
   
@@ -1869,7 +1548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/SubQuery/" class="md-nav__link">
+      <a href="../../DataQuerying/SubQuery/" class="md-nav__link">
         
   
   
@@ -1897,7 +1576,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Having/" class="md-nav__link">
+      <a href="../../DataQuerying/Having/" class="md-nav__link">
         
   
   
@@ -1925,7 +1604,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Distinct/" class="md-nav__link">
+      <a href="../../DataQuerying/Distinct/" class="md-nav__link">
         
   
   
@@ -1953,7 +1632,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/PseudoColumn/" class="md-nav__link">
+      <a href="../../DataQuerying/PseudoColumn/" class="md-nav__link">
         
   
   
@@ -1981,7 +1660,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Interp/" class="md-nav__link">
+      <a href="../../DataQuerying/Interp/" class="md-nav__link">
         
   
   
@@ -2009,7 +1688,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/CaseWhen/" class="md-nav__link">
+      <a href="../../DataQuerying/CaseWhen/" class="md-nav__link">
         
   
   
@@ -2037,7 +1716,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Tags/" class="md-nav__link">
+      <a href="../../DataQuerying/Tags/" class="md-nav__link">
         
   
   
@@ -2065,7 +1744,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/Explain/" class="md-nav__link">
+      <a href="../../DataQuerying/Explain/" class="md-nav__link">
         
   
   
@@ -2093,7 +1772,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataQuerying/BiMode/" class="md-nav__link">
+      <a href="../../DataQuerying/BiMode/" class="md-nav__link">
         
   
   
@@ -2127,9 +1806,23 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../../Operators/" class="md-nav__link">
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -2143,7 +1836,163 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    10-Operators
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Operators/Arithmetic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01-Arithmetic
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Operators/Json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03-Json
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Operators/Set/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04-Set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Operators/Comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05-Comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Operators/Logical/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06-Logical
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2205,7 +2054,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Functions/Scalar/" class="md-nav__link">
+      <a href="../../Functions/Scalar/" class="md-nav__link">
         
   
   
@@ -2233,7 +2082,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Functions/Aggregate/" class="md-nav__link">
+      <a href="../../Functions/Aggregate/" class="md-nav__link">
         
   
   
@@ -2261,7 +2110,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Functions/Selection/" class="md-nav__link">
+      <a href="../../Functions/Selection/" class="md-nav__link">
         
   
   
@@ -2289,7 +2138,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Functions/Timeseries/" class="md-nav__link">
+      <a href="../../Functions/Timeseries/" class="md-nav__link">
         
   
   
@@ -2317,7 +2166,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Functions/Compare/" class="md-nav__link">
+      <a href="../../Functions/Compare/" class="md-nav__link">
         
   
   
@@ -2345,7 +2194,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Functions/System/" class="md-nav__link">
+      <a href="../../Functions/System/" class="md-nav__link">
         
   
   
@@ -2373,7 +2222,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Functions/Geometry/" class="md-nav__link">
+      <a href="../../Functions/Geometry/" class="md-nav__link">
         
   
   
@@ -2408,7 +2257,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../UDFs/" class="md-nav__link">
+      <a href="../../UDFs/" class="md-nav__link">
         
   
   
@@ -2456,7 +2305,7 @@
   <span class="md-ellipsis">
     
   
-    13-Time-SeriesExt
+    13-TimeSeries-Ext
   
 
     
@@ -2472,7 +2321,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    13-Time-SeriesExt
+    13-TimeSeries-Ext
   
 
           </label>
@@ -2485,7 +2334,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TimeSeriesExt/PartitionBy/" class="md-nav__link">
+      <a href="../../TimeSeriesExt/PartitionBy/" class="md-nav__link">
         
   
   
@@ -2513,7 +2362,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TimeSeriesExt/Fill/" class="md-nav__link">
+      <a href="../../TimeSeriesExt/Fill/" class="md-nav__link">
         
   
   
@@ -2541,7 +2390,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TimeSeriesExt/TimeWindow/" class="md-nav__link">
+      <a href="../../TimeSeriesExt/TimeWindow/" class="md-nav__link">
         
   
   
@@ -2569,7 +2418,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TimeSeriesExt/EventWindow/" class="md-nav__link">
+      <a href="../../TimeSeriesExt/EventWindow/" class="md-nav__link">
         
   
   
@@ -2597,7 +2446,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TimeSeriesExt/SessionWindow/" class="md-nav__link">
+      <a href="../../TimeSeriesExt/SessionWindow/" class="md-nav__link">
         
   
   
@@ -2625,7 +2474,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TimeSeriesExt/CountWindow/" class="md-nav__link">
+      <a href="../../TimeSeriesExt/CountWindow/" class="md-nav__link">
         
   
   
@@ -2660,7 +2509,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../JoinQueries/" class="md-nav__link">
+      <a href="../../JoinQueries/" class="md-nav__link">
         
   
   
@@ -2687,7 +2536,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TagIndices/" class="md-nav__link">
+      <a href="../../TagIndices/" class="md-nav__link">
         
   
   
@@ -2714,7 +2563,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Views/" class="md-nav__link">
+      <a href="../../Views/" class="md-nav__link">
         
   
   
@@ -2791,7 +2640,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataSubscription/Mgmt/" class="md-nav__link">
+      <a href="../../DataSubscription/Mgmt/" class="md-nav__link">
         
   
   
@@ -2819,7 +2668,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataSubscription/Native/" class="md-nav__link">
+      <a href="../../DataSubscription/Native/" class="md-nav__link">
         
   
   
@@ -2847,7 +2696,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../DataSubscription/MQTT/" class="md-nav__link">
+      <a href="../../DataSubscription/MQTT/" class="md-nav__link">
         
   
   
@@ -2855,34 +2704,6 @@
     
   
     04-MQTT
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../DataSubscription/sh/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    sh
   
 
     
@@ -2960,7 +2781,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Snode/" class="md-nav__link">
+      <a href="../../StreamProcessing/Snode/" class="md-nav__link">
         
   
   
@@ -2988,7 +2809,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Stream/" class="md-nav__link">
+      <a href="../../StreamProcessing/Stream/" class="md-nav__link">
         
   
   
@@ -3016,7 +2837,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/TriggerMode/" class="md-nav__link">
+      <a href="../../StreamProcessing/TriggerMode/" class="md-nav__link">
         
   
   
@@ -3044,7 +2865,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Options/" class="md-nav__link">
+      <a href="../../StreamProcessing/Options/" class="md-nav__link">
         
   
   
@@ -3072,7 +2893,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Notify/" class="md-nav__link">
+      <a href="../../StreamProcessing/Notify/" class="md-nav__link">
         
   
   
@@ -3100,7 +2921,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/ResultSaved/" class="md-nav__link">
+      <a href="../../StreamProcessing/ResultSaved/" class="md-nav__link">
         
   
   
@@ -3128,7 +2949,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/SubQuery/" class="md-nav__link">
+      <a href="../../StreamProcessing/SubQuery/" class="md-nav__link">
         
   
   
@@ -3156,7 +2977,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Recalc/" class="md-nav__link">
+      <a href="../../StreamProcessing/Recalc/" class="md-nav__link">
         
   
   
@@ -3184,7 +3005,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/UseCase/" class="md-nav__link">
+      <a href="../../StreamProcessing/UseCase/" class="md-nav__link">
         
   
   
@@ -3212,35 +3033,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Performance/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    22-Performance
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Compatibility/" class="md-nav__link">
+      <a href="../../StreamProcessing/Compatibility/" class="md-nav__link">
         
   
   
@@ -3268,7 +3061,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/OldPyCases/" class="md-nav__link">
+      <a href="../../StreamProcessing/OldPyCases/" class="md-nav__link">
         
   
   
@@ -3296,7 +3089,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../StreamProcessing/OldTsimCases/" class="md-nav__link">
+      <a href="../../StreamProcessing/OldTsimCases/" class="md-nav__link">
         
   
   
@@ -3304,34 +3097,6 @@
     
   
     31-OldTsimCases
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../StreamProcessing/Others/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    99-Others
   
 
     
@@ -3359,7 +3124,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../TSMAs/" class="md-nav__link">
+      <a href="../../TSMAs/" class="md-nav__link">
         
   
   
@@ -3386,7 +3151,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../RSMAs/" class="md-nav__link">
+      <a href="../../RSMAs/" class="md-nav__link">
         
   
   
@@ -3413,7 +3178,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../MetaData/" class="md-nav__link">
+      <a href="../../MetaData/" class="md-nav__link">
         
   
   
@@ -3440,7 +3205,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../PerformanceData/" class="md-nav__link">
+      <a href="../../PerformanceData/" class="md-nav__link">
         
   
   
@@ -3467,7 +3232,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../ShowCommands/" class="md-nav__link">
+      <a href="../../ShowCommands/" class="md-nav__link">
         
   
   
@@ -3494,7 +3259,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Users/" class="md-nav__link">
+      <a href="../../Users/" class="md-nav__link">
         
   
   
@@ -3521,7 +3286,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Privileges/" class="md-nav__link">
+      <a href="../../Privileges/" class="md-nav__link">
         
   
   
@@ -3547,9 +3312,23 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../../NodeManager/" class="md-nav__link">
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_26" id="__nav_26_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -3563,7 +3342,163 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    26-Node Manager
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NodeManager/Dnode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01-Dnode
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NodeManager/Mnode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02-Mnode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NodeManager/Qnode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03-Qnode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NodeManager/Snode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04-Snode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NodeManager/Bnode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05-Bnode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -3575,7 +3510,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Mount/" class="md-nav__link">
+      <a href="../../Mount/" class="md-nav__link">
         
   
   
@@ -3602,7 +3537,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Except/" class="md-nav__link">
+      <a href="../../Except/" class="md-nav__link">
         
   
   
@@ -3629,7 +3564,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Escape/" class="md-nav__link">
+      <a href="../../Escape/" class="md-nav__link">
         
   
   
@@ -3656,7 +3591,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../NameLimits/" class="md-nav__link">
+      <a href="../../NameLimits/" class="md-nav__link">
         
   
   
@@ -3683,7 +3618,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Cluster/" class="md-nav__link">
+      <a href="../../Cluster/" class="md-nav__link">
         
   
   
@@ -3760,7 +3695,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Components/Taosd/" class="md-nav__link">
+      <a href="../../Components/Taosd/" class="md-nav__link">
         
   
   
@@ -3788,7 +3723,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Components/Taosc/" class="md-nav__link">
+      <a href="../../Components/Taosc/" class="md-nav__link">
         
   
   
@@ -3816,7 +3751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Components/TDgpt/" class="md-nav__link">
+      <a href="../../Components/TDgpt/" class="md-nav__link">
         
   
   
@@ -3901,7 +3836,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Tools/Check/" class="md-nav__link">
+      <a href="../../Tools/Check/" class="md-nav__link">
         
   
   
@@ -3929,7 +3864,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Tools/Taos/" class="md-nav__link">
+      <a href="../../Tools/Taos/" class="md-nav__link">
         
   
   
@@ -3957,7 +3892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Tools/Benchmark/" class="md-nav__link">
+      <a href="../../Tools/Benchmark/" class="md-nav__link">
         
   
   
@@ -3985,7 +3920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../Tools/Taosdump/" class="md-nav__link">
+      <a href="../../Tools/Taosdump/" class="md-nav__link">
         
   
   
@@ -3993,184 +3928,6 @@
     
   
     04-Taosdump
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../Tools/Valgrind/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    05-Valgrind
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-          
-            
-            
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../UnitTest/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    82-UnitTest
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-          
-            
-            
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../DocTest/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    83-DocTest
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-          
-        </ul>
-      
-    
-      <li>
-      
-      <a href="../../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">Util funcs docs</a>
-    </li>
-      
-      
-        <ul class="md-nav__sublist">
-          
-            
-            
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
-        
-          
-          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    new_test_framework
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_1">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    new_test_framework
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    utils
   
 
     
@@ -4246,8 +4003,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_bigint.TestDatatypeBigInt.test_datatype_bigint" class="md-nav__link">
-        DataTypes: bigint 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_3.TestNormalTableAlter3.test_normal_table_alter_3" class="md-nav__link">
+        Alter: import old data 
       </a>
       
     </li>
@@ -4257,8 +4014,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob" class="md-nav__link">
-        DataTypes: blob 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_4.TestNormalTableAlter4.test_normal_table_alter_4" class="md-nav__link">
+        Alter: repeatedly add 
       </a>
       
     </li>
@@ -4268,8 +4025,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_bool.TestDatatypeBool.test_datatype_bool" class="md-nav__link">
-        DataTypes: bool 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_5.TestNormalTableAlter5.test_normal_table_alter_5" class="md-nav__link">
+        Alter: repeatedly drop 
       </a>
       
     </li>
@@ -4279,8 +4036,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_decimal.TestDatatypeDecimal.test_datatype_decimal" class="md-nav__link">
-        DataTypes: decimal 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_1.TestNormalTableAlter1.test_normal_table_alter_1" class="md-nav__link">
+        Alter: then desc 
       </a>
       
     </li>
@@ -4290,8 +4047,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_double.TestDatatypeDouble.test_datatype_double" class="md-nav__link">
-        DataTypes: double 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_alter_2.TestNormalTableAlter2.test_normal_table_alter_2" class="md-nav__link">
+        Alter: then insert 
       </a>
       
     </li>
@@ -4301,8 +4058,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_float.TestDatatypeFloat.test_datatype_float" class="md-nav__link">
-        DataTypes: float 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_column_limit.TestNormalTableColumnNumLimit.test_normal_table_column_num_limit" class="md-nav__link">
+        Column num limit 
       </a>
       
     </li>
@@ -4312,8 +4069,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_int.TestDatatypeInt.test_datatype_int" class="md-nav__link">
-        DataTypes: int 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="md-nav__link">
+        Normal table after drop 
       </a>
       
     </li>
@@ -4323,8 +4080,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_json.TestDatatypeJson.test_datatype_json" class="md-nav__link">
-        DataTypes: json 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="md-nav__link">
+        Normal table aggregate 
       </a>
       
     </li>
@@ -4334,8 +4091,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_nchar1.TestDatatypeNchar.test_datatype_nchar" class="md-nav__link">
-        DataTypes: nchar 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="md-nav__link">
+        Normal table composite key 
       </a>
       
     </li>
@@ -4345,8 +4102,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_nchar2.TestNChar.test_nchar" class="md-nav__link">
-        DataTypes: nchar (Chinese) 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_100w.TestTb100wDataOrder.test_tb_100w_data_order" class="md-nav__link">
+        Normal table create 100w 
       </a>
       
     </li>
@@ -4356,8 +4113,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_smallint.TestDatatypeSmallint.test_datatype_smallint" class="md-nav__link">
-        DataTypes: smallint 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_datatypes.TestNormalTableDatatypes.test_normal_table_datatypes" class="md-nav__link">
+        Normal table data types 
       </a>
       
     </li>
@@ -4367,8 +4124,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_timestamp.TestDatatypeTimestamp.test_datatype_timestamp" class="md-nav__link">
-        DataTypes: timestamp 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_delete_writing.TestNormalTableDeleteWriting.test_normal_table_delete_writing" class="md-nav__link">
+        Normal table drop while writing 
       </a>
       
     </li>
@@ -4378,8 +4135,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_tinyint.TestDatatypeTinyint.test_datatype_tinyint" class="md-nav__link">
-        DataTypes: tinyint 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="md-nav__link">
+        Normal table filter 
       </a>
       
     </li>
@@ -4389,8 +4146,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_uint.TestDatatypeUint.test_datatype_uint" class="md-nav__link">
-        DataTypes: unsigned int 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_synatx.TestNormalTableSynatx.test_normal_table_synatx" class="md-nav__link">
+        Normal table syntax 
       </a>
       
     </li>
@@ -4400,8 +4157,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_unsign.TestDatatypeUnsigned.test_datatype_unsigned" class="md-nav__link">
-        DataTypes: unsigned numeric 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_delete_reuse2.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="md-nav__link">
+        Repeatedly drop new name 
       </a>
       
     </li>
@@ -4411,41 +4168,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_varbinary.TestDatatypeVarbinary.test_datatype_varbinary" class="md-nav__link">
-        DataTypes: varbinary 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#01-DataTypes.test_datatype_varchar.TestDatatypeVarchar.test_datatype_varchar" class="md-nav__link">
-        DataTypes: varchar 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#01-DataTypes.test_null_column.TestNullColumn.test_null_column" class="md-nav__link">
-        NULL: column 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#01-DataTypes.test_null_tag.TestNullTag.test_null_tag" class="md-nav__link">
-        NULL: tag 
+      <a href="#03-Tables.01-NormalTables.test_normaltable_delete_reuse1.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="md-nav__link">
+        Repeatedly drop same name 
       </a>
       
     </li>
@@ -4469,7 +4193,7 @@
 
 
 
-<h1 id="01-create">01-Create<a class="headerlink" href="#01-create" title="Permanent link">&para;</a></h1>
+<h1 id="01-normaltables">01-NormalTables<a class="headerlink" href="#01-normaltables" title="Permanent link">&para;</a></h1>
 
   
 <div class="doc doc-object doc-function">
@@ -4477,28 +4201,26 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_bigint.TestDatatypeBigInt.test_datatype_bigint" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_100w.TestTb100wDataOrder.test_tb_100w_data_order" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_bigint.TestDatatypeBigInt.test_datatype_bigint" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_100w.TestTb100wDataOrder.test_tb_100w_data_order" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: bigint</strong> 
+                    <strong>Normal table create 100w</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create 100w normal tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query table order by col</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. flush database</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_bigint.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_bigint.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_100w.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_100w.py
                     </a>
                   </div>
         </div>
@@ -4510,28 +4232,28 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_alter_1.TestNormalTableAlter1.test_normal_table_alter_1" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_datatype_blob" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_alter_1.TestNormalTableAlter1.test_normal_table_alter_1" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: blob</strong> 
+                    <strong>Alter: then desc</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. ALTER TABLE … ADD/DROP/MODIFY columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. DESCRIBE each change to confirm</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Restart the database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Resume ADD/DROP/MODIFY operations and verify again</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_blob.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_blob.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_alter_1.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_alter_1.py
                     </a>
                   </div>
         </div>
@@ -4543,28 +4265,28 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_bool.TestDatatypeBool.test_datatype_bool" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_alter_2.TestNormalTableAlter2.test_normal_table_alter_2" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_bool.TestDatatypeBool.test_datatype_bool" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_alter_2.TestNormalTableAlter2.test_normal_table_alter_2" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: bool</strong> 
+                    <strong>Alter: then insert</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Execute ADD COLUMN, DROP COLUMN, MODIFY COLUMN operations.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data and run SELECT COUNT queries to verify.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Restart the database.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Continue modifying columns and verify the changes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_bool.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_bool.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_alter_2.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_alter_2.py
                     </a>
                   </div>
         </div>
@@ -4576,218 +4298,26 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_decimal.TestDatatypeDecimal.test_datatype_decimal" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_alter_3.TestNormalTableAlter3.test_normal_table_alter_3" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_decimal.TestDatatypeDecimal.test_datatype_decimal" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_alter_3.TestNormalTableAlter3.test_normal_table_alter_3" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: decimal</strong> 
+                    <strong>Alter: import old data</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">test decimal types filtering with tag conditions crash fix</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_decimal.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_decimal.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_double.TestDatatypeDouble.test_datatype_double" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_double.TestDatatypeDouble.test_datatype_double" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: double</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_double.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_double.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_float.TestDatatypeFloat.test_datatype_float" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_float.TestDatatypeFloat.test_datatype_float" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: float</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_float.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_float.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_int.TestDatatypeInt.test_datatype_int" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_int.TestDatatypeInt.test_datatype_int" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: int</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_int.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_int.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_json.TestDatatypeJson.test_datatype_json" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_json.TestDatatypeJson.test_datatype_json" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: json</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_json.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_json.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_nchar1.TestDatatypeNchar.test_datatype_nchar" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_nchar1.TestDatatypeNchar.test_datatype_nchar" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: nchar</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_nchar1.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_nchar1.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_nchar2.TestNChar.test_nchar" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_nchar2.TestNChar.test_nchar" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: nchar (Chinese)</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Add column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert out-of-order data</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query data</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_nchar2.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_nchar2.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_alter_3.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_alter_3.py
                     </a>
                   </div>
         </div>
@@ -4799,28 +4329,28 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_smallint.TestDatatypeSmallint.test_datatype_smallint" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_alter_4.TestNormalTableAlter4.test_normal_table_alter_4" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_smallint.TestDatatypeSmallint.test_datatype_smallint" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_alter_4.TestNormalTableAlter4.test_normal_table_alter_4" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: smallint</strong> 
+                    <strong>Alter: repeatedly add</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Add column</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Project query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Loop for 7 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Kill then restart</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_smallint.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_smallint.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_alter_4.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_alter_4.py
                     </a>
                   </div>
         </div>
@@ -4832,28 +4362,28 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_timestamp.TestDatatypeTimestamp.test_datatype_timestamp" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_alter_5.TestNormalTableAlter5.test_normal_table_alter_5" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_timestamp.TestDatatypeTimestamp.test_datatype_timestamp" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_alter_5.TestNormalTableAlter5.test_normal_table_alter_5" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: timestamp</strong> 
+                    <strong>Alter: repeatedly drop</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Drop column</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Project query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Loop for 7 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Kill then restart</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_timestamp.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_timestamp.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_alter_5.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_alter_5.py
                     </a>
                   </div>
         </div>
@@ -4865,28 +4395,26 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_tinyint.TestDatatypeTinyint.test_datatype_tinyint" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_column_limit.TestNormalTableColumnNumLimit.test_normal_table_column_num_limit" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_tinyint.TestDatatypeTinyint.test_datatype_tinyint" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_column_limit.TestNormalTableColumnNumLimit.test_normal_table_column_num_limit" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: tinyint</strong> 
+                    <strong>Column num limit</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Add or delete columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check column count, the count should not exceed 4096</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_tinyint.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_tinyint.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_column_limit.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_column_limit.py
                     </a>
                   </div>
         </div>
@@ -4898,28 +4426,28 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_uint.TestDatatypeUint.test_datatype_uint" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_datatypes.TestNormalTableDatatypes.test_normal_table_datatypes" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_uint.TestDatatypeUint.test_datatype_uint" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_datatypes.TestNormalTableDatatypes.test_normal_table_datatypes" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: unsigned int</strong> 
+                    <strong>Normal table data types</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a normal table containing bigint, binary, bool, double, float, int, smallint, tinyint types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Write data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Perform a projection query, including an order by condition</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Perform a filter query, including various comparison conditions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_uint.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_uint.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_datatypes.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_datatypes.py
                     </a>
                   </div>
         </div>
@@ -4931,124 +4459,28 @@
   
   
   
-<h2 id="01-DataTypes.test_datatype_unsign.TestDatatypeUnsigned.test_datatype_unsigned" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_delete_reuse1.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_datatype_unsign.TestDatatypeUnsigned.test_datatype_unsigned" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_delete_reuse1.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: unsigned numeric</strong> 
+                    <strong>Repeatedly drop same name</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_unsign.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_unsign.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_varbinary.TestDatatypeVarbinary.test_datatype_varbinary" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_varbinary.TestDatatypeVarbinary.test_datatype_varbinary" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: varbinary</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_varbinary.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_varbinary.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_datatype_varchar.TestDatatypeVarchar.test_datatype_varchar" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_datatype_varchar.TestDatatypeVarchar.test_datatype_varchar" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>DataTypes: varchar</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Auto-create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Alter tag value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Handle illegal input</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_datatype_varchar.py" target="_blank">
-                      cases/01-DataTypes/test_datatype_varchar.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="01-DataTypes.test_null_column.TestNullColumn.test_null_column" class="doc doc-heading">
-
-<a href="#01-DataTypes.test_null_column.TestNullColumn.test_null_column" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>NULL: column</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data with NULL</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a normal table (same name)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data </div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Repeat 20 timeses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_null_column.py" target="_blank">
-                      cases/01-DataTypes/test_null_column.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_delete_reuse1.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_delete_reuse1.py
                     </a>
                   </div>
         </div>
@@ -5060,26 +4492,229 @@
   
   
   
-<h2 id="01-DataTypes.test_null_tag.TestNullTag.test_null_tag" class="doc doc-heading">
+<h2 id="03-Tables.01-NormalTables.test_normaltable_delete_reuse2.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="doc doc-heading">
 
-<a href="#01-DataTypes.test_null_tag.TestNullTag.test_null_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#03-Tables.01-NormalTables.test_normaltable_delete_reuse2.TestNormalTableDeleteReuse2.test_normal_table_delete_reuse2" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>NULL: tag</strong> 
+                    <strong>Repeatedly drop new name</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table with NULL tags</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Select tags</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter tags</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a normal table (new name)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Repeat 20 timeses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_null_tag.py" target="_blank">
-                      cases/01-DataTypes/test_null_tag.py
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_delete_reuse2.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_delete_reuse2.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.test_normaltable_delete_writing.TestNormalTableDeleteWriting.test_normal_table_delete_writing" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.test_normaltable_delete_writing.TestNormalTableDeleteWriting.test_normal_table_delete_writing" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table drop while writing</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a background process that continuously writes data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert data </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Repeat 20 timeses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_delete_writing.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_delete_writing.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.test_normaltable_query_after_drop.TestNormalTableDrop.test_normal_table_drop" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table after drop</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a table → insert one record → query that record → repeat this sequence 8 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Drop all created tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Repeat 1 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_query_after_drop.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_query_after_drop.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.test_normaltable_query_aggregate.TestNormalTableAggregate.test_normal_table_aggregate" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table aggregate</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a table with 256 columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute projection queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute filter queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Execute aggregate queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Kill the process and restart the database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_query_aggregate.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_query_aggregate.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.test_normaltable_query_composite.TestCompositeKeyLoad.test_composite_key_load" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table composite key</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Error Reading Composite Key Data from Memory and STT Files</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Root Cause:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The minKeyused a shallow copy. During backward iteration in STT, this accidentally modified the minKeyvalue. When merging keys from memory and STT, inconsistent key states caused data corruption.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Reproduction Steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table with timestamp column and composite key string column. Insert 4 records into STT files and 1 record into memory.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Execute query → Trigger failure</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_query_composite.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_query_composite.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.test_normaltable_query_filter.TestNormalTableQuery.test_normal_table_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table filter</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute projection queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute aggregate queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Execute field filtering queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_query_filter.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_query_filter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="03-Tables.01-NormalTables.test_normaltable_synatx.TestNormalTableSynatx.test_normal_table_synatx" class="doc doc-heading">
+
+<a href="#03-Tables.01-NormalTables.test_normaltable_synatx.TestNormalTableSynatx.test_normal_table_synatx" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Normal table syntax</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Attempt to create tables with invalid table names</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Attempt to create tables with invalid column names</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Attempt to create tables with invalid data types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Create normal tables with valid and invalid names</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/03-Tables/01-NormalTables/test_normaltable_synatx.py" target="_blank">
+                      cases/03-Tables/01-NormalTables/test_normaltable_synatx.py
                     </a>
                   </div>
         </div>
@@ -5140,10 +4775,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.e71a0d61.min.js"></script>
       
     
   </body>
