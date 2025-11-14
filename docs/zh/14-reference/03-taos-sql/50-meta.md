@@ -334,7 +334,7 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 |:----|:-----------|:------------|:--------|
 | 1   | db_name    | VARCHAR(32) | 数据库名称                      |
 | 2   | vgroup_id  | INT         | vgroup 的 ID                   |
-| 3   | wal        | BIGINT      | wal 文件大小，单位为 KB           |
+| 3   | wal_size   | BIGINT      | wal 文件大小，单位为 KB           |
 | 4   | data1      | BIGINT      | 一级存储上数据文件的大小，单位为 KB   |
 | 5   | data2      | BIGINT      | 二级存储上数据文件的大小，单位为 KB  |
 | 6   | data3      | BIGINT      | 三级存储上数据文件的大小，单位为 KB  |
