@@ -1,0 +1,180 @@
+import json
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Sequence
+
+@dataclass
+class StreamEvent:
+    messageId: Optional[str]
+    timestamp: Optional[int]
+    streamName: Optional[str]
+    eventType: Optional[str]
+    triggerType: Optional[str]
+    triggerId: Optional[str]
+    tableName: Optional[str]
+    windowStart: Optional[int]
+    windowEnd: Optional[int]
+    result: Any              # raw result object (dict or value)
+    resultData: List[Dict]   # flattened result["data"] list if present
+    raw: Dict[str, Any]      # original event dict
+
+class NotifyLog:
+    def __init__(self, path: str):
+        self.path = path
+        self._events: List[StreamEvent] = []
+        self._loaded = False
+
+    def _load(self):
+        if self._loaded:
+            return
+        events: List[StreamEvent] = []
+        with open(self.path, "r", encoding="utf-8") as f:
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception as e:
+                    raise ValueError(f"Line {lineno} not valid JSON: {e}\n{line}")
+                streams = obj.get("streams") or []
+                for s in streams:
+                    streamName = s.get("streamName")
+                    for ev in s.get("events") or []:
+                        result = ev.get("result")
+                        resultData = []
+                        if isinstance(result, dict):
+                            data = result.get("data")
+                            if isinstance(data, list):
+                                resultData = [d for d in data if isinstance(d, dict)]
+                        events.append(StreamEvent(
+                            messageId=obj.get("messageId"),
+                            timestamp=obj.get("timestamp"),
+                            streamName=streamName,
+                            eventType=ev.get("eventType"),
+                            triggerType=ev.get("triggerType"),
+                            triggerId=ev.get("triggerId"),
+                            tableName=ev.get("tableName"),
+                            windowStart=ev.get("windowStart"),
+                            windowEnd=ev.get("windowEnd"),
+                            result=result,
+                            resultData=resultData,
+                            raw=ev
+                        ))
+        self._events = events
+        self._loaded = True
+
+    def events(self) -> Sequence[StreamEvent]:
+        self._load()
+        return self._events
+
+    def find(self, **criteria) -> List[StreamEvent]:
+        """
+        criteria keys: streamName, eventType, triggerType, triggerId,
+                       tableName, windowStart, windowEnd
+        Values can be exact, list/tuple (membership), or callable(value)->bool.
+        """
+        self._load()
+        out = []
+        for ev in self._events:
+            ok = True
+            for k, v in criteria.items():
+                val = getattr(ev, k, None)
+                if callable(v):
+                    if not v(val):
+                        ok = False
+                        break
+                elif isinstance(v, (list, tuple, set)):
+                    if val not in v:
+                        ok = False
+                        break
+                else:
+                    if val != v:
+                        ok = False
+                        break
+            if ok:
+                out.append(ev)
+        return out
+
+    def assert_one(self, msg: str = "", **criteria) -> StreamEvent:
+        """
+        Ensure exactly one event matches criteria.
+        """
+        matches = self.find(**criteria)
+        if len(matches) != 1:
+            raise AssertionError(f"{msg} expected exactly 1 match, got {len(matches)}; criteria={criteria}")
+        return matches[0]
+
+    def assert_exists(self, msg: str = "", **criteria) -> StreamEvent:
+        """
+        Ensure at least one event matches criteria; returns first.
+        """
+        matches = self.find(**criteria)
+        if not matches:
+            raise AssertionError(f"{msg} no event matches criteria={criteria}")
+        return matches[0]
+
+    def assert_result_data(self,
+                           result_filter: Callable[[List[Dict]], bool],
+                           msg: str = "",
+                           **criteria) -> StreamEvent:
+        """
+        Assert an event matches criteria AND its resultData passes result_filter.
+        """
+        ev = self.assert_exists(msg, **criteria)
+        if not result_filter(ev.resultData):
+            raise AssertionError(f"{msg} resultData check failed; size={len(ev.resultData)} data={ev.resultData}")
+        return ev
+
+    def summary(self) -> Dict[str, int]:
+        self._load()
+        stats: Dict[str, int] = {}
+        for ev in self._events:
+            key = f"{ev.streamName}:{ev.eventType}"
+            stats[key] = stats.get(key, 0) + 1
+        return stats
+
+# Convenience one-liner style function
+def expect_event(log_path: str,
+                 streamName: Optional[str] = None,
+                 eventType: Optional[str] = None,
+                 triggerType: Optional[str] = None,
+                 tableName: Optional[str] = None,
+                 windowStart: Optional[int] = None,
+                 windowEnd: Optional[int] = None,
+                 result_pred: Optional[Callable[[List[Dict]], bool]] = None) -> StreamEvent:
+    """
+    One call assertion. Raises AssertionError if not found / predicate fails.
+    Example:
+      expect_event("basic2_s0.log",
+                   streamName="sdb2.s0",
+                   eventType="WINDOW_CLOSE",
+                   windowStart=1735660801000,
+                   windowEnd=1735660804000,
+                   result_pred=lambda d: len(d) == 4)
+    """
+    nl = NotifyLog(log_path)
+    criteria = {}
+    if streamName is not None: criteria["streamName"] = streamName
+    if eventType is not None: criteria["eventType"] = eventType
+    if triggerType is not None: criteria["triggerType"] = triggerType
+    if tableName is not None: criteria["tableName"] = tableName
+    if windowStart is not None: criteria["windowStart"] = windowStart
+    if windowEnd is not None: criteria["windowEnd"] = windowEnd
+    ev = nl.assert_exists(**criteria)
+    if result_pred and not result_pred(ev.resultData):
+        raise AssertionError(f"result predicate failed for event {criteria}; resultData={ev.resultData}")
+    return ev
+
+def expect_rows(log_path: str, rows: int, **criteria) -> StreamEvent:
+    """
+    Assert that the first event matching criteria has exactly `rows` rows in result.data.
+    Example:
+      expect_rows("basic2_s0.log",
+                  rows=4, streamName="sdb2.s0",
+                  eventType="WINDOW_CLOSE", windowStart=1735660801000)
+    """
+    ev = expect_event(log_path, **criteria)
+    actual = len(ev.resultData or [])
+    if actual != rows:
+        raise AssertionError(f"rows mismatch: expected {rows}, got {actual}; criteria={criteria}")
+    return ev
