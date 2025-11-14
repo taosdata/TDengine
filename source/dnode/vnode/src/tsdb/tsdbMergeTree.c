@@ -470,6 +470,8 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           code = terrno;
           goto _end;
         }
+
+        pInfo->memSize = sizeof(SSttTableRowsInfo) + sizeof(SArray) * 6;
       }
 
       if (pStatisBlkArray->data[k].maxTbid.suid == suid) {
@@ -487,6 +489,9 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
 
         px = taosArrayAddBatch(pInfo->pCount, tBufferGetDataAt(&block.counts, offset), size);
         TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+
+        pInfo->memSize += size * sizeof(int64_t) * 4;
+        pInfo->memSize += size * sizeof(SValue) * 2;
 
         if (block.numOfPKs > 0) {
           SValue vFirst = {0}, vLast = {0};
@@ -509,6 +514,8 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
 
             px = taosArrayPush(pInfo->pLastKey, &vLast);
             TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+
+            pInfo->memSize += (IS_VAR_DATA_TYPE(vFirst.type) || vFirst.type == TSDB_DATA_TYPE_DECIMAL)? (vFirst.nData + vLast.nData):0;
           }
         } else {
           SValue vFirst = {0};
@@ -542,20 +549,24 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
           px = taosArrayPush(pInfo->pLastTs, &record.lastKey.ts);
           TSDB_CHECK_NULL(px, code, lino, _end, terrno);
 
+          pInfo->memSize += (sizeof(int64_t) * 4 + sizeof(SValue) * 2);
+
           if (record.firstKey.numOfPKs > 0) {
-            SValue s = record.firstKey.pks[0];
-            code = tValueDupPayload(&s);
+            SValue first = record.firstKey.pks[0];
+            code = tValueDupPayload(&first);
             TSDB_CHECK_CODE(code, lino, _end);
 
-            px = taosArrayPush(pInfo->pFirstKey, &s);
+            px = taosArrayPush(pInfo->pFirstKey, &first);
             TSDB_CHECK_NULL(px, code, lino, _end, terrno);
 
-            s = record.lastKey.pks[0];
-            code = tValueDupPayload(&s);
+            SValue last = record.lastKey.pks[0];
+            code = tValueDupPayload(&last);
             TSDB_CHECK_CODE(code, lino, _end);
 
-            px = taosArrayPush(pInfo->pLastKey, &s);
+            px = taosArrayPush(pInfo->pLastKey, &last);
             TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+
+            pInfo->memSize += (IS_VAR_DATA_TYPE(first.type) || first.type == TSDB_DATA_TYPE_DECIMAL)? (first.nData + last.nData):0;
           } else {
             SValue v = {0};
             px = taosArrayPush(pInfo->pFirstKey, &v);
@@ -1437,6 +1448,8 @@ int32_t sttRowInfoDeepCopy(SSttTableRowsInfo *pDst, SSttTableRowsInfo *pInfo, in
   pDst->pFirstTs = taosArrayDup(pInfo->pFirstTs, NULL);
   pDst->pLastTs = taosArrayDup(pInfo->pLastTs, NULL);
   pDst->pUid = taosArrayDup(pInfo->pUid, NULL);
+
+  pDst->memSize = pInfo->memSize;
   
   if (numOfPKs > 0) {
     int32_t len = taosArrayGetSize(pDst->pCount);
@@ -1491,19 +1504,11 @@ int32_t getCacheValueSize(const SSttStatisCacheValue *pValue) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pValue->pLevel); ++i) {
     SArray *pRowsInfoArr = *(SArray **)taosArrayGet(pValue->pLevel, i);
-
+    
+    size += sizeof(SArray);
     for (int32_t j = 0; j < taosArrayGetSize(pRowsInfoArr); ++j) {
       SSttTableRowsInfo *p = (SSttTableRowsInfo *)taosArrayGet(pRowsInfoArr, j);
-
-      int32_t s = 0;
-      int32_t numOfRows = 0; 
-      if (p != NULL) {  // content size
-        numOfRows = taosArrayGetSize(p->pCount);
-        s = numOfRows * (sizeof(int64_t) * 4 + sizeof(SValue) * 2);
-      }
-
-      size += s;
-      size += sizeof(SSttTableRowsInfo) + sizeof(SArray) * 6;  // structure overhead
+      size += p->memSize;
     }
   }
 
