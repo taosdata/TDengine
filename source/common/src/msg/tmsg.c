@@ -2570,12 +2570,12 @@ int32_t cvtIpWhiteListToDual(SIpWhiteList *pWhiteList, SIpWhiteListDual **pWhite
   if (pList == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-  pList->neg = 0; // always whitelist
   pList->num = pWhiteList->num;
   for (int i = 0; i < pWhiteList->num; i++) {
     SIpV4Range *pIp4 = &(pWhiteList->pIpRange[i]);
     SIpRange   *pRange = &(pList->pIpRanges[i]);
 
+    pRange->neg = 0;
     pRange->type = 0;
     memcpy(&pRange->ipV4, pIp4, sizeof(SIpV4Range));
   }
@@ -2632,6 +2632,7 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
 void copyIpRange(SIpRange* pDst, const SIpRange* pSrc) {
   memset(pDst, 0, sizeof(*pDst));
   pDst->type = pSrc->type;
+  pDst->neg = pSrc->neg;
   if (pSrc->type == 0) {
     memcpy(&pDst->ipV4, &pSrc->ipV4, sizeof(SIpV4Range));
   } else {
@@ -2644,7 +2645,7 @@ void copyIpRange(SIpRange* pDst, const SIpRange* pSrc) {
 SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src) {
   if (src == NULL) return NULL;
 
-  int32_t sz = sizeof(SDateTimeWhiteList) + src->num * sizeof(SDateTimeInterval);
+  int32_t sz = sizeof(SDateTimeWhiteList) + src->num * sizeof(SDateTimeWhiteListItem);
 
   SDateTimeWhiteList *pNew = taosMemoryCalloc(1, sz);
   if (pNew) {
@@ -2869,7 +2870,6 @@ int32_t tSerializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq
 
     TAOS_CHECK_EXIT(getIpv4Range(pUser, &p, &num));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, num));
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pUser->neg));
     for (int32_t i = 0; i < num; i++) {
       SIpV4Range *pRange = &p[i];
       TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRange->ip));
@@ -2909,7 +2909,6 @@ int32_t tDeserializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pR
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pUserWhite->ver));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pUserWhite->user));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pUserWhite->numOfRange));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pUserWhite->neg));
 
     if ((pUserWhite->pIpRanges = taosMemoryCalloc(1, pUserWhite->numOfRange * sizeof(SIpV4Range))) == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -2945,6 +2944,7 @@ int32_t tSerializeIpRange(SEncoder *encoder, SIpRange *pRange) {
   int32_t code = 0;
 
   TAOS_CHECK_EXIT(tEncodeI8(encoder, pRange->type));
+  TAOS_CHECK_EXIT(tEncodeI8(encoder, pRange->neg));
   if (pRange->type == 0) {
     SIpV4Range *pIp4 = (SIpV4Range *)&pRange->ipV4;
     TAOS_CHECK_EXIT(tEncodeU32(encoder, pIp4->ip));
@@ -2964,6 +2964,7 @@ int32_t tDeserializeIpRange(SDecoder *decoder, SIpRange *pRange) {
   int32_t code = 0;
 
   TAOS_CHECK_EXIT(tDecodeI8(decoder, &pRange->type));
+  TAOS_CHECK_EXIT(tDecodeI8(decoder, &pRange->neg));
   if (pRange->type == 0) {
     SIpV4Range *pIp4 = (SIpV4Range *)&pRange->ipV4;
     TAOS_CHECK_EXIT(tDecodeU32(decoder, &pIp4->ip));
@@ -2993,7 +2994,6 @@ int32_t tSerializeSUpdateIpWhiteDual(void *buf, int32_t bufLen, SUpdateIpWhite *
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pUser->ver));
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pUser->user));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUser->numOfRange));
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pUser->neg));
     for (int j = 0; j < pUser->numOfRange; j++) {
       SIpRange *pRange = &pUser->pIpDualRanges[j];
       TAOS_CHECK_EXIT(tSerializeIpRange(&encoder, pRange));
@@ -3030,7 +3030,6 @@ int32_t tDeserializeSUpdateIpWhiteDual(void *buf, int32_t bufLen, SUpdateIpWhite
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pUserWhite->ver));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pUserWhite->user));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pUserWhite->numOfRange));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pUserWhite->neg));
 
     if ((pUserWhite->pIpRanges = taosMemoryCalloc(1, pUserWhite->numOfRange * sizeof(SIpRange))) == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -3395,7 +3394,6 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numIpRanges));
   if (pReq->numIpRanges > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negIpRanges));
     for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
       SIpRange *pRange = pReq->pIpRanges + i;
       code = tSerializeIpRange(&encoder, pRange);
@@ -3405,7 +3403,6 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numDropIpRanges));
   if (pReq->numDropIpRanges > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negDropIpRanges));
     for (int32_t i = 0; i < pReq->numDropIpRanges; ++i) {
       SIpRange *pRange = pReq->pDropIpRanges + i;
       code = tSerializeIpRange(&encoder, pRange);
@@ -3415,7 +3412,6 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numTimeRanges));
   if (pReq->numTimeRanges > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negTimeRanges));
     for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
       SDateTimeRange *pRange = pReq->pTimeRanges + i;
       code = tEncodeSDateTimeRange(&encoder, pRange);
@@ -3425,7 +3421,6 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numDropTimeRanges));
   if (pReq->numDropTimeRanges > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negDropTimeRanges));
     for (int32_t i = 0; i < pReq->numDropTimeRanges; ++i) {
       SDateTimeRange *pRange = pReq->pDropTimeRanges + i;
       code = tEncodeSDateTimeRange(&encoder, pRange);
@@ -3548,7 +3543,6 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numIpRanges));
   if (pReq->numIpRanges > 0) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negIpRanges));
     pReq->pIpRanges = taosMemoryMalloc(pReq->numIpRanges * sizeof(SIpRange));
     if (pReq->pIpRanges == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -3562,7 +3556,6 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numDropIpRanges));
   if (pReq->numDropIpRanges > 0) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negDropIpRanges));
     pReq->pDropIpRanges = taosMemoryMalloc(pReq->numDropIpRanges * sizeof(SIpRange));
     if (pReq->pDropIpRanges == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -3576,7 +3569,6 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numTimeRanges));
   if (pReq->numTimeRanges > 0) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negTimeRanges));
     pReq->pTimeRanges = taosMemoryMalloc(pReq->numTimeRanges * sizeof(SDateTimeRange));
     if (pReq->pTimeRanges == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -3590,7 +3582,6 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numDropTimeRanges));
   if (pReq->numDropTimeRanges > 0) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negDropTimeRanges));
     pReq->pDropTimeRanges = taosMemoryMalloc(pReq->numDropTimeRanges * sizeof(SDateTimeRange));
     if (pReq->pDropTimeRanges == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -4152,7 +4143,6 @@ int32_t tSerializeSGetUserIpWhiteListRsp(void *buf, int32_t bufLen, SGetUserIpWh
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRsp->pWhiteLists[i].ip));
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRsp->pWhiteLists[i].mask));
   }
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->neg));
   tEndEncode(&encoder);
 
 _exit:
@@ -4182,11 +4172,6 @@ int32_t tDeserializeSGetUserIpWhiteListRsp(void *buf, int32_t bufLen, SGetUserIp
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pRsp->pWhiteLists[i].ip)));
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pRsp->pWhiteLists[i].mask)));
   }
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->neg));
-  } else {
-    pRsp->neg = 0;
-  }
 
   tEndDecode(&decoder);
 _exit:
@@ -4209,7 +4194,6 @@ int32_t tSerializeSGetUserIpWhiteListDualRsp(void *buf, int32_t bufLen, SGetUser
     SIpRange *range = &pRsp->pWhiteListsDual[i];
     TAOS_CHECK_EXIT(tSerializeIpRange(&encoder, range));
   }
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->neg));
   tEndEncode(&encoder);
 
 _exit:
@@ -4239,11 +4223,6 @@ int32_t tDeserializeSGetUserIpWhiteListDualRsp(void *buf, int32_t bufLen, SGetUs
     SIpRange *range = &pRsp->pWhiteListsDual[i];
     TAOS_CHECK_EXIT(tDeserializeIpRange(&decoder, range));
   }
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->neg));
-  } else {
-    pRsp->neg = 0;
-  }
 
   tEndDecode(&decoder);
 _exit:
@@ -4254,6 +4233,7 @@ _exit:
 int32_t tIpStrToUint(const SIpAddr *addr, SIpRange *range) {
   int32_t code = 0;
   range->type = addr->type;
+  range->neg = 0;
   const char *buf = IP_ADDR_STR(addr);
   if (addr->type == 0) {
     struct in_addr taddr;
@@ -4374,7 +4354,7 @@ bool isValidDateTimeRange(SDateTimeRange* pRange) {
 
 
 
-void DateTimeRangeToInterval(SDateTimeInterval* dst, const SDateTimeRange* src) {
+void DateTimeRangeToWhiteListItem(SDateTimeWhiteListItem* dst, const SDateTimeRange* src) {
   if (src->month == -1) {
     dst->start = src->day * 86400 + src->hour * 3600 + src->minute * 60;
     dst->absolute = false;
@@ -4389,10 +4369,11 @@ void DateTimeRangeToInterval(SDateTimeInterval* dst, const SDateTimeRange* src) 
     dst->absolute = true;
   }
   dst->duration = src->duration * 60;
+  dst->neg = (src->neg != 0);
 }
 
 
-bool isDateTimeIntervalExpired(const SDateTimeInterval* pInterval) {
+bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* pInterval) {
   if (!pInterval->absolute) {
     return false;
   }
@@ -4414,11 +4395,11 @@ int32_t tSerializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTim
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ver));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numWhiteLists));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->neg));
 
   for (int i = 0; i < pRsp->numWhiteLists; ++i) {
-    SDateTimeInterval *range = &pRsp->pWhiteLists[i];
+    SDateTimeWhiteListItem *range = &pRsp->pWhiteLists[i];
     TAOS_CHECK_EXIT(tEncodeBool(&encoder, range->absolute));
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, range->neg));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, range->start));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, range->duration));
   }
@@ -4446,15 +4427,15 @@ int32_t tDeserializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateT
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numWhiteLists));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->neg));
 
-  pRsp->pWhiteLists = taosMemoryMalloc(pRsp->numWhiteLists * sizeof(SDateTimeInterval));
+  pRsp->pWhiteLists = taosMemoryMalloc(pRsp->numWhiteLists * sizeof(SDateTimeWhiteListItem));
   if (pRsp->pWhiteLists == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
   for (int32_t i = 0; i < pRsp->numWhiteLists; ++i) {
-    SDateTimeInterval *range = &pRsp->pWhiteLists[i];
+    SDateTimeWhiteListItem *range = &pRsp->pWhiteLists[i];
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &range->absolute));
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &range->neg));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &range->start));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &range->duration));
   }
@@ -4489,11 +4470,11 @@ int32_t tSerializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen, S
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pUser->user));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pUser->ver));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUser->numWhiteLists));
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pUser->neg));
 
     for (int j = 0; j < pUser->numWhiteLists; ++j) {
-      SDateTimeInterval* range = &pUser->pWhiteLists[j];
+      SDateTimeWhiteListItem* range = &pUser->pWhiteLists[j];
       TAOS_CHECK_EXIT(tEncodeBool(&encoder, range->absolute));
+      TAOS_CHECK_EXIT(tEncodeBool(&encoder, range->neg));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, range->start));
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, range->duration));
     }
@@ -4533,15 +4514,15 @@ int32_t tDeserializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen,
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pUser->user));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pUser->ver));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pUser->numWhiteLists));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pUser->neg));
 
-    pUser->pWhiteLists = taosMemoryMalloc(pUser->numWhiteLists * sizeof(SDateTimeInterval));
+    pUser->pWhiteLists = taosMemoryMalloc(pUser->numWhiteLists * sizeof(SDateTimeWhiteListItem));
     if (pUser->pWhiteLists == NULL) {
       TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
     for (int32_t j = 0; j < pUser->numWhiteLists; ++j) {
-      SDateTimeInterval *range = &pUser->pWhiteLists[j];
+      SDateTimeWhiteListItem *range = &pUser->pWhiteLists[j];
       TAOS_CHECK_EXIT(tDecodeBool(&decoder, &range->absolute));
+      TAOS_CHECK_EXIT(tDecodeBool(&decoder, &range->neg));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &range->start));
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &range->duration));
     }

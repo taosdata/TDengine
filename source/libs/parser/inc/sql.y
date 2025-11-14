@@ -278,9 +278,23 @@ datetime_range_list(A) ::= datetime_range_list(B) NK_COMMA NK_STRING(C).        
 
 %type create_user_option                                                         { SUserOptions* }
 create_user_option(A) ::= HOST ip_range_list(B).                                 { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
-create_user_option(A) ::= NOT_ALLOW_HOST ip_range_list(B).                       { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; A->negIpRanges = true; }
+create_user_option(A) ::= NOT_ALLOW_HOST ip_range_list(B).                       {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SIpRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pIpRanges = B;
+  }
 create_user_option(A) ::= ALLOW_DATETIME datetime_range_list(B).                 { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; }
-create_user_option(A) ::= NOT_ALLOW_DATETIME datetime_range_list(B).             { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; A->negTimeRanges = true; }
+create_user_option(A) ::= NOT_ALLOW_DATETIME datetime_range_list(B).             {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SDateTimeRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pTimeRanges = B;
+  }
 
 %type create_user_options                                                        { SUserOptions* }
 create_user_options(A) ::= user_option(B).                                       { A = B; }
@@ -296,13 +310,41 @@ create_user_options_opt(A) ::= create_user_options(B).                          
 %type alter_user_option                                                          { SUserOptions* }
 alter_user_option(A) ::= PASS NK_STRING(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsPassword(pCxt, A, &B); }
 alter_user_option(A) ::= ADD HOST ip_range_list(B).                              { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
-alter_user_option(A) ::= ADD NOT_ALLOW_HOST ip_range_list(B).                    { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; A->negIpRanges = true; }
+alter_user_option(A) ::= ADD NOT_ALLOW_HOST ip_range_list(B).                    {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SIpRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pIpRanges = B;
+  }
 alter_user_option(A) ::= DROP HOST ip_range_list(B).                             { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropIpRanges = B; }
-alter_user_option(A) ::= DROP NOT_ALLOW_HOST ip_range_list(B).                   { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropIpRanges = B; A->negDropIpRanges = true; }
+alter_user_option(A) ::= DROP NOT_ALLOW_HOST ip_range_list(B).                   {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SIpRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pDropIpRanges = B;
+  }
 alter_user_option(A) ::= ADD ALLOW_DATETIME datetime_range_list(B).              { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; }
-alter_user_option(A) ::= ADD NOT_ALLOW_DATETIME datetime_range_list(B).          { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; A->negTimeRanges = true; }
+alter_user_option(A) ::= ADD NOT_ALLOW_DATETIME datetime_range_list(B).          {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SDateTimeRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pTimeRanges = B;
+  }
 alter_user_option(A) ::= DROP ALLOW_DATETIME datetime_range_list(B).             { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropTimeRanges = B; }
-alter_user_option(A) ::= DROP NOT_ALLOW_DATETIME datetime_range_list(B).         { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropTimeRanges = B; A->negDropTimeRanges = true; }
+alter_user_option(A) ::= DROP NOT_ALLOW_DATETIME datetime_range_list(B).         {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SDateTimeRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pDropTimeRanges = B;
+  }
 
 %type alter_user_options                                                         { SUserOptions* }
 alter_user_options(A) ::= user_option(B).                                        { A = B; }
