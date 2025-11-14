@@ -19,29 +19,30 @@ import time
 
 
 # --------------------- util -----------------------
-def exe(command, show = False):
-    code = os.system(command)
-    if show:
-        print(f"eos.exe retcode={code} command:{command}")
-    return code
 
-def readFileContext(filename):
+def relative_path(file_name):
+    current_dir = os.path.dirname(__file__)
+    return os.path.join(current_dir, file_name)
+
+
+def read_file_context(filename):
     file = open(filename)
     context = file.read()
     file.close()
     return context
 
 # run return output and error
-def run(command):
+def exe_cmd(command):
     id = time.time_ns() % 100000
     out = f"out_{id}.txt"
     err = f"err_{id}.txt"
+    command += f" 1>{out} 2>{err}"
     
-    code = exe(command + f" 1>{out} 2>{err}")
+    code = os.system(command)
 
     # read from file
-    output = readFileContext(out)
-    error  = readFileContext(err)
+    output = read_file_context(out)
+    error  = read_file_context(err)
 
     # del
     if os.path.exists(out):
@@ -50,27 +51,3 @@ def run(command):
         os.remove(err)
 
     return output, error, code
-
-
-def waitStreamReady(stream_name="", timeout=120):
-    sql = "select * from information_schema.ins_stream_tasks where type = 'Trigger' and status != 'Running'"
-    if len(stream_name) > 0:
-        sql += f" and name = '{stream_name}'"
-    
-    conn = taos.connect()
-    cursor = conn.cursor()   
-    print(f"Wait stream ready...")
-    time.sleep(5)
-    for i in range(timeout):
-        cursor.execute(sql)
-        results = cursor.fetchall()
-        if len(results) == 0:
-            conn.close()
-            return
-        time.sleep(1)
-        
-
-    info = f"stream task status not ready in {timeout} seconds"
-    print(info)
-    conn.close()
-    raise Exception(info)

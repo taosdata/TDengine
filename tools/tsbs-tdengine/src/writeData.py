@@ -15,11 +15,39 @@
 
 import os
 import sys
+import time
+import util
+
 from baseStep import BaseStep
 
 class WriteData(BaseStep):
-    def __init__(self):
-        pass
+    def __init__(self, scene):
+        self.scene = scene
+        self.des_url = "taos://root:taosdata@localhost:6030/test"
+
+    def taosx_import_csv(desc, source, parser_file, batch_size):
+        command = f"taosx run -t '{desc}' -f '{source}?batch_size={batch_size}' --parser '@{parser_file}'"
+        print(f"Executing command: {command}")
+        output, error, code = util.exe_cmd(command)
+        print(f"Output: {output}")
+        print(f"Error: {error}")
+        print(f"Return code: {code}")
+    
+        return output, error, code
 
     def run(self):
         print("WriteData step executed")
+        for csv_file in self.scene.csv_files:
+            print(f"Writing data from CSV file: {csv_file}")
+            
+            # taosX import csv
+            start = time.time()
+            output, error, code = self.taosx_import_csv (
+                desc = self.des_url,
+                source = f"csv:" + csv_file,
+                parser_file = csv_file .replace(".csv", ".taosx.json"),
+                batch_size = 50000
+            )
+            end = time.time()
+            cost = end - start
+            print("taosX import csv %s time cost: %.3f seconds"%(csv_file, cost))

@@ -26,21 +26,21 @@ import deployCluster
 import prepareEnv
 import writeData
 import doTest
-import cmdLine
+
 
 from outLog import log
 from outMetrics import metrics
 from deployCluster import cluster
+from cmdLine import cmd
 
 
 
 def doScene(scene):
-    print("Running scene: %s" % scene)
+    print("Running scene: %s" % scene.scenario)
 
     # prepare env
-    prep = prepareEnv.PrepareEnv()
-    prep.prepare_env(scene)
-
+    env = prepareEnv.PrepareEnv(scene)
+    env.run(scene)
     
     # write data
     writer = writeData.WriteData(scene)
@@ -55,8 +55,12 @@ def doScene(scene):
 #
 if __name__ == "__main__":
     print("TSBS TDengine Tool Ver 1.0")
-    cmd = cmdLine.CmdLine()
+    
+    # Initialize command line arguments
     cmd.init()
+    
+    # Show current configuration
+    cmd.show_config()    
     
     log.init_log("tsbs_tdengine.log")
     metrics.init_metrics("tsbs_tdengine.metrics")
@@ -71,4 +75,4 @@ if __name__ == "__main__":
 
     # output metrics
     metrics.output_metrics()
-    log.close_log()
+    log.close()

@@ -18,9 +18,25 @@ import sys
 
 
 class Scene:
-    def __init__(self, name, csv, taosx_json, yarm):
-        self.name = name
-        self.csv = csv
-        self.taosx_json = taosx_json
-        self.yarm = yarm
+    def __init__(self, scenario, sql, config_path, data_path):
+        self.scenario = scenario
+        self.sql = sql
+        tables = self.parser_tables(sql)
+        self.generate_filename(tables, config_path, data_path)
+        
+    def parser_tables(self, sql):
+        pass    
+    
+    # Generate file names for CSV, SQL, and YAML files based on table names
+    def generate_filename(self, tables, config_path, data_path):
+        self.csv_files = []
+        self.sql_files = []
+        self.yarml_files = []
+        for table in tables:
+            filename = os.path.join(data_path, f"{table}.csv")
+            self.csv_files.append(filename)
+            filename = os.path.join(config_path, f"{table}.sql")
+            self.sql_files.append(filename)
+            filename = os.path.join(config_path, f"{table}.yaml")
+            self.yarml_files.append(filename)
     
