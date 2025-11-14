@@ -3297,7 +3297,6 @@ int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STr
   code = transAsyncSend(pThrd->asyncPool, &pCliReq->q);
   if (code != 0) {
     destroyReq(pReq);
-    transInstRelease((int64_t)pInstRef);
     TAOS_CHECK_GOTO((code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code), NULL, _RETURN);
   }
   TAOS_UNUSED(tsem_wait(sem));
