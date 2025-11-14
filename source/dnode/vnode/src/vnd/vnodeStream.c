@@ -1166,13 +1166,20 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  if (*schemas == NULL) {
-    *schemas = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
+  STSchema*    schema = NULL;
+  if (sStreamReaderInfo->isVtableStream) {
     if (*schemas == NULL) {
-      ST_TASK_ELOG("vgId:%d %s table schema not found for suid:%" PRId64 ", uid:%" PRId64 ", sver:%d", 
-        TD_VID(pVnode), __func__, submitTbData.suid, submitTbData.uid, submitTbData.sver);
+      *schemas = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
+      STREAM_CHECK_NULL_GOTO(*schemas, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
     }
-    STREAM_CHECK_NULL_GOTO(*schemas, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
+    schema = *schemas;
+  } else {
+    if (sStreamReaderInfo->triggerTableSchema == NULL || sStreamReaderInfo->triggerTableSchema->version != submitTbData.sver) {
+      taosMemoryFree(sStreamReaderInfo->triggerTableSchema);
+      sStreamReaderInfo->triggerTableSchema = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
+      STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerTableSchema, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
+    }
+    schema = sStreamReaderInfo->triggerTableSchema;
   }
 
   SStreamWalDataSlice* pSlice = (SStreamWalDataSlice*)tSimpleHashGet(rsp->indexHash, &submitTbData.uid, LONG_BYTES);

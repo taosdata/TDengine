@@ -79,6 +79,7 @@ typedef struct SStreamTriggerReaderInfo {
   SFilterInfo* pFilterInfo;
   SHashObj*    pTableMetaCacheTrigger;
   SHashObj*    pTableMetaCacheCalc;
+  STSchema*    triggerTableSchema;
   bool         groupByTbname;
   void*        pVnode;
   SRWLatch     lock;
