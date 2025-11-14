@@ -141,9 +141,11 @@ def expect_event(log_path: str,
                  tableName: Optional[str] = None,
                  windowStart: Optional[int] = None,
                  windowEnd: Optional[int] = None,
-                 result_pred: Optional[Callable[[List[Dict]], bool]] = None) -> StreamEvent:
+                 result_pred: Optional[Callable[[List[Dict]], bool]] = None,
+                 retries: int = 60) -> StreamEvent:
     """
     One call assertion. Raises AssertionError if not found / predicate fails.
+    Retry `retries` times (default 60), sleeping 1s between attempts.
     Example:
       expect_event("basic2_s0.log",
                    streamName="sdb2.s0",
@@ -152,20 +154,36 @@ def expect_event(log_path: str,
                    windowEnd=1735660804000,
                    result_pred=lambda d: len(d) == 4)
     """
-    nl = NotifyLog(log_path)
-    criteria = {}
+    import time
+
+    criteria: Dict[str, Any] = {}
     if streamName is not None: criteria["streamName"] = streamName
     if eventType is not None: criteria["eventType"] = eventType
     if triggerType is not None: criteria["triggerType"] = triggerType
     if tableName is not None: criteria["tableName"] = tableName
     if windowStart is not None: criteria["windowStart"] = windowStart
     if windowEnd is not None: criteria["windowEnd"] = windowEnd
-    ev = nl.assert_exists(**criteria)
-    if result_pred and not result_pred(ev.resultData):
-        raise AssertionError(f"result predicate failed for event {criteria}; resultData={ev.resultData}")
-    return ev
 
-def expect_rows(log_path: str, rows: int, **criteria) -> StreamEvent:
+    retries = max(0, int(retries))
+    last_err: Optional[Exception] = None
+
+    for attempt in range(retries + 1):
+        try:
+            # Recreate reader each attempt to capture newly appended lines
+            nl = NotifyLog(log_path)
+            ev = nl.assert_exists(**criteria)
+            if result_pred is not None and not result_pred(ev.resultData):
+                raise AssertionError(f"result predicate failed for event {criteria}; resultData={ev.resultData}")
+            return ev
+        except (AssertionError, ValueError, FileNotFoundError) as e:
+            last_err = e
+            if attempt < retries:
+                print(f"Attempt {attempt+1} failed: {e}. Retrying...")
+                time.sleep(1)
+            else:
+                raise last_err
+
+def expect_rows(log_path: str, rows: int, retries: int = 60, **criteria) -> StreamEvent:
     """
     Assert that the first event matching criteria has exactly `rows` rows in result.data.
     Example:
@@ -173,7 +191,7 @@ def expect_rows(log_path: str, rows: int, **criteria) -> StreamEvent:
                   rows=4, streamName="sdb2.s0",
                   eventType="WINDOW_CLOSE", windowStart=1735660801000)
     """
-    ev = expect_event(log_path, **criteria)
+    ev = expect_event(log_path, **criteria, retries=retries)
     actual = len(ev.resultData or [])
     if actual != rows:
         raise AssertionError(f"rows mismatch: expected {rows}, got {actual}; criteria={criteria}")
