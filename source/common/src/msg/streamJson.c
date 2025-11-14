@@ -49,8 +49,8 @@ static int32_t sessionTriggerToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSessionTrigger(const SJson* pJson, void* pObj) {
   SSessionTrigger* pTrigger = (SSessionTrigger*)pObj;
-  TAOS_CHECK_RETURN(
-    tjsonGetSmallIntValue(pJson, jkSessionTriggerSlotId, &pTrigger->slotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(
+    pJson, jkSessionTriggerSlotId, &pTrigger->slotId));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkSessionTriggerSessionVal, &pTrigger->sessionVal));
   return TSDB_CODE_SUCCESS;
@@ -148,9 +148,9 @@ static int32_t jsonToSlidingTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
-static const char* jkEventTriggerStartCond         = "startCond";
-static const char* jkEventTriggerEndCond           = "endCond";
-static const char* jkEventTriggerTrueForDuration   = "trueForDuration";
+static const char* jkEventTriggerStartCond       = "startCond";
+static const char* jkEventTriggerEndCond         = "endCond";
+static const char* jkEventTriggerTrueForDuration = "trueForDuration";
 static int32_t eventTriggerToJson(const void* pObj, SJson* pJson) {
   const SEventTrigger* pTrigger = (const SEventTrigger*)pObj;
   if (NULL != pTrigger->startCond) {
@@ -168,10 +168,10 @@ static int32_t eventTriggerToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToEventTrigger(const SJson* pJson, void* pObj) {
   SEventTrigger* pTrigger = (SEventTrigger*)pObj;
-  TAOS_CHECK_RETURN(
-    tjsonDupStringValue(pJson, jkEventTriggerStartCond, (char**)&pTrigger->startCond));
-  TAOS_CHECK_RETURN(
-    tjsonDupStringValue(pJson, jkEventTriggerEndCond, (char**)&pTrigger->endCond));
+  TAOS_CHECK_RETURN(tjsonDupStringValue(
+    pJson, jkEventTriggerStartCond, (char**)&pTrigger->startCond));
+  TAOS_CHECK_RETURN(tjsonDupStringValue(
+    pJson, jkEventTriggerEndCond, (char**)&pTrigger->endCond));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkEventTriggerTrueForDuration, &pTrigger->trueForDuration));
   return TSDB_CODE_SUCCESS;
@@ -202,11 +202,11 @@ static int32_t jsonToCountTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
-static const char* jkPeriodTriggerPeriodUnit  = "periodUnit";
-static const char* jkPeriodTriggerOffsetUnit  = "offsetUnit";
-static const char* jkPeriodTriggerPrecision   = "precision";
-static const char* jkPeriodTriggerPeriod      = "period";
-static const char* jkPeriodTriggerOffset      = "offset";
+static const char* jkPeriodTriggerPeriodUnit = "periodUnit";
+static const char* jkPeriodTriggerOffsetUnit = "offsetUnit";
+static const char* jkPeriodTriggerPrecision  = "precision";
+static const char* jkPeriodTriggerPeriod     = "period";
+static const char* jkPeriodTriggerOffset     = "offset";
 static int32_t periodTriggerToJson(const void* pObj, SJson* pJson) {
   const SPeriodTrigger* pTrigger = (const SPeriodTrigger*)pObj;
   TAOS_CHECK_RETURN(tjsonAddStringToObject(
@@ -237,13 +237,13 @@ static int32_t jsonToPeriodTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t intToJson(const void* pObj, SJson* pJson) {
+static int32_t int32ToJson(const void* pObj, SJson* pJson) {
   const int32_t* pInt = (const int32_t*)pObj;
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "value", *pInt));
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t jsonToInt(const SJson* pJson, void* pObj) {
+static int32_t jsonToInt32(const SJson* pJson, void* pObj) {
   int32_t* pInt = (int32_t*)pObj;
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, "value", pInt));
   return TSDB_CODE_SUCCESS;
@@ -255,7 +255,7 @@ static const char* jkSstreamCalcScanScanPlan      = "scanPlan";
 static int32_t calcScanPlanToJson(const void* pObj, SJson* pJson) {
   const SStreamCalcScan* pPlan = (const SStreamCalcScan*)pObj;
   TAOS_CHECK_RETURN(tjsonAddArray(
-    pJson, jkSstreamCalcScanVgList, intToJson,
+    pJson, jkSstreamCalcScanVgList, int32ToJson,
     pPlan->vgList ? TARRAY_GET_ELEM(pPlan->vgList, 0) : NULL, sizeof(int32_t),
     pPlan->vgList ? pPlan->vgList->size : 0));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
@@ -270,7 +270,7 @@ static int32_t calcScanPlanToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToCalcScanPlan(const SJson* pJson, void* pObj) {
   SStreamCalcScan* pPlan = (SStreamCalcScan*)pObj;
   TAOS_CHECK_RETURN(tjsonToTArray(
-    pJson, jkSstreamCalcScanVgList, jsonToInt,
+    pJson, jkSstreamCalcScanVgList, jsonToInt32,
     &pPlan->vgList, sizeof(int32_t)));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkSstreamCalcScanReadFromCache, &pPlan->readFromCache));
@@ -309,8 +309,8 @@ static int32_t jsonToSDataType(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
-static const char* jkSStreamOutColExpr      = "expr";
-static const char* jkSStreamOutColType      = "type";
+static const char* jkSStreamOutColExpr = "expr";
+static const char* jkSStreamOutColType = "type";
 static int32_t sStreamOutColToJson(const void* pObj, SJson* pJson) {
   const SStreamOutCol* pCol = (const SStreamOutCol*)pObj;
   if (NULL != pCol->expr) {
@@ -489,7 +489,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   // trigger cols and partition cols
   if (NULL != pReq->triggerFilterCols) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(
-      pJson, jkCreateStreamReqTriggerFilterCols, (const char*)pReq->triggerFilterCols));
+      pJson, jkCreateStreamReqTriggerFilterCols,
+      (const char*)pReq->triggerFilterCols));
   }
   if (NULL != pReq->triggerCols) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(
@@ -604,7 +605,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqTriggerHasPF, pReq->triggerHasPF));
   if (NULL != pReq->triggerPrevFilter) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(
-      pJson, jkCreateStreamReqTriggerPrevFilter, (const char*)pReq->triggerPrevFilter));
+      pJson, jkCreateStreamReqTriggerPrevFilter,
+      (const char*)pReq->triggerPrevFilter));
   }
 
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
@@ -720,7 +722,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqNotifyHistory, &pReq->notifyHistory));
 
   TAOS_CHECK_RETURN(tjsonDupStringValue(
-    pJson, jkCreateStreamReqTriggerFilterCols, (char**)&pReq->triggerFilterCols));
+    pJson, jkCreateStreamReqTriggerFilterCols,
+    (char**)&pReq->triggerFilterCols));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkCreateStreamReqTriggerCols, (char**)&pReq->triggerCols));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
@@ -820,7 +823,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkCreateStreamReqTriggerHasPF, &pReq->triggerHasPF));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
-    pJson, jkCreateStreamReqTriggerPrevFilter, (char**)&pReq->triggerPrevFilter));
+    pJson, jkCreateStreamReqTriggerPrevFilter,
+    (char**)&pReq->triggerPrevFilter));
   TAOS_CHECK_RETURN(tjsonGetIntValue(
     pJson, jkCreateStreamReqNumOfCalcSubplan, &pReq->numOfCalcSubplan));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
@@ -830,7 +834,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkCreateStreamReqTagValueExpr, (char**)&pReq->tagValueExpr));
   TAOS_CHECK_RETURN(tjsonToTArray(
-    pJson, jkCreateStreamReqForceOutCols, jsonToSStreamOutCol, &pReq->forceOutCols, sizeof(SStreamOutCol)));
+    pJson, jkCreateStreamReqForceOutCols,
+    jsonToSStreamOutCol, &pReq->forceOutCols, sizeof(SStreamOutCol)));
 
   return TSDB_CODE_SUCCESS;
 }

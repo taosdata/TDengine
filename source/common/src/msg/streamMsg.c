@@ -2302,6 +2302,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, json, jsonLen));
 
 _exit:
+  taosMemoryFreeClear(json);
   if (code) {
     return code;
   }
