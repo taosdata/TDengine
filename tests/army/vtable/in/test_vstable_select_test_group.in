@@ -27,8 +27,8 @@ select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col
 select last(*) from test_vtable_select.vtb_virtual_stb group by int_tag slimit 10 limit 10;
 
 select count(*) from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
-select tbname from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
-select tbname, count(*) from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
+select tbname from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
+select tbname, count(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
 select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
 select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
 select last(*) from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;

@@ -5568,6 +5568,116 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
   return TSDB_CODE_SUCCESS;
 }
 
+static bool vtableTagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL != nodeType(pNode)) {
+    return false;
+  }
+  SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)pNode;
+  SVirtualScanLogicNode*  pVtableScan = (SVirtualScanLogicNode*)nodesListGetNode(pDyn->node.pChildren, 0);
+  if (!pVtableScan || LIST_LENGTH(pVtableScan->node.pChildren) != 2) {
+    return false;
+  }
+  SScanLogicNode*         pTagScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 0);
+  SScanLogicNode*         pScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 1);
+
+  if (NULL == pTagScan || nodeType((SLogicNode*)pTagScan) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      NULL == pScan || nodeType((SLogicNode*)pScan) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      pTagScan->scanType != SCAN_TYPE_TAG || pScan->hasNormalCols) {
+    return false;
+  }
+
+  if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||
+      1 != LIST_LENGTH(pNode->pParent->pChildren)) {
+    return false;
+  }
+
+  SAggLogicNode* pAgg = (SAggLogicNode*)(pNode->pParent);
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || keysHasCol(pAgg->pGroupKeys) ||
+      !planOptNodeListHasTbname(pAgg->pGroupKeys)) {
+    return false;
+  }
+
+  SNode* pGroupKey = NULL;
+  FOREACH(pGroupKey, pAgg->pGroupKeys) {
+    SNode* pGroup = NULL;
+    FOREACH(pGroup, ((SGroupingSetNode*)pGroupKey)->pParameterList) {
+      if (QUERY_NODE_COLUMN != nodeType(pGroup)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+static int32_t vtableTagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, vtableTagScanOptShouldBeOptimized, NULL);
+  if (NULL == pDyn) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SVirtualScanLogicNode*  pVtableScan = NULL;
+  SScanLogicNode*         pTagScan = NULL;
+  SScanLogicNode*         pScan = NULL;
+  SNodeList*              pScanTargets = NULL;
+  SNode*                  pNewTarget = NULL;
+  bool                    freeTargets = false;
+  bool                    freeTarget = false;
+
+  pVtableScan = (SVirtualScanLogicNode*)nodesListGetNode(pDyn->node.pChildren, 0);
+  QUERY_CHECK_NULL(pVtableScan, code, lino, _return, terrno);
+  pTagScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 0);
+  QUERY_CHECK_NULL(pTagScan, code, lino, _return, terrno);
+  pScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 1);
+  QUERY_CHECK_NULL(pScan, code, lino, _return, terrno);
+
+  SLogicNode* pAgg = pDyn->node.pParent;
+  if (NULL == pAgg->pParent) {
+    PLAN_ERR_JRET(nodesMakeList(&pScanTargets));
+    freeTargets = true;
+    SNode* pAggTarget = NULL;
+    FOREACH(pAggTarget, pAgg->pTargets) {
+      SNode* pScanTarget = NULL;
+      FOREACH(pScanTarget, pTagScan->node.pTargets) {
+        if (0 == strcmp(((SColumnNode*)pAggTarget)->colName, ((SColumnNode*)pScanTarget)->colName)) {
+          PLAN_ERR_JRET(nodesCloneNode(pScanTarget, &pNewTarget));
+          freeTarget = true;
+          PLAN_ERR_JRET(nodesListAppend(pScanTargets, pNewTarget));
+          freeTarget = false;
+          break;
+        }
+      }
+    }
+    nodesDestroyList(pTagScan->node.pTargets);
+    pTagScan->node.pTargets = pScanTargets;
+    freeTargets = false;
+  }
+
+  NODES_CLEAR_LIST(pVtableScan->node.pChildren);
+  nodesDestroyNode((SNode*)pScan);
+  nodesDestroyNode((SNode*)pDyn);
+  NODES_CLEAR_LIST(pAgg->pChildren);
+  PLAN_ERR_JRET(nodesListMakeAppend(&pAgg->pChildren, (SNode*)pTagScan));
+  pTagScan->node.pParent = pAgg;
+  pTagScan->onlyMetaCtbIdx = false;
+  pTagScan->node.dynamicOp = false;
+  pTagScan->virtualStableScan = false;
+
+  pCxt->optimized = true;
+_return:
+  if (code) {
+    planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+  }
+  if (freeTargets) {
+    nodesDestroyList(pScanTargets);
+  }
+  if (freeTarget) {
+    nodesDestroyNode(pNewTarget);
+  }
+  return code;
+}
+
 static bool pushDownLimitOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   if ((NULL == pNode->pLimit && pNode->pSlimit == NULL) || 1 != LIST_LENGTH(pNode->pChildren)) {
     return false;
@@ -8261,6 +8371,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
   {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
+  {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
 };
 // clang-format on
 
