@@ -4057,7 +4057,7 @@ static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName) {
     }
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    trimEscape(pCxt, TSDB_ROLE_LEN, true);
+    trimEscape(pCxt, pName, true);
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
@@ -5196,47 +5196,66 @@ _err:
   return NULL;
 }
 
-SNode* createGrantStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, int8_t type) {
+SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPrivLevel, SToken* pPrincipal,
+                       SNode* pTagCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkRoleName(pCxt, pPrincipal));
-
-  CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
-  CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
   SGrantStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_GRANT_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
-  if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
-    COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
-  }
+  pStmt->optrType = optrType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
-  pStmt->pTagCond = pTagCond;
+  if (optrType == TSDB_GRANT_TYPE_PRIVILEGES) {
+    CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
+    CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
+    pStmt->privileges = *(SPrivSet*)resouces;
+    COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+    if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+    }
+    pStmt->pTagCond = pTagCond;
+  } else if (optrType == TSDB_GRANT_TYPE_ROLE) {
+    SToken* pRole = (SToken*)resouces;
+    CHECK_NAME(checkRoleName(pCxt, pRole));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unsupported grant type");
+    goto _err;
+  }
+
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pTagCond);
   return NULL;
 }
 
-SNode* createRevokeStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, int8_t type) {
+SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPrivLevel, SToken* pPrincipal,
+                        SNode* pTagCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pPrincipal));
-
-  CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
-
-  CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
   SRevokeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REVOKE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
-  if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
-    COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
-  }
+  pStmt->optrType = optrType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
-  pStmt->pTagCond = pTagCond;
+  if (optrType == TSDB_GRANT_TYPE_PRIVILEGES) {
+    CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
+    CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
+    pStmt->privileges = *(SPrivSet*)resouces;
+    COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+    if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+    }
+    pStmt->pTagCond = pTagCond;
+  } else if (optrType == TSDB_GRANT_TYPE_ROLE) {
+    SToken* pRole = (SToken*)resouces;
+    CHECK_NAME(checkRoleName(pCxt, pRole));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unsupported revoke type");
+    goto _err;
+  }
+
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pTagCond);

@@ -816,11 +816,16 @@ typedef struct SDropViewStmt {
 
 typedef struct SGrantStmt {
   ENodeType type;
+  int8_t    optrType;                   // privilege/role
   char      principal[TSDB_ROLE_LEN];   // user or role name
   char      objName[TSDB_DB_NAME_LEN];  // db or topic
   char      tabName[TSDB_TABLE_NAME_LEN];
-  SPrivSet  privileges;
-  SNode*    pTagCond;
+  union {
+    SPrivSet privileges;
+    char     roleName[TSDB_ROLE_LEN];
+  };
+
+  SNode* pTagCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;

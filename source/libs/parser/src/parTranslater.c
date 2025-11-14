@@ -15863,7 +15863,7 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   }
 #endif
 
-  tstrncpy(req.user, pStmt->userName, TSDB_USER_LEN);
+  tstrncpy(req.user, pStmt->principal, TSDB_USER_LEN);
   snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   snprintf(req.tabName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
   if (!req.isView) {
@@ -15899,7 +15899,7 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   }
 #endif
 
-  tstrncpy(req.user, pStmt->userName, TSDB_USER_LEN);
+  tstrncpy(req.user, pStmt->principal, TSDB_USER_LEN);
   snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   snprintf(req.tabName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);

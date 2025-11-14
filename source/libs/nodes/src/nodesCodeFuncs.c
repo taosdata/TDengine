@@ -9052,7 +9052,7 @@ static const char* jkGrantStmtPrivileges = "Privileges";
 static int32_t grantStmtToJson(const void* pObj, SJson* pJson) {
   const SGrantStmt* pNode = (const SGrantStmt*)pObj;
 
-  int32_t code = tjsonAddStringToObject(pJson, jkGrantStmtUserName, pNode->userName);
+  int32_t code = tjsonAddStringToObject(pJson, jkGrantStmtUserName, pNode->principal);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkGrantStmtObjName, pNode->objName);
   }
@@ -9079,7 +9079,7 @@ static int32_t grantStmtToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToGrantStmt(const SJson* pJson, void* pObj) {
   SGrantStmt* pNode = (SGrantStmt*)pObj;
 
-  int32_t code = tjsonGetStringValue(pJson, jkGrantStmtUserName, pNode->userName);
+  int32_t code = tjsonGetStringValue(pJson, jkGrantStmtUserName, pNode->principal);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkGrantStmtObjName, pNode->objName);
   }
