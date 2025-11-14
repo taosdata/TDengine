@@ -2075,7 +2075,7 @@ _exit:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  if ((*ppRes)->info.rows <= 0) {
+  if ((*ppRes) && (*ppRes)->info.rows <= 0) {
     *ppRes = NULL;
   }
 
