@@ -2638,13 +2638,9 @@ int32_t tDeserializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->principal));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objname));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tblName));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->tagCondLen));
-  if (pReq->tagCondLen > 0) {
-    pReq->tagCond = taosMemoryMalloc(pReq->tagCondLen + 1);
-    if (pReq->tagCond == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-  }
+  uint64_t tagCondLen = 0;
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->tagCond, &tagCondLen));
+  pReq->tagCondLen = tagCondLen;
   DECODESQL();
   tEndDecode(&decoder);
 
