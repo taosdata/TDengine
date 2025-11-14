@@ -185,6 +185,7 @@ static bool uidInTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t 
     if(*id == -1) *id = uid;
     return uid == sStreamReaderInfo->uid;
   }
+  return true;
 }
 
 static bool uidInTableListOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t suid, int64_t uid, uint64_t* id) {
