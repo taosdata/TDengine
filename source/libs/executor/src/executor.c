@@ -281,14 +281,14 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
                                      EOPTR_EXEC_MODEL model, SStreamInserterParam* streamInserterParam) {
   if (pSubplan == NULL || pTaskInfo == NULL) {
     qError("invalid parameter, pSubplan:%p, pTaskInfo:%p", pSubplan, pTaskInfo);
-    nodesDestroyNode((SNode *)pSubplan);
+    nodesDestroyNode((SNode*)pSubplan);
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t lino = 0;
   int32_t code = checkInsertParam(streamInserterParam);
   if (code != TSDB_CODE_SUCCESS) {
     qError("invalid stream inserter param, code:%s", tstrerror(code));
-    nodesDestroyNode((SNode *)pSubplan);
+    nodesDestroyNode((SNode*)pSubplan);
     return code;
   }
   SInserterParam* pInserterParam = NULL;
@@ -319,7 +319,7 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     }
     code = cloneStreamInserterParam(&pInserterParam->streamInserterParam, streamInserterParam);
     TSDB_CHECK_CODE(code, lino, _error);
-    
+
     pInserterParam->readHandle = taosMemCalloc(1, sizeof(SReadHandle));
     pInserterParam->readHandle->pMsgCb = readHandle->pMsgCb;
 
@@ -346,14 +346,13 @@ bool qNeedReset(qTaskInfo_t pInfo) {
   if (pInfo == NULL) {
     return false;
   }
-  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
-  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)pInfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
   if (pOperator == NULL || pOperator->pPhyNode == NULL) {
     return false;
   }
   int32_t node = nodeType(pOperator->pPhyNode);
-  return (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == node || 
-          QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == node ||
+  return (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == node || QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == node ||
           QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == node);
 }
 
@@ -372,8 +371,8 @@ int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
   if (pInfo == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
-  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)pInfo;
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
 
   void*           info = pOperator->info;
   STableScanBase* pScanBaseInfo = NULL;
@@ -386,8 +385,8 @@ int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
     setReadHandle(handle, pScanBaseInfo);
   }
 
-  qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name, GET_TASKID(pTaskInfo), handle->winRange.skey,
-  handle->winRange.ekey);
+  qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name,
+         GET_TASKID(pTaskInfo), handle->winRange.skey, handle->winRange.ekey);
   return pOperator->fpSet.resetStateFn(pOperator);
 }
 
@@ -402,7 +401,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   SSubplan* pPlan = NULL;
   int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode *)pPlan);
+    nodesDestroyNode((SNode*)pPlan);
     return code;
   }
   // todo: add stream inserter param
@@ -1523,8 +1522,8 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     return;
   }
 
-  qDebug("rsp msg got, code:%x, len:%d, 0x%" PRIx64 ":0x%" PRIx64, 
-      pMsg->code, pMsg->contLen, TRACE_GET_ROOTID(&pMsg->info.traceId), TRACE_GET_MSGID(&pMsg->info.traceId));
+  qDebug("rsp msg got, code:%x, len:%d, 0x%" PRIx64 ":0x%" PRIx64, pMsg->code, pMsg->contLen,
+         TRACE_GET_ROOTID(&pMsg->info.traceId), TRACE_GET_MSGID(&pMsg->info.traceId));
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
 
@@ -1881,7 +1880,9 @@ SArray*  qStreamGetTableListArray(void* pTableListInfo) {
   return pList->pTableList;
 }
 
-int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
+int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) {
+  return doFilter(pBlock, pFilterInfo, NULL, pRet);
+}
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
   qDebug("streamDestroyExecTask called, task:%p", tInfo);
@@ -2089,8 +2090,9 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, SStreamRuntimeFuncInf
       qError("tbname generated with no characters which is not allowed");
       code = TSDB_CODE_INVALID_PARA;
     }
-    if(len > TSDB_TABLE_NAME_LEN - 1) {
-      qError("tbname generated with too long characters, max allowed is %d, got %d, truncated.", TSDB_TABLE_NAME_LEN - 1, len);
+    if (len > TSDB_TABLE_NAME_LEN - 1) {
+      qError("tbname generated with too long characters, max allowed is %d, got %d, truncated.",
+             TSDB_TABLE_NAME_LEN - 1, len);
       len = TSDB_TABLE_NAME_LEN - 1;
     }
 
@@ -2103,7 +2105,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, SStreamRuntimeFuncInf
   }
   // TODO free dst
   sclFreeParam(&dst);
-  pStreamRuntimeInfo->curIdx = nextIdx; // restore
+  pStreamRuntimeInfo->curIdx = nextIdx;  // restore
   return code;
 }
 
@@ -2163,7 +2165,7 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
   } else {
     (*ppDst)->pFields = NULL;
   }
-  
+
   if (pSrc->pTagFields && pSrc->pTagFields->size > 0) {
     (*ppDst)->pTagFields = taosArrayDup(pSrc->pTagFields, NULL);
     TSDB_CHECK_NULL((*ppDst)->pTagFields, code, lino, _exit, terrno);
@@ -2178,7 +2180,7 @@ _exit:
       destroyStreamInserterParam(*ppDst);
       *ppDst = NULL;
     }
-    
+
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
   return code;
