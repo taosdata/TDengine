@@ -48,6 +48,14 @@ int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIp
   return 0;
 }
 
+int32_t mndSetUserDateTimeWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SUserDateTimeWhiteList *pWhiteListRsp) {
+  (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+  pWhiteListRsp->ver = 0;
+  pWhiteListRsp->neg = 0;
+  pWhiteListRsp->numWhiteLists = 0;
+  TAOS_RETURN(0);
+}
+
 int32_t mndSetUserIpWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp) {
   int32_t code = 0;
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);

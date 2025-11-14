@@ -1361,7 +1361,7 @@ typedef struct SIpv6Range {
 } SIpV6Range;
 
 typedef struct {
-  int8_t type;
+  int8_t type;   // 0: IPv4, 1: IPv6
   union {
     SIpV4Range ipV4;
     SIpV6Range ipV6;
@@ -1379,7 +1379,7 @@ typedef struct {
   SIpRange pIpRanges[];
 } SIpWhiteListDual;
 
-SIpWhiteListDual* cloneIpWhiteList(SIpWhiteListDual* pIpWhiteList);
+SIpWhiteListDual* cloneIpWhiteList(const SIpWhiteListDual* src);
 int32_t           cvtIpWhiteListToDual(SIpWhiteList* pWhiteList, SIpWhiteListDual** pWhiteListDual);
 int32_t           cvtIpWhiteListDualToV4(SIpWhiteListDual* pWhiteListDual, SIpWhiteList** pWhiteList);
 int32_t           createDefaultIp6Range(SIpRange* pRange);
@@ -1388,18 +1388,41 @@ int32_t           createDefaultIp4Range(SIpRange* pRange);
 // copyIpRange ensures that unused bytes are always zeroed, so that [pDst] can be used as a key in hash tables
 void copyIpRange(SIpRange* pDst, const SIpRange* pSrc);
 
-typedef struct SDateTimeRange {
+// SDateTimeRange is used in client side during SQL statement parsing, client sends this structure
+// to server, and server will convert it to SDateTimeInterval for internal usage.
+typedef struct {
   int16_t year;
   int8_t month; // 1-12, when month is -1, it means day is week day and year is not used.
   int8_t day;   // 1-31 or 0-6 (0 means Sunday), depends on the month value.
   int8_t hour;
   int8_t minute;
-  int32_t duration;
+  int32_t duration; // duration in minute
 } SDateTimeRange;
 
 bool isValidDateTimeRange(SDateTimeRange* pRange);
 int32_t tEncodeSDateTimeRange(SEncoder* pEncoder, const SDateTimeRange* pRange);
 int32_t tDecodeSDateTimeRange(SDecoder* pDecoder, SDateTimeRange* pRange);
+
+
+// SDateTimeInterval is used by server internally to represent datetime ranges. 
+typedef struct {
+  bool absolute;    // true: absolute datetime range; false: weekly recurring datetime range
+  int32_t duration; // duration in seconds
+  int64_t start;    // absolute timestamp in seconds or weekly offset in seconds
+} SDateTimeInterval;
+
+void DateTimeRangeToInterval(SDateTimeInterval* dst, const SDateTimeRange* src);
+bool isDateTimeIntervalExpired(const SDateTimeInterval* pInterval);
+
+typedef struct {
+  int32_t num;
+  int8_t  neg;  // this is a negative whitelist, that is, a blacklist
+  SDateTimeInterval ranges[];
+} SDateTimeWhiteList;
+
+SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src);
+
+
 
 typedef struct {
   int8_t createType;
@@ -1638,6 +1661,29 @@ void    tFreeSGetUserIpWhiteListRsp(SGetUserIpWhiteListRsp* pRsp);
 int32_t tSerializeSGetUserIpWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserIpWhiteListRsp* pRsp);
 int32_t tDeserializeSGetUserIpWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserIpWhiteListRsp* pRsp);
 void    tFreeSGetUserIpWhiteListDualRsp(SGetUserIpWhiteListRsp* pRsp);
+
+typedef struct {
+  int64_t ver;
+  char    user[TSDB_USER_LEN];
+  int32_t numWhiteLists;
+  int8_t  neg; // 0-positive, i.e. whitelist, 1-negative, i.e. blacklist
+  SDateTimeInterval* pWhiteLists;
+} SUserDateTimeWhiteList;
+
+
+int32_t tSerializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTimeWhiteList* pRsp);
+int32_t tDeserializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTimeWhiteList* pRsp);
+void    tFreeSUserDateTimeWhiteList(SUserDateTimeWhiteList* pRsp);
+
+typedef struct {
+  int64_t             ver;
+  int                 numOfUser;
+  SUserDateTimeWhiteList *pUsers;
+} SRetrieveUserDateTimeWhiteListRsp;
+
+int32_t tSerializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveUserDateTimeWhiteListRsp* pRsp);
+int32_t tDeserializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveUserDateTimeWhiteListRsp* pRsp);
+void    tFreeSRetrieveUserDateTimeWhiteListRsp(SRetrieveUserDateTimeWhiteListRsp* pRsp);
 
 /*
  * for client side struct, only column id, type, bytes are necessary
