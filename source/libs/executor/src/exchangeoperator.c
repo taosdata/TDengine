@@ -612,6 +612,8 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     taosWLockLatch(&pDataInfo->lock);
     taosMemoryFreeClear(pDataInfo->decompBuf);
     taosMemoryFreeClear(pDataInfo->pRsp);
+    taosArrayDestroy(pDataInfo->pSrcUidList);
+    pDataInfo->pSrcUidList = NULL;
 
     pDataInfo->totalRows = 0;
     pDataInfo->code = 0;
