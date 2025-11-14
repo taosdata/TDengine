@@ -2342,6 +2342,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   char* json = NULL;
   TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &json));
   TAOS_CHECK_EXIT(jsonToSCMCreateStreamReq(tjsonParse(json), pReq));
+  taosMemoryFreeClear(json);
   // TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
 
   // TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->name, NULL));
