@@ -84,8 +84,12 @@ typedef pthread_key_t        TdThreadKey;
 #elif defined(TD_ASTRA)
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
 #else  // LINUX
-#if _XOPEN_SOURCE >= 500 || _POSIX_C_SOURCE >= 200809L
+#if (defined(_XOPEN_SOURCE) && _XOPEN_SOURCE+0 >= 500) || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE+0 >= 200809L)
+#if defined(__GLIBC__)
 #define taosThreadRwlockAttrSetKindNP(A, B) pthread_rwlockattr_setkind_np(A, B)
+#else
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#endif
 #else
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
 #endif
