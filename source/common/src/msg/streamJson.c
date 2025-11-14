@@ -386,6 +386,7 @@ static const char* jkCreateStreamReqTrigger              = "trigger";
 static const char* jkCreateStreamReqTriggerTblType       = "triggerTblType";
 static const char* jkCreateStreamReqTriggerTblUid        = "triggerTblUid";
 static const char* jkCreateStreamReqTriggerTblSuid       = "triggerTblSuid";
+static const char* jkCreateStreamReqTriggerPrec          = "triggerPrec";
 static const char* jkCreateStreamReqVtableCalc           = "vtableCalc";
 static const char* jkCreateStreamReqOutTblType           = "outTblType";
 static const char* jkCreateStreamReqOutStbExists         = "outStbExists";
@@ -563,6 +564,8 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqTriggerTblUid, pReq->triggerTblUid));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqTriggerTblSuid, pReq->triggerTblSuid));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqTriggerPrec, pReq->triggerPrec));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqVtableCalc, pReq->vtableCalc));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
@@ -786,6 +789,8 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqTriggerTblUid, &pReq->triggerTblUid));
   TAOS_CHECK_RETURN(tjsonGetUBigIntValue(
     pJson, jkCreateStreamReqTriggerTblSuid, &pReq->triggerTblSuid));
+  TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(
+    pJson, jkCreateStreamReqTriggerPrec, &pReq->triggerPrec));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkCreateStreamReqVtableCalc, &pReq->vtableCalc));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
