@@ -57,7 +57,8 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE,
                                    .ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL,
                                    .ssCompact = TSDB_DEFAULT_SS_COMPACT,
-                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
+                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE,
+                                   .cacheFormat = 1};  // 1: rowCache (default)
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -166,7 +167,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntables", pCfg->vndStats.numOfNTables));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries));
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "cacheFormat", pCfg->cacheFormat));
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) {
@@ -345,6 +346,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs, code);
   if (code) return code;
+
+  // Load cache format, default to 0 (colCache) if not present (for backward compatibility)
+  tjsonGetNumberValue(pJson, "cacheFormat", pCfg->cacheFormat, code);
+  if (code) pCfg->cacheFormat = 0;  // Default to colCache for old versions
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
   int    arraySize = tjsonGetArraySize(nodeInfo);

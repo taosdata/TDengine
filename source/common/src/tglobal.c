@@ -388,8 +388,6 @@ int32_t tsStreamBufferSize = 0;       // MB
 int64_t tsStreamBufferSizeBytes = 0;  // bytes
 bool    tsFilterScalarMode = false;
 
-bool tsUpdateCacheBatch = true;
-
 int32_t tsSsEnabled = 0;  // enable shared storage, 0: disabled, 1: enabled, 2: enabled with auto migration
 char    tsSsAccessString[1024] = "";
 int32_t tsSsAutoMigrateIntervalSec = 60 * 60;  // auto migrate interval of shared storage migration

@@ -848,6 +848,14 @@ _exit:
   return code;
 }
 
+int32_t metaBuildTSchemaFromSchemaWrapper(SSchemaWrapper *pSchemaWrapper, STSchema **ppTSchema) {
+  *ppTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
+  if (*ppTSchema == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 // N.B. Called by statusReq per second
 int64_t metaGetTbNum(SMeta *pMeta) {
   // num of child tables (excluding normal tables , stables and others)
@@ -1680,7 +1688,7 @@ int32_t metaFlagCache(SVnode *pVnode) {
         int16_t cid = pTSchema->columns[i].colId;
         int8_t  col_type = pTSchema->columns[i].type;
 
-        code = tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type);
+        code = tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type, NULL, NULL);
         if (code) {
           metaError("vgId:%d, failed to flag cache, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
 
