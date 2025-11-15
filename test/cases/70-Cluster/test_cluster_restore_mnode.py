@@ -27,7 +27,7 @@ class TestClusterRestoreMnode:
     
     # run
     def test_cluster_restore_mnode(self):
-        """Cluster restore dnode
+        """Cluster restore mnode
         
         1. Create 5 dnode 3 mnode cluster
         2. Create 1 db, 1 stable, 100 childs table

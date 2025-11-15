@@ -43,7 +43,7 @@ class Test_ThreeGorges:
 
         Since: v3.3.3.7
 
-        Labels: common,ci,skip
+        Labels: common,ci,skip,skip
 
         Jira: None
 

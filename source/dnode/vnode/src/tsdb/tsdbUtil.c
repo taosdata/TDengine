@@ -1470,6 +1470,9 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
+  if (code) {
+    tsdbError("tBlockDataCompress failed: code=%d, line=%d", code, lino);
+  }
   return code;
 }
 

@@ -2686,20 +2686,21 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   if ('\0' == pCol->tableAlias[0] && nums > 1) {
     pTable = getJoinProbeTable(pCxt);
   } else {
-    code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
+    PAR_ERR_JRET(findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable));
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
-    } else if (NULL != pTable && QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
-      setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
-      pCol->isPrimTs = true;
-    } else {
-      code = rewriteCountStarAsCount1(pCxt, pCount);
-    }
+  if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
+  } else if (NULL != pTable && QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+    setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+    pCol->isPrimTs = true;
+  } else {
+    PAR_ERR_JRET(rewriteCountStarAsCount1(pCxt, pCount));
   }
 
+  return code;
+_return:
+  parserError("%s failed to rewrite count(*), code:%d", __func__, code);
   return code;
 }
 
@@ -2713,18 +2714,33 @@ static bool isCountNotNullValue(SFunctionNode* pFunc) {
 
 // count(1) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
-  SValueNode* pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
-  STableNode* pTable = NULL;
-  int32_t     code = findTable(pCxt, NULL, &pTable);
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-    SColumnNode* pCol = NULL;
-    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-    if (TSDB_CODE_SUCCESS == code) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
-      NODES_DESTORY_LIST(pCount->pParameterList);
-      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
-    }
+  SValueNode*  pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
+  STableNode*  pTable = NULL;
+  bool         freeCol = false;
+  SColumnNode* pCol = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+
+  PAR_ERR_JRET(findTable(pCxt, NULL, &pTable));
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  freeCol = true;
+  if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
+  } else if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+    setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+    pCol->isPrimTs = true;
+  } else {
+    goto _return;
   }
+  NODES_DESTORY_LIST(pCount->pParameterList);
+  PAR_ERR_JRET(nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol));
+  freeCol = false;
+
+  return code;
+_return:
+  if (freeCol) {
+    nodesDestroyNode((SNode*)pCol);
+  }
+  parserError("%s failed to rewrite count(1), code:%d", __func__, code);
   return code;
 }
 
@@ -2740,20 +2756,37 @@ static bool isCountTbname(SFunctionNode* pFunc) {
 static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount) {
   SFunctionNode* pTbname = (SFunctionNode*)nodesListGetNode(pCount->pParameterList, 0);
   const char*    pTableAlias = NULL;
+  STableNode*    pTable = NULL;
+  SColumnNode*   pCol = NULL;
+  bool           freeCol = false;
+  int32_t        code = TSDB_CODE_SUCCESS;
+
   if (LIST_LENGTH(pTbname->pParameterList) > 0) {
     pTableAlias = ((SValueNode*)nodesListGetNode(pTbname->pParameterList, 0))->literal;
   }
-  STableNode* pTable = NULL;
-  int32_t     code = findTable(pCxt, pTableAlias, &pTable);
-  if (TSDB_CODE_SUCCESS == code) {
-    SColumnNode* pCol = NULL;
-    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-    if (TSDB_CODE_SUCCESS == code) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
-      NODES_DESTORY_LIST(pCount->pParameterList);
-      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
-    }
+
+  PAR_ERR_JRET(findTable(pCxt, pTableAlias, &pTable));
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  freeCol = true;
+
+  if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+    setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+    pCol->isPrimTs = true;
+  } else {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
   }
+
+  NODES_DESTORY_LIST(pCount->pParameterList);
+  PAR_ERR_JRET(nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol));
+  freeCol = false;
+
+  return code;
+_return:
+  if (freeCol) {
+    nodesDestroyNode((SNode*)pCol);
+  }
+  parserError("%s failed to rewrite count(tbname), code:%d", __func__, code);
   return code;
 }
 
@@ -10782,6 +10815,16 @@ static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt*
   return code;
 }
 
+
+static int32_t translateTrimDbWal(STranslateContext* pCxt, STrimDbWalStmt* pStmt) {
+  STrimDbReq req = {.maxSpeed = 0};  // WAL trim doesn't need maxSpeed
+  SName      name = {0};
+  int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&name, req.db);
+  return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB_WAL, (FSerializeFunc)tSerializeSTrimDbReq, &req);
+}
+
 static int32_t checkColumnOptions(SNodeList* pList, bool virtual) {
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -15799,6 +15842,15 @@ static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgr
   return code;
 }
 
+static int32_t translateSetVgroupKeepVersion(STranslateContext* pCxt, SSetVgroupKeepVersionStmt* pStmt) {
+  SMndSetVgroupKeepVersionReq req = {0};
+  req.vgId = pStmt->vgId;
+  req.keepVersion = pStmt->keepVersion;
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_SET_VGROUP_KEEP_VERSION, (FSerializeFunc)tSerializeSMndSetVgroupKeepVersionReq, &req);
+  return code;
+}
+
 static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* pStmt) {
   SMergeVgroupReq req = {.vgId1 = pStmt->vgId1, .vgId2 = pStmt->vgId2};
   return buildCmdMsg(pCxt, TDMT_MND_MERGE_VGROUP, (FSerializeFunc)tSerializeSMergeVgroupReq, &req);
@@ -17152,6 +17204,9 @@ _return:
     case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       code = translateSsMigrateDatabase(pCxt, (SSsMigrateDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      code = translateTrimDbWal(pCxt, (STrimDbWalStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
       break;
@@ -17323,6 +17378,9 @@ _return:
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
+      break;
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:
+      code = translateSetVgroupKeepVersion(pCxt, (SSetVgroupKeepVersionStmt*)pNode);
       break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = translateMergeVgroup(pCxt, (SMergeVgroupStmt*)pNode);

@@ -13,7 +13,7 @@ class TestStreamDrop:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_drop(self):
-        """Stream Processing Drop Operations Test
+        """OldPy: drop operations
 
         Test drop operations on tables with special characters and batch drop operations:
 
