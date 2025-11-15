@@ -188,15 +188,20 @@ def do_check_before_exec(request, check_rows=True):
     data_index = get_data_index(req_json["schema"])
     ts_index = get_ts_index(req_json["schema"])
 
+    if data_index == -1:
+        raise ValueError("failed to find the data attribute in the payload, data index: %s", data_index)
+
     if wn_check:
+        data = payload[data_index]
         try:
-            data = payload[data_index]
-            if is_white_noise(data):
-                app_logger.log_inst.debug("%s %s", data, white_noise_error_msg())
-                raise ValueError(white_noise_error_msg())
+            is_wn = is_white_noise(data)
         except Exception as e:
             app_logger.log_inst.error("failed to check white noise data, %s", str(e))
-            raise Exception(e)
+            raise
+
+        if is_wn:
+            app_logger.log_inst.debug("%s is %s", data, white_noise_error_msg())
+            raise ValueError(white_noise_error_msg())
 
     options = req_json["option"] if "option" in req_json else None
 
