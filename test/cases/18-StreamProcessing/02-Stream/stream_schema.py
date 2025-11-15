@@ -12,12 +12,15 @@ class TestStreamSchema:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Check stream table modify test
+        """Stream table rename
         
         1. Check stream table modify 
+        2. Check stream table modify with placeholder column
+        3. Check stream table modify after drop table
+        4. Check stream table modify after alter table tag
+        5. Check stream table modify after alter table tag rename/drop
+        
 
-        Catalog:
-            - Streams:create stream
 
         Since: v3.3.3.7
 

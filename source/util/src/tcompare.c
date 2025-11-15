@@ -219,8 +219,36 @@ int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight) {
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
-
   int32_t ret = taosUcs4Compare((TdUcs4 *)varDataVal(pLeft), (TdUcs4 *)varDataVal(pRight), len1 > len2 ? len2 : len1);
+
+/*  
+  int32_t bufSize = 256;
+  char *buf1 = NULL;
+  char *buf2 = NULL;
+  do {
+    buf1 = taosMemoryCalloc(1, bufSize);
+    if (buf1 == NULL) {
+      break;
+    }
+    buf2 = taosMemoryCalloc(1, bufSize);
+    if (buf2 == NULL) {
+      break;
+    }
+    int32_t code = taosHexEncode(varDataVal(pLeft), buf1, varDataLen(pLeft), bufSize);
+    if (code) {
+      break;
+    }
+    code = taosHexEncode(varDataVal(pRight), buf2, varDataLen(pRight), bufSize);
+    if (code) {
+      break;
+    }
+    
+    uInfo("ucs4compare res:%d, left:%d,%p,[%s], right:%d,%p,[%s]", ret, len1, pLeft, buf1, len2, pRight, buf2);
+  } while (0);
+  taosMemoryFree(buf1);
+  taosMemoryFree(buf2);
+*/
+
   if (ret == 0) {
     if (len1 > len2)
       return 1;

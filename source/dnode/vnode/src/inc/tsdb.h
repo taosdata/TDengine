@@ -892,6 +892,7 @@ typedef struct SMergeTreeConf {
   STimeWindow   timewindow;
   SVersionRange verRange;
   bool          strictTimeRange;
+  bool          cacheStatis;    // cache the stt statis file info in cache
   SArray       *pSttFileBlockIterArray;
   void         *pCurrentFileset;
   STSchema     *pSchema;

@@ -1777,7 +1777,7 @@ class TestOpentsdbJsonTaoscInsert:
         # self.lengthIcreaseCrashCheckCase()
 
     def test_write_sml_opentsdb_json(self):
-        """ OpenTSDB Json Protocol
+        """OpenTSDB json protocol
 
         1. Basic OpenTSDB JSON protocol parsing
         2. Automatic schema creation and evolution

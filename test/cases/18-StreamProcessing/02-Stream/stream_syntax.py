@@ -294,12 +294,11 @@ class TestStreamSynatx:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_create_stream_syntax(self):
-        """Create stream syntax test
+        """Stream syntax
 
-        Test create stream sql parser and syntax
-
-        Catalog:
-            - Streams:Stream
+        1. Test create stream sql parser and syntax
+        2. Test different valid and invalid combinations of create stream syntax options
+        3. Verify the create stream results
 
         Since: v3.3.3.7
 

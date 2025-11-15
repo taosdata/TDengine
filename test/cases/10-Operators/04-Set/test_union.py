@@ -7,12 +7,15 @@ class TestUnion:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_ts6660(self):
-        """union with order by
+        """Operator union order by
 
-        test for ORDER BY column check in UNION
-
-        Catalog:
-            - Query:Union
+        1. Create 1 database 1 stable 2 subtables
+        2. Insert data into 2 subtables 1 rows each
+        3. Use union operator to combine the result from 2 subtables
+        4. Use order by pseudo columns tbname, _wstart in union query
+        5. Use number column in order by clause in union query
+        6. Check error when order by column is not in select columns in union query
+        
 
         Since: v3.0.0.0
 
@@ -112,12 +115,13 @@ class TestUnion:
         tdSql.checkRows(6)
 
     def test_setOp_orderBy_pseudo(self):
-        """union operator and order by pseudo functions like tbname, _wstart, etc.
+        """Operator union
 
-        1. -
-
-        Catalog:
-            - Query:Union
+        1. Create 1 database 1 stable 3 subtables
+        2. Insert data into 3 subtables 1 rows each
+        3. Use union operator to combine the result from 3 subtables
+        4. Use order by pseudo columns tbname, _wstart in union query
+        
 
         Since: v3.0.0.0
 
@@ -189,13 +193,13 @@ class TestUnion:
                     order by ts;") # use alias
 
     def test_setOp_orderby_normal_func(self):
-        """union operator and order by normal functions like math, string functions.
+        """Operator union order by functions
 
-        1. -
-
-        Catalog:
-            - Query:Union
-
+        1. Create 1 database 1 stable 3 subtables
+        2. Insert data into 3 subtables 1 rows each
+        3. Use union operator to combine the result from 3 subtables
+        4. Use normal functions abs(), ltrim(), lower() in order by clause in union query
+        
         Since: v3.0.0.0
 
         Labels: set operator, order by, normal function
@@ -283,3 +287,36 @@ class TestUnion:
         for row_idx, row_data in enumerate(expected):
             for col_idx, cell_data in enumerate(row_data):
                 tdSql.checkData(row_idx, col_idx, cell_data)
+
+    def test_setOp_with_const_condition(self):
+        """union with const condition
+
+        test for 'where 1=0' condition in UNION
+
+        Catalog:
+            - Query:Union
+
+        Since: v3.8.0.0
+
+        Labels: common,ci
+
+        Jira: https://jira.taosdata.com:18080/browse/TD-38544
+
+        History:
+            - 2025-11-12 Jing Sima add test
+
+        """
+        db = "td38544"
+        tdSql.execute(f"create database if not exists {db} keep 36500;")
+        tdSql.execute(f"use {db};")
+        tdSql.execute("create stable s1(ts timestamp, deviceid binary(16), c0 int, c1 int) tags(tg binary(8))")
+        tdSql.execute("create table t1 using s1 tags('X')")
+        tdSql.execute("insert into t1 values('2025-11-12 14:03:38.293', 'devA', 119,7)")
+        tdSql.execute("insert into t1 values('2025-11-13 14:03:38.293', 'devA', 119,8)")
+        tdSql.execute("insert into t1 values('2025-11-14 14:03:38.293', 'devA', 119,9)")
+        tdSql.query("(select ts, deviceid, c0,c1 from t1 where c0 =119) union all (select ts, deviceid, c0,c1 from t1 where 1=0)")
+        tdSql.checkRows(3)
+        tdSql.query("(select ts, deviceid, c0,c1 from t1 where 1=0) union all (select ts, deviceid, c0,c1 from t1 where 1=0)")
+        tdSql.checkRows(0)
+        tdSql.query("(select ts, deviceid, c0,c1 from t1 where c0=119) union all (select ts, deviceid, c0,c1 from t1 where c0=119)")
+        tdSql.checkRows(6)

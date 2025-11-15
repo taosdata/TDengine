@@ -7,7 +7,7 @@ class TestCount:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_count(self):
-        """Count: basic test
+        """Count basic
 
         1. Count + sliding window queries
         2. Specified column queries

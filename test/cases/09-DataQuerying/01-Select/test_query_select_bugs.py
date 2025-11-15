@@ -404,7 +404,7 @@ class TestQueryBugs:
             
     # run
     def test_query_bugs(self):
-        """Query select bugs
+        """Select bugs
         
         1. Verify jira TS-5946
         2. Verify jira TD-30686

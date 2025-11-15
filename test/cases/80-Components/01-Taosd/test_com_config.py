@@ -260,7 +260,7 @@ class TestAlterConfig:
     # ------------------- main ----------------
     #
     def test_alter_config(self):
-        """Configuration basic
+        """Server config basic
         
         1. Verify alter support vnodes config
         2. Verify alter ttl config

@@ -7,12 +7,10 @@ class TestRegex:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_regex(self):
-        """Regex
+        """Operator match
 
         Using MATCH and NMATCH for regular expression matching
 
-        Catalog:
-            - Operator
 
         Since: v3.0.0.0
 

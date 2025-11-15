@@ -10,14 +10,11 @@ class TestInsertBasic:
 
     
     def test_insert_basic(self):
-        """insert use ns precision
+        """Write ns precision
 
         1. create table
         2. insert data
         3. query data
-
-        Catalog:
-            - DataIngestion
 
         Since: v3.0.0.0
 

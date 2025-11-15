@@ -8,7 +8,7 @@ class TestDatabaseLen:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_len(self):
-        """Name: length
+        """DB Name: length
 
         1. Create database with an excessively long name
         2. Test with invalid values

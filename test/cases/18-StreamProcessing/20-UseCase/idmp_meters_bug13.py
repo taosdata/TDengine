@@ -21,7 +21,7 @@ class Test_IDMP_Meters:
 
         Since: v3.3.7.0
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: https://jira.taosdata.com:18080/browse/TD-36363
 

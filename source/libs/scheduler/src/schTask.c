@@ -49,7 +49,7 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
 }
 
 void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel) {
-  pTask->redirectCtx.redirectDelayMs = 5000;  // 5s by default
+  pTask->redirectCtx.redirectDelayMs = 2000;  // 2s by default
 
   // 3 is the maximum replica factor in tsdb, so here multiply 3 to increase the retry chance
   int32_t REPLICA_FACTOR = 3;
@@ -337,6 +337,11 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       // set the address from the pTask->succeedAddr, the vnode that successfully executed subquery already
       if (pParent->redirectCtx.inRedirect && (!SCH_IS_DATA_BIND_TASK(pParent))) {
         code = schSwitchTaskCandidateAddr(pJob, pParent);
+
+        // if all vnodes are tried, let's switch the epset for each vnode for the next round
+        if (pParent->retryTimes > taosArrayGetSize(pParent->candidateAddrs)) {
+          SCH_ERR_RET(schUpdateCurrentEpset(pParent, pJob));
+        }
 
         // if all vnodes are tried, let's switch the epset for each vnode for the next round
         if (pParent->retryTimes > taosArrayGetSize(pParent->candidateAddrs)) {
@@ -678,6 +683,12 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     el = (now - pTask->redirectCtx.startTs) / 1000.0;
   }
 
+  int64_t now = taosGetTimestampMs();
+  double  el = 0.0;
+  if (pTask->redirectCtx.startTs != 0) {
+    el = (now - pTask->redirectCtx.startTs) / 1000.0;
+  }
+
   if (pJob->noMoreRetry) {
     *needRetry = false;
     SCH_TASK_DLOG("task no more retry since job no more retry, retryTimes:%d/%d", pTask->retryTimes,
@@ -697,6 +708,8 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     }
   }
 
+  int32_t code = schFailedTaskNeedRetry(pTask, pJob, errCode);
+  if (code != TSDB_CODE_SUCCESS) {
   int32_t code = schFailedTaskNeedRetry(pTask, pJob, errCode);
   if (code != TSDB_CODE_SUCCESS) {
     *needRetry = false;
