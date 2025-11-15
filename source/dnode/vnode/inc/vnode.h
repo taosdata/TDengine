@@ -125,6 +125,7 @@ void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, S
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
 int32_t     metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList);
