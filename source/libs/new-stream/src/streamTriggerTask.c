@@ -6309,6 +6309,15 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
       }
       case STRIGGER_CONTEXT_ACQUIRE_REQUEST: {
+        if (!pContext->needTsdbMeta && pTask->triggerType == STREAM_TRIGGER_SLIDING && pContext->pCalcReq == NULL &&
+            pTask->calcEventType != STRIGGER_EVENT_WINDOW_NONE) {
+          code = stTriggerTaskAcquireRequest(pTask, pContext->sessionId, pGroup->gid, &pContext->pCalcReq);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pContext->pCalcReq == NULL) {
+            ST_TASK_DLOG("no available runner for group %" PRId64, pGroup->gid);
+            goto _end;
+          }
+        }
         pContext->status = STRIGGER_CONTEXT_CHECK_CONDITION;
       }
       case STRIGGER_CONTEXT_CHECK_CONDITION: {
@@ -6336,6 +6345,29 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           QUERY_CHECK_CODE(code, lino, _end);
         }
         stHistoryGroupClearTempState(pGroup);
+        if (!pContext->needTsdbMeta && pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+          pContext->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
+        } else {
+          break;
+        }
+      }
+      case STRIGGER_CONTEXT_SEND_CALC_REQ: {
+        code = stHistoryGroupRetrievePendingCalc(pGroup);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pContext->pCalcReq == NULL) {
+          // do nothing
+        } else if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
+          code = stHistoryContextSendCalcReq(pContext);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pContext->pCalcReq != NULL) {
+            // calc req has not been set
+            goto _end;
+          }
+          stHistoryGroupClearTempState(pGroup);
+        } else {
+          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         break;
       }
       default: {
@@ -6346,6 +6378,11 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     }
     stHistoryGroupClearMetadatas(pGroup);
     TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
+    if (!pContext->needTsdbMeta && pTask->triggerType == STREAM_TRIGGER_SLIDING &&
+        pGroup->pPendingCalcParams.neles > 0) {
+      // the group has remaining calc params to be calculated
+      TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+    }
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
 
