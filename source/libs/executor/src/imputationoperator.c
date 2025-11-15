@@ -367,16 +367,9 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
-    char pMsg[1024] = {0};
-    code = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (code != 0) {
-      qError("%s failed to get msg from rsp, unknown error", pId);
-    } else {
-      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
-    }
-
+    code = parseErrorMsgFromAnalyticServer(pJson, pId);
     tjsonDelete(pJson);
-    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+    return code;
   }
 
   if (code < 0) {

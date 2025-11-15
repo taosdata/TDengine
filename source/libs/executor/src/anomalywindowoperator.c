@@ -425,27 +425,10 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, SArray* pMasks, 
     return TSDB_CODE_INVALID_JSON_FORMAT;
   }
 
-  if (rows < 0 && code == 0) {
-    code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
-
-    char pMsg[1024] = {0};
-    int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (ret != 0) {
-      qError("%s failed to get error msg from rsp, unknown error", pId);
-    } else {
-      qError("%s failed to exec anomaly detection, msg:%s", pId, pMsg);
-      void* p = strstr(pMsg, "white noise");
-      if (p != NULL) {
-        code = TSDB_CODE_ANA_WN_DATA;
-      } else {
-        p = strstr(pMsg, "[Errno 111] Connection refused");
-        if (p != NULL) {  // the specified forecast model not loaded yet
-          code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
-        }
-      }
-    }
-
-    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+  if (rows < 0 && code == 0) {  // error happens, parse the error msg and return to client
+    code = parseErrorMsgFromAnalyticServer(pJson, pId);
+    tjsonDelete(pJson);
+    return code;
   } else if (rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
