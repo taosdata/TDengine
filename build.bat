@@ -3,6 +3,7 @@
 setlocal
 
 if "%TD_CONFIG%"=="" set "TD_CONFIG=Debug"
+if "%BUILD_TEST%"=="" set "BUILD_TEST=true"
 
 for /F "tokens=1,* delims= " %%A in ("%*") do (
     if "%%A" EQU "gen" (
@@ -54,7 +55,7 @@ cmake -B debug -G "NMake Makefiles" ^
         -DBUILD_TOOLS=true ^
         -DBUILD_KEEPER=true ^
         -DBUILD_HTTP=false ^
-        -DBUILD_TEST=true ^
+        -DBUILD_TEST=%BUILD_TEST% ^
         -DWEBSOCKET=true ^
         -DBUILD_DEPENDENCY_TESTS=false ^
         %*
