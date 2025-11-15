@@ -887,6 +887,7 @@ typedef struct SStreamEventAggOperatorInfo {
   SSHashObj*          pSeDeleted;
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result;
+  bool                enableMaxDelay;
   bool                ignoreExpiredData;
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
