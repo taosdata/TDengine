@@ -2096,6 +2096,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   char*   pTagCondKey = NULL;
   int32_t tagCondKeyLen;
   SArray* pTagColIds = NULL;
+  qTrace("getTableList called, suid:%" PRIu64 ", tagCond:%p, tagIndexCond:%p, %d %d", pScanNode->suid, pTagCond, pTagIndexCond, pScanNode->tableType, pScanNode->virtualStableScan);
   if (pScanNode->tableType != TSDB_SUPER_TABLE && !pScanNode->virtualStableScan) {
     pListInfo->idInfo.uid = pScanNode->uid;
     if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
@@ -2108,6 +2109,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     T_MD5_CTX context = {0};
     T_MD5_CTX contextStable = {0};
 
+    qTrace("start to get table list by tag filter, suid:%" PRIu64 ",%d %d %d %p", pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache, isStream, pTagCond);
     if (tsStableTagFilterCache && isStream) {
       nodesWalkExpr(pTagCond, canOptimizeTagCondFilter,
         (void*)&canCacheTagCondFilter);
@@ -2177,6 +2179,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       } else {
         code = genTagFilterDigest(pTagCond, &context);
       }
+      qTrace("tag filter digest generated");
       // try to retrieve the result from meta cache
       QUERY_CHECK_CODE(code, lino, _error);      
       bool acquired = false;
@@ -2191,11 +2194,13 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t)taosArrayGetSize(pUidList));
         goto _end;
       }
+      qTrace("failed to get tableIds from tag filter cache");
     }
 
     if (!pTagCond) {  // no tag filter condition exists, let's fetch all tables of this super table
       code = pStorageAPI->metaFn.getChildTableList(pVnode, pScanNode->suid, pUidList);
       QUERY_CHECK_CODE(code, lino, _error);
+      qTrace("no tag filter, get all child tables, numOfTables:%d", (int32_t)taosArrayGetSize(pUidList));
     } else {
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
@@ -2215,7 +2220,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         }
       }
     }
-
+    qTrace("after index filter, pTagCond:%p uidListSize:%d", pTagCond, (int32_t)taosArrayGetSize(pUidList));
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status,
       pStorageAPI, tsTagFilterCache || tsStableTagFilterCache,
       &listAdded, pStreamInfo);

@@ -2075,6 +2075,10 @@ _exit:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
+  if ((*ppRes) && (*ppRes)->info.rows <= 0) {
+    *ppRes = NULL;
+  }
+
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
     printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }

@@ -1500,8 +1500,7 @@ int32_t getSttTableRowsInfo(SSttStatisCacheValue *pValue, int32_t numOfPKs, int3
 }
 
 int32_t getCacheValueSize(const SSttStatisCacheValue *pValue) {
-  int32_t size = sizeof(SSttStatisCacheValue);
-
+  int32_t size = sizeof(SSttStatisCacheValue) + sizeof(SArray);
   for (int32_t i = 0; i < taosArrayGetSize(pValue->pLevel); ++i) {
     SArray *pRowsInfoArr = *(SArray **)taosArrayGet(pValue->pLevel, i);
     

@@ -903,7 +903,7 @@ _end:
     metaError("vgId:%d, %s failed at %s:%d since %s",
       vgId, __func__, __FILE__, lino, tstrerror(code));
   } else {
-    metaInfo("vgId:%d, suid:%" PRIu64 " new tag data filter entry added, "
+    metaDebug("vgId:%d, suid:%" PRIu64 " new tag data filter entry added, "
       "uid num:%d, current stable tag conditions num:%d, "
       "this tag condition data entries num:%d, "
       "cache stable num:%d, total tag data entries num:%" PRIu32 ", "
