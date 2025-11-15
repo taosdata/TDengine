@@ -1067,7 +1067,7 @@ static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColDa
   for (int32_t k = rowStart; k < rowEnd; k++) {
     SColVal colVal = {0};
     STREAM_CHECK_RET_GOTO(tColDataGetValue(colData, k, &colVal));
-    STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, rows + k, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
+    STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, rows + k - rowStart, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
                                         !COL_VAL_IS_VALUE(&colVal)));
   }
   end:
