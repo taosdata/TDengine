@@ -1484,11 +1484,11 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, end);
   }
-  ST_TASK_TLOG("%s uid:%" PRId64 ", suid:%" PRId64, __func__, uid, submitTbData.suid);
+  ST_TASK_TLOG("%s uid:%" PRId64 ", suid:%" PRId64, __func__, *uid, submitTbData.suid);
   STREAM_CHECK_CONDITION_GOTO(!uidInTableListSet(sStreamReaderInfo, submitTbData.suid, *uid, gid, rsp->isCalc), TDB_CODE_SUCCESS);
   if (rsp->uidHash != NULL) {
     STREAM_CHECK_RET_GOTO(tSimpleHashPut(rsp->uidHash, uid, LONG_BYTES, gid, LONG_BYTES));
-    ST_TASK_TLOG("%s put uid into uidHash, uid:%" PRId64 ", suid:%" PRId64 " gid:%"PRIu64, __func__, uid, submitTbData.suid, *gid);
+    ST_TASK_TLOG("%s put uid into uidHash, uid:%" PRId64 ", suid:%" PRId64 " gid:%"PRIu64, __func__, *uid, submitTbData.suid, *gid);
   }
   STimeWindow window = {.skey = INT64_MIN, .ekey = INT64_MAX};
 
@@ -1721,7 +1721,7 @@ static int32_t prepareIndexData(SWalReader* pWalReader, SStreamTriggerReaderInfo
     STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, *ver));
     if(pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
       TAOS_CHECK_RETURN(walSkipFetchBody(pWalReader));
-      ST_TASK_TLOG("%s not data, skip, ver:%"PRId64, __func__, ver);
+      ST_TASK_TLOG("%s not data, skip, ver:%"PRId64, __func__, *ver);
       continue;
     }
     STREAM_CHECK_RET_GOTO(walFetchBody(pWalReader));
