@@ -18,6 +18,76 @@ if(GRANT_VALUE)
   add_definitions(-DGRANT_VALUE="${GRANT_VALUE}")
 endif()
 
+if(GRANT_DATAIN_EXPIRE)
+  message(STATUS "Input datain expire: " ${GRANT_DATAIN_EXPIRE})
+  add_definitions(-DGRANT_DATAIN_EXPIRE="${GRANT_DATAIN_EXPIRE}")
+endif()
+
+if(GRANT_DATAIN_NUMBER)
+  message(STATUS "Input datain number: " ${GRANT_DATAIN_NUMBER})
+  add_definitions(-DGRANT_DATAIN_NUMBER="${GRANT_DATAIN_NUMBER}")
+endif()
+
+if(GRANT_IDMP_BASIC_EXPIRE)
+  message(STATUS "Input idmp basic expire: " ${GRANT_IDMP_BASIC_EXPIRE})
+  add_definitions(-DGRANT_IDMP_BASIC_EXPIRE="${GRANT_IDMP_BASIC_EXPIRE}")
+endif()
+
+if(GRANT_IDMP_TS_ATTR)
+  message(STATUS "Input idmp ts attr: " ${GRANT_IDMP_TS_ATTR})
+  add_definitions(-DGRANT_IDMP_TS_ATTR="${GRANT_IDMP_TS_ATTR}")
+endif()
+
+if(GRANT_IDMP_NTS_ATTR)
+  message(STATUS "Input idmp nts attr: " ${GRANT_IDMP_NTS_ATTR})
+  add_definitions(-DGRANT_IDMP_NTS_ATTR="${GRANT_IDMP_NTS_ATTR}")
+endif()
+
+if(GRANT_IDMP_ELEMENT)
+  message(STATUS "Input idmp element: " ${GRANT_IDMP_ELEMENT})
+  add_definitions(-DGRANT_IDMP_ELEMENT="${GRANT_IDMP_ELEMENT}")
+endif()
+
+if(GRANT_IDMP_SERVER)
+  message(STATUS "Input idmp server: " ${GRANT_IDMP_SERVER})
+  add_definitions(-DGRANT_IDMP_SERVER="${GRANT_IDMP_SERVER}")
+endif()
+
+if(GRANT_IDMP_CPU_CORE)
+  message(STATUS "Input idmp cpu core: " ${GRANT_IDMP_CPU_CORE})
+  add_definitions(-DGRANT_IDMP_CPU_CORE="${GRANT_IDMP_CPU_CORE}")
+endif()
+
+if(GRANT_IDMP_USER)
+  message(STATUS "Input idmp user: " ${GRANT_IDMP_USER})
+  add_definitions(-DGRANT_IDMP_USER="${GRANT_IDMP_USER}")
+endif()
+
+if(GRANT_IDMP_VERSION_CTRL_EXPIRE)
+  message(STATUS "Input idmp version ctrl expire: " ${GRANT_IDMP_VERSION_CTRL_EXPIRE})
+  add_definitions(-DGRANT_IDMP_VERSION_CTRL_EXPIRE="${GRANT_IDMP_VERSION_CTRL_EXPIRE}")
+endif()
+
+if(GRANT_IDMP_DATA_FORECAST_EXPIRE)
+  message(STATUS "Input idmp data forecast expire: " ${GRANT_IDMP_DATA_FORECAST_EXPIRE})
+  add_definitions(-DGRANT_IDMP_DATA_FORECAST_EXPIRE="${GRANT_IDMP_DATA_FORECAST_EXPIRE}")
+endif()
+
+if(GRANT_IDMP_DATA_DETECT_EXPIRE)
+  message(STATUS "Input idmp data detect expire: " ${GRANT_IDMP_DATA_DETECT_EXPIRE})
+  add_definitions(-DGRANT_IDMP_DATA_DETECT_EXPIRE="${GRANT_IDMP_DATA_DETECT_EXPIRE}")
+endif()
+
+if(GRANT_IDMP_DATA_QUALITY_EXPIRE)
+  message(STATUS "Input idmp data quality expire: " ${GRANT_IDMP_DATA_QUALITY_EXPIRE})
+  add_definitions(-DGRANT_IDMP_DATA_QUALITY_EXPIRE="${GRANT_IDMP_DATA_QUALITY_EXPIRE}")
+endif()
+
+if(GRANT_IDMP_AI_CHAT_GEN_EXPIRE)
+  message(STATUS "Input idmp ai chat gen expire: " ${GRANT_IDMP_AI_CHAT_GEN_EXPIRE})
+  add_definitions(-DGRANT_IDMP_AI_CHAT_GEN_EXPIRE="${GRANT_IDMP_AI_CHAT_GEN_EXPIRE}")
+endif()
+
 if(CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
   add_definitions(-I${TD_ENTERPRISE_DIR}/packaging)
 endif(CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
