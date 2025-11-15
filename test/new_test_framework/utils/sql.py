@@ -1311,7 +1311,7 @@ class TDSql:
     def compareData(self, row, col, data, show=False):
         return self.checkData(row, col, data, show, False)
 
-    def checkData(self, row, col, data, show=False, exit=True, dbPrecision=""):
+    def checkData(self, row, col, data, show=False, exit=True, dbPrecision="", tolerance: float = 0.0):
         """
         Checks if the data at the specified row and column matches the expected data.
 
@@ -1618,6 +1618,40 @@ class TDSql:
                     else:
                         return False
                 return True
+
+            elif isinstance(data, int) and tolerance != 0.0:
+                if tolerance < 0:
+                    lower = data * (1 + tolerance)
+                    upper = data
+                else:
+                    lower = data
+                    upper = data * (1 + tolerance)
+                actual = self.queryResult[row][col]
+                tdLog.error(f"Tolerance check: lower={lower}, actual={actual}, upper={upper}")
+                if lower <= actual <= upper:
+                    if show:
+                        tdLog.info("check successfully")
+                    return True
+                else:
+                    if exit:
+                        filename, lineno = _fast_caller(1)
+                        args = (
+                            filename,
+                            lineno,
+                            self.sql,
+                            row,
+                            col,
+                            self.queryResult[row][col],
+                            lower,
+                            upper,
+                        )
+                        tdLog.exit(
+                            "%s(%d) failed: sql:%s row:%d col:%d data:%s not in range [%.6f, %.6f]"
+                            % args
+                        )
+                    else:
+                        return False
+
             else:
                 if exit:
                     filename, lineno = _fast_caller(1)
