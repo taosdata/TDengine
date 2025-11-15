@@ -9950,7 +9950,7 @@ static int32_t stHistoryGroupRetrievePendingCalc(SSTriggerHistoryGroup *pGroup) 
 
   if (pGroup->pPendingCalcParams.neles > 0) {
     int64_t             origNele = pGroup->pPendingCalcParams.neles;
-    int64_t             origTotal = pContext->calcParamPool.capacity;
+    int64_t             origTotal = pContext->calcParamPool.size;
     int32_t             nele = 0;
     SSTriggerCalcParam *pParam = NULL;
     SObjListIter        iter = {0};
