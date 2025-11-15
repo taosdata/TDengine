@@ -7218,7 +7218,8 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
   STsdbReader*        pReader = NULL;
   SHashObj*           pIgnoreMap = NULL;
   SQueryTableDataCond cond = {0};
-
+  STableFirstLastTsIter* pTsIter = NULL;
+  
   TSDB_CHECK_NULL(pVnode, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pWindow, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pVerRange, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -7227,7 +7228,7 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
   code = initQueryTableCond(&cond, suid, pWindow, pVerRange, order, idstr);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  STableFirstLastTsIter* pTsIter = taosMemoryCalloc(1, sizeof(STableFirstLastTsIter));
+  pTsIter = taosMemoryCalloc(1, sizeof(STableFirstLastTsIter));
   TSDB_CHECK_NULL(pTsIter, code, lino, _end, terrno);
 
   pIgnoreMap = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
