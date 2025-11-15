@@ -342,11 +342,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         if (pParent->retryTimes > taosArrayGetSize(pParent->candidateAddrs)) {
           SCH_ERR_RET(schUpdateCurrentEpset(pParent, pJob));
         }
-
-        // if all vnodes are tried, let's switch the epset for each vnode for the next round
-        if (pParent->retryTimes > taosArrayGetSize(pParent->candidateAddrs)) {
-          SCH_ERR_RET(schUpdateCurrentEpset(pParent, pJob));
-        }
       }
 
       SCH_TASK_DLOG("all %d children task done, start to launch parent task, TID:0x%" PRIx64, readyNum, pParent->taskId);
@@ -683,12 +678,6 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     el = (now - pTask->redirectCtx.startTs) / 1000.0;
   }
 
-  int64_t now = taosGetTimestampMs();
-  double  el = 0.0;
-  if (pTask->redirectCtx.startTs != 0) {
-    el = (now - pTask->redirectCtx.startTs) / 1000.0;
-  }
-
   if (pJob->noMoreRetry) {
     *needRetry = false;
     SCH_TASK_DLOG("task no more retry since job no more retry, retryTimes:%d/%d", pTask->retryTimes,
@@ -708,8 +697,6 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
     }
   }
 
-  int32_t code = schFailedTaskNeedRetry(pTask, pJob, errCode);
-  if (code != TSDB_CODE_SUCCESS) {
   int32_t code = schFailedTaskNeedRetry(pTask, pJob, errCode);
   if (code != TSDB_CODE_SUCCESS) {
     *needRetry = false;
