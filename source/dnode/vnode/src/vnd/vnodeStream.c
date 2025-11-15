@@ -943,7 +943,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
     api->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &api->metaFn);
-    code = api->metaReaderFn.getTableEntryByVersionUid(&mr, uid, sVersion);
+    code = api->metaReaderFn.getTableEntryByVersionUid(&mr, sVersion, uid);
     api->metaReaderFn.readerReleaseLock(&mr);
     STREAM_CHECK_RET_GOTO(code);
 
