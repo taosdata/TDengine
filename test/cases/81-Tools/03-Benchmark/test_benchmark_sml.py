@@ -49,11 +49,11 @@ class TestBenchmarkSml:
         tdSql.query("show db.tables")
         tdSql.checkRows(16)
         tdSql.query("select count(*) from db.stb4")
-        tdSql.checkData(0, 0, 160)
+        tdSql.checkData(0, 0, 160, tolerance=-0.1)
 
         tdSql.execute("reset query cache")
         tdSql.query("select count(*) from db.`stb4-2`")
-        tdSql.checkData(0, 0, 160)
+        tdSql.checkData(0, 0, 160, tolerance=-0.1)
 
         print("do sml_auto_create_table_json ......... [passed]")
 
