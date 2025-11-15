@@ -1105,17 +1105,6 @@ end:
   return code;
 }
 
-static int32_t getBlockIndex(SSHashObj* indexHash, int64_t uid, int32_t* index){
-  SStreamWalDataSlice* pSlice = (SStreamWalDataSlice*)tSimpleHashGet(indexHash, &uid, LONG_BYTES);
-  if (pSlice == NULL) {
-    stError("%s data slice not found for uid:%" PRId64, __func__, uid);
-    return TSDB_CODE_INVALID_PARA;
-  }
-  stTrace("%s data slice found:%p for uid:%" PRId64, __func__, pSlice, uid);
-  *index= pSlice->currentRowIdx;
-  return 0;
-}
-
 static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTriggerReaderInfo* sStreamReaderInfo, 
   STSchema** schemas, SSHashObj* ranges, SSHashObj* gidHash, SSTriggerWalNewRsp* rsp, int64_t ver) {
   int32_t code = 0;
@@ -1199,6 +1188,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     STREAM_CHECK_NULL_GOTO(*schemas, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
   }
 
+  SStreamWalDataSlice* pSlice = (SStreamWalDataSlice*)tSimpleHashGet(rsp->indexHash, &submitTbData.uid, LONG_BYTES);
   int32_t blockStart = 0;
   int32_t numOfRows = 0;
   if (submitTbData.flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
@@ -1231,7 +1221,8 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     STREAM_CHECK_RET_GOTO(getRowRange(&colData, &window, &rowStart, &rowEnd, &numOfRows));
     STREAM_CHECK_CONDITION_GOTO(numOfRows <= 0, TDB_CODE_SUCCESS);
 
-    STREAM_CHECK_RET_GOTO(getBlockIndex(rsp->indexHash, submitTbData.uid, &blockStart));
+    STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
+    blockStart = pSlice->currentRowIdx;
     int32_t pos = pCoder->pos;
     for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
@@ -1310,7 +1301,8 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
       if (pRow->ts < window.skey || pRow->ts > window.ekey) {
         continue;
       }
-      STREAM_CHECK_RET_GOTO(getBlockIndex(rsp->indexHash, submitTbData.uid, &blockStart));
+      STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
+      blockStart = pSlice->currentRowIdx;
      
       for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
@@ -1367,12 +1359,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     STREAM_CHECK_NULL_GOTO(pColData, terrno);
     STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, blockStart, (const char*)&ver, numOfRows, 1, false));
   }
-
-  SStreamWalDataSlice* pSlice = (SStreamWalDataSlice*)tSimpleHashGet(rsp->indexHash, &submitTbData.uid, LONG_BYTES);
-  if (pSlice == NULL) {
-    stError("%s data slice not found for uid:%" PRId64", ver:%" PRId64, __func__, submitTbData.uid, ver);
-    return TSDB_CODE_INVALID_PARA;
-  }
+  STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
   ST_TASK_DLOG("%s process submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
     ", uid:%" PRId64 ", ver:%"PRId64 ", row index:%d, rows:%d", __func__, window.skey, window.ekey, 
     id, submitTbData.uid, ver, pSlice->currentRowIdx, numOfRows);
