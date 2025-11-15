@@ -2096,7 +2096,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   char*   pTagCondKey = NULL;
   int32_t tagCondKeyLen;
   SArray* pTagColIds = NULL;
-  qTrace("getTableList called, suid:%" PRIu64 ", tagCond:%p, tagIndexCond:%p, %d %d", pScanNode->suid, pTagCond, pTagIndexCond, pScanNode->tableType, pScanNode->virtualStableScan);
+  qInfo("getTableList called, suid:%" PRIu64 ", tagCond:%p, tagIndexCond:%p, %d %d", pScanNode->suid, pTagCond, pTagIndexCond, pScanNode->tableType, pScanNode->virtualStableScan);
   if (pScanNode->tableType != TSDB_SUPER_TABLE && !pScanNode->virtualStableScan) {
     pListInfo->idInfo.uid = pScanNode->uid;
     if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
@@ -2109,7 +2109,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     T_MD5_CTX context = {0};
     T_MD5_CTX contextStable = {0};
 
-    qTrace("start to get table list by tag filter, suid:%" PRIu64 ",%d %d %d %p", pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache, isStream, pTagCond);
+    qInfo("start to get table list by tag filter, suid:%" PRIu64 ",%d %d %d %p", pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache, isStream, pTagCond);
     if (tsStableTagFilterCache && isStream) {
       nodesWalkExpr(pTagCond, canOptimizeTagCondFilter,
         (void*)&canCacheTagCondFilter);
@@ -3742,7 +3742,7 @@ char* getStreamOpName(uint16_t opType) {
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
-  if (qDebugFlag & DEBUG_TRACE) {
+  if (qDebugFlag & DEBUG_SCREEN) {
     if (!pBlock) {
       qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
       return;
