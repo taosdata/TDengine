@@ -9,7 +9,7 @@ class TestStreamRecalcWithOptions:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_with_options(self):
-        """Recalc: Manual testing with options
+        """Recalc: manual with options
 
         Test manual recalculation functionality combined with four different stream options:
 

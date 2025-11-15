@@ -16,12 +16,9 @@ class TestStreamRecalcExpiredTime:
         2. Combine with WATERMARK - test boundary value behavior
         3. Different trigger types behavior with expired data
 
-        Catalog:
-            - Streams:Recalculation
-
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: None
 

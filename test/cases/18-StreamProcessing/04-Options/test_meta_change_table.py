@@ -9,7 +9,7 @@ class TestStreamMetaChangeTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_meta_change_table(self):
-        """Meta Change: table
+        """Meta change: table
 
         test meta change (add/drop/modify) cases to stream
 

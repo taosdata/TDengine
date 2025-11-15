@@ -24,7 +24,7 @@ class TestEmptyIdentifier:
         tdLog.debug(f"start to excute {__file__}")
 
     def test_empty_identifier(self):
-        """Empty Identifier Validation Test
+        """OldPy: empty identifier validation 
 
         Test empty identifier `` handling in 28 specific SQL statements and verify error code -2147473897:
 
