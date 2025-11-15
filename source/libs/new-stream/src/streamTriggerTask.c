@@ -3333,6 +3333,12 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
       goto _end;
     } else {
       SArray *pGroupColVals = *(SArray **)px;
+      if (pGroupColVals == NULL) {
+        ST_TASK_WLOG("skip calc since group %" PRId64 " may have been dropped", pGroup->gid);
+        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+        QUERY_CHECK_CODE(code, lino, _end);
+        goto _end;
+      }
       for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
         SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
         SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
@@ -3592,7 +3598,7 @@ static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pCont
 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pDropReq, &msg.info.ahandle), lino, _end);
-  ST_TASK_DLOG("trigger calc req ahandle %p allocated", msg.info.ahandle);
+  ST_TASK_DLOG("trigger drop req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerDropTableRequest(NULL, 0, pDropReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -3653,7 +3659,7 @@ static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pCont
 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
-  stDebug("trigger pull req ahandle %p allocated", msg.info.ahandle);
+  ST_TASK_DLOG("trigger retry pull req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -3672,8 +3678,10 @@ static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pCont
   code = tmsgSendReq(&pReader->epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("send pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId, pReader->taskId);
-  ST_TASK_DLOG("trigger pull req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+  ST_TASK_DLOG("send retry pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId,
+               pReader->taskId);
+  ST_TASK_DLOG("trigger retry pull req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId,
+               msg.info.traceId.msgId);
 
   pNode = tdListPopNode(&pContext->retryPullReqs, pNode);
   taosMemoryFreeClear(pNode);
@@ -3720,6 +3728,7 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
     void *px = tSimpleHashGet(pContext->pGroupColVals, &pReq->gid, sizeof(int64_t));
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     SArray *pGroupColVals = *(SArray **)px;
+    QUERY_CHECK_NULL(pGroupColVals, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
       SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
       SStreamGroupValue *pDst = taosArrayPush(pReq->groupColVals, pValue);
@@ -3734,7 +3743,7 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
-  stDebug("trigger calc req ahandle %p allocated", msg.info.ahandle);
+  ST_TASK_DLOG("trigger retry calc req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -3753,8 +3762,9 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
   code = tmsgSendReq(&pRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("send calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
-  ST_TASK_DLOG("trigger calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+  ST_TASK_DLOG("send retry calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
+  ST_TASK_DLOG("trigger retry calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId,
+               msg.info.traceId.msgId);
 
   pNode = tdListPopNode(&pContext->retryCalcReqs, pNode);
   taosMemoryFreeClear(pNode);
@@ -3803,7 +3813,7 @@ static int32_t stRealtimeContextRetryDropRequest(SSTriggerRealtimeContext *pCont
 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
-  stDebug("trigger calc req ahandle %p allocated", msg.info.ahandle);
+  ST_TASK_DLOG("trigger retry drop req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerDropTableRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -3822,8 +3832,9 @@ static int32_t stRealtimeContextRetryDropRequest(SSTriggerRealtimeContext *pCont
   code = tmsgSendReq(&pRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("send calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
-  ST_TASK_DLOG("trigger calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+  ST_TASK_DLOG("send retry drop request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
+  ST_TASK_DLOG("trigger retry drop req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId,
+               msg.info.traceId.msgId);
 
   pNode = tdListPopNode(&pContext->dropTableReqs, pNode);
   taosMemoryFreeClear(pNode);
@@ -4441,10 +4452,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SSTriggerAHandle     *pAhandle = ahandle->param;
   SSTriggerPullRequest *pReq = pAhandle->param;
 
-  QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA ||
+                            pRsp->code == TSDB_CODE_STREAM_NO_CONTEXT,
+                        code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  ST_TASK_DLOG("receive pull response of type %d from task:%" PRIx64, pReq->type, pReq->readerTaskId);
+  ST_TASK_DLOG("receive pull response of type %d from task:%" PRIx64 ", code:%d", pReq->type, pReq->readerTaskId,
+               pRsp->code);
 
   switch (pReq->type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -4936,8 +4949,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       switch (pContext->status) {
         case STRIGGER_CONTEXT_SEND_CALC_REQ: {
           SStreamGroupInfo groupInfo = {0};
-          code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (pRsp->contLen > 0) {
+            code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
           code =
               tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
           if (code != TSDB_CODE_SUCCESS) {
@@ -5853,6 +5868,12 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
       goto _end;
     } else {
       SArray *pGroupColVals = *(SArray **)px;
+      if (pGroupColVals == NULL) {
+        ST_TASK_WLOG("skip hist calc since group %" PRId64 " may have been dropped", pGroup->gid);
+        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+        QUERY_CHECK_CODE(code, lino, _end);
+        goto _end;
+      }
       for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
         SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
         SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
@@ -6056,7 +6077,7 @@ static int32_t stHistoryContextRetryPullRequest(SSTriggerHistoryContext *pContex
 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
-  stDebug("trigger pull req ahandle %p allocated", msg.info.ahandle);
+  ST_TASK_DLOG("trigger retry pull req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -6075,8 +6096,10 @@ static int32_t stHistoryContextRetryPullRequest(SSTriggerHistoryContext *pContex
   code = tmsgSendReq(&pReader->epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("send pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId, pReader->taskId);
-  ST_TASK_DLOG("trigger pull req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+  ST_TASK_DLOG("send retry pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId,
+               pReader->taskId);
+  ST_TASK_DLOG("trigger retry pull req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId,
+               msg.info.traceId.msgId);
 
   pNode = tdListPopNode(&pContext->retryPullReqs, pNode);
   taosMemoryFreeClear(pNode);
@@ -6123,6 +6146,7 @@ static int32_t stHistoryContextRetryCalcRequest(SSTriggerHistoryContext *pContex
     void *px = tSimpleHashGet(pContext->pGroupColVals, &pReq->gid, sizeof(int64_t));
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     SArray *pGroupColVals = *(SArray **)px;
+    QUERY_CHECK_NULL(pGroupColVals, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
       SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
       SStreamGroupValue *pDst = taosArrayPush(pReq->groupColVals, pValue);
@@ -6137,7 +6161,7 @@ static int32_t stHistoryContextRetryCalcRequest(SSTriggerHistoryContext *pContex
 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
-  stDebug("trigger calc req ahandle %p allocated", msg.info.ahandle);
+  ST_TASK_DLOG("trigger retry calc req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -6156,8 +6180,9 @@ static int32_t stHistoryContextRetryCalcRequest(SSTriggerHistoryContext *pContex
   code = tmsgSendReq(&pRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("send calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
-  ST_TASK_DLOG("trigger calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+  ST_TASK_DLOG("send retry calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
+  ST_TASK_DLOG("trigger retry calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId,
+               msg.info.traceId.msgId);
 
   pNode = tdListPopNode(&pContext->retryCalcReqs, pNode);
   taosMemoryFreeClear(pNode);
@@ -7034,8 +7059,10 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
                             TSDB_CODE_INTERNAL_ERROR);
       SSTriggerGroupColValueRequest *pRequest = (SSTriggerGroupColValueRequest *)pReq;
       SStreamGroupInfo               groupInfo = {0};
-      code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (pRsp->contLen > 0) {
+        code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       code = tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
