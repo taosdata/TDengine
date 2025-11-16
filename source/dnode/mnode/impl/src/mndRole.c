@@ -444,7 +444,7 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ROLE));
 
   if (createReq.name[0] == 0) {
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
   }
   code = mndAcquireUser(pMnode, createReq.name, &pUser);
   if (pUser != NULL) {
@@ -508,7 +508,7 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ROLE));
 
   if (dropReq.name[0] == 0) {
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
   }
 
   TAOS_CHECK_EXIT(mndAcquireRole(pMnode, dropReq.name, &pObj));
@@ -584,27 +584,32 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   SRoleObj     *pObj = NULL;
   SRoleObj      newObj = {0};
   SAlterRoleReq alterReq = {0};
+  bool          alterUser = false;
 
   TAOS_CHECK_EXIT(tDeserializeSAlterRoleReq(pReq->pCont, pReq->contLen, &alterReq));
 
-  mInfo("role:%s, start to alter, flag:%u" , alterReq.principal, alterReq.flag);
+  mInfo("role:%s, start to alter, flag:%u", alterReq.principal, alterReq.flag);
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_ROLE));
 
   if (alterReq.principal[0] == 0) {
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
   }
 
-  if(mndAcquireRole(pMnode, alterReq.principal, &pObj) != 0) {
-    SUserObj *pUser = NULL;
-    code = mndAcquireUser(pMnode, alterReq.principal, &pUser);
-    if (pUser != NULL) {
-      mndReleaseUser(pMnode, pUser);
-      TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_ALREADY_EXIST);
-    } else {
+  if (mndAcquireRole(pMnode, alterReq.principal, &pObj) == 0) {
+    if (alterReq.alterType == TSDB_ALTER_ROLE_ROLE) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);  // not support grant role to role yet
+    }
+  } else {
+    if (alterReq.alterType == TSDB_ALTER_ROLE_LOCK) {
       TAOS_CHECK_EXIT(terrno);
     }
+    alterUser = true;
   }
-  if (mndIsRoleChanged(pObj, &alterReq)) {
+
+  if (alterUser) {
+    mInfo("role:%s, not exist, will alter user instead", alterReq.principal);
+    TAOS_CHECK_EXIT(mndAlterUserFromRole(pReq, &alterReq));
+  } else if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
     if (alterReq.alterType == TSDB_ALTER_ROLE_LOCK) {
       newObj.enable = alterReq.lock ? 0 : 1;
@@ -635,7 +640,7 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   numOfRows = 0;
   SRoleObj *pObj = NULL;
   int32_t   cols = 0;
-  int32_t   bufSize = TSDB_ROLE_MAX_CHILDREN * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE;
+  int32_t   bufSize = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE;
   char     *buf = NULL;
 
   if (!(buf = taosMemoryMalloc(bufSize))) {

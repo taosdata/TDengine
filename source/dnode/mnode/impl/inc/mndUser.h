@@ -55,6 +55,7 @@ int32_t mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode);
 
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
+int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq);
 #ifdef __cplusplus
 }
 #endif

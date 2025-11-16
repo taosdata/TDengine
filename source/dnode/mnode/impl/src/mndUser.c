@@ -2528,6 +2528,50 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  int32_t   code = 0, lino = 0;
+  SRoleObj *pRole = NULL;
+  SUserObj *pUser = NULL;
+  SUserObj  newUser = {0};
+
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pAlterReq->principal, &pUser));
+
+  if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
+    // TAOS_CHECK_EXIT(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser));
+  } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    TAOS_CHECK_EXIT(mndAcquireRole(pMnode, pAlterReq->roleName, &pRole));
+
+    if (taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
+      mInfo("user:%s already has role:%s", pUser->user, pAlterReq->roleName);
+      TAOS_CHECK_EXIT(0);
+    }
+    int32_t nChildren = taosHashGetSize(pUser->roles);
+    if (nChildren >= TSDB_MAX_SUBROLE) {
+      mError("user:%s has reached max subrole number:%d", pUser->user, TSDB_MAX_SUBROLE);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED);
+    }
+
+    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
+    TAOS_CHECK_EXIT(taosHashPut(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1, NULL, 0));
+  } else {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+_exit:
+  if (code < 0) {
+    mError("user:%s, failed to alter user at line %d since %s", pAlterReq->principal, lino, tstrerror(code));
+  }
+  mndReleaseRole(pMnode, pRole);
+  mndReleaseUser(pMnode, pUser);
+  mndUserFreeObj(&newUser);
+  TAOS_RETURN(0);
+}
+
 static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SSdb         *pSdb = pMnode->pSdb;
