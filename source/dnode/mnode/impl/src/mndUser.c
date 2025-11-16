@@ -32,9 +32,10 @@
 
 // clang-format on
 
-#define USER_VER_NUMBER                      7
+#define USER_VER_NUMBER                      8
 #define USER_VER_SUPPORT_WHITELIST           5
 #define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
+#define USER_VER_SUPPORT_RBAC                8
 #define USER_RESERVE_SIZE                    63
 
 #define BIT_FLAG_MASK(n)              (1 << n)
@@ -956,6 +957,64 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
   return mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
 }
 
+static int32_t tSerializeUserObjTail(void *buf, int32_t bufLen, SUserObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  void    *pIter = NULL;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  int32_t nRoles = taosHashGetSize(pObj->roles);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nRoles));
+
+  while ((pIter = taosHashIterate(pObj->roles, pIter))) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(pIter, &keyLen); // key: role name
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, key, (int32_t)keyLen));
+
+    int8_t value = *(int8_t *)pIter;
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, value));  // value: 0 reset, 1 set(default)
+  }
+
+  tEndEncode(&encoder);
+  tlen = encoder.pos;
+_exit:
+  tEncoderClear(&encoder);
+  if (code < 0) {
+    mError("user:%s, %s failed at line %d since %s", pObj->user, __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  return tlen;
+}
+
+static int32_t tDeserializeUserObjTail(void *buf, int32_t bufLen, SUserObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  int32_t nRoles = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nRoles));
+  for (int32_t i = 0; i < nRoles; i++) {
+    int32_t keyLen = 0;
+    char    key[TSDB_ROLE_LEN] = {0};
+    char   *pKey = key;
+    TAOS_CHECK_EXIT(tDecodeCStrAndLen(&decoder, &pKey, &keyLen));
+    int8_t value = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &value));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, key, keyLen, &value, sizeof(int8_t)));
+  }
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  if (code < 0) {
+    mError("user, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
+  }
+  TAOS_RETURN(code);
+}
+
 SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -971,10 +1030,16 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t numOfAlterViews = taosHashGetSize(pUser->alterViews);
   int32_t numOfTopics = taosHashGetSize(pUser->topics);
   int32_t numOfUseDbs = taosHashGetSize(pUser->useDbs);
+  int32_t numOfRoles = taosHashGetSize(pUser->roles);
   int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN +
                  numOfTopics * TSDB_TOPIC_FNAME_LEN + ipWhiteReserve;
   char    *buf = NULL;
   SSdbRaw *pRaw = NULL;
+  int32_t  sizeTail = tSerializeUserObjTail(NULL, 0, pUser);
+  if (sizeTail < 0) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  size += sizeTail;
 
   char *stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
@@ -1215,7 +1280,8 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   // save white list
   int32_t num = pUser->pIpWhiteListDual->num;
   int32_t tlen = sizeof(SIpWhiteListDual) + num * sizeof(SIpRange) + 4;
-  if ((buf = taosMemoryCalloc(1, tlen)) == NULL) {
+  int32_t maxBufLen = MAX(tlen, sizeTail);
+  if ((buf = taosMemoryCalloc(1, maxBufLen)) == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
   int32_t len = 0;
@@ -1228,6 +1294,12 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorithm, _OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
+
+  // version 8: since 2025-11
+  TAOS_CHECK_GOTO(tSerializeUserObjTail(buf, sizeTail, pUser), &lino, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, sizeTail, _OVER);
+  SDB_SET_BINARY(pRaw, dataPos, buf, sizeTail, _OVER);
+
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
 _OVER:
@@ -1573,6 +1645,14 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorithm, _OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
+
+  // version 8: since 2025-11
+  if (sver >= USER_VER_NUMBER) {
+    int32_t tailLen = 0;
+    SDB_GET_INT32(pRaw, dataPos, &tailLen, _OVER);
+    SDB_GET_BINARY(pRaw, dataPos, key, tailLen, _OVER);
+    TAOS_CHECK_GOTO(tDeserializeUserObjTail(key, tailLen, pUser), &lino, _OVER);
+  }
   taosInitRWLatch(&pUser->lock);
 
 _OVER:
