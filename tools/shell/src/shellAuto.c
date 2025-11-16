@@ -91,6 +91,7 @@ SWords shellCommands[] = {
 
     // 20
     {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
+    {"create vtable <anyword> using <stb_name> tags(", 0, 0, NULL},
     {"create database <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> "
      "<anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> "
      "<db_options> <anyword> <db_options> <anyword> ;", 0, 0, NULL},
@@ -102,6 +103,7 @@ SWords shellCommands[] = {
     {"create anode <anyword>", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
+    {"create rsma <anyword> on <all_table> function interval <anyword>", 0, 0, NULL},
     {"create tsma <anyword> on <all_table> function", 0, 0, NULL},
     {"create recursive tsma <anyword> on <tsma_name> interval(", 0, 0, NULL},
     {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>;", 0, 0, NULL},
@@ -137,6 +139,7 @@ SWords shellCommands[] = {
     {"drop topic <topic_name>;", 0, 0, NULL},
     {"drop stream <stream_name>;", 0, 0, NULL},
     {"drop tsma <tsma_name>;", 0, 0, NULL},
+    {"drop rsma <rsma_name>;", 0, 0, NULL},
     {"explain select ", 0, 0, NULL},  // 44 append sub sql
     {"flush database <db_name>;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
@@ -164,6 +167,8 @@ SWords shellCommands[] = {
     {"revoke all on <anyword> from <user_name>;", 0, 0, NULL},
     {"revoke read on <anyword> from <user_name>;", 0, 0, NULL},
     {"revoke write on <anyword> from <user_name>;", 0, 0, NULL},
+    {"rollup database <db_name>;", 0, 0, NULL},
+    {"rollup database <db_name> vgroups in( <anyword>", 0, 0, NULL},
     {"select * from <all_table>", 0, 0, NULL},
     {"select client_version();", 0, 0, NULL},
     // 60
@@ -223,6 +228,7 @@ SWords shellCommands[] = {
     {"show topics;", 0, 0, NULL},
     {"show transactions;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
+    {"show rsmas;", 0, 0, NULL},
     {"show users;", 0, 0, NULL},
     {"show variables;", 0, 0, NULL},
     {"show local variables;", 0, 0, NULL},
@@ -304,7 +310,14 @@ char* functions[] = {
     "week(",           "weekday(",
     "weekofyear(",     "dayofweek(",
     "stddev_pop(",     "var_pop(",
-    "forecast(",       
+    "forecast(",       "cols(",
+    "std(",            "variance(",
+    "sttdev_samp(",    "var_samp(",
+    "group_concat(",   "if(",
+    "ifnull(",         "nvl(",
+    "nvl2(",           "isnull(",
+    "isnotnull(",      "coalesce(",
+    "date(",          "corr(",
     "case ",          "when "
 };
 
@@ -315,7 +328,7 @@ char* tb_actions[] = {
 
 char* user_actions[] = {"pass ", "enable ", "sysinfo ", "createdb "};
 
-char* tb_options[] = {"comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma("};
+char* tb_options[] = {"comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma(", "virtual 1"};
 
 char* db_options[] = {"keep ",
                       "replica ",
@@ -365,6 +378,7 @@ char* data_types[] = {"timestamp",    "int",
                       "smallint",     "smallint unsigned",
                       "tinyint",      "tinyint unsigned",
                       "geometry(64)", "varbinary(16)",
+                      "decimal(10,2)", "blob",
                       "bool",         "json"};
 
 char* key_tags[] = {"tags("};
@@ -376,7 +390,7 @@ char* key_systable[] = {
     "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
     "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
     "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "ins_filesets",
-    "ins_bnodes",        "ins_disk_usage",
+    "ins_bnodes",        "ins_disk_usage", "ins_retentions",
     "perf_connections", "perf_queries",    "perf_consumers", "perf_trans",       "perf_apps"};
 
 char* udf_language[] = {"\'Python\'", "\'C\'"};
@@ -427,29 +441,30 @@ bool    waitAutoFill = false;
 #define WT_VAR_UDFNAME        7
 #define WT_VAR_VGROUPID       8
 #define WT_VAR_TSMA           9
-#define WT_VAR_ANODE          10
+#define WT_VAR_RSMA           10
+#define WT_VAR_ANODE          11
 
-#define WT_FROM_DB_MAX        10  // max get content from db
+#define WT_FROM_DB_MAX        11  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
 
-#define WT_VAR_ALLTABLE       11
-#define WT_VAR_FUNC           12
-#define WT_VAR_KEYWORD        13
-#define WT_VAR_TBACTION       14
-#define WT_VAR_DBOPTION       15
-#define WT_VAR_ALTER_DBOPTION 16
-#define WT_VAR_DATATYPE       17
-#define WT_VAR_KEYTAGS        18
-#define WT_VAR_ANYWORD        19
-#define WT_VAR_TBOPTION       20
-#define WT_VAR_USERACTION     21
-#define WT_VAR_KEYSELECT      22
-#define WT_VAR_SYSTABLE       23
-#define WT_VAR_LANGUAGE       24
-#define WT_VAR_GLOBALKEYS     25
-#define WT_VAR_FIELD_OPTIONS  26
+#define WT_VAR_ALLTABLE       12
+#define WT_VAR_FUNC           13
+#define WT_VAR_KEYWORD        14
+#define WT_VAR_TBACTION       15
+#define WT_VAR_DBOPTION       16
+#define WT_VAR_ALTER_DBOPTION 17
+#define WT_VAR_DATATYPE       18
+#define WT_VAR_KEYTAGS        19
+#define WT_VAR_ANYWORD        20
+#define WT_VAR_TBOPTION       21
+#define WT_VAR_USERACTION     22
+#define WT_VAR_KEYSELECT      23
+#define WT_VAR_SYSTABLE       24
+#define WT_VAR_LANGUAGE       25
+#define WT_VAR_GLOBALKEYS     26
+#define WT_VAR_FIELD_OPTIONS  27
 
-#define WT_VAR_CNT 27
+#define WT_VAR_CNT 28
 
 
 #define WT_TEXT 0xFF
@@ -464,7 +479,7 @@ TdThread* threads[WT_FROM_DB_CNT];
 char varTypes[WT_VAR_CNT][64] = {
     // get from db
     "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
-    "<udf_name>",   "<vgroup_id>", "<tsma_name>", "<anode_id>",
+    "<udf_name>",   "<vgroup_id>", "<tsma_name>", "<rsma_name>", "<anode_id>", 
     // get from code
     "<all_table>",  "<function>",  "<keyword>",  "<tb_actions>",   "<db_options>", "<alter_db_options>",
     "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", 
@@ -472,7 +487,7 @@ char varTypes[WT_VAR_CNT][64] = {
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
                                     "show users;",     "show topics;",  "show streams;", "show functions;", 
-                                    "show vgroups;",   "show tsmas;",   "show anodes;"};
+                                    "show vgroups;",   "show tsmas;",   "show rsmas;",  "show anodes;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -549,6 +564,7 @@ void showHelp() {
     alter user <user_name> <user_actions> ...\n\
   ----- C ----- \n\
     create table <tb_name> using <stb_name> tags ...\n\
+    create vtable <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
     create dnode \"fqdn:port\" ...\n\
     create index <index_name> on <stb_name> (tag_column_name);\n\
@@ -577,6 +593,9 @@ void showHelp() {
     drop topic <topic_name> ;\n\
     drop stream <stream_name> ;\n\
     drop index <index_name>;\n\
+    drop stream <stream_name> ;\n\
+    drop tsma <tsma_name> ;\n\
+    drop rsma <rsma_name> ;\n\
   ----- E ----- \n\
     explain select clause ...\n\
   ----- F ----- \n\
@@ -658,6 +677,8 @@ void showHelp() {
     show table tags from <all_table>\n\
     show topics;\n\
     show transactions;\n\
+    show tsmas;\n\
+    show rsmas;\n\
     show users;\n\
     show variables;\n\
     show local variables;\n\
