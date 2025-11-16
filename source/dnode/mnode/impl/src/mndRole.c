@@ -153,20 +153,29 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pOb
     TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->privSet.set[i]));
   }
   size_t  klen = 0;
-  int32_t nParents = taosHashGetSize(pObj->parents);
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParents));
-  if (nParents > 0) {
+  int32_t nParentUsers = taosHashGetSize(pObj->parentUsers);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentUsers));
+  if (nParentUsers > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->parents, pIter)) {
+    while (pIter = taosHashIterate(pObj->parentUsers, pIter)) {
+      char *userName = taosHashGetKey(pIter, &klen);
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, userName));
+    }
+  }
+  int32_t nParentRoles = taosHashGetSize(pObj->parentRoles);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentRoles));
+  if (nParentRoles > 0) {
+    void *pIter = NULL;
+    while (pIter = taosHashIterate(pObj->parentRoles, pIter)) {
       char *roleName = taosHashGetKey(pIter, &klen);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
     }
   }
-  int32_t nChildren = taosHashGetSize(pObj->children);
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nChildren));
-  if (nChildren > 0) {
+  int32_t nSubRoles = taosHashGetSize(pObj->subRoles);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nSubRoles));
+  if (nSubRoles > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->children, pIter)) {
+    while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
       char *roleName = taosHashGetKey(pIter, &klen);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
     }
@@ -203,30 +212,43 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   for (int32_t i = 0; i < nRealGroups; ++i) {
     TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pObj->privSet.set[i]));
   }
-  char    roleName[TSDB_ROLE_LEN] = {0};
-  int32_t nParents = 0;
-  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nParents));
-  if (nParents > 0) {
-    if (!(pObj->parents =
-              taosHashInit(nParents, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+  char    userName[TSDB_USER_LEN] = {0};
+  int32_t nParentUsers = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nParentUsers));
+  if (nParentUsers > 0) {
+    if (!(pObj->parentUsers =
+              taosHashInit(nParentUsers, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
       TAOS_CHECK_EXIT(terrno);
     }
-    for (int32_t i = 0; i < nParents; ++i) {
-      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, roleName));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->parents, roleName, strlen(roleName), NULL, 0));
+    for (int32_t i = 0; i < nParentUsers; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, userName));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->parentUsers, userName, strlen(userName), NULL, 0));
     }
   }
 
-  int32_t nChildren = 0;
-  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nChildren));
-  if (nChildren > 0) {
-    if (!(pObj->children =
-              taosHashInit(nChildren, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+  char    roleName[TSDB_ROLE_LEN] = {0};
+  int32_t nParentRoles = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nParentRoles));
+  if (nParentRoles > 0) {
+    if (!(pObj->parentRoles =
+              taosHashInit(nParentRoles, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
       TAOS_CHECK_EXIT(terrno);
     }
-    for (int32_t i = 0; i < nChildren; ++i) {
+    for (int32_t i = 0; i < nParentRoles; ++i) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, roleName));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->children, roleName, strlen(roleName), NULL, 0));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->parentRoles, roleName, strlen(roleName), NULL, 0));
+    }
+  }
+  int32_t nSubRoles = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nSubRoles));
+  if (nSubRoles > 0) {
+    if (!(pObj->subRoles =
+              taosHashInit(nSubRoles, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nSubRoles; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, roleName));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->subRoles, roleName, strlen(roleName), NULL, 0));
     }
   }
 
@@ -320,13 +342,17 @@ _exit:
 
 void mndRoleFreeObj(SRoleObj *pObj) {
   if (pObj) {
-    if (pObj->parents) {
-      taosHashCleanup(pObj->parents);
-      pObj->parents = NULL;
+    if (pObj->parentUsers) {
+      taosHashCleanup(pObj->parentUsers);
+      pObj->parentUsers = NULL;
     }
-    if (pObj->children) {
-      taosHashCleanup(pObj->children);
-      pObj->children = NULL;
+    if (pObj->parentRoles) {
+      taosHashCleanup(pObj->parentRoles);
+      pObj->parentRoles = NULL;
+    }
+    if (pObj->subRoles) {
+      taosHashCleanup(pObj->subRoles);
+      pObj->subRoles = NULL;
     }
   }
 }
@@ -349,8 +375,9 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   pOld->privSet = pNew->privSet;
   pOld->version = pNew->version;
   pOld->flag = pNew->flag;
-  TSWAP(pOld->parents, pNew->parents);
-  TSWAP(pOld->children, pNew->children);
+  TSWAP(pOld->parentUsers, pNew->parentUsers);
+  TSWAP(pOld->parentRoles, pNew->parentRoles);
+  TSWAP(pOld->subRoles, pNew->subRoles);
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -673,7 +700,7 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       void  *pIter = NULL;
       size_t klen = 0, tlen = 0;
       char  *pBuf = POINTER_SHIFT(buf, VARSTR_HEADER_SIZE);
-      while (pIter = taosHashIterate(pObj->children, pIter)) {
+      while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
         char *roleName = taosHashGetKey(pIter, &klen);
         tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }

@@ -465,8 +465,9 @@ typedef struct {
     };
   };
   SPrivSet  privSet;
-  SHashObj* parents;
-  SHashObj* children;
+  SHashObj* parentUsers;
+  SHashObj* parentRoles;  // not supported yet
+  SHashObj* subRoles;     // not supported yet
   SRWLatch  lock;
 } SRoleObj;
 
