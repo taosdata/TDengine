@@ -310,15 +310,17 @@ char* functions[] = {
     "week(",           "weekday(",
     "weekofyear(",     "dayofweek(",
     "stddev_pop(",     "var_pop(",
-    "forecast(",       "cols(",
+    "forecast(",       "imputation(",
     "std(",            "variance(",
     "sttdev_samp(",    "var_samp(",
     "group_concat(",   "if(",
     "ifnull(",         "nvl(",
     "nvl2(",           "isnull(",
     "isnotnull(",      "coalesce(",
-    "date(",          "corr(",
-    "case ",          "when "
+    "date(",           "corr(",
+    "cols(",           "find_in_set(",
+    "like_in_set(",    "regexp_in_set(",
+    "case ",           "when "
 };
 
 char* tb_actions[] = {
