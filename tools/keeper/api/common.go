@@ -63,7 +63,7 @@ func generateCreateDBSql(dbname string, databaseOptions map[string]interface{}) 
 
 func CreatTables(username string, password string, host string, port int, usessl bool, dbname string, createList []string) {
 	ctx := context.Background()
-	conn, err := db.NewConnectorWithDb(username, password, host, port, dbname, usessl)
+    conn, err := db.NewConnector(username, password, host, port, usessl)
 	if err != nil {
 		commonLogger.Errorf("connect to database error, msg:%s", err)
 		return
@@ -71,9 +71,10 @@ func CreatTables(username string, password string, host string, port int, usessl
 	defer closeConn(conn)
 
 	for _, createSql := range createList {
-		commonLogger.Infof("execute sql:%s", createSql)
-		if _, err = conn.Exec(ctx, createSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
-			commonLogger.Errorf("execute sql: %s, error: %s", createSql, err)
+        qualified := qualifyCreateTableSQL(createSql, dbname)
+        commonLogger.Infof("execute sql:%s", qualified)
+        if _, err = conn.Exec(ctx, qualified, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+            commonLogger.Errorf("execute sql: %s, error: %s", qualified, err)
 		}
 	}
 }

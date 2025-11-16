@@ -115,20 +115,36 @@ func ConfigLog() {
 		if err := SetLevel(config.Conf.LogLevel); err != nil {
 			panic(err)
 		}
-		writer, err := rotatelogs.New(
-			filepath.Join(config.Conf.Log.Path, fmt.Sprintf("%skeeper_%d_%%Y%%m%%d.log", version.CUS_PROMPT, config.Conf.InstanceID)),
+        // ensure log directory exists; if not, try to create or fallback to temp dir
+        logPath := config.Conf.Log.Path
+        if err := os.MkdirAll(logPath, 0o755); err != nil {
+            // fallback to a user-writable temp dir
+            fallback := filepath.Join(os.TempDir(), "taos-logs")
+            if err2 := os.MkdirAll(fallback, 0o755); err2 == nil {
+                logPath = fallback
+                config.Conf.Log.Path = fallback
+            } else {
+                // as a last resort, keep stdout logging only
+                logger.Warnf("fallback to stdout logging; cannot create log dirs: %v, %v", err, err2)
+                return
+            }
+        }
+        writer, err := rotatelogs.New(
+            filepath.Join(logPath, fmt.Sprintf("%skeeper_%d_%%Y%%m%%d.log", version.CUS_PROMPT, config.Conf.InstanceID)),
 			rotatelogs.WithRotationCount(config.Conf.Log.RotationCount),
 			rotatelogs.WithRotationTime(time.Hour*24),
 			rotatelogs.WithRotationSize(int64(config.Conf.Log.RotationSize)),
 			rotatelogs.WithReservedDiskSize(int64(config.Conf.Log.ReservedDiskSize)),
-			rotatelogs.WithRotateGlobPattern(filepath.Join(config.Conf.Log.Path, fmt.Sprintf("%skeeper_%d_*.log*", version.CUS_PROMPT, config.Conf.InstanceID))),
+            rotatelogs.WithRotateGlobPattern(filepath.Join(logPath, fmt.Sprintf("%skeeper_%d_*.log*", version.CUS_PROMPT, config.Conf.InstanceID))),
 			rotatelogs.WithCompress(config.Conf.Log.Compress),
-			rotatelogs.WithCleanLockFile(filepath.Join(config.Conf.Log.Path, fmt.Sprintf(".%skeeper_%d_rotate_lock", version.CUS_PROMPT, config.Conf.InstanceID))),
+            rotatelogs.WithCleanLockFile(filepath.Join(logPath, fmt.Sprintf(".%skeeper_%d_rotate_lock", version.CUS_PROMPT, config.Conf.InstanceID))),
 			rotatelogs.ForceNewFile(),
 			rotatelogs.WithMaxAge(time.Hour*24*time.Duration(config.Conf.Log.KeepDays)),
 		)
 		if err != nil {
-			panic(err)
+            // if rotation cannot be initialized, continue with stdout logging
+            logger.Warnf("failed to init rotate logs, continue stdout: %v", err)
+            return
 		}
 		fmt.Fprintln(writer, "==================================================")
 		fmt.Fprintln(writer, "                new log file")

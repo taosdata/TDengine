@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -20,6 +21,10 @@ func TestStart(t *testing.T) {
 	conf := config.InitConfig()
 	if conf == nil {
 		panic("config error")
+	}
+	// skip if REST is not available
+	if _, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", conf.TDengine.Host, conf.TDengine.Port), 200*time.Millisecond); err != nil {
+		t.Skip("TDengine REST (taosAdapter) not available; skipping integration test")
 	}
 	conf.Env.InCGroup = true
 	cpuCgroupDir := "/sys/fs/cgroup/cpu"
