@@ -1258,7 +1258,7 @@ class TestRowlength64k:
         self.ins_query()
 
     def test_stable_create_rowlength64k(self):
-        """Create Table With Max columns
+        """Stable max row length 64k alter
 
         1. Create stable with max columns to test limit
         2. Create stable with max tags to test limit

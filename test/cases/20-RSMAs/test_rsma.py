@@ -8,26 +8,6 @@ import time
 import shutil
 
 class TestCase:
-    """ Test case for rsma.
-
-    1. Exceptional cases.
-    2. Retention task monitor.
-    3. Rollup automatically when execute: trim database <db_name>.
-    4. Rollup manually when execute: rollup database <db_name>.
-
-    Catalog:
-        - Rollup SMA:Create/Drop/Show/Query/Trim/Rollup
-
-    Since: v3.3.8.0
-
-    Lables: common,ci,rsma
-
-    Jira: TS-6113
-
-    History:
-        - 2025-09-25: Initial version from Kaili Xu.
-    """
-
     path_parts = os.getcwd().split(os.sep)
     try:
         tdinternal_index = path_parts.index("TDinternal")
@@ -778,12 +758,23 @@ class TestCase:
             row_offset += len(expected_data)
 
     def test_rsma(self):
-        """ Test case for rsma.
-
-        1. Exceptional cases.
-        2. Retention task monitor.
-        3. Rollup automatically when execute: trim database <db_name>.
-        4. Rollup manually when execute: rollup database <db_name>.
+        """RSMAs basic
+        
+        1. Create two databases d0 and d1 with retention policy and stt_trigger.
+        2. Create stable and table with various data types including decimal and composite key.
+        3. Insert data into tables.
+        4. Create rsma on tables with various functions.
+        5. Alter rsma to add more functions.
+        6. Show rsma and verify.
+        7. Drop rsma and verify.
+        8. Trim database to trigger retention policy.
+        9. Rollup database and verify rsma results.
+        10. Rollup vgroups and verify rsma results.
+        11. Test decimal data type and composite key with add/drop column operations.
+        12. Exceptional cases.
+        13. Retention task monitor.
+        14. Rollup automatically when execute: trim database.
+        15. Rollup manually when execute: rollup database.
 
         Catalog:
             - Rollup SMA:Create/Drop/Show/Query/Trim/Rollup

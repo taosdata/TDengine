@@ -129,7 +129,7 @@ static int32_t getTableDataInfo(SStreamReaderTaskInner* pTask, bool* hasNext) {
 }
 
 static int32_t getTableData(SStreamReaderTaskInner* pTask, SSDataBlock** ppRes) {
-  return pTask->api.tsdReader.tsdReaderRetrieveDataBlock(pTask->pReader, ppRes, NULL);
+  return pTask->api.tsdReader.tsdReaderRetrieveDataBlock(pTask->pReader, ppRes);
 }
 
 static int32_t buildOTableInfoRsp(const SSTriggerOrigTableInfoRsp* rsp, void** data, size_t* size) {
@@ -943,8 +943,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
     api->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &api->metaFn);
-    // code = api->metaReaderFn.getTableEntryByVersionUid(&mr, sVersion, uid);
-    code = api->metaReaderFn.getEntryGetUidCache(&mr, uid);
+    code = api->metaReaderFn.getTableEntryByVersionUid(&mr, sVersion, uid);
     api->metaReaderFn.readerReleaseLock(&mr);
     STREAM_CHECK_RET_GOTO(code);
 

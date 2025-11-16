@@ -111,3 +111,28 @@ class TestClusterKillRestoreDnode:
         tdLog.info(f"{sql} finished")
 
 
+    def test_except_kill_transaction(self):
+        """Except kill transaction
+        
+        1. Create 5 dnode 3 mnode cluster
+        2. Create 1 db, 1 stable, 100 childs table
+        3. Insert 10w records for each child table
+        4. Stop dnode 2 
+        5. Delete the data folder of dnode 2
+        6. Start dnode 2
+        7. Restore dnode 2 data with "restore dnode 2"
+        8. Kill the restore transaction
+        9. Restart the restore dnode 2
+        10. Check data correctness
+        
+        Catalog:
+            - Except
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci,ignore
+
+        Jira: None
+
+        """
+        pass

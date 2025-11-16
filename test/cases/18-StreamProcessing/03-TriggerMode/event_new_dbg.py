@@ -12,8 +12,6 @@ class TestStreamStateTrigger:
 
         Verification testing during the development process.
 
-        Catalog:
-            - Streams: 03-TriggerMode
         Description:
             - create 14 streams, each stream has 1 source tables
             - write data to source tables

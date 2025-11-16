@@ -8753,7 +8753,11 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
     // skip param before the calc range
     taosObjListClear(&pGroup->pPendingCalcParams);
   }
-  taosObjListAppend(&pGroup->pPendingCalcParams, pParam);
+  code = taosObjListAppend(&pGroup->pPendingCalcParams, pParam);
+  if (code != TSDB_CODE_SUCCESS) {
+    tDestroySSTriggerCalcParam(pParam);
+    goto _end;
+  }
   pGroup->finished = (pParam->wend >= pContext->calcRange.ekey);
   if (initSize == 0) {
     heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);

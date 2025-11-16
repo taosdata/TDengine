@@ -7,7 +7,7 @@ class TestFilterTag:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_filter_tag(self):
-        """Tag
+        """Filter tags
 
         1. Projection queries with arithmetic operations and tag column filtering conditions
 

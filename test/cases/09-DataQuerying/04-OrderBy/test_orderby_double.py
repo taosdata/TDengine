@@ -7,14 +7,12 @@ class TestOrderByDouble:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_orderby_double(self):
-        """Sort double
+        """Order by double
 
         1. Create a database and table
         2. Insert double values into the table
         3. Query the table with order by double values; without the fix for TS-6772, it should be failed
-
-        Catalog:
-            - Query:OrderBy
+        4. Verify the order of the returned results
 
         Since: v3.0.0.0
 

@@ -369,7 +369,7 @@ _exit:
 
 static void vnodeCommitCancel(void *arg) { taosMemoryFree(arg); }
 
-int vnodeAsyncCommit(SVnode *pVnode) {
+int vnodeAsyncCommitEx(SVnode *pVnode, bool forceTrim) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -377,6 +377,10 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   if (NULL == pInfo) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
+
+  pInfo->forceTrim = forceTrim;
+
+  // prepare to commit
   code = vnodePrepareCommit(pVnode, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -389,11 +393,13 @@ _exit:
     taosMemoryFree(pInfo);
     vError("vgId:%d %s failed at line %d since %s" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
-    vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
-          pVnode->state.commitID, pVnode->state.applyTerm, pVnode->state.applied);
+    vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64 " forceTrim:%d",
+          TD_VID(pVnode), pVnode->state.commitID, pVnode->state.applyTerm, pVnode->state.applied, forceTrim);
   }
   return code;
 }
+
+int vnodeAsyncCommit(SVnode *pVnode) { return vnodeAsyncCommitEx(pVnode, false); }
 
 int32_t vnodeSyncCommit(SVnode *pVnode) {
   int32_t lino;
@@ -456,7 +462,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   pVnode->state.committed = pInfo->info.state.committed;
 
-  code = syncEndSnapshot(pVnode->sync);
+  code = syncEndSnapshot(pVnode->sync, pInfo->forceTrim);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tqCommitOffset(pVnode->pTq);

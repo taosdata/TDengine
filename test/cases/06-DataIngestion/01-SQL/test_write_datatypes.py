@@ -119,7 +119,7 @@ class TestWriteDatatypes:
         tdLog.info(f"{__file__} successfully executed")
 
     def test_write_datatypes(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        """Write: datatypes
+        """Write data types
 
         1. Write data with NULL values
         2. Write data using different floating-point representations

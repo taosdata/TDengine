@@ -141,3 +141,4 @@ select statecount(int_tag, "GT", 20) from test_vtable_select.vtb_virtual_stb ord
 select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
 
 select count(tbname) from test_vtable_select.vtb_virtual_stb;
+select count(1) from test_vtable_select.vtb_virtual_stb;

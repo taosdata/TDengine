@@ -8,7 +8,7 @@ class TestStreamResultSavedSchemaValidation:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_result_saved_schema_validation(self):
-        """ResultSaved: schema validation
+        """Result saved: schema validation
 
         This test focuses on precise validation of result table schemas:
 

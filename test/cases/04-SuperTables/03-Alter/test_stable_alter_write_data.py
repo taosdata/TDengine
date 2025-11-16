@@ -7,7 +7,7 @@ class TestStableAlterThenWriteData:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stable_alter_then_write_data(self):
-        """Alter: then write data
+        """Alter then write data
 
         1. Create a table and insert data
         2. Alter the table and insert data

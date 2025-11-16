@@ -28,9 +28,6 @@ class TestMqttCases:
 
         mqtt rawblock testing
 
-        Catalog:
-            - Subscribe:Mqtt
-
         Since: v3.3.3.7
 
         Labels: common,ci
@@ -146,7 +143,30 @@ class TestMqttCases:
         self.bnodes_count = tdSql.getRows()
         tdSql.checkKeyExist(self.bnodes_count)
         for i in range(self.bnodes_count):
-            tdMqtt.dropBnode(i+1);
+            tdMqtt.dropBnode(i+1)
 
         tdMqtt.dropAllTopicsDbsAndBnodes()
 
+    def test_node_create_bnode(self):
+        """Node create bnode
+
+        1. Create bnode for each dnode
+        2. Create database with us precision
+        3. Create stable with full data types
+        4. Create topic from stable
+        5. Insert data into stable
+        6. Subscribe topic with rawblock proto
+        7. Verify subscribed data
+        8. Drop bnodes and databases
+
+        Catalog:
+            - NodeManager:Bnode
+
+        Since: v3.3.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        """
+        pass

@@ -8,7 +8,7 @@ class TestDatabaseDeleteReuseVnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_delete_reuse_vnode(self):
-        """Repeatedly drop 1
+        """Drop db repeatedly
 
         1. Create a database and a normal table, insert data, and repeat the above 30 times using the same names
         2. Restart the dnode

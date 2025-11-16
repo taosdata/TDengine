@@ -15,20 +15,20 @@ class TestViewMgmt:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_view_mgmt(self):
-        """视图管理
+        """View management
 
-        1. 创建三个超级表
-        2. 创建子表并写入数据
-        3. 权限测试
-        4. 创建、删除测试
-        5. 写入测试
-        6. 流计算测试（待流计算重构后再迁移）
-        7. Show/Desc 测试
-        8. 同名表测试
-        9. 重启服务端
-        10. 重复以上测试
-        11. 修改参数 keepColumnName 为 1
-        12. 重复以上测试
+        1. Create 3 super tables
+        2. Create child tables and insert data
+        3. Create view with root user
+        4. Grant /revoke privilege on view to normal users and test
+        5. Nested view privilege test
+        6. Query view test
+        7. show/desc view test
+        8. Same name table and view test
+        9. Test keepColumnName is 1 and 0
+        10. Restart server test
+        11. Drop view test
+
 
         Catalog:
             - View

@@ -8,15 +8,13 @@ class TestStreamRecalcExpiredTime:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_expired_time(self):
-        """Stream Recalculation EXPIRED_TIME Option Test
+        """Recalc: watermark with expired_time option
 
         Test EXPIRED_TIME option with expired data:
         1. Write expired data - all windows should not trigger recalculation
         2. Combine with WATERMARK - test boundary value behavior
         3. Different trigger types behavior with expired data
 
-        Catalog:
-            - Streams:Recalculation
 
         Since: v3.0.0.0
 

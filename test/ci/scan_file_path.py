@@ -131,11 +131,7 @@ def scan_files_path(source_file_path):
             continue
         for file in files:
             file_path = os.path.join(root, file)
-            if (
-                file_path.endswith(".c")
-                or file_path.endswith(".h")
-                or file_path.endswith(".cpp")
-            ) and all(skip not in file_path for skip in SCAN_SKIP_FILE_LIST):
+            if file_path.endswith(('.c', '.h', '.cpp')) and all(skip not in file_path for skip in SCAN_SKIP_FILE_LIST):
                 all_file_path.append(file_path)
     logger.info("Found %s files" % len(all_file_path))
 
@@ -154,11 +150,7 @@ def add_candidate_file(file_name):
         if not os.path.exists(file_name):
             logger.warning(f"Changed file not found (abs): {file_name}")
             return
-        if not (
-            file_name.endswith(".c")
-            or file_name.endswith(".h")
-            or file_name.endswith(".cpp")
-        ):
+        if not file_name.endswith(('.c', '.h', '.cpp')):
             return
         if any(skip in file_name for skip in SCAN_SKIP_FILE_LIST):
             return
@@ -170,11 +162,7 @@ def add_candidate_file(file_name):
         return
 
     # skip by pattern
-    if not (
-        file_name.endswith(".c")
-        or file_name.endswith(".h")
-        or file_name.endswith(".cpp")
-    ):
+    if not file_name.endswith(('.c', '.h', '.cpp')):
         return
     if any(skip in file_name for skip in SCAN_SKIP_FILE_LIST):
         return
@@ -335,7 +323,7 @@ if __name__ == "__main__":
     logger.info(f"scan log file : {scan_result_log}")
     logger.info("Pass files: %s" % len([item for item in res if item[3] == "Pass"]))
     logger.info("Fail files: %s" % len([item for item in res if item[3] == "Fail"]))
-    fail_files = [item for item in res if item[3] in ['Fail', 'Invalid', 'Error']]
+    fail_files = [item for item in res if item[3] in {'Fail', 'Invalid', 'Error'}]
 
     if len(fail_files) > 0:
         logger.error(f"Total failed files: {len(fail_files)}")

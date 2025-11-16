@@ -51,7 +51,7 @@ static int32_t getStatisInfoFromCache(SLRUCache *pCache, SSttStatisCacheKey *pKe
                                       LRUHandle **pHandle, const char *id);
 static void    releaseCacheHandle(SLRUCache *pCache, LRUHandle **pHandle, bool lock);
 static void    freeStatisFileItems(const void *key, size_t keyLen, void *value, void *ud);
-static int32_t getCacheValueSize(const SSttStatisCacheValue *pValue);
+static int32_t getCacheValueSize(const SSttStatisCacheValue* pValue);
 
 static void tLDataIterClose2(SLDataIter *pIter);
 
@@ -1501,7 +1501,6 @@ int32_t getSttTableRowsInfo(SSttStatisCacheValue *pValue, int32_t numOfPKs, int3
 
 int32_t getCacheValueSize(const SSttStatisCacheValue *pValue) {
   int32_t size = sizeof(SSttStatisCacheValue) + sizeof(SArray);
-
   for (int32_t i = 0; i < taosArrayGetSize(pValue->pLevel); ++i) {
     SArray *pRowsInfoArr = *(SArray **)taosArrayGet(pValue->pLevel, i);
     
