@@ -204,6 +204,7 @@ typedef struct SSTriggerRealtimeContext {
   bool    haveReadCheckpoint;
   int64_t lastCheckpointTime;
   int64_t lastVirtTableInfoTime;
+  int64_t lastReportTime;
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {
@@ -269,6 +270,8 @@ typedef struct SSTriggerHistoryContext {
 
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
+
+  int64_t lastReportTime;
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {
