@@ -668,11 +668,7 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   SRoleObj *pObj = NULL;
   int32_t   cols = 0;
   int32_t   bufSize = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE;
-  char     *buf = NULL;
-
-  if (!(buf = taosMemoryMalloc(bufSize))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
+  char      tBuf[TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ROLE, pShow->pIter, (void **)&pObj);
@@ -697,27 +693,30 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-      void  *pIter = NULL;
-      size_t klen = 0, tlen = 0;
-      char  *pBuf = POINTER_SHIFT(buf, VARSTR_HEADER_SIZE);
-      while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
-        char *roleName = taosHashGetKey(pIter, &klen);
-        tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
-      }
-      if (tlen > 0) {
-        pBuf[tlen - 1] = 0;  // remove last ','
+      if (taosHashGetSize(pObj->subRoles) == 0) {
+        COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pObj, pShow->pIter, _exit);
       } else {
-        pBuf[0] = 0;
+        void  *pIter = NULL;
+        size_t klen = 0, tlen = 0;
+        char *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
+        while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
+          char *roleName = taosHashGetKey(pIter, &klen);
+          tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
+        }
+        if (tlen > 0) {
+          pBuf[tlen - 1] = 0;  // remove last ','
+        } else {
+          pBuf[0] = 0;
+        }
+        varDataSetLen(tBuf, tlen);
+        COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pObj, pShow->pIter, _exit);
       }
-      varDataSetLen(buf, tlen);
-      COL_DATA_SET_VAL_GOTO((const char *)buf, false, pObj, pShow->pIter, _exit);
     }
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
   pShow->numOfRows += numOfRows;
 _exit:
-  taosMemoryFreeClear(buf);
   if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
