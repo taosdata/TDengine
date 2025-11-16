@@ -6518,6 +6518,10 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       case STRIGGER_CONTEXT_SEND_CALC_REQ: {
         code = stHistoryGroupRetrievePendingCalc(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
+        heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
+        if (pGroup->pPendingCalcParams.neles > 0) {
+          heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
+        }
         if (pContext->pCalcReq == NULL) {
           // do nothing
         } else if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
@@ -6680,10 +6684,6 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       case STRIGGER_CONTEXT_CHECK_CONDITION: {
         code = stHistoryGroupRetrievePendingCalc(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
-        heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
-        if (pGroup->pPendingCalcParams.neles > 0) {
-          heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
-        }
         pContext->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
       }
       case STRIGGER_CONTEXT_SEND_CALC_REQ: {
