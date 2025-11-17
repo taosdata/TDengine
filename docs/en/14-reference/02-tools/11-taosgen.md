@@ -238,7 +238,6 @@ The `tdengine/create-child-table` action creates multiple child tables in the ta
 ### Format for Writing Data to TDengine Action
 The `tdengine/insert-data` action writes data to specified child tables. Supports obtaining child table names and normal column data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich write control strategies for optimization.
 
-- tdengine: Uses global tdengine configuration by default; can be overridden for this action.
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for writing data, options: sql, stmt, default: stmt.
 - concurrency (int): Number of threads for concurrent data writing, default: 8.
@@ -270,7 +269,6 @@ The `tdengine/insert-data` action writes data to specified child tables. Support
 ### Format for Publishing MQTT Data Action
 The `mqtt/publish-data` action publishes data to the specified topic. Supports obtaining data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich publish control strategies for optimization.
 
-- mqtt: Uses global mqtt configuration by default; can be overridden for this action.
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for publishing data, currently only supports json, default: json.
 - concurrency (int): Number of threads for concurrent publishing, default: 8.
