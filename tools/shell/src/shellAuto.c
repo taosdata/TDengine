@@ -312,7 +312,7 @@ char* functions[] = {
     "stddev_pop(",     "var_pop(",
     "forecast(",       "imputation(",
     "std(",            "variance(",
-    "sttdev_samp(",    "var_samp(",
+    "stddev_samp(",    "var_samp(",
     "group_concat(",   "if(",
     "ifnull(",         "nvl(",
     "nvl2(",           "isnull(",
@@ -595,7 +595,6 @@ void showHelp() {
     drop topic <topic_name> ;\n\
     drop stream <stream_name> ;\n\
     drop index <index_name>;\n\
-    drop stream <stream_name> ;\n\
     drop tsma <tsma_name> ;\n\
     drop rsma <rsma_name> ;\n\
   ----- E ----- \n\
