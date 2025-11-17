@@ -91,7 +91,7 @@ class OutMetrics:
             f"| {'In Records':<{col_widths['in_records']}} "
             f"| {'Start Time':<{col_widths['start_time']}} "
             f"| {'End Time':<{col_widths['end_time']}} "
-            f"| {'Duration(s)':<{col_widths['duration']}} "
+            f"| {'Duration(ms)':<{col_widths['duration']}} "
             f"| {'Throughput(rec/s)':<{col_widths['throughput']}} "
             f"| {'Status':<{col_widths['status']}} |"
         )
@@ -116,10 +116,10 @@ class OutMetrics:
         for scenario in self.scenarioId:
             start_time = self.time_start_write.get(scenario, 0)
             end_time   = self.time_end_test.get(scenario, 0)
-            duration   = end_time - start_time  # seconds
+            duration   = (end_time - start_time) * 1000  # ms
             out_rows   = self.output_rows.get(scenario, 0)
             in_rows    = self.data_rows.get(scenario, 0)
-            throughput = (out_rows / duration) if duration > 0 else 0
+            throughput = (in_rows / duration) if duration > 0 else 0
             status     = self.status.get(scenario, "UNKNOWN")
             
             # Format time strings
