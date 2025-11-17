@@ -5550,7 +5550,7 @@ static bool vtableTagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
   SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)pNode;
   SVirtualScanLogicNode*  pVtableScan = (SVirtualScanLogicNode*)nodesListGetNode(pDyn->node.pChildren, 0);
-  if (!pVtableScan || LIST_LENGTH(pVtableScan->node.pChildren) != 2) {
+  if (!pVtableScan || LIST_LENGTH(pVtableScan->node.pChildren) != 2 || !pDyn->vtbScan.useTagScan) {
     return false;
   }
   SScanLogicNode*         pTagScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 0);
