@@ -7,6 +7,7 @@
 #include <atomic>
 
 #include "walInt.h"
+#include "tglobal.h"
 
 const char*  ranStr = "tvapq02tcp";
 const int    ranStrLen = strlen(ranStr);
@@ -951,7 +952,6 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteFirstFile) {
   int code;
   
   // Enable walDeleteOnCorruption
-  extern bool tsWalDeleteOnCorruption;
   bool oldVal = tsWalDeleteOnCorruption;
   tsWalDeleteOnCorruption = true;
 
@@ -1034,7 +1034,6 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteMiddleFile) {
   walResetEnv();
   int code;
   
-  extern bool tsWalDeleteOnCorruption;
   bool oldVal = tsWalDeleteOnCorruption;
   tsWalDeleteOnCorruption = true;
 
@@ -1118,7 +1117,6 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
   walResetEnv();
   int code;
   
-  extern bool tsWalDeleteOnCorruption;
   bool oldVal = tsWalDeleteOnCorruption;
   tsWalDeleteOnCorruption = true;
 
