@@ -924,14 +924,14 @@ end:
 }
 
 static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool isCalc, SStorageAPI* api, 
-  uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, uint32_t numOfRows, uint32_t numOfBlocks, int32_t sVersion) {
+  uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, uint32_t numOfRows, uint32_t numOfBlocks, int64_t sVersion) {
   int32_t     code = 0;
   int32_t     lino = 0;
   SMetaReader mr = {0};
   SArray* tagCache = NULL;
 
   void* pTask = info->pTask;
-  ST_TASK_DLOG("%s start. rows:%" PRIu32 ",uid:%"PRIu64, __func__, numOfRows, uid);
+  ST_TASK_DLOG("%s start. sversion:%d rows:%" PRIu32 ",uid:%"PRIu64, __func__, sVersion, numOfRows, uid);
   
   SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
   SExprInfo*   pExprInfo = isCalc ? info->pExprInfoCalcTag : info->pExprInfoTriggerTag; 
@@ -943,7 +943,8 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
     api->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &api->metaFn);
-    code = api->metaReaderFn.getTableEntryByVersionUid(&mr, sVersion, uid);
+    // code = api->metaReaderFn.getTableEntryByVersionUid(&mr, sVersion, uid);
+    code = api->metaReaderFn.getEntryGetUidCache(&mr, uid);
     api->metaReaderFn.readerReleaseLock(&mr);
     STREAM_CHECK_RET_GOTO(code);
 
@@ -1352,7 +1353,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     if (!sStreamReaderInfo->isVtableStream) {
       SStorageAPI  api = {0};
       initStorageAPI(&api);
-      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, rsp->isCalc, &api, submitTbData.uid, pBlock, blockStart, numOfRows, 1, submitTbData.sver));
+      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, rsp->isCalc, &api, submitTbData.uid, pBlock, blockStart, numOfRows, 1, ver));
     }
     
     SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
