@@ -37,6 +37,7 @@ class CmdLine:
         self.port        = 6030
         self.user        = "root"
         self.password    = "taosdata"
+        self.timeout     = 120 # seconds
         
         # args
         self.parser = None
@@ -69,6 +70,15 @@ class CmdLine:
             metavar='PATH',
             help='Readings data file path (default: built-in data)'
         )
+
+        # Timeout
+        self.parser.add_argument(
+            '-t', '--timeout',
+            type=int,
+            default=120,
+            metavar='SECONDS',
+            help='Timeout in seconds for stream processing (default: 120)'
+        )        
         
         # Log output
         self.parser.add_argument(
@@ -223,6 +233,12 @@ class CmdLine:
         args_data = self.args.data
         if args_data is not None:
             self.data_path = args_data
+            
+        # timeout
+        args_timeout = self.args.timeout
+        if args_timeout is not None:
+            self.timeout = args_timeout
+        print(f"Set timeout to {self.timeout} seconds")    
 
         # init file name
         self.cases_yaml = os.path.join(self.config_path, 'cases.yaml')        

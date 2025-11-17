@@ -20,6 +20,7 @@ import time
 import yaml
 
 from tdengine import *
+from cmdLine import cmd
 from scene import Scene
 from baseStep import BaseStep
 from outMetrics import metrics
@@ -28,7 +29,7 @@ class DoTest(BaseStep):
     def __init__(self, scene):
         self.scene = scene
 
-    def wait_stream_end(self, verifySql, expectRows, timeout=120):
+    def wait_stream_end(self, verifySql, expectRows, timeout):
         print("Waiting for stream processing to complete...")
         print(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Timeout: {timeout} seconds")
         conn = taos_connect()
@@ -94,7 +95,7 @@ class DoTest(BaseStep):
             print(f"Processing YAML file: {yaml_file}")
             verifySql, expectRows = self.read_verify_info(self.scene.name, yaml_file)
             if verifySql != None and expectRows != None:
-                self.wait_stream_end(verifySql, expectRows)
+                self.wait_stream_end(verifySql, expectRows, timeout = cmd.timeout)
             else:
                 print(f"verify sql is none, skipping  {yaml_file}")
         

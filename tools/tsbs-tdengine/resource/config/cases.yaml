@@ -28,3 +28,19 @@ testCases:
                             from db1.readings 
                             where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname) 
                       where cur_grade > 70;
+
+    - scenarioId: "A3"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a3 
+               sliding(1m) 
+               from db1.readings 
+               stream_options(fill_history_first) 
+               into db1.res_a3 
+               as 
+                  select _tcurrent_ts cur_ts, count(*), avg(avg_fuel) 
+                     from (
+                            select last(elevation) last_elev, avg(fuel_consumption) avg_fuel from db1.readings 
+                            where _c0 >= _tprev_ts and _c0 < _tcurrent_ts partition by tbname ) 
+                     where last_elev > 1000;

@@ -9,6 +9,13 @@ testCases:
     - scenarioId: "A2"
       concurrency: 1
       querySql: select count(*) from db1.readings
-      dataRows: 100
+      dataRows: 540
       verifySql: select count(*) from db1.res_a2
+      expectRows: 6684
+
+    - scenarioId: "A3"
+      concurrency: 1
+      querySql: select count(*) from db1.readings
+      dataRows: 540
+      verifySql: select count(*) from db1.res_a3
       expectRows: 6684
