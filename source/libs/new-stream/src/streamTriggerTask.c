@@ -4056,7 +4056,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       ST_TASK_DLOG("control request 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
       pTask->historyCalcStarted = true;
 
-      if (pTask->fillHistory) {
+      if (pTask->fillHistory && !pTask->historyFinished) {
         code = stTriggerTaskAddRecalcRequest(pTask, NULL, NULL, pContext->pReaderWalProgress, true, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
