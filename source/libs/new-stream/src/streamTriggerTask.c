@@ -37,7 +37,9 @@
 #define STREAM_TRIGGER_REALTIME_SESSIONID 1
 #define STREAM_TRIGGER_HISTORY_SESSIONID  2
 
-#define STREAM_TRIGGER_RECALC_MERGE_MS (30 * MILLISECOND_PER_MINUTE)  // 30min
+#define STREAM_TRIGGER_RECALC_MERGE_MS    (30 * MILLISECOND_PER_MINUTE)  // 30min
+#define STREAM_TRIGGER_BLOCK_SIZE_LIMIT   (8 * 1024 * 1024)              // 8MB
+#define STREAM_TRIGGER_REPORT_INTERVAL_NS 5 * NANOSECOND_PER_MINUTE      // 5min
 
 #define IS_TRIGGER_GROUP_TO_CHECK(pGroup) \
   (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
@@ -2799,9 +2801,56 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     pContext->haveReadCheckpoint = true;
   }
   pContext->lastCheckpointTime = taosGetTimestampNs();
+  pContext->lastReportTime = taosGetTimestampNs();
 
 _end:
   return code;
+}
+
+static void stRealtimeContextReport(SSTriggerRealtimeContext *pContext) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+
+  int64_t numGroups = tSimpleHashGetSize(pContext->pGroups);
+  int64_t memGroups = numGroups * sizeof(SSTriggerRealtimeGroup);
+  int64_t capWindows = pContext->pWindows ? pContext->pWindows->capacity : 0;
+  int64_t memWindows = capWindows * sizeof(SSTriggerNotifyWindow);
+  int64_t capNotify = pContext->pNotifyParams ? pContext->pNotifyParams->capacity : 0;
+  int64_t memNotify = capNotify * sizeof(SSTriggerCalcParam);
+
+  int64_t numMetas = pContext->metaPool.size;
+  int64_t capMetaPool = pContext->metaPool.capacity;
+  int64_t memMetaPool = capMetaPool * pContext->metaPool.nodeSize;
+  int64_t numUids = pContext->tableUidPool.size;
+  int64_t capUidPool = pContext->tableUidPool.capacity;
+  int64_t memUidPool = capUidPool * pContext->tableUidPool.nodeSize;
+  int64_t numWindows = pContext->windowPool.size;
+  int64_t capWindowPool = pContext->windowPool.capacity;
+  int64_t memWindowPool = capWindowPool * pContext->windowPool.nodeSize;
+  int64_t numCalcParams = pContext->calcParamPool.size;
+  int64_t capCalcParamPool = pContext->calcParamPool.capacity;
+  int64_t memCalcParamPool = capCalcParamPool * pContext->calcParamPool.nodeSize;
+  int64_t numVersions = pContext->versionPool.size;
+  int64_t capVersionPool = pContext->versionPool.capacity;
+  int64_t memVersionPool = capVersionPool * pContext->versionPool.nodeSize;
+
+  ST_TASK_ILOG("[trigger realtime] groups:%" PRId64 "(%" PRId64
+               " bytes), "
+               "windows:%" PRId64 "(%" PRId64
+               " bytes), "
+               "notifyParams:%" PRId64 "(%" PRId64
+               " bytes), "
+               "metaPool:%" PRId64 "/%" PRId64 "(%" PRId64
+               " bytes), "
+               "tableUidPool:%" PRId64 "/%" PRId64 "(%" PRId64
+               " bytes), "
+               "windowPool:%" PRId64 "/%" PRId64 "(%" PRId64
+               " bytes), "
+               "calcParamPool:%" PRId64 "/%" PRId64 "(%" PRId64
+               " bytes), "
+               "versionPool:%" PRId64 "/%" PRId64 "(%" PRId64 " bytes)",
+               numGroups, memGroups, capWindows, memWindows, capNotify, memNotify, numMetas, capMetaPool, memMetaPool,
+               numUids, capUidPool, memUidPool, numWindows, capWindowPool, memWindowPool, numCalcParams,
+               capCalcParamPool, memCalcParamPool, numVersions, capVersionPool, memVersionPool);
 }
 
 static void stRealtimeContextDestroy(void *ptr) {
@@ -2811,6 +2860,7 @@ static void stRealtimeContextDestroy(void *ptr) {
   }
 
   SSTriggerRealtimeContext *pContext = *ppContext;
+  SStreamTriggerTask       *pTask = pContext->pTask;
   if (pContext->pReaderWalProgress != NULL) {
     tSimpleHashCleanup(pContext->pReaderWalProgress);
     pContext->pReaderWalProgress = NULL;
@@ -2838,6 +2888,11 @@ static void stRealtimeContextDestroy(void *ptr) {
   }
 
   if (pContext->pGroups != NULL) {
+    if (pTask) {
+      int64_t numGroups = tSimpleHashGetSize(pContext->pGroups);
+      int64_t memGroups = numGroups * sizeof(SSTriggerRealtimeGroup);
+      ST_TASK_DLOG("[trigger realtime] destroy groups %" PRId64 " (%" PRId64 " bytes)", numGroups, memGroups);
+    }
     tSimpleHashCleanup(pContext->pGroups);
     pContext->pGroups = NULL;
   }
@@ -2873,10 +2928,20 @@ static void stRealtimeContextDestroy(void *ptr) {
     stNewVtableMergerDestroy(&pContext->pMerger);
   }
   if (pContext->pWindows != NULL) {
+    if (pTask) {
+      int64_t capWindows = pContext->pWindows ? pContext->pWindows->capacity : 0;
+      int64_t memWindows = capWindows * sizeof(SSTriggerNotifyWindow);
+      ST_TASK_DLOG("[trigger realtime] destroy windows %" PRId64 " (%" PRId64 " bytes)", capWindows, memWindows);
+    }
     taosArrayDestroyEx(pContext->pWindows, stRealtimeContextDestroyWindow);
     pContext->pWindows = NULL;
   }
   if (pContext->pNotifyParams != NULL) {
+    if (pTask) {
+      int64_t capNotify = pContext->pNotifyParams ? pContext->pNotifyParams->capacity : 0;
+      int64_t memNotify = capNotify * sizeof(SSTriggerCalcParam);
+      ST_TASK_DLOG("[trigger realtime] destroy notify params %" PRId64 " (%" PRId64 " bytes)", capNotify, memNotify);
+    }
     taosArrayDestroyEx(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
     pContext->pNotifyParams = NULL;
   }
@@ -2892,10 +2957,39 @@ static void stRealtimeContextDestroy(void *ptr) {
   colDataDestroy(&pContext->stateCol);
   colDataDestroy(&pContext->eventStartCol);
   colDataDestroy(&pContext->eventEndCol);
+  if (pTask) {
+    int64_t capMetaPool = pContext->metaPool.capacity;
+    int64_t memMetaPool = capMetaPool * pContext->metaPool.nodeSize;
+    ST_TASK_DLOG("[trigger realtime] destroy meta pool %" PRId64 " (%" PRId64 " bytes)", capMetaPool, memMetaPool);
+  }
   taosObjPoolDestroy(&pContext->metaPool);
+  if (pTask) {
+    int64_t capUidPool = pContext->tableUidPool.capacity;
+    int64_t memUidPool = capUidPool * pContext->tableUidPool.nodeSize;
+    ST_TASK_DLOG("[trigger realtime] destroy table uid pool %" PRId64 " (%" PRId64 " bytes)", capUidPool, memUidPool);
+  }
   taosObjPoolDestroy(&pContext->tableUidPool);
+  if (pTask) {
+    int64_t capWindowPool = pContext->windowPool.capacity;
+    int64_t memWindowPool = capWindowPool * pContext->windowPool.nodeSize;
+    ST_TASK_DLOG("[trigger realtime] destroy window pool %" PRId64 " (%" PRId64 " bytes)", capWindowPool,
+                 memWindowPool);
+  }
   taosObjPoolDestroy(&pContext->windowPool);
+  if (pTask) {
+    int64_t capCalcParamPool = pContext->calcParamPool.capacity;
+    int64_t memCalcParamPool = capCalcParamPool * pContext->calcParamPool.nodeSize;
+    ST_TASK_DLOG("[trigger realtime] destroy calc param pool %" PRId64 " (%" PRId64 " bytes)", capCalcParamPool,
+                 memCalcParamPool);
+  }
   taosObjPoolDestroy(&pContext->calcParamPool);
+  if (pTask) {
+    int64_t capVersionPool = pContext->versionPool.capacity;
+    int64_t memVersionPool = capVersionPool * pContext->versionPool.nodeSize;
+    ST_TASK_DLOG("[trigger realtime] destroy version pool %" PRId64 " (%" PRId64 " bytes)", capVersionPool,
+                 memVersionPool);
+  }
+  taosObjPoolDestroy(&pContext->versionPool);
 
   if (pContext->pCalcDataCache != NULL) {
     destroyStreamDataCache(pContext->pCalcDataCache);
@@ -2972,6 +3066,13 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      int64_t dataSize = blockDataGetSize(pProgress->pTrigBlock);
+      if (dataSize > STREAM_TRIGGER_BLOCK_SIZE_LIMIT) {
+        ST_TASK_ILOG("trigger data block is cleared since its size %" PRId64 " exceeds limit", dataSize);
+        blockDataDestroy(pProgress->pTrigBlock);
+        pProgress->pTrigBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+        QUERY_CHECK_NULL(pProgress->pTrigBlock, code, lino, _end, terrno);
+      }
       SSTriggerWalDataNewRequest *pReq = &pProgress->pullReq.walDataNewReq;
       pReq->versions = pProgress->pVersions;
       pReq->ranges = pContext->pRanges;
@@ -3018,6 +3119,13 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      int64_t dataSize = blockDataGetSize(pProgress->pTrigBlock);
+      if (dataSize > STREAM_TRIGGER_BLOCK_SIZE_LIMIT) {
+        ST_TASK_ILOG("trigger data block is cleared since its size %" PRId64 " exceeds limit", dataSize);
+        blockDataDestroy(pProgress->pTrigBlock);
+        pProgress->pTrigBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+        QUERY_CHECK_NULL(pProgress->pTrigBlock, code, lino, _end, terrno);
+      }
       SSTriggerWalMetaDataNewRequest *pReq = &pProgress->pullReq.walMetaDataNewReq;
       pReq->lastVer = pProgress->lastScanVer;
       break;
@@ -3028,6 +3136,13 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      int64_t dataSize = blockDataGetSize(pProgress->pCalcBlock);
+      if (dataSize > STREAM_TRIGGER_BLOCK_SIZE_LIMIT) {
+        ST_TASK_ILOG("trigger data block is cleared since its size %" PRId64 " exceeds limit", dataSize);
+        blockDataDestroy(pProgress->pCalcBlock);
+        pProgress->pCalcBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+        QUERY_CHECK_NULL(pProgress->pCalcBlock, code, lino, _end, terrno);
+      }
       SSTriggerWalDataNewRequest *pReq = &pProgress->pullReq.walDataNewReq;
       pReq->versions = pProgress->pVersions;
       pReq->ranges = pContext->pRanges;
@@ -4171,6 +4286,11 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     taosMemoryFree(buf);
     QUERY_CHECK_CODE(code, lino, _end);
     pContext->lastCheckpointTime = now;
+  }
+
+  if (pContext->lastReportTime + STREAM_TRIGGER_REPORT_INTERVAL_NS <= now) {
+    stRealtimeContextReport(pContext);
+    pContext->lastReportTime = now;
   }
 
 #define STRIGGER_VIRTUAL_TABLE_INFO_INTERVAL_NS 10 * NANOSECOND_PER_SEC  // 10s
@@ -5483,8 +5603,29 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   tdListInit(&pContext->retryPullReqs, POINTER_BYTES);
   tdListInit(&pContext->retryCalcReqs, POINTER_BYTES);
 
+  pContext->lastReportTime = taosGetTimestampNs();
+
 _end:
   return code;
+}
+
+static void stHistoryContextReport(SSTriggerHistoryContext *pContext) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+
+  int64_t numGroups = tSimpleHashGetSize(pContext->pGroups);
+  int64_t memGroups = numGroups * sizeof(SSTriggerHistoryGroup);
+  int64_t capWindows = taosArrayGetSize(pContext->pSavedWindows);
+  int64_t memWindows = capWindows * sizeof(SSTriggerWindow);
+  int64_t numCalcParams = pContext->calcParamPool.size;
+  int64_t capCalcParamPool = pContext->calcParamPool.capacity;
+  int64_t memCalcParamPool = capCalcParamPool * pContext->calcParamPool.nodeSize;
+
+  ST_TASK_ILOG("[trigger history] groups:%" PRId64 "(%" PRId64
+               " bytes), "
+               "windows:%" PRId64 "(%" PRId64
+               " bytes), "
+               "calcParamPool:%" PRId64 "/%" PRId64 "(%" PRId64 " bytes)",
+               numGroups, memGroups, capWindows, memWindows, numCalcParams, capCalcParamPool, memCalcParamPool);
 }
 
 static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, SSTriggerRecalcRequest *pReq) {
@@ -5515,6 +5656,7 @@ static void stHistoryContextDestroy(void *ptr) {
   }
 
   SSTriggerHistoryContext *pContext = *ppContext;
+  SStreamTriggerTask      *pTask = pContext->pTask;
   if (pContext->pReaderTsdbProgress != NULL) {
     tSimpleHashCleanup(pContext->pReaderTsdbProgress);
     pContext->pReaderTsdbProgress = NULL;
@@ -5534,6 +5676,11 @@ static void stHistoryContextDestroy(void *ptr) {
   }
 
   if (pContext->pGroups != NULL) {
+    if (pTask) {
+      int64_t numGroups = tSimpleHashGetSize(pContext->pGroups);
+      int64_t memGroups = numGroups * sizeof(SSTriggerHistoryGroup);
+      ST_TASK_DLOG("[trigger history] destroy groups %" PRId64 " (%" PRId64 " bytes)", numGroups, memGroups);
+    }
     tSimpleHashCleanup(pContext->pGroups);
     pContext->pGroups = NULL;
   }
@@ -5560,6 +5707,11 @@ static void stHistoryContextDestroy(void *ptr) {
     stVtableMergerDestroy(&pContext->pMerger);
   }
   if (pContext->pSavedWindows != NULL) {
+    if (pTask) {
+      int64_t capWindows = taosArrayGetSize(pContext->pSavedWindows);
+      int64_t memWindows = capWindows * sizeof(SSTriggerWindow);
+      ST_TASK_DLOG("[trigger history] destroy saved windows %" PRId64 " (%" PRId64 " bytes)", capWindows, memWindows);
+    }
     taosArrayDestroy(pContext->pSavedWindows);
     pContext->pSavedWindows = NULL;
   }
@@ -5578,6 +5730,12 @@ static void stHistoryContextDestroy(void *ptr) {
   if (pContext->pNotifyParams != NULL) {
     taosArrayDestroyEx(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
     pContext->pNotifyParams = NULL;
+  }
+  if (pTask) {
+    int64_t capCalcParamPool = pContext->calcParamPool.capacity;
+    int64_t memCalcParamPool = capCalcParamPool * pContext->calcParamPool.nodeSize;
+    ST_TASK_DLOG("[trigger history] destroy calc param pool %" PRId64 " (%" PRId64 " bytes)", capCalcParamPool,
+                 memCalcParamPool);
   }
   taosObjPoolDestroy(&pContext->calcParamPool);
 
@@ -6360,6 +6518,10 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       case STRIGGER_CONTEXT_SEND_CALC_REQ: {
         code = stHistoryGroupRetrievePendingCalc(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
+        heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
+        if (pGroup->pPendingCalcParams.neles > 0) {
+          heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
+        }
         if (pContext->pCalcReq == NULL) {
           // do nothing
         } else if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
@@ -6408,6 +6570,13 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           break;
         }
       }
+    } else {
+      pContext->finishCheck = true;
+    }
+
+    if (pContext->finishCheck) {
+      ST_TASK_DLOG("history calculation is finished, calc range: [%" PRId64 ", %" PRId64 "]", pContext->calcRange.skey,
+                   pContext->calcRange.ekey);
     }
 
     bool forceClose = pContext->isHistory &&
@@ -6560,6 +6729,11 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   }
 
   if (!pContext->finishCheck) {
+    int64_t now = taosGetTimestampNs();
+    if (pContext->lastReportTime + STREAM_TRIGGER_REPORT_INTERVAL_NS <= now) {
+      stHistoryContextReport(pContext);
+      pContext->lastReportTime = now;
+    }
     pContext->status = STRIGGER_CONTEXT_FETCH_META;
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
@@ -6580,6 +6754,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       }
     }
   } else {
+    stHistoryContextReport(pContext);
     bool calcFinish = false;
     code = stHistoryContextAllCalcFinish(pContext, &calcFinish);
     QUERY_CHECK_CODE(code, lino, _end);
