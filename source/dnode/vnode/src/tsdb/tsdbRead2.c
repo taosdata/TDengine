@@ -477,7 +477,7 @@ _end:
 }
 
 bool shouldFreePkBuf(SBlockLoadSuppInfo* pSupp) {
-  return (pSupp != NULL) && (pSupp->numOfPks > 0) && IS_VAR_DATA_TYPE(pSupp->pk.type);
+  return (pSupp != NULL) && (pSupp->numOfPks > 0) && (IS_VAR_DATA_TYPE(pSupp->pk.type) || pSupp->pk.type == TSDB_DATA_TYPE_DECIMAL);
 }
 
 int32_t resetDataBlockIterator(SDataBlockIter* pIter, int32_t order, bool needFree, const char* id) {

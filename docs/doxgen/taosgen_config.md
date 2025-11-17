@@ -200,7 +200,7 @@ schema:
         - Austin
   generation:
     interlace: 1
-    concurrency: 1
+    concurrency: 8
     rows_per_table: 10000
     rows_per_batch: 1000
     num_cached_batches: 0
