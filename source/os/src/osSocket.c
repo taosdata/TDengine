@@ -375,11 +375,17 @@ int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *pAddr) {
 
     if (result->ai_family == AF_INET6) {
       struct sockaddr_in6 *p6 = (struct sockaddr_in6 *)result->ai_addr;
-      inet_ntop(AF_INET6, &p6->sin6_addr, pAddr->ipv6, sizeof(pAddr->ipv6));
+
+      const char *t = inet_ntop(AF_INET6, &p6->sin6_addr, pAddr->ipv6, sizeof(pAddr->ipv6));
+      TAOS_UNUSED(t);
+
       pAddr->type = 1;
     } else if (result->ai_family == AF_INET) {
       struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
-      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+
+      const char *t = inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      TAOS_UNUSED(t);
+
       pAddr->type = 0;
     } else {
       code = TSDB_CODE_RPC_FQDN_ERROR;
@@ -478,7 +484,9 @@ int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *pAddr) {
 
     if (result->ai_family == AF_INET) {
       struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
-      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      const char         *t = inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      TAOS_UNUSED(t);
+
       pAddr->type = 0;
     } else {
       code = TSDB_CODE_RPC_FQDN_ERROR;
@@ -547,6 +555,17 @@ int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2) {
   return 0;
 }
 
+int32_t taosGetFqdnWithTimeCost(char *fqdn, int64_t *timeoutMs) {
+  int32_t code = 0;
+  int64_t startMs = taosGetTimestampMs();
+
+  code = taosGetFqdn(fqdn);
+  int64_t cost = taosGetTimestampMs() - startMs;
+  if (timeoutMs != NULL) {
+    *timeoutMs = cost;
+  }
+  return code;
+}
 int32_t taosGetFqdn(char *fqdn) {
   OS_PARAM_CHECK(fqdn);
 #ifdef WINDOWS

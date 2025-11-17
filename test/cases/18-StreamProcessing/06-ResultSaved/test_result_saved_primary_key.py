@@ -8,7 +8,7 @@ class TestStreamResultSavedPrimaryKey:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_result_saved_primary_key(self):
-        """ResultSaved: primary key tests
+        """Result saved: primary key tests
 
         This test focuses specifically on PRIMARY KEY functionality in stream result saving:
 
