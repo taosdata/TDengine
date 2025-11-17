@@ -367,6 +367,13 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
       TSC_ERR_RET(taosThreadMutexUnlock(&pObj->mutex));
       break;
     }
+    case TAOS_NOTIFY_DATETIME_WHITELIST_VER: {
+      TSC_ERR_RET(taosThreadMutexLock(&pObj->mutex));
+      pObj->dateTimeWhiteListInfo.fp = fp;
+      pObj->dateTimeWhiteListInfo.param = param;
+      TSC_ERR_RET(taosThreadMutexUnlock(&pObj->mutex));
+      break;
+    }
     default: {
       terrno = TSDB_CODE_INVALID_PARA;
       releaseTscObj(*(int64_t *)taos);

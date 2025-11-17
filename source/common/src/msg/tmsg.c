@@ -2019,6 +2019,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->clusterCfg.statusIntervalMs));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->timeWhiteVer));
 
   tEndEncode(&encoder);
 
@@ -2174,6 +2175,11 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->clusterCfg.statusIntervalMs));
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeWhiteVer));
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -2340,6 +2346,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ipWhiteVer));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->analVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteVer));
   tEndEncode(&encoder);
 
 _exit:
@@ -2394,6 +2401,10 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->analVer));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->timeWhiteVer));
   }
 
   tEndDecode(&decoder);
@@ -3818,6 +3829,8 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   // since 3.0.7.0
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->passVer));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->whiteListVer));
+  // since 3.4.0.0
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->timeWhiteListVer));
   return 0;
 }
 
@@ -4049,6 +4062,12 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if (tDecodeI64(pDecoder, &pRsp->whiteListVer) < 0) goto _err;
     } else {
       pRsp->whiteListVer = 0;
+    }
+    // since 3.4.0.0
+    if (!tDecodeIsEnd(pDecoder)) {
+      if (tDecodeI64(pDecoder, &pRsp->timeWhiteListVer) < 0) goto _err;
+    } else {
+      pRsp->timeWhiteListVer = 0;
     }
   }
   return 0;
@@ -4461,7 +4480,7 @@ void tFreeSUserDateTimeWhiteList(SUserDateTimeWhiteList* pRsp) {
 
 
 
-int32_t tSerializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveUserDateTimeWhiteListRsp* pRsp) {
+int32_t tSerializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4500,7 +4519,7 @@ _exit:
 
 
 
-int32_t tDeserializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveUserDateTimeWhiteListRsp* pRsp) {
+int32_t tDeserializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4543,7 +4562,7 @@ _exit:
 
 
 
-void tFreeSRetrieveUserDateTimeWhiteListRsp(SRetrieveUserDateTimeWhiteListRsp *pRsp) {
+void tFreeSRetrieveDateTimeWhiteListRsp(SRetrieveDateTimeWhiteListRsp *pRsp) {
   if (pRsp == NULL) {
     return;
   }

@@ -155,6 +155,7 @@ typedef enum {
   TAOS_NOTIFY_PASSVER = 0,
   TAOS_NOTIFY_WHITELIST_VER = 1,
   TAOS_NOTIFY_USER_DROPPED = 2,
+  TAOS_NOTIFY_DATETIME_WHITELIST_VER = 3,
 } TAOS_NOTIFY_TYPE;
 
 /* -- implemented in the native interface, for internal component only, the API may change -- */

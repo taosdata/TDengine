@@ -777,7 +777,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
-  int8_t updateIpWhiteList = 0;
+  int8_t updateWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
     goto _err_out;
@@ -814,7 +814,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       goto _err_out;
     }
     if (strncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
-      updateIpWhiteList = 1;
+      updateWhiteList = 1;
     }
 
     CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
@@ -861,7 +861,10 @@ _send_req:
 
 _success:
   // dont care suss or succ;
-  if (updateIpWhiteList) mndRefreshUserIpWhiteList(pMnode);
+  if (updateWhiteList) {
+    mndRefreshUserIpWhiteList(pMnode);
+    mndRefreshUserDateTimeWhiteList(pMnode);
+  }
   tFreeSMCfgDnodeReq(&cfgReq);
   sdbRelease(pMnode->pSdb, vObj);
   TAOS_RETURN(code);

@@ -129,7 +129,7 @@ static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessGetUserIpWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndProcessRetrieveIpWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetUserDateTimeWhiteListReq(SRpcMsg *pReq);
-static int32_t  mndProcessRetrieveUserDateTimeWhiteListReq(SRpcMsg *pReq);
+static int32_t  mndProcessRetrieveDateTimeWhiteListReq(SRpcMsg *pReq);
 
 static int32_t wlCacheRemoveIpWhiteList(const char *user);
 
@@ -454,6 +454,101 @@ static int32_t wlCacheRemoveTimeWhiteList(const char *user) {
 }
 
 
+
+static int32_t wlCacheRebuildTimeWhiteList(SMnode *pMnode) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  SHashObj *pNew = taosHashInit(8, hashFn, 1, HASH_ENTRY_LOCK);
+  if (pNew == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  while (1) {
+    SUserObj *pUser = NULL;
+    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SDateTimeWhiteList *list = cloneDateTimeWhiteList(pUser->pTimeWhiteList);
+    if (list == NULL) {
+      sdbRelease(pSdb, pUser);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+
+    size_t userLen = strlen(pUser->user);
+    if ((code = taosHashPut(pNew, pUser->user, userLen, &list, sizeof(list))) != 0) {
+      taosMemoryFree(list);
+      sdbRelease(pSdb, pUser);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
+    }
+
+    sdbRelease(pSdb, pUser);
+  }
+
+  destroyTimeWhiteList(wlCache.wlTime);
+  wlCache.wlTime = pNew;
+  wlCache.verTime++;
+
+_OVER:
+  if (code < 0) {
+    mError("failed to rebuild datetime white list at line %d since %s", lino, tstrerror(code));
+    destroyTimeWhiteList(pNew);
+  }
+  TAOS_RETURN(code);
+}
+
+
+
+int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode) {
+  int32_t code = 0;
+  (void)taosThreadRwlockWrlock(&wlCache.rw);
+
+  if ((code = wlCacheRebuildTimeWhiteList(pMnode)) != 0) {
+    (void)taosThreadRwlockUnlock(&wlCache.rw);
+    TAOS_RETURN(code);
+  }
+  wlCache.verTime = taosGetTimestampMs();
+  (void)taosThreadRwlockUnlock(&wlCache.rw);
+
+  TAOS_RETURN(code);
+}
+
+
+
+int64_t mndGetTimeWhiteListVersion(SMnode *pMnode) {
+  int64_t ver = 0;
+  int32_t code = 0;
+
+  if (mndEnableTimeWhiteList(pMnode) != 0 && tsEnableWhiteList) {
+    (void)taosThreadRwlockWrlock(&wlCache.rw);
+
+    if (wlCache.verIp == 0) {
+      // get user and dnode datetime white list
+      if ((code = wlCacheRebuildTimeWhiteList(pMnode)) != 0) {
+        (void)taosThreadRwlockUnlock(&wlCache.rw);
+        mError("%s failed to update datetime white list since %s", __func__, tstrerror(code));
+        return ver;
+      }
+      wlCache.verTime = taosGetTimestampMs();
+    }
+    ver = wlCache.verTime;
+
+    (void)taosThreadRwlockUnlock(&wlCache.rw);
+  }
+
+  mDebug("datetime-white-list on mnode ver: %" PRId64, ver);
+  return ver;
+}
+
+
+
 int32_t mndInitUser(SMnode *pMnode) {
   TAOS_CHECK_RETURN(wlCacheInit());
 
@@ -478,7 +573,7 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_IP_WHITELIST, mndProcessRetrieveIpWhiteListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL, mndProcessRetrieveIpWhiteListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_DATETIME_WHITELIST, mndProcessGetUserDateTimeWhiteListReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_USER_DATETIME_WHITELIST, mndProcessRetrieveUserDateTimeWhiteListReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_DATETIME_WHITELIST, mndProcessRetrieveDateTimeWhiteListReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER, mndCancelGetNextUser);
@@ -2215,7 +2310,7 @@ _OVER:
 
 
 
-static int32_t buildRetrieveUserDateTimeWhiteListRsp(SRetrieveUserDateTimeWhiteListRsp *pRsp) {
+static int32_t buildRetrieveDateTimeWhiteListRsp(SRetrieveDateTimeWhiteListRsp *pRsp) {
   (void)taosThreadRwlockWrlock(&wlCache.rw);
 
   int32_t count = taosHashGetSize(wlCache.wlTime);
@@ -2261,12 +2356,12 @@ static int32_t buildRetrieveUserDateTimeWhiteListRsp(SRetrieveUserDateTimeWhiteL
 
 
 
-static int32_t mndProcessRetrieveUserDateTimeWhiteListReq(SRpcMsg *pReq) {
+static int32_t mndProcessRetrieveDateTimeWhiteListReq(SRpcMsg *pReq) {
   int32_t        code = 0;
   int32_t        lino = 0;
   int32_t        len = 0;
   void          *pRsp = NULL;
-  SRetrieveUserDateTimeWhiteListRsp wlRsp = {0};
+  SRetrieveDateTimeWhiteListRsp wlRsp = {0};
 
   // impl later
   SRetrieveWhiteListReq req = {0};
@@ -2275,9 +2370,9 @@ static int32_t mndProcessRetrieveUserDateTimeWhiteListReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
-  TAOS_CHECK_GOTO(buildRetrieveUserDateTimeWhiteListRsp(&wlRsp), &lino, _OVER);
+  TAOS_CHECK_GOTO(buildRetrieveDateTimeWhiteListRsp(&wlRsp), &lino, _OVER);
 
-  len = tSerializeSRetrieveUserDateTimeWhiteListRsp(NULL, 0, &wlRsp);
+  len = tSerializeSRetrieveDateTimeWhiteListRsp(NULL, 0, &wlRsp);
   if (len < 0) {
     TAOS_CHECK_GOTO(len, &lino, _OVER);
   }
@@ -2286,7 +2381,7 @@ static int32_t mndProcessRetrieveUserDateTimeWhiteListReq(SRpcMsg *pReq) {
   if (!pRsp) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-  len = tSerializeSRetrieveUserDateTimeWhiteListRsp(pRsp, len, &wlRsp);
+  len = tSerializeSRetrieveDateTimeWhiteListRsp(pRsp, len, &wlRsp);
   if (len < 0) {
     TAOS_CHECK_GOTO(len, &lino, _OVER);
   }
@@ -2302,7 +2397,7 @@ _OVER:
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = len;
 
-  tFreeSRetrieveUserDateTimeWhiteListRsp(&wlRsp);
+  tFreeSRetrieveDateTimeWhiteListRsp(&wlRsp);
   TAOS_RETURN(code);
 }
 
@@ -4457,4 +4552,10 @@ int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
   // ver = 0, disable ip white list
   // ver > 0, enable ip white list
   return tsEnableWhiteList ? pUser->ipWhiteListVer : 0;
+}
+
+int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
+  // ver = 0, disable datetime white list
+  // ver > 0, enable datetime white list
+  return tsEnableWhiteList ? pUser->timeWhiteListVer : 0;
 }
