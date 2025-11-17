@@ -347,21 +347,37 @@ class TaosD:
                         self.logger.info("Windows not support asanDir yet")
                     else:
                         self.logger.debug("destroy taosd on windows")
-                        pid = None
+                        pids_to_kill = []
                         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                            if ('mintty' in  proc.info['name']
-                                and proc.info['cmdline']  # 确保 cmdline 非空
-                                and any('taosd' in arg for arg in proc.info['cmdline'])
-                            ):
-                                self.logger.debug(proc.info)
-                                self.logger.debug("Found taosd.exe process with PID: %s", proc.info['pid'])
-                                pid = proc.info['pid']
-                                #kernel32 = ctypes.windll.kernel32
-                                #kernel32.GenerateConsoleCtrlEvent(0, pid)
-                                killCmd = f"taskkill /PID {pid} /T /F"
-                                #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                                self._remote.cmd_windows(fqdn, [killCmd])
-
+                            try:
+                                pname = (proc.info.get('name') or '').lower()
+                                pcmd = proc.info.get('cmdline') or []
+                                # 匹配 taosd 或 tmq_sim
+                                if (('mintty' in pname and any('taosd' in str(a).lower() for a in pcmd))
+                                    or 'taosd' in pname
+                                    or 'tmq_sim' in pname
+                                    or any('tmq_sim' in str(a).lower() for a in pcmd)):
+                                    self.logger.info(f"Found process {pname} (PID: {proc.info['pid']})")
+                                    pids_to_kill.append(proc.info['pid'])
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                continue
+                        
+                        # 批量杀进程（减少远程调用）
+                        if pids_to_kill:
+                            # kernel32 = ctypes.windll.kernel32
+                            # kernel32.GenerateConsoleCtrlEvent(0, pid)
+                            #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
+                            for pid in pids_to_kill:
+                                try:
+                                    proc = psutil.Process(pid)
+                                    proc_name = proc.name()
+                                    self.logger.info(f"Killing process {proc_name} (PID: {pid})")
+                                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                    self.logger.warning(f"Cannot access process info for PID: {pid}")
+                            
+                            kill_cmds = [f"taskkill /PID {pid} /T /F" for pid in pids_to_kill]
+                            self._remote.cmd_windows(fqdn, kill_cmds)
+                            self.logger.info(f"Killed {len(pids_to_kill)} processes on {fqdn}")
                 else:
                     if "asanDir" in i:
                         if fqdn == "localhost":
