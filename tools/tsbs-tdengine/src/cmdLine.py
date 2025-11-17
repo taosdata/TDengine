@@ -33,6 +33,10 @@ class CmdLine:
         # default
         self.config_path = relative_path('../resource/config/')
         self.data_path   = relative_path('../resource/data/')
+        self.host        = "localhost"
+        self.port        = 6030
+        self.user        = "root"
+        self.password    = "taosdata"
         
         # args
         self.parser = None
@@ -112,12 +116,22 @@ class CmdLine:
     # Getter methods for all parameters
     
     def get_config(self):
-        """Get config file path"""
         return self.args.config
     
     def get_data(self):
-        """Get data file path"""
         return self.args.data
+    
+    def get_host(self):
+        return self.host
+
+    def get_port(self):
+        return self.port
+    
+    def get_user(self):
+        return self.user
+    
+    def get_password(self):
+        return self.password
     
     def get_log_output(self):
         """Get log output file path"""

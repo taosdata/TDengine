@@ -3,29 +3,29 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream test.stm_a1 
+        create stream db1.stm_a1 
                 sliding(1h) 
-                from test.readings 
+                from db1.readings 
                 stream_options(fill_history_first) 
-                into test.res_a1 
+                into db1.res_a1 
                 as select _tcurrent_ts ts, avg(fuel_consumption)
-                        from test.readings 
+                        from db1.readings 
                         where _c0 >= _tprev_ts and _c0 < _tcurrent_ts;
 
     - scenarioId: "A2"
       classfication: "Summary"
       description: ""
       sql: |
-        create stream test.stm_a2 
+        create stream db1.stm_a2 
                sliding(1m) 
-               from test.readings 
+               from db1.readings 
                stream_options(fill_history_first) 
-               into test.res_a2 
+               into db1.res_a2 
                as 
                   select _tcurrent_ts ts, count(*), avg(fuel_consumption) 
                       from (  
                             select fuel_consumption, last(grade) cur_grade 
-                            from test.readings 
+                            from db1.readings 
                             where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname) 
                       where cur_grade > 70;
 
@@ -33,20 +33,20 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream test.stm_a6 
+        create stream db1.stm_a6 
                sliding(1h) 
-               from test.readings 
+               from db1.readings 
                stream_options(fill_history_first) 
-               into test.res_a6 
+               into db1.res_a6 
                as 
                   select _tcurrent_ts, count(*), avg(last_velocity) 
                       from (
                             select _tprev_ts ts, last(current_load) load, load_capacity, name 
-                            from test.diagnostics 
+                            from db2.diagnostics 
                             where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname
                           ) a join (
                             select _tprev_ts ts, last(velocity) last_velocity, name 
-                            from test.readings 
+                            from db1.readings 
                             where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname
                           ) b 
                           on a.ts = b.ts 

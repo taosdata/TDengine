@@ -24,6 +24,7 @@ from scene import Scene
 class PrepareEnv(BaseStep):
     def __init__(self, scene):
         self.scene = scene
+        self.scene.db_name = None
         
     def exec_sql_file(self, conn, sql_file):
         with open(sql_file, 'r') as file:
@@ -33,6 +34,13 @@ class PrepareEnv(BaseStep):
                 if command:
                     conn.execute(command)
                     print(f"exe success: {command}")
+                    if command.lower().startswith("create database"):
+                        # extract db name
+                        parts = command.split()
+                        if len(parts) >= 3:
+                            db_name = parts[2].strip().rstrip(';')
+                            self.scene.db_name = db_name
+                            print(f"Set scene.db_name to: {self.scene.db_name}")
 
     def wait_stream_ready(self, conn, stream_name="", timeout=120):
         sql = "select * from information_schema.ins_stream_tasks where type = 'Trigger' and status != 'Running'"

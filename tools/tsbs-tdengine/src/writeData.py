@@ -20,11 +20,12 @@ import util
 
 from baseStep import BaseStep
 from outMetrics import metrics
+from cmdLine import cmd
 
 class WriteData(BaseStep):
     def __init__(self, scene):
         self.scene = scene
-        self.des_url = "taos://root:taosdata@localhost:6030/test"
+        self.des_url = f"taos://{cmd.get_user()}:{cmd.get_password()}@{cmd.get_host()}:{cmd.get_port()}/{self.scene.db_name}"
 
     def taosx_import_csv(sef, desc, source, parser_file, batch_size):
         command = f"taosx run -t '{desc}' -f '{source}?batch_size={batch_size}' --parser '@{parser_file}'"
