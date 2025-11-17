@@ -148,6 +148,7 @@ typedef struct {
   SMsgCb         msgCb;
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
+  int64_t        timeWhiteVer;
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
   EEncryptAlgor  encryptAlgorigthm;
   EEncryptScope  encryptScope;

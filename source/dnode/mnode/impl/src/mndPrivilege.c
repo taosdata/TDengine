@@ -35,7 +35,6 @@ int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIp
   int32_t code = 0;
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
 
-  pWhiteListRsp->neg = 0;
   pWhiteListRsp->numWhiteLists = 2;
   pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
   if (pWhiteListRsp->pWhiteListsDual == NULL) {
@@ -51,7 +50,6 @@ int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIp
 int32_t mndSetUserDateTimeWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SUserDateTimeWhiteList *pWhiteListRsp) {
   (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
   pWhiteListRsp->ver = 0;
-  pWhiteListRsp->neg = 0;
   pWhiteListRsp->numWhiteLists = 0;
   TAOS_RETURN(0);
 }
@@ -84,10 +82,12 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
+  pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
   return 0;
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 0; }
+int32_t mndEnableTimeWhiteList(SMnode *pMnode) { return 0; }
 
 int32_t mndFetchIpWhiteList(SIpWhiteList *ipList, char **buf) {
   *buf = NULL;

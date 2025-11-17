@@ -47,8 +47,11 @@ void    mndUserFreeObj(SUserObj *pUser);
 
 int64_t mndGetIpWhiteListVersion(SMnode *pMnode);
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode);
-
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
+
+int64_t mndGetTimeWhiteListVersion(SMnode *pMnode);
+int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
+int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 #ifdef __cplusplus
 }
 #endif

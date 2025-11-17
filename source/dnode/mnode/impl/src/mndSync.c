@@ -320,6 +320,12 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
     mndSetRestored(pMnode, false);
   }
 
+  code = mndRefreshUserDateTimeWhiteList(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to refresh user date time white list since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
   SyncIndex fsmIndex = mndSyncAppliedIndex(pFsm);
   if (commitIdx != fsmIndex) {
     mError("vgId:1, failed to sync restore, commitIdx:%" PRId64 " is not equal to appliedIdx:%" PRId64, commitIdx,

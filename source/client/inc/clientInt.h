@@ -187,6 +187,7 @@ typedef struct STscObj {
   SHashObj*      pRequests;
   SPassInfo      passInfo;
   SWhiteListInfo whiteListInfo;
+  SWhiteListInfo dateTimeWhiteListInfo;
   STscNotifyInfo userDroppedInfo;
   SOptionInfo    optionInfo;
 } STscObj;
