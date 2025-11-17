@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <strings.h>
 #include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
@@ -2576,3 +2577,345 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
 }
 
 char *getBuildInfo() { return td_buildinfo; }
+
+static int32_t buildInstanceRegisterSql(const SInstanceRegisterReq *req, char **ppSql, uint32_t *pLen) {
+  const char *action = (req->expire < 0) ? "UNREGISTER" : "REGISTER";
+  int32_t     len = 0;
+
+  len += snprintf(NULL, 0, "%s INSTANCE '%s'", action, req->id);
+  if (req->type[0] != 0) {
+    len += snprintf(NULL, 0, " TYPE '%s'", req->type);
+  }
+  if (req->desc[0] != 0) {
+    len += snprintf(NULL, 0, " DESC '%s'", req->desc);
+  }
+  if (req->expire >= 0) {
+    len += snprintf(NULL, 0, " EXPIRE %d", req->expire);
+  }
+
+  char *sql = taosMemoryMalloc((size_t)len + 1);
+  if (sql == NULL) {
+    return terrno;
+  }
+
+  int32_t offset = snprintf(sql, (size_t)len + 1, "%s INSTANCE '%s'", action, req->id);
+  if (req->type[0] != 0) {
+    offset += snprintf(sql + offset, (size_t)len + 1 - (size_t)offset, " TYPE '%s'", req->type);
+  }
+  if (req->desc[0] != 0) {
+    offset += snprintf(sql + offset, (size_t)len + 1 - (size_t)offset, " DESC '%s'", req->desc);
+  }
+  if (req->expire >= 0) {
+    (void)snprintf(sql + offset, (size_t)len + 1 - (size_t)offset, " EXPIRE %d", req->expire);
+  }
+
+  *ppSql = sql;
+  if (pLen != NULL) {
+    *pLen = (uint32_t)len;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sendInstanceRegisterReq(STscObj *pObj, const SInstanceRegisterReq *req) {
+  SRequestObj *pRequest = NULL;
+  int32_t      code = createRequest(pObj->id, TDMT_MND_REGISTER_INSTANCE, 0, &pRequest);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
+
+  code = buildInstanceRegisterSql(req, &pRequest->sqlstr, &pRequest->sqlLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _cleanup;
+  }
+
+  int32_t msgLen = tSerializeSInstanceRegisterReq(NULL, 0, (SInstanceRegisterReq *)req);
+  if (msgLen <= 0) {
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _cleanup;
+  }
+
+  void *pMsg = taosMemoryMalloc(msgLen);
+  if (pMsg == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _cleanup;
+  }
+
+  if (tSerializeSInstanceRegisterReq(pMsg, msgLen, (SInstanceRegisterReq *)req) < 0) {
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+    taosMemoryFree(pMsg);
+    goto _cleanup;
+  }
+
+  pRequest->type = TDMT_MND_REGISTER_INSTANCE;
+  pRequest->body.requestMsg = (SDataBuf){.pData = pMsg, .len = msgLen, .handle = NULL};
+
+  SMsgSendInfo *pSend = buildMsgInfoImpl(pRequest);
+  if (pSend == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+    taosMemoryFree(pMsg);
+    pRequest->body.requestMsg.pData = NULL;
+    goto _cleanup;
+  }
+
+  SEpSet epSet = getEpSet_s(&pObj->pAppInfo->mgmtEp);
+  code = asyncSendMsgToServer(pObj->pAppInfo->pTransporter, &epSet, NULL, pSend);
+  if (code != TSDB_CODE_SUCCESS) {
+    destroySendMsgInfo(pSend);
+    pRequest->body.requestMsg = (SDataBuf){0};
+    goto _cleanup;
+  }
+
+  code = tsem_wait(&pRequest->body.rspSem);
+  if (code != TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : code;
+    goto _cleanup;
+  }
+
+  code = pRequest->code;
+  terrno = code;
+
+_cleanup:
+  destroyRequest(pRequest);
+  return code;
+}
+
+// 实现三个函数 taos_register_instance, taos_list_instances, taos_free_instances
+// taos_register_instance可以在mnd上注册一个instance实例，taos_list_instances可以列出所有instance实例，taos_free_instances可以释放instance实例列表
+// taos_register_instance，功能是按照入参在mnd上注册一个instance实例（如果实例存在则更新已有instancde的last_reg_time，如果不存在则创建一个instance，并在系统表perf_instance中也创建或者更新），第一个id是唯一标识符，不能和mnd内存中已有的实例相同，type是实例类型，desc是实例描述，expire是实例过期时间
+// taos_list_instances，功能是查询所有指定type的instance，filter_type需要查询的是实例类型，返回type=filter_type的实例列表的id数组，并且expire没有过期。不修改系统表perf_instance
+// taos_free_instances，功能是释放指定instances，list是需要释放的id数组，并在系统表中perf_instance删除指定的instance
+
+int32_t taos_register_instance(const char *id, const char *type, const char *desc, int32_t expire) {
+  if (id == NULL || id[0] == 0) {
+    return terrno = TSDB_CODE_INVALID_PARA;
+  }
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    return terrno = TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (pObj == NULL) {
+    return terrno = TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  int32_t code = taos_init();
+  if (code != TSDB_CODE_SUCCESS) {
+    releaseTscObj(pObj->id);
+    return code;
+  }
+
+  SInstanceRegisterReq req = {0};
+  tstrncpy(req.id, id, sizeof(req.id));
+  if (type != NULL && type[0] != 0) {
+    tstrncpy(req.type, type, sizeof(req.type));
+  }
+  if (desc != NULL && desc[0] != 0) {
+    tstrncpy(req.desc, desc, sizeof(req.desc));
+  }
+  req.expire = expire;
+
+  code = sendInstanceRegisterReq(pObj, &req);
+
+  releaseTscObj(pObj->id);
+  return code;
+}
+
+char **taos_list_instances(TAOS *taos, const char *filter_type) {
+  if (taos == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  int32_t code = taos_init();
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return NULL;
+  }
+
+  TAOS_RES *res = taos_query(taos, "SHOW INSTANCES");
+  if (res == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+    terrno = code;
+    return NULL;
+  }
+
+  code = taos_errno(res);
+  if (code != 0) {
+    taos_free_result(res);
+    terrno = code;
+    return NULL;
+  }
+
+  int32_t capacity = 8;
+  int32_t count = 0;
+  char  **tmp = taosMemoryCalloc(capacity, sizeof(char *));
+  if (tmp == NULL) {
+    code = terrno;
+    taos_free_result(res);
+    terrno = code;
+    return NULL;
+  }
+
+  int64_t nowMs = taosGetTimestampMs();
+  int32_t filterLen = (filter_type != NULL) ? (int32_t)strlen(filter_type) : 0;
+
+  while (1) {
+    TAOS_ROW row = taos_fetch_row(res);
+    if (row == NULL) {
+      break;
+    }
+
+    if (row[0] == NULL) {
+      continue;
+    }
+
+    if (filter_type != NULL && filter_type[0] != 0) {
+      if (row[1] == NULL) continue;
+      int32_t typeLen = varDataLen((char *)row[1] - VARSTR_HEADER_SIZE);
+      if (typeLen != filterLen || strncasecmp((char *)row[1], filter_type, (size_t)filterLen) != 0) {
+        continue;
+      }
+    }
+
+    int64_t lastRegTime = 0;
+    if (row[4] != NULL) {
+      lastRegTime = *((int64_t *)row[4]);
+    }
+
+    int32_t expireVal = 0;
+    if (row[5] != NULL) {
+      expireVal = *((int32_t *)row[5]);
+    }
+
+    if (expireVal > 0 && lastRegTime > 0) {
+      int64_t delta = nowMs - lastRegTime;
+      if (delta > (int64_t)expireVal * 1000) {
+        continue;
+      }
+    }
+
+    int32_t idLen = varDataLen((char *)row[0] - VARSTR_HEADER_SIZE);
+    char   *idCopy = taosMemoryCalloc(idLen + 1, sizeof(char));
+    if (idCopy == NULL) {
+      code = terrno;
+      goto _error;
+    }
+    memcpy(idCopy, row[0], idLen);
+    idCopy[idLen] = 0;
+
+    if (count >= capacity) {
+      int32_t newCap = capacity * 2;
+      char  **newTmp = taosMemoryRealloc(tmp, newCap * sizeof(char *));
+      if (newTmp == NULL) {
+        taosMemoryFree(idCopy);
+        code = terrno;
+        goto _error;
+      }
+      memset(newTmp + capacity, 0, (newCap - capacity) * sizeof(char *));
+      tmp = newTmp;
+      capacity = newCap;
+    }
+
+    tmp[count++] = idCopy;
+  }
+
+  taos_free_result(res);
+
+  if (count == 0) {
+    char **emptyList = taosMemoryCalloc(1, sizeof(char *));
+    if (emptyList == NULL) {
+      terrno = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    terrno = TSDB_CODE_SUCCESS;
+    return emptyList;
+  }
+
+  char **list = taosMemoryCalloc(count + 1, sizeof(char *));
+  if (list == NULL) {
+    for (int32_t i = 0; i < count; ++i) {
+      taosMemoryFree(tmp[i]);
+    }
+    taosMemoryFree(tmp);
+    terrno = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    list[i] = tmp[i];
+  }
+  list[count] = NULL;
+
+  taosMemoryFree(tmp);
+  terrno = TSDB_CODE_SUCCESS;
+  return list;
+
+_error:
+  for (int32_t i = 0; i < count; ++i) {
+    taosMemoryFree(tmp[i]);
+  }
+  taosMemoryFree(tmp);
+  taos_free_result(res);
+  terrno = code;
+  return NULL;
+}
+
+void taos_free_instances(TAOS *taos, char **list) {
+  if (list == NULL) {
+    return;
+  }
+
+  if (taos == NULL) {
+    for (int32_t i = 0; list[i] != NULL; ++i) {
+      taosMemoryFree(list[i]);
+    }
+    taosMemoryFree(list);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (pObj == NULL) {
+    for (int32_t i = 0; list[i] != NULL; ++i) {
+      taosMemoryFree(list[i]);
+    }
+    taosMemoryFree(list);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return;
+  }
+
+  int32_t code = taos_init();
+  if (code != TSDB_CODE_SUCCESS) {
+    releaseTscObj(pObj->id);
+    for (int32_t i = 0; list[i] != NULL; ++i) {
+      taosMemoryFree(list[i]);
+    }
+    taosMemoryFree(list);
+    terrno = code;
+    return;
+  }
+
+  int32_t result = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; list[i] != NULL; ++i) {
+    SInstanceRegisterReq req = {0};
+    tstrncpy(req.id, list[i], sizeof(req.id));
+    req.expire = -1;
+    int32_t rc = sendInstanceRegisterReq(pObj, &req);
+    if (rc != TSDB_CODE_SUCCESS) {
+      tscWarn("instance:%s, failed to unregister since %s", list[i], tstrerror(rc));
+      if (result == TSDB_CODE_SUCCESS) {
+        result = rc;
+      }
+    }
+  }
+
+  releaseTscObj(pObj->id);
+
+  for (int32_t i = 0; list[i] != NULL; ++i) {
+    taosMemoryFree(list[i]);
+  }
+  taosMemoryFree(list);
+
+  terrno = result;
+}

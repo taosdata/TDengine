@@ -95,6 +95,9 @@ typedef uint16_t tmsg_t;
     pReq->sql = NULL;            \
   } while (0)
 
+#define TSDB_INSTANCE_ID_LEN   256
+#define TSDB_INSTANCE_TYPE_LEN 64
+#define TSDB_INSTANCE_DESC_LEN 512
 
 static inline bool tmsgIsValid(tmsg_t type) {
   // static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
@@ -202,6 +205,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_RSMA,
   TSDB_MGMT_TABLE_RETENTION,
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
+  TSDB_MGMT_TABLE_INSTANCE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -481,6 +485,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CONNECTIONS_STMT,
   QUERY_NODE_SHOW_QUERIES_STMT,
   QUERY_NODE_SHOW_APPS_STMT,
+  QUERY_NODE_SHOW_INSTANCES_STMT,
   QUERY_NODE_SHOW_VARIABLES_STMT,
   QUERY_NODE_SHOW_DNODE_VARIABLES_STMT,
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
@@ -5427,6 +5432,16 @@ void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int32_t expire;
+} SInstanceRegisterReq;
+
+int32_t tSerializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
+int32_t tDeserializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
 
 #ifdef USE_MOUNT
 typedef struct {

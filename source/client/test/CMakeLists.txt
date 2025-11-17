@@ -52,6 +52,13 @@ TARGET_LINK_LIBRARIES(
 )
 endif()
 
+ADD_EXECUTABLE(instanceTest instanceTest.cpp)
+DEP_ext_gtest(instanceTest)
+TARGET_LINK_LIBRARIES(
+        instanceTest PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
+
 ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
 DEP_ext_gtest(stmt2Test)
 TARGET_LINK_LIBRARIES(

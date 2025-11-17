@@ -3867,6 +3867,50 @@ _exit:
 }
 void tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteLists); }
 
+int32_t tSerializeSInstanceRegisterReq(void *buf, int32_t bufLen, SInstanceRegisterReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->id));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->type));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->desc));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->expire));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSInstanceRegisterReq(void *buf, int32_t bufLen, SInstanceRegisterReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->id));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->type));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->desc));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->expire));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserWhiteListRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
