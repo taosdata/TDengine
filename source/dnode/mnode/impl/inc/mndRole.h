@@ -28,6 +28,9 @@ void    mndCleanupRole(SMnode *pMnode);
 int32_t mndAcquireRole(SMnode *pMnode, const char *userName, SRoleObj **ppRole);
 void    mndReleaseRole(SMnode *pMnode, SRoleObj *pRole);
 void    mndRoleFreeObj(SRoleObj *pObj);
+int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew);
+int32_t mndRoleDropParentUser(SMnode *pMnode, STrans *pTrans, SUserObj *pObj);
+int32_t mndRoleGrantToUser(SMnode *pMnode, STrans *pTrans, SRoleObj *pRole, SUserObj *pUser);
 
 SSdbRaw *mndRoleActionEncode(SRoleObj *pRole);
 #ifdef __cplusplus

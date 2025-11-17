@@ -1756,7 +1756,7 @@ int32_t mndDupUseDbHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
-int32_t mndDupUseRoleHash(SHashObj *pOld, SHashObj **ppNew) {
+int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
   int32_t code = 0;
   *ppNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -1796,7 +1796,7 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterViews, &pNew->alterViews), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTopicHash(pUser->topics, &pNew->topics), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupUseDbHash(pUser->useDbs, &pNew->useDbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupUseRoleHash(pUser->roles, &pNew->roles), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupRoleHash(pUser->roles, &pNew->roles), NULL, _OVER);
   pNew->pIpWhiteListDual = cloneIpWhiteList(pUser->pIpWhiteListDual);
   if (pNew->pIpWhiteListDual == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -2319,8 +2319,8 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
-  int32_t code = 0;
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq, SRoleObj *pRole) {
+  int32_t code = 0, lino = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to alter since %s", pOld->user, terrstr());
@@ -2334,10 +2334,9 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
-  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  if (code < 0) {
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+  if (pRole) {
+    TAOS_CHECK_EXIT(mndRoleGrantToUser(pMnode, pTrans, pRole, pNew));
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
@@ -2349,8 +2348,12 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
+_exit:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to alter at line %d since %s", pOld->user, lino, tstrerror(code));
+  }
   mndTransDrop(pTrans);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndDupObjHash(SHashObj *pOld, int32_t dataLen, SHashObj **ppNew) {
@@ -2677,7 +2680,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq, pRole);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:
@@ -2874,7 +2877,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     }
   }
 
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq, NULL);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
@@ -2946,6 +2949,11 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     TAOS_RETURN(terrno);
   }
   if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) < 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
+  if (mndRoleDropParentUser(pMnode, pTrans, pUser) < 0) {
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
@@ -3692,6 +3700,49 @@ static int32_t mndRemoveDbPrivileges(SHashObj *pHash, const char *dbFName, int32
     }
   }
   TAOS_RETURN(0);
+}
+
+int32_t mndUserDropRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = NULL;
+  void     *pIter = NULL;
+
+  while ((pIter = taosHashIterate(pObj->parentUsers, pIter))) {
+    if ((code = mndAcquireUser(pMnode, (const char *)pIter, &pUser))) {
+      TAOS_CHECK_EXIT(code);
+    }
+    SUserObj newUser = {0};
+    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
+    code = taosHashRemove(newUser.roles, pObj->name, strlen(pObj->name) + 1);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      mndUserFreeObj(&newUser);
+      continue;
+    }
+    if (code != 0) {
+      mndUserFreeObj(&newUser);
+      TAOS_CHECK_EXIT(code);
+    }
+    SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
+    if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+      mndUserFreeObj(&newUser);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY))) {
+      mndUserFreeObj(&newUser);
+      TAOS_CHECK_EXIT(code);
+    }
+    mndReleaseUser(pMnode, pUser);
+    pUser = NULL;
+    mndUserFreeObj(&newUser);
+  }
+_exit:
+  if (pIter) taosHashCancelIterate(pObj->parentUsers, pIter);
+  if (pUser) mndReleaseUser(pMnode, pUser);
+  if (code < 0) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
 }
 
 int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers) {

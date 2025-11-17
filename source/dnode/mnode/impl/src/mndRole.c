@@ -222,7 +222,7 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
     }
     for (int32_t i = 0; i < nParentUsers; ++i) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, userName));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->parentUsers, userName, strlen(userName), NULL, 0));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->parentUsers, userName, strlen(userName) + 1, NULL, 0));
     }
   }
 
@@ -236,7 +236,7 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
     }
     for (int32_t i = 0; i < nParentRoles; ++i) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, roleName));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->parentRoles, roleName, strlen(roleName), NULL, 0));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->parentRoles, roleName, strlen(roleName) + 1, NULL, 0));
     }
   }
   int32_t nSubRoles = 0;
@@ -248,7 +248,7 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
     }
     for (int32_t i = 0; i < nSubRoles; ++i) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, roleName));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->subRoles, roleName, strlen(roleName), NULL, 0));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->subRoles, roleName, strlen(roleName) + 1, NULL, 0));
     }
   }
 
@@ -494,7 +494,68 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndDropParentRole(SMnode *pMnode, SRoleObj *pChild) {
+int32_t mndRoleDropParentUser(SMnode *pMnode, STrans *pTrans, SUserObj *pObj) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SRoleObj *pRole = NULL;
+  void     *pIter = NULL;
+
+  while ((pIter = taosHashIterate(pObj->roles, pIter))) {
+    if ((code = mndAcquireRole(pMnode, (const char *)pIter, &pRole))) {
+      TAOS_CHECK_EXIT(code);
+    }
+    SRoleObj newRole = {0};
+    TAOS_CHECK_EXIT(mndRoleDupObj(pRole, &newRole));
+    code = taosHashRemove(newRole.parentUsers, pObj->user, strlen(pObj->user) + 1);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      mndRoleFreeObj(&newRole);
+      continue;
+    }
+    if (code != 0) {
+      mndRoleFreeObj(&newRole);
+      TAOS_CHECK_EXIT(code);
+    }
+    SSdbRaw *pCommitRaw = mndRoleActionEncode(&newRole);
+    if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+      mndRoleFreeObj(&newRole);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY))) {
+      mndRoleFreeObj(&newRole);
+      TAOS_CHECK_EXIT(code);
+    }
+    mndReleaseRole(pMnode, pRole);
+    pRole = NULL;
+    mndRoleFreeObj(&newRole);
+  }
+_exit:
+  if (pIter) taosHashCancelIterate(pObj->roles, pIter);
+  if (pRole) mndReleaseRole(pMnode, pRole);
+  if (code < 0) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+int32_t mndRoleGrantToUser(SMnode *pMnode, STrans *pTrans, SRoleObj *pRole, SUserObj *pUser) {
+  int32_t  code = 0, lino = 0;
+  SRoleObj newRole = {0};
+  TAOS_CHECK_EXIT(mndRoleDupObj(pRole, &newRole));
+  TAOS_CHECK_EXIT(taosHashPut(newRole.parentUsers, pUser->user, strlen(pUser->user) + 1, NULL, 0));
+  SSdbRaw *pCommitRaw = mndRoleActionEncode(&newRole);
+  if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+_exit:
+  if (code < 0) {
+    mError("role:%s, failed at line %d to grant to user:%s since %s", pRole->name, lino, pUser->user, tstrerror(code));
+  }
+  mndRoleFreeObj(&newRole);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndDropParentRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj) {  // TODO
   return 0;
 }
 
@@ -513,7 +574,8 @@ static int32_t mndDropRole(SMnode *pMnode, SRpcMsg *pReq, SRoleObj *pObj) {
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
-  TAOS_CHECK_EXIT(mndDropParentRole(pMnode, pObj));
+  TAOS_CHECK_EXIT(mndDropParentRole(pMnode, pTrans, pObj));
+  TAOS_CHECK_EXIT(mndUserDropRole(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -577,17 +639,21 @@ _exit:
   TAOS_RETURN(0);
 }
 
-static int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
-  int32_t code = 0;
+int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
+  int32_t code = 0, lino = 0;
   (void)memcpy(pNew, pOld, sizeof(SRoleObj));
   ++pNew->version;
   pNew->updateTime = taosGetTimestampMs();
 
   taosRLockLatch(&pOld->lock);
-
-
-_OVER:
+  TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentUsers, &pNew->parentUsers));
+  TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentRoles, &pNew->parentRoles));
+  TAOS_CHECK_EXIT(mndDupRoleHash(pOld->subRoles, &pNew->subRoles));
+_exit:
   taosRUnLockLatch(&pOld->lock);
+  if (code < 0) {
+    mError("role:%s, failed at line %d to dup obj since %s", pOld->name, lino, tstrerror(code));
+  }
   TAOS_RETURN(code);
 }
 
@@ -606,8 +672,8 @@ static bool mndIsRoleChanged(SRoleObj *pOld, SAlterRoleReq *pAlterReq) {
 }
 
 static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
-  SMnode       *pMnode = pReq->info.node;
   int32_t       code = 0, lino = 0;
+  SMnode       *pMnode = pReq->info.node;
   SRoleObj     *pObj = NULL;
   SRoleObj      newObj = {0};
   SAlterRoleReq alterReq = {0};
