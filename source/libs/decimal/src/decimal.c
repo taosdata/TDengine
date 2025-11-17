@@ -1548,7 +1548,7 @@ static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t
       case TSDB_DATA_TYPE_VARCHAR:                                                                                   \
       case TSDB_DATA_TYPE_VARBINARY:                                                                                 \
       case TSDB_DATA_TYPE_NCHAR: {                                                                                   \
-        code = decimal##FromStr(pData, pInputType->bytes - VARSTR_HEADER_SIZE, pOutType->precision, pOutType->scale, \
+        code = decimal##FromStr(pData, pInputType->bytes, pOutType->precision, pOutType->scale,                      \
                                 pOut);                                                                               \
       } break;                                                                                                       \
       default:                                                                                                       \

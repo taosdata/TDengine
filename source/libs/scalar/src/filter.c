@@ -5646,11 +5646,23 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
 EConditionType filterClassifyCondition(SNode *pNode) {
   SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
-  return cxt.hasOtherCol ? COND_TYPE_NORMAL
-                         : (cxt.hasPrimaryKey && cxt.hasTagCol
-                                ? COND_TYPE_NORMAL
-                                : (cxt.hasPrimaryKey ? COND_TYPE_PRIMARY_KEY
-                                                     : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX : COND_TYPE_TAG)));
+  if (cxt.hasOtherCol || (cxt.hasPrimaryKey && cxt.hasTagCol)) {
+    return COND_TYPE_NORMAL;
+  }
+
+  if (cxt.hasPrimaryKey) {
+    return COND_TYPE_PRIMARY_KEY;
+  }
+
+  if (cxt.hasTagIndexCol) {
+    return COND_TYPE_TAG_INDEX;
+  }
+
+  if (cxt.hasTagCol) {
+    return COND_TYPE_TAG;
+  }
+
+  return COND_TYPE_NORMAL;
 }
 
 int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res) {

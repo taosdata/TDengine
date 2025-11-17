@@ -257,6 +257,10 @@ Information on all vgroups in the system. Users with SYSINFO property set to 0 c
 | 11   |     nfiles      | INT           | Number of data/metadata files in this vgroup                 |
 | 12   |    file_size    | INT           | Size of data/metadata files in this vgroup                   |
 | 13   |      tsma       | TINYINT       | Whether this vgroup is dedicated to Time-range-wise SMA, 1: Yes, 0: No |
+| 14   | keep_version        | INT     | WAL logs for this vgroup that are greater than or equal to `keep_version` will not be automatically deleted. |
+| 15   | keep_version_time   | INT     | The time when `keep_version` was last modified for this vgroup.                                            |
+
+
 
 ## INS_CONFIGS
 
@@ -331,7 +335,7 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 |:----|:-----------|:-----------|:--------------------|
 | 1   | db_name    | VARCHAR(32) | Database name                              |
 | 2   | vgroup_id  | INT         | vgroup ID                                  |
-| 3   | wal        | BIGINT      | WAL file size, in KB                       |
+| 3   | wal_size   | BIGINT      | WAL file size, in KB                       |
 | 4   | data1      | BIGINT      | Data file size on primary storage, in KB   |
 | 5   | data2      | BIGINT      | Data file size on secondary storage, in KB |
 | 6   | data3      | BIGINT      | Data file size on tertiary storage, in KB  |

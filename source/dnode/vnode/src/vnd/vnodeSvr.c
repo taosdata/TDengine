@@ -41,6 +41,7 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
@@ -692,6 +693,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_TRIM:
       if (vnodeProcessTrimReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
+    case TDMT_VND_TRIM_WAL:
+      if (vnodeProcessTrimWalReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      break;
     case TDMT_VND_S3MIGRATE:
       if (vnodeProcessS3MigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
@@ -1106,6 +1110,24 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   code = vnodeAsyncRetention(pVnode, trimReq.timestamp);
 
 _exit:
+  return code;
+}
+
+static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t code = 0;
+
+  vInfo("vgId:%d, process trim wal request, force clean expired WAL files by triggering commit with forceTrim",
+        pVnode->config.vgId);
+
+  // Trigger a commit with forceTrim flag
+  // This will properly calculate ver through sync layer and apply forceTrim during snapshot
+  code = vnodeAsyncCommitEx(pVnode, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to trigger trim wal commit since %s", pVnode->config.vgId, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, successfully triggered trim wal commit", pVnode->config.vgId);
+  }
+
   return code;
 }
 

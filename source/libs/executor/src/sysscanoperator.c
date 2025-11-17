@@ -1789,6 +1789,11 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     STR_TO_VARSTR(n, "VIRTUAL_CHILD_TABLE");
   }
 
+  pColInfoData = taosArrayGet(p->pDataBlock, 9);
+  QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfoData, rowIndex, n, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
 _end:
   qError("%s failed at line %d since %s, %s", __func__, lino, tstrerror(code), idStr);
   return code;
@@ -1827,7 +1832,6 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   code = blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  char    n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t i = pIdx->lastIdx;
   for (; i < taosArrayGetSize(pIdx->uids); i++) {
     tb_uid_t* uid = taosArrayGet(pIdx->uids, i);
@@ -1844,9 +1848,6 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 9);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-
-    code = colDataSetVal(pColInfoData, numOfRows, n, false);
-    QUERY_CHECK_CODE(code, lino, _end);
 
     if (++numOfRows >= pOperator->resultInfo.capacity) {
       p->info.rows = numOfRows;

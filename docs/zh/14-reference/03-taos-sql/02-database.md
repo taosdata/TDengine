@@ -250,6 +250,14 @@ TRIM DATABASE db_name;
 
 删除过期数据，并根据多级存储的配置归整数据。
 
+## 手动删除过期 WAL 
+
+```sql
+TRIM DATABASE db_name WAL;
+```
+
+删除过期的 WAL 日志。使用 `trim wal` 删除过期 WAL 日志时，会忽略 vgroup 的 `keep_version` 限制。
+
 ## 落盘内存数据
 
 ```sql

@@ -238,6 +238,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_double.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_csv_with_quote.py 
 ## 02-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit.py
@@ -262,6 +263,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_null.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_kill.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_trim.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_high_availability.py -N 3
 
 # 07-DataQuerying
 ## 01-Operator
@@ -545,6 +548,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_show_db_table_kind.py
 #,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_sys_tbname.py
 ,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_table_count.py
+,,y,.,./ci/pytest.sh pytest cases/20-Metadata/test_meta_sysdb.py
 
 # 21-PerformanceData
 

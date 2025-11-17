@@ -203,7 +203,7 @@ typedef struct SExchangeInfo {
   bool         dynamicOp;
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
-  uint64_t            self;
+  int64_t             self;
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
