@@ -280,8 +280,6 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid expr in order by clause: %s";
     case TSDB_CODE_PAR_OPTION_DUPLICATED:
       return "Option:%s duplicated";
-    case TSDB_CODE_PAR_OPTION_CONFLICT:
-      return "Option:%s and %s conflict";
     case TSDB_CODE_PAR_INVALID_OPTION_VALUE:
       return "Option:%s invalid value";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG:

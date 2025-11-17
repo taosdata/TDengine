@@ -441,11 +441,6 @@ typedef struct SUserOptions {
   bool hasInactiveAccountTime;
   bool hasAllowTokenNum;
 
-  bool negIpRanges;        // negative ip ranges
-  bool negDropIpRanges;    // negative drop ip ranges, only for alter user
-  bool negTimeRanges;      // negative time ranges
-  bool negDropTimeRanges;  // negative drop time ranges, only for alter user
-
   char   password[TSDB_USER_PASSWORD_LONGLEN];
   char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
   int8_t enable;
@@ -486,9 +481,6 @@ typedef struct SCreateUserStmt {
   int8_t isImport;
   int8_t changepass;
   int8_t enable;
-
-  int8_t negIpRanges;
-  int8_t negTimeRanges;
 
   int32_t sessionPerUser;
   int32_t connectTime;
