@@ -931,7 +931,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
   SArray* tagCache = NULL;
 
   void* pTask = info->pTask;
-  ST_TASK_DLOG("%s start. sversion:%d rows:%" PRIu32 ",uid:%"PRIu64, __func__, sVersion, numOfRows, uid);
+  ST_TASK_DLOG("%s start. sversion:%"PRId64" rows:%" PRIu32 ",uid:%"PRIu64, __func__, sVersion, numOfRows, uid);
   
   SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
   SExprInfo*   pExprInfo = isCalc ? info->pExprInfoCalcTag : info->pExprInfoTriggerTag; 
