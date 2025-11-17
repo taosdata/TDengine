@@ -98,7 +98,7 @@ class TestPerformanceSchema:
         self.conn.execute("create topic if not exists {} as select ts, c1, c2, c3 from stb_sub".format(topic))
 
     def count_check(self):
-        sleep(1) #performance table delay
+        sleep(5) #performance table delay
         tdSql.query('select * from performance_schema.perf_apps')                                                            #1 query
         rowIndex = 0 #for debug
         tdSql.checkRows(1)
