@@ -422,7 +422,6 @@ typedef struct {
   int8_t  sysInfo;
   int8_t  enable;
   int8_t  changePass;
-  int8_t  negTimeRanges;
   union {
     uint8_t flag;
     struct {
@@ -451,8 +450,8 @@ typedef struct {
   int64_t       ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 
-  int32_t     numTimeRanges;
-  SDateTimeRange* pTimeRanges;
+  int64_t             timeWhiteListVer;
+  SDateTimeWhiteList* pTimeWhiteList;
 
   SHashObj* readDbs;
   SHashObj* writeDbs;

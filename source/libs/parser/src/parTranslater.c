@@ -12484,9 +12484,6 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.changepass = pStmt->changepass;
   createReq.enable = pStmt->enable;
 
-  createReq.negIpRanges = pStmt->negIpRanges;
-  createReq.negTimeRanges = pStmt->negTimeRanges;
-
   createReq.sessionPerUser = pStmt->sessionPerUser;
   createReq.connectTime = pStmt->connectTime;
   createReq.connectIdleTime = pStmt->connectIdleTime;
@@ -12576,11 +12573,6 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.passwordGraceTime = opts->passwordGraceTime;
   alterReq.inactiveAccountTime = opts->inactiveAccountTime;
   alterReq.allowTokenNum = opts->allowTokenNum;
-
-  alterReq.negIpRanges = opts->negIpRanges;
-  alterReq.negDropIpRanges = opts->negDropIpRanges;
-  alterReq.negTimeRanges = opts->negTimeRanges;
-  alterReq.negDropTimeRanges = opts->negDropTimeRanges;
 
   alterReq.numIpRanges = LIST_LENGTH(opts->pIpRanges);
   alterReq.numTimeRanges = LIST_LENGTH(opts->pTimeRanges);
