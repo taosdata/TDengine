@@ -16,8 +16,10 @@
 import os
 import sys
 import time
+import yaml
 import util
 
+from tdengine import *
 from baseStep import BaseStep
 from outMetrics import metrics
 from cmdLine import cmd
@@ -36,6 +38,36 @@ class WriteData(BaseStep):
         print(f"Return code: {code}")
     
         return output, error, code
+    
+    def read_data_info(self, scenario_id, yaml_file):
+        try:
+            with open(yaml_file, 'r') as f:
+                data = yaml.safe_load(f)
+                cases = data.get("testCases", [])
+                
+                # Search for matching test case by scenarioId
+                for case in cases:
+                    if case.get('scenarioId') == scenario_id:
+                        query_sql = case.get('querySql')
+                        data_rows = case.get('dataRows')
+                        print(f"Found data info for scenario '{scenario_id}':")
+                        print(f"  Query SQL: {query_sql}")
+                        print(f"  data Rows: {data_rows}")
+                        return query_sql, data_rows
+                
+                # If no matching scenario found
+                print(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
+                return None, None
+                
+        except FileNotFoundError:
+            print(f"YAML file not found: {yaml_file}")
+            return None, None
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML file: {e}")
+            return None, None
+        except Exception as e:
+            print(f"Error reading verify info: {e}")
+            return None, None    
 
     def run(self):
         print("WriteData step executed")
@@ -50,3 +82,22 @@ class WriteData(BaseStep):
             )
             
         metrics.end_write(self.scene.name)
+        
+        # verify expect rows
+        for yaml_file in self.scene.yaml_files:
+            querySql, dataRows = self.read_data_info(self.scene.name, yaml_file)
+            if querySql == None or dataRows == None:
+                print(f"data sql is none, skipping  {yaml_file}")
+                metrics.status[self.scene.name] = "Failed"                
+                continue
+            realRows = db_first_value(querySql)
+            if realRows == dataRows:
+                print(f"data write completed. real rows: {realRows}, expect rows: {dataRows}")
+            else:
+                print(f"data write error. real rows: {realRows}, expect rows: {dataRows}")
+                metrics.status[self.scene.name] = "Failed"
+            
+            # set data rows metric
+            metrics.add_data_rows(self.scene.name, dataRows)
+            
+            

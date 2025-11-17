@@ -37,6 +37,13 @@ from cmdLine import cmd
 
 def doScene(scene):
     print("Running scene: %s" % scene.name)
+    
+    # scene init
+    metrics.scenarioId[scene.name]     = scene.name
+    metrics.classification[scene.name] = scene.classification
+    metrics.data_rows[scene.name]      = 0
+    metrics.output_rows[scene.name]    = 0
+    metrics.status[scene.name]         = "INIT"
 
     # prepare env
     env = prepareEnv.PrepareEnv(scene)

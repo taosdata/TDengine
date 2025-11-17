@@ -19,6 +19,7 @@ import taos
 import time
 import yaml
 
+from tdengine import *
 from scene import Scene
 from baseStep import BaseStep
 from outMetrics import metrics
@@ -30,16 +31,18 @@ class DoTest(BaseStep):
     def wait_stream_end(self, verifySql, expectRows, timeout=120):
         print("Waiting for stream processing to complete...")
         print(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Timeout: {timeout} seconds")
-        conn = taos.connect()
+        conn = taos_connect()
         cursor = conn.cursor()
         for i in range(timeout):
             try:        
                 cursor.execute(verifySql)
                 results = cursor.fetchall()
                 rows = results[0][0]
+                metrics.output_rows[self.scene.name] = rows
                 if rows == expectRows:
                     print(f"i={i} stream processing completed.")
                     conn.close()
+                    metrics.status[self.scene.name] = "Passed"
                     return
                 print(f"{i} real rows: {rows}, expect rows: {expectRows}")
             except Exception as e:
@@ -50,6 +53,7 @@ class DoTest(BaseStep):
         info = f"stream processing not completed in {timeout} seconds"
         print(info)
         conn.close()
+        metrics.status[self.scene.name] = "Timeout"
         #raise Exception(info)
     
     def read_verify_info(self, scenario_id, yaml_file):

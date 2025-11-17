@@ -165,8 +165,9 @@ class CmdLine:
     def case_to_scene_obj(self, case):
         name = case["scenarioId"]
         sql  = case["sql"]
+        classification = case["classfication"]
         
-        return Scene(name, sql, self.config_path, self.data_path)
+        return Scene(name, sql, classification, self.config_path, self.data_path)
 
     def load_cases_yaml(self, yaml_file):
         try:

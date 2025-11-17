@@ -18,10 +18,16 @@ import sys
 
 
 class Scene:
-    def __init__(self, name, sql, config_path, data_path):
+    def __init__(self, name, sql, classification, config_path, data_path):
         self.name = name
         self.sql  = sql
-        tables    = self.find_tables_from_sql(sql)
+        self.classification = classification
+        self.db_name    = None
+        self.csv_files  = []
+        self.sql_files  = []
+        self.yaml_files = []
+
+        tables = self.find_tables_from_sql(sql)
         self.generate_filename(tables, config_path, data_path)
         
     # find table from sql
