@@ -93,12 +93,12 @@ int32_t tjsonAddItem(SJson* pJson, FToJson func, const void* pObj);
 int32_t tjsonAddArray(SJson* pJson, const char* pName, FToJson func, const void* pArray, int32_t itemSize, int32_t num);
 int32_t tjsonAddTArray(SJson* pJson, const char* pName, FToJson func, const SArray* pArray);
 
-typedef int32_t (*FToObject)(const SJson* pJson, void* pObj);
+typedef int32_t (*FJsonToObject)(const SJson* pJson, void* pObj);
 
-int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, void* pObj);
-int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, void** pObj, int32_t objSize);
-int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void* pArray, int32_t itemSize);
-int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SArray** pArray, int32_t itemSize);
+int32_t tjsonToObject(const SJson* pJson, const char* pName, FJsonToObject func, void* pObj);
+int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FJsonToObject func, void** pObj, int32_t objSize);
+int32_t tjsonToArray(const SJson* pJson, const char* pName, FJsonToObject func, void* pArray, int32_t itemSize);
+int32_t tjsonToTArray(const SJson* pJson, const char* pName, FJsonToObject func, SArray** pArray, int32_t itemSize);
 
 char* tjsonToString(const SJson* pJson);
 char* tjsonToUnformattedString(const SJson* pJson);
