@@ -432,6 +432,7 @@ typedef struct {
   int32_t       acctId;
   int32_t       authVersion;
   int32_t       passVersion;
+  int64_t       lastRoleRetrieve; // Last retrieve time of role, unit is macro second, default value is 0. Memory only and no need to persist.
   int64_t       ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 

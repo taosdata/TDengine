@@ -23,6 +23,12 @@
 extern "C" {
 #endif
 
+typedef struct {
+  int64_t lastUpd;  // Last update time of role, unit is macro second, default value is INT64_MAX. If user's
+                    // lastRoleRetrieve time < lastUpd, need to retrieve role again.
+  TdThreadRwlock rw;
+} SRoleMgt;
+
 int32_t mndInitRole(SMnode *pMnode);
 void    mndCleanupRole(SMnode *pMnode);
 int32_t mndAcquireRole(SMnode *pMnode, const char *userName, SRoleObj **ppRole);
