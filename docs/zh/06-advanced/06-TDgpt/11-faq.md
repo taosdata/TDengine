@@ -58,3 +58,18 @@ http-timeout = 1200
 ### 4. 返回结果出现非法 JSON 格式错误 (Invalid json format)
 
 从 anode 返回到 TDengine TSDB 的分析结果有误，请检查 anode 运行日志 `/var/log/taos/taosanode/taosanode.app.log` 获得具体的错误信息。
+
+### 5. 如何调整 TDgpt 日志级别以及获得其详细的错误信息
+
+TDgpt 默认日志级别是 debug。调整其日志级别需要更改 TDgpt 配置文件 `/etc/taos/taosanode.ini` 中的 `log-level` 配置项。
+
+```ini
+# default log level
+log-level = INFO
+```
+
+该配置项可选配置包括：DEBUG，INFO，CRITICAL，ERROR，WARN。
+
+对于某些无法直接使用错误码返回的错误信息，请检查日志文件获得准确的错误信息。日志文件位于 `/var/log/taos/taosanode/` 目录。
+`taosanode.app.log` 是 TDgpt 产生的日志
+`taosanode.log` 是 uWSGI 产生的 web 服务日志
