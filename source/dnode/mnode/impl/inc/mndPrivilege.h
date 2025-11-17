@@ -38,6 +38,7 @@ int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIp
 int32_t mndSetUserIpWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp);
 int32_t mndEnableIpWhiteList(SMnode *pMnode);
 int32_t mndFetchIpWhiteList(SIpWhiteList *ipList, char **buf);
+int32_t mndSetUserDateTimeWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SUserDateTimeWhiteList *pWhiteListRsp);
 
 #ifdef __cplusplus
 }

@@ -4193,10 +4193,6 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pIpRanges != NULL) {
     if (a->pIpRanges == NULL) {
       a->pIpRanges = b->pIpRanges;
-      a->negIpRanges = b->negIpRanges;
-    } else if (a->negIpRanges != b->negIpRanges) {
-      nodesDestroyList(b->pIpRanges);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
     } else {
       nodesListAppendList(a->pIpRanges, b->pIpRanges);
     }
@@ -4206,10 +4202,6 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pDropIpRanges != NULL) {
     if (a->pDropIpRanges == NULL) {
       a->pDropIpRanges = b->pDropIpRanges;
-      a->negDropIpRanges = b->negDropIpRanges;
-    } else if (a->negDropIpRanges != b->negDropIpRanges) {
-      nodesDestroyList(b->pDropIpRanges);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
     } else {
       nodesListAppendList(a->pDropIpRanges, b->pDropIpRanges);
     }
@@ -4219,10 +4211,6 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pTimeRanges != NULL) {
     if (a->pTimeRanges == NULL) {
       a->pTimeRanges = b->pTimeRanges;
-      a->negTimeRanges = b->negTimeRanges;
-    } else if (a->negTimeRanges != b->negTimeRanges) {
-      nodesDestroyList(b->pTimeRanges);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
     } else {
       nodesListAppendList(a->pTimeRanges, b->pTimeRanges);
     }
@@ -4232,10 +4220,6 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pDropTimeRanges != NULL) {
     if (a->pDropTimeRanges == NULL) {
       a->pDropTimeRanges = b->pDropTimeRanges;
-      a->negDropTimeRanges = b->negDropTimeRanges;
-    } else if (a->negDropTimeRanges != b->negDropTimeRanges) {
-      nodesDestroyList(b->pDropTimeRanges);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
     } else {
       nodesListAppendList(a->pDropTimeRanges, b->pDropTimeRanges);
     }
@@ -4431,7 +4415,6 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
   pStmt->inactiveAccountTime = opts->inactiveAccountTime;
   pStmt->allowTokenNum = opts->allowTokenNum;
 
-  pStmt->negIpRanges = opts->negIpRanges;
   pStmt->numIpRanges = LIST_LENGTH(opts->pIpRanges);
   pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpRange));
   CHECK_OUT_OF_MEM(pStmt->pIpRanges);
@@ -4442,7 +4425,6 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
     pStmt->pIpRanges[i++] = node->range;
   }
 
-  pStmt->negTimeRanges = opts->negTimeRanges;
   pStmt->numTimeRanges = LIST_LENGTH(opts->pTimeRanges);
   pStmt->pTimeRanges = taosMemoryMalloc(pStmt->numTimeRanges * sizeof(SDateTimeRange));
   CHECK_OUT_OF_MEM(pStmt->pTimeRanges);
