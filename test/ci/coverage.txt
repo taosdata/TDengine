@@ -60,6 +60,3 @@
 /home/TDinternal/community/source/libs/planner/src/planPhysiCreater.c
 /home/TDinternal/community/source/libs/executor/src/sysscanoperator.c
 /home/TDinternal/community/source/libs/executor/src/executil.c
-/home/TDinternal/community/source/dnode/mnode/impl/src/mndDef.c
-/home/TDinternal/community/source/dnode/mnode/impl/src/mndMain.c
-/home/TDinternal/community/source/dnode/mnode/impl/src/mndQnode.c
