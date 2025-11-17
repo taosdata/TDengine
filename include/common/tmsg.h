@@ -1584,6 +1584,7 @@ typedef struct {
   SHashObj* alterViews;
   SHashObj* useDbs;
   int64_t   whiteListVer;
+  int64_t   timeWhiteListVer;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
@@ -1675,11 +1676,11 @@ typedef struct {
   int64_t             ver;
   int                 numOfUser;
   SUserDateTimeWhiteList *pUsers;
-} SRetrieveUserDateTimeWhiteListRsp;
+} SRetrieveDateTimeWhiteListRsp;
 
-int32_t tSerializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveUserDateTimeWhiteListRsp* pRsp);
-int32_t tDeserializeSRetrieveUserDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveUserDateTimeWhiteListRsp* pRsp);
-void    tFreeSRetrieveUserDateTimeWhiteListRsp(SRetrieveUserDateTimeWhiteListRsp* pRsp);
+int32_t tSerializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp);
+int32_t tDeserializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp);
+void    tFreeSRetrieveDateTimeWhiteListRsp(SRetrieveDateTimeWhiteListRsp* pRsp);
 
 /*
  * for client side struct, only column id, type, bytes are necessary
@@ -2489,6 +2490,7 @@ typedef struct {
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
+  int64_t     timeWhiteVer;
   int64_t     analVer;
   int64_t     timestamp;
 } SStatusReq;
@@ -2578,6 +2580,7 @@ typedef struct {
   int32_t   statusSeq;
   int64_t   ipWhiteVer;
   int64_t   analVer;
+  int64_t   timeWhiteVer;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
