@@ -1620,14 +1620,12 @@ class TDSql:
                 return True
 
             elif isinstance(data, int) and tolerance != 0.0:
-                if tolerance < 0:
-                    lower = data * (1 + tolerance)
-                    upper = data
-                else:
-                    lower = data
-                    upper = data * (1 + tolerance)
+                bound1 = data
+                bound2 = data * (1 + tolerance)
+                lower = min(bound1, bound2)
+                upper = max(bound1, bound2)
                 actual = self.queryResult[row][col]
-                tdLog.error(f"Tolerance check: lower={lower}, actual={actual}, upper={upper}")
+                tdLog.info(f"Tolerance check: lower={lower}, actual={actual}, upper={upper}")
                 if lower <= actual <= upper:
                     if show:
                         tdLog.info("check successfully")
