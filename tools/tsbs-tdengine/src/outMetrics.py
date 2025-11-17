@@ -37,7 +37,8 @@ class OutMetrics:
         self.metrics_file = metrics_file
             
     def start(self):
-        self.time_start = time.time()    
+        self.time_start = time.time()
+        self.write_log(f"Test start time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.time_start))}")
 
     def start_write(self, name):
         self.time_start_write[name] = time.time()
@@ -48,17 +49,17 @@ class OutMetrics:
     def end_write(self, name):
         self.time_end_write[name] = time.time()
         cost = self.time_end_write[name] - self.time_start_write[name]
-        print(f"Write step '{name}' took {cost:.3f} seconds")
+        self.write_log(f"Write step '{name}' took {cost:.3f} seconds")
 
     def end_test(self, name):
         self.time_end_test[name] = time.time()
         cost = self.time_end_test[name] - self.time_start_test[name]
-        print(f"Test step '{name}' took {cost:.3f} seconds")
+        self.write_log(f"Test step '{name}' took {cost:.3f} seconds")
     
     def end(self):
         self.time_end = time.time()
         total_cost = self.time_end - self.time_start
-        print(f"Total execution time: {total_cost:.3f} seconds")
+        self.write_log(f"Total execution time: {total_cost:.3f} seconds")
         
     def add_data_rows(self, name, rows):
         print(f"Total data rows written for '{name}': {rows}")
@@ -66,6 +67,11 @@ class OutMetrics:
             self.data_rows[name] = rows
         else:
             self.data_rows[name] += rows
+    
+    def write_log(self, msg):
+        print(msg)
+        with open(self.metrics_file, 'a') as f:
+            f.write(msg + '\n')        
 
     def output_metrics(self):
         print(f"Outputting metrics to {self.metrics_file}")
@@ -87,12 +93,12 @@ class OutMetrics:
         header = (
             f"| {'Scenario ID':<{col_widths['scenario_id']}} "
             f"| {'Classification':<{col_widths['classification']}} "
-            f"| {'Out Records':<{col_widths['out_records']}} "
-            f"| {'In Records':<{col_widths['in_records']}} "
+            f"| {'Out Records':>{col_widths['out_records']}} "
+            f"| {'In Records':>{col_widths['in_records']}} "
             f"| {'Start Time':<{col_widths['start_time']}} "
             f"| {'End Time':<{col_widths['end_time']}} "
-            f"| {'Duration(ms)':<{col_widths['duration']}} "
-            f"| {'Throughput(rec/s)':<{col_widths['throughput']}} "
+            f"| {'Duration(ms)':>{col_widths['duration']}} "
+            f"| {'Throughput(rec/s)':>{col_widths['throughput']}} "
             f"| {'Status':<{col_widths['status']}} |"
         )
         
@@ -109,8 +115,8 @@ class OutMetrics:
             f"|{'-' * (col_widths['status'] + 2)}|"
         )
         
-        print(header)
-        print(separator)
+        self.write_log(header)
+        self.write_log(separator)
         
         # Data rows
         for scenario in self.scenarioId:
@@ -119,7 +125,7 @@ class OutMetrics:
             duration   = (end_time - start_time) * 1000  # ms
             out_rows   = self.output_rows.get(scenario, 0)
             in_rows    = self.data_rows.get(scenario, 0)
-            throughput = (in_rows / duration) if duration > 0 else 0
+            throughput = (in_rows / duration * 1000) if duration > 0 else 0
             status     = self.status.get(scenario, "UNKNOWN")
             
             # Format time strings
@@ -130,14 +136,14 @@ class OutMetrics:
             row = (
                 f"| {self.scenarioId[scenario]:<{col_widths['scenario_id']}} "
                 f"| {self.classification[scenario]:<{col_widths['classification']}} "
-                f"| {out_rows:<{col_widths['out_records']}} "
-                f"| {in_rows:<{col_widths['in_records']}} "
+                f"| {out_rows:>{col_widths['out_records']}} "
+                f"| {in_rows:>{col_widths['in_records']}} "
                 f"| {start_time_str:<{col_widths['start_time']}} "
                 f"| {end_time_str:<{col_widths['end_time']}} "
-                f"| {duration:<{col_widths['duration']}.3f} "
-                f"| {throughput:<{col_widths['throughput']}.2f} "
+                f"| {duration:>{col_widths['duration']}.0f} "
+                f"| {throughput:>{col_widths['throughput']}.2f} "
                 f"| {status:<{col_widths['status']}} |"
             )
-            print(row)
+            self.write_log(row)
         
 metrics = OutMetrics()
