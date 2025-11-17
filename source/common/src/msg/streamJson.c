@@ -5,8 +5,8 @@ static const char* jkFieldName     = "name";
 static const char* jkFieldType     = "type";
 static const char* jkFieldFlags    = "flags";
 static const char* jkFieldBytes    = "bytes";
-static const char* jkFieldCompress = "compress";
-static const char* jkFieldTypeMod  = "typeMod";
+// static const char* jkFieldCompress = "compress";
+// static const char* jkFieldTypeMod  = "typeMod";
 static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
   if (NULL != pField->name) {
@@ -17,10 +17,10 @@ static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
     pJson, jkFieldFlags, pField->flags));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkFieldBytes, pField->bytes));
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
-    pJson, jkFieldCompress, pField->compress));
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
-    pJson, jkFieldTypeMod, pField->typeMod));
+  // TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+  //   pJson, jkFieldCompress, pField->compress));
+  // TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+  //   pJson, jkFieldTypeMod, pField->typeMod));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -30,9 +30,9 @@ static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));
-  TAOS_CHECK_RETURN(tjsonGetUIntValue(
-    pJson, jkFieldCompress, &pField->compress));
-  TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldTypeMod, &pField->typeMod));
+  // TAOS_CHECK_RETURN(tjsonGetUIntValue(
+  //   pJson, jkFieldCompress, &pField->compress));
+  // TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldTypeMod, &pField->typeMod));
   return TSDB_CODE_SUCCESS;
 }
 
