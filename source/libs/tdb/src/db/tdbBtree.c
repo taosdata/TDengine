@@ -1428,6 +1428,9 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     return ret;
   }
 
+  if (pgno > pBt->pPager->dbFileSize) {
+    tdbError("tdb/tdbBtreeEncodePayload-1: invalid pgno: %u, dbFileSize:%u, file:%s", pgno, pBt->pPager->dbFileSize, pBt->pPager->dbFileName);
+  }
   assert(pgno <= pBt->pPager->dbFileSize);
 
   // local buffer for cell
@@ -1503,6 +1506,9 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
             return ret;
           }
 
+          if (pgno > pBt->pPager->dbFileSize) {
+            tdbError("tdb/tdbBtreeEncodePayload-2: invalid pgno: %u, dbFileSize:%u, file:%s", pgno, pBt->pPager->dbFileSize, pBt->pPager->dbFileName);
+          }
           assert(pgno <= pBt->pPager->dbFileSize);
         }
       } else {
@@ -1512,6 +1518,9 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
           tdbFree(pBuf);
           tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
           return ret;
+        }
+        if (pgno > pBt->pPager->dbFileSize) {
+          tdbError("tdb/tdbBtreeEncodePayload-3: invalid pgno: %u, dbFileSize:%u, file:%s", pgno, pBt->pPager->dbFileSize, pBt->pPager->dbFileName);
         }
         assert(pgno <= pBt->pPager->dbFileSize);
       }
@@ -1555,6 +1564,9 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       pgno = 0;
     }
 
+    if (pgno > pBt->pPager->dbFileSize) {
+      tdbError("tdb/tdbBtreeEncodePayload-4: invalid pgno: %u, dbFileSize:%u, file:%s", pgno, pBt->pPager->dbFileSize, pBt->pPager->dbFileName);
+    }
     assert(pgno <= pBt->pPager->dbFileSize);
 
     memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
@@ -1611,6 +1623,9 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
     }
 
     SPgno pgno = *(SPgno *)pVal;
+    if (pgno > pBt->pPager->dbFileSize) {
+      tdbError("tdb/tdbBtreeEncodeCell: invalid pgno: %u, dbFileSize:%u, file:%s", pgno, pBt->pPager->dbFileSize, pBt->pPager->dbFileName);
+    }
     assert(pgno != 0 && pgno <= pBt->pPager->dbFileSize);
 
     ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
@@ -2410,9 +2425,15 @@ static int tdbBtcMoveDownward(SBTC *pBtc) {
   if (pBtc->idx < TDB_PAGE_TOTAL_CELLS(pBtc->pPage)) {
     pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
     pgno = ((SPgno *)pCell)[0];
+    if (pgno > pBtc->pBt->pPager->dbFileSize) {
+      tdbError("tdb/btc-move-downward-1: invalid pgno: %u, dbFileSize:%u, file:%s", pgno, pBtc->pBt->pPager->dbFileSize, pBtc->pBt->pPager->dbFileName);
+    }
     assert(pgno <= pBtc->pBt->pPager->dbFileSize);
   } else {
     pgno = ((SIntHdr *)pBtc->pPage->pData)->pgno;
+    if (pgno > pBtc->pBt->pPager->dbFileSize) {
+      tdbError("tdb/btc-move-downward-2: invalid pgno: %u, dbFileSize:%u, file:%s", pgno, pBtc->pBt->pPager->dbFileSize, pBtc->pBt->pPager->dbFileName);
+    }
     assert(pgno <= pBtc->pBt->pPager->dbFileSize);
   }
 

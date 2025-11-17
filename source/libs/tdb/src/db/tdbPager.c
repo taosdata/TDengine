@@ -793,8 +793,8 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   int tdbTbPushFreePage(TTB *pTb, SPage *pPage, TXN *pTxn);
   
   SPgno pgno = TDB_PAGE_PGNO(pPage);
-  assert(pgno <= pPager->dbFileSize);
   tdbInfo("tdbPagerInsertFreePage: pgno:%d, dbFileSize:%d, file:%s", pgno, pPager->dbFileSize, pPager->dbFileName);
+  assert(pgno <= pPager->dbFileSize);
 
   tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", TDB_PAGE_PGNO(pPage));
   int code = tdbTbPushFreePage(pPager->pEnv->pFreeDb, pPage, pTxn);
@@ -845,11 +845,11 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
     return ret;
   }
 
-  assert(*ppgno <= pPager->dbFileSize);
   if (*ppgno != 0) {
     tdbInfo("tdbPagerAllocPage: pgno: %d, dbFileSize:%d, file:%s", *ppgno, pPager->dbFileSize, pPager->dbFileName);
     return 0;
   }
+  assert(*ppgno <= pPager->dbFileSize);
 
   // Allocate the page by extending the pager
   ret = tdbPagerAllocNewPage(pPager, ppgno);
@@ -981,6 +981,9 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
   SPgno pgno;
 
   pgno = TDB_PAGE_PGNO(pPage);
+  if (pgno > pPager->dbFileSize) {
+    tdbError("tdbPagerWritePageToJournal: pgno:%u, dbFileSize:%u, file:%s", pgno, pPager->dbFileSize, pPager->dbFileName);
+  }
   assert(pgno <= pPager->dbFileSize);
 
   ret = tdbOsWrite(pPager->pActiveTxn->jfd, &pgno, sizeof(pgno));
@@ -1027,8 +1030,11 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   int ret;
 
   SPgno pgno = TDB_PAGE_PGNO(pPage);
-  assert(pgno <= pPager->dbFileSize);
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
+  if (offset > 4 * 1024 * 1024 * 1024ll) {
+    tdbError("tdbPagerPWritePageToDB: pgno:%u, dbFileSize:%u, file:%s", pgno, pPager->dbFileSize, pPager->dbFileName);
+  }
+  assert(pgno <= pPager->dbFileSize);
   assert(offset <= 4 * 1024 * 1024 * 1024ll);
 
   char *buf = tdbEncryptPage(pPager, pPage->pData, pPage->pageSize, __FUNCTION__, offset);
