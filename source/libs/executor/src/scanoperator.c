@@ -1288,7 +1288,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     SColIdNameKV *kv = taosArrayGet(pParam->pOrgTbInfo->colMap, i);
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
-        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(j + 1)};
+        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(schema->pSchema[j].colId)};
         QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
         break;
       }
