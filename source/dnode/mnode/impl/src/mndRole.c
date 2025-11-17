@@ -693,24 +693,20 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-      if (taosHashGetSize(pObj->subRoles) == 0) {
-        COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pObj, pShow->pIter, _exit);
-      } else {
-        void  *pIter = NULL;
-        size_t klen = 0, tlen = 0;
-        char *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
-        while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
-          char *roleName = taosHashGetKey(pIter, &klen);
-          tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
-        }
-        if (tlen > 0) {
-          pBuf[tlen - 1] = 0;  // remove last ','
-        } else {
-          pBuf[0] = 0;
-        }
-        varDataSetLen(tBuf, tlen);
-        COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pObj, pShow->pIter, _exit);
+      void  *pIter = NULL;
+      size_t klen = 0, tlen = 0;
+      char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
+      while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
+        char *roleName = taosHashGetKey(pIter, &klen);
+        tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }
+      if (tlen > 0) {
+        pBuf[tlen - 1] = 0;  // remove last ','
+      } else {
+        pBuf[0] = 0;
+      }
+      varDataSetLen(tBuf, tlen);
+      COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pObj, pShow->pIter, _exit);
     }
     numOfRows++;
     sdbRelease(pSdb, pObj);
