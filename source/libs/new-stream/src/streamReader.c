@@ -19,7 +19,7 @@ void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) {
   taosHashCleanup(pTableListInfo->uIdMap);
 }
 
-static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid, int64_t suid){
+int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid, int64_t suid){
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -61,7 +61,7 @@ end:
   return code;
 }
 
-static int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int64_t uid){
+int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int64_t uid){
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -162,22 +162,6 @@ int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo
   int32_t num = taosHashGetSize(tmp->gIdMap);
   taosRUnLockLatch(&sStreamReaderInfo->lock);
   return num;
-}
-
-int32_t  qTransformStreamTableList(void* pTableListInfo, StreamTableListInfo* tableInfo){
-  SArray* pList = qStreamGetTableListArray(pTableListInfo);
-  int32_t totalSize = taosArrayGetSize(pList);
-  for (int32_t i = 0; i < totalSize; ++i) {
-    STableKeyInfo* info = taosArrayGet(pList, i);
-    if (info == NULL) {
-      continue;
-    }
-    int32_t code = qStreamSetTableList(tableInfo, info->uid, info->groupId, 0);
-    if (code != 0){
-      return code;
-    }
-  }
-  return 0;
 }
 
 static uint64_t qStreamGetGroupId(StreamTableListInfo* tmp, int64_t uid){
@@ -281,35 +265,6 @@ int32_t qStreamIterTableList(StreamTableListInfo* tableInfo, STableKeyInfo** pKe
   SStreamTableList* list = (SStreamTableList*)(tableInfo->pIter);
   STREAM_CHECK_RET_GOTO(buildTableListFromList(pKeyInfo, size, list));
 end:
-  return code;
-}
-
-int32_t qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableListAdd, SArray* tableListDel, SRWLatch* lock) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  
-  taosWLockLatch(lock);
-  int32_t totalSize = taosArrayGetSize(tableListDel);
-  for (int32_t i = 0; i < totalSize; ++i) {
-    int64_t* uid = taosArrayGet(tableListDel, i);
-    if (uid == NULL) {
-      continue;
-    }
-    STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(tableInfo, *uid));
-  }
-
-  totalSize = taosArrayGetSize(tableListAdd);
-  for (int32_t i = 0; i < totalSize; ++i) {
-    STableKeyInfo* info = taosArrayGet(tableListAdd, i);
-    if (info == NULL) {
-      continue;
-    }
-    STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(tableInfo, info->uid));
-    STREAM_CHECK_RET_GOTO(qStreamSetTableList(tableInfo, info->uid, info->groupId, 0));
-  }
-
-end:
-  taosWUnLockLatch(lock);
   return code;
 }
 
