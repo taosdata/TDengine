@@ -2650,7 +2650,31 @@ _err:
   return NULL;
 }
 
+SNode* createTrimDbWalStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
+  STrimDbWalStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRIM_DATABASE_WAL_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createSsMigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
+  SSsMigrateDatabaseStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SSMIGRATE_DATABASE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SSsMigrateDatabaseStmt* pStmt = NULL;
@@ -5062,6 +5086,22 @@ SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, const SToken
   CHECK_MAKE_NODE(pStmt);
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createSetVgroupKeepVersionStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pKeepVersion) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetVgroupKeepVersionStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pVgId && NULL != pVgId->z) {
+    pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  }
+  if (NULL != pKeepVersion && NULL != pKeepVersion->z) {
+    pStmt->keepVersion = taosStr2Int64(pKeepVersion->z, NULL, 10);
   }
   return (SNode*)pStmt;
 _err:

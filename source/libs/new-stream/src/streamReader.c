@@ -82,6 +82,7 @@ static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t
   int32_t code = 0;
   int32_t lino = 0;
 
+  stDebug("stream reader set table list, uid:%"PRIu64", gid:%"PRIu64, uid, gid);
   if (pTableListInfo->pTableList == NULL) {
     pTableListInfo->pTableList = taosArrayInit(4, POINTER_BYTES);
     STREAM_CHECK_NULL_GOTO(pTableListInfo->pTableList, terrno);
@@ -234,6 +235,7 @@ static int32_t buildTableListFromList(STableKeyInfo** pKeyInfo, int32_t* size, S
   SStreamTableKeyInfo* iter = list->head;
   STableKeyInfo* kInfo = *pKeyInfo;
   while (iter != NULL) {
+    stDebug("stream reader get table list, uid:%"PRIu64", gid:%"PRIu64, iter->uid, iter->groupId);
     kInfo->uid = iter->uid;
     kInfo->groupId = iter->groupId;
     iter = iter->next;
@@ -302,6 +304,7 @@ int32_t qStreamIterTableList(StreamTableListInfo* tableInfo, STableKeyInfo** pKe
 
   int64_t* key = (int64_t*)taosHashGetKey(tableInfo->pIter, NULL);
   *suid = *key;
+  stDebug("stream reader iter table list, suid:%"PRId64, *suid);
   SStreamTableList* list = (SStreamTableList*)(tableInfo->pIter);
   STREAM_CHECK_RET_GOTO(buildTableListFromList(pKeyInfo, size, list));
 end:

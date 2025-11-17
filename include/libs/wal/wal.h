@@ -119,6 +119,8 @@ typedef struct SWal {
   TdThreadRwlock mutex;
   // ref
   SHashObj *pRefHash;  // refId -> SWalRef
+  // keep version for preventing auto deletion
+  int64_t keepVersion;
   // path
   char path[WAL_PATH_LEN];
 
@@ -168,7 +170,7 @@ int32_t walCommit(SWal *, int64_t ver);
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
 int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
-int32_t walEndSnapshot(SWal *);
+int32_t walEndSnapshot(SWal *, bool forceTrim);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 void    walApplyVer(SWal *, int64_t ver);
 
@@ -207,6 +209,7 @@ int64_t walGetLastVer(SWal *);
 int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
 int64_t walGetCommittedVer(SWal *);
 int64_t walGetAppliedVer(SWal *);
+int32_t walSetKeepVersion(SWal *pWal, int64_t ver);
 
 #ifdef __cplusplus
 }
