@@ -35,23 +35,7 @@ class OutMetrics:
     def init_metrics(self, metrics_file):
         print("Initializing metrics output")
         self.metrics_file = metrics_file
-        
-    def output_metrics(self):
-        print(f"Outputting metrics to {self.metrics_file}")
-        print("| Scenario ID | Classification | Out Records   | In Records | Start Time   | End Time     | Duration(ms) | Throughput(rec/s) | Status |")
-        print("|-------------|----------------|---------------|------------|--------------|--------------|--------------|-------------------|--------|")        
-        for scenario in self.scenarioId:
-            start_time = self.time_start_write.get(scenario, 0)
-            end_time   = self.time_end_test.get(scenario, 0)
-            duration   = (end_time - start_time) * 1000  # in milliseconds
-            out_rows   = self.output_rows.get(scenario, 0)
-            in_rows    = self.data_rows.get(scenario, 0)
-            throughput = (out_rows / (end_time - start_time)) if (end_time - start_time) > 0 else 0
-            status     = self.status.get(scenario, "UNKNOWN")
             
-            print(f"| {self.scenarioId[scenario]} | {self.classification[scenario]} | {out_rows:<13} | {in_rows:<10} | {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))} | {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))} | {duration:<12.2f} | {throughput:<17.2f} | {status} |")
-        
-    
     def start(self):
         self.time_start = time.time()    
 
@@ -82,5 +66,78 @@ class OutMetrics:
             self.data_rows[name] = rows
         else:
             self.data_rows[name] += rows
+
+    def output_metrics(self):
+        print(f"Outputting metrics to {self.metrics_file}")
+        
+        # Column widths
+        col_widths = {
+            'scenario_id': 15,
+            'classification': 16,
+            'out_records': 13,
+            'in_records': 12,
+            'start_time': 19,
+            'end_time': 19,
+            'duration': 14,
+            'throughput': 19,
+            'status': 8
+        }
+        
+        # Header
+        header = (
+            f"| {'Scenario ID':<{col_widths['scenario_id']}} "
+            f"| {'Classification':<{col_widths['classification']}} "
+            f"| {'Out Records':<{col_widths['out_records']}} "
+            f"| {'In Records':<{col_widths['in_records']}} "
+            f"| {'Start Time':<{col_widths['start_time']}} "
+            f"| {'End Time':<{col_widths['end_time']}} "
+            f"| {'Duration(s)':<{col_widths['duration']}} "
+            f"| {'Throughput(rec/s)':<{col_widths['throughput']}} "
+            f"| {'Status':<{col_widths['status']}} |"
+        )
+        
+        # Separator line
+        separator = (
+            f"|{'-' * (col_widths['scenario_id'] + 2)}"
+            f"|{'-' * (col_widths['classification'] + 2)}"
+            f"|{'-' * (col_widths['out_records'] + 2)}"
+            f"|{'-' * (col_widths['in_records'] + 2)}"
+            f"|{'-' * (col_widths['start_time'] + 2)}"
+            f"|{'-' * (col_widths['end_time'] + 2)}"
+            f"|{'-' * (col_widths['duration'] + 2)}"
+            f"|{'-' * (col_widths['throughput'] + 2)}"
+            f"|{'-' * (col_widths['status'] + 2)}|"
+        )
+        
+        print(header)
+        print(separator)
+        
+        # Data rows
+        for scenario in self.scenarioId:
+            start_time = self.time_start_write.get(scenario, 0)
+            end_time   = self.time_end_test.get(scenario, 0)
+            duration   = end_time - start_time  # seconds
+            out_rows   = self.output_rows.get(scenario, 0)
+            in_rows    = self.data_rows.get(scenario, 0)
+            throughput = (out_rows / duration) if duration > 0 else 0
+            status     = self.status.get(scenario, "UNKNOWN")
+            
+            # Format time strings
+            start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
+            end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))
+            
+            # Print row with fixed width
+            row = (
+                f"| {self.scenarioId[scenario]:<{col_widths['scenario_id']}} "
+                f"| {self.classification[scenario]:<{col_widths['classification']}} "
+                f"| {out_rows:<{col_widths['out_records']}} "
+                f"| {in_rows:<{col_widths['in_records']}} "
+                f"| {start_time_str:<{col_widths['start_time']}} "
+                f"| {end_time_str:<{col_widths['end_time']}} "
+                f"| {duration:<{col_widths['duration']}.3f} "
+                f"| {throughput:<{col_widths['throughput']}.2f} "
+                f"| {status:<{col_widths['status']}} |"
+            )
+            print(row)
         
 metrics = OutMetrics()

@@ -91,13 +91,13 @@ class WriteData(BaseStep):
                 metrics.status[self.scene.name] = "Failed"                
                 continue
             realRows = db_first_value(querySql)
+            # set data rows metric
+            metrics.add_data_rows(self.scene.name, realRows)
             if realRows == dataRows:
                 print(f"data write completed. real rows: {realRows}, expect rows: {dataRows}")
             else:
                 print(f"data write error. real rows: {realRows}, expect rows: {dataRows}")
                 metrics.status[self.scene.name] = "Failed"
             
-            # set data rows metric
-            metrics.add_data_rows(self.scene.name, dataRows)
             
             
