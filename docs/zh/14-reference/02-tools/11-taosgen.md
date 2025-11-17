@@ -127,7 +127,7 @@ taosgen -h 127.0.0.1 -c config.yaml
       - has_header（布尔）：是否包含表头行，默认为 true。
       - tbname_index（整数）：指定表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。
       - exclude_indices（字符串）：如果仅想使用部分标签列时，此参数用于指定剔除的无用标签列的索引（从 0 开始），列索引之间使用英文逗号,分隔，默认值为空，表示不剔除。
-    - columns：描述 columns 的配置参数。
+    - columns：时序数据列的配置参数。
       - file_path（字符串）：时序数据 CSV 文件路径。
       - has_header（布尔）：是否包含表头行，默认为 true。
       - repeat_read（布尔）：是否重复读取数据，默认为 false。
