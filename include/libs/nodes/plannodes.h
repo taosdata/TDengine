@@ -255,6 +255,7 @@ typedef struct SDynQueryCtrlStbJoin {
 typedef struct SDynQueryCtrlVtbScan {
   bool          scanAllCols;
   bool          isSuperTable;
+  bool          useTagScan;
   char          dbName[TSDB_DB_NAME_LEN];
   char          tbName[TSDB_TABLE_NAME_LEN];
   uint64_t      suid;
