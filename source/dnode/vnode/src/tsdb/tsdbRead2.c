@@ -7258,7 +7258,7 @@ _end:
   return code;
 }
 
-int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
+int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes, bool* hasNext) {
   int32_t          code = 0;
   int32_t          lino = 0;
   const char*      idstr = NULL;
@@ -7271,18 +7271,21 @@ int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
 
   STableFirstLastTsIter* pTsIter = pIter;
   idstr = pTsIter->pReader->idStr;
-
+  *hasNext = true;
   // no data now, return directly.
   if (!pTsIter->hasNext) {
+    *hasNext = false;
     return TSDB_CODE_SUCCESS;
   }
 
+  int64_t numOfRows = 0;
   while (1) {
     code = tsdbNextDataBlock2(pTsIter->pReader, &pTsIter->hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
 
     // no more data, jump out
     if (!pTsIter->hasNext) {
+      *hasNext = false;
       break;
     }
 
@@ -7314,7 +7317,7 @@ int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
     pTsIter->pReader->status.fBlockDumpInfo.allDumped = true;
 
     // enough result already, return now
-    if (pRes->info.rows >= 4096) {
+    if (numOfRows++ >= 4096) {
       break;
     }
   }

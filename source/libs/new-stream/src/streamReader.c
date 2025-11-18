@@ -177,6 +177,14 @@ SArray* qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo) {
   return pTableList;
 }
 
+int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo){
+  taosRLockLatch(&sStreamReaderInfo->lock);
+  StreamTableListInfo* tmp = sStreamReaderInfo->isVtableStream ? &sStreamReaderInfo->vSetTableList : &sStreamReaderInfo->tableList;
+  int32_t num = taosArrayGetSize(tmp->pTableList);
+  taosRUnLockLatch(&sStreamReaderInfo->lock);
+  return num;
+}
+
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo){
   taosRLockLatch(&sStreamReaderInfo->lock);
   StreamTableListInfo* tmp = sStreamReaderInfo->isVtableStream ? &sStreamReaderInfo->vSetTableList : &sStreamReaderInfo->tableList;

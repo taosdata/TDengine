@@ -219,7 +219,7 @@ typedef struct TsdReader {
   // retrieve first/last ts for each table
   int32_t  (*tsdCreateFirstLastTsIter)(void *pVnode, STimeWindow *pWindow, SVersionRange *pVerRange, uint64_t suid, void *pTableList,
                                    int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
-  int32_t  (*tsdNextFirstLastTsBlock)(void *pIter, SSDataBlock *pRes);
+  int32_t  (*tsdNextFirstLastTsBlock)(void *pIter, SSDataBlock *pRes, bool* hasNext);
   void     (*tsdDestroyFirstLastTsIter)(void *pIter);
 
 } TsdReader;
