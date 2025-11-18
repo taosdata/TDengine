@@ -1008,9 +1008,12 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteFirstFile) {
   
   ASSERT_NE(firstLogFile[0], 0);
   char logFile[256];
-  sprintf(logFile, "%s/%s", pathName, firstLogFile);
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, firstLogFile);
   printf("Deleting first log file: %s\n", logFile);
   taosRemoveFile(logFile);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
   
   // Re-open should trigger walRenameCorruptedDir
   SetUp();
@@ -1095,11 +1098,14 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteMiddleFile) {
   // Delete the middle log file
   char* middleFile = (char*)taosArrayGet(logFiles, fileCount / 2);
   char logFile[256];
-  sprintf(logFile, "%s/%s", pathName, middleFile);
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, middleFile);
   printf("Deleting middle log file: %s\n", logFile);
   taosRemoveFile(logFile);
   
   taosArrayDestroy(logFiles);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
   
   // Re-open should trigger walRenameCorruptedDir
   SetUp();
@@ -1171,9 +1177,12 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
   
   ASSERT_NE(lastLogFile[0], 0);
   char logFile[256];
-  sprintf(logFile, "%s/%s", pathName, lastLogFile);
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, lastLogFile);
   printf("Deleting last log file: %s\n", logFile);
   taosRemoveFile(logFile);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
   
   // Re-open should trigger walRenameCorruptedDir
   SetUp();
