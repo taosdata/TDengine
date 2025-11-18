@@ -14,6 +14,7 @@
  */
 
 #include "transComm.h"
+#include "taoserror.h"
 
 #define BUFFER_CAP 8 * 1024
 
@@ -33,7 +34,7 @@ typedef struct {
 } STransEntry;
 typedef struct {
   int32_t     inited;
-  STransEntry tran[16];
+  STransEntry tran[32];
   int32_t     num;
 } STransCache;
 
@@ -49,6 +50,9 @@ int32_t transCachePut(int64_t refId, STrans* pTrans) {
     transCacheInit();
   }
 
+  if (transInstCache.num >= sizeof(transInstCache.tran) / sizeof(STransEntry)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   STransEntry entry = {.refId = refId, .pTrans = pTrans, .remove = 0, .ref = 0};
   if (transInstCache.num >= sizeof(transInstCache.tran) / sizeof(STransEntry)) {
     return TSDB_CODE_INVALID_CFG;
