@@ -962,6 +962,7 @@ typedef struct SSTriggerGroupReadInfo {
   int64_t            gid;
   SSTriggerCalcParam firstParam;
   SSTriggerCalcParam lastParam;
+  // pTables may be NULL if it is INTERVAL/SLIDING/PERIOD trigger type
   SArray*            pTables;  // SArray<uid uint64_t>, tables to read; tables are decided by reader if it is null
 } SSTriggerGroupReadInfo;
 
@@ -982,6 +983,7 @@ typedef struct SSTriggerCalcRequest {
 
   // The following fields are used for multi-group calculation
   SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
+  // pGroupReadInfos may be NULL if trigger table and calc table are not the same
   SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
 
   // The following fields are not serialized and only used by the runner task
