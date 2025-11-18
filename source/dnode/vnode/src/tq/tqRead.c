@@ -101,14 +101,18 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       int     tlen = 0;
       int32_t ret = 0;
       tEncodeSize(tEncodeSVCreateTbBatchReq, &reqNew, tlen, ret);
+        tqTrace("2, tlen:%d ret:%d", tlen, ret);
+
       void* buf = taosMemoryMalloc(tlen);
       if (NULL == buf) {
         taosArrayDestroy(reqNew.pArray);
         tDeleteSVCreateTbBatchReq(&req);
-            tqTrace("2");
+        tqTrace("2");
 
         goto end;
       }
+        tqTrace("2, tlen:%d", tlen);
+
       SEncoder coderNew = {0};
       tEncoderInit(&coderNew, buf, tlen - sizeof(SMsgHead));
       ret = tEncodeSVCreateTbBatchReq(&coderNew, &reqNew);
@@ -118,7 +122,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
         taosArrayDestroy(reqNew.pArray);
         tDeleteSVCreateTbBatchReq(&req);
         tqTrace("3, ret:%d", ret);
-
+        ASSERT(0);
         goto end;
       }
       (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
