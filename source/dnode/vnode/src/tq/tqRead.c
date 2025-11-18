@@ -92,6 +92,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
           if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
             tDeleteSVCreateTbBatchReq(&req);
+            tqTrace("1");
             goto end;
           }
         }
@@ -104,6 +105,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       if (NULL == buf) {
         taosArrayDestroy(reqNew.pArray);
         tDeleteSVCreateTbBatchReq(&req);
+            tqTrace("2");
+
         goto end;
       }
       SEncoder coderNew = {0};
@@ -114,6 +117,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
         taosMemoryFree(buf);
         taosArrayDestroy(reqNew.pArray);
         tDeleteSVCreateTbBatchReq(&req);
+        tqTrace("3, ret:%d", ret);
+
         goto end;
       }
       (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
