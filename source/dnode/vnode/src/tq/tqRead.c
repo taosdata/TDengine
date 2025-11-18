@@ -62,6 +62,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     SVCreateTbReq* pCreateReq = NULL;
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
+      tqTrace("tq check create table suid:%"PRId64", tbSuid:%"PRId64",uid:%"PRId64, pCreateReq->ctb.suid, tbSuid, pCreateReq->uid);
       if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
           taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  
         needRebuild++;
@@ -81,8 +82,11 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       }
       for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
         pCreateReq = req.pReqs + iReq;
+        tqTrace("tq add check create table suid:%"PRId64", tbSuid:%"PRId64",uid:%"PRId64, pCreateReq->ctb.suid, tbSuid, pCreateReq->uid);
         if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
             taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {
+          tqTrace("tq add create table suid:%"PRId64", tbSuid:%"PRId64",uid:%"PRId64, pCreateReq->ctb.suid, tbSuid, pCreateReq->uid);
+        
           reqNew.nReqs++;
           if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
