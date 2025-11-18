@@ -14,6 +14,7 @@
  */
 
 #include "transComm.h"
+#include "taoserror.h"
 
 #define BUFFER_CAP 8 * 1024
 
@@ -44,13 +45,17 @@ static void transCacheInit() {
   transInstCache.num = 0;
 }
 
-void transCachePut(int64_t refId, STrans* pTrans) {
+int32_t transCachePut(int64_t refId, STrans* pTrans) {
   if (!transInstCache.inited) {
     transCacheInit();
   }
 
+  if (transInstCache.num >= sizeof(transInstCache.tran) / sizeof(STransEntry)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   STransEntry entry = {.refId = refId, .pTrans = pTrans, .remove = 0, .ref = 0};
   transInstCache.tran[transInstCache.num++] = entry;
+  return 0;
 }
 
 int32_t transCacheAcquireById(int64_t refId, STrans** pTrans) {
