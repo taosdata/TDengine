@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tarray.h"
 #include "tmsg.h"
 #include "tq.h"
 
@@ -40,6 +41,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
   int32_t  len = bodyLen - sizeof(SMsgHead);
   tDecoderInit(&dcoder, data, len);
 
+  tqTrace("dataLen:%d %p, type:%s", bodyLen, body, TMSG_INFO(pHead->msgType));
   if (msgType == TDMT_VND_CREATE_STB || msgType == TDMT_VND_ALTER_STB) {
     SVCreateStbReq req = {0};
     if (tDecodeSVCreateStbReq(&dcoder, &req) < 0) {
@@ -62,7 +64,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     SVCreateTbReq* pCreateReq = NULL;
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
-      tqTrace("tq check create table suid:%"PRId64", tbSuid:%"PRId64",uid:%"PRId64, pCreateReq->ctb.suid, tbSuid, pCreateReq->uid);
+      tqTrace("tq check create table suid:%"PRId64", tbSuid:%"PRId64",uid:%"PRId64",%d", pCreateReq->ctb.suid, tbSuid, pCreateReq->uid, req.nReqs);
       if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
           taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  
         needRebuild++;
@@ -116,6 +118,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       }
       (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
       pHead->bodyLen = tlen + sizeof(SMsgHead);
+      tqTrace("pHead->bodyLen:%d %p, type:%s, size:%d %d", pHead->bodyLen, pHead->body, TMSG_INFO(pHead->msgType), (int32_t)taosArrayGetSize(reqNew.pArray), reqNew.nReqs);
+
       taosMemoryFree(buf);
       taosArrayDestroy(reqNew.pArray);
     }

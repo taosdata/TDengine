@@ -243,6 +243,7 @@ static int32_t buildBatchMeta(SMqBatchMetaRsp *btMetaRsp, int16_t type, int32_t 
   tmpMetaRsp.resMsgType = type;
   tmpMetaRsp.metaRspLen = bodyLen;
   tmpMetaRsp.metaRsp = body;
+  tqTrace("tmq extract meta from log, %d bytes %p , type:%s", bodyLen, body, TMSG_INFO(type));
   uint32_t len = 0;
   tEncodeSize(tEncodeMqMetaRsp, &tmpMetaRsp, len, code);
   if (TSDB_CODE_SUCCESS != code) {
