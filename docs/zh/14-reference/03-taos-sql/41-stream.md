@@ -946,3 +946,17 @@ CREATE stream sm1 PERIOD(1h)
 CREATE stream sm1 PERIOD(1h) 
   NOTIFY("ws://localhost:8080/notify");
 ```
+
+- 每过 1 天计算智能电表 meters 中各子表的耗电量和，计算结果写入降采样超级表 meters_1d 中并把各子表 TAG 值原样带过来。
+
+```SQL
+CREATE stream stream_consumer_energy 
+  PERIOD(1d) 
+  FROM meters PARTITION BY tbname, groupid, location
+  INTO meters_1d (ts, sum_power)
+     TAGS (groupid INT AS groupid , location VARCHAR(24) AS location)
+  AS 
+     SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
+          FROM meters
+          WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
+```
