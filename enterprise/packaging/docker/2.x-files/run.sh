@@ -71,7 +71,7 @@ if [ ! -d "$CORE_FOLDER" ]; then
     logger "INFO" "Created core directory: $CORE_FOLDER"
 fi
 # set core files pattern, maybe failed
-sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null 2>&1
+sysctl -w kernel.core_pattern=${CORE_FOLDER}/core-$FQDN-%e-%p >/dev/null 2>&1
 
 logger "INFO" "ADMIN_URL: ${ADMIN_URL}"
 logger "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -182,8 +182,8 @@ function check_process_exit_type() {
     if [ ! -z "$core_files" ]; then
         # move core files to another folder
         mkdir -p ${BACKUP_CORE_FOLDER}
-        cp -f "${core_folder}/${core_prefix}"* "${BACKUP_CORE_FOLDER}/" 2>/dev/null || true
-        rm -f "${core_folder}/${core_prefix}"* 2>/dev/null || true
+        cp -f "${core_folder}"/"${core_prefix}"* "${BACKUP_CORE_FOLDER}/" 2>/dev/null || true
+        rm -f "${core_folder}"/"${core_prefix}"* 2>/dev/null || true
 
        #cp ${core_folder}/${core_prefix}* ${BACKUP_CORE_FOLDER}/
        #rm -f ${core_folder}/${core_prefix}*
