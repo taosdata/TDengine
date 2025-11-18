@@ -102,6 +102,9 @@ def check_freq_param(ts_list: list, freq, prec):
     except ValueError:
         raise ValueError(f"Unsupported frequency: {freq}")
 
+    if delta_in_us <= 0:
+        raise ValueError(f"Invalid frequency: {freq}")
+
     try:
         _, prec_unit = parse_time_delta_string(prec)
         factor = _get_us_factor(prec_unit)

@@ -245,6 +245,7 @@ static void imputatDestroyOperatorInfo(void* param) {
     blockDataDestroy(pBlock);
   }
 
+  taosMemoryFreeClear(pInfo->options);
   taosArrayDestroy(pInfo->imputatSup.blocks);
   taosMemoryFreeClear(param);
 }
@@ -632,7 +633,7 @@ int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
       return terrno;
     }
 
-    if (regcomp(&regex, "^([0-9]*)(ms|us|ns|[smhdw])$", REG_EXTENDED | REG_ICASE) != 0) {
+    if (regcomp(&regex, "^([1-9][0-9]*|[1-9]*)(ms|us|ns|[smhdw])$", REG_EXTENDED | REG_ICASE) != 0) {
       qError("%s failed to compile regex for freq param", id);
       return TSDB_CODE_INVALID_PARA;
     }
