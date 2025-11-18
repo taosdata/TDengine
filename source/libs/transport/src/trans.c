@@ -126,7 +126,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
   TAOS_UNUSED(transAcquireExHandle(transGetInstMgt(), refId));
 
-  transCachePut(refId, (STrans*)pRpc);
+  code = transCachePut(refId, (STrans*)pRpc);
+  TAOS_CHECK_GOTO(code, NULL, _end);
 
   pRpc->refId = refId;
 

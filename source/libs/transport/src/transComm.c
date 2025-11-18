@@ -33,7 +33,7 @@ typedef struct {
 } STransEntry;
 typedef struct {
   int32_t     inited;
-  STransEntry tran[256];
+  STransEntry tran[32];
   int32_t     num;
 } STransCache;
 
@@ -44,13 +44,17 @@ static void transCacheInit() {
   transInstCache.num = 0;
 }
 
-void transCachePut(int64_t refId, STrans* pTrans) {
+int32_t transCachePut(int64_t refId, STrans* pTrans) {
   if (!transInstCache.inited) {
     transCacheInit();
   }
 
   STransEntry entry = {.refId = refId, .pTrans = pTrans, .remove = 0, .ref = 0};
+  if (transInstCache.num >= sizeof(transInstCache.tran) / sizeof(STransEntry)) {
+    return TSDB_CODE_INVALID_CFG;
+  }
   transInstCache.tran[transInstCache.num++] = entry;
+  return 0;
 }
 
 int32_t transCacheAcquireById(int64_t refId, STrans** pTrans) {
