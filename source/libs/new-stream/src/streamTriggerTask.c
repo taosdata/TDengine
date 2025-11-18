@@ -6754,7 +6754,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       }
     }
   } else {
-    stHistoryContextReport(pContext);
+    if (pContext->isHistory || (stDebugFlag & DEBUG_DEBUG)) {
+      stHistoryContextReport(pContext);
+    }
     bool calcFinish = false;
     code = stHistoryContextAllCalcFinish(pContext, &calcFinish);
     QUERY_CHECK_CODE(code, lino, _end);
