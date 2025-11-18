@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from flask import Flask, request
 
-from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, validate_ts_freq_and_prec)
+from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
@@ -147,7 +147,8 @@ def handle_imputation_req():
 
     try:
         freq = req_json["freq"] if 'freq' in req_json else '1ms'
-        validate_ts_freq_and_prec(payload[ts_index], freq, params['precision'])
+        prec = req_json['prec'] if 'prec' in req_json else 'ms'
+        check_freq_param(payload[ts_index], freq, prec)
 
         imputat_res = do_imputation(payload[data_index], payload[ts_index], algo, params)
 

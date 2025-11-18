@@ -2,7 +2,6 @@
 # pylint: disable=c0103
 """unit test module"""
 import os.path
-import re
 import unittest
 import sys
 
@@ -142,23 +141,16 @@ class UtilTest(unittest.TestCase):
         self.assertEqual(unit, 'm')
 
     def test_list_delta(self):
-        ret = check_freq_param([100, 200, 300, 400, 500, 600], '1s', 'ms')
-        self.assertFalse(ret)
+        with self.assertRaises(ValueError):
+            check_freq_param([100, 200, 300, 400, 500, 600], '1s', 'ms')
 
-        ret = check_freq_param([100, 200, 300, 400, 500, 600], '20s', 's')
-        self.assertTrue(ret)
+        with self.assertRaises(ValueError):
+            check_freq_param([123, 456, 789], '1m', 'ms')
 
-        ret = check_freq_param([20, 30, 40, 50, 60, 90], '10s', 's')
-        self.assertTrue(ret)
-
-        ret = check_freq_param([1, 2, 3, 4, 5, 6],'10s', 'm')
-        self.assertTrue(ret)
-
-        ret = check_freq_param([123, 419, 533, 918], '20ms', 'ms')
-        self.assertTrue(ret)
-
-        ret = check_freq_param([123, 456, 789], '1m', 'ms')
-        self.assertFalse(ret)
+        check_freq_param([100, 200, 300, 400, 500, 600], '20s', 's')
+        check_freq_param([20, 30, 40, 50, 60, 90], '10s', 's')
+        check_freq_param([1, 2, 3, 4, 5, 6],'10s', 'm')
+        check_freq_param([123, 419, 533, 918], '20ms', 'ms')
 
 
 class ServiceTest(unittest.TestCase):

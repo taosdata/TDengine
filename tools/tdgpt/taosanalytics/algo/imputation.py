@@ -63,6 +63,8 @@ def do_set_imputation_params(params, json_obj):
             raise ValueError(f"precision should be one of {valid_precision_list}")
 
         params["precision"] = time_str
+    else:
+        params['precision'] = 'ms'
 
     valid_freq_dict = {'d':'D', 'h':'H', 'm':'T', 's':'S', 'ms':'L', 'us':'U'}
     if "freq" in json_obj:
@@ -73,52 +75,44 @@ def do_set_imputation_params(params, json_obj):
             raise ValueError(f"freq should be one of {valid_freq_dict.keys()}")
 
         params["freq"] = str(value) + valid_freq_dict[unit]
-
-
-def check_freq_param(ts_list:list, freq, prec):
-    value, unit = parse_time_delta_string(freq)
-
-    factor = 1
-    if unit == 'us':
-        factor = 1
-    elif unit == 'ms':
-        factor = 1000
-    elif unit == 's':
-        factor = 1000 * 1000
-    elif unit == 'm':
-        factor = 1000 * 1000 * 60
-    elif unit == 'h':
-        factor = 1000 * 1000 * 60 * 60
-    elif unit == 'd':
-        factor = 1000 * 1000 * 60 * 60 * 24
     else:
+        params['freq'] = '1L'
+
+def _get_us_factor(unit: str) -> int:
+    """Returns the conversion factor to microseconds for a given time unit."""
+    factors = {
+        'us': 1,
+        'ms': 1000,
+        's': 1000 * 1000,
+        'm': 1000 * 1000 * 60,
+        'h': 1000 * 1000 * 60 * 60,
+        'd': 1000 * 1000 * 60 * 60 * 24,
+    }
+
+    if unit not in factors:
+        raise ValueError(f"Unsupported unit: {unit}")
+
+    return factors[unit]
+
+
+def check_freq_param(ts_list: list, freq, prec):
+    value, unit = parse_time_delta_string(freq)
+    try:
+        delta_in_us = _get_us_factor(unit) * value
+    except ValueError:
         raise ValueError(f"Unsupported frequency: {freq}")
 
-    delta_in_us = factor * value
-
-    factor = 1
-    if prec == 'us':
-        factor = 1
-    elif prec == 'ms':
-        factor = 1000
-    elif prec == 's':
-        factor = 1000*1000
-    elif prec == 'm':
-        factor = 1000 * 1000 * 60
-    elif prec == 'h':
-        factor = 1000 * 1000 * 60 * 60
-    elif prec == 'd':
-        factor = 1000 * 1000 * 60 * 60 * 24
+    try:
+        _, prec_unit = parse_time_delta_string(prec)
+        factor = _get_us_factor(prec_unit)
+    except ValueError:
+        raise ValueError(f"Unsupported precision: {prec}")
 
     rev_ts_list = [val * factor for val in ts_list]
 
     # check the correctness of freq and the input data
     for i in range(1, len(ts_list)):
         if delta_in_us + rev_ts_list[i - 1] > rev_ts_list[i]:
-            return False
-
-    return True
-
-def validate_ts_freq_and_prec(ts_list, freq, prec):
-    if not check_freq_param(ts_list, freq, prec):
-        raise ValueError(f"invalid freq or precision for the input ts list, freq:{freq}, prec:{prec}")
+            raise ValueError(
+                f"invalid freq or precision for the input ts list, freq:{freq}, prec:{prec}, ts interval between: "
+                f"{rev_ts_list[i - 1]} {rev_ts_list[i]}")

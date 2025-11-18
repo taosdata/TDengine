@@ -6,7 +6,6 @@ import requests
 
 from taosanalytics.conf import app_logger, conf
 from taosanalytics.service import AbstractImputationService
-from taosanalytics.util import parse_time_delta_string
 
 
 class _MomentImputationService(AbstractImputationService):

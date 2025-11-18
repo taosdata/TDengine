@@ -136,19 +136,18 @@ def padding_data_list(df, val, n_rows, mask, freq, freq_value, freq_unit):
     # get the last timestamp
     last_time = df.index[-1]
 
+    unit_map = {
+        'D': 'days',
+        'H': 'hours',
+        'T': 'minutes',
+        'S': 'seconds',
+        'L': 'milliseconds',
+        'U': 'microseconds',
+    }
+
     unit = freq_unit
-    if unit == 'D':
-        delta = timedelta(days=freq_value)
-    elif unit == 'H':
-        delta = timedelta(hours=freq_value)
-    elif unit == 'T':
-        delta = timedelta(minutes=freq_value)
-    elif unit == 'S':
-        delta = timedelta(seconds=freq_value)
-    elif unit == 'L':
-        delta = timedelta(milliseconds=freq_value)
-    elif unit == 'U':
-        delta = timedelta(microseconds=freq_value)
+    if unit in unit_map:
+        delta = timedelta(**{unit_map[unit]: freq_value})
     else:
         raise ValueError(f"Unsupported frequency: {unit}")
 

@@ -632,8 +632,9 @@ int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
       return terrno;
     }
 
-    if (regcomp(&regex, "^([0-9]+)(ms|us|ns|[smhdw])$", REG_EXTENDED | REG_ICASE) != 0) {
-      return false;
+    if (regcomp(&regex, "^([0-9]*)(ms|us|ns|[smhdw])$", REG_EXTENDED | REG_ICASE) != 0) {
+      qError("%s failed to compile regex for freq param", id);
+      return TSDB_CODE_INVALID_PARA;
     }
 
     int32_t res = regexec(&regex, p, 0, NULL, 0);
