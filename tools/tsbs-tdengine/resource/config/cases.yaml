@@ -48,6 +48,84 @@ testCases:
                       ) 
                   where last_elev > 1000;
 
+    - scenarioId: "A4"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a4 
+            sliding(10m) 
+            from db1.readings 
+            stream_options(fill_history_first) 
+            into db1.res_a4 
+            as 
+              select _tcurrent_ts, sum(load) 
+                from (
+                      select last(current_load) load 
+                        from db2.diagnostics 
+                        where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                        partition by tbname
+                     )
+
+    - scenarioId: "A5"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a5 
+            sliding(10m) 
+            from db1.readings 
+            stream_options(fill_history_first) 
+            into db1.res_a5 (ts, last_heading primary key, num) 
+            as 
+              select _tcurrent_ts, last_heading, count(*) 
+                from (
+                      select case when last(heading) < 45 or last(heading) >= 315   then 0 
+                                  when last(heading) >= 45 and last(heading) < 135  then 90 
+                                  when last(heading) >= 135 and last(heading) < 225 then 180 
+                                  else 270 end last_heading 
+                          from db1.readings 
+                          where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          partition by tbname
+                     ) 
+                partition by last_heading;
+
+    - scenarioId: "A6"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a6 
+            sliding(1h) 
+            from db1.readings 
+            stream_options(fill_history_first) 
+            into db1.res_a6 
+            as 
+              select _tcurrent_ts, count(*), avg(last_velocity) 
+                  from (
+                         select _tprev_ts ts, last(current_load) load, load_capacity, name 
+                           from db2.diagnostics 
+                           where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                           partition by tbname) a 
+                           join (
+                                 select _tprev_ts ts, last(velocity) last_velocity, name 
+                                    from db1.readings where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                                    partition by tbname
+                                ) b 
+                           on a.ts = b.ts and a.load < 0.1 * a.load_capacity and a.name = b.name;
+
+    - scenarioId: "A7"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a7
+            interval(1d) 
+            sliding(1d) 
+            from db1.readings 
+            stream_options(fill_history_first) 
+            into db1.res_a7 
+            as 
+              select _twstart, avg(fuel_consumption) 
+                from db1.readings 
+                where _c0 >= _twstart and _c0 < _twend;
+
     - scenarioId: "A8"
       classfication: "Summary"
       description: ""

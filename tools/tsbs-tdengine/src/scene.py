@@ -45,6 +45,8 @@ class Scene:
                 # skip
                 if table[0] == "(" or table[0] == "'" or table[0] == '"' or len(table) < 2:
                     continue
+                if table[0] == "%":  # skip special table like %%tbname
+                    continue
                 
                 # append
                 if table not in tables:

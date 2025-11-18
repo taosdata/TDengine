@@ -8,8 +8,6 @@ ts,latitude,longitude,elevation,velocity,heading,grade,fuel_consumption,name,fle
 1735689600000,15.67271,112.4023,402,0,75,0,25,truck_9,South,Andy,H-2,v2.3,1500,150,12
 1735689600000,35.05682,36.20513,359,0,68,0,25,truck_10,North,Albert,F-150,v2.3,2000,200,15
 1735689600000,87.9924,134.71544,293,0,133,0,25,truck_11,South,Derek,F-150,v1.0,2000,200,15
-root@u1-59:~/tsbs-tdengine/resource/data# head -n 1000  readings.csv 
-ts,latitude,longitude,elevation,velocity,heading,grade,fuel_consumption,name,fleet,driver,model,device_version,load_capacity,fuel_capacity,nominal_fuel_consumption
 1735689600000,52.31854,4.72037,124,0,221,0,25,truck_0,South,Trish,H-2,v2.3,1500,150,12
 1735689600001,72.45258,68.83761,255,0,181,0,25,truck_1,South,Albert,F-150,v1.5,2000,200,15
 1735689600000,24.5208,,428,0,304,0,25,truck_2,North,Derek,F-150,v1.5,2000,200,15
