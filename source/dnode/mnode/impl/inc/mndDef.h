@@ -432,7 +432,7 @@ typedef struct {
   int32_t       acctId;
   int32_t       authVersion;
   int32_t       passVersion;
-  int64_t       lastRoleRetrieve; // Last retrieve time of role, unit is macro second, default value is 0. Memory only and no need to persist.
+  int64_t       lastRoleRetrieve; // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to persist.
   int64_t       ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 
@@ -527,6 +527,7 @@ typedef struct {
   char     name[TSDB_DB_FNAME_LEN];
   char     acct[TSDB_USER_LEN];
   char     createUser[TSDB_USER_LEN];
+  char     owner[TSDB_USER_LEN];  // If owner is empty, createUser is owner.
   int64_t  createdTime;
   int64_t  updateTime;
   int64_t  uid;
@@ -549,6 +550,7 @@ typedef struct {
   char         name[TSDB_MOUNT_NAME_LEN];
   char         acct[TSDB_USER_LEN];
   char         createUser[TSDB_USER_LEN];
+  char         owner[TSDB_USER_LEN];
   int64_t      createdTime;
   int64_t      updateTime;
   int64_t      uid;
@@ -650,6 +652,7 @@ typedef struct {
   char    tbName[TSDB_TABLE_NAME_LEN];
   char    dbFName[TSDB_DB_FNAME_LEN];
   char    createUser[TSDB_USER_LEN];
+  char    owner[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int64_t uid;
@@ -674,6 +677,8 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    dstTbName[TSDB_TABLE_FNAME_LEN];
   char    colName[TSDB_COL_NAME_LEN];
+  char    createUser[TSDB_USER_LEN];
+  char    owner[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t uid;
   int64_t stbUid;
@@ -688,6 +693,8 @@ typedef struct {
 typedef struct {
   char        name[TSDB_TABLE_FNAME_LEN];
   char        db[TSDB_DB_FNAME_LEN];
+  char        createUser[TSDB_USER_LEN];
+  char        owner[TSDB_USER_LEN];
   int64_t     createdTime;
   int64_t     updateTime;
   int64_t     uid;
@@ -721,6 +728,8 @@ typedef struct {
 
 typedef struct {
   char     name[TSDB_FUNC_NAME_LEN];
+  char     createUser[TSDB_USER_LEN];
+  char     owner[TSDB_USER_LEN];
   int64_t  createdTime;
   int8_t   funcType;
   int8_t   scriptType;
@@ -757,6 +766,7 @@ typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           createUser[TSDB_USER_LEN];
+  char           owner[TSDB_USER_LEN];
   int64_t        createTime;
   int64_t        updateTime;
   int64_t        uid;
@@ -881,10 +891,12 @@ typedef struct {
 
 typedef struct {
   char                name[TSDB_STREAM_FNAME_LEN];
+  char                createUser[TSDB_USER_LEN];
+  char                owner[TSDB_USER_LEN];
   SCMCreateStreamReq* pCreate;
 
   SRWLatch lock;
-  
+
   // dynamic info
   int32_t mainSnodeId;
   int8_t  userDropped;  // no need to serialize
@@ -998,7 +1010,8 @@ typedef struct {
   char     fullname[TSDB_VIEW_FNAME_LEN];
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
-  char     user[TSDB_USER_LEN];
+  char     createUser[TSDB_USER_LEN];
+  char     owner[TSDB_USER_LEN];
   char*    querySql;
   char*    parameters;
   void**   defaultValues;

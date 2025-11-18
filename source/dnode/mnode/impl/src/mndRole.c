@@ -32,7 +32,9 @@
 
 // clang-format on
 
-#define MND_ROLE_VER_NUMBER                      1
+#define MND_ROLE_VER_NUMBER 1
+
+static SRoleMgmt roleMgmt = {0};
 
 static int32_t  mndCreateDefaultRoles(SMnode *pMnode);
 static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw);
@@ -49,9 +51,11 @@ static void     mndCancelGetNextRole(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 
-
-
 int32_t mndInitRole(SMnode *pMnode) {
+  // role management init
+  roleMgmt.lastUpd = INT64_MAX;
+  TAOS_CHECK_RETURN(taosThreadRwlockInit(&roleMgmt.rw, NULL));
+
   SSdbTable table = {
       .sdbType = SDB_ROLE,
       .keyType = SDB_KEY_BINARY,
@@ -74,7 +78,31 @@ int32_t mndInitRole(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-void mndCleanupRole(SMnode *pMnode) {  }
+void mndCleanupRole(SMnode *pMnode) {}
+
+int64_t mndGetRoleLastUpd() {
+  int64_t lastUpd;
+  (void)taosThreadRwlockRdlock(&roleMgmt.rw);
+  lastUpd = roleMgmt.lastUpd;
+  (void)taosThreadRwlockUnlock(&roleMgmt.rw);
+  return lastUpd;
+}
+
+void mndSetRoleLastUpd(int64_t updateTime) {
+  (void)taosThreadRwlockWrlock(&roleMgmt.rw);
+  roleMgmt.lastUpd = updateTime;
+  (void)taosThreadRwlockUnlock(&roleMgmt.rw);
+}
+
+bool mndIsNeedRetrieveRole(SUserObj *pUser) {
+  bool result = false;
+  if (taosHashGetSize(pUser->roles) > 0) {
+    (void)taosThreadRwlockRdlock(&roleMgmt.rw);
+    if (pUser->lastRoleRetrieve <= roleMgmt.lastUpd) result = true;
+    (void)taosThreadRwlockUnlock(&roleMgmt.rw);
+  }
+  return result;
+}
 
 static int32_t mndCreateDefaultRole(SMnode *pMnode, char *acct, char *user, char *pass) {
 //   int32_t  code = 0;
@@ -577,6 +605,7 @@ static int32_t mndDropRole(SMnode *pMnode, SRpcMsg *pReq, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(mndDropParentRole(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndUserDropRole(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+  mndSetRoleLastUpd(taosGetTimestampMs());
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("role:%s, failed to drop at line:%d since %s", pObj->name, lino, tstrerror(code));
@@ -709,6 +738,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
     }
     TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+    mndSetRoleLastUpd(taosGetTimestampMs());
   }
   auditRecord(pReq, pMnode->clusterId, "alterRole", "", alterReq.principal, alterReq.sql, alterReq.sqlLen);
 _exit:
