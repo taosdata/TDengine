@@ -2249,7 +2249,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       memcpy(digest + 1, context.digest, tListLen(context.digest));
     }
     if (tsStableTagFilterCache && isStream && canCacheTagCondFilter) {
-      qInfo("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, "
+      qDebug("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, "
         "uidListSize:%d", 
         pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
       code = pStorageAPI->metaFn.putStableCachedTableList(
