@@ -5,9 +5,38 @@ static const char* jkFieldName     = "name";
 static const char* jkFieldType     = "type";
 static const char* jkFieldFlags    = "flags";
 static const char* jkFieldBytes    = "bytes";
-// static const char* jkFieldCompress = "compress";
-// static const char* jkFieldTypeMod  = "typeMod";
+static const char* jkFieldCompress = "compress";
+static const char* jkFieldTypeMod  = "typeMod";
 static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
+  const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
+  if (NULL != pField->name) {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
+  }
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkFieldType, pField->type));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkFieldFlags, pField->flags));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkFieldBytes, pField->bytes));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkFieldCompress, pField->compress));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkFieldTypeMod, pField->typeMod));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
+  SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
+  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
+  TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
+  TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
+  TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));
+  TAOS_CHECK_RETURN(tjsonGetUIntValue(
+    pJson, jkFieldCompress, &pField->compress));
+  TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldTypeMod, &pField->typeMod));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stagFieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
   if (NULL != pField->name) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
@@ -24,7 +53,7 @@ static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
+static int32_t jsonToSTagFieldWithOptions(const SJson* pJson, void* pObj) {
   SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
   TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
@@ -224,9 +253,9 @@ static int32_t periodTriggerToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToPeriodTrigger(const SJson* pJson, void* pObj) {
   SPeriodTrigger* pTrigger = (SPeriodTrigger*)pObj;
-  TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(
+  TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkPeriodTriggerPeriodUnit, &pTrigger->periodUnit));
-  TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(
+  TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkPeriodTriggerOffsetUnit, &pTrigger->offsetUnit));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(
     pJson, jkPeriodTriggerPrecision, &pTrigger->precision));
@@ -510,7 +539,7 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pReq->outCols ? pReq->outCols->size : 0));
   // out tags
   TAOS_CHECK_RETURN(tjsonAddArray(
-    pJson, jkCreateStreamReqOutTags, sfieldWithOptionsToJson,
+    pJson, jkCreateStreamReqOutTags, stagFieldWithOptionsToJson,
     pReq->outTags ? TARRAY_GET_ELEM(pReq->outTags, 0) : NULL,
     pReq->outTags ? pReq->outTags->elemSize : 0,
     pReq->outTags ? pReq->outTags->size : 0));
@@ -737,7 +766,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     &pReq->outCols, sizeof(SFieldWithOptions)));
   // out tags
   TAOS_CHECK_RETURN(tjsonToTArray(
-    pJson, jkCreateStreamReqOutTags, jsonToSFieldWithOptions,
+    pJson, jkCreateStreamReqOutTags, jsonToSTagFieldWithOptions,
     &pReq->outTags, sizeof(SFieldWithOptions)));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkCreateStreamReqMaxDelay, &pReq->maxDelay));
