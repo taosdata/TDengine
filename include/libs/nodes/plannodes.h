@@ -858,6 +858,7 @@ typedef struct SExternalWindowPhysiNode {
   SNode*           pTimeRange;
   bool             isSingleTable;
   bool             inputHasOrder;
+  bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
   int32_t          orgTableVgId; // for vtable window query

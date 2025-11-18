@@ -140,7 +140,7 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
       continue;
     }
 
-    if (!IS_STREAM_SINGLE_GRP(pTaskInfo)) {
+    if (!IS_STREAM_SINGLE_GRP(pTaskInfo) && pStream->pGroupReadInfos) {
       SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
       if (!pDataInfo) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
