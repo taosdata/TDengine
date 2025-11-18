@@ -530,7 +530,7 @@ static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *
   if (!tDecodeIsEnd(&decoder)) {
     code = tDecodeI8(&decoder, &historyFinished);
     QUERY_CHECK_CODE(code, lino, _end);
-    ST_TASK_DLOG("parse checkpoint, history finished: %d", historyFinished);
+    ST_TASK_ILOG("parse checkpoint, history finished: %d", historyFinished);
   }
 
   tEndDecode(&decoder);
