@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "../../include/client/taos.h"
 
 #define TSKEY int64_t
@@ -221,17 +222,85 @@ static int myCmp(void *state, const char *a, size_t alen, const char *b, size_t 
   return 0;
 }
 
-int main() {
+void printUsage(const char *progName) {
+  printf("Usage: %s [options]\n", progName);
+  printf("Options:\n");
+  printf("  -t <type>         Specify cache type to print: last, last_row, or all (default: all)\n");
+  printf("  -p <path>         Specify path to cache.rdb file (default: ./cache.rdb)\n");
+  printf("  -h, --help, -help Show this help message\n");
+  printf("\nExamples:\n");
+  printf("  %s -t last\n", progName);
+  printf("  %s -t last_row\n", progName);
+  printf("  %s -t all -p /path/to/cache.rdb\n", progName);
+}
+
+int main(int argc, char *argv[]) {
   char              *err = NULL;
   rocksdb_options_t *options = rocksdb_options_create();
   char               cachePath[256] = "./cache.rdb";
+  bool               printLast = true;
+  bool               printLastRow = true;
+
+  // Parse command line arguments
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-help") == 0) {
+      printUsage(argv[0]);
+      rocksdb_options_destroy(options);
+      return 0;
+    } else if (strcmp(argv[i], "-t") == 0) {
+      if (i + 1 < argc) {
+        i++;
+        if (strcmp(argv[i], "last") == 0) {
+          printLast = true;
+          printLastRow = false;
+        } else if (strcmp(argv[i], "last_row") == 0) {
+          printLast = false;
+          printLastRow = true;
+        } else if (strcmp(argv[i], "all") == 0) {
+          printLast = true;
+          printLastRow = true;
+        } else {
+          fprintf(stderr, "Error: Invalid type '%s'. Use: last, last_row, or all\n", argv[i]);
+          printUsage(argv[0]);
+          rocksdb_options_destroy(options);
+          return 1;
+        }
+      } else {
+        fprintf(stderr, "Error: -t option requires an argument\n");
+        printUsage(argv[0]);
+        rocksdb_options_destroy(options);
+        return 1;
+      }
+    } else if (strcmp(argv[i], "-p") == 0) {
+      if (i + 1 < argc) {
+        i++;
+        strncpy(cachePath, argv[i], sizeof(cachePath) - 1);
+        cachePath[sizeof(cachePath) - 1] = '\0';
+      } else {
+        fprintf(stderr, "Error: -p option requires an argument\n");
+        printUsage(argv[0]);
+        rocksdb_options_destroy(options);
+        return 1;
+      }
+    } else {
+      fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
+      printUsage(argv[0]);
+      rocksdb_options_destroy(options);
+      return 1;
+    }
+  }
 
   rocksdb_comparator_t *cmp = rocksdb_comparator_create(NULL, myCmpDestroy, myCmp, myCmpName);
   rocksdb_options_set_comparator(options, cmp);
 
   rocksdb_t *db = rocksdb_open(options, cachePath, &err);
   if (!db) {
-    fprintf(stderr, "failed to open rocksdb\n");
+    fprintf(stderr, "Failed to open rocksdb at path: %s\n", cachePath);
+    if (err) {
+      fprintf(stderr, "Error: %s\n", err);
+    }
+    rocksdb_comparator_destroy(cmp);
+    rocksdb_options_destroy(options);
     exit(-1);
   }
 
@@ -265,15 +334,28 @@ int main() {
     }
 
     SLastKey *pLastKey = (SLastKey *)key;
-    if (LFLAG_LAST == pLastKey->lflag) {
+    
+    // Check if we should print this record based on lflag
+    bool shouldPrint = false;
+    const char *cacheType = "";
+    
+    if (LFLAG_LAST == pLastKey->lflag && printLast) {
+      shouldPrint = true;
+      cacheType = "[LAST]";
+    } else if (LFLAG_LAST_ROW == pLastKey->lflag && printLastRow) {
+      shouldPrint = true;
+      cacheType = "[LAST_ROW]";
+    }
+    
+    if (shouldPrint) {
       if (!COL_VAL_IS_VALUE(&pLastCol->colVal)) {
         bool none = COL_VAL_IS_NONE(&pLastCol->colVal);
         bool null = COL_VAL_IS_NULL(&pLastCol->colVal);
         if (none) {
-          printf("none uid: %" PRId64 ", cid: %" PRId16 "\n", pLastKey->uid, pLastKey->cid);
+          printf("%s none uid: %" PRId64 ", cid: %" PRId16 "\n", cacheType, pLastKey->uid, pLastKey->cid);
         }
         if (null) {
-          printf("null uid: %" PRId64 ", cid: %" PRId16 "\n", pLastKey->uid, pLastKey->cid);
+          printf("%s null uid: %" PRId64 ", cid: %" PRId16 "\n", cacheType, pLastKey->uid, pLastKey->cid);
         }
       }
     }
