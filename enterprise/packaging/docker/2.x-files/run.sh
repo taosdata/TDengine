@@ -22,6 +22,7 @@ SNODE_CREATED=0
 ANODE_CREATED=0
 TDASSET_DB_CREATED=0
 PUB_TDGPT_URL=${PUB_TDGPT_URL:-""}
+CORE_FOLDER="/corefile"
 
 # Add for TDgpt
 #CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
@@ -63,8 +64,14 @@ function logger() {
 logger "INFO" "FQDN is $FQDN, FIRSTEP is $FIRST_EP_HOST and ENDPOINT is $ENDPOINT"
 
 ulimit -c unlimited
+# create core directory if not exist
+if [ ! -d "$CORE_FOLDER" ]; then
+    mkdir -p "$CORE_FOLDER"
+    chmod 1777 "$CORE_FOLDER"
+    logger "INFO" "Created core directory: $CORE_FOLDER"
+fi
 # set core files pattern, maybe failed
-sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
+sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null 2>&1
 
 logger "INFO" "ADMIN_URL: ${ADMIN_URL}"
 logger "INFO" "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
@@ -169,12 +176,17 @@ function check_process_exit_type() {
         core_folder=`pwd`
         core_prefix="$core_pattern"
     fi
-    local core_files=`ls $core_folder | grep "^${core_prefix}"`
+
+    local core_files=$(ls -1 "$core_folder" 2>/dev/null | grep "^${core_prefix}" || true)
+    #local core_files=`ls $core_folder | grep "^${core_prefix}"`
     if [ ! -z "$core_files" ]; then
         # move core files to another folder
         mkdir -p ${BACKUP_CORE_FOLDER}
-        cp ${core_folder}/${core_prefix}* ${BACKUP_CORE_FOLDER}/
-        rm -f ${core_folder}/${core_prefix}*
+        cp -f "${core_folder}/${core_prefix}"* "${BACKUP_CORE_FOLDER}/" 2>/dev/null || true
+        rm -f "${core_folder}/${core_prefix}"* 2>/dev/null || true
+
+       #cp ${core_folder}/${core_prefix}* ${BACKUP_CORE_FOLDER}/
+       #rm -f ${core_folder}/${core_prefix}*
         if [ "x$1" = "xadapter" ]; then
             set_adapter_state "error" "taosadapter exit with core file"
         else
