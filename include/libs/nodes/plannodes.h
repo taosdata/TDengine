@@ -813,6 +813,7 @@ typedef struct SExternalWindowPhysiNode {
   SNode*           pTimeRange;
   bool             isSingleTable;
   bool             inputHasOrder;
+  bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
 } SExternalWindowPhysiNode;
