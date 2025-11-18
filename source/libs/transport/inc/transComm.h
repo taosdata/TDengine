@@ -623,7 +623,7 @@ void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
 
 int32_t transSetReadOption(uv_handle_t* handle);
 
-void    transCachePut(int64_t refId, STrans* pTrans);
+int32_t transCachePut(int64_t refId, STrans* pTrans);
 int32_t transCacheGet(int64_t refId, STrans** pTrans);
 void    transCacheRemoveByRefId(int64_t refId);
 void    transCacheDestroy();
