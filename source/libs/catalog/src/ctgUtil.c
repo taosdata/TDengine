@@ -24,7 +24,7 @@ void ctgFreeSViewMeta(SViewMeta* pMeta) {
     return;
   }
 
-  taosMemoryFree(pMeta->user);
+  taosMemoryFree(pMeta->owner);
   taosMemoryFree(pMeta->querySql);
   taosMemoryFree(pMeta->pSchema);
 }
@@ -2092,7 +2092,7 @@ static void ctgFreeViewMeta(void* p) {
   if (NULL == pMeta) {
     return;
   }
-  taosMemoryFree(pMeta->user);
+  taosMemoryFree(pMeta->owner);
   taosMemoryFree(pMeta->querySql);
   taosMemoryFree(pMeta->pSchema);
   taosMemoryFree(pMeta);
@@ -2471,7 +2471,7 @@ uint64_t ctgGetViewMetaCacheSize(SViewMeta* pMeta) {
     return 0;
   }
 
-  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema);
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->owner) + 1 + pMeta->numOfCols * sizeof(SSchema);
 }
 
 FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
@@ -2742,8 +2742,8 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
   if (NULL == pViewMeta->querySql) {
     CTG_ERR_RET(terrno);
   }
-  pViewMeta->user = tstrdup(pRsp->user);
-  if (NULL == pViewMeta->user) {
+  pViewMeta->owner = tstrdup(pRsp->owner);
+  if (NULL == pViewMeta->owner) {
     CTG_ERR_RET(terrno);
   }
   pViewMeta->version = pRsp->version;

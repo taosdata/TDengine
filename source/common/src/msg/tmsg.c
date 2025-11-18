@@ -14534,7 +14534,7 @@ static int32_t tEncodeSViewMetaRsp(SEncoder *pEncoder, const SViewMetaRsp *pRsp)
 
   TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRsp->name));
   TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRsp->dbFName));
-  TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRsp->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRsp->owner));
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pRsp->dbId));
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pRsp->viewId));
   TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRsp->querySql));
@@ -14579,7 +14579,7 @@ static int32_t tDecodeSViewMetaRsp(SDecoder *pDecoder, SViewMetaRsp *pRsp) {
 
   TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pRsp->name));
   TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pRsp->dbFName));
-  TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pRsp->user));
+  TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pRsp->owner));
   TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pRsp->dbId));
   TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pRsp->viewId));
   TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pRsp->querySql));
@@ -14625,7 +14625,7 @@ void tFreeSViewMetaRsp(SViewMetaRsp *pRsp) {
     return;
   }
 
-  taosMemoryFree(pRsp->user);
+  taosMemoryFree(pRsp->owner);
   taosMemoryFree(pRsp->querySql);
   taosMemoryFree(pRsp->pSchema);
 }

@@ -1540,6 +1540,7 @@ typedef struct {
   SHashObj* writeViews;
   SHashObj* alterViews;
   SHashObj* useDbs;
+  SHashObj* privileges;
   int64_t   whiteListVer;
 } SGetUserAuthRsp;
 
@@ -1682,6 +1683,7 @@ typedef struct {
   char        tbName[TSDB_TABLE_NAME_LEN];
   char        stbName[TSDB_TABLE_NAME_LEN];
   char        dbFName[TSDB_DB_FNAME_LEN];
+  char        owner[TSDB_USER_LEN];
   int32_t     numOfTags;
   int32_t     numOfColumns;
   int8_t      tableType;
@@ -2017,6 +2019,7 @@ int32_t tDeserializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableR
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
+  char    owner[TSDB_USER_LEN];
   int64_t dbId;
   int32_t cfgVersion;
   int32_t numOfVgroups;
@@ -4921,6 +4924,7 @@ typedef struct {
   char dbFName[TSDB_DB_FNAME_LEN];
   char tblFName[TSDB_TABLE_FNAME_LEN];
   char colName[TSDB_COL_NAME_LEN];
+  char owner[TSDB_USER_LEN];
   char indexType[TSDB_INDEX_TYPE_LEN];
   char indexExts[TSDB_INDEX_EXTS_LEN];
 } SUserIndexRsp;
@@ -5405,7 +5409,7 @@ int32_t tDeserializeSViewMetaReq(void* buf, int32_t bufLen, SViewMetaReq* pReq);
 typedef struct {
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
-  char*    user;
+  char*    owner;
   uint64_t dbId;
   uint64_t viewId;
   char*    querySql;
