@@ -11,7 +11,7 @@
 #define _SZ_DEFINES_H
 
 // define data format version
-#define DATA_FROMAT_VER1 1  // curretn version
+#define DATA_FROMAT_VER1 1  // current version
 
 
 #define PASTRI 103
