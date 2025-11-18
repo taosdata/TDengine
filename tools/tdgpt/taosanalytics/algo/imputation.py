@@ -2,11 +2,11 @@
 # pylint: disable=c0103
 """forecast helper methods"""
 import time
-
 from matplotlib import pyplot as plt
 
 from taosanalytics.conf import app_logger, conf
 from taosanalytics.servicemgmt import loader
+from taosanalytics.util import parse_time_delta_string
 
 
 def do_imputation(input_list, ts_list, algo_name, params):
@@ -53,21 +53,72 @@ def draw_imputation_final_result(data, mask):
 
 def do_set_imputation_params(params, json_obj):
     """ add params into parameters """
-
     # day, hour, minute, second, millisecond, microsecond, nanosecond
     valid_precision_list = ['d', 'h', 'm', 's', 'ms', 'us', 'ns']
     if "prec" in json_obj:
-        params["precision"] = json_obj["prec"]
+        time_str = json_obj["prec"]
 
-        if params['precision'] not in valid_precision_list:
+        _, unit = parse_time_delta_string(time_str)
+        if unit not in valid_precision_list:
             raise ValueError(f"precision should be one of {valid_precision_list}")
+
+        params["precision"] = time_str
 
     valid_freq_dict = {'d':'D', 'h':'H', 'm':'T', 's':'S', 'ms':'L', 'us':'U'}
     if "freq" in json_obj:
-        freq = json_obj["freq"]
+        freq_str = json_obj["freq"]
 
-        if freq not in valid_freq_dict.keys():
+        value, unit = parse_time_delta_string(freq_str)
+        if unit not in valid_freq_dict.keys():
             raise ValueError(f"freq should be one of {valid_freq_dict.keys()}")
 
-        params["freq"] = valid_freq_dict[freq]
+        params["freq"] = str(value) + valid_freq_dict[unit]
 
+
+def check_freq_param(ts_list:list, freq, prec):
+    value, unit = parse_time_delta_string(freq)
+
+    factor = 1
+    if unit == 'us':
+        factor = 1
+    elif unit == 'ms':
+        factor = 1000
+    elif unit == 's':
+        factor = 1000 * 1000
+    elif unit == 'm':
+        factor = 1000 * 1000 * 60
+    elif unit == 'h':
+        factor = 1000 * 1000 * 60 * 60
+    elif unit == 'd':
+        factor = 1000 * 1000 * 60 * 60 * 24
+    else:
+        raise ValueError(f"Unsupported frequency: {freq}")
+
+    delta_in_us = factor * value
+
+    factor = 1
+    if prec == 'us':
+        factor = 1
+    elif prec == 'ms':
+        factor = 1000
+    elif prec == 's':
+        factor = 1000*1000
+    elif prec == 'm':
+        factor = 1000 * 1000 * 60
+    elif prec == 'h':
+        factor = 1000 * 1000 * 60 * 60
+    elif prec == 'd':
+        factor = 1000 * 1000 * 60 * 60 * 24
+
+    rev_ts_list = [val * factor for val in ts_list]
+
+    # check the correctness of freq and the input data
+    for i in range(1, len(ts_list)):
+        if delta_in_us + rev_ts_list[i - 1] > rev_ts_list[i]:
+            return False
+
+    return True
+
+def validate_ts_freq_and_prec(ts_list, freq, prec):
+    if not check_freq_param(ts_list, freq, prec):
+        raise ValueError(f"invalid freq or precision for the input ts list, freq:{freq}, prec:{prec}")
