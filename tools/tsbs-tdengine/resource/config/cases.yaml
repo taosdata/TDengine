@@ -48,8 +48,54 @@ testCases:
                       ) 
                   where last_elev > 1000;
 
-    - scenarioId: "F6"
+    - scenarioId: "A8"
       classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db2.stm_a8
+            interval(1d) 
+            sliding(1d) 
+            from db2.diagnostics 
+            stream_options(fill_history_first) 
+            into db2.res_a8 
+            as 
+              select _twstart, sum(tduration)/3600000 
+                 from (
+                        select _wduration tduration, count(*) 
+                          from db2.diagnostics 
+                          where _c0 >= _twstart and _c0 < _twend 
+                          partition by tbname 
+                          event_window start with status > 0 end with status = 0
+                      )
+
+    - scenarioId: "A9"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db2.stm_a9 
+            interval(1d) 
+            sliding(1d) 
+            from db2.diagnostics 
+            stream_options(fill_history_first) 
+            into db2.res_a9
+            as 
+              select _twstart, count(*) 
+                from (
+                       select sum(tduration) sduration 
+                       from (
+                              select tbname name, _wduration tduration, count(*) 
+                                from db2.diagnostics 
+                                where _c0 >= _twstart and _c0 < _twend 
+                                partition by tbname 
+                                event_window start with status > 0 end with status = 0
+                            ) 
+                       partition by name
+                     ) 
+                where sduration > 12 * 3600000; 
+
+
+    - scenarioId: "F6"
+      classfication: "Fleet"
       description: ""
       sql: |
         create stream db2.stm_f6 
@@ -67,7 +113,7 @@ testCases:
                       )
 
     - scenarioId: "F7"
-      classfication: "Summary"
+      classfication: "Fleet"
       description: ""
       sql: |
         create stream db2.stm_f7 
@@ -83,3 +129,54 @@ testCases:
                           where fleet = %%1 and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                           partition by tbname
                      )
+
+    - scenarioId: "T1"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream stm_t1 
+            interval(1h) 
+            sliding(1h) 
+            from db1.readings partition by tbname 
+            stream_options(fill_history_first) 
+            into db1.res_t1 
+            as 
+              select _twstart ts, avg(fuel_consumption) avg_fuel 
+                from %%tbname 
+                where _c0 >= _twstart and _c0 < _twend;
+
+    - scenarioId: "T2"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream stm_t2 
+            interval(1h) 
+            sliding(1h) 
+            from db1.readings partition by tbname 
+            stream_options(fill_history_first) 
+            into db1.res_t2 
+            as 
+              select _twstart ts, sum(stime) stop_time 
+                from (
+                      select _wduration stime, count(*) 
+                        from %%tbname 
+                        where _c0 >= _twstart and _c0 < _twend 
+                        event_window start with velocity = 0 end with velocity > 0
+                     )
+
+    - scenarioId: "T3"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream stm_t3 
+            state_window (
+                case when grade <= 30 then 0 
+                     when grade <= 70 then 1 
+                     else 2 end ) 
+            from db1.readings partition by tbname 
+            stream_options(fill_history_first) 
+            into db1.res_t3 
+            as 
+              select _twstart ts, avg(fuel_consumption), avg(velocity) 
+                from  %%tbname 
+                where _c0 >= _twstart and _c0 <= _twend;

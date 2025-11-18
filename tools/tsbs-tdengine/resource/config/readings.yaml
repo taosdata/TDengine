@@ -1,21 +1,36 @@
 testCases:
     - scenarioId: "A1"
-      concurrency: 1
       querySql: select count(*) from db1.readings
-      dataRows: 540
+      dataRows: 9988893
       verifySql: select count(*) from db1.res_a1
-      expectRows: 5
+      expectRows: 3
 
     - scenarioId: "A2"
-      concurrency: 1
       querySql: select count(*) from db1.readings
-      dataRows: 540
+      dataRows: 9988893
       verifySql: select count(*) from db1.res_a2
-      expectRows: 6684
+      expectRows: 186
 
     - scenarioId: "A3"
-      concurrency: 1
       querySql: select count(*) from db1.readings
-      dataRows: 540
+      dataRows: 9988893
       verifySql: select count(*) from db1.res_a3
-      expectRows: 6684
+      expectRows: 186
+
+    - scenarioId: "T1"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_t1
+      expectRows: 8888
+
+    - scenarioId: "T2"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_t2
+      expectRows: 8888
+
+    - scenarioId: "T3"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_t3
+      expectRows: 8888      
