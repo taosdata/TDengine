@@ -36,8 +36,7 @@ void initStorageAPI(SStorageAPI* pAPI) {
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
-  pReader->tsdReaderOpen = (int32_t(*)(void*, SQueryTableDataCond*, void*, int32_t, SSDataBlock*, void**, const char*,
-                                       SHashObj**))tsdbReaderOpen2;
+  pReader->tsdReaderOpen = tsdbReaderOpen2;
   pReader->tsdReaderClose = tsdbReaderClose2;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock2;
@@ -67,8 +66,10 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->fileSetGetEntryField = tsdbFileSetGetEntryField;
   pReader->fileSetReaderClose = tsdbFileSetReaderClose;
 
-  pReader->getProgress = (int32_t (*)(const void*, void**, uint64_t*))tsdbReaderGetProgress;
-  pReader->setProgress = (int32_t (*)(void*, const void*, uint64_t))tsdbReaderSetProgress;
+  // retrieve first/last ts for each table
+  pReader->tsdCreateFirstLastTsIter = tsdbCreateFirstLastTsIter;
+  pReader->tsdNextFirstLastTsBlock = tsdbNextFirstLastTsBlock;
+  pReader->tsdDestroyFirstLastTsIter = tsdbDestroyFirstLastTsIter;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -102,6 +103,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getCachedTableList = metaGetCachedTableUidList;
   pMeta->putCachedTableList = metaUidFilterCachePut;
+  pMeta->getStableCachedTableList = metaStableTagFilterCacheGet;
+  pMeta->putStableCachedTableList = metaStableTagFilterCachePut;
 
   pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
   pMeta->metaPutTbGroupToCache = metaPutTbGroupToCache;
@@ -156,6 +159,7 @@ void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
   pMetaReader->clearReader = metaReaderClear;
 
   pMetaReader->getTableEntryByUid = metaReaderGetTableEntryByUid;
+  pMetaReader->getTableEntryByVersionUid = metaReaderGetTableEntryByVersionUid;
 
   pMetaReader->getEntryGetUidCache = metaReaderGetTableEntryByUidCache;
   pMetaReader->getTableEntryByName = metaGetTableEntryByName;

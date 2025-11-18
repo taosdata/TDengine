@@ -55,7 +55,7 @@ class TestShowDiskInfo:
 
         tdSql.query(f"select * from information_schema.ins_disk_usage")
         tdSql.query(f"select sum(vgroup_id) from information_schema.ins_disk_usage")
-        tdSql.query(f"select sum(wal) from information_schema.ins_disk_usage")
+        tdSql.query(f"select sum(wal_size) from information_schema.ins_disk_usage")
         tdSql.query(f"select sum(data1) from information_schema.ins_disk_usage")
         tdSql.query(f"select sum(data2) from information_schema.ins_disk_usage")
         tdSql.query(f"select sum(data3) from information_schema.ins_disk_usage")
@@ -267,7 +267,7 @@ class TestShowDiskInfo:
     # ------------------- main ----------------
     #
     def test_show_diskinfo(self):
-        """Show DiskInfo
+        """Show disk info
 
         1. Create super tables and child tables, then write data
         2. Perform a FLUSH operation on the database

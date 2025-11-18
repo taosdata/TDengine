@@ -6,14 +6,11 @@ class TestArithmetic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_arithmetic(self):
-        """Arithmetic
+        """Operator arithmetic
 
         1. Arithmetic operations between data columns
         2. Arithmetic operations between functions
         3. Filling when the operation result is null
-
-        Catalog:
-            - Operator
 
         Since: v3.0.0.0
 

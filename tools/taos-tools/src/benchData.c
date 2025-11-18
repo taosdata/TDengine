@@ -97,7 +97,7 @@ int32_t funTriAngle(int32_t min, int32_t max, int32_t period, int32_t loop) {
     int32_t range = abs(max - min);
     int32_t change = (loop/period) % 2;
     int32_t step = range/period;
-    int32_t cnt = 0;    
+    int32_t cnt = 0;
     if(change)
        cnt = period - loop % period;
     else
@@ -127,7 +127,7 @@ float funValueFloat(Field *field, int32_t angle, int32_t loop) {
 
     if(field->multiple != 0)
        funVal *= field->multiple;
-    
+
     if ( field->addend !=0 && field->random > 0 ) {
         float rate = taosRandom() % field->random;
         funVal += field->addend * (rate/100);
@@ -159,7 +159,7 @@ int32_t funValueInt32(Field *field, int32_t angle, int32_t loop) {
 
     if(field->multiple != 0)
        funVal *= field->multiple;
-    
+
     if ( field->addend !=0 && field->random > 0 ) {
         float rate = taosRandom() % field->random;
         funVal += field->addend * (rate/100);
@@ -581,13 +581,13 @@ int tmpGeometry(char *tmp, int iface, Field *field, int64_t k) {
         snprintf(tmp, field->length, "POINT(%d %d)", tmpUint16(field), tmpUint16(field));
         return 0;
     }
-    
+
     int32_t pos = snprintf(tmp, field->length, "LINESTRING(");
     char * format = "%d %d,";
     for(int32_t i = 0; i < cnt; i++) {
         if (i == cnt - 1) {
             format = "%d %d";
-        } 
+        }
         pos += snprintf(tmp + pos, field->length - pos, format, tmpUint16(field), tmpUint16(field));
     }
     strcat(tmp, ")");
@@ -886,7 +886,7 @@ static int64_t randInt64(int64_t min, int64_t max) {
 
 static void decimal64Rand(Decimal64* result, const Decimal64* min, const Decimal64* max) {
     int64_t temp = 0;
-    
+
     do {
         temp = randInt64(DECIMAL64_GET_VALUE(min), DECIMAL64_GET_VALUE(max));
     } while (temp < DECIMAL64_GET_VALUE(min) || temp > DECIMAL64_GET_VALUE(max));
@@ -911,7 +911,7 @@ static void decimal128Rand(Decimal128* result, const Decimal128* min, const Deci
 
         // low byte
         if (high == minHigh && high == maxHigh) {
-            low = randUint64(minLow, maxLow);   
+            low = randUint64(minLow, maxLow);
         } else if (high == minHigh) {
             low = randUint64(minLow, UINT64_MAX);
         } else if (high == maxHigh) {
@@ -953,7 +953,7 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                      int64_t bufLen,
                       int lenOfOneRow, BArray * fields, int64_t loop,
                       bool tag, int64_t loopBegin) {
-                        
+
     int64_t index = loopBegin;
     int angle = stbInfo->startTimestamp % 360; // 0 ~ 360
     for (int64_t k = 0; k < loop; ++k, ++index) {
@@ -1157,7 +1157,7 @@ static int fillStmt(
             }
             int64_t n = 0;
 
-            // 
+            //
             if (childCol) {
                 childCol->stmtData.is_null[k] = 0;
                 childCol->stmtData.lengths[k] = field->length;
@@ -1832,7 +1832,7 @@ static int generateRandDataSmlLine(SSuperTable *stbInfo, char *sampleDataBuf,
                       int lenOfOneRow, BArray * fields, int64_t loop,
                       bool tag, int64_t loopBegin) {
     int64_t index = loopBegin;
-    int angle = stbInfo->startTimestamp % 360; // 0 ~ 360                    
+    int angle = stbInfo->startTimestamp % 360; // 0 ~ 360
     for (int64_t k = 0; k < loop; ++k, ++index) {
         int64_t pos = k * lenOfOneRow;
         int n = 0;
@@ -1890,7 +1890,7 @@ static int generateRandDataSmlLine(SSuperTable *stbInfo, char *sampleDataBuf,
                         intTmp = tmpInt32ImplTag(field, i, index);
                     } else {
                         intTmp = tmpInt32Impl(field, i, angle, index);
-                    }                    
+                    }
                     n = snprintf(sampleDataBuf + pos, bufLen - pos,
                                     "%s=%di32,",
                                     field->name, intTmp);
@@ -2110,7 +2110,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
                     pos += n;
                 }
             }
-            
+
             // first part set noen
             for (uint32_t i = 0; i < stbInfo->partialColFrom; ++i) {
                 Field * col = benchArrayGet(stbInfo->cols, i);
@@ -2331,7 +2331,7 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
     /*
       1. The last batch size may be smaller than the previous batch size.
       2. When inserting another table, the batch size reset again(bigger than lastBatchSize)
-    */        
+    */
     int lastBatchSize = ((TAOS_MULTI_BIND *) pThreadInfo->bindParams)->num;
     if (batch != lastBatchSize) {
         for (int c = 0; c < columnCount + 1; c++) {
@@ -2721,7 +2721,7 @@ static int seekFromCsv(FILE* fp, int64_t seek) {
                     return -1;
                 }
                 continue;
-            }           
+            }
         }
     }
 
@@ -2739,7 +2739,7 @@ FILE* openTagCsv(SSuperTable* stbInfo, uint64_t seek) {
             errorPrint("Failed to open tag sample file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
             return NULL;
         }
-        
+
         if (seekFromCsv(csvFile, seek)) {
             fclose(csvFile);
             errorPrint("Failed to seek csv file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
@@ -2747,7 +2747,7 @@ FILE* openTagCsv(SSuperTable* stbInfo, uint64_t seek) {
 
         }
         infoPrint("open tag csv file :%s \n", stbInfo->tagsFile);
-        
+
     }
     return csvFile;
 }
@@ -2759,7 +2759,7 @@ uint32_t bindVColsProgressive(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
                  threadInfo *pThreadInfo,
                  uint32_t batch, int64_t startTime, int64_t pos,
                  SChildTable *childTbl, int32_t *pkCur, int32_t *pkCnt, int32_t *n) {
-    
+
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     uint32_t     columnCount = stbInfo->cols->size;
 
@@ -2804,7 +2804,7 @@ uint32_t bindVColsProgressive(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
         }
         param->num = batch;
     }
-    
+
     // ts key
     if (!stbInfo->useSampleTs) {
         // set first column ts array values
@@ -2839,7 +2839,7 @@ uint32_t bindVTags(TAOS_STMT2_BINDV *bindv, int32_t tbIndex, int32_t w, BArray* 
 
     TAOS_STMT2_BIND *tagsTb = bindv->tags[tbIndex];
 
-    // loop 
+    // loop
     for (int32_t i = 0; i < fields->size; i++) {
         Field* field = benchArrayGet(fields, i);
 
@@ -2855,7 +2855,7 @@ uint32_t bindVTags(TAOS_STMT2_BINDV *bindv, int32_t tbIndex, int32_t w, BArray* 
         // tag always one line
         tagsTb[i].num = 1;
     }
-    
+
     return 1;
 }
 
@@ -2874,15 +2874,15 @@ uint32_t bindVColsInterlace(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
     BArray* fields          = stbInfo->cols;
 
 
-    // loop 
+    // loop
     for (int32_t i = 0; i < fields->size + 1; i++) {
         // col bind
         if (i == 0) {
-            // ts 
+            // ts
             colsTb[i].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
             colsTb[i].length      = pThreadInfo->lengths[0];
             for (int32_t j = 0; j < batch; j++) {
-                colsTb[i].length[j] = sizeof(int64_t); 
+                colsTb[i].length[j] = sizeof(int64_t);
             }
             if (stbInfo->useSampleTs) {
                 colsTb[i].buffer = pThreadInfo->bind_ts_array + pos;
@@ -2929,8 +2929,8 @@ uint32_t bindVColsInterlace(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
                 *n = *n + 1;
             }
         }
-    }    
-    
+    }
+
     return batch;
 }
 

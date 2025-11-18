@@ -11,12 +11,14 @@ class TestStreamNotifyTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_notify_trigger(self):
-        """basic qdb 2
+        """Notify basic
 
-        Verification testing during the development process.
-
-        Catalog:
-            - Streams:Notify
+        1. Stream notify on windows_open/windows_close trigger
+        2. Stream notify with options notify_history/on_failure_pause
+        3. Stream notify with different stream definitions
+        4. Stream create with no notify URL
+        5. Check notify results
+        
 
         Since: v3.3.3.7
 

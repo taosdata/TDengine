@@ -109,6 +109,7 @@ static int32_t tSerializeSRsmaObj(void *buf, int32_t bufLen, const SRsmaObj *pOb
     TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->funcColIds[i]));
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->funcIds[i]));
   }
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->owner));
 
   tEndEncode(&encoder);
 
@@ -157,6 +158,12 @@ static int32_t tDeserializeSRsmaObj(void *buf, int32_t bufLen, SRsmaObj *pObj) {
       TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->funcColIds[i]));
       TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->funcIds[i]));
     }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->owner));
+  }
+  if (pObj->owner[0] == 0) {
+    (void)snprintf(pObj->owner, TSDB_USER_LEN, "%s", pObj->createUser);
   }
 
 _exit:

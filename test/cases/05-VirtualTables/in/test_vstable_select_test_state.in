@@ -1,4 +1,4 @@
-select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_stb state_window(bool_col) order by _wstart limit 100 ;
-select _wstart, _wend, first(bool_col), last(bool_col), count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col) order by _wstart limit 100 ;
-select _wstart, _wend, first(bool_col), first(u_tinyint_col), last(bool_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col) order by _wstart limit 100;
-select _wstart, _wend, first(bool_col), first(u_tinyint_col), first(u_smallint_col), last(bool_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col) order by _wstart limit 100 ;
+select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col) order by _wstart limit 100 ;
+select _wstart, _wend, first(bool_col), last(bool_col), count(bool_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col) order by _wstart limit 100 ;
+select _wstart, _wend, first(bool_col), first(u_tinyint_col), last(bool_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col) order by _wstart limit 100;
+select _wstart, _wend, first(bool_col), first(u_tinyint_col), first(u_smallint_col), last(bool_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col) order by _wstart limit 100 ;

@@ -11,6 +11,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "cmdnodes.h"
+#include "ttime.h"
 
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   SStreamRunnerTaskExecMgr*  pMgr = &pTask->execMgr;
@@ -270,7 +271,7 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }
 
-bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
+static bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
 
 static int32_t stRunnerResetTaskExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
@@ -394,6 +395,14 @@ static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   return code;
 }
 
+static void stRunnerLogWinLatency(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
+  SStreamRuntimeFuncInfo* pRuntime = &pExec->runtimeInfo.funcInfo;
+  
+  SSTriggerCalcParam* pWin = (SSTriggerCalcParam*)taosArrayGetLast(pRuntime->pStreamPesudoFuncVals);
+
+  ST_TASK_ILOG("group %" PRId64 " winEnd %" PRId64 " stream latency: %" PRId64 "ms", 
+      pRuntime->groupId, pWin->triggerTime, taosGetTimestampMs() - pWin->triggerTime/1000000UL);
+}
 
 static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock,
                                    bool* createTb) {
@@ -406,6 +415,10 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   bool needCalcTbName = pExec->tbname[0] == '\0';
 
   bool empty = (pBlock && pBlock->info.rows > 0) ? false : true;
+
+  if (tsStreamPerfLogEnabled && 1 == taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)) {
+    stRunnerLogWinLatency(pTask, pExec);
+  }
 
   if (*createTb && needCalcTbName) {
     code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
@@ -855,6 +868,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
   pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
+  pExec->runtimeInfo.funcInfo.isWindowTrigger = pReq->isWindowTrigger;
+  pExec->runtimeInfo.funcInfo.precision = pReq->precision;
   pExec->runtimeInfo.funcInfo.addOptions = pTask->addOptions;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
@@ -954,7 +969,7 @@ end:
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }
   if (createTable) {
-    ST_TASK_ILOG("[runner calc]success, gid:%" PRId64 ", but has no data, skip create table.", pReq->gid);
+    ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ", but has no data, skip create table.", pReq->gid);
     return TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE;
   }
   return code;
@@ -1096,8 +1111,6 @@ int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask) {
     pNode = pNode->dl_next_;
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
-
   if (pMgmgReq && taosArrayGetSize(pMgmgReq) > 0) {
     SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
     QUERY_CHECK_NULL(pReq, code, lino, _exit, terrno);
@@ -1108,6 +1121,8 @@ int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask) {
     ST_TASK_DLOG("task mgmtReq built with %d exec reqs", (int32_t)taosArrayGetSize(pMgmgReq));
     atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
   }
+
+  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
 
   return code;
 

@@ -369,6 +369,7 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.winRange = pHandle->winRange;
   pScanBaseInfo->readHandle.extWinRangeValid = pHandle->extWinRangeValid;
   pScanBaseInfo->readHandle.extWinRange = pHandle->extWinRange;
+  pScanBaseInfo->readHandle.cacheSttStatis = pHandle->cacheSttStatis;
 }
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
@@ -420,12 +421,24 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   return code;
 }
 
+typedef struct {
+  tb_uid_t tableUid;
+  tb_uid_t childUid;
+  int8_t   check;
+} STqPair;
+
 static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,
                                        SStorageAPI* pAPI, SArray** ppArrayRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int8_t  locked = 0;
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
+
   QUERY_CHECK_NULL(qa, code, lino, _error, terrno);
+
+  SArray* tUid = taosArrayInit(4, sizeof(STqPair));
+  QUERY_CHECK_NULL(tUid, code, lino, _error, terrno);
+
   int32_t numOfUids = taosArrayGetSize(tableIdList);
   if (numOfUids == 0) {
     (*ppArrayRes) = qa;
@@ -442,6 +455,8 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
   pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+
+  locked = 1;
   for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
     QUERY_CHECK_NULL(id, code, lino, _end, terrno);
@@ -471,9 +486,28 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
     }
 
+    STqPair item = {.tableUid = *id, .childUid = mr.me.uid, .check = 0};
     if (pScanInfo->pTagCond != NULL) {
-      bool          qualified = false;
-      STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid};
+      // tb_uid_t id = mr.me.uid;
+      item.check = 1;
+    }
+    if (taosArrayPush(tUid, &item) == NULL) {
+      QUERY_CHECK_NULL(NULL, code, lino, _end, terrno);
+    }
+  }
+
+  pAPI->metaReaderFn.clearReader(&mr);
+  locked = 0;
+
+  for (int32_t j = 0; j < taosArrayGetSize(tUid); ++j) {
+    bool     qualified = false;
+    STqPair* t = (STqPair*)taosArrayGet(tUid, j);
+    if (t == NULL) {
+      continue;
+    }
+
+    if (t->check == 1) {
+      STableKeyInfo info = {.groupId = 0, .uid = t->childUid};
       code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
@@ -485,17 +519,21 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
     }
 
-    // handle multiple partition
-    void* tmp = taosArrayPush(qa, id);
+    void* tmp = taosArrayPush(qa, &t->tableUid);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
+  // handle multiple partition
+
 _end:
 
-  pAPI->metaReaderFn.clearReader(&mr);
+  if (locked) {
+    pAPI->metaReaderFn.clearReader(&mr);
+  }
   (*ppArrayRes) = qa;
-
 _error:
+
+  taosArrayDestroy(tUid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1867,26 +1905,6 @@ SArray*  qStreamGetTableListArray(void* pTableListInfo) {
   STableListInfo* pList = pTableListInfo;
   return pList->pTableList;
 }
-// int32_t qStreamGetTableListGroupNum(const void* pTableList, TdThreadRwlock* lock) { 
-//   (void)taosThreadRwlockRdlock(lock);
-//   int32_t code = ((STableListInfo*)pTableList)->numOfOuputGroups; 
-//   (void)taosThreadRwlockUnlock(lock);
-//   return code; 
-// }
-
-// void    qStreamSetTableListGroupNum(void* pTableList, int32_t groupNum, TdThreadRwlock* lock) {
-//   (void)taosThreadRwlockWrlock(lock);
-//   ((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; 
-//   (void)taosThreadRwlockUnlock(lock);
-// }
-
-// SArray* qStreamGetTableArrayList(const void* pTableList, TdThreadRwlock* lock) { 
-//   SArray* pList = NULL;
-//   (void)taosThreadRwlockRdlock(lock); 
-//   pList = ((STableListInfo*)pTableList)->pTableList;
-//   (void)taosThreadRwlockUnlock(lock);
-//   return pList;
-// }
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
 

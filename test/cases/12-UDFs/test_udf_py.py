@@ -8,12 +8,17 @@ class TestUdf:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_udf(self):
-        """Udf
+        """Udf python sim case
 
-        1.-
-
-        Catalog:
-            - Udf
+        1. Create database and normal table for udf test
+        2. Create scalar UDF function bit_and with python file
+        3. Create aggregate UDF function l2norm with python file
+        4. Insert data into normal table
+        5. Query scalar UDF function bit_and from normal table
+        6. Query aggregate UDF function l2norm from normal table
+        7. Test UDF with null values
+        8. Test UDF with multiple columns
+        
 
         Since: v3.0.0.0
 

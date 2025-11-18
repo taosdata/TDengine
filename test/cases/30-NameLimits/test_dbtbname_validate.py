@@ -7,7 +7,7 @@ class TestDbTbNameValidate:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_dbtbname_validate(self):
-        """Database and table name
+        """Name database
 
         1. Validates naming conventions and boundary checks for databases and tables.
         2. Verifies both valid and invalid identifiers across operations like CREATE, USE, DROP, and DESCRIBE, including handling of quoted identifiers and case sensitivity.

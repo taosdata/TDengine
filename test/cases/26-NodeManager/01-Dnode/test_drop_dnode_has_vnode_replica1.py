@@ -8,7 +8,7 @@ class TestDropDnodeHasVnodeReplica1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_drop_dnode_has_vnode_replica1(self):
-        """Dnode: drop with replca-1 vnode
+        """Dnode drop with replca-1 vnode
 
         Drop the dnode containing a single-replica vnode, and test the integrity of the data after vnode migration.
 

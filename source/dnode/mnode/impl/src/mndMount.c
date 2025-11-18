@@ -124,6 +124,7 @@ static int32_t tSerializeSMountObj(void *buf, int32_t bufLen, const SMountObj *p
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->dbObj[i].uid));
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbObj[i].name));
   }
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->owner));
   tEndEncode(&encoder);
 
   tlen = encoder.pos;
@@ -173,7 +174,11 @@ static int32_t tDeserializeSMountObj(void *buf, int32_t bufLen, SMountObj *pObj)
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbObj[i].name));
     }
   }
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->owner));
 
+  if (pObj->owner[0] == 0) {
+    (void)snprintf(pObj->owner, TSDB_USER_LEN, "%s", pObj->createUser);
+  }
 _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

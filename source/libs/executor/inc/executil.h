@@ -24,6 +24,7 @@
 #include "tcommon.h"
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
+#include "tjson.h"
 
 #define T_LONG_JMP(_obj, _c)                                                              \
   do {                                                                                    \
@@ -141,7 +142,6 @@ int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
 uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
-// int32_t         tableListRemoveTableInfo(STableListInfo* pTableList, uint64_t uid);
 int32_t         sortTableGroup(STableListInfo* pTableListInfo);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
@@ -250,5 +250,7 @@ void    rmDbVgInfoFromCache(const char* dbFName);
 
 int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
+
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
 
 #endif  // TDENGINE_EXECUTIL_H

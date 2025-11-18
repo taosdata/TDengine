@@ -7,7 +7,7 @@ class TestStableAlterTag:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stable_alter_tag(self):
-        """Alter: Tag
+        """Alter tags
 
         1. Create a super table
         2. Create a child table and insert data

@@ -26,7 +26,7 @@
 #include "trpc.h"
 
 typedef struct SFetchRspHandleWrapper {
-  uint32_t exchangeId;
+  int64_t  exchangeId;
   int32_t  sourceIndex;
   int64_t  seqId;
 } SFetchRspHandleWrapper;
@@ -1515,6 +1515,12 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         return code;
       }
 
+      SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pOperator->pPhyNode;
+      code = nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, (SNode*)pNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
       void* tmp = taosArrayPush(pExchangeInfo->pSources, pNode);
       if (!tmp) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
