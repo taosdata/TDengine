@@ -448,6 +448,8 @@ static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniq
   int32_t nowDays = (int32_t)(taosGetTimestampMs() / 86400000);
   int32_t grantDays = nowDays + MAX_AUTH_DAY;
 
+  pGrantObj->officialVersion = 1;
+
   // basic expireDays
 #define SET_EXPIRE_DAYS(srcField, dstIndex)                                                                  \
   do {                                                                                                       \
