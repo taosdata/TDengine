@@ -674,7 +674,7 @@ int32_t metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
   uint64_t hit = ++pMeta->pCache->sStableTagFilterResCache.hitTimes;
   uint64_t acc = pMeta->pCache->sStableTagFilterResCache.accTimes;
   if ((*pTagConds)->hitTimes % 1000 == 0 && (*pTagConds)->hitTimes > 0) {
-    metaInfo(
+    metaDebug(
       "vgId:%d, suid:%" PRIu64 
       ", current stable cache hit:%" PRIu32 ", this tag condition hit:%" PRIu32
       ", total cache hit:%" PRIu64 ", acc:%" PRIu64 ", hit rate:%.2f%%",
