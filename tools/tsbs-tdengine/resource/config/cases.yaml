@@ -34,13 +34,52 @@ testCases:
       description: ""
       sql: |
         create stream db1.stm_a3 
-               sliding(1m) 
-               from db1.readings 
-               stream_options(fill_history_first) 
-               into db1.res_a3 
-               as 
-                  select _tcurrent_ts cur_ts, count(*), avg(avg_fuel) 
-                     from (
-                            select last(elevation) last_elev, avg(fuel_consumption) avg_fuel from db1.readings 
-                            where _c0 >= _tprev_ts and _c0 < _tcurrent_ts partition by tbname ) 
-                     where last_elev > 1000;
+            sliding(1m) 
+            from db1.readings 
+            stream_options(fill_history_first) 
+            into db1.res_a3 
+            as 
+              select _tcurrent_ts cur_ts, count(*), avg(avg_fuel) 
+                  from (
+                        select last(elevation) last_elev, avg(fuel_consumption) avg_fuel 
+                        from db1.readings 
+                          where _c0 >= _tprev_ts and _c0 < _tcurrent_ts 
+                          partition by tbname 
+                      ) 
+                  where last_elev > 1000;
+
+    - scenarioId: "F6"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db2.stm_f6 
+            sliding(1h) 
+            from db2.diagnostics partition by fleet 
+            stream_options(fill_history_first) 
+            into db2.res_f6 
+            as 
+              select _tcurrent_ts, sum(cur_load)/sum(load_capacity) 
+                from (
+                        select fleet, last(current_load) cur_load, load_capacity 
+                        from db2.diagnostics 
+                          where fleet = %%1 and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          partition by tbname 
+                      )
+
+    - scenarioId: "F7"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream db2.stm_f7 
+            sliding(1h) 
+            from db2.diagnostics partition by fleet 
+            stream_options(fill_history_first) 
+            into db2.res_f7 
+            as 
+              select _tcurrent_ts, sum(breakdown)/count(*) 
+                from (
+                       select fleet, case when last(status) > 0 then 1 else 0 end breakdown 
+                       from db2.diagnostics 
+                          where fleet = %%1 and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          partition by tbname
+                     )
