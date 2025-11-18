@@ -263,6 +263,7 @@ typedef struct SDynQueryCtrlStbJoin {
 
 typedef struct SDynQueryCtrlVtbScan {
   bool          scanAllCols;
+  bool          useTagScan;
   char          dbName[TSDB_DB_NAME_LEN];
   uint64_t      suid;
   SVgroupsInfo* pVgroupList;
