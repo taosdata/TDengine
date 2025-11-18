@@ -86,7 +86,6 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
         if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
             taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {
           tqTrace("tq add create table suid:%"PRId64", tbSuid:%"PRId64",uid:%"PRId64, pCreateReq->ctb.suid, tbSuid, pCreateReq->uid);
-        
           reqNew.nReqs++;
           if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
@@ -1231,6 +1230,7 @@ int32_t tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList, const 
       tqError("s-task:%s failed to add table uid:%" PRId64 " to hash", id, *pKey);
       continue;
     }
+    tqTrace("s-task:%s %d tables are set to be queried target table uid:%"PRId64, id, (int32_t)taosArrayGetSize(tbUidList), *pKey);
   }
 
   tqDebug("s-task:%s %d tables are set to be queried target table", id, (int32_t)taosArrayGetSize(tbUidList));
