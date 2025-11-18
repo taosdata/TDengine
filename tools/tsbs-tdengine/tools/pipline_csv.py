@@ -18,14 +18,14 @@ import argparse
 import sys
 import os
 
-def reorder_csv_by_column(input_file, output_file, sort_column):
+def reorder_csv_by_column(input_file, output_file, sort_columns):
     """
-    Read CSV file and reorder rows by specified column, then write to new file
+    Read CSV file and reorder rows by specified columns, then write to new file
     
     Args:
         input_file: Input CSV file path
         output_file: Output CSV file path
-        sort_column: Column name to sort by
+        sort_columns: List of column names to sort by
     """
     try:
         # Read CSV file
@@ -33,20 +33,21 @@ def reorder_csv_by_column(input_file, output_file, sort_column):
             reader = csv.DictReader(f)
             headers = reader.fieldnames
             
-            # Check if sort column exists
-            if sort_column not in headers:
-                print(f"Error: Column '{sort_column}' not found in CSV headers")
-                print(f"Available columns: {', '.join(headers)}")
-                return False
+            # Check if all sort columns exist
+            for col in sort_columns:
+                if col not in headers:
+                    print(f"Error: Column '{col}' not found in CSV headers")
+                    print(f"Available columns: {', '.join(headers)}")
+                    return False
             
             # Read all rows
             rows = list(reader)
             total_rows = len(rows)
             print(f"Read {total_rows} rows from {input_file}")
         
-        # Sort rows by specified column (handle None/empty values)
-        print(f"Sorting by column '{sort_column}'...")
-        rows.sort(key=lambda row: (row[sort_column] or ''))  # Treat None/empty as empty string
+        # Sort rows by specified columns (handle None/empty values)
+        print(f"Sorting by columns: {', '.join(sort_columns)}...")
+        rows.sort(key=lambda row: tuple(row[col] or '' for col in sort_columns))
         
         # Write to output file
         with open(output_file, 'w', encoding='utf-8', newline='') as f:
@@ -67,15 +68,18 @@ def reorder_csv_by_column(input_file, output_file, sort_column):
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(
-        description='Reorder CSV file rows by specified column',
+        description='Reorder CSV file rows by specified columns',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Sort by 'name' column
+  # Sort by single column 'name'
   python pipline_csv.py -i input.csv -o output.csv -c name
   
-  # Sort by 'ts' column (timestamp)
-  python pipline_csv.py -i readings.csv -o sorted_readings.csv -c ts
+  # Sort by two columns 'name' and 'ts'
+  python pipline_csv.py -i input.csv -o output.csv -c name ts
+  
+  # Sort by 'fleet' then 'name'
+  python pipline_csv.py -i readings.csv -o sorted.csv -c fleet name
         """
     )
     
@@ -92,9 +96,10 @@ Examples:
     )
     
     parser.add_argument(
-        '-c', '--column',
+        '-c', '--columns',
         required=True,
-        help='Column name to sort by'
+        nargs='+',
+        help='Column name(s) to sort by (space-separated for multiple columns)'
     )
     
     args = parser.parse_args()
@@ -113,12 +118,12 @@ Examples:
     print(f"\n{'='*60}")
     print("CSV Reorder Tool")
     print(f"{'='*60}")
-    print(f"Input file:  {args.input}")
-    print(f"Output file: {args.output}")
-    print(f"Sort column: {args.column}")
+    print(f"Input file:    {args.input}")
+    print(f"Output file:   {args.output}")
+    print(f"Sort columns:  {', '.join(args.columns)}")
     print(f"{'='*60}\n")
     
-    success = reorder_csv_by_column(args.input, args.output, args.column)
+    success = reorder_csv_by_column(args.input, args.output, args.columns)
     
     if success:
         print("\n✓ CSV reordering completed successfully")
@@ -127,5 +132,16 @@ Examples:
         print("\n✗ CSV reordering failed")
         sys.exit(1)
 
+
+'''
+# Sort by single column
+python [pipline_csv.py](http://_vscodecontentref_/0) -i head.csv -o output.csv -c name
+
+# Sort by two columns (name first, then ts)
+python [pipline_csv.py](http://_vscodecontentref_/1) -i head.csv -o output.csv -c name ts
+
+# Sort by three columns (fleet, name, ts)
+python [pipline_csv.py](http://_vscodecontentref_/2) -i head.csv -o output.csv -c fleet name ts
+'''
 if __name__ == "__main__":
     main()
