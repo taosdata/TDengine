@@ -28,9 +28,11 @@
 #include "tconv.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "tmisce.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "tversion.h"
 #include "version.h"
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -2690,22 +2692,79 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
   if (id == NULL || id[0] == 0) {
     return terrno = TSDB_CODE_INVALID_PARA;
   }
-  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  if (taos == NULL) {
-    return terrno = TSDB_CODE_TSC_DISCONNECTED;
-  }
-
-  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
-  if (pObj == NULL) {
-    return terrno = TSDB_CODE_TSC_DISCONNECTED;
-  }
 
   int32_t code = taos_init();
   if (code != TSDB_CODE_SUCCESS) {
-    releaseTscObj(pObj->id);
     return code;
   }
 
+  // Get firstEp from config
+  SConfig *pCfg = taosGetCfg();
+  if (pCfg == NULL) {
+    return terrno = TSDB_CODE_CFG_NOT_FOUND;
+  }
+
+  SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
+  if (pFirstEpItem == NULL || pFirstEpItem->str == NULL || pFirstEpItem->str[0] == 0) {
+    return terrno = TSDB_CODE_CFG_NOT_FOUND;
+  }
+
+  // Parse firstEp to get fqdn and port
+  SEp firstEp = {0};
+  code = taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  if (code != TSDB_CODE_SUCCESS) {
+    return terrno = code;
+  }
+
+  // Initialize RPC connection (similar to taos_check_server_status)
+  void    *clientRpc = NULL;
+  SEpSet   epSet = {.inUse = 0, .numOfEps = 1};
+  SRpcMsg  rpcMsg = {0};
+  SRpcMsg  rpcRsp = {0};
+  SRpcInit rpcInit = {0};
+
+  rpcInit.label = "INST";
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp = NULL;
+  rpcInit.sessions = 16;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.compressSize = tsCompressMsgSize;
+  // Use a special user for instance registration (can be configured for whitelist)
+  rpcInit.user = TSDB_DEFAULT_USER;
+
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+  rpcInit.connLimitNum = connLimitNum;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
+
+  if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
+    tscError("failed to convert taos version from str to int, errcode:%s", terrstr());
+    return terrno;
+  }
+
+  clientRpc = rpcOpen(&rpcInit);
+  if (clientRpc == NULL) {
+    code = terrno;
+    tscError("failed to init instance register client since %s", tstrerror(code));
+    return code;
+  }
+
+  // Prepare epSet
+  tstrncpy(epSet.eps[0].fqdn, firstEp.fqdn, TSDB_FQDN_LEN);
+  epSet.eps[0].port = firstEp.port;
+
+  // Prepare request
   SInstanceRegisterReq req = {0};
   tstrncpy(req.id, id, sizeof(req.id));
   if (type != NULL && type[0] != 0) {
@@ -2716,9 +2775,65 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
   }
   req.expire = expire;
 
-  code = sendInstanceRegisterReq(pObj, &req);
+  // Serialize request to get required length
+  int32_t contLen = tSerializeSInstanceRegisterReq(NULL, 0, &req);
+  if (contLen <= 0) {
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+    rpcClose(clientRpc);
+    return code;
+  }
 
-  releaseTscObj(pObj->id);
+  // Allocate RPC message buffer (includes message header overhead)
+  void *pCont = rpcMallocCont(contLen);
+  if (pCont == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    rpcClose(clientRpc);
+    return code;
+  }
+
+  // Serialize request into the content part (after message header)
+  if (tSerializeSInstanceRegisterReq(pCont, contLen, &req) < 0) {
+    code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+    rpcFreeCont(pCont);
+    rpcClose(clientRpc);
+    return code;
+  }
+
+  // Send RPC message
+  rpcMsg.pCont = pCont;
+  rpcMsg.contLen = contLen;
+  rpcMsg.msgType = TDMT_MND_REGISTER_INSTANCE;
+  rpcMsg.info.ahandle = (void *)0x9528;  // Different magic number from server status
+  rpcMsg.info.notFreeAhandle = 1;
+
+  code = rpcSendRecv(clientRpc, &epSet, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to send instance register req since %s", tstrerror(code));
+    // rpcSendRecv failed, pCont may not be freed, but check _RETURN1 path
+    // In error path, rpcSendRecv may free pCont, but we free it here to be safe
+    rpcFreeCont(pCont);
+    rpcClose(clientRpc);
+    return code;
+  }
+
+  // Check response - rpcRsp.code contains the result code from mnode
+  if (rpcRsp.code != 0) {
+    code = rpcRsp.code;
+    tscError("instance register failed, code:%s", tstrerror(code));
+  } else {
+    code = TSDB_CODE_SUCCESS;
+  }
+
+  // Cleanup
+  // Note: rpcSendRecv internally frees pReq->pCont via destroyReq when response is received
+  // So we should NOT free pCont here to avoid double-free
+  // Only free the response content if present
+  if (rpcRsp.pCont != NULL) {
+    rpcFreeCont(rpcRsp.pCont);
+  }
+  rpcClose(clientRpc);
+
+  terrno = code;
   return code;
 }
 
