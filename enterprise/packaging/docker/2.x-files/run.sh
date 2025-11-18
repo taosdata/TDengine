@@ -182,8 +182,8 @@ function check_process_exit_type() {
     if [ ! -z "$core_files" ]; then
         # move core files to another folder
         mkdir -p ${BACKUP_CORE_FOLDER}
-        cp -f "${core_folder}"/"${core_prefix}"* "${BACKUP_CORE_FOLDER}/" 2>/dev/null || true
-        rm -f "${core_folder}"/"${core_prefix}"* 2>/dev/null || true
+        cp -f "${core_folder}/${core_prefix}"* "${BACKUP_CORE_FOLDER}/" 2>/dev/null || true
+        rm -f "${core_folder}/${core_prefix}"* 2>/dev/null || true
 
        #cp ${core_folder}/${core_prefix}* ${BACKUP_CORE_FOLDER}/
        #rm -f ${core_folder}/${core_prefix}*
