@@ -3617,7 +3617,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
   if (batchRsp.pArray == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-
+  int64_t now = taosGetTimeMs();
   for (int32_t i = 0; i < numOfUses; ++i) {
     SUserObj *pUser = NULL;
     code = mndAcquireUser(pMnode, pUsers[i].user, &pUser);
@@ -3634,7 +3634,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
 
     pUsers[i].version = ntohl(pUsers[i].version);
     if ((pUser->authVersion <= pUsers[i].version) && (ipWhiteListVer == pMnode->ipWhiteVer) &&
-        !mndIsNeedRetrieveRole(pUser)) {
+        !mndNeedRetrieveRole(pUser)) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }
@@ -3653,6 +3653,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
       tFreeSGetUserAuthRsp(&rsp);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
+    pUser->lastRoleRetrieve = now;  // update user's last retrieve time
     mndReleaseUser(pMnode, pUser);
   }
 
@@ -3679,6 +3680,14 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
 _OVER:
   tFreeSUserAuthBatchRsp(&batchRsp);
   if (code < 0) {
+    for (int32_t i = 0; i < numOfUses; ++i) {
+      SUserObj *pUser = NULL;
+      if (mndAcquireUser(pMnode, pUsers[i].user, &pUser) != 0) {
+        continue;
+      }
+      pUser->lastRoleRetrieve = 0;  // reset last retrieve time on error
+      mndReleaseUser(pMnode, pUser);
+    }
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     taosMemoryFreeClear(pRsp);
     rspLen = 0;

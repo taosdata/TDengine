@@ -94,7 +94,7 @@ void mndSetRoleLastUpd(int64_t updateTime) {
   (void)taosThreadRwlockUnlock(&roleMgmt.rw);
 }
 
-bool mndIsNeedRetrieveRole(SUserObj *pUser) {
+bool mndNeedRetrieveRole(SUserObj *pUser) {
   bool result = false;
   if (taosHashGetSize(pUser->roles) > 0) {
     (void)taosThreadRwlockRdlock(&roleMgmt.rw);

@@ -39,7 +39,7 @@ int32_t mndRoleDropParentUser(SMnode *pMnode, STrans *pTrans, SUserObj *pObj);
 int32_t mndRoleGrantToUser(SMnode *pMnode, STrans *pTrans, SRoleObj *pRole, SUserObj *pUser);
 int64_t mndGetRoleLastUpd();
 void    mndSetRoleLastUpd(int64_t updateTime);
-bool    mndIsNeedRetrieveRole(SUserObj *pUser);
+bool    mndNeedRetrieveRole(SUserObj *pUser);
 
 SSdbRaw *mndRoleActionEncode(SRoleObj *pRole);
 #ifdef __cplusplus
