@@ -54,6 +54,9 @@ int32_t transCachePut(int64_t refId, STrans* pTrans) {
     return TSDB_CODE_INVALID_PARA;
   }
   STransEntry entry = {.refId = refId, .pTrans = pTrans, .remove = 0, .ref = 0};
+  if (transInstCache.num >= sizeof(transInstCache.tran) / sizeof(STransEntry)) {
+    return TSDB_CODE_INVALID_CFG;
+  }
   transInstCache.tran[transInstCache.num++] = entry;
   return 0;
 }
