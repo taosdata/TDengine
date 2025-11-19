@@ -1174,35 +1174,42 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
 
   if (!pReq->isHistory) {
     // try to merge with existing requests if calc range diff is no more than 1 hour
-    SListNode *pNode = TD_DLIST_HEAD(pTask->pRecalcRequests);
-    while (pNode != NULL) {
-      SSTriggerRecalcRequest *pTmpReq = *(SSTriggerRecalcRequest **)pNode->data;
-      if (!pTmpReq->isHistory && pTmpReq->gid == pReq->gid &&
-          (pTmpReq->calcRange.ekey + STREAM_TRIGGER_RECALC_MERGE_MS) >= pReq->calcRange.skey &&
+    TriggerRecalcRequestList *pList = tSimpleHashGet(pTask->pRecalcRequestMap, &pReq->gid, sizeof(int64_t));
+    if (pList == NULL) {
+      TriggerRecalcRequestList list = {0};
+      code = tSimpleHashPut(pTask->pRecalcRequestMap, &pReq->gid, sizeof(int64_t), &list,
+                            sizeof(TriggerRecalcRequestList));
+      QUERY_CHECK_CODE(code, lino, _end);
+      pList = tSimpleHashGet(pTask->pRecalcRequestMap, &pReq->gid, sizeof(int64_t));
+      QUERY_CHECK_NULL(pList, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    }
+    SSTriggerRecalcRequest *pTmpReq = NULL;
+    for (pTmpReq = TD_DLIST_HEAD(pList); pTmpReq != NULL; pTmpReq = TD_DLIST_NODE_NEXT(pTmpReq)) {
+      if ((pTmpReq->calcRange.ekey + STREAM_TRIGGER_RECALC_MERGE_MS) >= pReq->calcRange.skey &&
           (pReq->calcRange.ekey + STREAM_TRIGGER_RECALC_MERGE_MS >= pTmpReq->calcRange.skey)) {
-        STimeWindow newScanRange = {
-            .skey = TMIN(pTmpReq->scanRange.skey, pReq->scanRange.skey),
-            .ekey = TMAX(pTmpReq->scanRange.ekey, pReq->scanRange.ekey),
-        };
-        STimeWindow newCalcRange = {
-            .skey = TMIN(pTmpReq->calcRange.skey, pReq->calcRange.skey),
-            .ekey = TMAX(pTmpReq->calcRange.ekey, pReq->calcRange.ekey),
-        };
-        ST_TASK_DLOG("merge recalc request, gid: %" PRId64 ", calcRange1: [%" PRId64 ", %" PRId64
-                     "], calcRange2: [%" PRId64 ", %" PRId64 "] to scanRange: [%" PRId64 ", %" PRId64
-                     "], calcRange: [%" PRId64 ", %" PRId64 "]",
-                     pReq->gid, pTmpReq->calcRange.skey, pTmpReq->calcRange.ekey, pReq->calcRange.skey,
-                     pReq->calcRange.ekey, newScanRange.skey, newScanRange.ekey, newCalcRange.skey, newCalcRange.ekey);
-        pTmpReq->scanRange = newScanRange;
-        pTmpReq->calcRange = newCalcRange;
-        TSWAP(pTmpReq->pTsdbVersions, pReq->pTsdbVersions);
         break;
       }
-      pNode = TD_DLIST_NODE_NEXT(pNode);
     }
-    if (pNode != NULL) {
-      // merged
+    if (pTmpReq != NULL) {
+      STimeWindow newScanRange = {
+          .skey = TMIN(pTmpReq->scanRange.skey, pReq->scanRange.skey),
+          .ekey = TMAX(pTmpReq->scanRange.ekey, pReq->scanRange.ekey),
+      };
+      STimeWindow newCalcRange = {
+          .skey = TMIN(pTmpReq->calcRange.skey, pReq->calcRange.skey),
+          .ekey = TMAX(pTmpReq->calcRange.ekey, pReq->calcRange.ekey),
+      };
+      ST_TASK_DLOG("merge recalc request, gid: %" PRId64 ", calcRange1: [%" PRId64 ", %" PRId64
+                   "], calcRange2: [%" PRId64 ", %" PRId64 "] to scanRange: [%" PRId64 ", %" PRId64
+                   "], calcRange: [%" PRId64 ", %" PRId64 "]",
+                   pReq->gid, pTmpReq->calcRange.skey, pTmpReq->calcRange.ekey, pReq->calcRange.skey,
+                   pReq->calcRange.ekey, newScanRange.skey, newScanRange.ekey, newCalcRange.skey, newCalcRange.ekey);
+      pTmpReq->scanRange = newScanRange;
+      pTmpReq->calcRange = newCalcRange;
+      TSWAP(pTmpReq->pTsdbVersions, pReq->pTsdbVersions);
       goto _end;
+    } else {
+      TD_DLIST_APPEND(pList, pReq);
     }
   }
 
@@ -1245,6 +1252,12 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
 
   } else {
     *ppReq = NULL;
+  }
+
+  if (*ppReq && !(*ppReq)->isHistory) {
+    TriggerRecalcRequestList *pList = tSimpleHashGet(pTask->pRecalcRequestMap, &(*ppReq)->gid, sizeof(int64_t));
+    QUERY_CHECK_NULL(pList, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    TD_DLIST_POP(pList, *ppReq);
   }
 
 _end:
@@ -2014,6 +2027,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   taosInitRWLatch(&pTask->recalcRequestLock);
   pTask->pRecalcRequests = tdListNew(POINTER_BYTES);
   QUERY_CHECK_NULL(pTask->pRecalcRequests, code, lino, _end, terrno);
+  pTask->pRecalcRequestMap = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pTask->pRecalcRequestMap, code, lino, _end, terrno);
 
   pTask->pRealtimeStartVer = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pTask->pRealtimeStartVer, code, lino, _end, terrno);
@@ -2238,6 +2253,10 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       taosMemoryFreeClear(pReq);
     }
     pTask->pRecalcRequests = tdListFree(pTask->pRecalcRequests);
+  }
+  if (pTask->pRecalcRequestMap != NULL) {
+    tSimpleHashCleanup(pTask->pRecalcRequestMap);
+    pTask->pRecalcRequestMap = NULL;
   }
 
   if (pTask->streamName != NULL) {
@@ -3620,7 +3639,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         pParam->prevTs--;
       }
     }
-    ST_TASK_DLOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
+    ST_TASK_DLOG("realtime [calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
                  ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
                  ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
                  i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
@@ -6141,12 +6160,12 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
         pParam->prevTs--;
       }
     }
-    ST_TASK_DLOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
+    ST_TASK_DLOG("%s [calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
                  ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
                  ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
-                 i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
-                 pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime, pParam->triggerTime,
-                 pCalcReq->createTable);
+                 (pContext->isHistory ? "hist" : "recalc"), i, pCalcReq->gid, pParam->wstart, pParam->wend,
+                 pParam->wrownum, pParam->prevTs, pParam->currentTs, pParam->nextTs, pParam->prevLocalTime,
+                 pParam->nextLocalTime, pParam->triggerTime, pCalcReq->createTable);
   }
 
   // serialize and send request
