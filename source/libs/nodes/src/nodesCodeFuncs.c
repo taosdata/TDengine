@@ -3405,6 +3405,7 @@ static const char* jkExternalPhysiPlanIsSingleTable = "IsSingleTable";
 static const char* jkExternalPhysiPlanInputHasOrder = "InputHasOrder";
 static const char* jkExternalPhysiPlanNeedGroupSort = "NeedGroupSort";
 static const char* jkExternalPhysiPlanCalcWithPartition = "CalcWithPartition";
+static const char* jkExternalPhysiPlanExtWinSplit = "ExtWinSplit";
 
 static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3430,6 +3431,9 @@ static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanCalcWithPartition, pNode->calcWithPartition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanExtWinSplit, pNode->extWinSplit);
   }
   return code;
 }
@@ -3458,6 +3462,9 @@ static int32_t jsonToPhysiExternalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanCalcWithPartition, &pNode->calcWithPartition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanExtWinSplit, &pNode->extWinSplit);
   }
 
   return code;

@@ -845,7 +845,20 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
 }
 
 static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  switch (((SWindowLogicNode*)pInfo->pSplitNode)->winType) {
+  SWindowLogicNode* pWin = (SWindowLogicNode*)pInfo->pSplitNode;
+  SNode*            pChild = nodesListGetNode(pWin->node.pChildren, 0);
+
+  if (pChild && nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_WINDOW &&
+      ((SWindowLogicNode*)pChild)->winType == WINDOW_TYPE_EXTERNAL) {
+    ((SWindowLogicNode*)pChild)->needGroupSort = true;
+  }
+
+  if (pWin->winType == WINDOW_TYPE_EXTERNAL) {
+    pWin->extWinSplit = true;
+    pWin->needGroupSort = pWin->calcWithPartition;
+  }
+
+  switch (pWin->winType) {
     case WINDOW_TYPE_INTERVAL:
     case WINDOW_TYPE_EXTERNAL:
       return stbSplSplitIntervalForBatch(pCxt, pInfo);
@@ -895,11 +908,6 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) &&
       (LIST_LENGTH(((SWindowLogicNode*)pInfo->pSplitNode)->pTsmaSubplans) == 0)) {
-    if (nodeType((SLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_WINDOW &&
-        ((SWindowLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0))->winType == WINDOW_TYPE_EXTERNAL &&
-        isPartTableWinodw((SWindowLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0))) {
-      ((SWindowLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0))->needGroupSort = true;
-    }
     return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
     return stbSplSplitWindowForCrossTable(pCxt, pInfo);
