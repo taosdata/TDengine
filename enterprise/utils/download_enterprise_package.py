@@ -19,6 +19,7 @@ Downloads enterprise version packages from internal network
 import os
 import sys
 import platform
+import re
 import subprocess
 import argparse
 from pathlib import Path
@@ -40,7 +41,8 @@ class EnterprisePackageDownloader:
         
         # Supported enterprise versions
         self.supported_versions = [
-            "3.3.3.0", "3.3.4.0", "3.3.5.0", "3.3.6.0"
+            "3.3.3.0", "3.3.4.0", "3.3.5.0", "3.3.6.0",
+            "3.3.7.9", "3.3.8.5", "3.3.8.6"
         ]
     
     def get_package_name(self, version, package_type="enterprise"):
@@ -61,7 +63,10 @@ class EnterprisePackageDownloader:
             
         # Enterprise package naming convention
         if package_type == "enterprise":
-            package_name = f"TDengine-enterprise-{version}-{arch}.tar.gz"
+            if tuple(map(int, version.split('.'))) >= (3, 3, 6, 16):
+                package_name = f"TDengine-tsdb-enterprise-{version}-{arch}.tar.gz".lower()
+            else:
+                package_name = f"TDengine-enterprise-{version}-{arch}.tar.gz"
         else:
             package_name = f"TDengine-server-{version}-{arch}.tar.gz"
             
@@ -124,8 +129,8 @@ class EnterprisePackageDownloader:
         if not Path(package_path).exists():
             raise FileNotFoundError(f"Package not found: {package_path}")
         
-        package_name = os.path.basename(package_path)
-        package_dir = package_name.split("-Linux-")[0]
+        package_name: str = os.path.basename(package_path)
+        package_dir = re.split("-linux-", package_name, maxsplit=1, flags=re.IGNORECASE)[0]
         
         print(f"Installing package {package_name}")
         
