@@ -135,6 +135,7 @@ def stop_notify_server_background(timeout: float = 5.0):
         fut = asyncio.run_coroutine_threadsafe(_stop_server(), _LOOP)
         fut.result(timeout=timeout)
     except Exception:
+        print("Failed to stop server cleanly within timeout.", flush=True)
         pass
     # stop loop and join
     try:
