@@ -14724,9 +14724,6 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
   if (pPreFilter) {
     PAR_ERR_JRET(nodesCollectColumnsFromNode(pPreFilter, NULL, COLLECT_COL_TYPE_TAG, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
   }
-  PAR_ERR_JRET(createTbnameFunction(&pFunc));
-  PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc));
-
   return code;
 _return:
   nodesDestroyNode((SNode*)pFunc);
