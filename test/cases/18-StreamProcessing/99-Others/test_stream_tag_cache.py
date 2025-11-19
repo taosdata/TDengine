@@ -32,17 +32,24 @@ class TestStreamTagCache:
 
         """
         tdSql.execute("alter dnode 1 'stableTagFilterCache' '1'")
+        tdSql.execute("alter dnode 1 'tagFilterCache' '1'")
         tdStream.createSnode()
         self.check_all_types_basic()
         self.check_all_types_alter()
         self.check_null_tag_value()
         self.check_create_drop_ctable()
 
-    def stable_tag_cache_size(self, db_name, tb_name) -> int:
+    def stable_tag_cache_log_counter(self, db_name, tb_name) -> int:
         tdSql.query(f"""select uid from information_schema.ins_stables
             where stable_name = '{tb_name}' and db_name = '{db_name}'""")
         suid = tdSql.getColData(0)[0]
-        return findTaosdLog(f"suid:{suid}.*stableTagFilterCache")
+        return findTaosdLog(f"suid:{suid}.*stable tag filter cache", retry=3)
+
+    def normal_tag_cache_log_counter(self, db_name, tb_name) -> int:
+        tdSql.query(f"""select uid from information_schema.ins_stables
+            where stable_name = '{tb_name}' and db_name = '{db_name}'""")
+        suid = tdSql.getColData(0)[0]
+        return findTaosdLog(f"suid:{suid}.*normal tag filter cache", retry=3)
 
     def check_all_types_basic(self):
         db_name = "test_basic"
@@ -143,7 +150,7 @@ class TestStreamTagCache:
             s.checkResults()
 
         # check stable tagFilterCache size
-        assert self.stable_tag_cache_size(db_name, tb_name) == 8
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 8
 
     def check_all_types_alter(self):
         db_name = "test_alter"
@@ -287,7 +294,7 @@ class TestStreamTagCache:
             s.checkResults()
 
         # check stable tagFilterCache size
-        assert self.stable_tag_cache_size(db_name, tb_name) == 5
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 5
 
     def check_null_tag_value(self):
         db_name = "test_null"
@@ -431,7 +438,7 @@ class TestStreamTagCache:
             s.checkResults()
 
         # check stable tagFilterCache size
-        assert self.stable_tag_cache_size(db_name, tb_name) == 5
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 5
 
         # create a new child table with null t_fix tag and insert data
         tdSql.execute(f"create table ctb6 using {tb_name} tags (null, true, 1, 2.333, 'BJ', '涛思数据')", show=1)
@@ -566,4 +573,4 @@ class TestStreamTagCache:
             s.checkResults()
 
         # check stable tagFilterCache size
-        assert self.stable_tag_cache_size(db_name, tb_name) == 5
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 5
