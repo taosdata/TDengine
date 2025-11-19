@@ -220,16 +220,6 @@ typedef struct {
 
 #define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
 
-static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
-  SPrivSet merged = privSet1;
-  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-    if (privSet2.set[i]) {
-      merged.set[i] |= privSet2.set[i];
-    }
-  }
-  return merged;
-}
-
 typedef enum {
   PRIV_CATEGORY_SYSTEM = 0,
   PRIV_CATEGORY_OBJECT,
@@ -238,6 +228,7 @@ typedef enum {
 } EPrivCategory;
 
 typedef enum {
+  OBJ_TYPE_UNKNOWN = -1,
   OBJ_TYPE_DB = 0,
   OBJ_TYPE_TABLE,
   OBJ_TYPE_FUNCTION,
@@ -251,14 +242,26 @@ typedef enum {
   OBJ_TYPE_TOPIC,
   OBJ_TYPE_STREAM,
   OBJ_TYPE_MAX,
-} EObjectType;
+} EObjType;
 
 typedef struct {
-  EPrivType     priv_type;
+  EPrivType     privType;
   EPrivCategory category;
-  EObjectType   OBJ_TYPE;
+  EObjType      objType;
   const char*   name;
 } SPrivInfo;
+
+static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
+  SPrivSet merged = privSet1;
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+    if (privSet2.set[i]) {
+      merged.set[i] |= privSet2.set[i];
+    }
+  }
+  return merged;
+}
+
+int32_t checkPrivConflicts(const SPrivSet* privSet);
 
 #ifdef __cplusplus
 }

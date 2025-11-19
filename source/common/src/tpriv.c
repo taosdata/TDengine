@@ -198,13 +198,56 @@ static SPrivInfo* privLookup[MAX_PRIV_TYPE + 1] = {0};
 
 static void initPrivLookup(void) {
   for (size_t i = 0; i < sizeof(privInfoTable) / sizeof(privInfoTable[0]); ++i) {
-    if (privInfoTable[i].priv_type <= MAX_PRIV_TYPE) {
-      privLookup[privInfoTable[i].priv_type] = &privInfoTable[i];
+    if (privInfoTable[i].privType <= MAX_PRIV_TYPE) {
+      privLookup[privInfoTable[i].privType] = &privInfoTable[i];
     }
   }
 }
 
-void privLoolup() {
+int32_t checkPrivConflicts(const SPrivSet* privSet) {
+  if (!privSet) return 0;
+
   (void)taosThreadOnce(&privInit, initPrivLookup);
-  // TODO
+
+  bool hasSystemPriv = false;
+  bool hasObjectPriv = false;
+  bool hasLegacyPriv = false;
+
+  EObjType objectType = OBJ_TYPE_UNKNOWN;
+
+  for (EPrivType privType = 0; privType <= MAX_PRIV_TYPE; ++privType) {
+    if (!PRIV_HAS(privSet, privType)) {
+      continue;
+    }
+
+    const SPrivInfo* privInfo = privLookup[privType];
+    if (privInfo == NULL) {
+      continue;
+    }
+
+    switch (privInfo->category) {
+      case PRIV_CATEGORY_SYSTEM:
+        hasSystemPriv = true;
+        break;
+      case PRIV_CATEGORY_OBJECT:
+        hasObjectPriv = true;
+        if (objectType == OBJ_TYPE_UNKNOWN) {
+          objectType = privInfo->objType;
+        } else if (objectType != privInfo->objType) {
+          return 2;
+        }
+        break;
+      case PRIV_CATEGORY_LEGACY:
+        hasLegacyPriv = true;
+        break;
+      default:
+        break;
+    }
+
+    if ((hasSystemPriv && hasObjectPriv) || (hasSystemPriv && hasLegacyPriv) || (hasObjectPriv && hasLegacyPriv)) {
+      return 1;
+    }
+  }
+
+  return 0;
 }
