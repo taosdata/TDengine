@@ -4630,8 +4630,10 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
       if (needStreamGrpInfo) {
         int32_t nGroups = 0;
         TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nGroups));
-        pInfo->curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), nGroups);
-        QUERY_CHECK_NULL(pInfo->curGrpRead, code, lino, _exit, terrno);
+        if (nGroups > 0) {
+          pInfo->curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), nGroups);
+          QUERY_CHECK_NULL(pInfo->curGrpRead, code, lino, _exit, terrno);
+        }
         for (int32_t j = 0; j < nGroups; ++j) {
           SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfo->curGrpRead, j);
           TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupReadInfo(pDecoder, pReadInfo));

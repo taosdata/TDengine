@@ -3325,7 +3325,7 @@ int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* 
   
   for (int32_t i = 0; i < grpNum; ++i) {
     SSTriggerGroupReadInfo* pGrp = taosArrayGet(pStream->curGrpRead, i);
-    tableKey.groupId = pGrp->gid;
+    tableKey.baseGId = pGrp->gid;
     tblNum = taosArrayGetSize(pGrp->pTables);
 
     if (pStream->stbPartByTbname) {
