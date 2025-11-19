@@ -8924,7 +8924,7 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
     tDestroySSTriggerCalcParam(pParam);
     goto _end;
   }
-  if (pParam->wstart <= pContext->calcRange.skey && pGroup->pPendingCalcParams.neles > 0) {
+  if (pParam->wstart < pContext->calcRange.skey && pGroup->pPendingCalcParams.neles > 0) {
     // skip param before the calc range
     taosObjListClear(&pGroup->pPendingCalcParams);
   }
@@ -8933,7 +8933,7 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
     tDestroySSTriggerCalcParam(pParam);
     goto _end;
   }
-  pGroup->finished = (pParam->wend >= pContext->calcRange.ekey);
+  pGroup->finished = (pParam->wend > pContext->calcRange.ekey);
   if (initSize == 0) {
     heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
   }
