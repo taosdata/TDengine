@@ -114,6 +114,7 @@ static void processAlterTbMsg(SDecoder* dcoder, STqReader* pReader, int64_t* rea
   }
 
 end:
+  taosArrayDestroy(req.pMultiTag);
   metaReaderClear(&mr);  
   if (code < 0) {
     tqError("processAlterTbMsg failed, code:%d, line:%d", code, lino);
@@ -168,7 +169,7 @@ static void processDropTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRead
 
     int     tlen = 0;
     tEncodeSize(tEncodeSVDropTbBatchReq, &reqNew, tlen, code);
-    void* buf = taosMemoryMalloc(tlen);
+    buf = taosMemoryMalloc(tlen);
     if (NULL == buf || code < 0) {
       lino = __LINE__;
       goto end;

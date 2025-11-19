@@ -1716,6 +1716,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&dcoder);
   qDestroyQuery(pQuery);
+  taosArrayDestroy(req.pMultiTag);
   return code;
 }
 
