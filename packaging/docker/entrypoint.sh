@@ -128,20 +128,20 @@ find_model_file() {
     local base_path="${MODEL_BASE_PATH}/${model}"
     local flag_file="${MODEL_SUBDIRS[$model]}"
     
-    # 优先级 1：检查根目录
+    # Priority 1: Check the root directory  
     if [ -f "${base_path}/${flag_file}" ] || [ -L "${base_path}/${flag_file}" ]; then
         echo "${base_path}"
         return 0
     fi
     
-    # 优先级 2：检查 snapshots 目录（HuggingFace 缓存格式）
+    # Priority 2: Check the snapshots directory (HuggingFace cache format)
     local snapshot_dir=$(find "${base_path}/snapshots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1)
-    if [ -n "$snapshot_dir" ] && [ -f "${snapshot_dir}/${flag_file}" ] || [ -L "${snapshot_dir}/${flag_file}" ]; then
+    if [ -n "$snapshot_dir" ] && [ -e "${snapshot_dir}/${flag_file}" ]; then  
         echo "$snapshot_dir"
         return 0
     fi
     
-    # 优先级 3：检查 blobs 目录
+    # Priority 3: Check the blobs directory
     local blob_file=$(find "${base_path}/blobs" -name "*${flag_file}*" 2>/dev/null | head -n 1)
     if [ -n "$blob_file" ]; then
         dirname "$blob_file"
@@ -161,7 +161,7 @@ if mount | grep -q "$MODEL_BASE_PATH"; then
         echo "Processing models: $MODEL_DIR_NAMES"
         IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_DIR_NAMES"
         for model in "${MODEL_ARRAY[@]}"; do
-            # 检查模型是否存在
+            # Check if model exists
             if [[ ! ${MODEL_SUBDIRS[$model]+_} ]]; then
                 echo "Error: Unknown model '$model'"
                 echo "Available models: ${MODEL_SUBDIRS[@]}"
@@ -198,9 +198,10 @@ if mount | grep -q "$MODEL_BASE_PATH"; then
 else
     echo "Non-mounted mode: starting built-in models..."
     for model in tdtsfm timemoe moment; do
-        model_dir=$(find_model_file "$model")
-        
-        if [ $? -eq 0 ] && [ -n "$model_dir" ]; then
+        model_dir="${MODEL_BASE_PATH}/${model}"
+        model_sub_dir=$(find_model_file "$model")
+
+        if [ $? -eq 0 ] && [ -n "$model_sub_dir" ]; then
             echo "✓ Found $model model at: $model_dir"
             execute_startup "$model_dir" "$model" "${MODEL_NAMES[$model]}"
         else
