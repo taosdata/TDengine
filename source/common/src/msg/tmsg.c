@@ -2594,7 +2594,7 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
     }
   }
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->principal));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objname));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tblName));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->tagCond, pReq->tagCondLen));
   ENCODESQL();
@@ -2636,7 +2636,7 @@ int32_t tDeserializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq
     TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
   }
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->principal));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objname));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objName));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tblName));
   uint64_t tagCondLen = 0;
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->tagCond, &tagCondLen));

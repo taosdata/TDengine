@@ -1391,9 +1391,10 @@ typedef struct {
   union {
     uint32_t flag;
     struct {
-      uint32_t lock : 1;
-      uint32_t add : 1;
-      uint32_t reserve : 30;
+      uint32_t lock : 1;     // lock or unlock role
+      uint32_t add : 1;      // add or remove
+      uint32_t sysPriv : 1;  // system or object privileges
+      uint32_t reserve : 29;
     };
   };
   union {
@@ -1401,7 +1402,7 @@ typedef struct {
     char     roleName[TSDB_ROLE_LEN];
   };
   char    principal[TSDB_ROLE_LEN];    // role or user name
-  char    objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char    objName[TSDB_OBJ_NAME_LEN];  // db or topic
   char    tblName[TSDB_TABLE_NAME_LEN];
   char*   tagCond;
   int32_t tagCondLen;

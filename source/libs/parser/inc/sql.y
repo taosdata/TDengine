@@ -178,7 +178,7 @@ privileges(A) ::= SUBSCRIBE.                                                    
 %type priv_type_list                                                              { SPrivSet }
 %destructor priv_type_list                                                        { }
 priv_type_list(A) ::= priv_type(B).                                               { A = B; }
-priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                    { A = PRIV_ADD(B, C); }
+priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                    { A = privAdd(B, C); }
 
 %type priv_type                                                                   { SPrivSet }
 %destructor priv_type                                                             { }

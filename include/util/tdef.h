@@ -955,7 +955,7 @@ typedef struct {
 
 #define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
 
-static inline SPrivSet PRIV_ADD(SPrivSet privSet1, SPrivSet privSet2) {
+static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
   SPrivSet merged = privSet1;
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     if (privSet2.set[i]) {
