@@ -297,7 +297,10 @@ typedef struct SSTriggerRecalcRequest {
   STimeWindow calcRange;
   SSHashObj  *pTsdbVersions;
   bool        isHistory;
+  TD_DLIST_NODE(SSTriggerRecalcRequest);
 } SSTriggerRecalcRequest;
+
+typedef TD_DLIST(SSTriggerRecalcRequest) TriggerRecalcRequestList;
 
 typedef struct SStreamTriggerTask {
   SStreamTask task;
@@ -395,8 +398,9 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupRunning;    // SSHashObj<gid, bool[]>
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
-  SRWLatch recalcRequestLock;
-  SList   *pRecalcRequests;  // SList<SSTriggerRecalcRequest>
+  SRWLatch   recalcRequestLock;
+  SList     *pRecalcRequests;    // SList<SSTriggerRecalcRequest>
+  SSHashObj *pRecalcRequestMap;  // SSHashObj<gid, TriggerRecalcRequestList>
 
   // runtime status
   volatile int8_t           isCheckpointReady;
