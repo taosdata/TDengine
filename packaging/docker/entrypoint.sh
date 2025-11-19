@@ -23,6 +23,7 @@ declare -A MODEL_SUBDIRS=(
     ["tdtsfm"]="taos.pth"
     ["timemoe"]="model.safetensors"
     ["timesfm"]="model.safetensors"
+    ["moment"]="model.safetensors"
 )
 declare -A MODEL_NAMES=(
     ["chronos"]="amazon/chronos-bolt-tiny"
@@ -30,6 +31,7 @@ declare -A MODEL_NAMES=(
     ["tdtsfm"]="tdtsfm"
     ["timemoe"]="Maple728/TimeMoE-200M"
     ["timesfm"]="google/timesfm-2.0-500m-pytorch"
+    ["moment"]="AutonLab/MOMENT-1-base"
 )
 
 declare -A MODEL_VENV_MAP=(
@@ -38,6 +40,8 @@ declare -A MODEL_VENV_MAP=(
     ["tdtsfm"]="/var/lib/taos/taosanode/venv"
     ["timemoe"]="/var/lib/taos/taosanode/venv"
     ["timesfm"]="/var/lib/taos/taosanode/venv_timesfm"
+    # use the same venv as timesfm
+    ["moment"]="/var/lib/taos/taosanode/venv_timesfm"
 )
 
 # Function to activate virtual environment
@@ -67,7 +71,11 @@ execute_startup() {
         echo "Running startup script: $startup_script"
         cd ${script_path}
         echo "Current directory: $(pwd)"
-        if [ ${model} == "tdtsfm" ]; then
+        if [ ${model} == "moment" ];then
+            echo "modifying moment-server.py mode list"
+            sed -i "s|_model_list\[0\]|'${subdir}'|g" "${model}-server.py" && echo "${model}-server.py updated"
+        fi
+        if [ ${model} == "tdtsfm" ] || [ ${model} == "moment" ]; then
             echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
             nohup python3 "${model}-server.py" --action server &
         else
@@ -115,6 +123,34 @@ download_and_setup() {
     fi
 }
 
+find_model_file() {
+    local model="$1"
+    local base_path="${MODEL_BASE_PATH}/${model}"
+    local flag_file="${MODEL_SUBDIRS[$model]}"
+    
+    # 优先级 1：检查根目录
+    if [ -f "${base_path}/${flag_file}" ] || [ -L "${base_path}/${flag_file}" ]; then
+        echo "${base_path}"
+        return 0
+    fi
+    
+    # 优先级 2：检查 snapshots 目录（HuggingFace 缓存格式）
+    local snapshot_dir=$(find "${base_path}/snapshots" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1)
+    if [ -n "$snapshot_dir" ] && [ -f "${snapshot_dir}/${flag_file}" ] || [ -L "${snapshot_dir}/${flag_file}" ]; then
+        echo "$snapshot_dir"
+        return 0
+    fi
+    
+    # 优先级 3：检查 blobs 目录
+    local blob_file=$(find "${base_path}/blobs" -name "*${flag_file}*" 2>/dev/null | head -n 1)
+    if [ -n "$blob_file" ]; then
+        dirname "$blob_file"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Check each directory and handle missing files
 if mount | grep -q "$MODEL_BASE_PATH"; then
     echo "Model base path $MODEL_BASE_PATH is mounted."
@@ -160,16 +196,17 @@ if mount | grep -q "$MODEL_BASE_PATH"; then
         done
     fi
 else
-    TS_FLAG_FILE="${MODEL_BASE_PATH}/tdtsfm/${MODEL_SUBDIRS['tdtsfm']}"
-    TIMEMOE_FLAG_FILE="${MODEL_BASE_PATH}/timemoe/${MODEL_SUBDIRS['timemoe']}"
-    if [ -f ${TS_FLAG_FILE} ];then
-        echo "Starting tdtsfm server..."
-        execute_startup "${MODEL_BASE_PATH}/tdtsfm" "tdtsfm" "${MODEL_NAMES['tdtsfm']}"
-    fi
-    if [ -f ${TIMEMOE_FLAG_FILE} ];then
-        echo "Starting timemoe server..."
-        execute_startup "${MODEL_BASE_PATH}/timemoe" "timemoe" "${MODEL_NAMES['timemoe']}"
-    fi
+    echo "Non-mounted mode: starting built-in models..."
+    for model in tdtsfm timemoe moment; do
+        model_dir=$(find_model_file "$model")
+        
+        if [ $? -eq 0 ] && [ -n "$model_dir" ]; then
+            echo "✓ Found $model model at: $model_dir"
+            execute_startup "$model_dir" "$model" "${MODEL_NAMES[$model]}"
+        else
+            echo "✗ Model $model not found, skipping..."
+        fi
+    done
 fi
 
 CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
