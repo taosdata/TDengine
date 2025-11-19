@@ -92,7 +92,6 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
           if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
             tDeleteSVCreateTbBatchReq(&req);
-            tqTrace("1");
             goto end;
           }
         }
@@ -101,33 +100,26 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       int     tlen = 0;
       int32_t ret = 0;
       tEncodeSize(tEncodeSVCreateTbBatchReq, &reqNew, tlen, ret);
-        tqTrace("2, tlen:%d ret:%d", tlen, ret);
 
       void* buf = taosMemoryMalloc(tlen);
       if (NULL == buf) {
         taosArrayDestroy(reqNew.pArray);
         tDeleteSVCreateTbBatchReq(&req);
-        tqTrace("2");
-
         goto end;
       }
-        tqTrace("2, tlen:%d", tlen);
 
       SEncoder coderNew = {0};
-      tEncoderInit(&coderNew, buf, tlen - sizeof(SMsgHead));
+      tEncoderInit(&coderNew, buf, tlen);
       ret = tEncodeSVCreateTbBatchReq(&coderNew, &reqNew);
       tEncoderClear(&coderNew);
       if (ret < 0) {
         taosMemoryFree(buf);
         taosArrayDestroy(reqNew.pArray);
         tDeleteSVCreateTbBatchReq(&req);
-        tqTrace("3, ret:%d", ret);
-        ASSERT(0);
         goto end;
       }
       (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
       pHead->bodyLen = tlen + sizeof(SMsgHead);
-      tqTrace("pHead->bodyLen:%d %p, type:%s, size:%d %d", pHead->bodyLen, pHead->body, TMSG_INFO(pHead->msgType), (int32_t)taosArrayGetSize(reqNew.pArray), reqNew.nReqs);
 
       taosMemoryFree(buf);
       taosArrayDestroy(reqNew.pArray);
