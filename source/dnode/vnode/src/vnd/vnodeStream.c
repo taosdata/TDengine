@@ -2303,6 +2303,7 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
     STREAM_CHECK_RET_GOTO(processTsOutPutAllGroups(sStreamReaderInfo, tsRsp, pResBlock, order));
   }                             
 end:
+  blockDataDestroy(pResBlock);
   taosMemoryFreeClear(pList);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   return code;
@@ -2329,6 +2330,7 @@ static int32_t processTsOnce(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTr
 
   STREAM_CHECK_RET_GOTO(processTsOutPutOneGroup(sStreamReaderInfo, tsRsp, pResBlock, order));
 end:
+  blockDataDestroy(pResBlock);
   taosMemoryFreeClear(pList);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   return code;
@@ -2432,7 +2434,7 @@ end:
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   taosArrayDestroy(tsRsp.tsInfo);
-  taosMemoryFree(&pTaskInner);
+  taosMemoryFree(pTaskInner);
   return code;
 }
 
