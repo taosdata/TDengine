@@ -535,12 +535,69 @@ static void clearNotifyContent(SStreamRunnerTaskExecution* pExec, int32_t startW
   }
 }
 
+static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+                                               const char* tbname) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t              winSize = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size;
+  int32_t              nParam = 0;
+  SSTriggerCalcParam** params = taosMemCalloc(winSize, sizeof(SSTriggerCalcParam*));
+  if (!params) {
+    ST_TASK_ELOG("failed to init stream pesudo func vals array, size:%d", winSize);
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  for (int i = 0; i < winSize; ++i) {
+    SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
+    if (pTriggerCalcParams == NULL) {
+      continue;
+    }
+    if (pTriggerCalcParams->resultNotifyContent == NULL) {
+      ST_TASK_DLOG("%s no notify content for index:%d", __FUNCTION__, i);
+      continue;
+    }
+    params[nParam] = pTriggerCalcParams;
+    ++nParam;
+  }
+
+  code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
+                                 pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
+                                 pTask->addOptions, *params, nParam);
+  TAOS_CHECK_EXIT(code);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("failed to send notification for task:%" PRIx64 ", code:%s lino:%d", pTask->task.streamId, tstrerror(code), lino);
+  } else {
+    ST_TASK_DLOG("send notification for task:%" PRIx64 ", win count:%d", pTask->task.streamId, nParam);
+  }
+  if ((pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+    code = TSDB_CODE_SUCCESS;  // if notify error handle is 0, then ignore the error
+  }
+  clearNotifyContent(pExec, 0, winSize);
+  taosMemoryFreeClear(params);
+  return code;
+}
+
 static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, int32_t startWinIdx,
                                     int32_t endWinIdx, const char* tbname) {
   int32_t code = 0;
   int32_t lino = 0;
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (tbname[0] == '\0') {
+    code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
+    if(code != 0) {
+      ST_TASK_ELOG("%s failed to calc output tbname for notification: %s", __FUNCTION__, tstrerror(code));
+      return code;
+    }
+    ST_TASK_ILOG("%s table name is blank, so calc output table name, get %s.", __FUNCTION__, pExec->tbname);
   }
 
   int32_t              nParam = endWinIdx - startWinIdx;
@@ -589,6 +646,14 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   int32_t code = 0;
   int32_t lino = 0;
 
+  if (tbname[0] == '\0') {
+    code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
+    if(code != 0) {
+      ST_TASK_ELOG("%s failed to calc output tbname for notification: %s", __FUNCTION__, tstrerror(code));
+      return code;
+    }
+    ST_TASK_ILOG("%s table name is blank, so calc output table name, get %s.", __FUNCTION__, pExec->tbname);
+  }
   bool  empty = (!pBlock || pBlock->info.rows <= 0);
   char* pContent = NULL;
   code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, 0,
@@ -951,6 +1016,9 @@ end:
 
   if (TSDB_CODE_SUCCESS == code && pExec->pOutBlock && pExec->pOutBlock->info.rows > 0) {
     code = stRunnerOutputBlock(pTask, pExec, pExec->pOutBlock, &createTable);
+    TAOS_CHECK_GOTO(code, &lino, end);
+    code = streamDoNotificationCurrentWins(pTask, pExec, pExec->tbname);
+    TAOS_CHECK_GOTO(code, &lino, end);
     blockDataCleanup(pExec->pOutBlock);
   }
   
