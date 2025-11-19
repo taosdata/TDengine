@@ -25,6 +25,7 @@
 #include "thash.h"
 #include "tlist.h"
 #include "tname.h"
+#include "tpriv.h"
 #include "trow.h"
 #include "tuuid.h"
 

@@ -18,10 +18,6 @@
 
 #include "mndInt.h"
 
-#ifdef TD_ENTERPRISE
-#include "privilege.h"
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,10 +38,6 @@ int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhit
 int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp);
 int32_t mndEnableIpWhiteList(SMnode *pMnode);
 int32_t mndFetchIpWhiteList(SIpWhiteList *ipList, char **buf);
-
-#ifdef TD_ENTERPRISE
-int32_t mndAlterRoleInfo(SRoleObj *pOld, SRoleObj *pNew, SAlterRoleReq *pAlterReq);
-#endif
 
 #ifdef __cplusplus
 }

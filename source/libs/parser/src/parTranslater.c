@@ -15913,7 +15913,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         taosMemoryFree(pTableMeta);
       }
 #endif
-      snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+      snprintf(req.objName, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
       snprintf(req.tblName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
       if (req.targetType = TSDB_OBJ_TABLE) {
         code = translateGrantTagCond(pCxt, pStmt, &req);

@@ -700,6 +700,10 @@ static bool mndIsRoleChanged(SRoleObj *pOld, SAlterRoleReq *pAlterReq) {
   return true;
 }
 
+#ifdef TD_ENTERPRISE
+extern int32_t mndAlterRoleInfo(SRoleObj *pOld, SRoleObj *pNew, SAlterRoleReq *pAlterReq);
+#endif
+
 static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   int32_t       code = 0, lino = 0;
   SMnode       *pMnode = pReq->info.node;
