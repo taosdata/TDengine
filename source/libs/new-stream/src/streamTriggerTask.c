@@ -3323,6 +3323,10 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       int32_t                 iter1 = 0;
       SSTriggerOrigTableInfo *pInfo = tSimpleHashIterate(pTask->pOrigTableInfos, NULL, &iter1);
       while (pInfo != NULL) {
+        if (pInfo->vgId != pProgress->pTaskAddr->nodeId) {
+          pInfo = tSimpleHashIterate(pTask->pOrigTableInfos, pInfo, &iter1);
+          continue;
+        }
         if (tSimpleHashGetSize(pInfo->pTrigColMap) > 0) {
           SSHashObj *pMatch = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
           QUERY_CHECK_NULL(pMatch, code, lino, _end, terrno);
