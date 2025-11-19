@@ -62,7 +62,7 @@ typedef struct SSyncSnapshotSender {
   SSyncCfg       lastConfig;
   int64_t        sendingMS;
   SyncTerm       term;
-  int64_t        startTime;
+  int64_t        senderStartTime;
   int64_t        lastSendTime;
   bool           finish;
 
@@ -87,7 +87,7 @@ typedef struct SSyncSnapshotReceiver {
   int32_t  ack;
   SyncTerm term;
   SRaftId  fromId;
-  int64_t  startTime;
+  int64_t  receiverStartTime;
 
   // update when begin
   void          *pWriter;

@@ -198,7 +198,7 @@ typedef struct SyncSnapshotSend {
   SyncTerm  lastTerm;         // snapshot.lastTerm
   SyncIndex lastConfigIndex;  // snapshot.lastConfigIndex
   SSyncCfg  lastConfig;
-  int64_t   startTime;
+  int64_t   snapStartTime;
   int32_t   seq;
   int16_t   payloadType;
   uint32_t  dataLen;
