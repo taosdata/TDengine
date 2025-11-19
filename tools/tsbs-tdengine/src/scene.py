@@ -27,7 +27,6 @@ class Scene:
         self.data_path   = data_path
 
         self.tables = self.find_tables_from_sql(sql)
-        self.generate_filename(self.tables, config_path, data_path)
         
     # find table from sql
     def find_tables_from_sql(self, sql):
@@ -58,19 +57,6 @@ class Scene:
 
         print(f"Found tables : {tables} scene:{self.name}")
         return tables 
-    
-    # Generate file names for CSV, SQL, and YAML files based on table names
-    def generate_filename(self, tables, config_path, data_path):
-        self.csv_files = []
-        self.sql_files = []
-        self.yaml_files = []
-        for table in tables:
-            filename = os.path.join(data_path, f"{table}.csv")
-            self.csv_files.append(filename)
-            filename = os.path.join(config_path, f"{table}.sql")
-            self.sql_files.append(filename)
-            filename = os.path.join(config_path, f"{table}.yaml")
-            self.yaml_files.append(filename)
 
     def get_csv_file(self, table):
             return os.path.join(self.data_path, f"{table}.csv")
