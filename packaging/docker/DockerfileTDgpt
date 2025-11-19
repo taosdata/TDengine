@@ -14,7 +14,7 @@ RUN cd ${dirName}/ && \
     /bin/bash install.sh -e no && \
     cd .. && \
     rm -rf ${dirName}
-EXPOSE 6035 8387 6036 6037 6038 6039 6061
+EXPOSE 6035 8387 6036 6037 6038 6039 6061 6062
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 
