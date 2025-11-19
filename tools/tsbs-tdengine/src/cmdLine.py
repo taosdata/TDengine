@@ -259,7 +259,7 @@ class CmdLine:
         else:
             # specific scene
             for case in self.scenes['testCases']:
-                if case.get('scenario', '') == scenario:
+                if case.get('scenarioId', '') == scenario:
                     scene_obj = self.case_to_scene_obj(case)
                     return [scene_obj]
             print(f"Error: Scenario '{scenario}' not found in configuration.")

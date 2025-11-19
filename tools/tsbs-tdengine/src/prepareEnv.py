@@ -25,7 +25,6 @@ from outMetrics import metrics
 class PrepareEnv(BaseStep):
     def __init__(self, scene):
         self.scene = scene
-        self.scene.db_name = None
         
     def exec_sql_file(self, conn, sql_file):
         with open(sql_file, 'r') as file:
@@ -36,13 +35,6 @@ class PrepareEnv(BaseStep):
                     if command:
                         conn.execute(command)
                         print(f"exe success: {command}")
-                        if command.lower().startswith("create database"):
-                            # extract db name
-                            parts = command.split()
-                            if len(parts) >= 3:
-                                db_name = parts[2].strip().rstrip(';')
-                                self.scene.db_name = db_name
-                                print(f"Set scene.db_name to: {self.scene.db_name}")
             except Exception as e:
                 print(f"Error executing SQL file {sql_file}: {e}")
                 metrics.set_status(self.scene.name, "Failed")
@@ -80,7 +72,8 @@ class PrepareEnv(BaseStep):
         print("Prepare running...")
         conn = taos.connect()        
         # execute sql
-        for sql_file in self.scene.sql_files:
+        for table in self.scene.tables:
+            sql_file = self.scene.get_sql_file(table)
             print(f"prepare environment using SQL file: {sql_file}")
             self.exec_sql_file(conn, sql_file)
         
