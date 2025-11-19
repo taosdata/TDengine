@@ -263,3 +263,98 @@ static void Transform(uint32_t *buf, uint32_t *in) {
   buf[2] += c;
   buf[3] += d;
 }
+
+#include "taes.h"
+
+static void pkcs7_padding_pad_buffer(uint8_t *buffer, size_t data_length, uint8_t modulus) {
+  uint8_t pad_byte = modulus - (data_length % modulus);
+  int     i = 0;
+
+  while (i < pad_byte) {
+    buffer[data_length + i] = pad_byte;
+    i++;
+  }
+}
+
+uint32_t taes_encrypt_len(int32_t len) {
+  uint32_t paddedlen = len + AES_BLOCKLEN - (len % AES_BLOCKLEN);
+
+  return paddedlen;
+}
+
+static size_t pkcs7_padding_data_length(uint8_t *buffer, size_t buffer_size, uint8_t modulus) {
+  /* test for valid buffer size */
+  if (buffer_size % modulus != 0 || buffer_size < modulus) {
+    return 0;
+  }
+  uint8_t padding_value;
+  padding_value = buffer[buffer_size - 1];
+  /* test for valid padding value */
+  if (padding_value < 1 || padding_value > modulus) {
+    return buffer_size;
+  }
+  /* buffer must be at least padding_value + 1 in size */
+  if (buffer_size < padding_value + 1) {
+    return 0;
+  }
+  uint8_t count = 1;
+  buffer_size--;
+  for (; count < padding_value; count++) {
+    buffer_size--;
+    if (buffer[buffer_size] != padding_value) {
+      return 0;
+    }
+  }
+  return buffer_size;
+}
+
+int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
+  uint32_t       encryptlen = taes_encrypt_len(len);
+  int32_t        blocks = encryptlen % AES_BLOCKLEN;
+  struct AES_ctx ctx;
+
+  pkcs7_padding_pad_buffer(key, keylen, AES_BLOCKLEN);
+  pkcs7_padding_pad_buffer(pBuf, len, AES_BLOCKLEN);
+
+  if (iv) {
+    AES_init_ctx_iv(&ctx, key, iv);
+
+    // for (int32_t block = 0; block < blocks; ++blocks) {
+    AES_CBC_encrypt_buffer(&ctx, pBuf, encryptlen);
+    //}
+  } else {
+    AES_init_ctx(&ctx, key);
+
+    for (int32_t block = 0; block < blocks; ++blocks) {
+      AES_ECB_encrypt(&ctx, pBuf + block * AES_BLOCKLEN);
+    }
+  }
+
+  return encryptlen;
+}
+
+int32_t taosAesDecrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
+  int32_t        blocks = len % AES_BLOCKLEN;
+  size_t         datalen = 0;
+  struct AES_ctx ctx;
+
+  pkcs7_padding_pad_buffer(key, keylen, AES_BLOCKLEN);
+
+  if (iv) {
+    AES_init_ctx_iv(&ctx, key, iv);
+
+    // for (int32_t block = 0; block < blocks; ++blocks) {
+    AES_CBC_decrypt_buffer(&ctx, pBuf, len);
+    //}
+  } else {
+    AES_init_ctx(&ctx, key);
+
+    for (int32_t block = 0; block < blocks; ++blocks) {
+      AES_ECB_decrypt(&ctx, pBuf + block * AES_BLOCKLEN);
+    }
+  }
+
+  datalen = pkcs7_padding_data_length(pBuf, len, AES_BLOCKLEN);
+
+  return datalen;
+}

@@ -100,6 +100,8 @@ int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t maskFullFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t maskNoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
