@@ -341,12 +341,9 @@ typedef struct SStreamTriggerTask {
   bool    stbPartByTbname;
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
-<<<<<<< HEAD
   bool    multiGroupBatch;
-=======
   int8_t  precision;
   int64_t historyStep;
->>>>>>> origin/main
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // trigger options: old version, to be removed

@@ -4355,9 +4355,9 @@ static int32_t tDeserializeSSTriggerGroupReadInfo(SDecoder* pDecoder, SSTriggerG
 
   int32_t nTables = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nTables));
-  pInfo->pTables = taosArrayInit_s(sizeof(int64_t), nTables);
-  QUERY_CHECK_NULL(pInfo->pTables, code, lino, _exit, terrno);
   if (nTables > 0) {
+    pInfo->pTables = taosArrayInit_s(sizeof(int64_t), nTables);
+    QUERY_CHECK_NULL(pInfo->pTables, code, lino, _exit, terrno);
     TAOS_MEMCPY(pInfo->pTables->pData, pDecoder->data + pDecoder->pos, nTables * sizeof(int64_t));
   }
   pDecoder->pos += nTables * sizeof(int64_t);
@@ -4578,9 +4578,27 @@ int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo*
       if (needStreamGrpInfo) {
         int32_t nGroups = taosArrayGetSize(pInfo->curGrpRead);
         TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nGroups));
+        int8_t withGrpCalcInfo = 1;
         for (int32_t i = 0; i < nGroups; ++i) {
           SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfo->curGrpRead, i);
           TAOS_CHECK_EXIT(tSerializeSSTriggerGroupReadInfo(pEncoder, pReadInfo));
+          if (0 == i) {
+            withGrpCalcInfo = (taosArrayGetSize(pReadInfo->pTables) <= 0);
+          }
+        }
+        
+        TAOS_CHECK_EXIT(tEncodeI8(pEncoder, withGrpCalcInfo));
+        if (withGrpCalcInfo) {
+          int32_t nGroups = tSimpleHashGetSize(pInfo->pGroupCalcInfos);
+          TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nGroups));
+          int32_t                 iter1 = 0;
+          SSTriggerGroupCalcInfo* pCalcInfo = tSimpleHashIterate(pInfo->pGroupCalcInfos, NULL, &iter1);
+          while (pCalcInfo != NULL) {
+            int64_t* gid = tSimpleHashGetKey(pCalcInfo, NULL);
+            TAOS_CHECK_EXIT(tEncodeI64(pEncoder, *gid));
+            TAOS_CHECK_EXIT(tSerializeSSTriggerGroupCalcInfo(pEncoder, pCalcInfo));
+            pCalcInfo = tSimpleHashIterate(pInfo->pGroupCalcInfos, pCalcInfo, &iter1);
+          }
         }
       } else {
         int32_t nGroups = tSimpleHashGetSize(pInfo->pGroupCalcInfos);
@@ -4653,6 +4671,25 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
         for (int32_t j = 0; j < nGroups; ++j) {
           SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfo->curGrpRead, j);
           TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupReadInfo(pDecoder, pReadInfo));
+        }
+        int8_t withGrpCalcInfo = 0;
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &withGrpCalcInfo));
+        if (withGrpCalcInfo) {
+          int32_t nGroups = 0;
+          TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nGroups));
+          pInfo->pGroupCalcInfos = tSimpleHashInit(nGroups, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+          QUERY_CHECK_NULL(pInfo->pGroupCalcInfos, code, lino, _exit, terrno);
+          tSimpleHashSetFreeFp(pInfo->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+
+          for (int32_t i = 0; i < nGroups; i++) {
+            int64_t gid = 0;
+            TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &gid));
+            SSTriggerGroupCalcInfo info = {0};
+            TAOS_CHECK_EXIT(tSimpleHashPut(pInfo->pGroupCalcInfos, &gid, sizeof(int64_t), &info, sizeof(info)));
+            SSTriggerGroupCalcInfo* pCalcInfo = tSimpleHashGet(pInfo->pGroupCalcInfos, &gid, sizeof(int64_t));
+            QUERY_CHECK_NULL(pCalcInfo, code, lino, _exit, TSDB_CODE_INTERNAL_ERROR);
+            TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupCalcInfo(pDecoder, pCalcInfo));
+          }
         }
       } else {
         int32_t nGroups = 0;

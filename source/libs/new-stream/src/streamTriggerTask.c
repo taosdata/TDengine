@@ -3501,13 +3501,10 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
   }
   QUERY_CHECK_NULL(pCalcRunner, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
-<<<<<<< HEAD
   if (sendOnly) {
     goto _send;
   }
 
-=======
->>>>>>> origin/main
   SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
   QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
@@ -3524,15 +3521,12 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
       goto _end;
     } else {
       SArray *pGroupColVals = *(SArray **)px;
-<<<<<<< HEAD
-=======
       if (pGroupColVals == NULL) {
         ST_TASK_WLOG("skip calc since group %" PRId64 " may have been dropped", pGroup->gid);
         code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
->>>>>>> origin/main
       for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
         SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
         SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
@@ -3952,24 +3946,6 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
   }
 
   if (needTagValue && taosArrayGetSize(pReq->groupColVals) == 0) {
-<<<<<<< HEAD
-    void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(int64_t));
-    if (px == NULL) {
-      code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
-      QUERY_CHECK_CODE(code, lino, _end);
-      goto _end;
-    } else {
-      SArray *pGroupColVals = *(SArray **)px;
-      for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
-        SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
-        SStreamGroupValue *pDst = taosArrayPush(pReq->groupColVals, pValue);
-        QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
-        if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
-          pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
-          QUERY_CHECK_NULL(pDst->data.pData, code, lino, _end, terrno);
-          TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
-        }
-=======
     void *px = tSimpleHashGet(pContext->pGroupColVals, &pReq->gid, sizeof(int64_t));
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     SArray *pGroupColVals = *(SArray **)px;
@@ -3982,7 +3958,6 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
         pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
         QUERY_CHECK_NULL(pDst->data.pData, code, lino, _end, terrno);
         TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
->>>>>>> origin/main
       }
     }
   }
@@ -4375,7 +4350,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     } else {
       pContext->pMinGroup = NULL;
     }
-<<<<<<< HEAD
     pContext->pMinGroup = NULL;
     if (pTask->multiGroupBatch && pContext->pCalcReq != NULL) {
       if (tSimpleHashGetSize(pContext->pCalcReq->pGroupCalcInfos) > 0) {
@@ -4386,8 +4360,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
-=======
->>>>>>> origin/main
   }
 
   int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
@@ -5216,16 +5188,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       switch (pContext->status) {
         case STRIGGER_CONTEXT_SEND_CALC_REQ: {
           SStreamGroupInfo groupInfo = {0};
-<<<<<<< HEAD
-          code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
-          QUERY_CHECK_CODE(code, lino, _end);
-          code =
-              tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
-          if (code != TSDB_CODE_SUCCESS) {
-            taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-=======
           if (pRsp->contLen > 0) {
             code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
             QUERY_CHECK_CODE(code, lino, _end);
@@ -5236,7 +5198,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
             QUERY_CHECK_CODE(code, lino, _end);
           }
->>>>>>> origin/main
           if (pContext->pCalcReq != NULL && pContext->pCalcReq->gid == pRequest->gid) {
             code = stRealtimeContextCheck(pContext);
             QUERY_CHECK_CODE(code, lino, _end);
@@ -5247,10 +5208,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             while ((pNode = tdListNext(&iter)) != NULL) {
               SSTriggerCalcRequest *pCalcReq = *(SSTriggerCalcRequest **)pNode->data;
               if (pCalcReq->gid == pRequest->gid) {
-<<<<<<< HEAD
-                QUERY_CHECK_CODE(code, lino, _end);
-=======
->>>>>>> origin/main
                 code = stRealtimeContextRetryCalcRequest(pContext, pNode, pCalcReq);
                 QUERY_CHECK_CODE(code, lino, _end);
                 break;
