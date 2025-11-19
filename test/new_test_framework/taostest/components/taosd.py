@@ -333,103 +333,124 @@ class TaosD:
         """
         stop taosd, clean data and log.
         TODO: 当前实现会把一个机器上的所有taosd都杀掉,这是不对的,应该只销毁配置文件中指定的那个。
+        优化：按 fqdn 去重，避免重复 kill
         """
-
         nodeDictList = [nodeDict["spec"]["dnodes"]]
         if "reserve_dnodes" in nodeDict["spec"]:
-            nodeDictList = [nodeDict["spec"]["dnodes"], nodeDict["spec"]["reserve_dnodes"]]
-        nodeDictList = [nodeDict["spec"]["dnodes"], nodeDict["spec"]["reserve_dnodes"]] if "reserve_dnodes" in nodeDict["spec"] else [nodeDict["spec"]["dnodes"]]
+            nodeDictList.append(nodeDict["spec"]["reserve_dnodes"])
+        
+        # ✅ 步骤 1：按 fqdn 分组收集配置
+        fqdn_info = {}  # {fqdn: {"config_dirs": [...], "first_dnode": dnode}}
+        
         for dnodeList in nodeDictList:
-            for i in dnodeList:
-                fqdn, _ = i["endpoint"].split(":")
-                if platform.system().lower() == "windows":
-                    if "asanDir" in i:
-                        self.logger.info("Windows not support asanDir yet")
-                    else:
-                        self.logger.debug("destroy taosd on windows")
-                        pids_to_kill = []
-                        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                            try:
-                                pname = (proc.info.get('name') or '').lower()
-                                pcmd = proc.info.get('cmdline') or []
-                                # 匹配 taosd 或 tmq_sim
-                                if (('mintty' in pname and any('taosd' in str(a).lower() for a in pcmd))
-                                    or 'taosd' in pname
-                                    or 'tmq_sim' in pname
-                                    or any('tmq_sim' in str(a).lower() for a in pcmd)):
-                                    self.logger.info(f"Found process {pname} (PID: {proc.info['pid']})")
-                                    pids_to_kill.append(proc.info['pid'])
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                continue
-                        
-                        # 批量杀进程（减少远程调用）
-                        if pids_to_kill:
-                            # kernel32 = ctypes.windll.kernel32
-                            # kernel32.GenerateConsoleCtrlEvent(0, pid)
-                            #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                            for pid in pids_to_kill:
-                                try:
-                                    proc = psutil.Process(pid)
-                                    proc_name = proc.name()
-                                    self.logger.info(f"Killing process {proc_name} (PID: {pid})")
-                                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                    self.logger.warning(f"Cannot access process info for PID: {pid}")
-                            
-                            kill_cmds = [f"taskkill /PID {pid} /T /F" for pid in pids_to_kill]
-                            self._remote.cmd_windows(fqdn, kill_cmds)
-                            self.logger.info(f"Killed {len(pids_to_kill)} processes on {fqdn}")
-                else:
-                    if "asanDir" in i:
-                        if fqdn == "localhost":
-                            killCmd = ["ps -efww | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
-                            env = os.environ.copy()
-                            env.pop('LD_PRELOAD', None)
-                            subprocess.run(killCmd, shell=True, text=True, env=env)
-                        else:
-                            killCmd = ["ps -efww | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
-                            self._remote.cmd(fqdn, killCmd)
-                    else:
-                        check_cmd = f"ps -efww | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | wc -l"
-                        result = self._remote.cmd(fqdn, [check_cmd])
-                        if int(result[0].strip()) > 0:
-                            killCmd = [
-                                f"ps -efww | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"]
-                            self._remote.cmd(fqdn, killCmd)
+            for dnode in dnodeList:
+                fqdn = dnode["endpoint"].split(":")[0]
+                
+                if fqdn not in fqdn_info:
+                    fqdn_info[fqdn] = {
+                        "config_dirs": [],
+                        "first_dnode": dnode
+                    }
+                
+                config_dir = dnode.get("config_dir", "")
+                if config_dir and config_dir not in fqdn_info[fqdn]["config_dirs"]:
+                    fqdn_info[fqdn]["config_dirs"].append(config_dir)
+        
+        # ✅ 步骤 2：对每个唯一 fqdn 执行操作
+        for fqdn, info in fqdn_info.items():
+            config_dirs = info["config_dirs"]
+            first_dnode = info["first_dnode"]
+            
+            self.logger.info(f"Destroying taosd on {fqdn} (configs: {config_dirs})")
+            
+            if platform.system().lower() == "windows":
+                self._destroy_windows(fqdn, first_dnode)
+            else:
+                self._destroy_linux(fqdn, first_dnode, config_dirs, nodeDict)
+        
+        self.logger.info("All taosd processes destroyed")
 
-                    # if "system" in i.keys() and i["system"].lower() == "darwin":
-                    #     stop_service_cmd = "launchctl unload /Library/LaunchDaemons/com.taosdata.taosd.plist"
-                    # else:
-                    #     stop_service_cmd = "systemctl is-active taosd && systemctl stop taosd || true"
-                    # self.logger.debug(f"Executing stop command on {fqdn}: {stop_service_cmd}")
-                    # self._remote.cmd(fqdn, [stop_service_cmd])
+    def _destroy_windows(self, fqdn, dnode):
+        """Windows 平台的销毁逻辑"""
+        if "asanDir" in dnode:
+            self.logger.info("Windows not support asanDir yet")
+            return
+        
+        self.logger.debug(f"Destroying taosd on Windows: {fqdn}")
+        processes_to_kill = []
+        
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                pname = (proc.info.get('name') or '').lower()
+                pcmd = proc.info.get('cmdline') or []
+                
+                if (('mintty' in pname and any('taosd' in str(a).lower() for a in pcmd))
+                    or 'taosd' in pname
+                    or 'tmq_sim' in pname
+                    or any('tmq_sim' in str(a).lower() for a in pcmd)):
+                    pid = proc.info['pid']
+                    processes_to_kill.append((pid, pname))
+                    self.logger.info(f"Found process {pname} (PID: {pid})")
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        if processes_to_kill:
+            kill_cmds = [f"taskkill /PID {pid} /T /F" for pid, _ in processes_to_kill]
+            self._remote.cmd_windows(fqdn, kill_cmds)
+            self.logger.info(f"Killed {len(processes_to_kill)} processes on {fqdn}")
 
-                    # get_and_kill_cmd = (
-                    #     "ps -efww | grep '[t]aosd' | grep -v grep | awk '{print $2}' | "
-                    #     "while read pid; do "
-                    #     "if kill -0 $pid 2>/dev/null; then "
-                    #     "echo Killing taosd process with PID: $pid; "
-                    #     "kill -9 $pid; "
-                    #     "fi; "
-                    #     "done"
-                    # )
-                    # self.logger.debug(f"Executing get and kill command on {fqdn}: {get_and_kill_cmd}")
-                    # output=self._remote.cmd(fqdn, [get_and_kill_cmd])
-                    # self.logger.info(f"Kill log on {fqdn}:{output}")
-                    
-                    if self.taosd_valgrind and not self.taosc_valgrind:
-                        killCmd = [
-                            "ps -ef|grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
-                    if self.taosc_valgrind:
-                        killCmd = [
-                            "ps -ef|grep -wi valgrind.bin | grep -v grep | grep -v taostest | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
-                        self._remote.cmd(fqdn, killCmd)
-                    if self.taosd_valgrind:
-                        self._remote.cmd(fqdn, [f'mkdir -p /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null', f'cp -rf {i["config"]["logDir"]}/* /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null'])
-                    #cmdList = []
-                    #for dir in (i["config_dir"], i["config"]["dataDir"], i["config"]["logDir"]):
-                    #    cmdList.append("rm -rf {}".format(dir))
-                    #self._remote.cmd(fqdn, cmdList)
+    def _destroy_linux(self, fqdn, dnode, config_dirs, nodeDict):
+        """Linux/macOS 平台的销毁逻辑"""
+        if "asanDir" in dnode:
+            self._kill_asan(fqdn, nodeDict["name"])
+        else:
+            self._kill_normal(fqdn, config_dirs, nodeDict["name"])
+        
+        # valgrind 清理
+        if self.taosd_valgrind and not self.taosc_valgrind:
+            self._remote.cmd(fqdn, [
+                "ps -ef | grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
+            ])
+        
+        if self.taosc_valgrind:
+            self._remote.cmd(fqdn, [
+                "ps -ef | grep -wi valgrind.bin | grep -v grep | grep -v taostest | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
+            ])
+        
+        # 保存 valgrind 日志
+        if self.taosd_valgrind and "config" in dnode and "logDir" in dnode["config"]:
+            log_dir = dnode["config"]["logDir"]
+            self._remote.cmd(fqdn, [
+                f'mkdir -p /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null',
+                f'cp -rf {log_dir}/* /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null'
+            ])
 
+    def _kill_asan(self, fqdn, node_name):
+        """ASAN 模式的 kill"""
+        if fqdn == "localhost":
+            killCmd = [f"ps -efww | grep -w {node_name} | grep -v grep | awk '{{print $2}}' | xargs kill -9"]
+            env = os.environ.copy()
+            env.pop('LD_PRELOAD', None)
+            subprocess.run(killCmd, shell=True, text=True, env=env)
+        else:
+            killCmd = [f"ps -efww | grep -w {node_name} | grep -v grep | awk '{{print $2}}' | xargs kill -9"]
+            self._remote.cmd(fqdn, killCmd)
+
+    def _kill_normal(self, fqdn, config_dirs, node_name):
+        """普通模式的 kill"""
+        kill_cmds = []
+        
+        for config_dir in config_dirs:
+            check_cmd = f"ps -efww | grep -wi {node_name} | grep {config_dir} | grep -v grep | wc -l"
+            result = self._remote.cmd(fqdn, [check_cmd])
+            
+            if result and int(result[0].strip()) > 0:
+                kill_cmd = f"ps -efww | grep -wi {node_name} | grep {config_dir} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"
+                kill_cmds.append(kill_cmd)
+    
+    if kill_cmds:
+        self._remote.cmd(fqdn, kill_cmds)
+        self.logger.info(f"Killed processes on {fqdn} for configs: {config_dirs}")
 
     def kill_and_start(self, nodeDict, sleep_seconds=1):
         """
