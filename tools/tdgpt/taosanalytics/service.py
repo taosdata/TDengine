@@ -127,7 +127,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
             raise ValueError("invalid value of conf, should between 0 and 1.0")
 
         self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
-        self.precision = params['precision']
+        self.precision = params.get('precision', 'ms')
 
     def get_params(self):
         return {
