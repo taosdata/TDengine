@@ -448,9 +448,9 @@ class TaosD:
                 kill_cmd = f"ps -efww | grep -wi {node_name} | grep {config_dir} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"
                 kill_cmds.append(kill_cmd)
     
-    if kill_cmds:
-        self._remote.cmd(fqdn, kill_cmds)
-        self.logger.info(f"Killed processes on {fqdn} for configs: {config_dirs}")
+        if kill_cmds:
+            self._remote.cmd(fqdn, kill_cmds)
+            self.logger.info(f"Killed processes on {fqdn} for configs: {config_dirs}")
 
     def kill_and_start(self, nodeDict, sleep_seconds=1):
         """
