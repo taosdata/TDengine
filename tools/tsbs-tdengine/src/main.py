@@ -36,14 +36,14 @@ from cmdLine import cmd
 
 
 def doScene(scene):
-    print("Running scene: %s" % scene.name)
+    print("\n\n************ Running scene: %s ************\n" % scene.name)
     
     # scene init
     metrics.scenarioId[scene.name]     = scene.name
     metrics.classification[scene.name] = scene.classification
     metrics.data_rows[scene.name]      = 0
     metrics.output_rows[scene.name]    = 0
-    metrics.status[scene.name]         = "INIT"
+    metrics.set_status(scene.name, "Init")
 
     # prepare env
     env = prepareEnv.PrepareEnv(scene)

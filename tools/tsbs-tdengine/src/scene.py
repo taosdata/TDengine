@@ -22,13 +22,12 @@ class Scene:
         self.name = name
         self.sql  = sql
         self.classification = classification
-        self.db_name    = None
-        self.csv_files  = []
-        self.sql_files  = []
-        self.yaml_files = []
+        self.db_name     = {}
+        self.config_path = config_path
+        self.data_path   = data_path
 
-        tables = self.find_tables_from_sql(sql)
-        self.generate_filename(tables, config_path, data_path)
+        self.tables = self.find_tables_from_sql(sql)
+        self.generate_filename(self.tables, config_path, data_path)
         
     # find table from sql
     def find_tables_from_sql(self, sql):
@@ -41,12 +40,17 @@ class Scene:
                 table = tokens[i + 1]
                 # remove any trailing semicolon or comma
                 table = table.rstrip(';,')
-                table = table.split(".")[-1]
+                names = table.split(".")
+                db    = names[0]
+                table = names[-1]
                 # skip
                 if table[0] == "(" or table[0] == "'" or table[0] == '"' or len(table) < 2:
                     continue
                 if table[0] == "%":  # skip special table like %%tbname
                     continue
+                
+                # put paired db and table
+                self.db_name[table] = db
                 
                 # append
                 if table not in tables:
@@ -67,4 +71,12 @@ class Scene:
             self.sql_files.append(filename)
             filename = os.path.join(config_path, f"{table}.yaml")
             self.yaml_files.append(filename)
-    
+
+    def get_csv_file(self, table):
+            return os.path.join(self.data_path, f"{table}.csv")
+
+    def get_sql_file(self, table):
+            return os.path.join(self.config_path, f"{table}.sql")
+
+    def get_yaml_file(self, table):
+            return os.path.join(self.config_path, f"{table}.yaml")

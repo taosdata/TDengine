@@ -48,7 +48,7 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_f1
-      expectRows: 8888
+      expectRows: 15
 
     - scenarioId: "F2"
       querySql: select count(*) from db1.readings
@@ -60,7 +60,7 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_f3
-      expectRows: 8888
+      expectRows: 12
 
     - scenarioId: "F4"
       querySql: select count(*) from db1.readings
@@ -80,13 +80,13 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_t1
-      expectRows: 8888
+      expectRows: 30000
 
     - scenarioId: "T2"
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_t2
-      expectRows: 8888
+      expectRows: 25689
 
     - scenarioId: "T3"
       querySql: select count(*) from db1.readings
@@ -110,4 +110,4 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_t8
-      expectRows: 8888               
+      expectRows: 68663

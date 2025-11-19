@@ -27,7 +27,7 @@ from cmdLine import cmd
 class WriteData(BaseStep):
     def __init__(self, scene):
         self.scene = scene
-        self.des_url = f"taos://{cmd.get_user()}:{cmd.get_password()}@{cmd.get_host()}:{cmd.get_port()}/{self.scene.db_name}"
+        self.des_url = f"taos://{cmd.get_user()}:{cmd.get_password()}@{cmd.get_host()}:{cmd.get_port()}/"
 
     def taosx_import_csv(sef, desc, source, parser_file, batch_size):
         command = f"taosx run -t '{desc}' -f '{source}?batch_size={batch_size}' --parser '@{parser_file}'"
@@ -72,10 +72,11 @@ class WriteData(BaseStep):
     def run(self):
         print("WriteData step executed")
         metrics.start_write(self.scene.name)
-        for csv_file in self.scene.csv_files:
+        for table in self.scene.tables:
+            csv_file = self.scene.get_csv_file(table)
             print(f"Writing data from CSV file: {csv_file}")
             output, error, code = self.taosx_import_csv (
-                desc = self.des_url,
+                desc = self.des_url + self.scene.db_name[table],
                 source = f"csv:" + csv_file,
                 parser_file = csv_file .replace(".csv", ".taosx.json"),
                 batch_size = 50000
@@ -84,7 +85,8 @@ class WriteData(BaseStep):
         metrics.end_write(self.scene.name)
         
         # verify expect rows
-        for yaml_file in self.scene.yaml_files:
+        for table in self.scene.tables:
+            yaml_file = self.scene.get_yaml_file(table)
             querySql, dataRows = self.read_data_info(self.scene.name, yaml_file)
             if querySql == None or dataRows == None:
                 print(f"data sql is none, skipping  {yaml_file}")
@@ -97,7 +99,7 @@ class WriteData(BaseStep):
                 print(f"data write completed. real rows: {realRows}, expect rows: {dataRows}")
             else:
                 print(f"data write error. real rows: {realRows}, expect rows: {dataRows}")
-                metrics.status[self.scene.name] = "Failed"
+                metrics.set_status(self.scene.name, "Failed")
             
             
             

@@ -41,9 +41,9 @@ class DoTest(BaseStep):
                 rows = results[0][0]
                 metrics.output_rows[self.scene.name] = rows
                 if rows == expectRows:
-                    print(f"i={i} stream processing completed.")
+                    print(f"{i} real rows: {rows}, expect rows: {expectRows} ==> Passed")
                     conn.close()
-                    metrics.status[self.scene.name] = "Passed"
+                    metrics.set_status(self.scene.name, "Passed")
                     return
                 print(f"{i} real rows: {rows}, expect rows: {expectRows}")
             except Exception as e:
@@ -54,7 +54,7 @@ class DoTest(BaseStep):
         info = f"stream processing not completed in {timeout} seconds"
         print(info)
         conn.close()
-        metrics.status[self.scene.name] = "Timeout"
+        metrics.set_status(self.scene.name, "Timeout")
         #raise Exception(info)
     
     def read_verify_info(self, scenario_id, yaml_file):
@@ -91,7 +91,8 @@ class DoTest(BaseStep):
         print("DoTest step executed")
         metrics.start_test(self.scene.name)
         # read table.yaml files to read verify sql and expect rows
-        for yaml_file in self.scene.yaml_files:
+        for table in self.scene.tables:
+            yaml_file = self.scene.get_yaml_file(table)
             print(f"Processing YAML file: {yaml_file}")
             verifySql, expectRows = self.read_verify_info(self.scene.name, yaml_file)
             if verifySql != None and expectRows != None:
