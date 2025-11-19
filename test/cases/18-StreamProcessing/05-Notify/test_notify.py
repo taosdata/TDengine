@@ -1,11 +1,12 @@
 import os
 import time
 import inspect
+import shutil
 from random import random
 
 from new_test_framework.utils import tdLog, tdSql, tdStream, StreamCheckItem
 from stream_notify_server import start_notify_server_background, stop_notify_server_background
-from notify_check import expect_event, expect_rows
+from notify_check import expect_event, expect_event_count, expect_rows
 
 caller_file = os.path.realpath(__file__)
 caller_dir = os.path.dirname(caller_file)
@@ -15,6 +16,28 @@ class TestStreamNotifyTrigger:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+        
+    def start_notify_server(self):
+       global NOTIFY_RESULT_DIR
+       try:
+           if os.path.isdir(NOTIFY_RESULT_DIR):
+               for name in os.listdir(NOTIFY_RESULT_DIR):
+                   p = os.path.join(NOTIFY_RESULT_DIR, name)
+                   if os.path.isdir(p):
+                       shutil.rmtree(p, ignore_errors=True)
+                   else:
+                       try:
+                           os.remove(p)
+                       except FileNotFoundError:
+                           pass
+           else:
+               os.makedirs(NOTIFY_RESULT_DIR, exist_ok=True)
+       except Exception as e:
+           tdLog.info(f"prepare NOTIFY_RESULT_DIR failed: {NOTIFY_RESULT_DIR}, err={e}")
+           raise
+       # 启动通知服务，按 URL 写入该目录
+       start_notify_server_background(port=12345, log_path=NOTIFY_RESULT_DIR)
+
 
     def test_stream_notify_trigger(self):
         """basic qdb 2
@@ -35,8 +58,7 @@ class TestStreamNotifyTrigger:
 
         """
 
-        global NOTIFY_RESULT_DIR
-        start_notify_server_background(port=12345, log_path=NOTIFY_RESULT_DIR)
+        self.start_notify_server()
 
         tdStream.dropAllStreamsAndDbs()
         tdStream.createSnode()
@@ -57,9 +79,10 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic12())      #
         streams.append(self.Basic13())      #
         streams.append(self.Basic14())
+        streams.append(self.Basic15())
+        streams.append(self.Basic16())
 
-        tdStream.checkAll(streams)
-        
+        tdStream.checkAll(streams)      
         stop_notify_server_background()
 
     class Basic1(StreamCheckItem):
@@ -802,6 +825,50 @@ class TestStreamNotifyTrigger:
 
         def check1(self):
             tdLog.info("do check the results")
+            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660800000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660804000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660808000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_CLOSE",
+                triggerType="Interval",
+                tableName="res_ct0",
+                windowStart=1735660800000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+            rows=1,
+            streamName="sdb4.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660800000,
+            windowEnd=1735660804000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+            rows=1,
+            streamName="sdb4.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660804000,
+            windowEnd=1735660808000)
 
     class Basic5(StreamCheckItem):
         def __init__(self):
@@ -829,7 +896,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 interval(4s) sliding(4s) from ct0 "
-                f"notify('ws://localhost:12345/basic4_s0') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic5_s0') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart wstart, _twend, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -855,7 +922,51 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check1(self):
-            tdLog.info("do check the results")
+            tdLog.info("do check the results of basic5")
+            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660800000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660804000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660808000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_CLOSE",
+                triggerType="Interval",
+                tableName="res_ct0",
+                windowStart=1735660800000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+            rows=1,
+            streamName="sdb5.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660800000,
+            windowEnd=1735660804000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+            rows=1,
+            streamName="sdb5.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660804000,
+            windowEnd=1735660808000)
 
 
     class Basic6(StreamCheckItem):
@@ -1078,11 +1189,61 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check1(self):
-            tdLog.info("do check the results")
+            tdLog.info("do check the results of basic7")
             tdSql.checkResultsByFunc(
                 sql=f"select * from {self.db}.res_vtb",
                 func=lambda: tdSql.getRows() == 3
             )
+
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660800000
+            )            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660815000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660840000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660826000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+            rows=1,
+            streamName="sdb7.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_vtb",
+            windowStart=1735660800000,
+            windowEnd=1735660804000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+            rows=1,
+            streamName="sdb7.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_vtb",
+            windowStart=1735660815000,
+            windowEnd=1735660815000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+            rows=1,
+            streamName="sdb7.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_vtb",
+            windowStart=1735660826000,
+            windowEnd=1735660829000)
 
     class Basic8(StreamCheckItem):
         def __init__(self):
@@ -1619,7 +1780,44 @@ class TestStreamNotifyTrigger:
             tdSql.checkRows(2)
             tdSql.query(f"select * from {self.db}.res_ct0")
             tdSql.checkRows(0)
-
+            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660800000
+            )            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660803000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660807000
+            ) 
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=1,
+                windowStart=1735660800000
+            )            
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+            rows=2,
+            streamName="sdb13.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660805000,
+            windowEnd=1735660806000)
+            
         def insert2(self):
             tdLog.info(f"=============== insert data into ct0 not null time data")
             sqls = [
@@ -1646,7 +1844,39 @@ class TestStreamNotifyTrigger:
                 sql=f"select * from {self.db}.res_ct0",
                 func=lambda: tdSql.getRows() == 7
             )
-
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=2,
+                windowStart=1735660800000
+            )            
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=2,
+                windowStart=1735660805000
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=2,
+                windowStart=1735660807000
+            ) 
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_CLOSE",
+                triggerType="State",
+                tableName="res_ct0",
+                expectCount=2,
+                windowEnd=1735660806000
+            )  
 
     class Basic14(StreamCheckItem):
         def __init__(self):
@@ -1682,7 +1912,7 @@ class TestStreamNotifyTrigger:
             )
 
         def insert1(self):
-            tdLog.info(f"=============== insert data into ct0 open window data")
+            tdLog.info(f"=============== insert1 data into ct0 open window data")
             sqls = [
                 "insert into ct0 values ('2025-01-01 00:00:00.000', 6, 7);",
                 "insert into ct0 values ('2025-01-01 00:00:01.000', 7, 7);",
@@ -1694,14 +1924,24 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check1(self):
-            tdLog.info(f"check the stream {self.db}.s1")
+            tdLog.info(f"check1 the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
             tdSql.query(f"select * from {self.db}.ana_ct0_end")
             tdSql.checkRows(0)
+            
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+                streamName="sdb14.s1",
+                eventType="WINDOW_OPEN",
+                triggerType="Event",
+                tableName="ana_ct0_end",
+                expectCount=1,
+                windowStart=1735660800000
+            )  
 
         def insert2(self):
-            tdLog.info(f"=============== insert data into ct0 close windows data")
+            tdLog.info(f"=============== insert2 data into ct0 close windows data")
             sqls = [
                 "insert into ct0 values ('2025-01-01 00:00:05.000', 11, 8);",
                 "insert into ct0 values ('2025-01-01 00:00:06.000', 5, 1);",
@@ -1710,7 +1950,7 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check2(self):
-            tdLog.info(f"check the stream {self.db}.s1")
+            tdLog.info(f"check2 the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
             tdSql.checkResultsByFunc(
@@ -1728,5 +1968,194 @@ class TestStreamNotifyTrigger:
                 and tdSql.compareData(4, 1, 10)
                 and tdSql.compareData(5, 0, "2025-01-01 00:00:05.000")
                 and tdSql.compareData(5, 1, 11),
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+                streamName="sdb14.s1",
+                eventType="WINDOW_CLOSE",
+                triggerType="Event",
+                tableName="ana_ct0_end",
+                expectCount=1,
+                windowStart=1735660800000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+            rows=6,
+            streamName="sdb14.s1",
+            eventType="WINDOW_CLOSE",
+            tableName="ana_ct0_end",
+            windowStart=1735660800000,
+            windowEnd=1735660806000)
+            
+        def insert3(self):
+            tdLog.info(f"=============== insert3 data into ct0 open window data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:07.000', 11, 8);",
+            ]
+
+            tdSql.executes(sqls)
+            
+        def check3(self):
+            tdLog.info(f"check3 the stream {self.db}.s1")
+            tdSql.query(f"desc {self.db}.ana_ct0_end")
+            tdSql.checkRows(3)
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+                streamName="sdb14.s1",
+                eventType="WINDOW_OPEN",
+                triggerType="Event",
+                tableName="ana_ct0_end",
+                expectCount=1,
+                windowStart=1735660807000
+            )
+            
+    class Basic15(StreamCheckItem):
+        def __init__(self):
+            self.db = "idmp"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, `电流` float) tags(t1 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table st0 using {self.stb} tags(0);")
+            tdSql.execute(f"create table st1 using {self.stb} tags(1);")
+            tdSql.execute(f"create table st2 using {self.stb} tags(2);")
+            tdSql.execute(f"create table st3 using {self.stb} tags(3);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+       
+            tdSql.execute(
+                f"create stream if not exists `idmp`.`s1` "
+                f"period( 10s,0s) from `idmp`.`st0` "
+                f"stream_options(ignore_disorder|ignore_nodata_trigger) "
+                f"notify('ws://localhost:12345/basic15_s1') on(window_open|window_close) "
+                f"into `idmp`.`res_st` as "
+                f"select cast(_tlocaltime/1000000 as timestamp)+0s as output_timestamp, avg(`电流`) "
+                f"as `平均电流` from st0 where ts > (cast(_tprev_localtime/1000000 as timestamp)-1200000) and ts <=cast(_tlocaltime/1000000 as timestamp)"
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into ct0 open window data")
+            sqls = [
+                "insert into st0 values (now-31s, 6);",
+                "insert into st0 values (now-25s, 7);",
+                "insert into st0 values (now-20s, 8);",
+                "insert into st0 values (now-15s, 9);",
+                "insert into st0 values (now-10s, 10);",
+                "insert into st0 values (now-5s, 11);",
+                "insert into st0 values (now, 12);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 1
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic15_s1.log"),
+                streamName="idmp.s1",
+                eventType="ON_TIME",
+                triggerType="Period",
+                tableName="res_st",
+                expectCount=1,
+            )
+
+    class Basic16(StreamCheckItem):
+        def __init__(self):
+            self.db = "idmp2"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, `电流` float) tags(t1 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table st0 using {self.stb} tags(0);")
+            tdSql.execute(f"create table st1 using {self.stb} tags(1);")
+            tdSql.execute(f"create table st2 using {self.stb} tags(2);")
+            tdSql.execute(f"create table st3 using {self.stb} tags(3);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+            
+            tdSql.execute(
+                f"create stream if not exists {self.db}.`s1` "
+                f"sliding(1m) from `{self.db}`.`{self.stb}` partition by tbname "
+                f"stream_options(ignore_disorder|ignore_nodata_trigger) "
+                f"notify('ws://localhost:12345/basic16_s1') on(window_open|window_close) "
+                f"into `{self.db}`.`res_st` output_subtable(concat('ana_', tbname,'_ana')) as "
+                f"select _tcurrent_ts+0s as output_timestamp, avg(`电流`) as `属性1`  from %%tbname "
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into st0 open window data")
+            sqls = [
+                "insert into st0 values ('2025-01-01 00:00:00.000', 6);",
+                "insert into st0 values ('2025-01-01 00:01:01.000', 7);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 1
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic16_s1.log"),
+                streamName="idmp2.s1",
+                eventType="ON_TIME",
+                triggerType="Sliding",
+                tableName="ana_st0_ana",
+                expectCount=1,
+            )
+            
+        def insert2(self):
+            tdLog.info(f"=============== insert2 data into st0 open window data")
+            sqls = [
+                "insert into st0 values ('2025-01-01 00:02:02.000', 8);",
+                "insert into st0 values ('2025-01-01 00:03:03.000', 9);",
+                "insert into st0 values ('2025-01-01 00:04:03.000', 10);",
+                "insert into st0 values ('2025-01-01 00:05:03.000', 11);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check2(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 5
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic16_s1.log"),
+                streamName="idmp2.s1",
+                eventType="ON_TIME",
+                triggerType="Sliding",
+                tableName="ana_st0_ana",
+                expectCount=5,
             )
 

@@ -589,9 +589,14 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  if (tbname == NULL || tbname[0] == '\0') {
-    ST_TASK_ILOG("%s table name is null for notification, skip notify.", __FUNCTION__);
-    return code;
+
+  if (tbname[0] == '\0') {
+    code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
+    if(code != 0) {
+      ST_TASK_ELOG("%s failed to calc output tbname for notification: %s", __FUNCTION__, tstrerror(code));
+      return code;
+    }
+    ST_TASK_ILOG("%s table name is blank, so calc output table name, get %s.", __FUNCTION__, pExec->tbname);
   }
 
   int32_t              nParam = endWinIdx - startWinIdx;
@@ -640,9 +645,13 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (tbname == NULL || tbname[0] == '\0') {
-    ST_TASK_ILOG("%s table name is null for notification, skip notify.", __FUNCTION__);
-    return code;
+  if (tbname[0] == '\0') {
+    code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
+    if(code != 0) {
+      ST_TASK_ELOG("%s failed to calc output tbname for notification: %s", __FUNCTION__, tstrerror(code));
+      return code;
+    }
+    ST_TASK_ILOG("%s table name is blank, so calc output table name, get %s.", __FUNCTION__, pExec->tbname);
   }
   bool  empty = (!pBlock || pBlock->info.rows <= 0);
   char* pContent = NULL;

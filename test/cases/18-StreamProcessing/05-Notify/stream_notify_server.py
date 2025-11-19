@@ -60,10 +60,10 @@ async def handle_websocket(conn, log_path):
         if log_path:
             os.makedirs(log_path, exist_ok=True)
             file_path = _log_path_for_url(log_path, path)
-            print(f"Logging messages for [{path}] -> {file_path}", flush=True)
+            #print(f"Logging messages for [{path}] -> {file_path}", flush=True)
             with open(file_path, "a", encoding="utf-8") as f:
                 async for message in conn:
-                    print(f"Received[{path}]: {message}", flush=True)
+                    #print(f"Received[{path}]: {message}", flush=True)
                     f.write(message + "\n")
                     f.flush()
                     if stop_event.is_set():

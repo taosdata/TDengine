@@ -112,6 +112,15 @@ class NotifyLog:
         if not matches:
             raise AssertionError(f"{msg} no event matches criteria={criteria}")
         return matches[0]
+    
+    def num_exists(self, msg: str = "", **criteria) -> int:
+        """
+        Ensure at least one event matches criteria; returns first.
+        """
+        matches = self.find(**criteria)
+        if not matches:
+            return 0
+        return matches.__len__()
 
     def assert_result_data(self,
                            result_filter: Callable[[List[Dict]], bool],
@@ -142,7 +151,7 @@ def expect_event(log_path: str,
                  windowStart: Optional[int] = None,
                  windowEnd: Optional[int] = None,
                  result_pred: Optional[Callable[[List[Dict]], bool]] = None,
-                 retries: int = 60) -> StreamEvent:
+                 retries: int = 30) -> StreamEvent:
     """
     One call assertion. Raises AssertionError if not found / predicate fails.
     Retry `retries` times (default 60), sleeping 1s between attempts.
@@ -196,3 +205,58 @@ def expect_rows(log_path: str, rows: int, retries: int = 60, **criteria) -> Stre
     if actual != rows:
         raise AssertionError(f"rows mismatch: expected {rows}, got {actual}; criteria={criteria}")
     return ev
+
+def expect_event_count(log_path: str,
+                 streamName: Optional[str] = None,
+                 eventType: Optional[str] = None,
+                 triggerType: Optional[str] = None,
+                 tableName: Optional[str] = None,
+                 windowStart: Optional[int] = None,
+                 windowEnd: Optional[int] = None,
+                 expectCount: int = 0,
+                 retries: int = 30) -> int:
+    """
+    One call assertion. Raises AssertionError if not found / predicate fails.
+    Retry `retries` times (default 60), sleeping 1s between attempts.
+    Example:
+      expect_event("basic2_s0.log",
+                   streamName="sdb2.s0",
+                   eventType="WINDOW_CLOSE",
+                   windowStart=1735660801000,
+                   windowEnd=1735660804000,
+                   result_pred=lambda d: len(d) == 4)
+    """
+    import time
+
+    criteria: Dict[str, Any] = {}
+    if streamName is not None: criteria["streamName"] = streamName
+    if eventType is not None: criteria["eventType"] = eventType
+    if triggerType is not None: criteria["triggerType"] = triggerType
+    if tableName is not None: criteria["tableName"] = tableName
+    if windowStart is not None: criteria["windowStart"] = windowStart
+    if windowEnd is not None: criteria["windowEnd"] = windowEnd
+
+    retries = max(0, int(retries))
+    last_err: Optional[Exception] = None
+
+    for attempt in range(retries + 1):
+        try:
+            # Recreate reader each attempt to capture newly appended lines
+            nl = NotifyLog(log_path)
+            num = nl.num_exists(**criteria)
+            if(num > expectCount):
+                raise AssertionError(f"Too many events: expected {expectCount}, got {num}; criteria={criteria}.")
+            if(num != expectCount):
+                print(f"Attempt {attempt+1} failed: expected {expectCount}, got {num}; criteria={criteria}. Retrying...")
+                time.sleep(1)
+                continue
+            return num
+        except (AssertionError, ValueError, FileNotFoundError) as e:
+            last_err = e
+            if attempt < retries:
+                print(f"Attempt {attempt+1} failed: {e}. Retrying...")
+                time.sleep(1)
+            else:
+                raise last_err
+    
+    raise AssertionError(f"Attempt {attempt+1} failed: expected {expectCount}, got {num}; criteria={criteria}.")
