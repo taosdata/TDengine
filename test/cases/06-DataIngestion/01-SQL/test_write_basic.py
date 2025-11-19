@@ -7,15 +7,12 @@ class TestWriteBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_write_basic(self):
-        """Write: basic test
+        """Write basic
 
         1. Write data to a nanosecond-precision database
         2. Write data to regular tables and child tables
         3. Write data to specified columns
         4. Batch write multiple records to different child tables in a single operation
-
-        Catalog:
-            - DataIngestion
 
         Since: v3.0.0.0
 

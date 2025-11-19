@@ -5,7 +5,7 @@ class TestFuncLastAsParam:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_last_as_operator_param(self):
-        """Last keepColumnName
+        """Select: keepColumnName
         
         Test that 'last(col) - first(col)' is not equal to zero when keepColumnName is 1.
 
@@ -72,8 +72,7 @@ class TestFuncLastAsParam:
         tdSql.execute(f"drop database {db}")
 
     def test_last_as_func_param(self):
-        """
-        Test that 'timediff(last(col), first(col))' is not equal to zero when keepColumnName is 1.
+        """Select: keepColumnName first/last
 
         Steps:
         1. Create a database and a stable table.

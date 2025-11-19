@@ -7,9 +7,13 @@ class TestJoinMultitables:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_multitables(self):
-        """Join Test Multitables
+        """Join multi-tables
 
-        1.
+        1.Create super table st0-stb with same schema but different tag numbers
+        2.Create child tables from super tables with different tag values
+        3.Insert data into child tables with same timestamps
+        4.Join tables on timestamps and tag columns from different super tables 
+        5. Check the result of join correctly
 
         Catalog:
             - Query:Join

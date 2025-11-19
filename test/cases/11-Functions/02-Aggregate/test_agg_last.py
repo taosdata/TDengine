@@ -70,7 +70,7 @@ class Test_Last:
         tdSql.checkData(0, 1, 1759194759001)
 
     def test_last_tag(self):
-        """summary: test last/last_row with tag column
+        """Agg: last/last_row with tag
 
         description: verify the behavior of selecting last/last_row with tag column outside.
                     For example: select last(ts), tag1, tag2 from stable group by tbname.

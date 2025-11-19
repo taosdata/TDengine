@@ -7,7 +7,7 @@ class TestJoinFull:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_full(self):
-        """Join Test Full
+        """Join mode
 
         1. test full_join
         2. test inner_join
@@ -5297,7 +5297,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 12)
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts state_window(b.col1);"
         )
 
@@ -5349,7 +5349,7 @@ class TestJoinFull:
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts state_window(b.col1);"
         )
 
@@ -5405,7 +5405,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 8)
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
 
@@ -5464,7 +5464,7 @@ class TestJoinFull:
             f"select count(a.col1) c1 from sta a left anti join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
 

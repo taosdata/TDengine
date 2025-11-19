@@ -7,7 +7,7 @@ RUN apt-get install -y locales psmisc sudo tree  libgeos-dev libgflags2.2 libgfl
 RUN sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen  && locale-gen 
 RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admin/dev/+simple/
 RUN pip3 config set global.trusted-host 192.168.0.212
-RUN pip3 install taospy==2.8.5 taos-ws-py==0.6.1 pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
+RUN pip3 install taospy==2.8.6 taos-ws-py==0.6.3 pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
 RUN add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/'

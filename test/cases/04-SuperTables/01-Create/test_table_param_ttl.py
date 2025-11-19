@@ -92,7 +92,7 @@ class TestTableParamTtl:
         self.wait_query('show db.tables', 0, timeout + 5)
         tdSql.execute('drop database db')
     def test_table_param_ttl(self):
-        """Table TTL Case
+        """Stable ttl options
 
         1. Create normal table with ttl param
         2. Create stable and child table with ttl param

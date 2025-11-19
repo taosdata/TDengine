@@ -68,7 +68,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.7.6</version>
+  <version>3.7.7</version>
 </dependency>
 ```
 
@@ -99,7 +99,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
     - 指定某个特定版本安装
 
             ```
-            pip3 install taospy==2.8.5
+            pip3 install taospy==2.8.6
             ```
 
     - 从 GitHub 安装

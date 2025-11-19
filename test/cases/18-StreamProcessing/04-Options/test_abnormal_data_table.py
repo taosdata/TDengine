@@ -10,7 +10,7 @@ class TestStreamDisorderTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_disnorder_table(self):
-        """Abnormal Data: table
+        """Abnormal data: table
 
         test data disorder/update/delete change cases to stream
 
@@ -41,6 +41,8 @@ class TestStreamDisorderTable:
         
         # TD-36579 [流计算开发阶段] ignore_disorder控制乱序和更新数据，delete_recalc 控制删除数据
         # streams.append(self.Basic3()) # [fail]
+        
+        streams.append(self.Basic4()) # [ok]
         
         tdStream.checkAll(streams)
 
@@ -1237,9 +1239,156 @@ class TestStreamDisorderTable:
                 and tdSql.compareData(6, 4, 2)
             )
 
+    class Basic4(StreamCheckItem):
+        def __init__(self):
+            self.db  = "sdb4"
+            self.stbName = "stb"
+            
+            self.table1 = ""
+            self.table2 = ""
+            self.table3 = ""
 
-    
+        def create(self):
+            
+            tdSql.execute(f"drop database if exists {self.db}")
+            tdSql.execute(f"CREATE DATABASE {self.db} VGROUPS 2;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"CREATE STABLE {self.stbName} (ts timestamp, cint int) TAGS (`site` NCHAR(8), `tracker` NCHAR(16), `zone` NCHAR(4));")
+
+            tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags('site1', 'tracker1', '1')")
+            tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags('site1', 'tracker2', '1')")
+            tdSql.execute(f"create table {self.db}.ct3 using {self.db}.{self.stbName} tags('site1', 'tracker3', '1')")
+            tdSql.execute(f"create table {self.db}.ct4 using {self.db}.{self.stbName} tags('site1', 'tracker4', '1')")
+            tdSql.execute(f"create table {self.db}.ct5 using {self.db}.{self.stbName} tags('site1', 'tracker4', '1')")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(5)
 
 
+            tdSql.executes(
+                [
+                f"create stream if not exists s1 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res1 output_subtable(concat('res_1_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _twend as window_end, %%1 as site, %%2 as zone, case when last(_c0) is not null then 1 else 0 end as zone_online from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;",
+                f"create stream if not exists s2 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res2 output_subtable(concat('res_2_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _twend as window_end, %%1 as site, %%2 as zone, last(_c0) from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;",
+                f"create stream if not exists s3 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res3 output_subtable(concat('res_3_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _twend as window_end, %%1 as site, %%2 as zone, count(*) from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;",
+                f"create stream if not exists s4 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res4 output_subtable(concat('res_4_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _c0, _twend as window_end, %%1 as site, %%2 as zone from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;"
+                ]
+            )
+            
+            tdSql.query(f"select table_name, vgroup_id from information_schema.ins_tables where db_name='{self.db}'")
+            tdSql.checkRows(5)
+            groups = {}  # { vgroupId: [tbName, ...] }
+            for i in range(5):
+                tbName = tdSql.getData(i, 0)
+                vgroupId = tdSql.getData(i, 1)
+                groups.setdefault(vgroupId, []).append(tbName)
+                
+            twoTablesInOneVg = False
+            for vg_id, tb_list in groups.items():
+                if(len(tb_list) > 1 and not twoTablesInOneVg):
+                    self.table1 = tb_list[0]
+                    self.table2 = tb_list[1]
+                    twoTablesInOneVg = True
+                else:
+                    self.table3 = tb_list[0]
+                    
+            tdLog.info(f"table1: {self.table1}, table2: {self.table2}, table3: {self.table3}")
+                        
 
+        def insert1(self):
+            sqls = [
+                f"insert into {self.table1} values('2024-10-04 10:05:00.000',23.5), ('2024-10-04 10:10:00.000',25.0), ('2024-10-04 10:15:00.000',22.0), ('2024-10-04 11:15:00.000',22.0) "
+                f"{self.table2} values('2024-10-04 09:05:00.000',23.5), ('2024-10-04 09:05:00.000',23.5) ,('2024-10-04 09:10:00.000',25.0), ('2024-10-04 09:15:02.000',22.0), ('2024-10-04 10:05:00.000',23.5), ('2024-10-04 10:10:00.000',25.0), ('2024-10-04 10:15:00.000',22.0), ('2024-10-04 11:15:01.000',22.0) "
+                f"{self.table3} values('2024-10-04 09:05:00.000',23.5), ('2024-10-04 09:05:00.000',23.5) ,('2024-10-04 09:10:00.000',25.0), ('2024-10-04 09:15:01.000',22.0), ('2024-10-04 10:05:00.000',23.5), ('2024-10-04 10:10:00.000',25.0), ('2024-10-04 10:15:02.000',22.0), ('2024-10-04 11:15:02.000',22.0);",
+            ]
+            tdSql.executes(sqls)
 
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_1_%"',
+                func=lambda: tdSql.getRows() == 1,
+            )
+            
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_1_site11",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2024-10-04 10:00:00")
+                and tdSql.compareData(0, 1, "site1")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(1, 0, "2024-10-04 11:00:00")
+                and tdSql.compareData(1, 1, "site1")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 1)
+            )
+            
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_2_%"',
+                func=lambda: tdSql.getRows() == 1,
+            )
+            
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_2_site11",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2024-10-04 10:00:00")
+                and tdSql.compareData(0, 1, "site1")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, "2024-10-04 09:15:02")
+                and tdSql.compareData(1, 0, "2024-10-04 11:00:00")
+                and tdSql.compareData(1, 1, "site1")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, "2024-10-04 10:15:02", show=True),
+                retry=60,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_3_%"',
+                func=lambda: tdSql.getRows() == 1,
+            )
+            
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_3_site11",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2024-10-04 10:00:00")
+                and tdSql.compareData(0, 1, "site1")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(1, 0, "2024-10-04 11:00:00")
+                and tdSql.compareData(1, 1, "site1")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 9)
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_4_%"',
+                func=lambda: tdSql.getRows() == 1,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_4_site11 order by _c0",
+                func=lambda: tdSql.getRows() == 8
+                and tdSql.compareData(0, 0, "2024-10-04 09:05:00")
+                and tdSql.compareData(0, 2, "site1")
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(1, 0, "2024-10-04 09:10:00")
+                and tdSql.compareData(1, 2, "site1")
+                and tdSql.compareData(1, 3, 1)
+                and tdSql.compareData(2, 0, "2024-10-04 09:15:01")
+                and tdSql.compareData(2, 2, "site1")
+                and tdSql.compareData(2, 3, 1)
+                and tdSql.compareData(3, 0, "2024-10-04 09:15:02")
+                and tdSql.compareData(3, 2, "site1")
+                and tdSql.compareData(3, 3, 1)
+                and tdSql.compareData(4, 0, "2024-10-04 10:05:00")
+                and tdSql.compareData(4, 2, "site1")
+                and tdSql.compareData(4, 3, 1)
+                and tdSql.compareData(5, 0, "2024-10-04 10:10:00")
+                and tdSql.compareData(5, 2, "site1")
+                and tdSql.compareData(5, 3, 1)
+                and tdSql.compareData(6, 0, "2024-10-04 10:15:00")
+                and tdSql.compareData(6, 2, "site1")
+                and tdSql.compareData(6, 3, 1)
+                and tdSql.compareData(7, 0, "2024-10-04 10:15:02")
+                and tdSql.compareData(7, 2, "site1")
+                and tdSql.compareData(7, 3, 1)
+            )

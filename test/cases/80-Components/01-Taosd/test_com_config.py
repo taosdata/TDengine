@@ -11,10 +11,22 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, sc
+from new_test_framework.utils import tdLog, tdSql, sc, tdDnodes
+import platform
+import re
 import time
 
 class TestAlterConfig:
+    updatecfgDict = {
+        'forceReadConfig':'1',
+        'timezone':'Asia/Shanghai',
+        'arbSetAssignedTimeoutSec':'10',
+        'rpcQueueMemoryAllowed':'10485760'
+    }
+    
+    #
+    # ------------------- test_alter_config_refresh.py ----------------
+    #    
     def alterCachemodel(self):
         """Add test case for altering cache model(TS-5390)
         """
@@ -191,29 +203,7 @@ class TestAlterConfig:
         tdSql.error("alter all dnodes 'minReservedMemorySize 100000000000'")
 
     # run
-    def test_alter_config(self):
-        """Configuration basic
-        
-        1. Verify alter support vnodes config
-        2. Verify alter ttl config
-        3. Verify alter bypass flag config
-        4. Verify alter audit config
-        5. Verify alter config on dnode 1
-        6. Verify alter timezone config
-        7. Verify alter memPoolReservedSizeMB config
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-10-22 Alex Duan Migrated from uncatalog/army/alter/test_alter_config_refresh.py
-
-        """
-        tdLog.debug(f"start to excute {__file__}")
-
+    def do_alter_config(self):
         # TS-4721
         self.alterSupportVnodes()
         # TS-5191
@@ -230,6 +220,67 @@ class TestAlterConfig:
         self.alter_memPoolReservedSizeMB_case()
 
         self.alter_timezone_case()
-        tdLog.success(f"{__file__} successfully executed")
+        print("do alter config ....................... [passed]")
 
+    #
+    # ------------------- test_dismatch_config.py ----------------
+    #
+    def update_cfg_success(self):
+        tdLog.info("start to update cfg")
+        tdDnodes.stop(1)
+        time.sleep(3)
+        tdDnodes.cfg(1, 'timezone', 'UTC')
+        tdDnodes.cfg(1, 'arbSetAssignedTimeoutSec', '17')
+        tdDnodes.cfg(1, 'rpcQueueMemoryAllowed', '20971520')
+        tdDnodes.start(1)
+        time.sleep(10)
+        # global cfg use values from cluster
+        tdSql.query("show dnode 1 variables like 'timezone'")
 
+        # It is hard to get the abbr. of the timezone on Windows, so TDengine behaves differently
+        # on Windows, it is better to not include the abbr. of the timezone and always return
+        # something like 'Asia/Shanghai (UTC+0800)' in the future, this could make things easier.
+        if platform.system().lower() == 'windows':
+            tdSql.checkData(0, 2, "Asia/Shanghai (UTC, +0800)")
+        else:
+            tdSql.checkData(0, 2, "Asia/Shanghai (CST, +0800)")
+
+        tdSql.query("show dnode 1 variables like 'arbSetAssignedTimeoutSec'")
+        tdSql.checkData(0, 2, "10")
+
+        # dnode local cfg use values from cfg file while forceReadConfig is 1
+        tdSql.query("show dnode 1 variables like 'rpcQueueMemoryAllowed'")
+        tdSql.checkData(0, 2, "20971520")
+
+    def do_dismatch_config(self):
+        self.update_cfg_success()
+        print("do dismatch config ....................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_alter_config(self):
+        """Server config basic
+        
+        1. Verify alter support vnodes config
+        2. Verify alter ttl config
+        3. Verify alter bypass flag config
+        4. Verify alter audit config
+        5. Verify alter config on dnode 1
+        6. Verify alter timezone config
+        7. Verify alter memPoolReservedSizeMB config
+        8. Verify dismatch config refresh
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-22 Alex Duan Migrated from uncatalog/army/alter/test_alter_config_refresh.py
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_dismatch_config.py
+
+        """
+        self.do_dismatch_config()
+        self.do_alter_config()

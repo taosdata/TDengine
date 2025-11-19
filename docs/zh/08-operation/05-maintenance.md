@@ -17,8 +17,8 @@ TDengine TSDB 面向多种写入场景，而很多写入场景下，TDengine TSD
 ### 语法
 
 ```SQL
-compact DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
-compact [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
+compact DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
+compact [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
 show compacts;
 show compact compact_id;
 kill compact compact_id;
@@ -33,6 +33,7 @@ kill compact compact_id;
 - 可通过 start with 关键字指定 compact 数据的起始时间
 - 可通过 end with 关键字指定 compact 数据的终止时间
 - 可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。元数据压缩会阻塞写入和查询，且被压缩数据库应该停止写入和查询
+- 可通过 `FORCE` 关键字强制执行 compact，即使自上次 compact 以来没有新数据写入
 - compact 命令会返回 compact 任务的 ID
 - compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
 - show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务

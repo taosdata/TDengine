@@ -1084,9 +1084,11 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   bool complete = true;
   for (int32_t i = 0; i < rowNum; ++i) {
     complete = true;
+    //sclInfo("logic row:%d start", i);
     for (int32_t m = 0; m < paramNum; ++m) {
       if (NULL == params[m].columnData) {
         complete = false;
+        //sclInfo("logic row:%d param:%d skipped", i, m);
         continue;
       }
 
@@ -1097,21 +1099,28 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
       GET_TYPED_DATA(value, bool, params[m].columnData->info.type, p,
                      typeGetTypeModFromColInfo(&params[m].columnData->info));
 
+      //sclInfo("logic row:%d param:%d value:%d", i, m, value);
+
       if (LOGIC_COND_TYPE_AND == node->condType && (false == value)) {
         complete = true;
+        //sclInfo("logic row:%d param:%d value:%d AND complete", i, m, value);
         break;
       } else if (LOGIC_COND_TYPE_OR == node->condType && value) {
         complete = true;
+        //sclInfo("logic row:%d param:%d value:%d OR complete", i, m, value);
         break;
       } else if (LOGIC_COND_TYPE_NOT == node->condType) {
         value = !value;
+        //sclInfo("logic row:%d param:%d value:%d NOT", i, m, value);
       }
     }
 
     if (complete) {
+      //sclInfo("logic row:%d complete value:%d", i, value);
       SCL_ERR_JRET(colDataSetVal(output->columnData, i, (char *)&value, false));
       if (value) {
         numOfQualified++;
+        //sclInfo("logic row:%d complete numOfQualified:%d", i, numOfQualified);
       }
     }
   }
@@ -1282,12 +1291,12 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
   if (1 == ctx->stream.extWinType) {
     if (node->opType == OP_TYPE_GREATER_THAN) {
       for (int32_t i = 0; i < res->numOfRows; ++i) {
-        ctx->stream.pWins[i].tw.skey = ((int64_t*)res->columnData->pData)[i] + 1;
+        ctx->stream.pWins[i].tw.skey = (-1 == ctx->stream.pWins[i].winOutIdx) ? TMAX(((int64_t*)res->columnData->pData)[i] + 1, ctx->stream.pWins[i].tw.skey) : (((int64_t*)res->columnData->pData)[i] + 1);
         ctx->stream.pWins[i].winOutIdx = -1;
       }
     } else if (node->opType == OP_TYPE_GREATER_EQUAL) {
       for (int32_t i = 0; i < res->numOfRows; ++i) {
-        ctx->stream.pWins[i].tw.skey = ((int64_t*)res->columnData->pData)[i];
+        ctx->stream.pWins[i].tw.skey = (-1 == ctx->stream.pWins[i].winOutIdx) ? TMAX(((int64_t*)res->columnData->pData)[i], ctx->stream.pWins[i].tw.skey) : (((int64_t*)res->columnData->pData)[i]);
         ctx->stream.pWins[i].winOutIdx = -1;
       }
     } else {
@@ -1301,11 +1310,13 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
       // consider triggerType and keep the ekey exclude
       if (node->opType == OP_TYPE_LOWER_THAN) {
         for (int32_t i = 0; i < res->numOfRows; ++i) {
-          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i];
+          ctx->stream.pWins[i].tw.ekey = (-2 == ctx->stream.pWins[i].winOutIdx) ? TMIN(((int64_t*)res->columnData->pData)[i], ctx->stream.pWins[i].tw.ekey) : (((int64_t*)res->columnData->pData)[i]);
+          ctx->stream.pWins[i].winOutIdx = -2;
         }
       } else if (node->opType == OP_TYPE_LOWER_EQUAL) {
         for (int32_t i = 0; i < res->numOfRows; ++i) {
-          ctx->stream.pWins[i].tw.ekey = ((int64_t*)res->columnData->pData)[i] + 1;
+          ctx->stream.pWins[i].tw.ekey = (-2 == ctx->stream.pWins[i].winOutIdx) ? TMIN(((int64_t*)res->columnData->pData)[i] + 1, ctx->stream.pWins[i].tw.ekey) : (((int64_t*)res->columnData->pData)[i] + 1);
+          ctx->stream.pWins[i].winOutIdx = -2;
         }
       } else {
         qError("invalid op type:%d in ext win range end expr", node->opType);

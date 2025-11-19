@@ -9,7 +9,7 @@ class TestStreamRecalcManual:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_manual(self):
-        """Stream Manual Recalculation Test
+        """Recalc: time range
 
         Test manual recalculation functionality:
         1. Manual recalculation with time range - should recalculate specified time period

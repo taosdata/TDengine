@@ -57,6 +57,7 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine TSDB 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|         2.8.6         | 支持 pandas 的 read_sql_table， to_sql 和 read_sql 接口                                                                                                | - |
 |         2.8.5         | 支持 taos-ws-py 的 sqlalchemy 功能                                                                                                                                  | - |
 |         2.8.4         | 支持 DBUtils 连接池                                                                                                                                   | - |
 |         2.8.3         | 支持 BLOB 数据类型                                                                                                                                    | - |
@@ -78,9 +79,10 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 WebSocket Connector 历史版本：
 
-
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+|          0.6.3           | 支持配置 WebSocket 连接的响应超时时间（不含数据订阅）                                      | - |
+|          0.6.2           | 修复内存泄漏                                                                          | - |
 |          0.6.1           | 1. 支持 BLOB 数据类型 <br/> 2. 支持时区 <br/> 3. 支持负载均衡                       | - |
 |          0.5.3           | 支持 ipv6 地址格式                                                                       | - |
 |          0.5.2           | 升级 rust 连接器版本，修复了云服务连接的 token 问题                                       | - |
@@ -197,25 +199,31 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
 - **database**：数据库名称。
 - **params**：
   - `token`：用于 TDengine TSDB 云服务的身份验证。
-  - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。
+  - `timezone`：时区，IANA 格式（如 `Asia/Shanghai`），默认为本地时区。
   - `compression`：是否启用数据压缩，默认为 `false`。
-  - `conn_retries`：连接失败时的最大重试次数，默认为 5 次。
+  - `conn_retries`：连接失败时的最大重试次数，默认为 5。
   - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
   - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
+  - `read_timeout`：WebSocket 连接的响应超时时间（秒），不含数据订阅，默认为 300（5 分钟）。
 
 #### 建立连接
 
 - `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
     - **接口说明**：建立 taosAdapter 连接。
     - **参数说明**：
-        - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定数据库的连接信息，包括协议、用户名、密码、主机、端口、数据库名及参数等。
-        - `args`：类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供，可用于设置
+        - `dsn`：可选参数，类型为 `Option<&str>`。数据源名称（DSN），用于指定数据库的连接信息，包括协议、用户名、密码、主机、端口、数据库名及参数等。
+        - `args`：可选参数，类型为 `Option<&PyDict>`。以 Python 字典形式提供，字典中的值均为字符串类型。可用于配置以下选项：
             - `user`：数据库的用户名
             - `password`：数据库的密码
             - `host`：主机地址
             - `port`：端口号
             - `database`：数据库名称
-            - `timezone`：时区
+            - `timezone`：时区，IANA 格式（如 `Asia/Shanghai`），默认为本地时区。
+            - `compression`：是否启用数据压缩，默认为 `false`。
+            - `conn_retries`：连接失败时的最大重试次数，默认为 5。
+            - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
+            - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
+            - `read_timeout`：WebSocket 连接的响应超时时间（秒），不含数据订阅，默认为 300（5 分钟）。
     - **返回值**：连接对象。
     - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `fn cursor(&self) -> PyResult<Cursor>`

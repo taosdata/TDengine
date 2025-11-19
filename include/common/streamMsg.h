@@ -283,6 +283,7 @@ typedef struct {
   int8_t   triggerTblType;
   uint64_t triggerTblUid;  // suid or uid
   uint64_t triggerTblSuid;
+  uint8_t  triggerPrec;
   int8_t   vtableCalc;     // virtual table calc exits
   int8_t   outTblType;
   int8_t   outStbExists;
@@ -566,6 +567,7 @@ typedef struct {
   int8_t isTriggerTblVirt;
   int8_t triggerHasPF;
   int8_t isTriggerTblStb;
+  int8_t precision;
   void*  partitionCols;
 
   // notify options
@@ -839,6 +841,8 @@ typedef struct SSTriggerWalMetaNewRequest {
 } SSTriggerWalMetaNewRequest;
 
 typedef struct SSTriggerWalNewRsp {
+  SSHashObj*           indexHash;
+  SSHashObj*           uidHash;
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
@@ -958,6 +962,8 @@ typedef struct SSTriggerCalcRequest {
   int64_t streamId;
   int64_t runnerTaskId;
   int64_t sessionId;
+  bool    isWindowTrigger;
+  int8_t  precision;
   int32_t triggerType;    // See also: EStreamTriggerType
   int64_t triggerTaskId;  // does not serialize
   
@@ -1017,9 +1023,12 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
   bool    withExternalWindow;
+  bool    isWindowTrigger;
+  int8_t  precision;
   int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
   int32_t triggerType;
   int32_t addOptions;
+  bool    hasPlaceHolder;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
@@ -1066,7 +1075,7 @@ typedef struct SStreamWalDataResponse {
   SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
 } SStreamWalDataResponse;
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock, SSHashObj* indexHash);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock);
 int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices);
 
 typedef struct SStreamGroupValue {

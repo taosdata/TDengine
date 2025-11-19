@@ -11,7 +11,7 @@ class TestHavingBugs:
         tdLog.debug("start to execute %s" % __file__)
 
     def test_ts4806(self):
-        """BugFix: TS-4806
+        """Having bug TS-4806
 
         test event_windows + case when + having query fix
 
@@ -86,7 +86,7 @@ class TestHavingBugs:
         tdSql.checkData(4, 2, 1001)
 
     def test_td31880(self):
-        """BugFix: TD-31880
+        """Having bug TD-31880
 
         test last_row(ts) query fix
 
@@ -122,7 +122,7 @@ class TestHavingBugs:
         tdSql.checkRows(5000)
 
     def test_td31966(self):
-        """BugFix: TD-31966
+        """Having bug TD-31966
 
         test percentile() from window query fix
 
@@ -192,7 +192,7 @@ class TestHavingBugs:
         tdSql.checkData(1, 2, 100)
 
     def test_td32059(self):
-        """BugFix: TD-32059
+        """Having bug TD-32059
 
         test having with interval and fill
 

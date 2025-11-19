@@ -7,14 +7,12 @@ class TestIn:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_in(self):
-        """In
+        """Operator In
 
         1. Using IN operator with numeric types
         2. Using IN operator with timestamp types
         3. Using IN operator in an EXPLAIN statement
 
-        Catalog:
-            - Operator
 
         Since: v3.0.0.0
 

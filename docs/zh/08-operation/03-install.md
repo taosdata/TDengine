@@ -41,11 +41,11 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 
 <TabItem label="tar.gz 安装" value="tarinst">
 1. 从列表中下载获得 tar.gz 安装包：
-    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.1" platform="Linux-Generic" pkgType="Server"/>
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Generic" pkgType="Server"/>
+    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.4" platform="Linux-Generic" pkgType="Server"/>
+    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.4" platform="Linux-Generic" pkgType="Server"/>
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
     ```bash
-    tar -zxvf tdengine-tsdb-enterprise-3.3.8.1-linux-x64.tar.gz
+    tar -zxvf tdengine-tsdb-enterprise-3.3.8.4-linux-x64.tar.gz
     ```
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
     ```bash
@@ -59,19 +59,19 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 
 <TabItem label="deb 安装" value="debinst">
 1. 从列表中下载获得 deb 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Ubuntu" arch="x64" pkgType="Server"/>
+    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.4" platform="Linux-Ubuntu" arch="x64" pkgType="Server"/>
 2. 进入到安装包所在目录，执行如下的安装命令：
     ```bash
-    sudo dpkg -i tdengine-tsdb-oss-3.3.8.1-linux-x64.deb
+    sudo dpkg -i tdengine-tsdb-oss-3.3.8.4-linux-x64.deb
     ```
 </TabItem>
 
 <TabItem label="rpm 安装" value="rpminst">
 1. 从列表中下载获得 rpm 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Red Hat" arch="x64" pkgType="Server"/>
+    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.4" platform="Linux-Red Hat" arch="x64" pkgType="Server"/>
 2. 进入到安装包所在目录，执行如下的安装命令：
     ```bash
-    sudo rpm -ivh tdengine-tsdb-oss-3.3.8.1-linux-x64.rpm
+    sudo rpm -ivh tdengine-tsdb-oss-3.3.8.4-linux-x64.rpm
     ```
 </TabItem>
 
@@ -107,7 +107,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 <TabItem label="Windows 安装" value="windows">
 1. 从列表中下载获得最新 Windows 安装程序：
-    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.1" platform="Windows" pkgType="Server"/>
+    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.4" platform="Windows" pkgType="Server"/>
 2. 运行可执行程序来安装 TDengine。
 
 :::note
@@ -122,7 +122,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 <TabItem label="macOS 安装" value="macos">
 1. 从列表中下载获得最新 macOS 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="macOS" pkgType="Server"/>
+    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.4" platform="macOS" pkgType="Server"/>
 2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
 </TabItem>
 
@@ -240,3 +240,5 @@ TDengine TSDB 的所有可执行文件默认存放在 `/usr/local/taos/bin` 目�
 - `TDinsight.sh`: 用于下载 TDinsight 并安装的脚本
 - `set_core.sh`: 用于方便调试设置系统生成 core dump 文件的脚本
 - `taosd-dump-cfg.gdb`: 用于方便调试 taosd 的 gdb 执行脚本。
+
+TDengine 支持 IPv4 和 IPv6 两种通信方式, 其中 IPv6 内容参见 (../08-operation/13-network.md)

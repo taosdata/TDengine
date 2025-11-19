@@ -20,7 +20,7 @@ class TestStreamRecalc:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Stream TestStreamRecalc test
+        """Stream recalc
         
         1.  user  recalc stream after drop table
         

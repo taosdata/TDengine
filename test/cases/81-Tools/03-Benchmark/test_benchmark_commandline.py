@@ -509,6 +509,42 @@ class TestBenchmarkCommandline:
 
         print("do command line ....................... [passed]")
 
+    #
+    # ------------------- test_invalid_commandline.py ----------------
+    #
+    def do_invalid_commandline(self):
+
+        binPath = etool.benchMarkFile()
+        cmd = (
+            "%s -F abc -P abc -I abc -T abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y"
+            % binPath
+        )
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.query("select count(*) from test.meters")
+        tdSql.checkData(0, 0, 4)
+
+        cmd = "%s non_exist_opt" % binPath
+        tdLog.info("%s" % cmd)
+        assert os.system("%s" % cmd) != 0
+
+        cmd = "%s -f non_exist_file -y" % binPath
+        tdLog.info("%s" % cmd)
+        assert os.system("%s" % cmd) != 0
+
+        cmd = "%s -h non_exist_host -y" % binPath
+        tdLog.info("%s" % cmd)
+        assert os.system("%s" % cmd) != 0
+
+        cmd = "%s -p non_exist_pass -y" % binPath
+        tdLog.info("%s" % cmd)
+        assert os.system("%s" % cmd) != 0
+
+        cmd = "%s -u non_exist_user -y" % binPath
+        tdLog.info("%s" % cmd)
+        assert os.system("%s" % cmd) != 0
+
+        print("do invalid command line ............... [passed]")
 
     #
     # ------------------- main ----------------
@@ -525,7 +561,8 @@ class TestBenchmarkCommandline:
         7. Verify -U to do supplement insert
         8. Verify -V to check version info
         9. Verify other command line options -ntyNxGrTiFM
-        10. Verify JIRA TD-11510/TD-19387/TD-19985/TD-21063/TD-22334/TD-21932/TD-19352/TD-21806 
+        10. Verify JIRA TD-11510/TD-19387/TD-19985/TD-21063/TD-22334/TD-21932/TD-19352/TD-21806
+        11. Verify invalid command line options
         
 
         Since: v3.0.0.0
@@ -542,6 +579,7 @@ class TestBenchmarkCommandline:
             - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py
             - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_vgroups.py
             - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline.py
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_invalid_commandline.py
 
         """
         self.do_commandline()
@@ -551,3 +589,4 @@ class TestBenchmarkCommandline:
         self.do_commandline_supplement_insert()
         self.do_commandline_vgroups()
         self.do_commandline_retry()
+        self.do_invalid_commandline()

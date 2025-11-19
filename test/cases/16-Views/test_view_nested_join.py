@@ -7,14 +7,11 @@ class TestViewNestedJoin:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_view_nested_join(self):
-        """带嵌套查询的复杂视图
+        """View with nested join
 
-        1. 创建普通表、子表
-        2. 创建包含嵌套查询的复杂视图
-        3. 查询视图
-
-        Catalog:
-            - View
+        1. Create 1 stable and 1 normal table
+        2. Create view with nested join of stable and normal table
+        3. Query view
 
         Since: v3.0.0.0
 

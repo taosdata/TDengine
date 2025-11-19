@@ -9,9 +9,13 @@ class TestStreamStateTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_state_trigger(self):
-        """State: 
+        """Trigger mode state window
 
-        Verification testing during the development process.
+        1. Create snode and database
+        2. Create super table and sub tables
+        3. Create streams with state_window trigger mode
+        4. Insert data into source tables
+        5. Check stream results
 
         Catalog:
             - Streams:Others

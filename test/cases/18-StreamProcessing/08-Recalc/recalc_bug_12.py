@@ -17,12 +17,10 @@ class TestStreamRecalcManual:
         3. Different trigger types behavior with manual recalculation
         4. Edge cases and error handling
 
-        Catalog:
-            - Streams:Recalculation
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: None
 

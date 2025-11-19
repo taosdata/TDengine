@@ -8,12 +8,12 @@ class TestTDgptBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_not_exists_anode(self):
-        """anode 节点测试
+        """TDgpt anode
         
-        1. 创建不存在的anode
-
-        Catalog:
-            - TDgpt
+        1. Create anode with wrong address
+        2. Expect create failed
+        3. Show anodes, expect 0 rows
+        4. Drop non-exist anode, expect error
 
         Since: v3.3.2.16
 
@@ -34,12 +34,21 @@ class TestTDgptBasic:
         tdSql.error("drop anode 1")
 
     def test_analysis(self):
-        """进行分析过程
+        """TDgpt analysis functions
 
-        1. insert data and query, use tdgpt to analyze data
-
-        Catalog:
-            - TDgpt
+        1. Create 1 anode
+        2. Show anodes expect 1 row
+        3. Show anodes full expect 17 rows
+        4. Create database d0 with 1 vgroup
+        5. Create stable stb with 6 columns and 1 tag
+        6. Create child table ct1 using stb with tag value 1000
+        7. Insert 17 rows into ct1
+        8. Query forecast/anomaly_window on super/child/normal tables
+        9. Query forecast with _frowts/_flow/_fhigh
+        10. Query forecast with holtwinters/arima/moirai algorithms
+        11. Query anomaly_window with iqr/ksigma/lof/shesd/grubbs algorithms
+        12. Except query with not exist column
+        13. Except query with not supported algorithm
 
         Since: v3.3.2.16
 
@@ -248,12 +257,13 @@ class TestTDgptBasic:
         tdSql.error("select count(*) from ct1 anomaly_window(c1, 'algo=iqr')")
 
     def test_corr_table(self):
-        """测试单表中的皮尔逊相关系数查询
+        """TDgpt corr() on tables
         
         1. corr function query test cases on normal tables or child tables
-
-        Catalog:
-            - TDgpt
+        2. Insert data into child/normal tables
+        3. Query corr() function with different column types
+        4. Query corr() function with invalid parameters
+        5. Query corr() function with insufficient data
 
         Since: v3.3.8.0
 
@@ -267,7 +277,7 @@ class TestTDgptBasic:
         """
 
         tdSql.execute("create database if not exists d1 vgroups 3")
-        tdSql.execute("use d1") 
+        tdSql.execute("use d1")
         tdSql.execute("create stable st_corr(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
         tdSql.execute("create table t_corr_1 using st_corr tags(1)")
         tdSql.execute("create table t_corr_2 using st_corr tags(2)")
@@ -314,13 +324,15 @@ class TestTDgptBasic:
         tdSql.execute("drop database d1")
 
     def test_corr_stable(self):
-        """测试超级表中的皮尔逊相关系数查询
+        """TDgpt corr() on stable
 
         1. corr function query test cases on super table
+        2. Insert data into child tables
+        3. Query corr() function with different column types
+        4. Query corr() function with invalid parameters
+        5. Query corr() function with insufficient data
 
-        Catalog:
-            - TDgpt
-
+        
         Since: v3.3.8.0
 
         Labels: common,ci

@@ -219,7 +219,6 @@ function transfer_debug_dirs() {
 
     rm -rf debug.tar.gz
 }
-
 function clean_tmp() {
     local index=$1
     local cmd=""

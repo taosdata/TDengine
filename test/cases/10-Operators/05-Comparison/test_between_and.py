@@ -7,14 +7,12 @@ class TestBetweenAnd:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_between_and(self):
-        """Between And
+        """Operator between and
 
         1. Comparison of numeric types
         2. Comparison of timestamp types
         3. Multiple BETWEEN AND operators connected together
 
-        Catalog:
-            - Operator
 
         Since: v3.0.0.0
 

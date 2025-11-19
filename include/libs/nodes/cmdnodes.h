@@ -188,6 +188,7 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
   bool      metaOnly;
+  bool      force;
 } SCompactDatabaseStmt;
 
 typedef struct SRollupDatabaseStmt {
@@ -225,6 +226,7 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pStart;
   SNode*     pEnd;
   bool       metaOnly;
+  bool       force;
 } SCompactVgroupsStmt;
 
 typedef struct SRollupVgroupsStmt {
@@ -811,6 +813,17 @@ typedef struct SBalanceVgroupLeaderStmt {
   int32_t   vgId;
   char      dbName[TSDB_DB_NAME_LEN];
 } SBalanceVgroupLeaderStmt;
+
+typedef struct SSetVgroupKeepVersionStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int64_t   keepVersion;
+} SSetVgroupKeepVersionStmt;
+
+typedef struct STrimDbWalStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_FNAME_LEN];
+} STrimDbWalStmt;
 
 typedef struct SMergeVgroupStmt {
   ENodeType type;

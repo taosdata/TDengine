@@ -214,7 +214,7 @@ class TestVTableQuerySameDBStbProject:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def test_select_virtual_super_table(self):
-        """Query: virtual super table from same db projection query
+        """Query: virtual stable from same db
 
         1. test vstable select super table projection
         2. test vstable select super table projection filter

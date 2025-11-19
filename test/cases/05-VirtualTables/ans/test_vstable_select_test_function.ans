@@ -3511,8 +3511,13 @@ taos> select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_vi
                                    -1 |
                                    -1 |
 
-taos> select count(tbname) from test_vtable_select.vtb_virtual_stb
+taos> select count(tbname) from test_vtable_select.vtb_virtual_stb;
      count(tbname)     |
+========================
+                 69999 |
+
+taos> select count(1) from test_vtable_select.vtb_virtual_stb
+       count(1)        |
 ========================
                  69999 |
 

@@ -8,26 +8,6 @@ import time
 import shutil
 
 class TestCase:
-    """ Test case for rsma.
-
-    1. Exceptional cases.
-    2. Retention task monitor.
-    3. Rollup automatically when execute: trim database <db_name>.
-    4. Rollup manually when execute: rollup database <db_name>.
-
-    Catalog:
-        - Rollup SMA:Create/Drop/Show/Query/Trim/Rollup
-
-    Since: v3.3.8.0
-
-    Lables: common,ci,rsma
-
-    Jira: TS-6113
-
-    History:
-        - 2025-09-25: Initial version from Kaili Xu.
-    """
-
     path_parts = os.getcwd().split(os.sep)
     try:
         tdinternal_index = path_parts.index("TDinternal")
@@ -625,7 +605,7 @@ class TestCase:
         tdSql.checkData(0, 1, 33)
         tdSql.checkData(0, 2, Decimal('22.00'))
         tdSql.checkData(0, 3, 'LINESTRING (1.000000 1.000000, 2.000000 102.000000)')
-        tdSql.checkData(1, 0, '2024-10-01 08:00:02.000')
+        tdSql.checkData(1, 0, '2024-10-01 08:01:00.000')
         tdSql.checkData(1, 1, 14)
         tdSql.checkData(1, 2, Decimal('4.00'))
         tdSql.checkData(1, 3, 'LINESTRING (1.000000 1.000000, 2.000000 103.000000)')
@@ -722,13 +702,79 @@ class TestCase:
         tdSql.checkData(0, 1, 33)
         tdSql.checkData(0, 2, Decimal('4.00'))
 
-    def test_rsma(self):
-        """ Test case for rsma.
+    def s9_negative_ts(self):
+        tdLog.info("check negative timestamp")
+        tdSql.execute("alter all dnodes 'queryTrimIntervalSec 1'")
+        tdSql.execute("drop database if exists d0")
+        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1")
+        tdSql.execute("use d0")
+        tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int composite key, c1 decimal(10,2), c2 decimal(30,5), c3 geometry(100), c4 double) tags(t0 int)")
+        tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
+        tdSql.execute("insert  into ctb0 values('1969-10-01 08:00:01.001',1,999.99,9999999999.9999,'LINESTRING (1.000000 1.000000, 2.000000 2.000000)',1.0)")
+        tdSql.execute("insert  into ctb0 values('1969-10-01 08:00:01.001',2,888.8,888888888.888,'LINESTRING (1.000000 1.000000, 2.000000 3.000000)',2.0)")
+        tdSql.execute("insert  into ctb0 values('1969-10-01 08:00:03.003',3,777.7,777777777.77,'LINESTRING (1.000000 1.000000, 2.000000 4.000000)',3.0)")
+        tdSql.execute("insert  into ctb0 values('1969-10-01 08:01:00.001',4,555.55,5555555555.55555,'LINESTRING (1.000000 1.000000, 2.000000 5.000000)',7.0)")
+        tdSql.execute("insert  into ctb0 values('1969-10-01 08:01:00.001',6,666.66,6666666666.66666,'LINESTRING (1.000000 1.000000, 2.000000 6.000000)',4.0)")
+        tdSql.execute("insert  into ctb0 values('1969-10-01 08:02:00.002',5,444.44,4444444444.44444,'LINESTRING (1.000000 1.000000, 2.000000 7.000000)',5.0)")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:01.001',1,999.99,9999999999.9999,'LINESTRING (1.000000 1.000000, 2.000000 2.000000)',1.0)")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:01.001',2,888.8,888888888.888,'LINESTRING (1.000000 1.000000, 2.000000 3.000000)',2.0)")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:03.003',3,777.7,777777777.77,'LINESTRING (1.000000 1.000000, 2.000000 4.000000)',3.0)")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:01:00.001',4,555.55,5555555555.55555,'LINESTRING (1.000000 1.000000, 2.000000 5.000000)',7.0)")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:01:00.001',6,666.66,6666666666.66666,'LINESTRING (1.000000 1.000000, 2.000000 6.000000)',4.0)")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:02:00.002',5,444.44,4444444444.44444,'LINESTRING (1.000000 1.000000, 2.000000 7.000000)',5.0)")
+        tdSql.execute("flush database d0")
+        tdSql.query("select * from stb0")
+        tdSql.checkRows(12)
+        tdSql.query("show rsmas")
+        tdSql.checkRows(0)
+        # create rsma
+        tdSql.execute("create rsma rsma1 on d0.stb0 function(first(c0), min(c1), max(c2), first(c3)) interval(1m,5m)")
+        tdSql.execute("alter rsma rsma1 function(sum(c4))")
+        tdSql.query("select * from information_schema.ins_rsmas where db_name='d0'")
+        tdSql.checkRows(1)
+        # rollup rsma and check the result
+        tdSql.execute("alter database d0 keep 30d,73000d")
+        tdSql.execute("rollup database d0")
+        self.s5_0_wait_trim_done()
+        tdSql.query("select * from d0.stb0")
+        tdSql.checkRows(6)
+        tdSql.query("select ts,c0,c1,c2,ST_AsText(c3),c4 from d0.ctb0")
+        tdSql.checkRows(6)
+        expected_data = [
+            ('08:00:00.000', 1, Decimal('777.70'), Decimal('9999999999.99990'), 'LINESTRING (1.000000 1.000000, 2.000000 2.000000)', 6),
+            ('08:01:00.000', 4, Decimal('555.55'), Decimal('6666666666.66666'), 'LINESTRING (1.000000 1.000000, 2.000000 5.000000)', 11),
+            ('08:02:00.000', 5, Decimal('444.44'), Decimal('4444444444.44444'), 'LINESTRING (1.000000 1.000000, 2.000000 7.000000)', 5),
+        ]
+        row_offset = 0
+        for date_prefix in ["1969-10-01", "2024-10-01"]:
+            for i, (time, c0, c1, c2, c3, c4) in enumerate(expected_data):
+                row = i + row_offset
+                tdSql.checkData(row, 0, f"{date_prefix} {time}")
+                tdSql.checkData(row, 1, c0)
+                tdSql.checkData(row, 2, c1)
+                tdSql.checkData(row, 3, c2)
+                tdSql.checkData(row, 4, c3)
+                tdSql.checkData(row, 5, c4)
+            row_offset += len(expected_data)
 
-        1. Exceptional cases.
-        2. Retention task monitor.
-        3. Rollup automatically when execute: trim database <db_name>.
-        4. Rollup manually when execute: rollup database <db_name>.
+    def test_rsma(self):
+        """RSMAs basic
+        
+        1. Create two databases d0 and d1 with retention policy and stt_trigger.
+        2. Create stable and table with various data types including decimal and composite key.
+        3. Insert data into tables.
+        4. Create rsma on tables with various functions.
+        5. Alter rsma to add more functions.
+        6. Show rsma and verify.
+        7. Drop rsma and verify.
+        8. Trim database to trigger retention policy.
+        9. Rollup database and verify rsma results.
+        10. Rollup vgroups and verify rsma results.
+        11. Test decimal data type and composite key with add/drop column operations.
+        12. Exceptional cases.
+        13. Retention task monitor.
+        14. Rollup automatically when execute: trim database.
+        15. Rollup manually when execute: rollup database.
 
         Catalog:
             - Rollup SMA:Create/Drop/Show/Query/Trim/Rollup
@@ -740,7 +786,8 @@ class TestCase:
         Jira: TS-6113
 
         History:
-            - 2025-09-25: Initial version from Kaili Xu.
+            - 2025-09-25: Initial version from Kaili Xu(TS-6113).
+            - 2025-11-04: Check negative ts from Kaili Xu(TD-38485).
         """
         self.s1_create_db_table()
         self.s2_create_rsma()
@@ -750,5 +797,6 @@ class TestCase:
         self.s6_rollup_db()
         self.s7_rollup_vgroups()
         self.s8_decimal_composite_key_add_drop_column()
+        self.s9_negative_ts()
 
         tdLog.success("%s successfully executed" % __file__)

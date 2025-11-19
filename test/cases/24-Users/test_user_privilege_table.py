@@ -422,4 +422,21 @@ class TestUserPrivilegeTable:
         )
 
 
-# system sh/exec.sh -n dnode1 -s stop -x SIGINT
+    def test_except_reset_query_cache(self):
+        """Except reset query cache
+
+        1. Reset query cache before grant/revoke privilege
+        2. Reset query cache after grant/revoke privilege
+        3. Check show command and query command correctness
+
+        Catalog:
+            - Except
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        """
+        pass

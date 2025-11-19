@@ -1232,6 +1232,14 @@ class TestStreamSubqueryCount:
         )
         self.streams.append(stream)
 
+        stream = StreamItem(
+            id=133,
+            stream="create stream rdb.s133 count_window(2) from tdb.t1 into rdb.r133 as select * from tdb.t1 where _c0 >= _twend and _c0 >= _twstart and _c0 <= _twend;",
+            res_query="select * from rdb.r133",
+            exp_query="select cols(last(ts), *) from tdb.t1 count_window(2) limit 4;",
+        )
+        self.streams.append(stream)
+
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()

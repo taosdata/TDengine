@@ -414,7 +414,7 @@ class TestQueryBasic:
 
     # run
     def test_query_basic(self):
-        """Query select exact test
+        """Select exact test
         
         1. Insert data with taosBenchmark 1 stable 6 child tables
         2. Insert each child table 10w rows with step 30s, total 60w rows

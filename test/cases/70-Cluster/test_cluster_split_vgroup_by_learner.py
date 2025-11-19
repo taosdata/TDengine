@@ -96,7 +96,7 @@ class TestClusterSplitVgroupByLearner:
 
     # run
     def test_split_vgroup_by_learner(self):
-        """Check data correct after cluster actions
+        """Cluster split vgroups by learner
 
         1. Create 3 dnode cluster environment
         2. taosBenchmark insert data with full data-type columns

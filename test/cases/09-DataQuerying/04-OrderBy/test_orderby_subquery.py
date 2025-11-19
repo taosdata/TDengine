@@ -7,13 +7,14 @@ class TestOrderByBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_orderby_basic(self):
-        """Sort subquery results
+        """Order by subquery results
 
         1. Sort the results of subqueries
         2. Sort time data after applying the to_charfunction
-
-        Catalog:
-            - Query:OrderBy
+        3. Sort with multiple order by clauses
+        4. Sort before and after subqueries
+        5. Verify ascending and descending order combinations
+        6. Verify with limit and offset
 
         Since: v3.0.0.0
 

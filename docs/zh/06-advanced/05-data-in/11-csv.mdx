@@ -2,18 +2,23 @@
 title: "CSV"
 sidebar_label: "CSV"
 ---
+
 本节讲述如何通过 Explorer 界面创建数据迁移任务，从 CSV 迁移数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
+
 导入一个或多个 CSV 文件数据到 TDengine TSDB。
 
 ## 创建任务
+
 ### 1. 新增数据源
+
 在数据写入任务列表页面中，点击 **+新建任务** 按钮，进入新建任务页面。
 
 ![csv-01.png](./csv-01.png)
 
 ### 2. 配置基本信息
+
 在 **名称** 中输入任务名称，如：“test_csv”。
 
 在 **类型** 下拉列表中选择 **CSV**。
@@ -23,6 +28,7 @@ sidebar_label: "CSV"
 ![csv-02.png](./csv-02.png)
 
 ### 3. 配置 CSV 选项
+
 在 **包含表头** 区域点击开启或关闭，如果包含表头，则 CSV 文件内容第一行将被视为列信息。
 
 在 **忽略前 N 行** 区域填写数字 N，表示忽略 CSV 文件的前 N 行。
@@ -99,7 +105,7 @@ sidebar_label: "CSV"
 
 #### 4.4 映射
 
-在 **目标超级表** 的下拉列表中选择一个目标超级表，也可以先点击右侧的 **创建超级表** 按钮
+在 **目标超级表** 的下拉列表中选择一个目标超级表，也可以先点击右侧的 **创建超级表** 按钮。由于普通表并非典型应用场景，暂时不支持导入到普通表。
 
 在映射规则中，填写目标超级表中的子表名称，例如：`csv_meter_${id}`，同时配置映射到超级表的列。
 
@@ -109,13 +115,13 @@ sidebar_label: "CSV"
 
 ### 5. 配置高级选项
 
-import AdvancedOptions from './_02-advanced_options.mdx'
+import AdvancedOptions from "./_02-advanced_options.mdx";
 
-<AdvancedOptions/>
+<AdvancedOptions />
 
 ### 6. 异常处理策略
 
-import Contributing from './_03-exception-handling-strategy.mdx'
+import Contributing from "./_03-exception-handling-strategy.mdx";
 
 <Contributing />
 

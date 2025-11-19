@@ -609,7 +609,7 @@ class TestInsertStb:
         tdSql.execute('drop database insert_stb3')
         
     def test_insert_stb(self):
-        """Insert Super Table
+        """Write super table
 
         1. Create a super table containing multiple tag types
         2. Insert super table with multiple data types

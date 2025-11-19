@@ -11,12 +11,14 @@ class TestStreamNotifyTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_notify_trigger(self):
-        """basic qdb 2
+        """Notify basic
 
-        Verification testing during the development process.
-
-        Catalog:
-            - Streams:Notify
+        1. Stream notify on windows_open/windows_close trigger
+        2. Stream notify with options notify_history/on_failure_pause
+        3. Stream notify with different stream definitions
+        4. Stream create with no notify URL
+        5. Check notify results
+        
 
         Since: v3.3.3.7
 
@@ -46,6 +48,8 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic10())      # failed
         # streams.append(self.Basic11())      #
         streams.append(self.Basic12())      #
+        streams.append(self.Basic13())      #
+        streams.append(self.Basic14())
 
         tdStream.checkAll(streams)
 
@@ -1499,3 +1503,173 @@ class TestStreamNotifyTrigger:
             #     sql=f"select * from {self.db}.res_ct0",
             #     func=lambda: tdSql.getRows() == 3
             # )
+
+
+    class Basic13(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb13"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, startTime timestamp, c1 int) tags (tag1 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+            tdSql.execute(
+                f"create stream s0 state_window(c1) from ct0 "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"into "
+                f"res_ct0 (startTime, c1) as "
+                f"select startTime, c1 from ct0 "
+                f"where _twstart <= _c0 and _c0 <= _twend "
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into ct0 null time data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:00.000', NULL, 1);",
+                "insert into ct0 values ('2025-01-01 00:00:01.000', NULL, 1);",
+                "insert into ct0 values ('2025-01-01 00:00:02.000', NULL, 1);",
+                "insert into ct0 values ('2025-01-01 00:00:03.000', NULL, 2);",
+                "insert into ct0 values ('2025-01-01 00:00:04.000', NULL, 2);",
+                "insert into ct0 values ('2025-01-01 00:00:05.000', NULL, 3);",
+                "insert into ct0 values ('2025-01-01 00:00:06.000', NULL, 3);",
+                "insert into ct0 values ('2025-01-01 00:00:07.000', NULL, 4);",
+                "insert into ct0 values ('2025-01-01 00:00:08.000', NULL, 4);", 
+                "insert into ct0 values ('2025-01-01 00:00:09.000', NULL, 4);",
+                "insert into ct0 values ('2025-01-01 00:00:10.000', NULL, 4);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info("desc the stream res_ct0")
+            tdSql.query(f"desc {self.db}.res_ct0")
+            tdSql.checkRows(2)
+            tdSql.query(f"select * from {self.db}.res_ct0")
+            tdSql.checkRows(0)
+
+        def insert2(self):
+            tdLog.info(f"=============== insert data into ct0 not null time data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:00.000', '2025-01-01 00:00:00.000', 1);",
+                "insert into ct0 values ('2025-01-01 00:00:01.000', '2025-01-01 00:00:01.000', 1);",
+                "insert into ct0 values ('2025-01-01 00:00:02.000', '2025-01-01 00:00:02.000', 1);",
+                "insert into ct0 values ('2025-01-01 00:00:03.000', '2025-01-01 00:00:03.000', 2);",
+                "insert into ct0 values ('2025-01-01 00:00:04.000', '2025-01-01 00:00:04.000', 2);",
+                "insert into ct0 values ('2025-01-01 00:00:05.000', '2025-01-01 00:00:05.000', 3);",
+                "insert into ct0 values ('2025-01-01 00:00:06.000', '2025-01-01 00:00:06.000', 3);",
+                "insert into ct0 values ('2025-01-01 00:00:07.000', '2025-01-01 00:00:07.000', 4);",
+                "insert into ct0 values ('2025-01-01 00:00:08.000', '2025-01-01 00:00:08.000', 4);", 
+                "insert into ct0 values ('2025-01-01 00:00:09.000', '2025-01-01 00:00:09.000', 4);",
+                "insert into ct0 values ('2025-01-01 00:00:10.000', '2025-01-01 00:00:10.000', 4);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check2(self):
+            tdLog.info("desc the stream res_ct0")
+            tdSql.query(f"desc {self.db}.res_ct0")
+            tdSql.checkRows(2)
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_ct0",
+                func=lambda: tdSql.getRows() == 7
+            )
+
+
+    class Basic14(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb14"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, c0 int, c1 int) tags (tag1 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+            tdSql.execute(
+                f"create stream if not exists `sdb14`.`s1` "
+                f"event_window( start with (`c0`)>= 5 end with (`c1`)<5 ) true_for(5s) "
+                f"from `sdb14`.`stb` partition by tbname stream_options(ignore_disorder|event_type(window_open|window_close)) "
+                f"notify('ws://localhost:6042/eventReceive') on(window_open|window_close) "
+                f"into `sdb14`.`res_st` output_subtable(concat('ana_', tbname,'_end')) "
+                f"as select _c0 as output_timestamp, `c0` from %%tbname where ts >= _twstart and ts <_twend "
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into ct0 open window data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:00.000', 6, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:01.000', 7, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:02.000', 8, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:03.000', 9, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:04.000', 10, 7);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+            tdSql.query(f"desc {self.db}.ana_ct0_end")
+            tdSql.checkRows(3)
+            tdSql.query(f"select * from {self.db}.ana_ct0_end")
+            tdSql.checkRows(0)
+
+        def insert2(self):
+            tdLog.info(f"=============== insert data into ct0 close windows data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:05.000', 11, 8);",
+                "insert into ct0 values ('2025-01-01 00:00:06.000', 5, 1);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check2(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+            tdSql.query(f"desc {self.db}.ana_ct0_end")
+            tdSql.checkRows(3)
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.ana_ct0_end",
+                func=lambda: tdSql.getRows() == 6
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+                and tdSql.compareData(0, 1, 6)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(1, 1, 7)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
+                and tdSql.compareData(2, 1, 8)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:03.000")
+                and tdSql.compareData(3, 1, 9)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:04.000")
+                and tdSql.compareData(4, 1, 10)
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:05.000")
+                and tdSql.compareData(5, 1, 11),
+            )
+

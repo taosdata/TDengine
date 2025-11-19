@@ -9,7 +9,7 @@ class TestStreamRecalcManual:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_manual(self):
-        """Recalc: Manual basic testing
+        """Recalc: manual basic
 
         Test manual recalculation functionality for four different window types, verifying the recalculate stream command in various window scenarios:
 
@@ -33,8 +33,6 @@ class TestStreamRecalcManual:
             4.2 Verify initial computation results for event window
             4.3 Test event window manual recalculation functionality (currently blocked by TD-36691)
 
-        Catalog:
-            - Streams:Recalculation:Manual
 
         Since: v3.3.7.0
 

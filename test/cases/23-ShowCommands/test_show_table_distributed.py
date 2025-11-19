@@ -1,38 +1,20 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+import taos
+import random
+import time
+
 
 class TestShowTableDistributed:
 
     def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
+        pass
 
-    def test_show_table_distributed(self):
-        """Show Table Distributed
-
-        1. Tests basic distributed table display for super/normal/temporary tables
-        2. Verifies error handling for system/internal tables
-        3. Includes block distribution validation with data insertion
-        4. Checks metadata consistency after operations
-        5. Covers edge cases from TD-5998/TD-22140/T
-
-        Catalog:
-            - Show
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: TS-6908
-
-        History:
-            - 2025-7-23 Ethan liu adds test for show table distributed
-            - 2025-4-28 Simon Guan Migrated from tsim/compute/block_dist.sim
-
-        """
-
+    def do_sim_show_table_distributed(self):
         self.ShowDistributedNull()
         tdStream.dropAllStreamsAndDbs()
         self.BlockDist()
         tdStream.dropAllStreamsAndDbs()
+        print("do sim show table distributed ......... [passed]")
     
     def ShowDistributedNull(self):
         tdLog.info(f"========== start show table distributed test")
@@ -132,5 +114,96 @@ class TestShowTableDistributed:
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(2)
 
+    #
+    # ------------------- test_show_table_distributed.py ----------------
+    #
+    def initData(self):
+        # ----- test_show_table_distributed.py setup_class ------
+        self.dbname = "distributed_db"
+        self.stname = "st"
+        self.ctnum = 1
+        self.row_num = 99
 
-# system sh/exec.sh -n dnode1 -s stop -x SIGINT
+        # create database
+        tdSql.execute(f'create database if not exists {self.dbname};')
+        tdSql.execute(f'use {self.dbname};')
+        # create super table
+        tdSql.execute(f'create table {self.dbname}.{self.stname} (ts timestamp, id int, temperature float) tags (name binary(20));')
+        # create child table
+        for i in range(self.ctnum):
+            tdSql.execute(f'create table ct_{str(i+1)} using {self.stname} tags ("name{str(i+1)}");')
+            # insert data
+            sql = f"insert into ct_{str(i+1)} values "
+            for j in range(self.row_num):
+                sql += f"(now+{j+1}s, {j+1}, {random.uniform(15, 30)}) "
+            sql += ";"
+            tdSql.execute(sql)        
+    
+    def checkRes(self, queryRes):
+        mem_rows_num = 0
+        stt_rows_num = 0
+        for item in queryRes:
+            if "Inmem_Rows=" in item[0]:
+                mem_rows_num = int(item[0].split("=")[1].split(" ")[0].replace("[", "").replace("]", ""))
+                tdLog.debug("mem_rows_num: %s" % mem_rows_num)
+                if "Stt_Rows=" in item[0]:
+                    stt_rows_num = int(item[0].split("=")[2].replace("[", "").replace("]", ""))
+                    tdLog.debug("stt_rows_num: %s" % stt_rows_num)
+        return mem_rows_num, stt_rows_num
+
+    def do_show_table_distributed(self):
+        self.initData()
+        tdSql.query(f"show table distributed {self.stname};")
+        tdLog.debug(tdSql.queryResult)
+        mem_rows_num, stt_rows_num = self.checkRes(tdSql.queryResult)
+        tdLog.debug("mem_rows_num: %s, stt_rows_num: %s" % (mem_rows_num, stt_rows_num))
+        assert(99 == mem_rows_num and 0 == stt_rows_num)
+
+        tdSql.execute(f"flush database {self.dbname};")
+        time.sleep(1)
+        tdSql.query(f"show table distributed {self.stname};")
+        tdLog.debug(tdSql.queryResult)
+        mem_rows_num, stt_rows_num = self.checkRes(tdSql.queryResult)
+        tdLog.debug("mem_rows_num: %s, stt_rows_num: %s" % (mem_rows_num, stt_rows_num))
+        assert(0 == mem_rows_num and 99 == stt_rows_num)
+
+        # remove the user
+        tdSql.execute(f'drop database {self.dbname};')
+
+        print("do show table distributed ............. [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_show_table_distributed(self):
+        """Show table distributed
+
+        1. Tests basic distributed table display for super/normal/temporary tables
+        2. Verifies error handling for system/internal tables
+        3. Includes block distribution validation with data insertion
+        4. Checks metadata consistency after operations
+        5. Covers edge cases from TD-5998/TD-22140/TD-22165
+        6. Validates both in-memory and on-disk data representation
+        7. Ensures proper cleanup of test artifacts
+        8. Confirms accurate row counts in various scenarios
+        9. Validates functionality across different cluster configurations
+        10. Assesses performance impact of show table distributed command
+
+
+        Catalog:
+            - Show
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: TS-6908
+
+        History:
+            - 2025-7-23 Ethan liu adds test for show table distributed
+            - 2025-4-28 Simon Guan Migrated from tsim/compute/block_dist.sim
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_show_table_distributed.py
+
+        """
+        self.do_sim_show_table_distributed()
+        self.do_show_table_distributed()

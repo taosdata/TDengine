@@ -8,12 +8,12 @@ class TestUdfPy:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_udf_py(self):
-        """Udf Py
+        """Udf C for const
 
-        1.-
-
-        Catalog:
-            - Udf
+        1. Create database and normal table for udf test
+        2. Create function gpd with C code that has const parameter
+        3. Insert data into normal table
+        4. Query function gpd with const parameter from normal table
 
         Since: v3.0.0.0
 
