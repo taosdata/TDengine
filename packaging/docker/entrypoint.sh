@@ -198,10 +198,9 @@ if mount | grep -q "$MODEL_BASE_PATH"; then
 else
     echo "Non-mounted mode: starting built-in models..."
     for model in tdtsfm timemoe moment; do
-        model_dir="${MODEL_BASE_PATH}/${model}"
-        model_sub_dir=$(find_model_file "$model")
+        model_dir=$(find_model_file "$model")
 
-        if [ $? -eq 0 ] && [ -n "$model_sub_dir" ]; then
+        if [ $? -eq 0 ] && [ -n "$model_dir" ]; then
             echo "✓ Found $model model at: $model_dir"
             execute_startup "$model_dir" "$model" "${MODEL_NAMES[$model]}"
         else
