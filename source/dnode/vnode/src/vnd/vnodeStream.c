@@ -2215,6 +2215,7 @@ static int32_t processTsOutPutAllGroups(SStreamTriggerReaderInfo* sStreamReaderI
     int64_t uid = pList[0].uid;
     tsInfo->gId = qStreamGetGroupIdFromSet(sStreamReaderInfo, uid);
     ST_TASK_DLOG("%s get ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, __func__, tsInfo->ts, tsInfo->gId, tsRsp->ver);
+    taosMemoryFreeClear(pList);
   }
 
 end:
