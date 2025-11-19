@@ -900,7 +900,7 @@ TEST_F(WalCleanDeleteEnv, walSetKeepVersionWithDeletion) {
   ASSERT_LE(pWal->vers.firstVer, 150);
 }
 
-#ifndef WINDOWS
+
 TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
   walResetEnv();
   int code;
@@ -946,7 +946,6 @@ TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
   ASSERT_GE(finalVersion, 0);
   ASSERT_LT(finalVersion, numThreads * callsPerThread);
 }
-#endif
 
 // Test walRenameCorruptedDir: delete first wal log file
 TEST_F(WalRetentionEnv, corruptedDirDeleteFirstFile) {
@@ -1034,6 +1033,7 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteFirstFile) {
   tsWalDeleteOnCorruption = oldVal;
 }
 
+#ifndef WINDOWS
 // Test walRenameCorruptedDir: delete middle wal log file
 TEST_F(WalRetentionEnv, corruptedDirDeleteMiddleFile) {
   walResetEnv();
@@ -1119,6 +1119,7 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteMiddleFile) {
   
   tsWalDeleteOnCorruption = oldVal;
 }
+#endif
 
 // Test walRenameCorruptedDir: delete last wal log file
 TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
