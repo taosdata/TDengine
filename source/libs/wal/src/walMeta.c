@@ -634,6 +634,9 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     TAOS_CHECK_EXIT(walSaveMeta(pWal));
   }
 
+  TAOS_UNUSED(taosCloseDir(&pDir));
+  pDir = NULL;
+
   TAOS_CHECK_EXIT(walLogEntriesComplete(pWal));
 
   wInfo("vgId:%d, success to repair meta, wal path:%s, first index:%" PRId64 ", last index:%" PRId64
