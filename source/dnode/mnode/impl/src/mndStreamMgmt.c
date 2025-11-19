@@ -3295,9 +3295,9 @@ bool msmCheckStreamStartCond(int64_t streamId, int32_t snodeId) {
     }
   }
 
-  readerNum = taosArrayGetSize(pStream->trigOReaders);
+  readerNum = msmGetTrigOReaderSize(pStream->trigOReaders);
   for (int32_t i = 0; i < readerNum; ++i) {
-    SStmTaskStatus* pStatus = taosArrayGet(pStream->trigOReaders, i);
+    SStmTaskStatus* pStatus = msmGetTrigOReader(pStream->trigOReaders, i);
     if (STREAM_STATUS_INIT != pStatus->status && STREAM_STATUS_RUNNING != pStatus->status) {
       return false;
     }
@@ -4032,6 +4032,61 @@ _exit:
   return code;
 }
 
+int32_t msmGetTrigOReaderSize(SArray* pOReaders) {
+  int32_t listSize = taosArrayGetSize(pOReaders);
+  int32_t totalSize = 0;
+  
+  for (int32_t i = 0; i < listSize; ++i) {
+    SArray* pList = taosArrayGetP(pOReaders, i);
+    totalSize += taosArrayGetSize(pList);
+  }
+
+  return totalSize;
+}
+
+SStmTaskStatus* msmGetTrigOReader(SArray* pOReaders, int32_t idx) {
+  SArray* pList = taosArrayGetP(pOReaders, idx / MST_ORIGINAL_READER_LIST_SIZE);
+  if (NULL == pList) {
+    return NULL;
+  }
+
+  return (SStmTaskStatus*)taosArrayGet(pList, idx % MST_ORIGINAL_READER_LIST_SIZE);
+}
+
+
+int32_t msmEnsureGetOReaderList(int64_t streamId, SStmStatus* pStatus, SArray** ppRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (NULL == pStatus->trigOReaders) {
+    pStatus->trigOReaders = taosArrayInit(10, POINTER_BYTES);
+    TSDB_CHECK_NULL(pStatus->trigOReaders, code, lino, _exit, terrno);
+  }
+
+  while (true) {
+    SArray** ppOReaderList = taosArrayGetLast(pStatus->trigOReaders);
+
+    if (NULL == ppOReaderList || (*ppOReaderList)->size >= (*ppOReaderList)->capacity) {
+      SArray* pOReaderList = taosArrayInit(MST_ORIGINAL_READER_LIST_SIZE, sizeof(SStmTaskStatus));
+      TSDB_CHECK_NULL(pOReaderList, code, lino, _exit, terrno);
+
+      TSDB_CHECK_NULL(taosArrayPush(pStatus->trigOReaders, &pOReaderList), code, lino, _exit, terrno);
+      continue;
+    }
+
+    *ppRes = *ppOReaderList;
+    break;
+  }
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
 int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStmTaskStatusMsg* pTask, int32_t vgId, int32_t vgNum) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -4048,12 +4103,10 @@ int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStmTask
   }
 
   if (!readerExists) {
-    if (NULL == pStatus->trigOReaders) {
-      pStatus->trigOReaders = taosArrayInit(vgNum, sizeof(SStmTaskStatus));
-      TSDB_CHECK_NULL(pStatus->trigOReaders, code, lino, _exit, terrno);
-    }
+    SArray* pReaderList = NULL;
+    TAOS_CHECK_EXIT(msmEnsureGetOReaderList(streamId, pStatus, &pReaderList));
     
-    SStmTaskStatus* pState = taosArrayReserve(pStatus->trigOReaders, 1);
+    SStmTaskStatus* pState = taosArrayReserve(pReaderList, 1);
     TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, vgId, pStatus, streamId));
     TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pState));
     TAOS_CHECK_EXIT(msmSTAddToVgroupMap(pCtx, streamId, NULL, NULL, pState, true));
@@ -4095,6 +4148,13 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_RUNNING);
   }
 
+  if (rsp.reqId == pStatus->lastTrigMgmtReqId) {
+    mstsDebug("duplicated trigger oreader deploy msg, will ignore it, reqId %" PRId64, rsp.reqId);
+    goto _exit;
+  }
+
+  atomic_store_64(&pStatus->lastTrigMgmtReqId, rsp.reqId); 
+
   stopped = atomic_load_8(&pStatus->stopped);
   if (stopped) {
     msttInfo("stream stopped %d, ignore deploy trigger reader, vgId:%d", stopped, vgId);
@@ -4103,12 +4163,6 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
 
   if (tbNum <= 0) {
     mstsWarn("empty table list in origReader req, array:%p", pTbs);
-    goto _exit;
-  }
-
-  int32_t oReaderNum = taosArrayGetSize(pStatus->trigOReaders);
-  if (oReaderNum > 0) {
-    mstsWarn("origReaders already exits, num:%d", oReaderNum);
     goto _exit;
   }
 
@@ -4136,13 +4190,13 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pStatus, pTask, *(int32_t*)p, vgNum));
   }
   
-  vgNum = taosArrayGetSize(pStatus->trigOReaders);
+  vgNum = msmGetTrigOReaderSize(pStatus->trigOReaders);
   rsp.cont.readerList = taosArrayInit(vgNum, sizeof(SStreamTaskAddr));
   TSDB_CHECK_NULL(rsp.cont.readerList, code, lino, _exit, terrno);
 
   SStreamTaskAddr addr;
   for (int32_t i = 0; i < vgNum; ++i) {
-    SStmTaskStatus* pOTask = taosArrayGet(pStatus->trigOReaders, i);
+    SStmTaskStatus* pOTask = msmGetTrigOReader(pStatus->trigOReaders, i);
     addr.taskId = pOTask->id.taskId;
     addr.nodeId = pOTask->id.nodeId;
     addr.epset = mndGetVgroupEpsetById(pCtx->pMnode, pOTask->id.nodeId);

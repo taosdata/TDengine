@@ -65,6 +65,7 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MST_ISOLATION_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
 #define MND_STREAM_HEALTH_CHECK_PERIOD_SEC (MND_STREAM_REPORT_PERIOD / 1000)
 #define MST_MAX_RETRY_DURATION (MST_ISOLATION_DURATION * 20)
+#define MST_ORIGINAL_READER_LIST_SIZE 32
 
 #define MST_PASS_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
 #define MST_PASS_SHORT_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_SHORT_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
@@ -280,7 +281,7 @@ typedef struct SStmStatus {
 
   SRWLatch          resetLock;
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
-  SArray*           trigOReaders;       // SArray<SStmTaskStatus>, virtable table only
+  SArray*           trigOReaders;       // SArray<SStmTaskStatus>*, virtable table only
   SList*            calcReaders;        // SList<SStmTaskStatus>
   SStmTaskStatus*   triggerTask;
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
@@ -289,6 +290,8 @@ typedef struct SStmStatus {
   
   SRWLatch          userRecalcLock;
   SArray*           userRecalcList; // SArray<SStreamRecalcReq>
+
+  int64_t           lastTrigMgmtReqId;
 
   SStmStat          stat;
 } SStmStatus;

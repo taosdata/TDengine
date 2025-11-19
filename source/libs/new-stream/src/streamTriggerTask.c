@@ -5077,7 +5077,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
       SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
       QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
-      pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
+      pReq->reqId = atomic_add_fetch_64(&pTask->mgmtReqId, 1);
       pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
       pReq->cont.pReqs = pOrigTableNames;
       pOrigTableNames = NULL;
