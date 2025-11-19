@@ -469,7 +469,7 @@ The following sections describe each field in the notification message.
 
 These fields are shared by all event objects:
 
-- tableName: String. The name of the target child table associated with the event.
+- tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist. 
 - eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, and WINDOW_INVALIDATION.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.
