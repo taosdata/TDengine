@@ -171,6 +171,102 @@ testCases:
                      ) 
                 where sduration > 12 * 3600000; 
 
+    - scenarioId: "F1"
+      classfication: "Fleet"
+      description: ""
+      sql: |
+        create stream db1.stm_f1 
+            period(1m) 
+            from db1.readings partition by fleet 
+            into db1.res_f1 
+            as 
+              select cast(_tlocaltime/1000000 as timestamp), count(*) 
+                from (
+                      select last(velocity) last_velocity, fleet 
+                        from db1.readings 
+                        where fleet = %%1 
+                        partition by tbname
+                      ) 
+                where last_velocity > 0;
+
+    - scenarioId: "F2"
+      classfication: "Fleet"
+      description: ""
+      sql: |
+        create stream db2.stm_f2 
+            period(1m) 
+            from db2.diagnostics partition by fleet 
+            into db2.res_f2 
+            as 
+              select cast(_tlocaltime/1000000 as timestamp), count(*) 
+                from (
+                      select last(status) last_status, fleet 
+                        from db2.diagnostics 
+                        where fleet = %%1 
+                        partition by tbname
+                     ) 
+                where last_status > 0;
+
+    - scenarioId: "F3"
+      classfication: "Fleet"
+      description: ""
+      sql: |
+        create stream db1.stm_f3 
+        interval(1h) 
+        sliding(1h) 
+        from db1.readings partition by fleet 
+        stream_options(fill_history_first) 
+        into db1.res_f3 
+        as 
+          select _twend, avg(fuel_consumption) 
+            from db1.readings 
+            where fleet = %%1 and _c0 >= _twstart and _c0 < _twend;
+
+    - scenarioId: "F4"
+      classfication: "Fleet"
+      description: ""
+      sql: |
+         create stream db1.stm_f4 
+         interval(1d) 
+         sliding(1d) 
+         from db1.readings  
+         stream_options(fill_history_first) 
+         into db1.res_f4 (ts, fleet primary key, efficiency) 
+         as 
+          select _twstart, a.fleet, avg_load/avg_fuel efficiency 
+            from (
+                  select _twstart ts, avg(fuel_consumption) avg_fuel, fleet 
+                    from db1.readings 
+                    where _c0 >= _twstart and _c0 < _twend partition by fleet
+                  ) a 
+            join (
+                  select _twstart ts, avg(current_load) avg_load, fleet 
+                    from db2.diagnostics where _c0 >= _twstart and _c0 < _twend 
+                    partition by fleet
+                  ) b 
+            on a.ts = b.ts and a.fleet = b.fleet;
+
+
+    - scenarioId: "F5"
+      classfication: "Fleet"
+      description: ""
+      sql: |
+        create stream db2.stm_f5 
+        interval(1d) 
+        sliding(1d) 
+        from db2.diagnostics 
+        partition by fleet 
+        stream_options(fill_history_first) 
+        into db2.res_f5 
+        as 
+          select _twstart, sum(tduration)/3600000 
+          from (
+                select _wduration tduration, count(*) 
+                  from db2.diagnostics 
+                  where fleet = %%1 and _c0 >= _twstart and _c0 < _twend 
+                  partition by tbname 
+                  event_window start with status > 0 end with status = 0
+               )
 
     - scenarioId: "F6"
       classfication: "Fleet"
@@ -208,11 +304,29 @@ testCases:
                           partition by tbname
                      )
 
+    - scenarioId: "F8"
+      classfication: "Fleet"
+      description: ""
+      sql: |
+        create stream db1.stm_f8 
+        interval(1d) 
+        sliding(1d) 
+        from db1.readings partition by fleet 
+        stream_options(fill_history_first) 
+        into db1.res_f8 (ts, name primary key, top_fuel) 
+        as 
+          select _twstart ts, name, top(avg_fuel, 5) top_fuel 
+            from (
+                  select name, fleet, avg(fuel_consumption) avg_fuel 
+                    from db1.readings where fleet = %%1 and _c0 >= _twstart and _c0 < _twend 
+                    partition by tbname
+                 )
+
     - scenarioId: "T1"
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream stm_t1 
+        create stream db1.stm_t1 
             interval(1h) 
             sliding(1h) 
             from db1.readings partition by tbname 
@@ -227,7 +341,7 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream stm_t2 
+        create stream db1.stm_t2 
             interval(1h) 
             sliding(1h) 
             from db1.readings partition by tbname 
@@ -246,7 +360,7 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream stm_t3 
+        create stream db1.stm_t3 
             state_window (
                 case when grade <= 30 then 0 
                      when grade <= 70 then 1 
@@ -257,4 +371,125 @@ testCases:
             as 
               select _twstart ts, avg(fuel_consumption), avg(velocity) 
                 from  %%tbname 
+                where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T4"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t4 
+            state_window(
+                          case when velocity <= 30 then 0 
+                               when velocity <= 70 then 1 
+                          else 2 end
+                        ) 
+            from db1.readings 
+            partition by tbname 
+            stream_options(fill_history_first) 
+            into db1.res_t4 
+            as 
+              select _twstart ts, avg(fuel_consumption) 
+                from %%tbname 
+                where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T5"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream db2.stm_t5 
+          state_window(
+                     case when status > 0 then 1 
+                     else 0 end, 
+                     0, 
+                     0
+                    ) 
+          from db2.diagnostics partition by tbname 
+          stream_options(fill_history_first) 
+          into db2.res_t5 
+          as 
+            select _twstart, _twduration, avg(current_load) 
+              from %%tbname 
+              where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T6"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream db2.stm_t6 
+            state_window(
+                          case when fuel_state < 0.2 * fuel_capacity 
+                          then 1 else 0 end, 
+                          0, 
+                          0
+                         ) 
+            from db2.diagnostics partition by tbname 
+            stream_options(fill_history_first) 
+            into db2.res_t6 
+            as 
+               select  _twstart, _twduration, count(*) 
+                  from %%tbname 
+                  where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T7"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t7 
+            state_window(
+                          case when fuel_consumption > 2 * nominal_fuel_consumption then 1 
+                          else 0 end, 
+                          0, 
+                          0
+                        ) 
+            from db1.readings partition by tbname, name 
+            stream_options(fill_history_first) 
+            into db1.res_t7 
+            as 
+              select a.ts, a.wduration, a.avg_velocity, a.avg_grade, a.avg_elevation, b.avg_load 
+                from (
+                      select  _twstart ts, _twduration wduration, avg(velocity) avg_velocity, avg(grade) avg_grade, avg(elevation) avg_elevation 
+                        from %%tbname 
+                        where _c0 >= _twstart and _c0 <= _twend
+                     ) a 
+                join (
+                       select _twstart ts, avg(current_load) avg_load 
+                          from db2.diagnostics 
+                          where name = %%2 and _c0 >= _twstart and _c0 <= _twend
+                     ) b 
+                on a.ts = b.ts;
+
+    - scenarioId: "T8"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t8 
+            event_window(
+                         start with velocity > 70 and grade > 70 
+                         end   with velocity <= 70 or grade <= 70
+                        ) 
+            from db1.readings partition by tbname 
+            stream_options(fill_history_first) 
+            into db1.res_t8 
+            as 
+              select _twstart, _twduration, avg(fuel_consumption) 
+                  from %%tbname 
+                  where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T9"
+      classfication: "Vehicle"
+      description: ""
+      sql: |
+        create stream db2.stm_t9 
+            state_window(
+                          case when fuel_state = 1 then 1 
+                          else 0 end, 
+                          0, 
+                          0
+                        ) 
+            from db2.diagnostics partition by tbname 
+            stream_options(fill_history_first) 
+            into db2.res_t9 
+            as 
+              select _twstart, first(current_load) 
+                from %%tbname 
                 where _c0 >= _twstart and _c0 <= _twend;

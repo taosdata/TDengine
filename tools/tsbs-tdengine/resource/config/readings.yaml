@@ -1,4 +1,5 @@
 testCases:
+    # A1 A2 A3 A4 A5 A6 A7
     - scenarioId: "A1"
       querySql: select count(*) from db1.readings
       dataRows: 9988893
@@ -40,7 +41,41 @@ testCases:
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a7
       expectRows: 8888
-   
+
+    # F1 F2 F3 F4 F8
+
+    - scenarioId: "F1"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_f1
+      expectRows: 8888
+
+    - scenarioId: "F2"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_f2
+      expectRows: 8888
+
+    - scenarioId: "F3"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_f3
+      expectRows: 8888
+
+    - scenarioId: "F4"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_f4
+      expectRows: 8888
+
+    - scenarioId: "F8"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_f8
+      expectRows: 8888
+
+    # T1 T2 T3 T4 T7 T8
+
     - scenarioId: "T1"
       querySql: select count(*) from db1.readings
       dataRows: 9988893
@@ -58,3 +93,21 @@ testCases:
       dataRows: 9988893
       verifySql: select count(*) from db1.res_t3
       expectRows: 8888      
+
+    - scenarioId: "T4"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_t4
+      expectRows: 8888           
+
+    - scenarioId: "T7"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_t7
+      expectRows: 8888   
+
+    - scenarioId: "T8"
+      querySql: select count(*) from db1.readings
+      dataRows: 9988893
+      verifySql: select count(*) from db1.res_t8
+      expectRows: 8888               

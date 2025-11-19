@@ -20,6 +20,7 @@ import taos
 
 from baseStep import BaseStep
 from scene import Scene
+from outMetrics import metrics
 
 class PrepareEnv(BaseStep):
     def __init__(self, scene):
@@ -28,19 +29,23 @@ class PrepareEnv(BaseStep):
         
     def exec_sql_file(self, conn, sql_file):
         with open(sql_file, 'r') as file:
-            sql_commands = file.readlines()
-            for command in sql_commands:
-                command = command.strip()
-                if command:
-                    conn.execute(command)
-                    print(f"exe success: {command}")
-                    if command.lower().startswith("create database"):
-                        # extract db name
-                        parts = command.split()
-                        if len(parts) >= 3:
-                            db_name = parts[2].strip().rstrip(';')
-                            self.scene.db_name = db_name
-                            print(f"Set scene.db_name to: {self.scene.db_name}")
+            try:
+                sql_commands = file.readlines()
+                for command in sql_commands:
+                    command = command.strip()
+                    if command:
+                        conn.execute(command)
+                        print(f"exe success: {command}")
+                        if command.lower().startswith("create database"):
+                            # extract db name
+                            parts = command.split()
+                            if len(parts) >= 3:
+                                db_name = parts[2].strip().rstrip(';')
+                                self.scene.db_name = db_name
+                                print(f"Set scene.db_name to: {self.scene.db_name}")
+            except Exception as e:
+                print(f"Error executing SQL file {sql_file}: {e}")
+                metrics.set_status(self.scene.name, "Failed")
 
     def wait_stream_ready(self, conn, stream_name="", timeout=120):
         sql = "select * from information_schema.ins_stream_tasks where type = 'Trigger' and status != 'Running'"

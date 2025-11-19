@@ -1,4 +1,5 @@
 testCases:
+    # A8 A9
     - scenarioId: "A8"
       querySql: select count(*) from db2.diagnostics
       dataRows: 9988779
@@ -11,6 +12,14 @@ testCases:
       verifySql: select count(*) from db2.res_a9
       expectRows: 16
 
+    # F5 F6 F7
+
+    - scenarioId: "F5"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_f5
+      expectRows: 8888
+
     - scenarioId: "F6"
       querySql: select count(*) from db2.diagnostics
       dataRows: 9988779
@@ -22,3 +31,23 @@ testCases:
       dataRows: 9988779
       verifySql: select count(*) from db2.res_f7
       expectRows: 20
+
+    # T5 T6 T9  
+
+    - scenarioId: "T5"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_t5
+      expectRows: 8888
+
+    - scenarioId: "T6"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_t6
+      expectRows: 8888
+
+    - scenarioId: "T9"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_t9
+      expectRows: 8888

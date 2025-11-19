@@ -35,6 +35,9 @@ class OutMetrics:
     def init_metrics(self, metrics_file):
         print("Initializing metrics output")
         self.metrics_file = metrics_file
+    
+    def set_status(self,name, status):
+        self.status[name] = status    
             
     def start(self):
         self.time_start = time.time()
