@@ -2787,9 +2787,6 @@ class TDSql:
         if delay != 0:
             time.sleep(delay)
 
-        # show sql
-        tdLog.info(sql)
-
         if retry <= 0:
             retry = 1
 
@@ -2798,18 +2795,23 @@ class TDSql:
             # clear
             self.clearResult()
             # query
+            result = self.getResult(sql, exit=False)
             exp_result = self.getResult(exp_sql, exit=False)
             # check result
-            if exp_result != [] and exp_result != None:
+            if self.compareResults(result, exp_result):
                 # success
-                break
+                return 
+
             # sleep and retry
             if loop != retry - 1:
                 if show:
                     self.printResult(f"check continue {loop} after sleep 1s ...")
                 time.sleep(1)
+        
+        print(f"result is: {result}")
+        print(f"exp_result is: {exp_result}")
 
-        self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
+        raise Exception(f"check failed for {retry} seconds, sql={sql}, exp_sql={exp_sql}")
 
     def checkTableType(
         self,
