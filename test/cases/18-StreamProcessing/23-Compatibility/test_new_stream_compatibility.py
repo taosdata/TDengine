@@ -1,4 +1,4 @@
-import os, platform, subprocess, time, re
+import os, platform, subprocess, time, re, importlib
 from pathlib import Path
 from new_test_framework.utils import (
     tdLog,
@@ -9,13 +9,31 @@ from new_test_framework.utils import (
     tdCom
 )
 
+# Import enterprise package downloader
+current_dir = os.path.dirname(os.path.realpath(__file__))
+enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../../../../enterprise/utils/download_enterprise_package.py"))
+
+# Check if enterprise downloader exists
+if not os.path.exists(enterprise_downloader_path):
+    raise FileNotFoundError(f"Enterprise package downloader not found at: {enterprise_downloader_path}")
+
+# Load the module
+spec = importlib.util.spec_from_file_location("download_enterprise_package", enterprise_downloader_path)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Could not load enterprise package downloader from: {enterprise_downloader_path}")
+
+download_enterprise_package = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(download_enterprise_package)
+EnterprisePackageDownloader = download_enterprise_package.EnterprisePackageDownloader
+downloader = EnterprisePackageDownloader()
+
 # Define the list of base versions to test
 BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6"]
 
 class TestNewStreamCompatibility:
 
     def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
+        tdLog.info(f"start to execute {__file__}")
 
     def test_stream_compatibility(self):
         """Comp: stream backward and forward
@@ -113,20 +131,21 @@ class TestNewStreamCompatibility:
         os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'create stream 
         test_stream_compatibility.s_count count_window(3) from 
         test_stream_compatibility.stb partition by tbname into 
-        test_stream_compatibility.res_count as select _twstart, _twend, sum(v1) 
-        as sum_v1, avg(v2) as avg_v2 from %%tbname 
+        test_stream_compatibility.res_count as select _twstart as ts, _twend as 
+        te, sum(v1) as sum_v1, avg(v2) as avg_v2 from %%tbname 
         where ts >= _twstart and ts <= _twend;'""")
         os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'create stream 
         test_stream_compatibility.s_state state_window(v1) from 
         test_stream_compatibility.stb partition by tbname into 
-        test_stream_compatibility.res_state as select _twstart, _twend, sum(v1) 
-        as sum_v1, avg(v2) as avg_v2 from %%tbname 
+        test_stream_compatibility.res_state as select _twstart as ts, _twend as 
+        te, sum(v1) as sum_v1, avg(v2) as avg_v2 from %%tbname 
         where ts >= _twstart and ts <= _twend;'""")
         os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'create stream 
         test_stream_compatibility.s_inter interval(3s) sliding(3s) from 
         test_stream_compatibility.stb into test_stream_compatibility.res_inter 
-        as select _twstart, _twend, sum(v1) as sum_v1, avg(v2) as avg_v2 
-        from test_stream_compatibility.stb where ts >= _twstart and ts < _twend'
+        as select _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as 
+        avg_v2 from test_stream_compatibility.stb 
+        where ts >= _twstart and ts < _twend'
         """)
 
         # check status
@@ -205,43 +224,24 @@ class TestNewStreamCompatibility:
         )
         streams.append(stream)
 
+        # check status
         tdStream.checkStreamStatus()
 
-        # insert more data
-
+        # check results
         for stream in streams:
             stream.checkResults()
-        
 
     # copied from download_enterprise_package.py
     def installTaosd(self, cPath, base_version):
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
 
-        # Check if version is 3.3.7.0 or later
-        # Use new download URL format for 3.3.7.0 and later versions
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = f"tdengine-tsdb-enterprise-{base_version}-linux-arm64.tar.gz"
-            download_url = f"http://192.168.1.131/data/nas/TDengine/3.3/v{base_version}/enterprise/{packageName}"
-        else:
-            packageName = f"tdengine-tsdb-enterprise-{base_version}-linux-x64.tar.gz"
-            download_url = f"http://192.168.1.131/data/nas/TDengine/3.3/v{base_version}/enterprise/{packageName}"
-        
-        # Extract package name without extension for installation
-        packageTPath = packageName.replace("-linux-x64.tar.gz", "")
+        # Use enterprise package downloader
+        downloader = EnterprisePackageDownloader()
+        tdLog.info(f"Downloading and installing enterprise version {base_version}")
+        package_path = downloader.download_and_install(base_version, "enterprise", "-e no")
+        tdLog.info(f"Successfully installed enterprise package from {package_path}")
 
-        tdLog.info(f"wget {download_url}")
-        
-        my_file = Path(f"{packagePath}/{packageName}")
-        if not my_file.exists():
-            print(f"{packageName} is not exists")
-            tdLog.info(f"cd {packagePath} && wget {download_url}")
-            os.system(f"cd {packagePath} && wget {download_url}")
-        else: 
-            print(f"{packageName} has been exists")
-            
-        os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
-        
         os.system(f"pkill -9 taosd")
         tdCb.checkProcessPid("taosd")
 
@@ -292,7 +292,7 @@ class TestNewStreamCompatibility:
             result = subprocess.run(command, shell=True, text=True, capture_output=True)
             if result.returncode == 0:
                 count = get_row_count(result.stdout)
-                tdLog.debug(f"Stream result rows:{count}, expect:{expect_row_num}")
+                tdLog.info(f"Stream result rows:{count}, expect:{expect_row_num}")
                 if count == expect_row_num:
                     tdLog.info(f"Stream result table {res_table} check executed successfully.")
                     return True
