@@ -261,6 +261,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN            64
+#define TSDB_OBJ_NAME_LEN             193                                // it is a null-terminated string
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
@@ -758,13 +759,13 @@ typedef uint64_t DecimalWord;
 
 typedef enum {
   // ==================== Legacy Privilege ====================
-  PRIV_TYPE_ALL = 0,        // ALL PRIVILEGES
-  PRIV_TYPE_READ = 1,       // READ PRIVILEGE
-  PRIV_TYPE_WRITE = 2,      // WRITE PRIVILEGE
-  PRIV_TYPE_SUBSCRIBE = 3,  // SUBSCRIBE PRIVILEGE
-  PRIV_TYPE_ALTER = 4,      // ALTER PRIVILEGE
-  // ==================== DB Privileges(5~49) ====================
-  PRIV_DB_CREATE = 5,      // CREATE DATABASE
+  PRIV_TYPE_ALL = 1,        // ALL PRIVILEGES
+  PRIV_TYPE_READ = 2,       // READ PRIVILEGE
+  PRIV_TYPE_WRITE = 3,      // WRITE PRIVILEGE
+  PRIV_TYPE_SUBSCRIBE = 4,  // SUBSCRIBE PRIVILEGE
+  PRIV_TYPE_ALTER = 5,      // ALTER PRIVILEGE
+  // ==================== DB Privileges(6~49) ====================
+  PRIV_DB_CREATE = 6,      // CREATE DATABASE
   PRIV_DB_ALTER,           // ALTER DATABASE
   PRIV_DB_DROP,            // DROP DATABASE
   PRIV_DB_USE,             // USE DATABASE
@@ -773,7 +774,7 @@ typedef enum {
   PRIV_DB_TRIM,            // TRIM DATABASE
   PRIV_DB_ROLLUP,          // ROLLUP DATABASE
   PRIV_DB_SCAN,            // SCAN DATABASE
-  PRIV_DB_SSMIGRATE = 14,  // SSMIGRATE DATABASE
+  PRIV_DB_SSMIGRATE = 15,  // SSMIGRATE DATABASE
 
   // VGroup Operations
   PRIV_VG_BALANCE = 26,  // BALANCE VGROUP

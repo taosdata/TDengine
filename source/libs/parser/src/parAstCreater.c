@@ -248,6 +248,20 @@ static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, co
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool checkObjName(SAstCreateContext* pCxt, SToken* pObjName, bool need) {
+  if (NULL == pObjName || TK_NK_NIL == pObjName->type) {
+    if (need) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    }
+  } else {
+    trimEscape(pCxt, pObjName, true);
+    if (pObjName->n >= TSDB_OBJ_NAME_LEN || pObjName->n == 0) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pObjName->z);
+    }
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
+}
+
 static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb) {
   if (NULL == pDbName) {
     if (demandDb && NULL == pCxt->pQueryCxt->db) {
@@ -5237,11 +5251,13 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPri
     case TSDB_ALTER_ROLE_LOCK:
       break;
     case TSDB_ALTER_ROLE_PRIVILEGES: {
-      CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
+      CHECK_NAME(checkObjName(pCxt, &pPrivLevel->first, false));
       CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
       pStmt->privileges = *(SPrivSet*)resouces;
-      COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
-      if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
+      if (TK_NK_NIL != pPrivLevel->first.type) {
+        COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+      }
+      if (TK_NK_NIL != pPrivLevel->second.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
       }
       pStmt->pTagCond = pTagCond;

@@ -816,9 +816,9 @@ typedef struct SDropViewStmt {
 
 typedef struct SGrantStmt {
   ENodeType type;
-  int8_t    optrType;                   // privilege/role
-  char      principal[TSDB_ROLE_LEN];   // user or role name
-  char      objName[TSDB_DB_NAME_LEN];  // db or topic
+  int8_t    optrType;                    // privilege/role/...
+  char      principal[TSDB_ROLE_LEN];    // user or role name
+  char      objName[TSDB_OBJ_NAME_LEN];  // db or topic
   char      tabName[TSDB_TABLE_NAME_LEN];
   union {
     SPrivSet privileges;

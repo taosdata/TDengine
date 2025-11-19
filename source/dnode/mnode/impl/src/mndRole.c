@@ -78,7 +78,7 @@ int32_t mndInitRole(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-void mndCleanupRole(SMnode *pMnode) {}
+void mndCleanupRole(SMnode *pMnode) { (void)taosThreadRwlockDestroy(&roleMgmt.rw); }
 
 int64_t mndGetRoleLastUpd() {
   int64_t lastUpd;
