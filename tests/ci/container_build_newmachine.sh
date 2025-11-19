@@ -61,7 +61,7 @@ docker run \
     -v /root/go/pkg/mod:/root/go/pkg/mod \
     -v /root/.cache/go-build:/root/.cache/go-build \
     -v /root/.cos-local.1:/root/.cos-local.2 \
-    --rm --ulimit core=-1 taos_test:v1.0 sh -c "pip uninstall taospy -y; pip3 install taospy==2.8.5; cd $REP_DIR; rm -rf debug ;mkdir -p debug; cd debug; cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=ON -DWEBSOCKET=true -DBUILD_SANITIZER=1 -DTOOLS_SANITIZE=true $CMAKE_BUILD_TYPE -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=OFF; make -j 10|| exit 1 "
+    --rm --ulimit core=-1 taos_test:v1.0 sh -c "pip uninstall taospy -y; pip3 install taospy==2.8.6; cd $REP_DIR; rm -rf debug ;mkdir -p debug; cd debug; cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TEST=ON -DWEBSOCKET=true -DBUILD_SANITIZER=1 -DTOOLS_SANITIZE=true $CMAKE_BUILD_TYPE -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=OFF; make -j 10|| exit 1 "
  # -v ${REP_REAL_PATH}/community/contrib/jemalloc/:${REP_DIR}/community/contrib/jemalloc \
 
 if [[ -d ${WORKDIR}/debugNoSan  ]] ;then

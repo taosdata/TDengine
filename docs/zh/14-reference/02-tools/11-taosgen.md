@@ -127,7 +127,7 @@ taosgen -h 127.0.0.1 -c config.yaml
       - has_header（布尔）：是否包含表头行，默认为 true。
       - tbname_index（整数）：指定表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。
       - exclude_indices（字符串）：如果仅想使用部分标签列时，此参数用于指定剔除的无用标签列的索引（从 0 开始），列索引之间使用英文逗号,分隔，默认值为空，表示不剔除。
-    - columns：描述 tags 的配置参数。
+    - columns：时序数据列的配置参数。
       - file_path（字符串）：时序数据 CSV 文件路径。
       - has_header（布尔）：是否包含表头行，默认为 true。
       - repeat_read（布尔）：是否重复读取数据，默认为 false。
@@ -167,8 +167,10 @@ taosgen -h 127.0.0.1 -c config.yaml
   - 整型：timestamp、bool、tinyint、tinyint unsigned、smallint、smallint unsigned、int、int unsigned、bigint、bigint unsigned。
   - 浮点型：float、double、decimal。
   - 字符型：nchar、varchar（binary）。
+
+  目前，还不支持以下数据类型：json、geometry、varbinary、decimal、blob。
 - count（整数）：表示指定该类型的列连续出现的数量，例如 count：4096 即可生成 4096 个指定类型的列。
-- properties（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
+- props（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
   - encode：指定此列两级压缩中的第一级编码算法。
   - compress：指定此列两级压缩中的第二级加密算法。
   - level：指定此列两级压缩中的第二级加密算法的压缩率高低。
@@ -244,7 +246,6 @@ taosgen -h 127.0.0.1 -c config.yaml
 ### 写入 TDengine 数据行动的格式
 `tdengine/insert-data` 行动用于将数据写入到指定的子表中。它支持从生成器或 CSV 文件两种来源获取子表名称、普通列数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据写入过程，具备高度灵活性和可配置性。
 
-- tdengine：默认使用全局的 tdengine 配置信息，当需要差异化时可在此行动下单独定义。
 - schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。
 - format（字符串）：描述数据写入时使用的格式，可选值为：sql、stmt，默认使用 stmt。
 - concurrency（整数）：并发写入数据的线程数量，默认值为 8。
@@ -262,10 +263,10 @@ taosgen -h 127.0.0.1 -c config.yaml
     - last_to_first：本次发送数据的首行的时间列 - 上次发送数据的末行的时间列。
     - literal：根据本次发送数据的首行的时间列的值的时间点来发送，模拟实时产生数据的场景。
   - fixed_interval：仅在 interval_strategy = fixed 时生效：
-    - base_interval（整数）：表示固定间隔数值，单位毫秒。
+    - base_interval（整数）：表示固定间隔数值，单位为毫秒，默认值为 1000。
   - dynamic_interval：仅在 interval_strategy = first_to_first / last_to_first 时生效：
-    - min_interval（整数）：默认值为 -1，表示最小时间间隔阈值。
-    - max_interval（整数）：默认值为 -1，表示最大时间间隔阈值。
+    - min_interval（整数）：表示最小时间间隔阈值，单位为毫秒，默认值为 -1，表示未生效。
+    - max_interval（整数）：表示最大时间间隔阈值，单位为毫秒，默认值为 -1，表示未生效。
   - wait_strategy（字符串）：表示在开启时间间隔控制时，发送写入请求之间的等待策略，默认值为：sleep，可选值为：
     - sleep：睡眠，归还当前线程的执行权给操作系统。
     - busy_wait：忙等待，保持当前线程的执行权。
@@ -276,7 +277,6 @@ taosgen -h 127.0.0.1 -c config.yaml
 ### 发布 MQTT 数据行动的格式
 `mqtt/publish-data` 行动用于将数据发布到指定的 topic 中。它支持从生成器或 CSV 文件两种来源获取数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据发布过程，具备高度灵活性和可配置性。
 
-- mqtt：默认使用全局的 mqtt 配置信息，当需要差异化时可在此行动下单独定义。
 - schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。
 - format（字符串）：描述数据发布时使用的格式，目前仅支持 json，默认值为 json。
 - concurrency（整数）：并发发布数据的线程数量，默认值为 8。
@@ -365,14 +365,13 @@ groupid,location,tbname
 - `ctb-data.csv` 文件内容格式为：
 
 ```csv
-tbname,current,voltage,phase
 tbname,ts,current,voltage,phase
 d1,1700000010000,5.23,221.5,146.2
-d3,1700000030000,8.76,219.8,148.7
-d2,1700000020000,12.45,223.1,147.3
-d3,1700000030001,9.12,220.3,149.1
-d2,1700000020001,11.87,222.7,145.8
-d1,1700000010001,4.98,220.9,147.9
+d3,1700000010000,8.76,219.8,148.7
+d2,1700000010000,12.45,223.1,147.3
+d3,1700000310000,9.12,220.3,149.1
+d2,1700000310000,11.87,222.7,145.8
+d1,1700000310000,4.98,220.9,147.9
 ```
 
 ### 生成器方式生成数据并发布数据到 MQTT Broker 示例

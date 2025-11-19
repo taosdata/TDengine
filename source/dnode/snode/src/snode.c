@@ -226,6 +226,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.triggerType = req.pStRtFuncInfo->triggerType;
   calcReq.isMultiGroupCalc = req.pStRtFuncInfo->isMultiGroupCalc;
   calcReq.stbPartByTbname = req.pStRtFuncInfo->stbPartByTbname;
+  calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
+  calcReq.precision = req.pStRtFuncInfo->precision;  
   if (calcReq.isMultiGroupCalc) {
     TSWAP(calcReq.pGroupCalcInfos, req.pStRtFuncInfo->pGroupCalcInfos);
     TSWAP(calcReq.pGroupReadInfos, req.pStRtFuncInfo->pGroupReadInfos);

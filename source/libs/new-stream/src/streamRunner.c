@@ -11,6 +11,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "cmdnodes.h"
+#include "ttime.h"
 
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   SStreamRunnerTaskExecMgr*  pMgr = &pTask->execMgr;
@@ -270,7 +271,7 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }
 
-bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
+static bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
 
 static int32_t stRunnerResetTaskExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
   int32_t code = 0;
@@ -522,7 +523,7 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
                                          const SSDataBlock* pBlock, const int32_t curWinIdx, const int32_t startRow,
                                          const int32_t endRow) {
   int32_t code = 0;
-  if (!pBlock || pBlock->info.rows <= 0) return code;
+  bool    empty = (!pBlock || pBlock->info.rows <= 0);
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return code;
   }
@@ -614,9 +615,10 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (!pBlock || pBlock->info.rows <= 0) return code;
+  bool  empty = (!pBlock || pBlock->info.rows <= 0);
   char* pContent = NULL;
-  code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, 0, pBlock->info.rows - 1);
+  code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, 0,
+                                             empty ? 0 : pBlock->info.rows - 1);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
     int32_t index = pExec->runtimeInfo.funcInfo.curOutIdx;
@@ -935,6 +937,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pInfo->sessionId = pReq->sessionId;
   pInfo->triggerType = pReq->triggerType;
   pInfo->addOptions = pTask->addOptions;
+  pInfo->isWindowTrigger = pReq->isWindowTrigger;
+  pInfo->precision = pReq->precision;
 
   if (!pExec->pExecutor) {
     STREAM_CHECK_RET_GOTO(stRunnerBuildTask(pTask, pExec));
@@ -1143,8 +1147,6 @@ int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask) {
     pNode = pNode->dl_next_;
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
-
   if (pMgmgReq && taosArrayGetSize(pMgmgReq) > 0) {
     SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
     QUERY_CHECK_NULL(pReq, code, lino, _exit, terrno);
@@ -1155,6 +1157,8 @@ int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask) {
     ST_TASK_DLOG("task mgmtReq built with %d exec reqs", (int32_t)taosArrayGetSize(pMgmgReq));
     atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
   }
+
+  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
 
   return code;
 

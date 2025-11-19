@@ -234,6 +234,7 @@ Below are the business error codes for each module.
 | 0x800003D5 | Unable to establish connection While execute transaction and will continue in the background | Network error                                                | Check if the network is normal                               |
 | 0x800003D6 | Last Transaction not finished                                | Internal error                                               | Report issue                                                 |
 | 0x800003D7 | Sync timeout While execute transaction and will continue in the background | Internal error                                               | Report issue                                                 |
+| 0x800003DA | The transaction is not able to be killed                                   | Internal error                                               | Report issue                                                 |
 | 0x800003DF | Unknown transaction error                                    | Internal error                                               | Report issue                                                 |
 | 0x800003E0 | Topic already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003E1 | Topic not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |

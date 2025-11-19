@@ -216,7 +216,7 @@ typedef struct SExchangeInfo {
   bool         dynTbname;         // %%tbname for stream    
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
-  uint64_t            self;
+  int64_t             self;
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
@@ -687,6 +687,7 @@ typedef struct SWindowRowsSup {
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col
+// state window operator needs to handle these rows specially
 static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
   return pRowSup->numNullRows > 0;
 }
@@ -694,6 +695,17 @@ static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
 // reset on initialization or found of a row with non-null state col
 static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
   pRowSup->numNullRows = 0;
+}
+
+static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
+  if (NULL == pRowSup) {
+    return;
+  }
+
+  pRowSup->win.skey = pRowSup->win.ekey = 0;
+  pRowSup->prevTs = pRowSup->startRowIndex = 0;
+  pRowSup->numOfRows = pRowSup->groupId = 0;
+  resetNumNullRows(pRowSup);
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
@@ -718,7 +730,7 @@ typedef struct SStateWindowOperatorInfo {
   SExprSupp             scalarSup;
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
-  SColumn               stateCol;  // start row index
+  SColumn               stateCol;
   bool                  hasKey;
   SStateKeys            stateKey;
   int32_t               tsSlotId;  // primary timestamp column slot id

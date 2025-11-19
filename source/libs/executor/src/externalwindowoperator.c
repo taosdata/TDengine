@@ -404,6 +404,7 @@ typedef struct SMergeAlignedExternalWindowOperator {
 void destroyMergeAlignedExternalWindowOperator(void* pOperator) {
   SMergeAlignedExternalWindowOperator* pMAExtW = (SMergeAlignedExternalWindowOperator*)pOperator;
   destroyExternalWindowOperatorInfo(pMAExtW->pExtW);
+  taosMemoryFreeClear(pMAExtW);
 }
 
 int64_t* extWinExtractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTaskInfo* pTaskInfo) {
@@ -2832,6 +2833,10 @@ _exit:
     qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
+  }
+
+  if ((*ppRes) && (*ppRes)->info.rows <= 0) {
+    *ppRes = NULL;
   }
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {

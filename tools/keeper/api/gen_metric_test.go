@@ -356,6 +356,16 @@ func TestGetSubTableName(t *testing.T) {
 			tagMap:  map[string]string{"username": "user", "duration": "100ms", "result": "success", "cluster_id": "123"},
 			want:    "slowsql_user_100ms_success_cluster_123",
 		},
+		{
+			stbName: "explorer_sys",
+			tagMap:  map[string]string{"endpoint": "0015.novalocal:6060"},
+			want:    "explorer_sys_0015_novalocal_6060",
+		},
+		{
+			stbName: "explorer_sys2",
+			tagMap:  map[string]string{"endpoint": "0015.novalocal:6060"},
+			want:    "",
+		},
 	}
 
 	for _, tt := range tests {

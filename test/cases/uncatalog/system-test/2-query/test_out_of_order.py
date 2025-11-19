@@ -35,76 +35,24 @@ class TestOutOfOrder:
         cmd = "%staosBenchmark -d %s -t %d -n %d -O %d -a %d -b float,double,nchar\(200\),binary\(50\) -T 50 -y " % (binPath,dbname,tables,per_table_num,order,replica)
         if platform.system().lower() == 'windows':
             cmd = "%staosBenchmark -d %s -t %d -n %d -O %d -a %d -b float,double,nchar(200),binary(50) -T 50 -y " % (binPath,dbname,tables,per_table_num,order,replica)
+        tdLog.info("execute cmd: %s" %cmd)
         os.system(cmd)
 
     def sql_base(self,dbname):
         self.check_sub(dbname)
+
         sql1 = "select count(*) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql1)
+        tdSql.query(sql1)
+        expect = tdSql.getData(0,0)
 
-        self.check_sub(dbname)
-        sql2 = "select count(ts) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
+        columns = ['ts', '_c0', 'c0', 'c1', 'c2', 'c3', 't0', 't1']
+        for col in columns:
+            sql = f"select count({col}) from {dbname}.meters"
+            self.sql_base_check(sql, expect)
 
-        self.check_sub(dbname)
-        sql2 = "select count(_c0) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c0) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c1) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c2) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c3) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(t0) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(t1) from %s.meters" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(ts) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(_c0) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c0) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c1) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c2) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(c3) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(t0) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
-
-        self.check_sub(dbname)
-        sql2 = "select count(t1) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,sql2)
+        for col in columns:
+            sql = f"select count({col}) from (select * from {dbname}.meters)"
+            self.sql_base_check(sql, expect)
 
         # TD-22520
         tdSql.query("select tbname, ts from %s.meters where ts < '2017-07-14 10:40:00' order by ts asc limit 150;" %dbname)
@@ -119,19 +67,15 @@ class TestOutOfOrder:
         tdSql.query("select tbname, ts from %s.meters where ts < '2017-07-14 10:40:00' order by ts desc limit 300;" %dbname)
         tdSql.checkRows(300)
 
-    def sql_base_check(self,sql1,sql2):
-        tdSql.query(sql1)
-        sql1_result = tdSql.getData(0,0)
-        tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
+    def sql_base_check(self,sql,expect):
+        tdSql.query(sql)
+        sql_result = tdSql.getData(0,0)
+        tdLog.info("sql:%s , result: %s" %(sql,sql_result))
 
-        tdSql.query(sql2)
-        sql2_result = tdSql.getData(0,0)
-        tdLog.info("sql:%s , result: %s" %(sql2,sql2_result))
-
-        if sql1_result==sql2_result:
-            tdLog.info(f"checkEqual success, sql1_result={sql1_result},sql2_result={sql2_result}")
+        if sql_result==expect:
+            tdLog.info(f"checkEqual success, sql_result={sql_result}, expect={expect}")
         else :
-            tdLog.exit(f"checkEqual error, sql1_result=={sql1_result},sql2_result={sql2_result}")
+            tdLog.exit(f"checkEqual error, sql_result=={sql_result}, expect={expect}")
 
     def run_sql(self,dbname):
         self.sql_base(dbname)
@@ -144,19 +88,13 @@ class TestOutOfOrder:
 
         sql = "select count(*) from (select distinct(tbname) from %s.meters)" %dbname
         tdSql.query(sql)
-        # 目前不需要了
-        # num = tdSql.getData(0,0)
+        num = tdSql.getData(0,0)
 
-        # for i in range(0,num):
-        #     sql1 = "select count(*) from %s.d%d" %(dbname,i)
-        #     tdSql.query(sql1)
-        #     sql1_result = tdSql.getData(0,0)
-        #     tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
-
-    def check_out_of_order(self,dbname,tables,per_table_num,order,replica):
-        self.run_benchmark(dbname,tables,per_table_num,order,replica)
-
-        self.run_sql(dbname)
+        for i in range(0,num):
+            sql1 = "select count(*) from %s.d%d" %(dbname,i)
+            tdSql.query(sql1)
+            sql1_result = tdSql.getData(0,0)
+            tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
 
     def test_out_of_order(self):
         """summary: xxx
@@ -170,27 +108,24 @@ class TestOutOfOrder:
         Jira: xxx
 
         Catalog:
-            - xxx:xxx
+            - Uncatalog:system-test
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-27: Modified by Tony Zhang, remove duplicate test cases
 
         """
+        # parameters
+        dbname = 'test_out_of_order'
+        tables = 50
+        per_table_num = 10000
+        order = 20
+        replica = 1
 
         startTime = time.time()
-
-        #self.check_out_of_order('db1',10,random.randint(10000,50000),random.randint(1,10),1)
-        self.check_out_of_order('db1',random.randint(50,100),random.randint(10000,20000),random.randint(1,5),1)
-
-        # self.check_out_of_order('db2',random.randint(50,200),random.randint(10000,50000),random.randint(5,50),1)
-
-        # self.check_out_of_order('db3',random.randint(50,200),random.randint(10000,50000),random.randint(50,100),1)
-
-        # self.check_out_of_order('db4',random.randint(50,200),random.randint(10000,50000),100,1)
-
+        self.run_benchmark(dbname,tables,per_table_num,order,replica)
+        midTime = time.time()
+        tdLog.info("prepare data time %ds" % (midTime - startTime))
+        self.run_sql(dbname)        
         endTime = time.time()
-        print("total time %ds" % (endTime - startTime))
-
-        #tdSql.close()
+        tdLog.info("total time %ds" % (endTime - startTime))
         tdLog.success("%s successfully executed" % __file__)

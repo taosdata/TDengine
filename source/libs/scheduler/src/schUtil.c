@@ -135,7 +135,7 @@ int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *ep
     if (code) {
       SCH_TASK_WLOG("taosHashRemove hb connection failed, error:%s", tstrerror(code));
     } else {
-      SCH_TASK_ILOG("hb mark removed from hbConnections, epId:%d", epId->nodeId);
+      SCH_TASK_ILOG("hb mark removed from hbConnections, vgId:%d", epId->nodeId);
     }
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -206,18 +206,14 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
     return;
   }
 
-  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
-  if (NULL == addr) {
-    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx,
-                  (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+  SQueryNodeAddr *pAddr = NULL;
+  if (schGetTaskCurrentNodeAddr(pTask, pJob, &pAddr) != TSDB_CODE_SUCCESS) {
     return;
   }
 
-  SQueryNodeEpId epId = {0};
+  SQueryNodeEpId epId = {.nodeId = pAddr->nodeId};
 
-  epId.nodeId = addr->nodeId;
-
-  SEp *pEp = SCH_GET_CUR_EP(addr);
+  SEp *pEp = SCH_GET_CUR_EP(pAddr);
   TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
   epId.ep.port = pEp->port;
 
@@ -245,18 +241,15 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
-  if (NULL == addr) {
-    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx,
-                  (int32_t)taosArrayGetSize(pTask->candidateAddrs));
-    return TSDB_CODE_SCH_INTERNAL_ERROR;
+  SQueryNodeAddr *pAddr = NULL;
+  int32_t code = schGetTaskCurrentNodeAddr(pTask, pJob, &pAddr);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  SQueryNodeEpId epId = {0};
+  SQueryNodeEpId epId = {.nodeId = pAddr->nodeId};
 
-  epId.nodeId = addr->nodeId;
-
-  SEp *pEp = SCH_GET_CUR_EP(addr);
+  SEp *pEp = SCH_GET_CUR_EP(pAddr);
   TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
   epId.ep.port = pEp->port;
 
@@ -448,4 +441,18 @@ void schStopTaskDelayTimer(SSchJob *pJob, SSchTask *pTask, bool syncOp) {
       SCH_TASK_WLOG("stop task delayTimer %" PRIuPTR " failed, may stopped, status:%d", (uintptr_t)delayTimer, pTask->status);
     }
   }
+}
+
+int32_t schGetTaskCurrentNodeAddr(SSchTask *pTask, SSchJob *pJob, SQueryNodeAddr **ppAddr) {
+  *ppAddr = NULL;
+
+  SQueryNodeAddr *p = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
+  if (NULL == p) {
+    SCH_TASK_ELOG("fail to get the %dth condidateAddr in task, totalNum:%d", pTask->candidateIdx,
+                  (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+  }
+
+  *ppAddr = p;
+  return TSDB_CODE_SUCCESS;
 }

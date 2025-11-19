@@ -49,6 +49,7 @@ schema:
     interlace: 1
     rows_per_table: 10000
     rows_per_batch: 10000
+    num_cached_batches: 0
 
 jobs:
   # TDengine insert job
@@ -87,6 +88,7 @@ schema:
       max: 360
   generation:
     interlace: 1
+    num_cached_batches: 0
 
 jobs:
   # TDengine insert job
@@ -107,11 +109,11 @@ schema:
   name: meters
   from_csv:
     tags:
-      file_path: ../conf/ctb-tags.csv
+      file_path: ./conf/ctb-tags.csv
       tbname_index: 2
       exclude_indices:
     columns:
-      file_path: ../conf/ctb-data.csv
+      file_path: ./conf/ctb-data.csv
       tbname_index : 0
       timestamp_index: 1
       timestamp_precision: ms
@@ -122,9 +124,7 @@ schema:
   columns:
     - name: ts
       type: timestamp
-      start: 1700000000000
       precision : ms
-      step: 300s
     - name: current
       type: float
     - name: voltage
@@ -140,6 +140,8 @@ schema:
     interlace: 1
     rows_per_table: 10000
     rows_per_batch: 10000
+    num_cached_batches: 0
+    tables_reuse_data: false
 
 jobs:
   # TDengine insert job
@@ -198,9 +200,10 @@ schema:
         - Austin
   generation:
     interlace: 1
-    concurrency: 1
+    concurrency: 8
     rows_per_table: 10000
     rows_per_batch: 1000
+    num_cached_batches: 0
 
 jobs:
   # MQTT publish job

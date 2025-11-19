@@ -322,6 +322,8 @@ static const SSysDbTableSchema vgroupsSchema[] = {
     {.name = "cacheelements", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "tsma", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "mount_vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "keep_version", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "keep_version_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
     // {.name = "compact_start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
@@ -541,7 +543,7 @@ static const SSysDbTableSchema encryptionsSchema[] = {
 static const SSysDbTableSchema diskUsageSchema[] = {
     {.name = "db_name", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "wal", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "wal_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "data1", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "data2", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "data3", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
@@ -651,6 +653,8 @@ static const SSysDbTableSchema connectionsSchema[] = {
     {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "user_app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "user_ip", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "native_version", .bytes = TSDB_VERSION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "connector_info", .bytes = CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
 };
 
 static const SSysDbTableSchema consumerSchema[] = {

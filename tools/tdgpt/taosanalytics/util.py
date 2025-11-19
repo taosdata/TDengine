@@ -7,6 +7,7 @@ from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
 
 from taosanalytics.conf import app_logger
+from taosanalytics.error import white_noise_error_msg
 
 
 def validate_pay_load(json_obj, check_rows=True):
@@ -82,7 +83,7 @@ def is_white_noise(input_list):
 def is_stationary(input_list):
     """ determine whether the input list is weak stationary or not """
     adf, pvalue, usedlag, nobs, critical_values, _ = adfuller(input_list, autolag='AIC')
-    app_logger.log_inst.info("adf is:%f critical value is:%s" % (adf, critical_values))
+    app_logger.log_inst.info("adf is:%f critical value is:%s", adf, critical_values)
     return pvalue < 0.05
 
 
@@ -160,3 +161,48 @@ def create_sequences(values, time_steps):
     for i in range(len(values) - time_steps + 1):
         output.append(values[i: (i + time_steps)])
     return np.stack(output)
+
+def do_check_before_exec(request, check_rows=True):
+    if not request.is_json:
+        app_logger.log_inst.error('recv invalid request, %s', request.data)
+        raise ValueError("invalid request format")
+
+    try:
+        req_json = request.json
+    except Exception as e:
+        raise ValueError(e)
+
+    app_logger.log_inst.debug('req payload: %s', req_json)
+
+    # 1. validate the input data in json format
+    try:
+        validate_pay_load(req_json, check_rows)
+    except ValueError as e:
+        app_logger.log_inst.error('validate req json failed, %s', e)
+        raise ValueError(e)
+
+    payload = req_json["data"]
+
+    # 2. white noise data check
+    wn_check = req_json["wncheck"] if "wncheck" in req_json else 1
+    data_index = get_data_index(req_json["schema"])
+    ts_index = get_ts_index(req_json["schema"])
+
+    if data_index == -1:
+        raise ValueError("failed to find the data attribute in the payload, data index: %s", data_index)
+
+    if wn_check:
+        data = payload[data_index]
+        try:
+            is_wn = is_white_noise(data)
+        except Exception as e:
+            app_logger.log_inst.error("failed to check white noise data, %s", str(e))
+            raise
+
+        if is_wn:
+            app_logger.log_inst.debug("%s is %s", data, white_noise_error_msg())
+            raise ValueError(white_noise_error_msg())
+
+    options = req_json["option"] if "option" in req_json else None
+
+    return req_json, payload, options, data_index, ts_index

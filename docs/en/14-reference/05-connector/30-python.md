@@ -65,6 +65,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.6 | Support for pandas' read_Sql_table, to_Sql, and read_Sql interface calls                                    | - |
 |2.8.5 | Support the SQLAlchemy feature of taos-ws-py                                                                | - |
 |2.8.4 | Support DBUtils connection pool.                                                                            | - |
 |2.8.3 | Support BLOB data type.                                                                                     | - |
@@ -88,6 +89,8 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.3 | Support configuring the response timeout for WebSocket connections (excluding data subscription) | - |
+|0.6.2 | Fixes memory leaks | - |
 |0.6.1 | 1. Support BLOB data type <br/> 2. Support timezone <br/> 3. Support load balancing | - |
 |0.5.3 | Support IPv6 address format | - |
 |0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
@@ -200,25 +203,31 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 - **database**: Database name.
 - **params**:
   - `token`: Authentication for the TDengine TSDB cloud service.
-  - `timezone`: Time zone setting, in the format of an IANA time zone name (e.g., `Asia/Shanghai`). The default is the local time zone.
-  - `compression`: Whether to enable data compression. The default is `false`.
-  - `conn_retries`: Maximum number of retries upon connection failure. The default is 5.
-  - `retry_backoff_ms`: Initial wait time (in milliseconds) upon connection failure. The default is 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
-  - `retry_backoff_max_ms`: Maximum wait time (in milliseconds) upon connection failure. The default is 2000.
+  - `timezone`: Time zone, IANA format (e.g., `Asia/Shanghai`), defaults to the local time zone.
+  - `compression`: Whether to enable data compression, defaults to `false`.
+  - `conn_retries`: Maximum number of retries when a connection fails, defaults to 5.
+  - `retry_backoff_ms`: Initial wait time (milliseconds) when a connection fails, defaults to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
+  - `retry_backoff_max_ms`: Maximum wait time (milliseconds) when a connection fails, defaults to 2000.
+  - `read_timeout`: WebSocket connection response timeout (seconds), excluding data subscription, defaults to 300 (5 minutes).
 
 #### Establishing Connection
 
 - `fn connect(dsn: Option<&str>, args: Option<&PyDict>) -> PyResult<Connection>`
   - **Interface Description**: Establish a taosAdapter connection.
   - **Parameter Description**:
-    - `dsn`: Type `Option<&str>` optional, Data Source Name (DSN), used to specify the database connection information, including protocol, username, password, host, port, database name and parameters, etc.
-    - `args`: Type `Option<&PyDict>` optional, provided in the form of a Python dictionary, can be used to set
+    - `dsn`: Optional parameter, of type `Option<&str>`. Data Source Name (DSN), used to specify the database connection information, including protocol, username, password, host, port, database name and parameters, etc.
+    - `args`: Optional parameter, of type `Option<&PyDict>`. Provided as a Python dictionary, where all values ​​are strings. Can be used to configure the following options:
       - `user`: Username for the database
       - `password`: Password for the database
       - `host`: Host address
       - `port`: Port number
       - `database`: Database name
-      - `timezone`: Time zone
+      - `timezone`: Time zone, IANA format (e.g., `Asia/Shanghai`), defaults to the local time zone.
+      - `compression`: Whether to enable data compression, defaults to `false`.
+      - `conn_retries`: Maximum number of retries when a connection fails, defaults to 5.
+      - `retry_backoff_ms`: Initial wait time (milliseconds) when a connection fails, defaults to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
+      - `retry_backoff_max_ms`: Maximum wait time (milliseconds) when a connection fails, defaults to 2000.
+      - `read_timeout`: WebSocket connection response timeout (seconds), excluding data subscription, defaults to 300 (5 minutes).
   - **Return Value**: Connection object.
   - **Exception**: Throws `ConnectionError` exception on operation failure.
 - `fn cursor(&self) -> PyResult<Cursor>`

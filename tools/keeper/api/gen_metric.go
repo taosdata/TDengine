@@ -554,6 +554,17 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 			return ""
 		}
 	}
+	if strings.HasPrefix(stbName, "explorer_") {
+		switch stbName {
+		case "explorer_sys":
+			if checkKeysExist(tagMap, "endpoint") {
+				return fmt.Sprintf("explorer_sys_%s", tagMap["endpoint"])
+			}
+			return ""
+		default:
+			return ""
+		}
+	}
 
 	switch stbName {
 	case "taosd_cluster_info":

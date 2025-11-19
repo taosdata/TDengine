@@ -15,7 +15,6 @@
 
 #include "filter.h"
 #include "function.h"
-#include "os.h"
 #include "tname.h"
 
 #include "tglobal.h"
@@ -702,6 +701,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
+    pOperator->info = NULL;
   }
 
   cleanupExprSupp(&pOperator->exprSupp);

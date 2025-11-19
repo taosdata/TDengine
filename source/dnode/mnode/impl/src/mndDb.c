@@ -59,6 +59,8 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq);
 static int32_t mndProcessUseDbReq(SRpcMsg *pReq);
 static int32_t mndProcessTrimDbReq(SRpcMsg *pReq);
 static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq);
+static int32_t mndProcessTrimDbWalReq(SRpcMsg *pReq);
+static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq);
 static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
@@ -86,6 +88,7 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SCAN_DB, mndProcessScanDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB, mndProcessTrimDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_WAL, mndProcessTrimDbWalReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SSMIGRATE_DB, mndProcessSsMigrateDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_INFO, mndProcessUseDbReq);
@@ -2432,6 +2435,80 @@ static int32_t mndBuildSsMigrateDbRsp(SSsMigrateDbRsp *pSsMigrateRsp, int32_t *p
   (void)tSerializeSSsMigrateDbRsp(pRsp, rspLen, pSsMigrateRsp);
   *pRspLen = rspLen;
   *ppRsp = pRsp;
+  TAOS_RETURN(code);
+}
+
+static int32_t mndTrimDbWal(SMnode *pMnode, SDbObj *pDb) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+  int32_t code = 0;
+
+  // Iterate through all vgroups in this database
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    // Check if this vgroup belongs to the database
+    if (pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
+    // Prepare message to send to vnode
+    int32_t   contLen = sizeof(SMsgHead);
+    SMsgHead *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      sdbCancelFetch(pSdb, pVgroup);
+      sdbRelease(pSdb, pVgroup);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+
+    // Send TRIM WAL request to vnode
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM_WAL, .pCont = pHead, .contLen = contLen};
+    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    code = tmsgSendReq(&epSet, &rpcMsg);
+    if (code != 0) {
+      mError("vgId:%d, failed to send vnode-trim-wal request since 0x%x", pVgroup->vgId, code);
+    } else {
+      mInfo("vgId:%d, send vnode-trim-wal request to vnode", pVgroup->vgId);
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return code;
+}
+
+static int32_t mndProcessTrimDbWalReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  int32_t    code = -1;
+  SDbObj    *pDb = NULL;
+  STrimDbReq trimReq = {0};
+
+  TAOS_CHECK_GOTO(tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq), NULL, _OVER);
+
+  mInfo("db:%s, start to trim WAL", trimReq.db);
+
+  pDb = mndAcquireDb(pMnode, trimReq.db);
+  if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
+
+  code = mndTrimDbWal(pMnode, pDb);
+
+_OVER:
+  if (code != 0) {
+    mError("db:%s, failed to process trim db wal req since %s", trimReq.db, terrstr());
+  }
+
+  mndReleaseDb(pMnode, pDb);
   TAOS_RETURN(code);
 }
 

@@ -320,9 +320,9 @@ typedef struct {
 } SBnodeObj;
 
 typedef struct {
-  int32_t dnodeId;
+  int32_t assignedDnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
-  int8_t  acked;
+  int8_t  assignAcked;
 } SArbAssignedLeader;
 
 typedef struct {
@@ -583,6 +583,8 @@ typedef struct {
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
   int32_t   mountVgId;  // TS-5868
+  int64_t   keepVersion;  // WAL keep version, -1 for disabled
+  int64_t   keepVersionTime;  // WAL keep version time
 } SVgObj;
 
 
