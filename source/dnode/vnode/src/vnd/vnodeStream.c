@@ -1042,7 +1042,7 @@ static int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInf
 
       if (pData != NULL && (type == TSDB_DATA_TYPE_JSON || !IS_VAR_DATA_TYPE(type))) {
         if (type == TSDB_DATA_TYPE_JSON) {
-          len = getJsonValueLen(data);
+          len = getJsonValueLen(pData);
         }
         data = taosMemoryCalloc(1, len);
         STREAM_CHECK_NULL_GOTO(data, terrno);
@@ -1054,8 +1054,9 @@ static int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInf
     if (uidData == NULL){
       STREAM_CHECK_NULL_GOTO(taosArrayPush(tagCache, &data), terrno);
     } else {
-      taosArrayRemoveP(tagCache, j, taosMemFree);
-      STREAM_CHECK_NULL_GOTO(taosArrayInsert(tagCache, j, &data), terrno);
+      void* pre = taosArrayGetP(tagCache, j);
+      taosMemoryFree(pre);
+      taosArraySet(tagCache, j, &data);
     }
     data = NULL;
   }
