@@ -3869,6 +3869,7 @@ enum { PHY_EXT_CODE_WINDOW = 1,
        PHY_EXT_CODE_ORG_TABLE_VGID,
        PHY_EXT_CODE_NEED_GROUP_SORT,
        PHY_EXT_CODE_CALC_WITH_PARTITION,
+       PHY_EXT_CODE_EXT_WIN_SPLIT,
 };
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3901,7 +3902,9 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_CALC_WITH_PARTITION, pNode->calcWithPartition);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_EXT_WIN_SPLIT, pNode->extWinSplit);
+  }
 
   return code;
 }
@@ -3942,6 +3945,9 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_CALC_WITH_PARTITION:
         code = tlvDecodeBool(pTlv, &pNode->calcWithPartition);
+        break;
+      case PHY_EXT_CODE_EXT_WIN_SPLIT:
+        code = tlvDecodeBool(pTlv, &pNode->extWinSplit);
         break;
       default:
         break;

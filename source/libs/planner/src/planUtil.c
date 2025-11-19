@@ -636,11 +636,6 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow) {
   if ((pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)))) {
     return true;
   }
-  if (nodeType((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_WINDOW &&
-      ((SWindowLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0))->winType == WINDOW_TYPE_EXTERNAL &&
-      isPartTableWinodw((SWindowLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0))) {
-    return true;
-  }
   return false;
 }
 
