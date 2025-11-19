@@ -5443,6 +5443,20 @@ typedef struct {
 int32_t tSerializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
 int32_t tDeserializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
 
+typedef struct {
+  char filter_type[TSDB_INSTANCE_TYPE_LEN];
+} SInstanceListReq;
+
+typedef struct {
+  int32_t count;
+  char    ids[0];  // Variable length: count * TSDB_INSTANCE_ID_LEN
+} SInstanceListRsp;
+
+int32_t tSerializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
+int32_t tDeserializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
+int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp, const char** ids, int32_t count);
+int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp, char*** ids, int32_t* count);
+
 #ifdef USE_MOUNT
 typedef struct {
   char     mountName[TSDB_MOUNT_NAME_LEN];

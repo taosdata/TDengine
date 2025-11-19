@@ -3911,6 +3911,137 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSInstanceListReq(void *buf, int32_t bufLen, SInstanceListReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  tlen;
+  int32_t  lino;
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->filter_type));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSInstanceListReq(void *buf, int32_t bufLen, SInstanceListReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->filter_type));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSInstanceListRsp(void *buf, int32_t bufLen, SInstanceListRsp *pRsp, const char **ids, int32_t count) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  tlen;
+  int32_t  lino;
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, count));
+  for (int32_t i = 0; i < count; i++) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, ids[i]));
+  }
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSInstanceListRsp(void *buf, int32_t bufLen, SInstanceListRsp *pRsp, char ***ids, int32_t *count) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  char     idBuf[TSDB_INSTANCE_ID_LEN] = {0};
+  int32_t  lino;
+  int32_t  allocatedCount = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, count));
+  if (pRsp != NULL) {
+    pRsp->count = *count;
+  }
+
+  if (*count < 0) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+
+  if (*count > 0 && ids != NULL) {
+    *ids = taosMemoryCalloc(*count, sizeof(char *));
+    if (*ids == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    for (int32_t i = 0; i < *count; i++) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, idBuf));
+      int32_t idLen = (int32_t)strlen(idBuf);
+      (*ids)[i] = taosMemoryCalloc(idLen + 1, sizeof(char));
+      if ((*ids)[i] == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        allocatedCount = i;
+        goto _cleanup;
+      }
+      memcpy((*ids)[i], idBuf, idLen);
+      (*ids)[i][idLen] = 0;
+      allocatedCount = i + 1;
+    }
+  } else {
+    // Skip the IDs if ids is NULL or count is 0
+    for (int32_t i = 0; i < *count; i++) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, idBuf));
+    }
+  }
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+
+_cleanup:
+  // Free allocated memory on error
+  if (ids != NULL && *ids != NULL) {
+    for (int32_t i = 0; i < allocatedCount; i++) {
+      if ((*ids)[i] != NULL) {
+        taosMemoryFree((*ids)[i]);
+        (*ids)[i] = NULL;
+      }
+    }
+    taosMemoryFree(*ids);
+    *ids = NULL;
+  }
+  tEndDecode(&decoder);
+  goto _exit;
+}
+
 int32_t tSerializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserWhiteListRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
