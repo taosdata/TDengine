@@ -21,3 +21,6 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 FROM tdgpt AS tdgpt_full
 COPY ${modelDlUrl}/timemoe/* \
     /var/lib/taos/taosanode/model/timemoe/
+
+COPY ${modelDlUrl}/moment/* \
+    /var/lib/taos/taosanode/model/moment/
