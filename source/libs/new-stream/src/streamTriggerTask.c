@@ -4332,7 +4332,7 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
   }
 
   if (needTagValue && taosArrayGetSize(pReq->groupColVals) == 0) {
-    void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(int64_t));
+    void *px = tSimpleHashGet(pContext->pGroupColVals, &pReq->gid, sizeof(int64_t));
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     SArray *pGroupColVals = *(SArray **)px;
     QUERY_CHECK_NULL(pGroupColVals, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
