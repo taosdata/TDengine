@@ -567,6 +567,7 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                  pTask->addOptions, *params, nParam);
+  TAOS_CHECK_EXIT(code);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
