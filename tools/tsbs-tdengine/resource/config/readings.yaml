@@ -92,13 +92,13 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_t3
-      expectRows: 8888      
+      expectRows: 607127      
 
     - scenarioId: "T4"
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_t4
-      expectRows: 8888           
+      expectRows: 1044550           
 
     - scenarioId: "T7"
       querySql: select count(*) from db1.readings

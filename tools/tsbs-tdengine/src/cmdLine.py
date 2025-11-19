@@ -185,10 +185,6 @@ class CmdLine:
             with open(yaml_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
             
-            # Print raw data structure
-            print("\n=== Raw YAML Data ===")
-            print(yaml.dump(data, default_flow_style=False, allow_unicode=True))
-            
             scenes = []
             # Print formatted test cases
             print("\n=== Test Cases ===")

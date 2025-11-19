@@ -1,4 +1,20 @@
 testCases:
+    - scenarioId: "A4"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+
+    - scenarioId: "A6"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+
+    - scenarioId: "F4"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779      
+
+    - scenarioId: "T7"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779  
+
     # A8 A9
     - scenarioId: "A8"
       querySql: select count(*) from db2.diagnostics

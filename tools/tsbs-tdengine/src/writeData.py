@@ -100,6 +100,9 @@ class WriteData(BaseStep):
             else:
                 print(f"data write error. real rows: {realRows}, expect rows: {dataRows}")
                 metrics.set_status(self.scene.name, "Failed")
+                return False
+        
+        return True
             
             
             

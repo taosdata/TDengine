@@ -47,15 +47,19 @@ def doScene(scene):
 
     # prepare env
     env = prepareEnv.PrepareEnv(scene)
-    env.run()
+    if env.run() == False:
+        return False
     
     # write data
     writer = writeData.WriteData(scene)
-    writer.run()
+    if writer.run() == False:
+        return False
     
     # do test
     tester = doTest.DoTest(scene)
     tester.run()
+    
+    return True
 
 # 
 # --------------------- man ---------------------------

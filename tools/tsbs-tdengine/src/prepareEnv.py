@@ -70,18 +70,25 @@ class PrepareEnv(BaseStep):
 
     def run(self):
         print("Prepare running...")
-        conn = taos.connect()        
-        # execute sql
-        for table in self.scene.tables:
-            sql_file = self.scene.get_sql_file(table)
-            print(f"prepare environment using SQL file: {sql_file}")
-            self.exec_sql_file(conn, sql_file)
-        
-        # create stream sql
-        print("prepare execute main sql:")
-        conn.execute(self.scene.sql)
-        
-        # wait for stream to be ready
-        print("prepare wait stream ready...")
-        self.wait_stream_ready(conn)
-        conn.close()
+        try:        
+            conn = taos.connect()        
+            # execute sql
+            for table in self.scene.tables:
+                sql_file = self.scene.get_sql_file(table)
+                print(f"prepare environment using SQL file: {sql_file}")
+                self.exec_sql_file(conn, sql_file)
+            
+            # create stream sql
+            print("prepare execute main sql:")
+            conn.execute(self.scene.sql)
+            
+            
+            # wait for stream to be ready
+            print("prepare wait stream ready...")
+            self.wait_stream_ready(conn)
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"PrepareEnv run except: {e}")
+            metrics.set_status(self.scene.name, "Failed")
+            return False
