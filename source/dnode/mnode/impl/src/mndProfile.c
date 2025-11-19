@@ -312,7 +312,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
   }
 
-  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
+  if (strncmp(tmpPass, pUser->passwords[0].pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
     mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
             connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;

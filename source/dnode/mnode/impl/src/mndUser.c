@@ -31,10 +31,10 @@
 
 // clang-format on
 
-#define USER_VER_NUMBER                      8
 #define USER_VER_SUPPORT_WHITELIST           5
 #define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
 #define USER_VER_SUPPORT_ADVANCED_SECURITY   8
+#define USER_VER_NUMBER                      USER_VER_SUPPORT_ADVANCED_SECURITY 
 #define USER_RESERVE_SIZE                    63
 
 #define BIT_FLAG_MASK(n)              (1 << n)
@@ -948,11 +948,50 @@ static void sortTimeWhiteList(SDateTimeWhiteList *pList) {
 }
 
 
+
+
+static void dropOldPasswords(SUserObj *pUser) {
+  if (pUser->numOfPasswords <= pUser->passwordReuseMax) {
+    return;
+  }
+
+  int32_t reuseMax = pUser->passwordReuseMax;
+  if (reuseMax == 0) {
+    reuseMax = 1; // keep at least one password
+  }
+
+  int64_t now = taosGetTimestampSec();
+  int32_t index = reuseMax;
+  while(index < pUser->numOfPasswords) {
+    SUserPassword *pPass = &pUser->passwords[index];
+    if (now - pPass->setTime >= (pUser->passwordReuseTime * 86400)) {
+      break;
+    }
+    index++;
+  }
+
+  if (index == pUser->numOfPasswords) {
+    return;
+  }
+  pUser->numOfPasswords = index;
+  // this is a shrink operation, no need to check return value
+  pUser->passwords = taosMemoryRealloc(pUser->passwords, sizeof(SUserPassword) * pUser->numOfPasswords);
+}
+
+
+
+
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SUserObj userObj = {0};
-  taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.pass);
+  userObj.passwords = taosMemCalloc(1, sizeof(SUserPassword));
+  if (userObj.passwords == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _ERROR);
+  }
+  taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
+  userObj.passwords[0].setTime = taosGetTimestampSec();
+  userObj.numOfPasswords = 1;
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
@@ -1038,8 +1077,9 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
 SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t ipWhiteReserve =
-      pUser->pIpWhiteListDual ? (sizeof(SIpRange) * pUser->pIpWhiteListDual->num + sizeof(SIpWhiteListDual) + 4) : 16;
+  int32_t passReserve = (sizeof(SUserPassword) + 8) * pUser->numOfPasswords + 4;
+  int32_t ipWhiteReserve = pUser->pIpWhiteListDual ? (sizeof(SIpRange) * pUser->pIpWhiteListDual->num + sizeof(SIpWhiteListDual) + 4) : 16;
+  int32_t timeWhiteReserve = pUser->pTimeWhiteList ? (sizeof(SDateTimeWhiteListItem) * pUser->pTimeWhiteList->num + sizeof(SDateTimeWhiteList) + 4) : 16;
   int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
   int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
   int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
@@ -1051,7 +1091,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t numOfTopics = taosHashGetSize(pUser->topics);
   int32_t numOfUseDbs = taosHashGetSize(pUser->useDbs);
   int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN +
-                 numOfTopics * TSDB_TOPIC_FNAME_LEN + ipWhiteReserve;
+                 numOfTopics * TSDB_TOPIC_FNAME_LEN + ipWhiteReserve + timeWhiteReserve + passReserve;
   char    *buf = NULL;
   SSdbRaw *pRaw = NULL;
 
@@ -1156,7 +1196,14 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, _OVER)
+
+  dropOldPasswords(pUser);
+  SDB_SET_INT32(pRaw, dataPos, pUser->numOfPasswords, _OVER)
+  for (int32_t i = 0; i < pUser->numOfPasswords; i++) {
+    SDB_SET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, TSDB_PASSWORD_LEN, _OVER)
+    SDB_SET_INT64(pRaw, dataPos, pUser->passwords[i].setTime, _OVER)
+  }
+
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime, _OVER)
@@ -1377,7 +1424,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, _OVER)
+
+  if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
+    pUser->passwords = taosMemoryCalloc(1, sizeof(SUserPassword));
+    if (pUser->passwords == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+    SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[0].pass, TSDB_PASSWORD_LEN, _OVER)
+    pUser->passwords->setTime = pUser->updateTime / 1000;
+    pUser->numOfPasswords = 1;
+  } else {
+    SDB_GET_INT32(pRaw, dataPos, &pUser->numOfPasswords, _OVER)
+    pUser->passwords = taosMemoryCalloc(pUser->numOfPasswords, sizeof(SUserPassword));
+    if (pUser->passwords == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+    for (int32_t i = 0; i < pUser->numOfPasswords; ++i) {
+      SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, TSDB_PASSWORD_LEN, _OVER);
+      SDB_GET_INT64(pRaw, dataPos, &pUser->passwords[i].setTime, _OVER);
+    }
+  }
+  
   SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
@@ -1732,6 +1799,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
+  dropOldPasswords(pUser);
 
 _OVER:
   taosMemoryFree(key);
@@ -1832,7 +1900,28 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->authVersion++;
   pNew->updateTime = taosGetTimestampMs();
 
+  pNew->passwords = NULL;
+  pNew->readDbs = NULL;
+  pNew->writeDbs = NULL;
+  pNew->readTbs = NULL;
+  pNew->writeTbs = NULL;
+  pNew->alterTbs = NULL;
+  pNew->readViews = NULL;
+  pNew->writeViews = NULL;
+  pNew->alterViews = NULL;
+  pNew->topics = NULL;
+  pNew->useDbs = NULL;
+  pNew->pIpWhiteListDual = NULL;
+  pNew->pTimeWhiteList = NULL;
+
   taosRLockLatch(&pUser->lock);
+  pNew->passwords = taosMemoryCalloc(pUser->numOfPasswords, sizeof(SUserPassword));
+  if (pNew->passwords == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  (void)memcpy(pNew->passwords, pUser->passwords, pUser->numOfPasswords * sizeof(SUserPassword));
+
   TAOS_CHECK_GOTO(mndDupDbHash(pUser->readDbs, &pNew->readDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupDbHash(pUser->writeDbs, &pNew->writeDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->readTbs, &pNew->readTbs), NULL, _OVER);
@@ -1871,6 +1960,7 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->writeViews);
   taosHashCleanup(pUser->alterViews);
   taosHashCleanup(pUser->useDbs);
+  taosMemoryFreeClear(pUser->passwords);
   taosMemoryFreeClear(pUser->pIpWhiteListDual);
   taosMemoryFreeClear(pUser->pTimeWhiteList);
   pUser->readDbs = NULL;
@@ -1916,7 +2006,8 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->inactiveAccountTime = pNew->inactiveAccountTime;
   pOld->allowTokenNum = pNew->allowTokenNum;
 
-  (void)memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
+  pOld->numOfPasswords = pNew->numOfPasswords;
+  TSWAP(pOld->passwords, pNew->passwords);
   (void)memcpy(pOld->totpsecret, pNew->totpsecret, sizeof(pOld->totpsecret));
   TSWAP(pOld->readDbs, pNew->readDbs);
   TSWAP(pOld->writeDbs, pNew->writeDbs);
@@ -1929,22 +2020,9 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->alterViews, pNew->alterViews);
   TSWAP(pOld->useDbs, pNew->useDbs);
 
-  int32_t sz = sizeof(SIpWhiteListDual) + pNew->pIpWhiteListDual->num * sizeof(SIpRange);
-  TAOS_MEMORY_REALLOC(pOld->pIpWhiteListDual, sz);
-  if (pOld->pIpWhiteListDual == NULL) {
-    taosWUnLockLatch(&pOld->lock);
-    return terrno;
-  }
-  (void)memcpy(pOld->pIpWhiteListDual, pNew->pIpWhiteListDual, sz);
+  TSWAP(pOld->pIpWhiteListDual, pNew->pIpWhiteListDual);
   pOld->ipWhiteListVer = pNew->ipWhiteListVer;
-
-  sz = sizeof(SDateTimeWhiteList) + pNew->pTimeWhiteList->num * sizeof(SDateTimeWhiteListItem);
-  TAOS_MEMORY_REALLOC(pOld->pTimeWhiteList, sz);
-  if (pOld->pTimeWhiteList == NULL) {
-    taosWUnLockLatch(&pOld->lock);
-    return terrno;
-  }
-  (void)memcpy(pOld->pTimeWhiteList, pNew->pTimeWhiteList, sz);
+  TSWAP(pOld->pTimeWhiteList, pNew->pTimeWhiteList);
   pOld->timeWhiteListVer = pNew->timeWhiteListVer;
 
   taosWUnLockLatch(&pOld->lock);
@@ -2030,16 +2108,23 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   int32_t  lino = 0;
   SUserObj userObj = {0};
 
-  if (pCreate->passIsMd5 == 1) {
-    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
-    TAOS_CHECK_GOTO(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm), &lino, _OVER);
-  } else if (pCreate->isImport != 1) {
-    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
-    userObj.pass[TSDB_PASSWORD_LEN - 1] = 0;
-    TAOS_CHECK_GOTO(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm), &lino, _OVER);
-  } else {
-    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+  userObj.passwords = taosMemoryCalloc(1, sizeof(SUserPassword));
+  if (userObj.passwords == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
+  userObj.numOfPasswords = 1;
+
+  if (pCreate->passIsMd5 == 1) {
+    memcpy(userObj.passwords[0].pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
+    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, &userObj.passEncryptAlgorithm), &lino, _OVER);
+  } else if (pCreate->isImport != 1) {
+    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
+    userObj.passwords[0].pass[TSDB_PASSWORD_LEN - 1] = 0;
+    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, &userObj.passEncryptAlgorithm), &lino, _OVER);
+  } else {
+    memcpy(userObj.passwords[0].pass, pCreate->pass, TSDB_PASSWORD_LEN);
+  }
+  userObj.passwords[0].setTime = taosGetTimestampSec();
 
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -3000,15 +3085,30 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (alterReq.hasPassword) {
-   // if (alterReq.passIsMd5 == 1) {
-      (void)memcpy(newUser.pass, alterReq.pass, TSDB_PASSWORD_LEN);
-   // } else {
-   //   taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
-   // }
+    char pass[TSDB_PASSWORD_LEN] = {0};
+    taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
+    TAOS_CHECK_GOTO(mndEncryptPass(pass, &newUser.passEncryptAlgorithm), &lino, _OVER);
 
-    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorithm), &lino, _OVER);
-
-    if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
+    if (newUser.passwordReuseMax > 0 || newUser.passwordReuseTime > 0) {
+      for(int32_t i = 0; i < newUser.numOfPasswords; ++i) {
+        if (0 == strncmp(newUser.passwords[i].pass, pass, TSDB_PASSWORD_LEN)) {
+          TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_REUSE, &lino, _OVER);
+        }
+      }
+      SUserPassword *passwords = taosMemoryCalloc(newUser.numOfPasswords + 1, sizeof(SUserPassword));
+      if (passwords == NULL) {
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+      }
+      memcpy(passwords + 1, newUser.passwords, newUser.numOfPasswords * sizeof(SUserPassword));
+      memcpy(passwords[0].pass, pass, TSDB_PASSWORD_LEN);
+      passwords[0].setTime = taosGetTimestampSec();
+      taosMemoryFree(newUser.passwords);
+      newUser.passwords = passwords;
+      ++newUser.numOfPasswords;
+      ++newUser.passVersion;
+    } else if (0 != strncmp(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN)) {
+      memcpy(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN);
+      newUser.passwords[0].setTime = taosGetTimestampSec();
       ++newUser.passVersion;
     }
   }
@@ -3700,7 +3800,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char pass[TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(pass, pUser->pass, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(pass, pUser->passwords[0].pass, pShow->pMeta->pSchemas[cols].bytes);
     COL_DATA_SET_VAL_GOTO((const char *)pass, false, pUser, pShow->pIter, _exit);
 
     cols++;

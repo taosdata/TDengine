@@ -412,8 +412,18 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
   char    pass[TSDB_PASSWORD_LEN];
+  int64_t setTime;  // password set time, in seconds
+} SUserPassword;
+
+typedef struct {
+  char    user[TSDB_USER_LEN];
+
+  // passwords history, from newest to oldest,
+  // the latest one is the current password
+  int32_t  numOfPasswords;
+  SUserPassword* passwords;
+
   char    acct[TSDB_USER_LEN];
   char    totpsecret[TSDB_TOTP_SECRET_LEN];
   int64_t createdTime;
