@@ -213,10 +213,8 @@ static int32_t tEncodeBool(SEncoder* pCoder, bool val) { return tEncodeU8(pCoder
 static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, uint32_t len) {
   TAOS_CHECK_RETURN(tEncodeU32v(pCoder, len));
   if (len) {
-    uError("len:%u pos:%u size:%u", len, pCoder->pos, pCoder->size);
     if (pCoder->data) {
       if (pCoder->pos + len > pCoder->size) {
-        // ASSERT(0);
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
       TAOS_MEMCPY(pCoder->data + pCoder->pos, val, len);

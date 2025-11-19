@@ -246,6 +246,7 @@ static int32_t buildBatchMeta(SMqBatchMetaRsp *btMetaRsp, int16_t type, int32_t 
   uint32_t len = 0;
   tEncodeSize(tEncodeMqMetaRsp, &tmpMetaRsp, len, code);
   if (TSDB_CODE_SUCCESS != code) {
+    tqError("tmq extract meta from log, tEncodeMqMetaRsp error");
     goto END;
   }
   int32_t tLen = sizeof(SMqRspHead) + len;
