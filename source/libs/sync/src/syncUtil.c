@@ -621,11 +621,11 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
       }
     }
 
-    sHError(pSyncNode,
-            "recv sync-heartbeat-reply from dnode:%d slow(%d ms) {term:%" PRId64 ", ts:%s}, net elapsed:%" PRId64
-            ", timeDiff:%" PRId64 " QID:0x%" PRIx64 ":0x%" PRIx64,
-            DID(&pMsg->srcId), SYNC_HEARTBEAT_REPLY_SLOW_MS, pMsg->term, pBuf, netElapse, timeDiff, trace->rootId,
-            trace->msgId);
+    sHWarn(pSyncNode,
+           "recv sync-heartbeat-reply from dnode:%d slow(%d ms) {term:%" PRId64 ", ts:%s}, net elapsed:%" PRId64
+           ", timeDiff:%" PRId64 " QID:0x%" PRIx64 ":0x%" PRIx64,
+           DID(&pMsg->srcId), SYNC_HEARTBEAT_REPLY_SLOW_MS, pMsg->term, pBuf, netElapse, timeDiff, trace->rootId,
+           trace->msgId);
   } else {
     if(tsSyncLogHeartbeat){
       char pBuf[TD_TIME_STR_LEN] = {0};

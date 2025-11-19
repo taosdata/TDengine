@@ -528,9 +528,14 @@ static int32_t snapshotReceiverSignatureCmp(SSyncSnapshotReceiver *pReceiver, Sy
     goto _OVER;
   }
 _OVER:
-  if (code != 0)
-    sRError(pReceiver, "receiver signature failed, result:%d, msg signature:(%" PRId64 ", %" PRId64 ")", code,
-            pMsg->term, pMsg->snapStartTime);
+  if (code > 0) {
+    sRError(pReceiver, "receiver signature failed, stale snapshot, result:%d, msg signature:(%" PRId64 ", %" PRId64 ")",
+            code, pMsg->term, pMsg->snapStartTime);
+  } else if (code < 0) {
+    sRWarn(pReceiver,
+           "receiver signature failed, result:%d, a newer snapshot, msg signature:(%" PRId64 ", %" PRId64 ")", code,
+           pMsg->term, pMsg->snapStartTime);
+  }
   return code;
 }
 
@@ -791,7 +796,7 @@ static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pM
     // already start
     int32_t order = 0;
     if ((order = snapshotReceiverSignatureCmp(pReceiver, pMsg)) < 0) {  // order < 0
-      sInfo("failed to prepare snapshot, received a new snapshot preparation. restart receiver.");
+      sWarn("failed to prepare snapshot, received a new snapshot preparation. restart receiver.");
       goto _START_RECEIVER;
     } else if (order == 0) {  // order == 0
       sInfo("prepare snapshot, received a duplicate snapshot preparation. send reply.");
