@@ -100,16 +100,17 @@ testCases:
             as 
               select _tcurrent_ts, count(*), avg(last_velocity) 
                   from (
-                         select _tprev_ts ts, last(current_load) load, load_capacity, name 
-                           from db2.diagnostics 
-                           where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
-                           partition by tbname) a 
-                           join (
-                                 select _tprev_ts ts, last(velocity) last_velocity, name 
-                                    from db1.readings where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
-                                    partition by tbname
-                                ) b 
-                           on a.ts = b.ts and a.load < 0.1 * a.load_capacity and a.name = b.name;
+                            select _tprev_ts ts, last(current_load) load, load_capacity, name 
+                              from db2.diagnostics 
+                              where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                              partition by tbname
+                        ) a 
+                   join (
+                            select _tprev_ts ts, last(velocity) last_velocity, name 
+                              from db1.readings where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                              partition by tbname
+                       ) b 
+                  on a.ts = b.ts and a.load < 0.1 * a.load_capacity and a.name = b.name;
 
     - scenarioId: "A7"
       classfication: "Summary"
@@ -398,11 +399,9 @@ testCases:
       sql: |
         create stream db2.stm_t5 
           state_window(
-                     case when status > 0 then 1 
-                     else 0 end, 
-                     0, 
-                     0
-                    ) 
+                        case when status > 0 then 1 
+                        else 0 end
+                      ) 
           from db2.diagnostics partition by tbname 
           stream_options(fill_history_first) 
           into db2.res_t5 
@@ -418,9 +417,7 @@ testCases:
         create stream db2.stm_t6 
             state_window(
                           case when fuel_state < 0.2 * fuel_capacity 
-                          then 1 else 0 end, 
-                          0, 
-                          0
+                          then 1 else 0 end
                          ) 
             from db2.diagnostics partition by tbname 
             stream_options(fill_history_first) 
@@ -437,9 +434,7 @@ testCases:
         create stream db1.stm_t7 
             state_window(
                           case when fuel_consumption > 2 * nominal_fuel_consumption then 1 
-                          else 0 end, 
-                          0, 
-                          0
+                          else 0 end
                         ) 
             from db1.readings partition by tbname, name 
             stream_options(fill_history_first) 
@@ -482,9 +477,7 @@ testCases:
         create stream db2.stm_t9 
             state_window(
                           case when fuel_state = 1 then 1 
-                          else 0 end, 
-                          0, 
-                          0
+                          else 0 end 
                         ) 
             from db2.diagnostics partition by tbname 
             stream_options(fill_history_first) 

@@ -34,21 +34,34 @@ class DoTest(BaseStep):
         print(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Timeout: {timeout} seconds")
         conn = taos_connect()
         cursor = conn.cursor()
-        for i in range(timeout):
+        
+        last_rows = 0
+        cnt = 0
+        i = 0
+        while cnt < timeout:
             try:        
                 cursor.execute(verifySql)
                 results = cursor.fetchall()
                 rows = results[0][0]
-                metrics.output_rows[self.scene.name] = rows
+                if rows != last_rows:
+                    # have new rows, reset cnt
+                    last_rows = rows
+                    cnt = 0
+                    metrics.output_rows[self.scene.name] = rows                    
+                
                 if rows == expectRows:
                     print(f"{i} real rows: {rows}, expect rows: {expectRows} ==> Passed")
                     conn.close()
                     metrics.set_status(self.scene.name, "Passed")
                     return
                 print(f"{i} real rows: {rows}, expect rows: {expectRows}")
+                
+                # add step
+                i += 1
+                cnt += 1
             except Exception as e:
                 print(f"i={i} query stream result table except: {e}")
-            
+            # sleep 1 second
             time.sleep(1)
 
         info = f"stream processing not completed in {timeout} seconds"

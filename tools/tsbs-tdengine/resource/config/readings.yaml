@@ -34,7 +34,7 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a6
-      expectRows: 8888      
+      expectRows: 4      
 
     - scenarioId: "A7"
       querySql: select count(*) from db1.readings

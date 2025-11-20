@@ -132,8 +132,15 @@ class OutMetrics:
             status     = self.status.get(scenario, "UNKNOWN")
             
             # Format time strings
-            start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
-            end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))
+            if start_time == 0 or start_time is None:
+                start_time_str = "-"
+            else:
+                start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
+    
+            if end_time == 0 or end_time is None:
+                end_time_str = "-"
+            else:
+                end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))
             
             # Print row with fixed width
             row = (

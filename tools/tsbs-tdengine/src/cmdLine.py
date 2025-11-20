@@ -185,8 +185,8 @@ class CmdLine:
             with open(yaml_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
             
-            scenes = []
             # Print formatted test cases
+            '''
             print("\n=== Test Cases ===")
             if 'testCases' in data:
                 for i, case in enumerate(data['testCases'], 1):
@@ -196,7 +196,7 @@ class CmdLine:
                     print(f"Description:     {case.get('description', 'N/A')}")
                     print(f"SQL:\n{case.get('sql', 'N/A')}")
                     print("-" * 50)
-            
+            '''
             return data
             
         except FileNotFoundError:
