@@ -1019,3 +1019,39 @@ _error:
   }
   return code;
 }
+
+int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
+  bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
+  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == targetBlkId) {
+      SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, pNode->slotId);
+      QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno)
+
+      if (isNull) {
+        colDataSetNNULL(pDstCol, 0, numOfRows);
+      } else {
+        SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, ((SColumnNode*)pNode->pExpr)->slotId);
+        QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno)
+
+        code = colDataAssign(pDstCol, pSrcCol, pSrc->info.rows, &pDst->info);
+
+        QUERY_CHECK_CODE(code, lino, _return);
+        if (pSrc->info.rows < totalRows) {
+          colDataSetNNULL(pDstCol, pSrc->info.rows, totalRows - pSrc->info.rows);
+        }
+      }
+    }
+  }
+
+  return code;
+_return:
+  qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
+  return code;
+}
+

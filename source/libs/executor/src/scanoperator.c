@@ -1173,6 +1173,12 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     pListInfo->oneTableForEachGroup = false;
     pListInfo->numOfOuputGroups = 1;
   }
+  if (pParam->window.skey == INT64_MAX && pParam->window.ekey == INT64_MIN) {
+    // do nothing
+  } else {
+    pInfo->base.cond.twindows.skey = pParam->window.skey;
+    pInfo->base.cond.twindows.ekey = pParam->window.ekey;
+  }
 
   STableKeyInfo info = {.groupId = 0};
   int32_t       tableIdx = 0;
@@ -1238,7 +1244,7 @@ int compareColIdPair(const void* elem1, const void* elem2) {
 }
 
 static bool isNewScanParam(STableScanOperatorParam* pParam) {
-  return pParam->window.skey == INT64_MAX && pParam->window.ekey == INT64_MIN;
+  return pParam->isNewParam;
 }
 
 static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
@@ -1336,11 +1342,16 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     pInfo->pResBlock = NULL;
   }
 
-  if (pParam->window.ekey > 0) {
+  if (isNewScanParam(pParam)) {
+    if (pParam->window.skey == INT64_MAX && pParam->window.ekey == INT64_MIN) {
+      pInfo->base.cond.twindows.skey = pInfo->base.orgCond.twindows.skey;
+      pInfo->base.cond.twindows.ekey = pInfo->base.orgCond.twindows.ekey;
+    } else {
+      pInfo->base.cond.twindows.skey = pParam->window.skey;
+      pInfo->base.cond.twindows.ekey = pParam->window.ekey;
+    }
+  } else {
     pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
-  } else if (isNewScanParam(pParam)) {
-    pInfo->base.cond.twindows.skey = pInfo->base.orgCond.twindows.skey;
-    pInfo->base.cond.twindows.ekey = pInfo->base.orgCond.twindows.ekey;
   }
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;

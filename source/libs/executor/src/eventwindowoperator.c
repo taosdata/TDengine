@@ -126,9 +126,6 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
   pInfo->winSup.lastTs = INT64_MIN;
 
-  pInfo->twAggSup = (STimeWindowAggSupp){.waterMark = pEventWindowNode->window.watermark,
-                                         .calTrigger = pEventWindowNode->window.triggerType};
-
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
 

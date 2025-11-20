@@ -313,6 +313,7 @@ typedef enum EJoinAlgorithm {
 typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
   DYN_QTYPE_VTB_SCAN,
+  DYN_QTYPE_VTB_WINDOW,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
