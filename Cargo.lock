@@ -4860,6 +4860,7 @@ dependencies = [
  "async-backtrace",
  "chrono",
  "csv",
+ "deadpool",
  "flume",
  "fundu",
  "futures",

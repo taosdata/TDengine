@@ -90,8 +90,14 @@ async fn worker(
 ) -> anyhow::Result<()> {
     let metrics = metrics_arc.legacy();
     const MAX_WS_RETRIES: usize = 5;
-    let mut from = source.get().await?;
-    let mut to = target.get().await?;
+    let mut from = source
+        .get()
+        .await
+        .with_context(|| format!("Initialize source connection for worker {worker}"))?;
+    let mut to = target
+        .get()
+        .await
+        .with_context(|| format!("Initialize target connection for worker {worker}"))?;
     from.exec("select server_version()")
         .await
         .map_err(|err| anyhow::format_err!("check source connection error: {err:?}"))?;

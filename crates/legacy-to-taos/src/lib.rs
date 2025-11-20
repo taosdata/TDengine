@@ -16,7 +16,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use futures::TryFutureExt;
 use futures_util::FutureExt;
 use rand::seq::SliceRandom;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_with::serde_as;
 use taos::*;
 use taosx_core::utils::sql::TaosConnection;
@@ -399,7 +399,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         .0
         .get()
         .await
-        .context("Get source connection error")?;
+        .context("Get target connection error")?;
     let stable = context.from.1.stable.as_deref();
     let table = &context.from.1.name;
     let actions = &context.actions;
@@ -3185,6 +3185,74 @@ async fn realtime(
     }
 }
 
+trait TaosDsn {
+    fn pool_config(&mut self) -> deadpool::managed::PoolConfig;
+}
+impl TaosDsn for Dsn {
+    fn pool_config(&mut self) -> deadpool::managed::PoolConfig {
+        const DEFAULT_POOL_TIMEOUT: u64 = 600;
+        let pool_timeout_secs = self
+            .remove("pool_timeout")
+            .or(self.remove("pool-timeout"))
+            .or(self.remove("poolTimeout"))
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_POOL_TIMEOUT);
+        const DEFAULT_POOL_SIZE: usize = 5000;
+        let max_size = self
+            .remove("pool_size")
+            .or(self.remove("pool-size"))
+            .or(self.remove("poolSize"))
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_POOL_SIZE);
+        let queue_mode = self
+            .remove("pool_queue_mode")
+            .or(self.remove("pool-queue-mode"))
+            .or(self.remove("poolQueueMode"))
+            .and_then(|s| {
+                struct Visitor;
+                impl serde::de::Visitor<'_> for Visitor {
+                    type Value = deadpool::managed::QueueMode;
+
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        formatter.write_str("a valid QueueMode string: fifo, lifo or integer 0, 1")
+                    }
+
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match v {
+                            "FIFO" | "fifo" | "0" => Ok(deadpool::managed::QueueMode::Fifo),
+                            "LIFO" | "lifo" | "1" => Ok(deadpool::managed::QueueMode::Lifo),
+                            _ => Err(serde::de::Error::custom(format!(
+                                "invalid QueueMode: {}",
+                                v
+                            ))),
+                        }
+                    }
+                }
+                type StringDeserializer =
+                    serde::de::value::StringDeserializer<serde::de::value::Error>;
+                StringDeserializer::new(s)
+                    .deserialize_str(Visitor)
+                    .inspect_err(|err| warn!("Deserialize queue_mode error: {err:#}"))
+                    .ok()
+            })
+            .unwrap_or(deadpool::managed::QueueMode::Fifo);
+        deadpool::managed::PoolConfig {
+            max_size,
+            timeouts: deadpool::managed::Timeouts {
+                wait: None,
+                create: Some(std::time::Duration::from_secs(pool_timeout_secs)),
+                recycle: None,
+            },
+            queue_mode,
+        }
+    }
+}
 #[instrument(skip_all)]
 pub async fn legacy_to_taos(
     mut from: Dsn,
@@ -3227,6 +3295,7 @@ pub async fn legacy_to_taos(
     }
 
     verify::verify_dsn_and_retain(&mut from);
+    let pool_config = from.pool_config();
 
     let target_db = to.subject.take();
 
@@ -3239,7 +3308,7 @@ pub async fn legacy_to_taos(
     // let connect_timeout = Duration::from_secs(10);
     tracing::debug!("Building source connection pool...");
     let from_pool = from_builder
-        .pool()
+        .with_pool_config(pool_config)
         .context("Source connection pool error")?;
     tracing::debug!("Getting connection from source connection pool...");
     let source_taos = from_pool.get().await.context("Source connection error")?;
@@ -3335,7 +3404,10 @@ pub async fn legacy_to_taos(
     }
 
     tracing::debug!("Building target connection pool...");
-    let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
+    let pool_config = to.pool_config();
+    let to_pool = TaosBuilder::from_dsn(&to)?
+        .with_pool_config(pool_config)
+        .with_context(|| format!("Failed to build target connection pool: {to}"))?;
     tracing::debug!("Getting connection from target connection pool...");
     let target_taos = to_pool.get().await?;
 

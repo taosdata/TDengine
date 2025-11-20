@@ -77,7 +77,6 @@ rayon = { version = "1" }
 
 metrics = "0.24"
 metrics-util = { version = "0.20", features = ["storage"] }
-metrics-tracing-context = "0.18"
 
 scc = { version = "2" }
 tonic = "0.12.3"
@@ -119,7 +118,6 @@ actix-files = "0.6.6"
 actix-multipart = "0.7.2"
 actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
 actix-ws = "0.3.0"
-actix-http = "3.11.1"
 awc = { version = "3", features = ["rustls-0_23"] }
 async-stream = "0.3"
 
