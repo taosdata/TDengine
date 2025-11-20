@@ -15,12 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAnode.h"
-#include "audit.h"
-#include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "mndUser.h"
 #include "tanalytics.h"
 #include "tjson.h"
 
@@ -224,12 +221,19 @@ static void mndFreeAnode(SAnodeObj *pObj) {
   taosMemoryFreeClear(pObj->url);
   for (int32_t i = 0; i < pObj->numOfAlgos; ++i) {
     SArray *algos = pObj->algos[i];
+    if (algos == NULL) {
+      continue;
+    }
+
     for (int32_t j = 0; j < (int32_t)taosArrayGetSize(algos); ++j) {
       SAnodeAlgo *algo = taosArrayGet(algos, j);
       taosMemoryFreeClear(algo->name);
+      taosMemoryFreeClear(algo->pStatus);
+      taosMemoryFreeClear(algo->pNote);
     }
     taosArrayDestroy(algos);
   }
+
   taosMemoryFreeClear(pObj->algos);
 }
 
@@ -685,13 +689,19 @@ void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
   }
 }
 
+int32_t updateModelStatus(SAnodeObj* pAnode) {
+  SAnodeObj anodeObj = {.id = pAnode->id, .updateTime = taosGetTimestampMs()};
+  int32_t code = mndGetAnodeAlgoList(pAnode->url, &anodeObj);
+  return 0;
+}
+
 static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode    *pMnode = pReq->info.node;
-  SSdb      *pSdb = pMnode->pSdb;
+  SMnode *   pMnode = pReq->info.node;
+  SSdb *     pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t    code = 0;
 
   if ((code = grantCheckExpire(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
@@ -709,17 +719,31 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
         SAnodeAlgo *algo = taosArrayGet(algos, a);
 
-        cols = 0;
+        cols = 0;  // id
         SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
         if (code != 0) goto _end;
-
+        
+        // type
         STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
-
+        
+        // name
         STR_TO_VARSTR(buf, algo->name);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        code = colDataSetVal(pColInfo, numOfRows, buf, false);
+        if (code != 0) goto _end;
+
+        // status
+        STR_TO_VARSTR(buf, algo->pStatus == NULL ? "" : algo->pStatus);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        code = colDataSetVal(pColInfo, numOfRows, buf, false);
+        if (code != 0) goto _end;
+
+        // note
+        STR_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
@@ -802,14 +826,23 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
       algoObj.name = taosMemoryCalloc(algoObj.nameLen, 1);
       tstrncpy(algoObj.name, buf, algoObj.nameLen);
 
-      if (taosArrayPush(pObj->algos[type], &algoObj) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+      code = tjsonDupStringValue(algo, "status", &algoObj.pStatus);
+      if (code != 0) {
+        mError("failed to extract status for algo:%s, code:%s", algoObj.name, tstrerror(code)); 
+        return code;
+      }
+
+      if (taosArrayPush(pObj->algos[type], &algoObj) == NULL) {
+        mError("failed to push algo:%s into anode algos array, code:%s", algoObj.name, tstrerror(terrno));
+        return terrno;
+      }
     }
   }
 
   return 0;
 }
 
-static int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
+int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
   char anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", url, "list");
 
