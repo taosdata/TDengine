@@ -15888,7 +15888,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 }
 
 static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pStmt, EPrivCategory category,
-                                         EObjType objType) {
+                                         EObjType objType, SAlterRoleReq* pReq) {
   SName       name = {0};
   STableMeta* pTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -15903,10 +15903,21 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
   }
 
   if (strncmp(pStmt->objName, "*", 2) == 0) {
-    if ((pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0)) {
+    if (pStmt->tabName[0] == '\0') {
+      if (objType != OBJ_TYPE_DB) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Table name cannot be empty for non-database level privileges");
+      }
       return TSDB_CODE_SUCCESS;
+    } else if (strncmp(pStmt->tabName, "*", 2) == 0) {
+      if (objType == OBJ_TYPE_DB) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Table name should be empty for database level privileges");
+      }
+      return TSDB_CODE_SUCCESS;
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
     }
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
   }
 
   if (IS_SYS_DBNAME(pStmt->objName)) {
@@ -15920,7 +15931,7 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
     case OBJ_TYPE_DB: {
       if (pStmt->tabName[0] != '\0') {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Table name should be empty for database level privilege");
+                                       "Table name should be empty for database level privileges");
       }
       SDbCfgInfo dbCfg = {0};
       if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
@@ -15931,25 +15942,33 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
     }
     case OBJ_TYPE_TABLE:
     case OBJ_TYPE_VIEW: {
-      if(pStmt->objName[0] == '\0' || strcmp(pStmt->objName, "*") == 0) {
-        break;
-      }
       if (0 != pStmt->tabName[0]) {
-        SName       name = {0};
-        STableMeta* pTableMeta = NULL;
-        toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-        code = getTargetMeta(pCxt, &name, &pTableMeta, true);
-        if (TSDB_CODE_SUCCESS != code) {
-          if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+        if (strncmp(pStmt->tabName, "*", 2) != 0) {
+          SName       name = {0};
+          STableMeta* pTableMeta = NULL;
+          toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+          code = getTargetMeta(pCxt, &name, &pTableMeta, true);
+          if (TSDB_CODE_SUCCESS != code) {
             return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
           }
-        }
-        if (((OBJ_TYPE_TABLE == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
-            ((OBJ_TYPE_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
+          if (((OBJ_TYPE_TABLE == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
+              ((OBJ_TYPE_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
+            taosMemoryFree(pTableMeta);
+            TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
+          }
           taosMemoryFree(pTableMeta);
-          TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
         }
-        taosMemoryFree(pTableMeta);
+      } else {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Table name cannot be empty for table or view level privileges");
+      }
+      snprintf(pReq->objName, sizeof(pReq->objName), "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+      snprintf(pReq->tblName, sizeof(pReq->tblName), "%s", pStmt->tabName);
+      if (objType = OBJ_TYPE_TABLE) {
+        code = translateGrantTagCond(pCxt, pStmt, pReq);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
       }
       break;
     }
@@ -15979,7 +15998,7 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Unsupported object type for privilege");
   }
-  return TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
 }
 
 static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, bool grant) {
@@ -15999,30 +16018,17 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Object privileges of different types cannot be mixed");
       }
       req.privileges = pStmt->privileges;
-      if(category != PRIV_CATEGORY_SYSTEM) {
-        req.targetType = objType;
-      }
-#ifdef TD_ENTERPRISE
-      if (0 != pStmt->tabName[0]) {
-        SName       name = {0};
-        STableMeta* pTableMeta = NULL;
-        toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-        code = getTargetMeta(pCxt, &name, &pTableMeta, true);
-        req.targetType = OBJ_TYPE_TABLE;
-        if (TSDB_CODE_SUCCESS != code) {
-          if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
-          }
-        } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
-          req.targetType = OBJ_TYPE_VIEW;
+      if (category == PRIV_CATEGORY_SYSTEM) {
+        req.sysPriv = 1;
+        if(pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "System privileges should not have target");
         }
-        taosMemoryFree(pTableMeta);
-      }
-#endif
-      snprintf(req.objName, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-      snprintf(req.tblName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
-      if (req.targetType = OBJ_TYPE_TABLE) {
-        code = translateGrantTagCond(pCxt, pStmt, &req);
+      } else {
+        req.targetType = objType;
+        code = translateGrantCheckObject(pCxt, pStmt, category, objType, &req);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
       }
       break;
     }

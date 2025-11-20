@@ -1387,8 +1387,8 @@ typedef struct {
     SPrivSet privileges;
     char     roleName[TSDB_ROLE_LEN];
   };
-  char    principal[TSDB_ROLE_LEN];    // role or user name
-  char    objName[TSDB_OBJ_NAME_LEN];  // db or topic
+  char    principal[TSDB_ROLE_LEN];     // role or user name
+  char    objName[TSDB_OBJ_FNAME_LEN];  // db or topic
   char    tblName[TSDB_TABLE_NAME_LEN];
   char*   tagCond;
   int32_t tagCondLen;
