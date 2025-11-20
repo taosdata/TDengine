@@ -1165,8 +1165,8 @@ end:
   }
 }
 
-int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
-                                   SStorageAPI* pAPI, bool initRemainGroups, SHashObj* groupIdMap) {
+int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
+                                   SStorageAPI* pAPI, bool initRemainGroups, SHashObj* groupIdMap, bool gIdFromBaseId) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SArray*      pBlockList = NULL;
@@ -1176,6 +1176,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   SArray*      pUidTagList = NULL;
   SArray*      tableList = NULL;
   SArray*      gInfo = NULL;
+  void*        pVnode = pHandle->vnode;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
   if (rows == 0) {
@@ -1183,7 +1184,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   } 
 
   T_MD5_CTX context = {0};
-  if (tsTagFilterCache && groupIdMap == NULL) {
+  if (tsTagFilterCache && groupIdMap == NULL && digest) {
     SNodeListNode* listNode = NULL;
     code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&listNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1297,7 +1298,8 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
   }
 
-  int32_t keyLen = 0;
+  int32_t baseIdLen = gIdFromBaseId ? sizeof(int64_t) : 0;
+  int32_t keyLen = baseIdLen;
   SNode*  node;
   FOREACH(node, group) {
     SExprNode* pExpr = (SExprNode*)node;
@@ -1329,9 +1331,12 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     if (groupIdMap != NULL){
       gInfo = taosArrayInit(taosArrayGetSize(groupData), sizeof(SStreamGroupValue));
     }
-    
-    char* isNull = (char*)keyBuf;
-    char* pStart = (char*)keyBuf + sizeof(int8_t) * LIST_LENGTH(group);
+
+    if (baseIdLen > 0) {
+      *(uint64_t*)keyBuf = info->baseGId;
+    }
+    char* isNull = (char*)keyBuf + baseIdLen;
+    char* pStart = (char*)keyBuf + baseIdLen + sizeof(int8_t) * LIST_LENGTH(group);
     for (int j = 0; j < taosArrayGetSize(groupData); j++) {
       SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
 
@@ -1406,7 +1411,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     }
   }
 
-  if (tsTagFilterCache && groupIdMap == NULL) {
+  if (tsTagFilterCache && groupIdMap == NULL && digest) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
     QUERY_CHECK_NULL(tableList, code, lino, end, terrno);
 
@@ -3401,7 +3406,7 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
   *type = pTableList->idInfo.tableType;
 }
 
-uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
+int32_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid, uint64_t* gid, uint64_t* baseGid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   if (slot == NULL) {
     qDebug("table:%" PRIu64 " not found in table list", tableUid);
@@ -3413,7 +3418,11 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
     qDebug("table:%" PRIu64 " not found in table list", tableUid);
     return -1;
   }
-  return pKeyInfo->groupId;
+
+  *gid = pKeyInfo->groupId;
+  *baseGid = pKeyInfo->baseGId;
+  
+  return 0;
 }
 
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function
@@ -3645,7 +3654,7 @@ end:
 }
 
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
-                                    SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap) {
+                                    SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   bool   groupByTbname = groupbyTbname(group);
@@ -3718,7 +3727,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       }
     }
 
-    code = getColInfoResultForGroupby(pHandle->vnode, group, pTableListInfo, digest, pAPI, initRemainGroups, groupIdMap);
+    code = getColInfoResultForGroupby(pHandle, group, pTableListInfo, digest, pAPI, initRemainGroups, groupIdMap, gIdFromBaseId);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3783,7 +3792,7 @@ int32_t createNonStreamScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* p
     return TSDB_CODE_SUCCESS;
   }
 
-  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest, &pTaskInfo->storageAPI, groupIdMap);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest, &pTaskInfo->storageAPI, groupIdMap, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -3794,7 +3803,7 @@ int32_t createNonStreamScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* p
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createStreamGrpTableListFromCond(SScanPhysiNode* pScanNode, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo, SStreamRuntimeFuncInfo* pStream, STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, int32_t grpNum) {
+int32_t createStreamGrpTableListFromCond(SScanPhysiNode* pScanNode, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo, SStreamRuntimeFuncInfo* pStream, STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, int32_t grpNum, bool hasCalcGrp) {
   int32_t code = 0, lino = 0;
 
   for (int32_t i = 0; i < grpNum; ++i) {
@@ -3803,11 +3812,22 @@ int32_t createStreamGrpTableListFromCond(SScanPhysiNode* pScanNode, SReadHandle*
 
     pStream->pStreamPartColVals = pGrpCalc->pGroupColVals;
 
+    int32_t oldSize = taosArrayGetSize(pTableListInfo->pTableList);
     TAOS_CHECK_EXIT(getTableList(pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, NULL, GET_TASKID(pTaskInfo),
                                 &pTaskInfo->storageAPI, pTaskInfo->pStreamRuntimeInfo));
+    int32_t newSize = taosArrayGetSize(pTableListInfo->pTableList);
+    for (int32_t i = oldSize; i < newSize; ++i) {
+      STableKeyInfo* pKey = taosArrayGet(pTableListInfo->pTableList, i);
+      pKey->baseGId = pGrpRead->gid;
+      if (!hasCalcGrp) {
+        pKey->groupId = pGrpRead->gid;
+      }
+    }
+    
+    qDebug("%s get %d tables for tgrp %" PRIu64, GET_TASKID(pTaskInfo), newSize - oldSize, pGrpRead->gid);
   }
 
-  qDebug("%s get %d tables in table list from cond", GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
+  qDebug("%s get total %d tables in table list from cond", GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
 
 _exit:
 
@@ -3817,11 +3837,15 @@ _exit:
   
   return code;}
 
-int32_t createStreamGrpTableListFromTrig(SExecTaskInfo* pTaskInfo, SStreamRuntimeFuncInfo* pStream, STableListInfo* pTableListInfo, int32_t grpNum) {
+int32_t createStreamGrpTableListFromTrig(SExecTaskInfo* pTaskInfo, SStreamRuntimeFuncInfo* pStream, STableListInfo* pTableListInfo, int32_t grpNum, bool hasCalcGrp) {
   STableKeyInfo tableKey = {0};
   int32_t tblNum = 0, idx = 0;
   int32_t code = 0, lino = 0;
 
+  if (!hasCalcGrp) {
+    pTableListInfo->numOfOuputGroups = grpNum;
+  }
+  
   for (int32_t i = 0; i < grpNum; ++i) {
     SSTriggerGroupReadInfo* pGrp = taosArrayGet(pStream->curGrpRead, i);
     tableKey.baseGId = pGrp->gid;
@@ -3829,11 +3853,17 @@ int32_t createStreamGrpTableListFromTrig(SExecTaskInfo* pTaskInfo, SStreamRuntim
 
     if (pStream->stbPartByTbname) {
       tableKey.uid = pGrp->gid;
-      pTableListInfo->oneTableForEachGroup = true;
+      if (!hasCalcGrp) {
+        tableKey.groupId = pGrp->gid;
+        pTableListInfo->oneTableForEachGroup = true;
+      }
+      
       TSDB_CHECK_NULL(taosArrayPush(pTableListInfo->pTableList, &tableKey), code, lino, _exit, terrno);
-      int32_t tempRes = taosHashPut(pTableListInfo->map, &tableKey.uid, sizeof(uint64_t), &idx, sizeof(int32_t));
-      if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
-        TAOS_CHECK_EXIT(tempRes);
+      if (!hasCalcGrp) {
+        int32_t tempRes = taosHashPut(pTableListInfo->map, &tableKey.uid, sizeof(uint64_t), &idx, sizeof(int32_t));
+        if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
+          TAOS_CHECK_EXIT(tempRes);
+        }      
       }      
       
       qDebug("%s gid:%" PRIu64 " table:%" PRIu64 " added to stream table list, partByTbname", GET_TASKID(pTaskInfo), tableKey.groupId, tableKey.uid);
@@ -3844,17 +3874,23 @@ int32_t createStreamGrpTableListFromTrig(SExecTaskInfo* pTaskInfo, SStreamRuntim
     for (int32_t n = 0; n < tblNum; ++n, ++idx) {
       uint64_t* pUid = taosArrayGet(pGrp->pTables, n);
       tableKey.uid = *pUid;
+      if (!hasCalcGrp) {
+        tableKey.groupId = pGrp->gid;
+      }
+      
       TSDB_CHECK_NULL(taosArrayPush(pTableListInfo->pTableList, &tableKey), code, lino, _exit, terrno);
-      int32_t tempRes = taosHashPut(pTableListInfo->map, &tableKey.uid, sizeof(uint64_t), &idx, sizeof(int32_t));
-      if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
-        TAOS_CHECK_EXIT(tempRes);
+      if (!hasCalcGrp) {
+        int32_t tempRes = taosHashPut(pTableListInfo->map, &tableKey.uid, sizeof(uint64_t), &idx, sizeof(int32_t));
+        if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
+          TAOS_CHECK_EXIT(tempRes);
+        }
       }
 
       qDebug("%s gid:%" PRIu64 " table:%" PRIu64 " added to stream table list", GET_TASKID(pTaskInfo), tableKey.groupId, tableKey.uid);
     }
   }
 
-  qDebug("%s get %d tables in table list from trig", GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
+  qDebug("%s total get %d tables in table list from trig", GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
 
 _exit:
 
@@ -3871,21 +3907,39 @@ int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* 
   int32_t code = 0, lino = 0;
   const char* idStr = GET_TASKID(pTaskInfo);
   SStreamRuntimeFuncInfo* pStream = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
-
+  bool hasCalcGrp = (pGroupTags && pGroupTags->length > 0);
   int32_t grpNum = taosArrayGetSize(pStream->curGrpRead);
   SSTriggerGroupReadInfo* pGrp = taosArrayGet(pStream->curGrpRead, 0);
-  
-  pTableListInfo->numOfOuputGroups = grpNum;
+  int64_t     st = taosGetTimestampUs();
 
+  qDebug("%s start to create table list, hasCalcGrp:%d, tgrpNum:%d", idStr, hasCalcGrp, grpNum);
+  
   if (taosArrayGetSize(pGrp->pTables) <= 0) {
-    // TAOS_CHECK_EXIT(createStreamGrpTableListFromCond());
+    TAOS_CHECK_EXIT(createStreamGrpTableListFromCond(pScanNode, pHandle, pTaskInfo, pStream, pTableListInfo, pTagCond, pTagIndexCond, grpNum, hasCalcGrp));
   } else {
-    TAOS_CHECK_EXIT(createStreamGrpTableListFromTrig(pTaskInfo, pStream, pTableListInfo, grpNum));
+    TAOS_CHECK_EXIT(createStreamGrpTableListFromTrig(pTaskInfo, pStream, pTableListInfo, grpNum, hasCalcGrp));
   }
   
   pTableListInfo->idInfo.suid = pScanNode->suid;
   pTableListInfo->idInfo.tableType = pScanNode->tableType;
 
+  int32_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
+
+  int64_t st1 = taosGetTimestampUs();
+  qDebug("%s build multi tgrp table list completed, elapsed time:%.2f ms %s", idStr, (st1 - st) / 1000.0);
+
+  if (numOfTables == 0) {
+    qDebug("%s no table qualified for stream multi tgrp", idStr);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, NULL, &pTaskInfo->storageAPI, groupIdMap, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pTaskInfo->cost.groupIdMapTime = (taosGetTimestampUs() - st1) / 1000.0;
+  qDebug("%s generate stream group id map completed, elapsed time:%.2f ms", idStr, pTaskInfo->cost.groupIdMapTime);
 
 _exit:
 
@@ -3934,7 +3988,7 @@ char* getStreamOpName(uint16_t opType) {
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
-  if (qDebugFlag & DEBUG_INFO) {
+  if (qDebugFlag & DEBUG_TRACE) {
     if (!pBlock) {
       qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
       return;
