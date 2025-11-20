@@ -1232,6 +1232,15 @@ class TestStreamSubqueryEvent:
         )
         self.streams.append(stream)
 
+        stream = StreamItem(
+            id=133,
+            stream="create stream rdb.s133 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r133 as select _twstart ts, APERCENTILE(cint, 25) c1, AVG(cuint) c2, SUM(cint) c3, COUNT(cbigint) c4, ELAPSED(cts) c5, HYPERLOGLOG(cdouble) c6, LEASTSQUARES(csmallint, 1, 2) c7, SPREAD(ctinyint) c8, STDDEV(cutinyint) c9, STDDEV_POP(cfloat) c10, SUM(cdecimal8) c11, VAR_POP(cbigint) c12, PERCENTILE(cint, 25) c13 from qdb.meters where tbname = 't1' and cts >= _twstart and cts < _twstart + 5m;",
+            res_query="select ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c12, c13 from rdb.r133 where tag_tbname='t1' limit 3",
+            exp_query="select _wstart, APERCENTILE(cint, 25), AVG(cuint), SUM(cint), COUNT(cbigint), 270000, HYPERLOGLOG(cdouble), LEASTSQUARES(csmallint, 1, 2), SPREAD(ctinyint), STDDEV(cutinyint), STDDEV_POP(cfloat), VAR_POP(cbigint), PERCENTILE(cint, 25) from qdb.t1 where cts >='2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(5m);",
+        )
+        #self.streams.append(stream)
+
+
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()

@@ -2733,7 +2733,7 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(taosArrayGetP(pInfo->pWins, taosArrayGetSize(pInfo->pWins) - 1));
         QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
 
-        lastWin->tw.ekey = pExtWinBlock->info.window.ekey;
+        lastWin->tw.ekey = pExtWinBlock->info.window.ekey + 1;
       }
     }
   } else {
@@ -2765,7 +2765,7 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(taosArrayGetP(pInfo->pWins, taosArrayGetSize(pInfo->pWins) - 1));
         QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
 
-        lastWin->tw.ekey = pMergedBlock->info.window.ekey;
+        lastWin->tw.ekey = pMergedBlock->info.window.ekey + 1;
       }
     }
   }
