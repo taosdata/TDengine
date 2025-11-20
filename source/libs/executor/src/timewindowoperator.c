@@ -1651,8 +1651,6 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   calcIntervalAutoOffset(&interval);
 
   STimeWindowAggSupp as = {
-      .waterMark = pPhyNode->window.watermark,
-      .calTrigger = pPhyNode->window.triggerType,
       .maxTs = INT64_MIN,
   };
 
@@ -2015,9 +2013,6 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
-  pInfo->twAggSup =
-      (STimeWindowAggSupp){.waterMark = pStateNode->window.watermark, .calTrigger = pStateNode->window.triggerType};
-
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -2135,8 +2130,6 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
                     pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pInfo->twAggSup.waterMark = pSessionNode->window.watermark;
-  pInfo->twAggSup.calTrigger = pSessionNode->window.triggerType;
   pInfo->gap = pSessionNode->gap;
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);

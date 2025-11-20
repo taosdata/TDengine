@@ -78,6 +78,12 @@ typedef struct SExternalWindowOperator {
   bool               hasCountFunc;
   SExtWindowStat     stat;
   SArray*            pWinRowIdx;
+
+  // for vtable window query
+  bool               isDynWindow;
+  int32_t            orgTableVgId;
+  tb_uid_t           orgTableUid;
+  STimeWindow        orgTableTimeRange;
 } SExternalWindowOperator;
 
 
@@ -302,6 +308,9 @@ int64_t* extWinExtractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTa
 }
 
 static int32_t extWinGetCurWinIdx(SExecTaskInfo* pTaskInfo) {
+  if (!pTaskInfo->pStreamRuntimeInfo) {
+    return 0;
+  }
   return pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
 }
 
@@ -312,7 +321,9 @@ static void extWinIncCurWinIdx(SOperatorInfo* pOperator) {
 
 static void extWinSetCurWinIdx(SOperatorInfo* pOperator, int32_t idx) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = idx;
+  if (pTaskInfo->pStreamRuntimeInfo) {
+    pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = idx;
+  }
 }
 
 
@@ -783,6 +794,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
 
   pExtW->outWinIdx = 0;
   pExtW->lastSKey = INT64_MIN;
+  pExtW->isDynWindow = false;
 
   qDebug("%s ext window stat at reset, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64 ", reused:%" PRId64 ", append:%" PRId64, 
       pTaskInfo->id.str, pExtW->stat.resBlockCreated, pExtW->stat.resBlockDestroyed, pExtW->stat.resBlockRecycled, 
@@ -1129,6 +1141,18 @@ static int32_t extWinGetMultiTbNoOvlpWin(SOperatorInfo* pOperator, int64_t* tsCo
         return TSDB_CODE_SUCCESS;
       }
 
+      if (!pOperator->pTaskInfo->pStreamRuntimeInfo && tsCol[r] >= pWin->tw.ekey) {
+        extWinSetCurWinIdx(pOperator, pExtW->blkWinIdx);
+        *ppWin = pWin;
+        *startPos = r;
+        *winRows = getNumOfRowsInTimeWindow(pInfo, tsCol, r, pWin->tw.ekey - 1, binarySearchForKey, NULL, pExtW->binfo.inputTsOrder);
+
+        qDebug("%s %s the %dth ext win TR[%" PRId64 ", %" PRId64 ") got %d rows rowStartidx %d ts[%" PRId64 ", %" PRId64 "] in blk",
+               GET_TASKID(pOperator->pTaskInfo), __func__, pExtW->blkWinIdx, pWin->tw.skey, pWin->tw.ekey, *winRows, r, tsCol[r], tsCol[r + *winRows - 1]);
+
+        return TSDB_CODE_SUCCESS;
+      }
+
       break;
     }
 
@@ -1327,7 +1351,10 @@ _exit:
 
 static int32_t extWinAggDo(SOperatorInfo* pOperator, int32_t startPos, int32_t forwardRows,
                                   SSDataBlock* pInputBlock) {
-  if (forwardRows == 0) return 0;
+  if (pOperator->pTaskInfo->pStreamRuntimeInfo && forwardRows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SExprSupp*               pSup = &pOperator->exprSupp;
   SExternalWindowOperator* pExtW = pOperator->info;
   return applyAggFunctionOnPartialTuples(pOperator->pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
@@ -1749,7 +1776,7 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
       scalarCalc = true;
     }
 
-    if (pWin->tw.skey != pExtW->lastSKey) {
+    if (pWin->tw.skey != pExtW->lastSKey || pWin->tw.skey == INT64_MIN) {
       TAOS_CHECK_EXIT(extWinAggSetWinOutputBuf(pOperator, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
     }
     
@@ -1828,7 +1855,14 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   pBlock->info.dataLoad = 1;
 
   *ppRes = (pBlock->info.rows > 0) ? pBlock : NULL;
-  pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = pExtW->pWinRowIdx;
+
+  if (*ppRes) {
+    (*ppRes)->info.window.skey = pExtW->orgTableTimeRange.skey;
+    (*ppRes)->info.window.ekey = pExtW->orgTableTimeRange.ekey;
+  }
+  if (pOperator->pTaskInfo->pStreamRuntimeInfo) {
+    pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = pExtW->pWinRowIdx;
+  }
 
 _exit:
 
@@ -1951,8 +1985,37 @@ static bool extWinNonAggGotResBlock(SExternalWindowOperator* pExtW) {
   return false;
 }
 
+static int32_t getTimeWindowOfBlock(SSDataBlock *pBlock, col_id_t tsSlotId, int64_t *startTs, int64_t *endTs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t tsIndex = -1;
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
+    SColumnInfoData *pCol = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    QUERY_CHECK_NULL(pCol, code, lino, _return, terrno)
+    if (pCol->info.colId == tsSlotId) {
+      tsIndex = i;
+      break;
+    }
+  }
+
+  if (tsIndex == -1) {
+    tsIndex = (int32_t)taosArrayGetSize(pBlock->pDataBlock) - 1;
+  }
+
+  SColumnInfoData *pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, tsIndex);
+  QUERY_CHECK_NULL(pColData, code, lino, _return, terrno)
+
+  GET_TYPED_DATA(*startTs, int64_t, TSDB_DATA_TYPE_TIMESTAMP, colDataGetNumData(pColData, 0), 0);
+  GET_TYPED_DATA(*endTs, int64_t, TSDB_DATA_TYPE_TIMESTAMP, colDataGetNumData(pColData, pBlock->info.rows - 1), 0);
+
+  return code;
+_return:
+  qError("failed to get time window of block, %s code:%s, line:%d", __func__, tstrerror(code), lino);
+  return code;
+}
+
 static int32_t extWinOpen(SOperatorInfo* pOperator) {
-  if (OPTR_IS_OPENED(pOperator)) {
+  if (OPTR_IS_OPENED(pOperator) && !pOperator->pOperatorGetParam) {
     return TSDB_CODE_SUCCESS;
   }
   
@@ -1962,14 +2025,55 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
   SOperatorInfo*           pDownstream = pOperator->pDownstream[0];
   SExternalWindowOperator* pExtW = pOperator->info;
   SExprSupp*               pSup = &pOperator->exprSupp;
-  
-  TAOS_CHECK_EXIT(extWinInitWindowList(pExtW, pTaskInfo));
+
+  if (pOperator->pOperatorGetParam) {
+    SOperatorParam*               pParam = (SOperatorParam*)(pOperator->pOperatorGetParam);
+    SOperatorParam*               pDownParam = (SOperatorParam*)(pOperator->pDownstreamGetParams[0]);
+    SExchangeOperatorParam*       pExecParam = NULL;
+    SExternalWindowOperatorParam* pExtPram = (SExternalWindowOperatorParam*)pParam->value;
+
+    if (pExtW->pWins) {
+      taosArrayDestroy(pExtW->pWins);
+    }
+
+    pExtW->pWins = pExtPram->ExtWins;
+
+    TAOS_CHECK_EXIT(extWinInitResultRow(pTaskInfo, pExtW, taosArrayGetSize(pExtW->pWins)));
+    pExtPram->ExtWins = NULL;
+    pExtW->outputWinId = 0;
+    pExtW->lastWinId = -1;
+    pExtW->blkWinStartIdx = 0;
+    pExtW->outWinIdx = 0;
+    pExtW->lastSKey = INT64_MIN;
+    pExtW->isDynWindow = true;
+    pExtW->orgTableTimeRange.skey = INT64_MAX;
+    pExtW->orgTableTimeRange.ekey = INT64_MIN;
+
+    QUERY_CHECK_CONDITION(pOperator->numOfDownstream == 1, code, lino, _exit, TSDB_CODE_INVALID_PARA)
+
+    switch (pDownParam->opType) {
+      case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
+        break;
+      }
+      case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
+        pExecParam = (SExchangeOperatorParam*)((SOperatorParam*)(pOperator->pDownstreamGetParams[0]))->value;
+        pExecParam->basic.vgId = pExtW->orgTableVgId;
+        taosArrayClear(pExecParam->basic.uidList);
+        QUERY_CHECK_NULL(taosArrayPush(pExecParam->basic.uidList, &pExtW->orgTableUid), code, lino, _exit, terrno)
+        break;
+      }
+      default:
+        QUERY_CHECK_CONDITION(false, code, lino, _exit, TSDB_CODE_INVALID_PARA)
+    }
+  } else {
+    TAOS_CHECK_EXIT(extWinInitWindowList(pExtW, pTaskInfo));
+  }
 
   while (1) {
     pExtW->blkWinIdx = -1;
     pExtW->blkWinStartSet = false;
     pExtW->blkRowStartIdx = 0;
-    
+
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       if (EEXT_MODE_AGG == pExtW->mode) {
@@ -1977,6 +2081,15 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
       }
       pExtW->blkWinStartIdx = pExtW->pWins->size;
       break;
+    }
+
+    if (pExtW->isDynWindow) {
+      TSKEY skey = 0;
+      TSKEY ekey = 0;
+      code = getTimeWindowOfBlock(pBlock, pExtW->primaryTsIndex, &skey, &ekey);
+      QUERY_CHECK_CODE(code, lino, _exit);
+      pExtW->orgTableTimeRange.skey = TMIN(pExtW->orgTableTimeRange.skey, skey);
+      pExtW->orgTableTimeRange.ekey = TMAX(pExtW->orgTableTimeRange.ekey, ekey);
     }
 
     printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
@@ -2004,6 +2117,10 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     }
   }
 
+  if (pOperator->pOperatorGetParam) {
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
+  }
   OPTR_SET_OPENED(pOperator);
 
 #if 0
@@ -2034,7 +2151,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
 
-  if (pOperator->status == OP_EXEC_DONE) {
+  if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     *ppRes = NULL;
     return code;
   }
@@ -2062,8 +2179,8 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pExtW->binfo.pRes->info.rows > 0) break;
 #else
     TAOS_CHECK_EXIT(extWinAggOutputRes(pOperator, ppRes));
-    if (NULL == *ppRes) {
-      setOperatorCompleted(pOperator);
+    setOperatorCompleted(pOperator);
+    if (pTaskInfo->pStreamRuntimeInfo) {
       extWinFreeResultRow(pExtW);
     }
 #endif      
@@ -2071,6 +2188,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   if (*ppRes) {
     pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
+    printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
   
 _exit:
@@ -2119,6 +2237,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   pExtW->mode = pPhynode->window.pProjs ? EEXT_MODE_SCALAR : (pPhynode->window.indefRowsFunc ? EEXT_MODE_INDEFR_FUNC : EEXT_MODE_AGG);
   pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
   pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pExtW->isDynWindow = false;
 
   if (pTaskInfo->pStreamRuntimeInfo != NULL){
     pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
@@ -2248,6 +2367,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     pExtW->multiTableMode = true;
   }
   pExtW->inputHasOrder = pPhynode->inputHasOrder;
+  pExtW->orgTableUid = pPhynode->orgTableUid;
+  pExtW->orgTableVgId = pPhynode->orgTableVgId;
 
   pOperator->fpSet = createOperatorFpSet(extWinOpen, extWinNext, NULL, destroyExternalWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

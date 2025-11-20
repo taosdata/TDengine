@@ -11112,6 +11112,19 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
   }
 
   TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pOpParam->reUse));
+
+  switch (pOpParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+      STableScanOperatorParam *pScan = (STableScanOperatorParam *)pOpParam->value;
+      TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pScan->isNewParam));
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
   return 0;
 }
 
@@ -11211,6 +11224,21 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
     TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pOpParam->reUse));
   } else {
     pOpParam->reUse = false;
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    switch (pOpParam->opType) {
+      case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
+        break;
+      }
+      case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+        STableScanOperatorParam *pScan = (STableScanOperatorParam *)pOpParam->value;
+        TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pScan->isNewParam));
+        break;
+      }
+      default:
+        return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   return 0;
