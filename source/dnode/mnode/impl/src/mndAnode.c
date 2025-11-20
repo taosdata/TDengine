@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+ #define _DEFAULT_SOURCE
 #include "mndAnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -691,8 +691,61 @@ void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
 
 int32_t updateModelStatus(SAnodeObj* pAnode) {
   SAnodeObj anodeObj = {.id = pAnode->id, .updateTime = taosGetTimestampMs()};
-  int32_t code = mndGetAnodeAlgoList(pAnode->url, &anodeObj);
-  return 0;
+  
+  int32_t   code = mndGetAnodeAlgoList(pAnode->url, &anodeObj);
+  if (code == TSDB_CODE_ANA_URL_CANT_ACCESS) {
+    mError("failed to extract anode status from url:%s, code:%s", pAnode->url, tstrerror(code));
+
+    // set the unavailable status for all models/algorithms
+    taosRLockLatch(&pAnode->lock);
+
+    for (int32_t i = 0; i < pAnode->numOfAlgos; ++i) {
+      SArray *algos = pAnode->algos[i];
+
+      for (int32_t j = 0; j < (int32_t)taosArrayGetSize(algos); ++j) {
+        SAnodeAlgo *pAlgo = taosArrayGet(algos, j);
+        if (pAlgo != NULL) {
+          taosMemoryFreeClear(pAlgo->pStatus);
+          taosMemoryFreeClear(pAlgo->pNote);
+        }
+      }
+    }
+
+    taosRUnLockLatch(&pAnode->lock);
+  }
+
+  for(int32_t i = 0; i < anodeObj.numOfAlgos; ++i) {
+    SArray* algos = anodeObj.algos[i];
+
+    for(int32_t j = 0; j < (int32_t)taosArrayGetSize(algos); ++j) {
+      SAnodeAlgo* pNewAlgo = taosArrayGet(algos, j);
+      SAnodeAlgo* pOldAlgo = NULL;
+
+      taosRLockLatch(&pAnode->lock);
+
+      if (pAnode->numOfAlgos > i) {
+        SArray* oldAlgos = pAnode->algos[i];
+        for(int32_t k = 0; k < (int32_t)taosArrayGetSize(oldAlgos); ++k) {
+          SAnodeAlgo* tmp = taosArrayGet(oldAlgos, k);
+          if (strcmp(tmp->name, pNewAlgo->name) == 0) {
+            pOldAlgo = tmp;
+            break;
+          }
+        }
+      }
+      taosRUnLockLatch(&pAnode->lock);
+
+      if (pOldAlgo != NULL) {
+        taosMemoryFreeClear(pOldAlgo->pStatus);
+        taosMemoryFreeClear(pOldAlgo->pNote);
+        TSWAP(pOldAlgo->pStatus, pNewAlgo->pStatus);
+        TSWAP(pOldAlgo->pNote, pNewAlgo->pNote);
+      }
+    }
+  }
+
+  mndFreeAnode(&anodeObj);
+  return code;
 }
 
 static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -711,7 +764,11 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
-    if (pShow->pIter == NULL) break;
+    if (pShow->pIter == NULL || pObj == NULL) {
+      break;
+    }
+
+    code = updateModelStatus(pObj);
 
     for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
       SArray *algos = pObj->algos[t];
@@ -737,7 +794,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         if (code != 0) goto _end;
 
         // status
-        STR_TO_VARSTR(buf, algo->pStatus == NULL ? "" : algo->pStatus);
+        STR_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
