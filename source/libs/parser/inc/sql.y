@@ -198,6 +198,7 @@ priv_type(A) ::= SCAN DATABASE.                                                 
 priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_TYPE(PRIV_DB_SSMIGRATE); }
 
 priv_type(A) ::= BALANCE VGROUP.                                                  { A = PRIV_TYPE(PRIV_VG_BALANCE); }
+priv_type(A) ::= BALANCE VGROUP LEADER.                                           { A = PRIV_TYPE(PRIV_VG_BALANCE_LEADER); }
 priv_type(A) ::= MERGER VGROUP.                                                   { A = PRIV_TYPE(PRIV_VG_MERGER); }
 priv_type(A) ::= REDISTRIBUTE VGROUP.                                             { A = PRIV_TYPE(PRIV_VG_REDISTRIBUTE); }
 priv_type(A) ::= SPLIT VGROUP.                                                    { A = PRIV_TYPE(PRIV_VG_SPLIT); }
