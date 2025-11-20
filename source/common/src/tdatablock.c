@@ -1269,10 +1269,10 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
 size_t blockDataGetSerialMetaSizeImpl(uint32_t numOfCols, bool internal) {
   // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
   // | each column length
-  // internal: |scanFlag |
+  // internal: | scanFlag baseGid |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
          sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t) + 
-         (internal ? (sizeof(uint8_t)) : 0) + (internal ? numOfCols * sizeof(int16_t) : 0);
+         (internal ? (sizeof(uint8_t) + sizeof(uint64_t) + numOfCols * sizeof(int16_t)) : 0);
 }
 
 size_t blockDataGetSerialMetaSizeInternal(uint32_t numOfCols) {
@@ -3471,6 +3471,10 @@ int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen
     *scanFlag = pBlock->info.scanFlag;
     data += sizeof(uint8_t);
 
+    uint64_t* baseGid = (uint64_t*)data;
+    *baseGid = pBlock->info.id.baseGId;
+    data += sizeof(uint64_t);
+
     // Slot ids used only for virtual super table scan: each column's slotId here
     // refers to the slot position in virtual super table's datablock.
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -3638,6 +3642,9 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
   if (internal && (pStart - pData) < dataLen) {
     pBlock->info.scanFlag = *(uint8_t*)pStart;
     pStart += sizeof(uint8_t);
+
+    pBlock->info.id.baseGId = *(uint64_t*)pStart;
+    pStart += sizeof(uint64_t);
   }
 
   if (internal && (pStart - pData) < dataLen) {
