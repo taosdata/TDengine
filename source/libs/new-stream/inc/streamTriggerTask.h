@@ -149,6 +149,7 @@ typedef struct SSTriggerRealtimeContext {
   int32_t    curReaderIdx;
   bool       catchUp;  // whether all readers have caught up the latest wal data
   bool       continueToFetch;
+  bool       recovering;
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
