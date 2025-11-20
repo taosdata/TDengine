@@ -30,7 +30,7 @@ class AnalyticsServiceLoader:
             if val[0].type == type_str:
                 try:
                     one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params(), "status": val[0].get_status()}
-                    print(val[0].get_status())
+                    # print(one["status"])
                     all_items.append(one)
                 except AttributeError as e:
                     app_logger.log_inst.error("failed to get service: %s info, reason: %s", key, e)

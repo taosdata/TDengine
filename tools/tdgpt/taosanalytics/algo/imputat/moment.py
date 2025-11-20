@@ -78,10 +78,9 @@ class _MomentImputationService(AbstractImputationService):
 
     def get_status(self) -> str:
         try:
-            response = requests.get(self.service_host, headers=self.headers)
-            print(response.status_code)
+            _ = requests.get(self.service_host, headers=self.headers)
         except Exception as e:
-            app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ", str(e))
+            app_logger.log_inst.error("failed to connect the service: %s %s", self.service_host, str(e))
             return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
 
         return super().get_status()
