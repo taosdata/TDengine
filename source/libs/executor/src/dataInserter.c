@@ -1869,8 +1869,8 @@ _end:
 }
 
 static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInserterHandle* pInserter,
-                                            SStreamInserterParam* pInsertParam, SStreamDataInserterInfo* pInserterInfo,
-                                            SSubmitTbData* tbData) {
+                                            SStreamInserterParam* pInsertParam, SInsertTableInfo* pTbInfo,
+                                            SStreamDataInserterInfo* pInserterInfo, SSubmitTbData* tbData) {
   int32_t code = TSDB_CODE_SUCCESS;
   STag*   pTag = NULL;
   SArray* pTagVals = NULL;
@@ -2247,6 +2247,7 @@ static int32_t initInsertReqInfo(SDataInserterHandle* pInserter, const SInputDat
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SStreamInserterParam* pInsertParam = pInserter->pParam->streamInserterParam;
+  SStreamRunnerTask*    pTask = pInput->pTask;
 
   size_t tbNameLen = strlen(pTbInfo->tbname);
   *ppTbDataInfo = taosHashGet(pInserter->pReqTableMap, &pTbInfo->tbname, tbNameLen);
@@ -2282,7 +2283,7 @@ static int32_t initInsertReqInfo(SDataInserterHandle* pInserter, const SInputDat
     if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
       code = buildNormalTableCreateReq(pInserter, pInsertParam, *ppTbDataInfo);
     } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
-      code = buildStreamSubTableCreateReq(pInserter, pInsertParam, pTbInfo, pInput->pStreamDataInserterInfo,
+      code = buildStreamSubTableCreateReq(pTask, pInserter, pInsertParam, pTbInfo, pInput->pStreamDataInserterInfo,
                                           &(*ppTbDataInfo)->pTbData);
     } else {
       code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
