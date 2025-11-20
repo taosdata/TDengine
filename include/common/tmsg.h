@@ -1321,6 +1321,7 @@ typedef struct {
   char          sVer[TSDB_VERSION_LEN];
   char          sDetailVer[128];
   int64_t       whiteListVer;
+  int64_t       timeWhiteListVer;
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
 } SConnectRsp;
@@ -1424,7 +1425,7 @@ typedef struct {
 } SDateTimeWhiteList;
 
 SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src);
-
+bool isTimeInDateTimeWhiteList(SDateTimeWhiteList *wl, int64_t tm);
 
 
 typedef struct {
