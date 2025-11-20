@@ -4861,6 +4861,7 @@ dependencies = [
  "chrono",
  "csv",
  "deadpool",
+ "faststr",
  "flume",
  "fundu",
  "futures",

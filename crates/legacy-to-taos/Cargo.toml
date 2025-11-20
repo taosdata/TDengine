@@ -15,6 +15,7 @@ taos.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
+faststr.workspace = true
 futures-util.workspace = true
 fundu.workspace = true
 async-backtrace.workspace = true

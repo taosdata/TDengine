@@ -13,6 +13,7 @@ use std::{
 
 use anyhow::{Context, bail};
 use chrono::{DateTime, TimeZone, Utc};
+use faststr::FastStr;
 use futures::TryFutureExt;
 use futures_util::FutureExt;
 use rand::seq::SliceRandom;
@@ -306,19 +307,94 @@ fn test_time_range() {
     dbg!(&chunks);
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct QueryOpts {
     time_range: TimeRange,
     unit: Duration,
     limit: Limit,
     select_from_stable: bool,
     smooth_init: Duration,
+    /// Additional WHERE clause for selecting data from source.
+    r#where: Option<FastStr>,
 }
 
 impl Display for QueryOpts {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.time_range, self.limit)
+        if self.time_range.is_none() {
+            if let Some(ref clause) = self.r#where {
+                write!(f, " {}{}", clause, self.limit)
+            } else {
+                write!(f, " 1=1{}", self.limit)
+            }
+        } else if let Some(ref clause) = self.r#where {
+            write!(f, "{} and {}{}", self.time_range, clause, self.limit)
+        } else {
+            write!(f, "{}{}", self.time_range, self.limit)
+        }
     }
+}
+
+#[test]
+fn test_query_opts() {
+    let start = chrono::DateTime::parse_from_rfc3339("2025-11-18T05:06:07Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let end = chrono::DateTime::parse_from_rfc3339("2025-11-20T05:06:07Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let mut opts = QueryOpts {
+        time_range: TimeRange::new().start(start).end(end),
+        unit: Duration::from_secs(3600),
+        limit: Limit {
+            limit: 100,
+            offset: Some(10),
+        },
+        select_from_stable: false,
+        smooth_init: Duration::ZERO,
+        r#where: Some(FastStr::from("_c1 > 100")),
+    };
+    println!("{:#?}", &opts);
+    assert!(!opts.is_none());
+    assert!(opts.time_range.has_start());
+    assert!(opts.time_range.has_end());
+    assert!(!opts.time_range.is_none());
+    assert_eq!(
+        opts.to_string(),
+        " _c0 >= '2025-11-18T05:06:07+00:00' and _c0 < '2025-11-20T05:06:07+00:00' and _c1 > 100 LIMIT 100 OFFSET 10",
+        "query format error"
+    );
+    opts.time_range.start.take();
+    assert_eq!(
+        opts.to_string(),
+        " _c0 < '2025-11-20T05:06:07+00:00' and _c1 > 100 LIMIT 100 OFFSET 10",
+        "query format error with end only"
+    );
+    opts.time_range.end.take();
+    assert_eq!(
+        opts.to_string(),
+        " _c1 > 100 LIMIT 100 OFFSET 10",
+        "query format error with where only and limit/offset"
+    );
+    opts.limit.offset.take();
+    assert_eq!(
+        opts.to_string(),
+        " _c1 > 100 LIMIT 100",
+        "query format error with where only and limit"
+    );
+    opts.limit.limit = 0;
+    assert_eq!(
+        opts.to_string(),
+        " _c1 > 100",
+        "query format error with where only"
+    );
+    opts.r#where.take();
+    assert_eq!(opts.to_string(), " 1=1", "query format error with none");
+    opts.limit.limit = 100;
+    assert_eq!(
+        opts.to_string(),
+        " 1=1 LIMIT 100",
+        "query format error with limit only"
+    );
 }
 
 impl QueryOpts {
@@ -1968,14 +2044,18 @@ pub struct SourceOpts {
     query: QueryOpts,
     /// Create database automatically if not exists.
     assert: bool,
+    /// Schema mode.
     schema: SchemaMode,
+    /// Sync mode.
     mode: SyncMode,
+    /// Realtime only table options.
     table: TableOpts,
     forever: bool,
     /// Sync metadata with less information to migrate from newer version to older version.
     minimal: bool,
+    /// Specified tables to sync, if not set, sync all tables.
     tables: Option<Vec<String>>,
-    /// Specified stables to sync.
+    /// Specified stables to sync, if not set, sync all stables.
     stables: Option<Vec<String>>,
     /// The concurrent workers number for query.
     workers: usize,
@@ -2056,6 +2136,9 @@ impl SourceOpts {
             opts.query.smooth_init = value;
         } else {
             opts.query.smooth_init = Duration::ZERO;
+        }
+        if let Some(value) = dsn.remove("where") {
+            opts.query.r#where.replace(value.into());
         }
 
         if let Some(value) = dsn.remove("mode") {
@@ -3499,7 +3582,7 @@ pub async fn legacy_to_taos(
     let scheduler = scheduler::Scheduler::new(
         from_pool.clone(),
         to_pool.clone(),
-        Arc::new(source_opts.query),
+        Arc::new(source_opts.query.clone()),
         Arc::new(target_opts.clone()),
         source_opts.workers as _,
         &actions,
@@ -3657,7 +3740,7 @@ pub async fn legacy_to_taos(
                                 sync_specified_tables_with_workers(
                                     &schema_polling_scheduler,
                                     &schema_polling_pool,
-                                    schema_polling_source_opts.query,
+                                    schema_polling_source_opts.query.clone(),
                                     &updates,
                                     schema_polling_target_opts.clone(),
                                     schema_polling_source_opts.workers as _,
@@ -3698,7 +3781,7 @@ pub async fn legacy_to_taos(
             let future = sync_specified_tables_with_workers(
                 &scheduler,
                 &from_pool,
-                source_opts.query,
+                source_opts.query.clone(),
                 &todo_non_changed,
                 target_opts_cloned,
                 source_opts.workers as _,
@@ -3754,7 +3837,7 @@ pub async fn legacy_to_taos(
                             sync_specified_tables_with_workers(
                                 &schema_polling_scheduler,
                                 &schema_polling_pool,
-                                schema_polling_source_opts.query,
+                                schema_polling_source_opts.query.clone(),
                                 &updates,
                                 schema_polling_target_opts.clone(),
                                 schema_polling_source_opts.workers as _,
@@ -3820,7 +3903,7 @@ pub async fn legacy_to_taos(
             if latest_offset_end < now {
                 // sync historian data: latest_offset_end -> now
                 let time_range = TimeRange::new().start(latest_offset_end).end(now);
-                let mut query_opts = source_opts.query;
+                let mut query_opts = source_opts.query.clone();
                 query_opts.time_range = time_range;
                 query_opts.unit = Duration::from_secs(60 * 10);
                 let todo = Arc::new(todo.as_ref().clone());

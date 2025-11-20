@@ -356,6 +356,7 @@ async fn worker(
                     limit: query.limit,
                     select_from_stable: query.select_from_stable,
                     smooth_init: query.smooth_init,
+                    r#where: query.r#where.clone(),
                 };
                 let mut retries = MAX_WS_RETRIES;
 
@@ -376,7 +377,7 @@ async fn worker(
                         let mut chunk_err: Option<String> = None;
                         // chunks
                         'chunks: for (idx, chunk) in chunks.enumerate() {
-                            let mut query = query;
+                            let mut query = query.clone();
                             query.time_range = chunk;
                             let table_inner = table.clone();
                             loop {
@@ -405,9 +406,7 @@ async fn worker(
                                         tracing::debug!(
                                             chunk.id = idx,
                                             chunk.range = ?chunk,
-                                            "synced table {table} time_range {time_range}",
-                                            table = table.as_str(),
-                                            time_range = query.time_range,
+                                            "synced table {table} time_range {query}",
                                         );
                                         // set breakpoint
                                         if let Some(breakpoints) = breakpoints.as_ref()
@@ -573,6 +572,7 @@ async fn worker(
                     limit: query.limit,
                     select_from_stable: query.select_from_stable,
                     smooth_init: query.smooth_init,
+                    r#where: query.r#where.clone(),
                 };
                 let mut retries = MAX_WS_RETRIES;
 
