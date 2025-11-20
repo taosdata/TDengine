@@ -2091,9 +2091,6 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   QUERY_CHECK_NULL(pUidList, code, lino, _error, terrno);
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
-  bool    isStream = (pStreamInfo != NULL);
-  bool    hasTagCond = (pTagCond != NULL);
-  bool    canCacheTagEqCondFilter = false;
   char*   pTagCondKey = NULL;
   int32_t tagCondKeyLen;
   SArray* pTagColIds = NULL;
@@ -2109,6 +2106,9 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
+    bool      isStream = (pStreamInfo != NULL);
+    bool      hasTagCond = (pTagCond != NULL);
+    bool      canCacheTagEqCondFilter = false;
     T_MD5_CTX context = {0};
 
     qTrace("start to get table list by tag filter, suid:%" PRIu64
