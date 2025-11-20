@@ -119,6 +119,10 @@ IF(${TD_LINUX})
                 NAME clientBITest
                 COMMAND clientBITest
         )
+        add_test(
+                NAME instanceTest
+                COMMAND instanceTest
+        )
 ENDIF ()
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -150,6 +154,12 @@ TARGET_INCLUDE_DIRECTORIES(
         stmtTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        instanceTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
