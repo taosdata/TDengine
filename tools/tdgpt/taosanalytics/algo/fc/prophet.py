@@ -53,9 +53,9 @@ class _ProphetService(AbstractForecastService):
 
         # Generate time index
         time_index = pd.date_range(
-            start=pd.Timestamp(self.start_ts, unit="s"),
+            start=pd.Timestamp(self.start_ts, unit=self.precision),
             periods=len(self.list),
-            freq=pd.to_timedelta(self.time_step, unit="s")
+            freq=pd.to_timedelta(self.time_step, unit=self.precision)
         )
 
         df = pd.DataFrame({"ds": time_index, "y": self.list})
@@ -74,7 +74,7 @@ class _ProphetService(AbstractForecastService):
         # Make future dataframe
         future = model.make_future_dataframe(
             periods=fc_rows,
-            freq=pd.to_timedelta(self.time_step, unit="s")
+            freq=pd.to_timedelta(self.time_step, unit=self.precision)
         )
 
         forecast = model.predict(future)

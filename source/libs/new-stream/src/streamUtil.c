@@ -718,6 +718,10 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
     JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));
   }
 
+  char gidBuf[32];
+  snprintf(gidBuf, sizeof(gidBuf), "%" PRId64, groupId);
+  JSON_CHECK_ADD_ITEM(obj, "groupId", cJSON_CreateString(gidBuf));
+
   if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
     if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
