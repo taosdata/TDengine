@@ -220,11 +220,12 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       code = taosGetIpFromFqdn(tsEnableIpv6, val, &addr);
       if (code == 0) {
         code = tIpStrToUint(&addr, &pObj->optionInfo.userDualIp);
-      } 
+      }
       if (code != 0) {
-        tscError("ipv6 flag %d failed to convert user ip %s to dual ip since %s", tsEnableIpv6 ?  1:0, val, tstrerror(code));
-        pObj->optionInfo.userIp = INADDR_NONE; 
-        pObj->optionInfo.userDualIp = dualIp;  
+        tscError("ipv6 flag %d failed to convert user ip %s to dual ip since %s", tsEnableIpv6 ? 1 : 0, val,
+                 tstrerror(code));
+        pObj->optionInfo.userIp = INADDR_NONE;
+        pObj->optionInfo.userDualIp = dualIp;
         code = 0;
       }
     } else {
@@ -516,7 +517,7 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
   SGetUserWhiteListRsp wlRsp = {0};
 
   SFetchWhiteListDualStackInfo *pInfo = (SFetchWhiteListDualStackInfo *)param;
-  TAOS *taos = &pInfo->connId;
+  TAOS                         *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
@@ -773,7 +774,7 @@ TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
   if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   }
-  SReqResultInfo* pResInfo = tscGetCurResInfo(res);
+  SReqResultInfo *pResInfo = tscGetCurResInfo(res);
   return pResInfo->fields;
 }
 
@@ -1488,8 +1489,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     // return to app directly
-    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
-             pRequest->requestId);
+    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self,
+             tstrerror(code), pRequest->requestId);
     pRequest->code = code;
     returnToUser(pRequest);
   }
@@ -1705,8 +1706,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
       if (code != 0) {
-        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
-                pRequest->requestId);
+        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
+                tstrerror(code), pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
@@ -2682,11 +2683,18 @@ _cleanup:
   return code;
 }
 
-// 实现三个函数 taos_register_instance, taos_list_instances, taos_free_instances
-// taos_register_instance可以在mnd上注册一个instance实例，taos_list_instances可以列出所有instance实例，taos_free_instances可以释放instance实例列表
-// taos_register_instance，功能是按照入参在mnd上注册一个instance实例（如果实例存在则更新已有instancde的last_reg_time，如果不存在则创建一个instance，并在系统表perf_instance中也创建或者更新），第一个id是唯一标识符，不能和mnd内存中已有的实例相同，type是实例类型，desc是实例描述，expire是实例过期时间
-// taos_list_instances，功能是查询所有指定type的instance，filter_type需要查询的是实例类型，返回type=filter_type的实例列表的id数组，并且expire没有过期。不修改系统表perf_instance
-// taos_free_instances，功能是释放指定instances，list是需要释放的id数组，并在系统表中perf_instance删除指定的instance
+static bool instanceRegisterRpcRfp(int32_t code, tmsg_t msgType) {
+  if (NEED_REDIRECT_ERROR(code)) {
+    return true;
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE ||
+             code == TSDB_CODE_SYN_WRITE_STALL || code == TSDB_CODE_SYN_PROPOSE_NOT_READY ||
+             code == TSDB_CODE_SYN_RESTORING) {
+    tscDebug("client msg type %s should retry since %s", TMSG_INFO(msgType), tstrerror(code));
+    return true;
+  } else {
+    return false;
+  }
+}
 
 int32_t taos_register_instance(const char *id, const char *type, const char *desc, int32_t expire) {
   if (id == NULL || id[0] == 0) {
@@ -2721,7 +2729,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     return code;
   }
 
-  // Get firstEp from config
   SConfig *pCfg = taosGetCfg();
   if (pCfg == NULL) {
     return terrno = TSDB_CODE_CFG_NOT_FOUND;
@@ -2732,14 +2739,12 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     return terrno = TSDB_CODE_CFG_NOT_FOUND;
   }
 
-  // Parse firstEp to get fqdn and port
   SEp firstEp = {0};
   code = taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
   if (code != TSDB_CODE_SUCCESS) {
     return terrno = code;
   }
 
-  // Initialize RPC connection (similar to taos_check_server_status)
   void    *clientRpc = NULL;
   SEpSet   epSet = {.inUse = 0, .numOfEps = 1};
   SRpcMsg  rpcMsg = {0};
@@ -2753,8 +2758,14 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
-  // Use a special user for instance registration (can be configured for whitelist)
   rpcInit.user = TSDB_DEFAULT_USER;
+
+  rpcInit.rfp = instanceRegisterRpcRfp;
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimeout =
+      tsMaxRetryWaitTime;  // Use a special user for instance registration (can be configured for whitelist)
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
@@ -2798,7 +2809,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
   }
   req.expire = expire;
 
-  // Serialize request to get required length
   int32_t contLen = tSerializeSInstanceRegisterReq(NULL, 0, &req);
   if (contLen <= 0) {
     code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -2806,7 +2816,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     return code;
   }
 
-  // Allocate RPC message buffer (includes message header overhead)
   void *pCont = rpcMallocCont(contLen);
   if (pCont == NULL) {
     code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
@@ -2814,7 +2823,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     return code;
   }
 
-  // Serialize request into the content part (after message header)
   if (tSerializeSInstanceRegisterReq(pCont, contLen, &req) < 0) {
     code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
     rpcFreeCont(pCont);
@@ -2822,7 +2830,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     return code;
   }
 
-  // Send RPC message
   rpcMsg.pCont = pCont;
   rpcMsg.contLen = contLen;
   rpcMsg.msgType = TDMT_MND_REGISTER_INSTANCE;
@@ -2839,7 +2846,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     return code;
   }
 
-  // Check response - rpcRsp.code contains the result code from mnode
   if (rpcRsp.code != 0) {
     code = rpcRsp.code;
     tscError("instance register failed, code:%s", tstrerror(code));
@@ -2847,10 +2853,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     code = TSDB_CODE_SUCCESS;
   }
 
-  // Cleanup
-  // Note: rpcSendRecv internally frees pReq->pCont via destroyReq when response is received
-  // So we should NOT free pCont here to avoid double-free
-  // Only free the response content if present
   if (rpcRsp.pCont != NULL) {
     rpcFreeCont(rpcRsp.pCont);
   }
@@ -2860,9 +2862,8 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
   return code;
 }
 
-int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count) {
-  // Initialize output parameters
-  if (ids == NULL || count == NULL) {
+int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCount) {
+  if (pList == NULL || pCount == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -2872,7 +2873,6 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
     return code;
   }
 
-  // Get firstEp from config
   SConfig *pCfg = taosGetCfg();
   if (pCfg == NULL) {
     terrno = TSDB_CODE_CFG_NOT_FOUND;
@@ -2885,7 +2885,6 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
     return TSDB_CODE_CFG_NOT_FOUND;
   }
 
-  // Parse firstEp to get fqdn and port
   SEp firstEp = {0};
   code = taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2908,6 +2907,13 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.user = TSDB_DEFAULT_USER;
+
+  rpcInit.rfp = instanceRegisterRpcRfp;
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimeout =
+      tsMaxRetryWaitTime;  // Use a special user for instance registration (can be configured for whitelist)
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
@@ -2938,11 +2944,8 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
     return code;
   }
 
-  // Prepare epSet
   tstrncpy(epSet.eps[0].fqdn, firstEp.fqdn, TSDB_FQDN_LEN);
   epSet.eps[0].port = firstEp.port;
-
-  // Prepare request
   SInstanceListReq req = {0};
   if (filter_type != NULL && filter_type[0] != 0) {
     tstrncpy(req.filter_type, filter_type, sizeof(req.filter_type));
@@ -2975,7 +2978,6 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
     return code;
   }
 
-  // Send RPC message
   rpcMsg.pCont = pCont;
   rpcMsg.contLen = contLen;
   rpcMsg.msgType = TDMT_MND_LIST_INSTANCES;
@@ -3005,23 +3007,21 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
 
   // Deserialize response
   if (rpcRsp.pCont != NULL && rpcRsp.contLen > 0) {
-    // Deserialize response
     SInstanceListRsp rsp = {0};
-    code = tDeserializeSInstanceListRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp, ids, count);
+    code = tDeserializeSInstanceListRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp, pList, pCount);
     if (code != TSDB_CODE_SUCCESS) {
       tscError("failed to deserialize instance list rsp, code:%s", tstrerror(code));
-      // tDeserializeSInstanceListRsp will free allocated memory on error
-      if (ids != NULL && *ids != NULL) {
-        for (int32_t i = 0; i < *count; i++) {
-          if ((*ids)[i] != NULL) {
-            taosMemoryFree((*ids)[i]);
+      if (pList != NULL && *pList != NULL) {
+        for (int32_t i = 0; i < *pCount; i++) {
+          if ((*pList)[i] != NULL) {
+            taosMemoryFree((*pList)[i]);
           }
         }
-        taosMemoryFree(*ids);
-        *ids = NULL;
+        taosMemoryFree(*pList);
+        *pList = NULL;
       }
-      if (count != NULL) {
-        *count = 0;
+      if (pCount != NULL) {
+        *pCount = 0;
       }
       rpcFreeCont(rpcRsp.pCont);
       rpcClose(clientRpc);
@@ -3029,12 +3029,10 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
       return code;
     }
   } else {
-    // Empty response
-    *ids = NULL;
-    *count = 0;
+    *pList = NULL;
+    *pCount = 0;
   }
 
-  // Cleanup
   if (rpcRsp.pCont != NULL) {
     rpcFreeCont(rpcRsp.pCont);
   }
@@ -3043,10 +3041,20 @@ int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count
   return TSDB_CODE_SUCCESS;
 }
 
-void taos_free_instances(char ***list, int32_t count) {
-  for (int32_t i = 0; i < count; i++) {
-    taosMemoryFree((*list)[i]);
+void taos_free_instances(char ***pList, int32_t count) {
+  if (pList == NULL || *pList == NULL || count <= 0) {
+    return;
   }
-  taosMemoryFree(*list);
-  *list = NULL;
+
+  // Free each string in the array
+  for (int32_t i = 0; i < count; i++) {
+    if ((*pList)[i] != NULL) {
+      taosMemoryFree((*pList)[i]);
+      (*pList)[i] = NULL;
+    }
+  }
+
+  // Free the array itself
+  taosMemoryFree(*pList);
+  *pList = NULL;
 }

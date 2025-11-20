@@ -468,8 +468,8 @@ DLL_EXPORT char              *getBuildInfo();
 
 /* -- taosadapter instance management -- */
 DLL_EXPORT int32_t taos_register_instance(const char *id, const char *type, const char *desc, int32_t expire);
-DLL_EXPORT int32_t taos_list_instances(const char *filter_type, char ***ids, int32_t *count);
-DLL_EXPORT void    taos_free_instances(char ***ids, int32_t count);
+DLL_EXPORT int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCount);
+DLL_EXPORT void    taos_free_instances(char ***pList, int32_t pCount);
 /* ---- end ---- */
 
 #ifdef __cplusplus
