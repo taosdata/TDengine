@@ -2667,6 +2667,57 @@ SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src) {
 
 
 
+// isTimeInDateTimeWhiteList checks if the given time is included in the whitelist.
+// it returns true if:
+//
+// 1. all entries are positive and the time falls into any of the entries.
+// 2. all entries are negative and the time does not fall into any of the entries.
+// 3. there are both positive and negative entries, and the time falls into any
+//    positive entry and does not fall into any negative entry.
+//
+// otherwise, it returns false.
+//
+// Note: tm is seconds since 1970-01-01 00:00:00 UTC
+bool isTimeInDateTimeWhiteList(SDateTimeWhiteList *wl, int64_t tm) {
+  if (wl == NULL || wl->num == 0) {
+    return true;
+  }
+
+  bool hasWhite = false, inWhite = false;
+  // convert tm to week seconds, because week starts from Sunday and 1970-01-01 is
+  // Thursday, we need add 4 days offset.
+  int32_t weekSec = (tm + (4 * 86400)) % (7 * 86400);
+
+  for (int32_t i = 0; i < wl->num; ++i) {
+    SDateTimeWhiteListItem *item = &wl->ranges[i];
+    if (item->neg) {
+      if (item->absolute) {
+        if (tm >= item->start && tm < item->start + item->duration) {
+          return false;
+        }
+      } else {
+        if (weekSec >= item->start && weekSec < item->start + item->duration) {
+          return false;
+        }
+      }
+    } else if (!inWhite) {
+      hasWhite = true;
+      if (item->absolute) {
+        if (tm >= item->start && tm < item->start + item->duration) {
+          inWhite = true;
+        }
+      } else {
+        if (weekSec >= item->start && weekSec < item->start + item->duration) {
+          inWhite = true;
+        }
+      }
+    }
+  }
+
+  return (!hasWhite) || inWhite;
+}
+
+
 int32_t tEncodeSDateTimeRange(SEncoder* pEncoder, const SDateTimeRange* pRange) {
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRange->neg));
   TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pRange->year));
@@ -9116,6 +9167,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->whiteListVer));
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pRsp->monitorParas));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditDelete));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteListVer));
   tEndEncode(&encoder);
 
 _exit:
@@ -9172,6 +9224,12 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   } else {
     pRsp->enableAuditDelete = 0;
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->timeWhiteListVer));
+  } else {
+    pRsp->timeWhiteListVer = 0;
+  }
+
   tEndDecode(&decoder);
 
 _exit:

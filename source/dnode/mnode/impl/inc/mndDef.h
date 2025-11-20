@@ -428,6 +428,9 @@ typedef struct {
   char    totpsecret[TSDB_TOTP_SECRET_LEN];
   int64_t createdTime;
   int64_t updateTime;
+  int64_t lastLoginTime;
+  int64_t lastFailedLoginTime;
+  int32_t failedLoginCount;
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;

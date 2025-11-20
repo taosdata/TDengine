@@ -996,6 +996,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
+  userObj.lastLoginTime = userObj.createdTime;
+  userObj.lastFailedLoginTime = 0;
+  userObj.failedLoginCount = 0;
   userObj.sysInfo = 1;
   userObj.enable = 1;
   userObj.changePass = 2;
@@ -1207,6 +1210,9 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pUser->lastLoginTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pUser->lastFailedLoginTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pUser->failedLoginCount, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->superUser, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->sysInfo, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->enable, _OVER)
@@ -1448,6 +1454,17 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
+
+  if (sver >= USER_VER_SUPPORT_ADVANCED_SECURITY) {
+    SDB_GET_INT64(pRaw, dataPos, &pUser->lastLoginTime, _OVER)
+    SDB_GET_INT64(pRaw, dataPos, &pUser->lastFailedLoginTime, _OVER)
+    SDB_GET_INT32(pRaw, dataPos, &pUser->failedLoginCount, _OVER)
+  } else {
+    pUser->lastLoginTime = taosGetTimestampSec();
+    pUser->lastFailedLoginTime = 0;
+    pUser->failedLoginCount = 0;
+  }
+
   SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->sysInfo, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->enable, _OVER)
@@ -1985,6 +2002,9 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   mTrace("user:%s, perform update action, old row:%p new row:%p", pOld->user, pOld, pNew);
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
+  pOld->lastLoginTime = pNew->lastLoginTime;
+  pOld->lastFailedLoginTime = pNew->lastFailedLoginTime;
+  pOld->failedLoginCount = pNew->failedLoginCount;
   pOld->authVersion = pNew->authVersion;
   pOld->passVersion = pNew->passVersion;
   pOld->sysInfo = pNew->sysInfo;
@@ -2134,6 +2154,9 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
+  userObj.lastLoginTime = userObj.createdTime;
+  userObj.lastFailedLoginTime = 0;
+  userObj.failedLoginCount = 0;
   userObj.superUser = 0;  // pCreate->superUser;
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
@@ -2730,6 +2753,40 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+
+
+void mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
+  int32_t code = 0;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-user");
+  if (pTrans == NULL) {
+    mError("user:%s, failed to update since %s", pUser->user, terrstr());
+    return;
+  }
+  mInfo("trans:%d, used to update user:%s", pTrans->id, pUser->user);
+
+  SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return;
+  }
+  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if (code < 0) {
+    mndTransDrop(pTrans);
+    return;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return;
+  }
+
+  mndTransDrop(pTrans);
+}
+
+
+
 static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
   int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-user");
@@ -3117,7 +3174,16 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     // TODO: totp seed to secret
   }
 
-  if (alterReq.hasEnable) newUser.enable = alterReq.enable;
+  if (alterReq.hasEnable) {
+    newUser.enable = alterReq.enable; // lock or unlock user manually
+    if (newUser.enable) {
+      // reset failed login counter to allow login immediately
+      newUser.failedLoginCount = 0;
+      // update last login time to clear inactive status and allow login immediately
+      newUser.lastLoginTime = taosGetTimestampSec();
+    }
+  }
+
   if (alterReq.hasSysinfo) newUser.sysInfo = alterReq.sysinfo;
   if (alterReq.hasCreatedb) newUser.createdb = alterReq.createdb;
   if (alterReq.hasChangepass) newUser.changePass = alterReq.changepass;
@@ -3126,7 +3192,15 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.hasConnectIdleTime) newUser.connectIdleTime = alterReq.connectIdleTime;
   if (alterReq.hasCallPerSession) newUser.callPerSession = alterReq.callPerSession;
   if (alterReq.hasVnodePerCall) newUser.vnodePerCall = alterReq.vnodePerCall;
-  if (alterReq.hasFailedLoginAttempts) newUser.failedLoginAttempts = alterReq.failedLoginAttempts;
+
+  if (alterReq.hasFailedLoginAttempts) {
+    newUser.failedLoginAttempts = alterReq.failedLoginAttempts;
+    if (newUser.failedLoginAttempts == -1) {
+      newUser.lastFailedLoginTime = 0;
+      newUser.failedLoginCount = 0;
+    }
+  }
+
   if (alterReq.hasPasswordLifeTime) newUser.passwordLifeTime = alterReq.passwordLifeTime;
   if (alterReq.hasPasswordReuseTime) newUser.passwordReuseTime = alterReq.passwordReuseTime;
   if (alterReq.hasPasswordReuseMax) newUser.passwordReuseMax = alterReq.passwordReuseMax;
