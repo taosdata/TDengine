@@ -817,7 +817,6 @@ typedef struct SExternalWindowPhysiNode {
   bool             inputHasOrder;
   bool             extWinSplit;
   bool             needGroupSort;
-  bool             extWinSplit;
   bool             calcWithPartition;
 } SExternalWindowPhysiNode;
 

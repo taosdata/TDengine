@@ -3747,7 +3747,7 @@ int32_t createStreamGrpTableListFromCond(SScanPhysiNode* pScanNode, SReadHandle*
                                 &pTaskInfo->storageAPI, pTaskInfo->pStreamRuntimeInfo));
   }
 
-  qDebug("%s get %d tables in table list from cond", GET_TASKID(pTaskInfo), (int32_t*)taosArrayGetSize(pTableListInfo->pTableList));
+  qDebug("%s get %d tables in table list from cond", GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
 
 _exit:
 
@@ -3794,7 +3794,7 @@ int32_t createStreamGrpTableListFromTrig(SExecTaskInfo* pTaskInfo, SStreamRuntim
     }
   }
 
-  qDebug("%s get %d tables in table list from trig", GET_TASKID(pTaskInfo), (int32_t*)taosArrayGetSize(pTableListInfo->pTableList));
+  qDebug("%s get %d tables in table list from trig", GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
 
 _exit:
 
@@ -3818,7 +3818,7 @@ int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* 
   pTableListInfo->numOfOuputGroups = grpNum;
 
   if (taosArrayGetSize(pGrp->pTables) <= 0) {
-    TAOS_CHECK_EXIT(createStreamGrpTableListFromCond());
+    // TAOS_CHECK_EXIT(createStreamGrpTableListFromCond());
   } else {
     TAOS_CHECK_EXIT(createStreamGrpTableListFromTrig(pTaskInfo, pStream, pTableListInfo, grpNum));
   }

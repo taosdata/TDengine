@@ -2778,9 +2778,9 @@ class TDSql:
         self.compareResults(res_result, exp_result, show=True)
 
         filename, lineno = _fast_caller(1)
-        tdLog.info(f"{filename}({lineno})  check result failed")
+        tdLog.info(f"{filename}({{lineno}})  check result failed")
         filename, lineno = _fast_caller(2)
-        tdLog.exit(f"{filename}({lineno})  check result failed")
+        tdLog.exit(f"{filename}({{lineno}})  check result failed")
 
     def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=300, show=False):
         # sleep
