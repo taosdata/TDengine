@@ -469,12 +469,12 @@ The following sections describe each field in the notification message.
 
 These fields are shared by all event objects:
 
-- tableName: String. The name of the target child table associated with the event.
+- tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist. 
 - eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, and WINDOW_INVALIDATION.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.
 - triggerType: String. The type of trigger. Supported values include the two non-window types Period and SLIDING, as well as the five window types INTERVAL, State, Session, Event, and Count.
-- groupId: String. The unique identifier of the group to which the event belongs. If the grouping is by child table, this matches the UID of the corresponding table.
+- groupId: String. The unique identifier of the group to which the event belongs. If the grouping is by child table, this matches the UID of the corresponding table. When there is no grouping, this field is 0.
 
 ###### Fields for Scheduled Triggers
 
@@ -947,4 +947,18 @@ CREATE stream sm1 PERIOD(1h)
 ```SQL
 CREATE stream sm1 PERIOD(1h) 
   NOTIFY("ws://localhost:8080/notify");
+```
+
+- Calculate the sum of power consumption for each subtable in the smart meter supertable meters every day, write the calculation results into the downsampled supertable meters_1d, and carry over the TAG values from each subtable.
+
+```SQL
+CREATE stream stream_consumer_energy 
+  PERIOD(1d) 
+  FROM meters PARTITION BY tbname, groupid, location
+  INTO meters_1d (ts, sum_power)
+     TAGS (groupid INT AS groupid , location VARCHAR(24) AS location)
+  AS 
+     SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
+          FROM meters
+          WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
 ```

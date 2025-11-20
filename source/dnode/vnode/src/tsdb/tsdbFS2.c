@@ -535,13 +535,6 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
     }
   }
 
-  if (corrupt) {
-    tsdbError("vgId:%d, not to clear dangling files due to fset incompleteness", TD_VID(fs->tsdb->pVnode));
-    fs->fsstate = TSDB_FS_STATE_INCOMPLETE;
-    code = 0;
-    goto _exit;
-  }
-
   {  // clear unreferenced files
     STfsDir *dir = NULL;
     TAOS_CHECK_GOTO(tfsOpendir(fs->tsdb->pVnode->pTfs, fs->tsdb->path, &dir), &lino, _exit);
@@ -565,6 +558,12 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   }
 
 _exit:
+  if (corrupt) {
+    tsdbError("vgId:%d, TSDB file system is corrupted", TD_VID(fs->tsdb->pVnode));
+    fs->fsstate = TSDB_FS_STATE_INCOMPLETE;
+    code = 0;
+  }
+
   if (code) {
     TSDB_ERROR_LOG(TD_VID(fs->tsdb->pVnode), lino, code);
   }

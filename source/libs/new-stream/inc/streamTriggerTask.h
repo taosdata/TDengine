@@ -102,7 +102,8 @@ typedef struct SSTriggerHistoryGroup {
   STimeWindow      nextWindow;
   SValue           stateVal;
 
-  SArray *pPendingCalcParams;  // SArray<SSTriggerCalcParam>
+  SObjList pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
+  HeapNode heapNode;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
@@ -203,6 +204,7 @@ typedef struct SSTriggerRealtimeContext {
   bool    haveReadCheckpoint;
   int64_t lastCheckpointTime;
   int64_t lastVirtTableInfoTime;
+  int64_t lastReportTime;
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {
@@ -224,6 +226,7 @@ typedef struct SSTriggerHistoryContext {
   STimeWindow stepRange;
   bool        isHistory;
   bool        needTsdbMeta;
+  bool        finishCheck;
   bool        pendingToFinish;
 
   SSHashObj *pReaderTsdbProgress;  // SSHashObj<vgId, SSTriggerTsdbProgress>
@@ -238,6 +241,9 @@ typedef struct SSTriggerHistoryContext {
   SSHashObj *pGroups;
   TD_DLIST(SSTriggerHistoryGroup) groupsToCheck;
   TD_DLIST(SSTriggerHistoryGroup) groupsForceClose;
+  Heap                  *pMaxDelayHeap;
+  SSTriggerHistoryGroup *pMinGroup;
+  SSHashObj             *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                    reenterCheck;
@@ -248,6 +254,7 @@ typedef struct SSTriggerHistoryContext {
   SSTriggerTableColRef   *pColRefToFetch;
   SSTriggerCalcParam     *pParamToFetch;
   SSTriggerCalcRequest   *pCalcReq;
+  int64_t                 lastSentWinEnd;
   // these fields are shared by all groups and need to be destroyed
   SSTriggerTimestampSorter *pSorter;
   SSTriggerVtableMerger    *pMerger;
@@ -256,12 +263,15 @@ typedef struct SSTriggerHistoryContext {
   SFilterInfo              *pStartCond;     // for event window trigger
   SFilterInfo              *pEndCond;       // for event window trigger
   SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
+  SObjPool                  calcParamPool;  // SObjPool<SSTriggerCalcParam>
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
+
+  int64_t lastReportTime;
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {

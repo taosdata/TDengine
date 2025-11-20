@@ -1665,9 +1665,6 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
       qError("buildNormalTableCreateReq, the first column must be timestamp.");
       goto _end;
     }
-    if (i == 0) {
-      tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags |= COL_IS_KEY;
-    }
     snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "%s", pField->name);
     if (IS_DECIMAL_TYPE(pField->type)) {
       if (!tbData->pCreateTbReq->pExtSchemas) {
@@ -1710,7 +1707,7 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
   }
   pTSchema->columns[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   pTSchema->columns[0].type = pField->type;
-  pTSchema->columns[0].flags = pField->flags | COL_IS_KEY;
+  pTSchema->columns[0].flags = pField->flags;
   pTSchema->columns[0].bytes = TYPE_BYTES[pField->type];
   pTSchema->columns[0].offset = -1;
 

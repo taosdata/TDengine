@@ -792,6 +792,7 @@ typedef struct SBlockDataInfo {
 
 // todo: move away
 typedef struct {
+  int32_t memSize;
   SArray *pUid;
   SArray *pFirstTs;
   SArray *pLastTs;

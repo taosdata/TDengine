@@ -21,7 +21,7 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
-class TestJoin2:
+class TestJoinCondition:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -323,13 +323,13 @@ class TestJoin2:
             '''
         )
 
-    def test_join2(self):
-        """Join basic2
+    def test_join_condition(self):
+        """Join condition
 
         1. Generate join sql with different join conditions and query conditions
         2. Generate error join sql with wrong join conditions and check error status
-        3. Join with group by and having clause
-        4. Join with where clause
+        3. Join with group by and having clause condition
+        4. Join with where clause condition
 
         Since: v3.0.0.0
 

@@ -9,12 +9,9 @@ class TestStreamSubQueryVtableChange:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_vtable_change(self):
-        """Meta Change: virtual table
+        """Subquery: virtual table meta change
 
         test meta change (add/drop/modify) cases to stream for virtual table in subquery
-
-        Catalog:
-            - Streams:SubQuery
 
         Since: v3.3.3.7
 
@@ -28,14 +25,15 @@ class TestStreamSubQueryVtableChange:
         """
 
         tdStream.createSnode()
-        tdSql.execute(f"alter all dnodes 'debugflag 131';")
-        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
+        tdSql.execute(f"alter all dnodes 'debugflag 135';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 135';")
 
         streams = []
         streams.append(self.Basic0())  # add col ref from new vg for virtual normal table
         streams.append(self.Basic1())  # add col ref from new vg for virtual child table
         streams.append(self.Basic2())  # add col ref from new vg for virtual super table
         streams.append(self.Basic3())  # add new virtual child table, and ref from new vg
+        streams.append(self.Basic4())  # virtual child table ref from different stable
 
         tdStream.checkAll(streams)
 
@@ -1592,4 +1590,74 @@ class TestStreamSubQueryVtableChange:
                              and tdSql.compareData(3, 2, 273)
                              and tdSql.compareData(3, 3, None)
                              and tdSql.compareData(3, 4, None),
+            )
+    
+    class Basic4(StreamCheckItem):
+        def __init__(self):
+            self.db  = "sdb4"
+            self.stbName = "stb"
+            self.ntbName = 'ntb'
+            self.vstbName = "vstb"
+            self.vntbName = "vntb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamSubQueryVtableChange.precision}'")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
+
+            tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int)")
+            
+            tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
+
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.{self.ntbName}.cint) using {self.db}.{self.vstbName} tags(2)")
+            
+            tdSql.execute(
+                f"create stream s4 state_window(cint) from {self.vstbName} partition by tbname, tint into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
+            
+
+        def insert1(self):
+            sqls = [
+                f"insert into {self.db}.{self.ntbName} values ('2025-01-01 00:00:00', 1);",
+                f"insert into {self.db}.{self.ntbName} values ('2025-01-01 00:00:01', 10);",
+                f"insert into {self.db}.{self.ntbName} values ('2025-01-01 00:00:02', 13);",
+                f"insert into {self.db}.ct1 values ('2025-01-01 00:00:05', 1);",
+                f"insert into {self.db}.ct1 values ('2025-01-01 00:00:07', 1);",
+                f"insert into {self.db}.ct1 values ('2025-01-01 00:00:09', 1);",
+                f"insert into {self.db}.ct1 values ('2025-01-01 00:00:25', 13);",
+            ]
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb%"',
+                func=lambda: tdSql.getRows() == 2,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_stb order by firstts",
+                func=lambda: tdSql.getRows() == 3
+                             and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                             and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
+                             and tdSql.compareData(0, 2, 1)
+                             and tdSql.compareData(0, 3, 1)
+                             and tdSql.compareData(0, 4, 1)
+                             and tdSql.compareData(0, 5, "vct2")
+                             and tdSql.compareData(0, 6, 2)
+                             and tdSql.compareData(1, 0, "2025-01-01 00:00:01")
+                             and tdSql.compareData(1, 1, "2025-01-01 00:00:01")
+                             and tdSql.compareData(1, 2, 1)
+                             and tdSql.compareData(1, 3, 10)
+                             and tdSql.compareData(1, 4, 10)
+                             and tdSql.compareData(1, 5, "vct2")
+                             and tdSql.compareData(1, 6, 2)
+                             and tdSql.compareData(2, 0, "2025-01-01 00:00:05")
+                             and tdSql.compareData(2, 1, "2025-01-01 00:00:09")
+                             and tdSql.compareData(2, 2, 3)
+                             and tdSql.compareData(2, 3, 3)
+                             and tdSql.compareData(2, 4, 1)
+                             and tdSql.compareData(2, 5, "vct1")
+                             and tdSql.compareData(2, 6, 1)
             )

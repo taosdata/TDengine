@@ -629,7 +629,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   if (code == 0) {
     if (pSdb->pWal != NULL) {
       if (pSdb->sync > 0) {
-        code = syncEndSnapshot(pSdb->sync);
+        code = syncEndSnapshot(pSdb->sync, false);
       }
     }
   }

@@ -26,9 +26,12 @@ class TestClusterBasic:
 
     @pytest.mark.cluster
     def test_check_cluster_empty_db(self):
-        """cluster dnode reduction
+        """Cluster check empty db
 
-        5 dnodes start and stop 2, then check cluster status
+        1. Create 5 dnodes cluster
+        2. Create empty database
+        3. Start and stop dnode 2
+        4. Check cluster status
 
         Since: v3.3.0.0
 
@@ -60,9 +63,12 @@ class TestClusterBasic:
 
     @pytest.mark.cluster
     def test_check_cluster_with_db(self):
-        """cluster dnode reduction with db
+        """Cluster restart dnode one by one
 
-        5 dnodes start and create db, and stop 2, then check cluster status
+        1. Create 5 dnodes cluster
+        2. Create database with replica 3 and vgroups 3
+        3. Start and stop dnode 2 and dnode 3 one by one
+        4. Check cluster status
 
         Since: v3.3.0.0
 

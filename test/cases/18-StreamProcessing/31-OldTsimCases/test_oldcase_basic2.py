@@ -13,12 +13,15 @@ class TestStreamOldCaseBasic2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_basic2(self):
-        """OldTsim: basic 2
+        """OldTsim: stream basic status
 
-        Basic test cases for streaming, part 2
+        1. Create snode
+        2. Create multiple databases
+        3. Create stream sliding window, tag stream, trigger interval 0, window close scenarios
+        4. Insert data and verify the correctness of stream processing results
+        5. Verify the status of all streams
+        6. Check data correctness for all streams
 
-        Catalog:
-            - Streams:OldTsimCases
 
         Since: v3.3.7.0
 

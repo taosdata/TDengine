@@ -1,22 +1,53 @@
+import os
 import time
-import math
+import inspect
+import shutil
 from random import random
 
 from new_test_framework.utils import tdLog, tdSql, tdStream, StreamCheckItem
+from stream_notify_server import start_notify_server_background, stop_notify_server_background
+from notify_check import expect_event, expect_event_count, expect_rows
 
+caller_file = os.path.realpath(__file__)
+caller_dir = os.path.dirname(caller_file)
+NOTIFY_RESULT_DIR = os.path.join(caller_dir, "notify_result_tmp")
 
 class TestStreamNotifyTrigger:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+        
+    def start_notify_server(self):
+       global NOTIFY_RESULT_DIR
+       try:
+           if os.path.isdir(NOTIFY_RESULT_DIR):
+               for name in os.listdir(NOTIFY_RESULT_DIR):
+                   p = os.path.join(NOTIFY_RESULT_DIR, name)
+                   if os.path.isdir(p):
+                       shutil.rmtree(p, ignore_errors=True)
+                   else:
+                       try:
+                           os.remove(p)
+                       except FileNotFoundError:
+                           pass
+           else:
+               os.makedirs(NOTIFY_RESULT_DIR, exist_ok=True)
+       except Exception as e:
+           tdLog.info(f"prepare NOTIFY_RESULT_DIR failed: {NOTIFY_RESULT_DIR}, err={e}")
+           raise
+       # 启动通知服务，按 URL 写入该目录
+       start_notify_server_background(port=12345, log_path=NOTIFY_RESULT_DIR)
+
 
     def test_stream_notify_trigger(self):
-        """basic qdb 2
+        """Notify basic
 
-        Verification testing during the development process.
-
-        Catalog:
-            - Streams:Notify
+        1. Stream notify on windows_open/windows_close trigger
+        2. Stream notify with options notify_history/on_failure_pause
+        3. Stream notify with different stream definitions
+        4. Stream create with no notify URL
+        5. Check notify results
+        
 
         Since: v3.3.3.7
 
@@ -28,6 +59,8 @@ class TestStreamNotifyTrigger:
             - 2025-5-26 HaojunLiao Created
 
         """
+
+        self.start_notify_server()
 
         tdStream.dropAllStreamsAndDbs()
         tdStream.createSnode()
@@ -48,8 +81,11 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic12())      #
         streams.append(self.Basic13())      #
         streams.append(self.Basic14())
+        streams.append(self.Basic15())
+        streams.append(self.Basic16())
 
-        tdStream.checkAll(streams)
+        tdStream.checkAll(streams)      
+        stop_notify_server_background()
 
     class Basic1(StreamCheckItem):
         def __init__(self):
@@ -72,13 +108,13 @@ class TestStreamNotifyTrigger:
 
             tdLog.info(f"=============== create stream")
             sql1 = ("create stream s1 state_window(cint) from ct1                           "
-                    "notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                    "notify('ws://localhost:12345/basic1_s1') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
                     "res_ct1 (firstts, lastts, num_v, cnt_v, avg_v) as "
                     "select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows")
 
-            sql2 = "create stream s2 state_window(cint) from ct2                           notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_ct2 (firstts, lastts, num_v, cnt_v, avg_v) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-            sql3 = "create stream s3 state_window(cint) from stb partition by tbname       notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
-            sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, lastts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
+            sql2 = "create stream s2 state_window(cint) from ct2                           notify('ws://localhost:12345/basic1_s2') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_ct2 (firstts, lastts, num_v, cnt_v, avg_v) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+            sql3 = "create stream s3 state_window(cint) from stb partition by tbname       notify('ws://localhost:12345/basic1_s3') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
+            sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint notify('ws://localhost:12345/basic1_s4') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, lastts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
 
             tdSql.execute(sql1)
             tdSql.execute(sql2)
@@ -458,7 +494,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic2_s0') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, top_cdouble_10) as "
                 f"select _twstart wstart, _twend, top(cdouble, 10) from ct0 "
@@ -488,6 +524,54 @@ class TestStreamNotifyTrigger:
 
         def check1(self):
             tdLog.info("do check the results")
+            
+            for ws in (1735660800000, 1735660805000, 1735660806000):
+                expect_event(
+                    os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+                    streamName="sdb2.s0",
+                    eventType="WINDOW_OPEN",
+                    windowStart=ws,
+                    result_pred=lambda rows: not rows  # 空
+                )
+                
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+                streamName="sdb2.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660800000
+            )
+
+            expect_event(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+             streamName="sdb2.s0",
+             eventType="WINDOW_CLOSE",
+             windowStart=1735660801000,
+             windowEnd=1735660804000,
+             result_pred=lambda rows: len(rows) == 4)
+            
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+            rows=4,
+            streamName="sdb2.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660801000,
+            windowEnd=1735660804000)
+            
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+            rows=4,
+            streamName="sdb2.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660800000,
+            windowEnd=1735660804000)
+            
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+            rows=1,
+            streamName="sdb2.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660805000,
+            windowEnd=1735660805000)
 
     class Basic3(StreamCheckItem):
         def __init__(self):
@@ -517,7 +601,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s0') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_0 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -527,7 +611,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s1 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s1') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_1 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -537,7 +621,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s2 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s2') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_2 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -547,7 +631,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s3 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s3') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_3 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -557,7 +641,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s4 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s4') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_4 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -567,7 +651,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s5 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s5') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_5 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -577,7 +661,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s6 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s6') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_6 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -587,7 +671,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s7 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s7') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_7 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -597,7 +681,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s8 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s8') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_8 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -607,7 +691,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s9 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s9') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_9 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -617,7 +701,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s10 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s10') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_10 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -627,7 +711,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s11 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s11') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_11 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -637,7 +721,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s12 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s12') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_12 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -647,7 +731,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s13 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"notify('ws://localhost:12345/basic3_s13') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
                 f"into "
                 f"res_ct0_13 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -657,7 +741,7 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s14 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic3_s14') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0_14 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
@@ -714,7 +798,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 interval(4s) sliding(4s) from ct0 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic4_s0') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, sum_cdecimal, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart wstart, _twend, sum(cdecimal), count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -743,6 +827,50 @@ class TestStreamNotifyTrigger:
 
         def check1(self):
             tdLog.info("do check the results")
+            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660800000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660804000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660808000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+                streamName="sdb4.s0",
+                eventType="WINDOW_CLOSE",
+                triggerType="Interval",
+                tableName="res_ct0",
+                windowStart=1735660800000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+            rows=1,
+            streamName="sdb4.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660800000,
+            windowEnd=1735660804000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic4_s0.log"),
+            rows=1,
+            streamName="sdb4.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660804000,
+            windowEnd=1735660808000)
 
     class Basic5(StreamCheckItem):
         def __init__(self):
@@ -770,7 +898,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 interval(4s) sliding(4s) from ct0 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic5_s0') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart wstart, _twend, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -796,7 +924,51 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check1(self):
-            tdLog.info("do check the results")
+            tdLog.info("do check the results of basic5")
+            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660800000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660804000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Interval",
+                windowStart=1735660808000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+                streamName="sdb5.s0",
+                eventType="WINDOW_CLOSE",
+                triggerType="Interval",
+                tableName="res_ct0",
+                windowStart=1735660800000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+            rows=1,
+            streamName="sdb5.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660800000,
+            windowEnd=1735660804000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic5_s0.log"),
+            rows=1,
+            streamName="sdb5.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660804000,
+            windowEnd=1735660808000)
 
 
     class Basic6(StreamCheckItem):
@@ -825,7 +997,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 session(ts, 1100a) from ct0 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic6_s0') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart wstart, _twend, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -834,7 +1006,7 @@ class TestStreamNotifyTrigger:
 
             tdSql.execute(
                 f"create stream s1 period(1s) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic6_s1') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0_period (twstart, count_val, min_float, max_double, last_bytes) as "
                 f"select cast(_tlocaltime/1000000 as timestamp) ts, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -843,7 +1015,7 @@ class TestStreamNotifyTrigger:
 
             tdSql.execute(
                 f"create stream s2 event_window(start with cdouble < 4 or cdecimal >8 end with cast(cbytes as int) > 13) from ct0 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic6_s2') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0_event (ts, endts, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart ts, _twend, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -852,7 +1024,7 @@ class TestStreamNotifyTrigger:
 
             tdSql.execute(
                 f"create stream s3 count_window(2) from ct0 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic6_s3') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0_count (ts, endts, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart ts, _twend, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -861,7 +1033,7 @@ class TestStreamNotifyTrigger:
 
             tdSql.execute(
                 f"create stream s5 period(20a) from stb partition by tbname, tag1 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic6_s5') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0_period_stb (ts, xint, xbool, xfloat, xdouble, xbytes, xdecimal) as "
                 f"select ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal from stb "
@@ -957,7 +1129,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 session(ts, 1300a) from ct0 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic7_s0') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_vtb (twstart, twend, count_val, sum_int, min_float, max_double, last_bytes) as "
                 f"select _twstart wstart, _twend, count(*), sum(vtb_1.col_1), min(vtb_2.col_2), max(vtb_1.col_3), last(vtb_2.col_3) "
@@ -1019,11 +1191,61 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check1(self):
-            tdLog.info("do check the results")
+            tdLog.info("do check the results of basic7")
             tdSql.checkResultsByFunc(
                 sql=f"select * from {self.db}.res_vtb",
                 func=lambda: tdSql.getRows() == 3
             )
+
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660800000
+            )            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660815000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660840000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+                streamName="sdb7.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="Session",
+                windowStart=1735660826000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+            rows=1,
+            streamName="sdb7.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_vtb",
+            windowStart=1735660800000,
+            windowEnd=1735660804000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+            rows=1,
+            streamName="sdb7.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_vtb",
+            windowStart=1735660815000,
+            windowEnd=1735660815000)
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic7_s0.log"),
+            rows=1,
+            streamName="sdb7.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_vtb",
+            windowStart=1735660826000,
+            windowEnd=1735660829000)
 
     class Basic8(StreamCheckItem):
         def __init__(self):
@@ -1051,7 +1273,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s3 count_window(2) from ct0 stream_options(CALC_NOTIFY_ONLY ) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic8_s3') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0_count (ts, endts, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart ts, _twend, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -1145,7 +1367,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s3 session(ts, 1500a) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic9_s3') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (ts, endts, current, count_val, min_float, max_double, last_bytes) as "
                 f"select _twstart ts, _twend, cast(_tlocaltime/1000000 as timestamp) localtime, count(*), min(cfloat), max(cdouble), last(cbytes) from ct0 "
@@ -1291,7 +1513,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s3 count_window(1) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic10_s3') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (ts, endts, original_ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal) as "
                 f"select ((_tlocaltime/1000000) & 100000) + ts, _twend, ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal from ct0 "
@@ -1385,7 +1607,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s3 count_window(1) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic11_s3') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (ts, endts, original_ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal) as "
                 f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
@@ -1436,13 +1658,13 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.error(
                 f"create stream s3 count_window(1) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') into res_ct0 as "
                 f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
             )
 
             tdSql.error(
                 f"create stream s3 session(ts, 20s) from ct0 stream_options(FILL_HISTORY) "
-                f"notify('http://localhost:12345/notify') into res_ct0 as "
+                f"notify('ws://localhost:12345/notify') into res_ct0 as "
                 f"select _wstart, _wend, _twstart, count(*), count(cbool), sum(cfloat), last(cdouble), last(cbytes),sum(cdecimal) from ct0 interval(10a) "
             )
 
@@ -1529,7 +1751,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 state_window(c1) from ct0 "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/basic13_s0') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (startTime, c1) as "
                 f"select startTime, c1 from ct0 "
@@ -1560,7 +1782,44 @@ class TestStreamNotifyTrigger:
             tdSql.checkRows(2)
             tdSql.query(f"select * from {self.db}.res_ct0")
             tdSql.checkRows(0)
-
+            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660800000
+            )            
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660803000
+            )
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660807000
+            ) 
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=1,
+                windowStart=1735660800000
+            )            
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+            rows=2,
+            streamName="sdb13.s0",
+            eventType="WINDOW_CLOSE",
+            tableName="res_ct0",
+            windowStart=1735660805000,
+            windowEnd=1735660806000)
+            
         def insert2(self):
             tdLog.info(f"=============== insert data into ct0 not null time data")
             sqls = [
@@ -1587,7 +1846,39 @@ class TestStreamNotifyTrigger:
                 sql=f"select * from {self.db}.res_ct0",
                 func=lambda: tdSql.getRows() == 7
             )
-
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=2,
+                windowStart=1735660800000
+            )            
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=2,
+                windowStart=1735660805000
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                expectCount=2,
+                windowStart=1735660807000
+            ) 
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic13_s0.log"),
+                streamName="sdb13.s0",
+                eventType="WINDOW_CLOSE",
+                triggerType="State",
+                tableName="res_ct0",
+                expectCount=2,
+                windowEnd=1735660806000
+            )  
 
     class Basic14(StreamCheckItem):
         def __init__(self):
@@ -1617,13 +1908,13 @@ class TestStreamNotifyTrigger:
                 f"create stream if not exists `sdb14`.`s1` "
                 f"event_window( start with (`c0`)>= 5 end with (`c1`)<5 ) true_for(5s) "
                 f"from `sdb14`.`stb` partition by tbname stream_options(ignore_disorder|event_type(window_open|window_close)) "
-                f"notify('ws://localhost:6042/eventReceive') on(window_open|window_close) "
+                f"notify('ws://localhost:12345/basic14_s1') on(window_open|window_close) "
                 f"into `sdb14`.`res_st` output_subtable(concat('ana_', tbname,'_end')) "
                 f"as select _c0 as output_timestamp, `c0` from %%tbname where ts >= _twstart and ts <_twend "
             )
 
         def insert1(self):
-            tdLog.info(f"=============== insert data into ct0 open window data")
+            tdLog.info(f"=============== insert1 data into ct0 open window data")
             sqls = [
                 "insert into ct0 values ('2025-01-01 00:00:00.000', 6, 7);",
                 "insert into ct0 values ('2025-01-01 00:00:01.000', 7, 7);",
@@ -1635,14 +1926,24 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check1(self):
-            tdLog.info(f"check the stream {self.db}.s1")
+            tdLog.info(f"check1 the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
             tdSql.query(f"select * from {self.db}.ana_ct0_end")
             tdSql.checkRows(0)
+            
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+                streamName="sdb14.s1",
+                eventType="WINDOW_OPEN",
+                triggerType="Event",
+                tableName="ana_ct0_end",
+                expectCount=1,
+                windowStart=1735660800000
+            )  
 
         def insert2(self):
-            tdLog.info(f"=============== insert data into ct0 close windows data")
+            tdLog.info(f"=============== insert2 data into ct0 close windows data")
             sqls = [
                 "insert into ct0 values ('2025-01-01 00:00:05.000', 11, 8);",
                 "insert into ct0 values ('2025-01-01 00:00:06.000', 5, 1);",
@@ -1651,7 +1952,7 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check2(self):
-            tdLog.info(f"check the stream {self.db}.s1")
+            tdLog.info(f"check2 the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
             tdSql.checkResultsByFunc(
@@ -1669,5 +1970,194 @@ class TestStreamNotifyTrigger:
                 and tdSql.compareData(4, 1, 10)
                 and tdSql.compareData(5, 0, "2025-01-01 00:00:05.000")
                 and tdSql.compareData(5, 1, 11),
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+                streamName="sdb14.s1",
+                eventType="WINDOW_CLOSE",
+                triggerType="Event",
+                tableName="ana_ct0_end",
+                expectCount=1,
+                windowStart=1735660800000
+            )
+            expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+            rows=6,
+            streamName="sdb14.s1",
+            eventType="WINDOW_CLOSE",
+            tableName="ana_ct0_end",
+            windowStart=1735660800000,
+            windowEnd=1735660806000)
+            
+        def insert3(self):
+            tdLog.info(f"=============== insert3 data into ct0 open window data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:07.000', 11, 8);",
+            ]
+
+            tdSql.executes(sqls)
+            
+        def check3(self):
+            tdLog.info(f"check3 the stream {self.db}.s1")
+            tdSql.query(f"desc {self.db}.ana_ct0_end")
+            tdSql.checkRows(3)
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
+                streamName="sdb14.s1",
+                eventType="WINDOW_OPEN",
+                triggerType="Event",
+                tableName="ana_ct0_end",
+                expectCount=1,
+                windowStart=1735660807000
+            )
+            
+    class Basic15(StreamCheckItem):
+        def __init__(self):
+            self.db = "idmp"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, `电流` float) tags(t1 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table st0 using {self.stb} tags(0);")
+            tdSql.execute(f"create table st1 using {self.stb} tags(1);")
+            tdSql.execute(f"create table st2 using {self.stb} tags(2);")
+            tdSql.execute(f"create table st3 using {self.stb} tags(3);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+       
+            tdSql.execute(
+                f"create stream if not exists `idmp`.`s1` "
+                f"period( 10s,0s) from `idmp`.`st0` "
+                f"stream_options(ignore_disorder|ignore_nodata_trigger) "
+                f"notify('ws://localhost:12345/basic15_s1') on(window_open|window_close) "
+                f"into `idmp`.`res_st` as "
+                f"select cast(_tlocaltime/1000000 as timestamp)+0s as output_timestamp, avg(`电流`) "
+                f"as `平均电流` from st0 where ts > (cast(_tprev_localtime/1000000 as timestamp)-1200000) and ts <=cast(_tlocaltime/1000000 as timestamp)"
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into ct0 open window data")
+            sqls = [
+                "insert into st0 values (now-31s, 6);",
+                "insert into st0 values (now-25s, 7);",
+                "insert into st0 values (now-20s, 8);",
+                "insert into st0 values (now-15s, 9);",
+                "insert into st0 values (now-10s, 10);",
+                "insert into st0 values (now-5s, 11);",
+                "insert into st0 values (now, 12);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 1
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic15_s1.log"),
+                streamName="idmp.s1",
+                eventType="ON_TIME",
+                triggerType="Period",
+                tableName="res_st",
+                expectCount=1,
+            )
+
+    class Basic16(StreamCheckItem):
+        def __init__(self):
+            self.db = "idmp2"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, `电流` float) tags(t1 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table st0 using {self.stb} tags(0);")
+            tdSql.execute(f"create table st1 using {self.stb} tags(1);")
+            tdSql.execute(f"create table st2 using {self.stb} tags(2);")
+            tdSql.execute(f"create table st3 using {self.stb} tags(3);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+            
+            tdSql.execute(
+                f"create stream if not exists {self.db}.`s1` "
+                f"sliding(1m) from `{self.db}`.`{self.stb}` partition by tbname "
+                f"stream_options(ignore_disorder|ignore_nodata_trigger) "
+                f"notify('ws://localhost:12345/basic16_s1') on(window_open|window_close) "
+                f"into `{self.db}`.`res_st` output_subtable(concat('ana_', tbname,'_ana')) as "
+                f"select _tcurrent_ts+0s as output_timestamp, avg(`电流`) as `属性1`  from %%tbname "
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into st0 open window data")
+            sqls = [
+                "insert into st0 values ('2025-01-01 00:00:00.000', 6);",
+                "insert into st0 values ('2025-01-01 00:01:01.000', 7);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 1
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic16_s1.log"),
+                streamName="idmp2.s1",
+                eventType="ON_TIME",
+                triggerType="Sliding",
+                tableName="ana_st0_ana",
+                expectCount=1,
+            )
+            
+        def insert2(self):
+            tdLog.info(f"=============== insert2 data into st0 open window data")
+            sqls = [
+                "insert into st0 values ('2025-01-01 00:02:02.000', 8);",
+                "insert into st0 values ('2025-01-01 00:03:03.000', 9);",
+                "insert into st0 values ('2025-01-01 00:04:03.000', 10);",
+                "insert into st0 values ('2025-01-01 00:05:03.000', 11);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check2(self):
+            tdLog.info(f"check the stream {self.db}.s1")
+
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 5
+            )
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic16_s1.log"),
+                streamName="idmp2.s1",
+                eventType="ON_TIME",
+                triggerType="Sliding",
+                tableName="ana_st0_ana",
+                expectCount=5,
             )
 

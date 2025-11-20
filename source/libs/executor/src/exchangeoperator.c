@@ -26,7 +26,7 @@
 #include "trpc.h"
 
 typedef struct SFetchRspHandleWrapper {
-  uint32_t exchangeId;
+  int64_t  exchangeId;
   int32_t  sourceIndex;
   int64_t  seqId;
 } SFetchRspHandleWrapper;

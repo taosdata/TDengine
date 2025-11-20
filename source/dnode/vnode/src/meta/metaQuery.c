@@ -97,6 +97,13 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   return metaGetTableEntryByVersion(pReader, version1, uid);
 }
 
+int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
+  if (version < 0) {
+    return metaReaderGetTableEntryByUid(pReader, uid);
+  }
+  return metaGetTableEntryByVersion(pReader, version, uid);
+}
+
 int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   SMeta *pMeta = pReader->pMeta;
 
@@ -1597,7 +1604,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
   while (1) {
     tb_uid_t uid = metaCtbCursorNext(pCur);
     if (uid == 0) {
-      metaInfo("got uid 0 and uidTagSize:%d", (int32_t)taosArrayGetSize(pUidTagInfo));
+      metaDebug("got uid 0 and uidTagSize:%d", (int32_t)taosArrayGetSize(pUidTagInfo));
       break;
     }
 
