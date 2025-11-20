@@ -39,6 +39,7 @@ class CmdLine:
         self.user        = "root"
         self.password    = "taosdata"
         self.timeout     = 120 # seconds
+        self.max_test_time = 1800 # seconds
         
         # args
         self.parser = None
@@ -78,8 +79,17 @@ class CmdLine:
             type=int,
             default=120,
             metavar='SECONDS',
-            help='Timeout in seconds for stream processing (default: 120)'
+            help='Timeout in seconds for each case (default: 120)'
         )        
+
+        # Max Test Time
+        self.parser.add_argument(
+            '-m', '--max-test-time',
+            type=int,
+            default=1800,
+            metavar='SECONDS',
+            help='Maximum test time in seconds for each case (default: 1800)'
+        )  
         
         # Log output
         self.parser.add_argument(
@@ -235,7 +245,13 @@ class CmdLine:
         args_timeout = self.args.timeout
         if args_timeout is not None:
             self.timeout = args_timeout
-        log.out(f"Set timeout to {self.timeout} seconds")    
+            log.out(f"Set timeout to {self.timeout} seconds")    
+
+        # max test time
+        args_max_test_time = self.args.max_test_time
+        if args_max_test_time is not None:
+            self.max_test_time = args_max_test_time
+            log.out(f"Set max test time to {self.max_test_time} seconds")    
 
         # init file name
         self.cases_yaml = os.path.join(self.config_path, 'cases.yaml')        

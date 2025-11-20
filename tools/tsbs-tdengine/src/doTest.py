@@ -30,7 +30,7 @@ class DoTest(BaseStep):
     def __init__(self, scene):
         self.scene = scene
 
-    def wait_stream_end(self, verifySql, expectRows, timeout):
+    def wait_stream_end(self, verifySql, expectRows, timeout, max_test_time):
         log.out("Waiting for stream processing to complete...")
         log.out(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Timeout: {timeout} seconds")
         conn = taos_connect()
@@ -39,7 +39,7 @@ class DoTest(BaseStep):
         last_rows = 0
         cnt = 0
         i = 0
-        while cnt < timeout:
+        while cnt < timeout and i < max_test_time:
             try:        
                 cursor.execute(verifySql)
                 results = cursor.fetchall()
@@ -68,7 +68,7 @@ class DoTest(BaseStep):
             # sleep 1 second
             time.sleep(1)
     
-        log.out(f"{i} real rows: {rows}, expect rows: {expectRows} ==> Not Passed")
+        log.out(f"{i} real rows: {last_rows}, expect rows: {expectRows} ==> Not Passed")
         conn.close()
         if last_rows == 0:
             status = "No Data"
@@ -115,7 +115,7 @@ class DoTest(BaseStep):
             log.out(f"Processing YAML file: {yaml_file}")
             verifySql, expectRows = self.read_verify_info(self.scene.name, yaml_file)
             if verifySql != None and expectRows != None:
-                self.wait_stream_end(verifySql, expectRows, timeout = cmd.timeout)
+                self.wait_stream_end(verifySql, expectRows, timeout = cmd.timeout, max_test_time = cmd.max_test_time)
             else:
                 log.out(f"verify sql is none, skipping  {yaml_file}")
         
