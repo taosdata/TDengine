@@ -28,25 +28,31 @@ testCases:
       verifySql: select count(*) from db2.res_a9
       expectRows: 16
 
-    # F5 F6 F7
+    # F2 F5 F6 F7
+
+    - scenarioId: "F2"
+      querySql: select count(*) from db2.diagnostics
+      dataRows: 9988779
+      verifySql: select count(*) from db2.res_f2
+      expectRows: 8888
 
     - scenarioId: "F5"
       querySql: select count(*) from db2.diagnostics
       dataRows: 9988779
       verifySql: select count(*) from db2.res_f5
-      expectRows: 8888
+      expectRows: 4
 
     - scenarioId: "F6"
       querySql: select count(*) from db2.diagnostics
       dataRows: 9988779
       verifySql: select count(*) from db2.res_f6
-      expectRows: 16
+      expectRows: 20
 
     - scenarioId: "F7"
       querySql: select count(*) from db2.diagnostics
       dataRows: 9988779
       verifySql: select count(*) from db2.res_f7
-      expectRows: 20
+      expectRows: 25
 
     # T5 T6 T9  
 

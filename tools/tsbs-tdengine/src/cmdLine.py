@@ -77,7 +77,7 @@ class CmdLine:
         self.parser.add_argument(
             '-t', '--timeout',
             type=int,
-            default=120,
+            default=None,
             metavar='SECONDS',
             help='Timeout in seconds for each case (default: 120)'
         )        
@@ -86,7 +86,7 @@ class CmdLine:
         self.parser.add_argument(
             '-m', '--max-test-time',
             type=int,
-            default=1800,
+            default=None,
             metavar='SECONDS',
             help='Maximum test time in seconds for each case (default: 1800)'
         )  

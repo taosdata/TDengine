@@ -32,7 +32,7 @@ class DoTest(BaseStep):
 
     def wait_stream_end(self, verifySql, expectRows, timeout, max_test_time):
         log.out("Waiting for stream processing to complete...")
-        log.out(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Timeout: {timeout} seconds")
+        log.out(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Max Test Time: {max_test_time} seconds, Timeout: {timeout} seconds")
         conn = taos_connect()
         cursor = conn.cursor()
         

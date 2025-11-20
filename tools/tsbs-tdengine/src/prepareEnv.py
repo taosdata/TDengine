@@ -22,6 +22,7 @@ from baseStep import BaseStep
 from scene import Scene
 from outMetrics import metrics
 from outLog import log
+from tdengine import *
 
 class PrepareEnv(BaseStep):
     def __init__(self, scene):
@@ -33,12 +34,17 @@ class PrepareEnv(BaseStep):
                 sql_commands = file.readlines()
                 for command in sql_commands:
                     command = command.strip()
-                    if command:
+                    if len(command) == 0:
+                        continue                    
+                    if command.upper() == "WAIT TRANSACTIONS OVER":
+                        wait_transactions_zero(self, seconds=300, interval=1)
+                    else:
                         conn.execute(command)
                         log.out(f"exe success: {command}")
             except Exception as e:
-                log.out(f"Error executing SQL file {sql_file}: {e}")
-                metrics.set_status(self.scene.name, "Failed")
+                info = f"Error executing SQL file {sql_file}: {e}"
+                log.out(info)
+                raise Exception(info)
 
     def wait_stream_ready(self, conn, stream_name="", timeout=120):
         sql = "select * from information_schema.ins_stream_tasks where type = 'Trigger' and status != 'Running'"
@@ -79,8 +85,12 @@ class PrepareEnv(BaseStep):
                 log.out(f"prepare environment using SQL file: {sql_file}")
                 self.exec_sql_file(conn, sql_file)
             
+            # wait ok
+            log.out("prepare wait transactions zero...")
+            wait_transactions_zero(self, seconds=300, interval=1)
+            
             # create stream sql
-            log.out("prepare execute main sql:")
+            log.out("prepare execute main sql...")
             conn.execute(self.scene.sql)
             
             
@@ -90,6 +100,6 @@ class PrepareEnv(BaseStep):
             conn.close()
             return True
         except Exception as e:
-            log.out(f"PrepareEnv run except: {e}")
+            log.out(f"PrepareEnv run except: {e} sql:\n{self.scene.sql}")
             metrics.set_status(self.scene.name, "Failed")
             return False

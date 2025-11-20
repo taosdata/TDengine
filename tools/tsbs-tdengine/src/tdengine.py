@@ -19,6 +19,7 @@ import taos
 import time
 
 from cmdLine import cmd
+from outLog import log
 
 
 def taos_connect():
@@ -36,3 +37,25 @@ def db_first_value(sql):
     if len(results) > 0 and len(results[0]) > 0:
         return results[0][0]
     return None
+
+def db_get_rows(sql):
+    conn = taos_connect()
+    cursor = conn.cursor()
+    cursor.execute(sql)
+    results = cursor.fetchall()    
+    conn.close()
+    if results is None:
+        return 0
+    return len(results)
+
+def wait_transactions_zero(self, seconds = 300, interval = 1):
+    # wait end
+    for i in range(seconds):
+        sql ="show transactions;"
+        rows =db_get_rows(sql)
+        if rows == 0:
+            log.out("waited all transactions are over.")
+            return True
+        time.sleep(interval)
+    
+    return False    
