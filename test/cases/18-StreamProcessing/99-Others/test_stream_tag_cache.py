@@ -17,6 +17,8 @@ class TestStreamTagCache:
                 test tag cache with null tag values
             - check_create_drop_ctable:
                 test tag cache with create and drop child table operations
+            - check fallback_to_normal_cache:
+                test stable tag filter cache fallback to normal tag filter cache
             - todo(Tony Zhang): check virtual super table
 
 
@@ -38,18 +40,19 @@ class TestStreamTagCache:
         self.check_all_types_alter()
         self.check_null_tag_value()
         self.check_create_drop_ctable()
+        self.check_fallback_to_normal_cache()
 
-    def stable_tag_cache_log_counter(self, db_name, tb_name) -> int:
+    def stable_tag_cache_log_counter(self, db_name, tb_name, retry=5) -> int:
         tdSql.query(f"""select uid from information_schema.ins_stables
             where stable_name = '{tb_name}' and db_name = '{db_name}'""")
         suid = tdSql.getColData(0)[0]
-        return findTaosdLog(f"suid:{suid}.*stable tag filter cache", retry=3)
+        return findTaosdLog(f"suid:{suid}.*stable tag filter cache", retry=retry)
 
-    def normal_tag_cache_log_counter(self, db_name, tb_name) -> int:
+    def normal_tag_cache_log_counter(self, db_name, tb_name, retry=5) -> int:
         tdSql.query(f"""select uid from information_schema.ins_stables
             where stable_name = '{tb_name}' and db_name = '{db_name}'""")
         suid = tdSql.getColData(0)[0]
-        return findTaosdLog(f"suid:{suid}.*normal tag filter cache", retry=3)
+        return findTaosdLog(f"suid:{suid}.*normal tag filter cache", retry=retry)
 
     def check_all_types_basic(self):
         db_name = "test_basic"
@@ -574,3 +577,37 @@ class TestStreamTagCache:
 
         # check stable tagFilterCache size
         assert self.stable_tag_cache_log_counter(db_name, tb_name) == 5
+
+    def check_fallback_to_normal_cache(self):
+        db_name = "test_fallback"
+        tb_name = "stb_fallback"
+        tdSql.execute(f"create database if not exists {db_name} vgroups 1 keep 3650")
+        tdSql.execute(f"use {db_name}")
+        tdSql.execute(f"create table {tb_name} (ts timestamp, v int) tags (t1 int);")
+        tdSql.execute(f"create table ctb1 using {tb_name} tags (1);")
+        tdSql.execute(f"create table ctb2 using {tb_name} tags (2);")
+        tdSql.execute("insert into ctb2 values('2025-12-12 12:00:00', 2333);")
+
+        # Create a stream with a non-optimizable WHERE clause (e.g., using '!=')
+        stream: StreamItem = StreamItem(
+            id = 19,
+            stream=f"""create stream st_fallback interval(10s) sliding(10s)
+                from {tb_name} partition by t1 into res_fallback
+                as select _twstart as ts, _twend as te, sum(v) as v from
+                {tb_name} where t1 != %%1""",
+            res_query="select ts, te, v from res_fallback order by ts"
+        )
+        stream.createStream()
+        tdStream.checkStreamStatus()
+
+        # Insert data to trigger the stream
+        tdSql.execute("insert into ctb1 values('2025-12-12 12:00:10', 1)")
+        tdSql.execute("insert into ctb1 values('2025-12-12 12:00:20', 1)")
+        tdSql.execute("insert into ctb1 values('2025-12-12 12:00:30', 1)")
+        tdSql.execute("insert into ctb1 values('2025-12-12 12:00:40', 1)")
+    
+        stream.awaitRowStability(3)
+
+        # Assert that stable cache was NOT used and normal cache WAS used
+        assert self.stable_tag_cache_log_counter(db_name, tb_name, 5) == 0
+        assert self.normal_tag_cache_log_counter(db_name, tb_name, 5) > 0
