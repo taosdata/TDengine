@@ -147,7 +147,7 @@ toc_max_heading_level: 4
 
 3. 近两年，时序数据库成为流行度最高的数据库，在过去的 10 年里，至少有 20 个新的时序数据库发布，那么，如何做好时序数据库的选型？点击[如何选择一款最佳的时序数据库](https://www.taosdata.com/tdengine/time-series-database/how-to-choose-the-best-time-series-database)，了解相关内容。
 
-4. 数据模型是数据库系统的核心，不同的时序数据库采用不同的数据模型。那么，InfluxDB 和 TDengine 等市场上领先的实时数据库使用的数据模型有何不同？点击[数据模型对比之 InfluxDB vsTDengine](https://www.taosdata.com/tdengine/time-series-database/data-model-comparisons-between-time-series-databases)，了解相关内容。
+4. 数据模型是数据库系统的核心，不同的时序数据库采用不同的数据模型。那么，InfluxDB 和 TDengine 等市场上领先的实时数据库使用的数据模型有何不同？点击[数据模型对比之 InfluxDB vs TDengine](https://www.taosdata.com/tdengine/time-series-database/data-model-comparisons-between-time-series-databases)，了解相关内容。
 
 5. 数据集的高基数（High-Cardinality）问题一直困扰着诸多主流的时序数据库产品。TDengine 3.0 是第一个解决了高基数问题的时序数据库。其设计思路是什么？点击[TDengine 3.0 是如何解决时序数据库中的高基数问题的？](https://www.taosdata.com/tdengine/time-series-database/high-cardinality-in-time-series-data)，了解相关内容。
 
