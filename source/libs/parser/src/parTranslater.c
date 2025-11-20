@@ -36,6 +36,7 @@
 #include "tcol.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tpriv.h"
 #include "ttime.h"
 #include "decimal.h"
 #include "planner.h"
@@ -15895,7 +15896,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   tstrncpy(req.principal, pStmt->principal, TSDB_ROLE_LEN);
   switch (req.alterType) {
     case TSDB_ALTER_ROLE_PRIVILEGES: {
-      int32_t conflict = checkPrivConflicts(pStmt->privileges);
+      int32_t conflict = checkPrivConflicts(&pStmt->privileges);
       if(conflict == 1) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "System privileges and object privileges cannot be mixed");
       } else if(conflict == 2) {

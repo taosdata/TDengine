@@ -215,37 +215,48 @@ int32_t checkPrivConflicts(const SPrivSet* privSet) {
 
   EObjType objectType = OBJ_TYPE_UNKNOWN;
 
-  for (EPrivType privType = 0; privType <= MAX_PRIV_TYPE; ++privType) {
-    if (!PRIV_HAS(privSet, privType)) {
-      continue;
-    }
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+    uint64_t chunk = privSet->set[i];
+    if (chunk == 0) continue;
 
-    const SPrivInfo* privInfo = privLookup[privType];
-    if (privInfo == NULL) {
-      continue;
-    }
+    while (chunk != 0) {
+      int32_t   bitPos = BUILDIN_CTZL(chunk);
+      EPrivType privType = (i << 6) + bitPos;
+      chunk &= ~(1ULL << bitPos);
 
-    switch (privInfo->category) {
-      case PRIV_CATEGORY_SYSTEM:
-        hasSystemPriv = true;
-        break;
-      case PRIV_CATEGORY_OBJECT:
-        hasObjectPriv = true;
-        if (objectType == OBJ_TYPE_UNKNOWN) {
-          objectType = privInfo->objType;
-        } else if (objectType != privInfo->objType) {
-          return 2;
+      const SPrivInfo* privInfo = privLookup[privType];
+      if (privInfo == NULL) continue;
+
+      switch (privInfo->category) {
+        case PRIV_CATEGORY_SYSTEM: {
+          if (hasObjectPriv || hasLegacyPriv) {
+            return 1;
+          }
+          hasSystemPriv = true;
+          break;
         }
-        break;
-      case PRIV_CATEGORY_LEGACY:
-        hasLegacyPriv = true;
-        break;
-      default:
-        break;
-    }
-
-    if ((hasSystemPriv && hasObjectPriv) || (hasSystemPriv && hasLegacyPriv) || (hasObjectPriv && hasLegacyPriv)) {
-      return 1;
+        case PRIV_CATEGORY_OBJECT: {
+          if (hasSystemPriv || hasLegacyPriv) {
+            return 1;
+          }
+          hasObjectPriv = true;
+          if (objectType == OBJ_TYPE_UNKNOWN) {
+            objectType = privInfo->objType;
+          } else if (objectType != privInfo->objType) {
+            return 2;
+          }
+          break;
+        }
+        case PRIV_CATEGORY_LEGACY: {
+          if (hasSystemPriv || hasObjectPriv) {
+            return 1;
+          }
+          hasLegacyPriv = true;
+          break;
+        }
+        default:
+          break;
+      }
     }
   }
 
