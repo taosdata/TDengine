@@ -2091,8 +2091,9 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   QUERY_CHECK_NULL(pUidList, code, lino, _error, terrno);
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
-  bool    canCacheTagEqCondFilter = tsStableTagFilterCache && 
-                                      pStreamInfo != NULL && pTagCond != NULL;
+  bool    isStream = (pStreamInfo != NULL);
+  bool    hasTagCond = (pTagCond != NULL);
+  bool    canCacheTagEqCondFilter = false;
   char*   pTagCondKey = NULL;
   int32_t tagCondKeyLen;
   SArray* pTagColIds = NULL;
@@ -2110,15 +2111,17 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   } else {
     T_MD5_CTX context = {0};
 
-    nodesWalkExpr(pTagCond, canOptimizeTagCondFilter,
-      (void*)&canCacheTagEqCondFilter);
-
     qTrace("start to get table list by tag filter, suid:%" PRIu64
-      ",%d %d %d", pScanNode->suid, tsStableTagFilterCache,
-      tsTagFilterCache, canCacheTagEqCondFilter);
+      ",tsStableTagFilterCache:%d, tsTagFilterCache:%d", 
+      pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache);
 
-    // first, check whether we can use stable tag filter cache
     bool acquired = false;
+    // first, check whether we can use stable tag filter cache
+    if (tsStableTagFilterCache && isStream && hasTagCond) {
+      canCacheTagEqCondFilter = true;
+      nodesWalkExpr(pTagCond, canOptimizeTagCondFilter,
+        (void*)&canCacheTagEqCondFilter);
+    }
     if (canCacheTagEqCondFilter) {
       qDebug("stable tag filter condition can be optimized");
       if (((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
