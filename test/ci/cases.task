@@ -584,6 +584,7 @@
 ## 22-Performance
 ## 23-Compatibility 
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_cross_version.py
+,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
 ## 30-OldPyCases
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py

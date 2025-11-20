@@ -18,6 +18,7 @@
 
 #include "tarray.h"
 #include "tmsg.h"
+#include "tjson.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -737,7 +738,13 @@ void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst);
 
 int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq* pReq);
+int32_t tDeserializeSCMCreateStreamReqImplOld(
+  SDecoder *pDecoder, SCMCreateStreamReq *pReq, int32_t leftBytes);
 int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder* pDecoder, SCMCreateStreamReq* pReq);
+
+int32_t scmCreateStreamReqToJson(
+  const SCMCreateStreamReq* pReq, bool format, char** ppStr, int32_t* pStrLen);
+int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pReq);
 
 typedef enum ESTriggerPullType {
   STRIGGER_PULL_SET_TABLE,
@@ -1139,6 +1146,17 @@ typedef struct SStreamTSRangeParas { // used for stream
   EValueType         eType;   
   int64_t            timeValue;
 } SStreamTSRangeParas;
+
+typedef enum EWindowType {
+  WINDOW_TYPE_INTERVAL = 1,
+  WINDOW_TYPE_SESSION,
+  WINDOW_TYPE_STATE,
+  WINDOW_TYPE_EVENT,
+  WINDOW_TYPE_COUNT,
+  WINDOW_TYPE_ANOMALY,
+  WINDOW_TYPE_EXTERNAL,
+  WINDOW_TYPE_PERIOD
+} EWindowType;
 
 #ifdef __cplusplus
 }
