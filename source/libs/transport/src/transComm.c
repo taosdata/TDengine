@@ -65,7 +65,7 @@ int32_t transCacheAcquireById(int64_t refId, STrans** pTrans) {
   for (int32_t i = 0; i < transInstCache.num; ++i) {
     if (transInstCache.tran[i].refId == refId && atomic_load_32(&transInstCache.tran[i].remove) == 0) {
       *pTrans = transInstCache.tran[i].pTrans;
-      atomic_fetch_add_32(&transInstCache.tran[i].ref, 1);
+      int32_t _ret = atomic_fetch_add_32(&transInstCache.tran[i].ref, 1);
       tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", transInstCache.tran[i].pTrans, refId,
              atomic_load_32(&transInstCache.tran[i].ref));
       return 0;
@@ -88,7 +88,7 @@ void transCacheRemoveByRefId(int64_t refId) {
 void transCacheReleaseByRefId(int64_t refId) {
   for (int32_t i = 0; i < transInstCache.num; i++) {
     if (transInstCache.tran[i].refId == refId) {
-      atomic_sub_fetch_32(&transInstCache.tran[i].ref, 1);
+      int32_t _ret = atomic_sub_fetch_32(&transInstCache.tran[i].ref, 1);
       tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", transInstCache.tran[i].pTrans, refId,
              atomic_load_32(&transInstCache.tran[i].ref));
       return;
