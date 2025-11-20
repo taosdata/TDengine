@@ -939,6 +939,7 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
 
   // clear the existed group id
   pBlock->info.id.groupId = 0;
+  pBlock->info.id.baseGId = 0;
   if (!pbInfo->mergeResultBlock) {
     doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
                        false, getMinWindowSize(pOperator));
@@ -952,10 +953,12 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
 
       // clearing group id to continue to merge data that belong to different groups
       pBlock->info.id.groupId = 0;
+      pBlock->info.id.baseGId = 0;
     }
 
     // clear the group id info in SSDataBlock, since the client does not need it
     pBlock->info.id.groupId = 0;
+    pBlock->info.id.baseGId = 0;
   }
 }
 

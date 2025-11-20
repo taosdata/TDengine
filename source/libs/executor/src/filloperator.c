@@ -154,6 +154,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   }
 
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
+  pInfo->pRes->info.id.baseGId = pBlock->info.id.baseGId;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

@@ -989,7 +989,8 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
 
     if (pBlock->info.id.uid) {
-      pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+      code = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid, &pBlock->info.id.groupId, &pBlock->info.id.baseGId);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     uint32_t status = 0;
@@ -2056,10 +2057,12 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
   if (!isVtableSourceScan) {
-    pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+    code = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid, &pBlockInfo->id.groupId, &pBlockInfo->id.baseGId);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     // use original table uid as groupId for vtable
     pBlockInfo->id.groupId = pBlock->info.id.groupId;
+    pBlockInfo->id.baseGId = pBlock->info.id.baseGId;
   }
 
   SArray* pColList = taosArrayInit(4, sizeof(int32_t));
@@ -3620,8 +3623,10 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
   }
 
   if (*pSubTableHasBlock) {
-    pInput->pReaderBlock->info.id.groupId =
-        tableListGetTableGroupId(pInfo->base.pTableListInfo, pInput->pReaderBlock->info.id.uid);
+    code = tableListGetTableGroupId(pInfo->base.pTableListInfo, pInput->pReaderBlock->info.id.uid, &pInput->pReaderBlock->info.id.groupId, &pInput->pReaderBlock->info.id.baseGId);
+    if (code != 0) {
+      return code;
+    }
     pOperator->resultInfo.totalRows += pInput->pReaderBlock->info.rows;
   }
   if (!pInput->bInMemReader || !*pSubTableHasBlock) {
@@ -4217,7 +4222,10 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
       if (bSkipped) continue;
     }
 
-    pBlock->info.id.groupId = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid);
+    code = tableListGetTableGroupId(pInfo->base.pTableListInfo, pBlock->info.id.uid, &pBlock->info.id.groupId, &pBlock->info.id.baseGId);
+    if (code != 0) {
+      return code;
+    }
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;

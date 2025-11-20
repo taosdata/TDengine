@@ -2015,9 +2015,19 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     SSTriggerCalcParam* pLast = NULL;
     
     if (req->pStRtFuncInfo->isMultiGroupCalc) {
+      int32_t grpNum = taosArrayGetSize(req->pStRtFuncInfo->curGrpRead);
       SSTriggerGroupReadInfo* pGrp = taosArrayGet(req->pStRtFuncInfo->curGrpRead, 0);
       pFirst = &pGrp->firstParam;
       pLast = &pGrp->lastParam;
+      for (int32_t i = 1; i < grpNum; ++i) {
+        pGrp = taosArrayGet(req->pStRtFuncInfo->curGrpRead, i);
+        if (pFirst->wstart > pGrp->firstParam.wstart) {
+          pFirst = &pGrp->firstParam;
+        }
+        if (pLast->wend < pGrp->lastParam.wend) {
+          pLast = &pGrp->lastParam;
+        }
+      }
     } else {
       pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
       pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);

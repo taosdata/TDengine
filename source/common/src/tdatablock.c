@@ -1593,6 +1593,7 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
   SDataBlockInfo* pInfo = &pDataBlock->info;
   pInfo->id.uid = 0;
   pInfo->id.groupId = 0;
+  pInfo->id.baseGId = 0;
 }
 
 void blockDataEmpty(SSDataBlock* pDataBlock) {
@@ -1648,6 +1649,7 @@ void blockDataReset(SSDataBlock* pDataBlock) {
   pInfo->window.skey = 0;
   pInfo->id.uid = 0;
   pInfo->id.groupId = 0;
+  pInfo->id.baseGId = 0;
 }
 
 /*

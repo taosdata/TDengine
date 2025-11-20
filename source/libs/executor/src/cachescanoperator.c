@@ -315,7 +315,9 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                                     pTaskInfo, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      pRes->info.id.groupId = tableListGetTableGroupId(pTableList, pRes->info.id.uid);
+      code = tableListGetTableGroupId(pTableList, pRes->info.id.uid, &pRes->info.id.groupId, &pRes->info.id.baseGId);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       (*ppRes) = pRes;
       return code;
     } else {
