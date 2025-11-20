@@ -3036,8 +3036,9 @@ static int32_t mndAddAlterVgroupElectionBaselineActionToTrans(SMnode *pMnode, SV
 
   for(int32_t i = 0; i < 3; i++){
     if(i == index%3){
-    TAOS_CHECK_RETURN(
-        mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup, pVgroup->vnodeGid[i].dnodeId, 1500));
+      mInfo("trans:%d, balance leader to dnode:%d", pTrans->id, pVgroup->vnodeGid[i].dnodeId);
+      TAOS_CHECK_RETURN(mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup,
+                                                                      pVgroup->vnodeGid[i].dnodeId, 1500));
     }
     else{
     TAOS_CHECK_RETURN(
