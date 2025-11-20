@@ -20,6 +20,7 @@ import yaml
 
 from scene import Scene
 from util import *
+from outLog import log
 
 VERSION = "1.0.0"
 
@@ -162,14 +163,14 @@ class CmdLine:
     
     def show_config(self):
         """Print current configuration"""
-        print("\n=== Current Configuration ===")
-        print(f"Config File:    {self.args.config or 'Built-in default'}")
-        print(f"Data File:      {self.args.data or 'Built-in default'}")
-        print(f"Log Output:     {self.args.log_output}")
-        print(f"JSON Output:    {self.args.json_output}")
-        print(f"Scenario:       {self.args.scenario or 'All scenarios'}")
-        print(f"Parallelism:    {self.args.parallelism}")
-        print("============================\n")
+        log.out("\n=== Current Configuration ===")
+        log.out(f"Config File:    {self.args.config or 'Built-in default'}")
+        log.out(f"Data File:      {self.args.data or 'Built-in default'}")
+        log.out(f"Log Output:     {self.args.log_output}")
+        log.out(f"JSON Output:    {self.args.json_output}")
+        log.out(f"Scenario:       {self.args.scenario or 'All scenarios'}")
+        log.out(f"Parallelism:    {self.args.parallelism}")
+        log.out("============================\n")
 
 
     def case_to_scene_obj(self, case):
@@ -181,29 +182,29 @@ class CmdLine:
 
     def load_cases_yaml(self, yaml_file):
         try:
-            print(f"Loading YAML file: {yaml_file}")
+            log.out(f"Loading YAML file: {yaml_file}")
             with open(yaml_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
             
             # Print formatted test cases
             '''
-            print("\n=== Test Cases ===")
+            log.out("\n=== Test Cases ===")
             if 'testCases' in data:
                 for i, case in enumerate(data['testCases'], 1):
-                    print(f"\n--- Test Case {i} ---")
-                    print(f"Scenario ID:     {case.get('scenarioId', 'N/A')}")
-                    print(f"Classification:  {case.get('classfication', 'N/A')}")
-                    print(f"Description:     {case.get('description', 'N/A')}")
-                    print(f"SQL:\n{case.get('sql', 'N/A')}")
-                    print("-" * 50)
+                    log.out(f"\n--- Test Case {i} ---")
+                    log.out(f"Scenario ID:     {case.get('scenarioId', 'N/A')}")
+                    log.out(f"Classification:  {case.get('classfication', 'N/A')}")
+                    log.out(f"Description:     {case.get('description', 'N/A')}")
+                    log.out(f"SQL:\n{case.get('sql', 'N/A')}")
+                    log.out("-" * 50)
             '''
             return data
             
         except FileNotFoundError:
-            print(f"Error: File not found: {yaml_file}")
+            log.out(f"Error: File not found: {yaml_file}")
             return None
         except yaml.YAMLError as e:
-            print(f"Error parsing YAML: {e}")
+            log.out(f"Error parsing YAML: {e}")
             return None
             
             
@@ -234,7 +235,7 @@ class CmdLine:
         args_timeout = self.args.timeout
         if args_timeout is not None:
             self.timeout = args_timeout
-        print(f"Set timeout to {self.timeout} seconds")    
+        log.out(f"Set timeout to {self.timeout} seconds")    
 
         # init file name
         self.cases_yaml = os.path.join(self.config_path, 'cases.yaml')        
@@ -258,7 +259,7 @@ class CmdLine:
                 if case.get('scenarioId', '') == scenario:
                     scene_obj = self.case_to_scene_obj(case)
                     return [scene_obj]
-            print(f"Error: Scenario '{scenario}' not found in configuration.")
+            log.out(f"Error: Scenario '{scenario}' not found in configuration.")
             sys.exit(1)
 
 # Global instance

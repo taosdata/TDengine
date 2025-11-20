@@ -16,6 +16,7 @@
 import os
 import sys
 import time
+from outLog import log
 
 class OutMetrics:
     def __init__(self):
@@ -33,7 +34,7 @@ class OutMetrics:
         self.status      = {}
     
     def init_metrics(self, metrics_file):
-        print("Initializing metrics output")
+        log.out("Initializing metrics output")
         self.metrics_file = metrics_file
     
     def set_status(self,name, status):
@@ -65,19 +66,19 @@ class OutMetrics:
         self.write_log(f"Total execution time: {total_cost:.3f} seconds")
         
     def add_data_rows(self, name, rows):
-        print(f"Total data rows written for '{name}': {rows}")
+        log.out(f"Total data rows written for '{name}': {rows}")
         if self.data_rows[name] is None:
             self.data_rows[name] = rows
         else:
             self.data_rows[name] += rows
     
     def write_log(self, msg):
-        print(msg)
+        log.out(msg)
         with open(self.metrics_file, 'a') as f:
             f.write(msg + '\n')        
 
     def output_metrics(self):
-        print(f"Outputting metrics to {self.metrics_file}")
+        log.out(f"Outputting metrics to {self.metrics_file}")
         
         # Column widths
         col_widths = {
@@ -155,5 +156,8 @@ class OutMetrics:
                 f"| {status:<{col_widths['status']}} |"
             )
             self.write_log(row)
+        
+        # End
+        log.out("Metrics output complete. record file: %s" % self.metrics_file)
         
 metrics = OutMetrics()

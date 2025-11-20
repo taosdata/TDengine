@@ -32,6 +32,7 @@ from outLog import log
 from outMetrics import metrics
 from deployCluster import cluster
 from cmdLine import cmd
+from outLog import log
 
 
 

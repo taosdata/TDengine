@@ -15,20 +15,24 @@
 
 import os
 import sys
+import time
 
 
 class OutLog:
     def __init__(self):
-        pass
+        self.log_file = "tsbs_tdengine.log"
 
     def init_log(self, log_file):
         self.log_file = log_file
 
-    def log(self, message):
-        print(f"LOG: {message}")
+    def out(self, message):
+        print(message)
+        # write to log file
+        with open(self.log_file, 'a') as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {message}\n")  
 
     def close(self):
-        print("Closing log file")
+        print("Log file is : %s \n\n" % self.log_file)
         
         
 log = OutLog()

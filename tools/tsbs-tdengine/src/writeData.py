@@ -23,6 +23,7 @@ from tdengine import *
 from baseStep import BaseStep
 from outMetrics import metrics
 from cmdLine import cmd
+from outLog import log
 
 class WriteData(BaseStep):
     def __init__(self, scene):
@@ -31,11 +32,11 @@ class WriteData(BaseStep):
 
     def taosx_import_csv(sef, desc, source, parser_file, batch_size):
         command = f"taosx run -t '{desc}' -f '{source}?batch_size={batch_size}' --parser '@{parser_file}'"
-        print(f"Executing command: {command}")
+        log.out(f"Executing command: {command}")
         output, error, code = util.exe_cmd(command)
-        print(f"Output: {output}")
-        print(f"Error: {error}")
-        print(f"Return code: {code}")
+        log.out(f"Output: {output}")
+        log.out(f"Error: {error}")
+        log.out(f"Return code: {code}")
     
         return output, error, code
     
@@ -50,31 +51,31 @@ class WriteData(BaseStep):
                     if case.get('scenarioId') == scenario_id:
                         query_sql = case.get('querySql')
                         data_rows = case.get('dataRows')
-                        print(f"Found data info for scenario '{scenario_id}':")
-                        print(f"  Query SQL: {query_sql}")
-                        print(f"  data Rows: {data_rows}")
+                        log.out(f"Found data info for scenario '{scenario_id}':")
+                        log.out(f"  Query SQL: {query_sql}")
+                        log.out(f"  data Rows: {data_rows}")
                         return query_sql, data_rows
                 
                 # If no matching scenario found
-                print(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
+                log.out(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
                 return None, None
                 
         except FileNotFoundError:
-            print(f"YAML file not found: {yaml_file}")
+            log.out(f"YAML file not found: {yaml_file}")
             return None, None
         except yaml.YAMLError as e:
-            print(f"Error parsing YAML file: {e}")
+            log.out(f"Error parsing YAML file: {e}")
             return None, None
         except Exception as e:
-            print(f"Error reading verify info: {e}")
+            log.out(f"Error reading verify info: {e}")
             return None, None    
 
     def run(self):
-        print("WriteData step executed")
+        log.out("WriteData step executed")
         metrics.start_write(self.scene.name)
         for table in self.scene.tables:
             csv_file = self.scene.get_csv_file(table)
-            print(f"Writing data from CSV file: {csv_file}")
+            log.out(f"Writing data from CSV file: {csv_file}")
             output, error, code = self.taosx_import_csv (
                 desc = self.des_url + self.scene.db_name[table],
                 source = f"csv:" + csv_file,
@@ -89,16 +90,16 @@ class WriteData(BaseStep):
             yaml_file = self.scene.get_yaml_file(table)
             querySql, dataRows = self.read_data_info(self.scene.name, yaml_file)
             if querySql == None or dataRows == None:
-                print(f"data sql is none, skipping  {yaml_file}")
+                log.out(f"data sql is none, skipping  {yaml_file}")
                 metrics.status[self.scene.name] = "Failed"                
                 continue
             realRows = db_first_value(querySql)
             # set data rows metric
             metrics.add_data_rows(self.scene.name, realRows)
             if realRows == dataRows:
-                print(f"data write completed. real rows: {realRows}, expect rows: {dataRows}")
+                log.out(f"data write completed. real rows: {realRows}, expect rows: {dataRows}")
             else:
-                print(f"data write error. real rows: {realRows}, expect rows: {dataRows}")
+                log.out(f"data write error. real rows: {realRows}, expect rows: {dataRows}")
                 metrics.set_status(self.scene.name, "Failed")
                 return False
         

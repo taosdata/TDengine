@@ -15,6 +15,7 @@
 
 import os
 import sys
+from outLog import log
 
 
 class Scene:
@@ -55,7 +56,7 @@ class Scene:
                 if table not in tables:
                     tables.append(table)
 
-        print(f"Found tables : {tables} scene:{self.name}")
+        log.out(f"Found tables : {tables} scene:{self.name}")
         return tables 
 
     def get_csv_file(self, table):
