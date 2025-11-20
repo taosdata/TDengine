@@ -15894,26 +15894,30 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
   int32_t     code = TSDB_CODE_SUCCESS;
 
   if (objType < OBJ_TYPE_DB || objType >= OBJ_TYPE_MAX) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid object type for privilege");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid object type for privileges");
   }
 
   if (pStmt->objName[0] == '\0') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Object name cannot be empty for privilege");
+                                   "Target name cannot be empty for non-system privileges");
   }
-  // * or *.* means all objects
-  if (strncmp(pStmt->objName, "*", 2) == 0 && (pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0)) {
-    return TSDB_CODE_SUCCESS;
+
+  if (strncmp(pStmt->objName, "*", 2) == 0) {
+    if ((pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
+  }
+
+  if (IS_SYS_DBNAME(pStmt->objName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "Cannot grant/revoke privileges on system database");
   }
 
   switch (objType) {
     case OBJ_TYPE_NODE:
       break;
     case OBJ_TYPE_DB: {
-      if (pStmt->objName[0] == '\0') {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Database name cannot be empty for database level privilege");
-      }
       if (pStmt->tabName[0] != '\0') {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name should be empty for database level privilege");
@@ -15935,13 +15939,15 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
         STableMeta* pTableMeta = NULL;
         toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
         code = getTargetMeta(pCxt, &name, &pTableMeta, true);
-        req.targetType = OBJ_TYPE_TABLE;
         if (TSDB_CODE_SUCCESS != code) {
           if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
             return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
           }
-        } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
-          req.targetType = OBJ_TYPE_VIEW;
+        }
+        if (((OBJ_TYPE_TABLE == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
+            ((OBJ_TYPE_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
+          taosMemoryFree(pTableMeta);
+          TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
         }
         taosMemoryFree(pTableMeta);
       }
