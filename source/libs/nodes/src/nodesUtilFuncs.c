@@ -1445,10 +1445,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_EXTERNAL_WINDOW: {
       SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
-      nodesDestroyList(pExternal->pAggFuncList);
-      nodesDestroyList(pExternal->pProjectionList);
-      nodesDestroyNode(pExternal->pTimeRange);
-      taosMemoryFreeClear(pExternal->timezone);
+      nodesDestroyNode(pExternal->pCol);
+      break;
     }
     case QUERY_NODE_HINT: {
       SHintNode* pHint = (SHintNode*)pNode;
@@ -1498,6 +1496,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
       nodesDestroyNode(pStmt->pWindow);
+      nodesDestroyNode(pStmt->pExtWindow);
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
       nodesDestroyNode(pStmt->pRange);

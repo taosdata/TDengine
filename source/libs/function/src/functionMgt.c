@@ -735,6 +735,17 @@ bool fmIsGroupIdFunc(int32_t funcId) {
 }
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TGRPID:
+      return &pStreamRuntimeFuncInfo->groupId;
+    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    default:
+      break;
+  }
+
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
   switch (funcMgtBuiltins[funcId].type) {
     case FUNCTION_TYPE_TPREV_TS:
@@ -757,12 +768,6 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->triggerTime;
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
       return &pParams->nextLocalTime;
-    case FUNCTION_TYPE_TGRPID:
-      return &pStreamRuntimeFuncInfo->groupId;
-    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
-    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
     default:
       break;
   }

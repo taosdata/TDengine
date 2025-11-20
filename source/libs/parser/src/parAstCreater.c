@@ -1740,6 +1740,19 @@ _err:
   return NULL;
 }
 
+SNode* createExternalWindowNode(SAstCreateContext* pCxt) {
+  SExternalWindowNode* external = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&external);
+  CHECK_MAKE_NODE(external);
+  external->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(external->pCol);
+  return (SNode*)external;
+_err:
+  nodesDestroyNode((SNode*)external);
+  return NULL;
+}
+
 SNode* createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset) {
   SPeriodWindowNode* pPeriod = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -2083,6 +2096,8 @@ SNode* addWindowClauseClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWind
   CHECK_PARSER_STATUS(pCxt);
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pWindow = pWindow;
+    ((SSelectStmt*)pStmt)->pExtWindow = createExternalWindowNode(pCxt);
+    CHECK_MAKE_NODE(((SSelectStmt*)pStmt)->pExtWindow);
   }
   return pStmt;
 _err:

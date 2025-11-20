@@ -11216,7 +11216,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
   return 0;
 }
 
-int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bool needStreamPesudoFuncVals) {
+int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bool needStreamRtInfo, bool needStreamGrpInfo) {
   int32_t code = 0;
   int32_t lino;
   int32_t headLen = sizeof(SMsgHead);
@@ -11242,7 +11242,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
   if (pReq->pStRtFuncInfo) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
-    TAOS_CHECK_EXIT(tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, pReq->reset && needStreamPesudoFuncVals));
+    TAOS_CHECK_EXIT(tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, pReq->reset && needStreamRtInfo, pReq->reset && needStreamGrpInfo));
   } else {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
   }
@@ -11307,7 +11307,6 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
     TAOS_CHECK_ERRNO(tDecodeI32(&decoder, &hasStRtFuncInfo));
     if (hasStRtFuncInfo > 0) {
       pReq->pStRtFuncInfo = taosMemoryCalloc(1, sizeof(SStreamRuntimeFuncInfo));
-      ;
       if (NULL == pReq->pStRtFuncInfo) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -12570,6 +12569,7 @@ int tEncodeSVCreateTbRsp(SEncoder *pCoder, const SVCreateTbRsp *pRsp) {
   if (pRsp->pMeta) {
     TAOS_CHECK_RETURN(tEncodeSTableMetaRsp(pCoder, pRsp->pMeta));
   }
+  TAOS_CHECK_RETURN(tEncodeI32(pCoder, pRsp->index));
 
   tEndEncode(pCoder);
   return 0;
@@ -12591,6 +12591,7 @@ int tDecodeSVCreateTbRsp(SDecoder *pCoder, SVCreateTbRsp *pRsp) {
   } else {
     pRsp->pMeta = NULL;
   }
+  TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pRsp->index));
 
   tEndDecode(pCoder);
   return 0;

@@ -1306,7 +1306,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     SColIdNameKV* kv = taosArrayGet(pParam->pOrgTbInfo->colMap, i);
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
-        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(j + 1)};
+        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(schema->pSchema[j].colId)};
         QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
         break;
       }
@@ -1784,17 +1784,15 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
-  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
 
+  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
-  if (!pTableScanNode->scan.node.dynamicOp) {
-    code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                    &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
-                                    pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
-    if (code) {
-      qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
-      return code;
-    }
+  code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                  &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                  pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+  if (code) {
+    qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
+    return code;
   }
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);

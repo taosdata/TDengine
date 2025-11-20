@@ -7931,6 +7931,33 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateExtWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pExtWindow || !inStreamCalcClause(pCxt)) {
+    nodesDestroyNode(pSelect->pExtWindow);
+    pSelect->pExtWindow = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pSelect->pFromTable) {
+    if (nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
+        nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE) {
+      nodesDestroyNode(pSelect->pExtWindow);
+      pSelect->pExtWindow = NULL;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+        ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType == TSDB_SYSTEM_TABLE) {
+      nodesDestroyNode(pSelect->pExtWindow);
+      pSelect->pExtWindow = NULL;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  int32_t code = 0;
+  pCxt->currClause = SQL_CLAUSE_EXT_WINDOW;
+  code = translateExpr(pCxt, &pSelect->pExtWindow);
+  return code;
+}
+
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -9335,6 +9362,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExtWindow(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateWindow(pCxt, pSelect);
@@ -14439,7 +14469,7 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   SScanPhysiNode*     pScanNode = NULL;
   SNode*              pNode = NULL;
   SDataBlockDescNode* pScanTuple = NULL;
-  SPlanContext        cxt = {.pAstRoot = (SNode*)pTriggerSelect, .streamTriggerQuery = true};
+  SPlanContext        cxt = {.pAstRoot = (SNode*)pTriggerSelect, .streamCxt.isTrigger = true};
   SNode*              pTriggerFilter = NULL;
 
   SNodeList*          pTriggerCols = NULL;
@@ -14451,10 +14481,10 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   int32_t             pFilterColsLen = 0;
 
   PAR_ERR_JRET(qCreateQueryPlan(&cxt, &pTriggerPlan, NULL));
-  if (!cxt.streamTriggerScanSubplan) {
+  if (!cxt.streamCxt.triggerScanSubplan) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Trigger query scan subplan is NULL"));
   }
-  pScanNode = (SScanPhysiNode*)((SSubplan*)cxt.streamTriggerScanSubplan)->pNode;
+  pScanNode = (SScanPhysiNode*)((SSubplan*)cxt.streamCxt.triggerScanSubplan)->pNode;
   pScanTuple = (pScanNode->node.pOutputDataBlockDesc);
 
   PAR_ERR_JRET(nodesCloneNode(pScanNode->node.pConditions, &pTriggerFilter));
@@ -14496,7 +14526,7 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   // collect filter cols and set slot id
   PAR_ERR_JRET(createStreamSetNodeSlotId(pTriggerFilter, *pTriggerSlotHash, pFilterCols));
 
-  PAR_ERR_JRET(nodesNodeToString(cxt.streamTriggerScanSubplan, false, (char**)&pReq->triggerScanPlan, NULL));
+  PAR_ERR_JRET(nodesNodeToString(cxt.streamCxt.triggerScanSubplan, false, (char**)&pReq->triggerScanPlan, NULL));
   PAR_ERR_JRET(nodesListToString(pTriggerCols, false, (char**)&pReq->triggerCols, &pTriggerColsLen));
   PAR_ERR_JRET(nodesListToString(pFilterCols, false, (char**)&pReq->triggerFilterCols, &pFilterColsLen));
   if (pTriggerPartition) {
@@ -15333,6 +15363,177 @@ _return:
   return code;
 }
 
+typedef struct collectTagPlaceHolderContext {
+  int32_t    errCode;
+  SNodeList* pPartitionList;
+  SHashObj*  pTagHash;
+} SCollectTagPlaceHolderContext;
+
+static EDealRes checkTagCond(SNode* pNode, void* pContext) {
+  int32_t                        code = 0;
+  int32_t                        line = 0;
+  SCollectTagPlaceHolderContext* pCxt = (SCollectTagPlaceHolderContext*)pContext;
+  if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pOper = (SOperatorNode *)pNode;
+    if (pOper->opType == OP_TYPE_EQUAL) {
+      if (nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && ((SColumnNode*)pOper->pLeft)->colType == COLUMN_TYPE_TAG) {
+        SColumnNode* pTag = (SColumnNode*)pOper->pLeft;
+        if (nodeType(pOper->pRight) == QUERY_NODE_FUNCTION) {
+          SFunctionNode* pFunc = (SFunctionNode*)pOper->pRight;
+          if (pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_COLUMN) {
+            SValueNode*  pIndex = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+            QUERY_CHECK_NULL(pIndex, code, line, _return, terrno)
+            int64_t      index = *(int64_t*)nodesGetValueFromNode(pIndex);
+            SColumnNode* pParTag = (SColumnNode*)nodesListGetNode(pCxt->pPartitionList, index - 1);
+            if (nodesEqualNode((SNode*)pTag, (SNode*)pParTag)) {
+              PAR_ERR_JRET(taosHashPut(pCxt->pTagHash, &index, sizeof(int64_t), NULL, 0));
+            }
+          }
+        }
+      }
+      if (isTbnameFuction(pOper->pLeft)) {
+        if (nodeType(pOper->pRight) == QUERY_NODE_FUNCTION) {
+          SFunctionNode* pFunc = (SFunctionNode*)pOper->pRight;
+          if (pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_COLUMN) {
+            SValueNode*  pIndex = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+            QUERY_CHECK_NULL(pIndex, code, line, _return, terrno)
+            int64_t      index = *(int64_t*)nodesGetValueFromNode(pIndex);
+            SNode*       pPar = nodesListGetNode(pCxt->pPartitionList, index - 1);
+            if (nodesEqualNode(pOper->pLeft, pPar)) {
+              PAR_ERR_JRET(taosHashPut(pCxt->pTagHash, &index, sizeof(int64_t), NULL, 0));
+            }
+          }
+          if (pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_TBNAME) {
+            SNode*  pTbname = NULL;
+            int64_t index = 0;
+            FOREACH(pTbname, pCxt->pPartitionList) {
+              // find tbname column
+              if (isTbnameFuction(pTbname)) {
+                PAR_ERR_JRET(taosHashPut(pCxt->pTagHash, &index, sizeof(int64_t), NULL, 0));
+                break;
+              }
+              index++;
+            }
+          }
+        }
+      }
+      // check right
+      if (nodeType(pOper->pRight) == QUERY_NODE_COLUMN && ((SColumnNode*)pOper->pRight)->colType == COLUMN_TYPE_TAG) {
+        SColumnNode* pTag = (SColumnNode*)pOper->pRight;
+        if (nodeType(pOper->pLeft) == QUERY_NODE_FUNCTION) {
+          SFunctionNode* pFunc = (SFunctionNode*)pOper->pLeft;
+          if (pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_COLUMN) {
+              SValueNode*  pIndex = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+              QUERY_CHECK_NULL(pIndex, code, line, _return, terrno)
+              int64_t      index = *(int64_t*)nodesGetValueFromNode(pIndex);
+              SColumnNode* pParTag = (SColumnNode*)nodesListGetNode(pCxt->pPartitionList, index - 1);
+              if (nodesEqualNode((SNode*)pTag, (SNode*)pParTag)) {
+                PAR_ERR_JRET(taosHashPut(pCxt->pTagHash, &index, sizeof(int64_t), NULL, 0));
+              }
+          }
+        }
+    }
+      if (isTbnameFuction(pOper->pRight)) {
+        SColumnNode* pTag = (SColumnNode*)pOper->pLeft;
+        if (nodeType(pOper->pRight) == QUERY_NODE_FUNCTION) {
+          SFunctionNode* pFunc = (SFunctionNode*)pOper->pRight;
+          if (pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_COLUMN) {
+            SValueNode*  pIndex = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+            QUERY_CHECK_NULL(pIndex, code, line, _return, terrno)
+            int64_t      index = *(int64_t*)nodesGetValueFromNode(pIndex);
+            SColumnNode* pParTag = (SColumnNode*)nodesListGetNode(pCxt->pPartitionList, index - 1);
+            if (nodesEqualNode((SNode*)pTag, (SNode*)pParTag)) {
+              PAR_ERR_JRET(taosHashPut(pCxt->pTagHash, &index, sizeof(int64_t), NULL, 0));
+            }
+          }
+          if (pFunc->funcType == FUNCTION_TYPE_PLACEHOLDER_TBNAME) {
+            SNode*  pTbname = NULL;
+            int64_t index = 0;
+            FOREACH(pTbname, pCxt->pPartitionList) {
+              // find tbname column
+              if (isTbnameFuction(pTbname)) {
+                PAR_ERR_JRET(taosHashPut(pCxt->pTagHash, &index, sizeof(int64_t), NULL, 0));
+                break;
+              }
+              index++;
+            }
+          }
+        }
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+_return:
+  pCxt->errCode = code;
+  return DEAL_RES_ERROR;
+}
+
+static int32_t collectTagPlaceHolderCond(SNodeList* pTriggerPartition, SNode* pCond, bool* satisfy) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SCollectTagPlaceHolderContext cxt = {.pPartitionList = pTriggerPartition};
+  cxt.pTagHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (NULL == cxt.pTagHash) {
+    PAR_ERR_RET(terrno);
+  }
+  nodesWalkExpr(pCond, checkTagCond, &cxt);
+  if (cxt.errCode != TSDB_CODE_SUCCESS) {
+    PAR_ERR_JRET(cxt.errCode);
+  }
+  if (taosHashGetSize(cxt.pTagHash) == LIST_LENGTH(pTriggerPartition)) {
+    *satisfy = true;
+  } else {
+    *satisfy = false;
+  }
+
+_return:
+  taosHashCleanup(cxt.pTagHash);
+  return code;
+}
+
+typedef struct SConditionCheckContext {
+  bool    hasTag;
+} SConditionCheckContext;
+
+static EDealRes conditionHasTag(SNode* pNode, void* pContext) {
+  SConditionCheckContext* pCxt = (SConditionCheckContext*)pContext;
+  if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TAG) {
+    pCxt->hasTag = true;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t createStreamCheckMultiGroupCalc(STranslateContext* pCxt, SNodeList* pTriggerPartition,
+                                            SSelectStmt* pTriggerSelect, SSelectStmt* pCalcSelect, bool *satisfy) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SNode*   pCond = NULL;
+  SNode*   pOtherCond = NULL;
+
+  if (!pTriggerPartition) {
+    *satisfy = false;
+    return code;
+  }
+  if (strcmp(((STableNode*)pTriggerSelect->pFromTable)->dbName, ((STableNode*)pCalcSelect->pFromTable)->dbName) == 0 &&
+      strcmp(((STableNode*)pTriggerSelect->pFromTable)->tableName, ((STableNode*)pCalcSelect->pFromTable)->tableName) == 0) {
+    // same table
+    PAR_ERR_JRET(collectTagPlaceHolderCond(pTriggerPartition, pCalcSelect->pWhere, satisfy));
+  } else {
+    PAR_ERR_JRET(nodesCloneNode(pCalcSelect->pWhere, &pCond));
+    PAR_ERR_JRET(filterPartitionCond(&pCond, NULL, NULL, NULL, &pOtherCond));
+    SConditionCheckContext cxt = {.hasTag = false};
+    nodesWalkExpr(pOtherCond, conditionHasTag, &cxt);
+    *satisfy = !cxt.hasTag;
+  }
+
+_return:
+  if (code) {
+    parserError("%s failed, code:%d", __func__, code);
+  }
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pOtherCond);
+  return code;
+}
+
 static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
                                         SNodeList *pTriggerPartition, SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode* pNotifyCond,
                                         SCMCreateStreamReq* pReq) {
@@ -15341,6 +15542,8 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   SArray*      pVgArray = NULL;
   SHashObj*    pDbs = NULL;
   SNodeList*   pProjectionList = NULL;
+  bool         multiGroupCalc = false;
+  bool         fromPHTbname = false;
 
   parserDebug("translate create stream req start build calculate part, streamId:%"PRId64, pReq->streamId);
 
@@ -15356,6 +15559,14 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   }
 
   pCxt->streamInfo.calcDbs = pDbs;
+  if (nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
+    if (nodeType(((SSelectStmt*)pStmt->pQuery)->pFromTable) == QUERY_NODE_PLACE_HOLDER_TABLE) {
+      if (((SPlaceHolderTableNode*)((SSelectStmt*)pStmt->pQuery)->pFromTable)->placeholderType == SP_PARTITION_TBNAME) {
+        fromPHTbname = true;
+      }
+    }
+  }
+
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow));
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
@@ -15380,28 +15591,45 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   SQuery pQuery = {.pRoot = pStmt->pQuery};
   PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 
+  if (!BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
+    if (fromPHTbname) {
+      multiGroupCalc = true;
+    } else {
+      PAR_ERR_JRET(createStreamCheckMultiGroupCalc(pCxt, pTriggerPartition, pTriggerSelect, (SSelectStmt*)pStmt->pQuery, &multiGroupCalc));
+    }
+  }
+
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
                           .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,
                           .pAstRoot = pStmt->pQuery,
-                          .streamCalcQuery = true,
-                          .streamTriggerWinType = nodeType(pTriggerWindow),
-                          .pStreamCalcVgArray = pVgArray,
-                          .streamTriggerScanList = NULL};
+                          .streamCxt.isCalc = true,
+                          .streamCxt.hasExtWindow = false,
+                          .streamCxt.triggerWinType = nodeType(pTriggerWindow),
+                          .streamCxt.calcVgArray = pVgArray,
+                          .streamCxt.triggerScanList = NULL,
+                          .streamCxt.hasNotify = taosArrayGetSize(pReq->pNotifyAddrUrls) == 0 ? false : true,
+                          .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) == 0 ? false : true};
 
   if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
     SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
     if (!pIntervalWindow->pInterval) {
-      calcCxt.streamTriggerWinType = QUERY_NODE_SLIDING_WINDOW;
+      calcCxt.streamCxt.triggerWinType = QUERY_NODE_SLIDING_WINDOW;
     }
   }
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
-  pReq->vtableCalc = (int8_t)calcCxt.streamVtableCalc;
+  pReq->vtableCalc = (int8_t)calcCxt.streamCxt.isVtableCalc;
+
+  if (multiGroupCalc && calcCxt.streamCxt.hasExtWindow) {
+    pReq->enableMultiGroupCalc = 1;
+  } else {
+    pReq->enableMultiGroupCalc = 0;
+  }
 
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
-      LIST_LENGTH(calcCxt.streamTriggerScanList) > 0) {
+      LIST_LENGTH(calcCxt.streamCxt.triggerScanList) > 0) {
     // need collect scan cols and put into trigger's scan list
-    PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, calcCxt.streamTriggerScanList));
+    PAR_ERR_JRET(nodesListAppendList(pTriggerSelect->pProjectionList, calcCxt.streamCxt.triggerScanList));
     SNode *pCol = NULL;
     FOREACH(pCol, pTriggerSelect->pProjectionList) {
       if (nodeType(pCol) == QUERY_NODE_COLUMN) {

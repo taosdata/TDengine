@@ -340,9 +340,11 @@ typedef struct SStreamTriggerTask {
   bool    lowLatencyCalc;
   bool    hasPartitionBy;
   bool    isVirtualTable;
-  bool    isStbPartitionByTag;
+  bool    isSuperTable;
+  bool    stbPartByTbname;
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
+  bool    multiGroupBatch;
   int8_t  precision;
   int64_t historyStep;
   int64_t placeHolderBitmap;
@@ -417,6 +419,8 @@ typedef struct SStreamTriggerTask {
 int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
                                     SSTriggerCalcRequest **ppRequest);
 int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest);
+int32_t stTriggerTaskCheckCreate(SStreamTriggerTask *pTask, SSTriggerCalcRequest *pRequest, int64_t sessionId,
+                                 int64_t gid);
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                       STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory,

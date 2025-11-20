@@ -275,7 +275,7 @@ nohup python timesfm-server.py > service_output.out 2>&1 &
 
 ```shell
 pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
-pip install transformers=4.33.3
+pip install transformers==4.33.3
 pip install numpy==1.25.2
 pip install matplotlib
 pip install pandas==1.5

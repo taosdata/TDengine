@@ -90,6 +90,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
   }
 
   SSourceDataInfo* pDataInfo = NULL;
+  SStreamRuntimeFuncInfo* pStream = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
 
   while (1) {
     if (pExchangeInfo->current < 0) {
@@ -126,6 +127,27 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     if (pDataInfo->status == EX_SOURCE_DATA_EXHAUSTED) {
       pExchangeInfo->current++;
       continue;
+    }
+
+    if (!IS_STREAM_SINGLE_GRP(pTaskInfo) && pStream->pGroupReadInfos) {
+      SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
+      if (!pDataInfo) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        pTaskInfo->code = terrno;
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      }
+
+      if (pSource->fetchMsgType == TDMT_STREAM_FETCH) {
+        SArray** ppNode = tSimpleHashGet(pStream->pGroupReadInfos, &pSource->addr.nodeId, sizeof(pSource->addr.nodeId));
+        if (NULL == ppNode) {
+          pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
+          pExchangeInfo->current++;
+          continue;
+        }
+
+        pStream->curNodeId = pSource->addr.nodeId;
+        pStream->curGrpRead = *ppNode;
+      }
     }
 
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
@@ -392,7 +414,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
     }
     return p;
   } else {
-    if (pExchangeInfo->seqLoadData) {
+    if (pExchangeInfo->seqLoadData && (IS_NON_STREAM_MODE(pTaskInfo) || IS_STREAM_SINGLE_GRP(pTaskInfo))) {
       code = seqLoadRemoteData(pOperator);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1026,7 +1048,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
-    bool needStreamPesudoFuncVals = true;
+    bool needStreamRtInfo = true;
+    bool needStreamGrpInfo = false;
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
     req.sId = pSource->sId;
@@ -1044,11 +1067,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
         code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);
         QUERY_CHECK_CODE(code, lino, _end);
-        needStreamPesudoFuncVals = false;
+        needStreamRtInfo = false;
         qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
                GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
                req.pStRtFuncInfo->curWindow.ekey);
+      } else {
+        needStreamGrpInfo = true;
       }
+      
       if (!pDataInfo->fetchSent) {
         req.reset = pDataInfo->fetchSent = true;
       }
@@ -1086,7 +1112,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
     }
 
-    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals);
+    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamRtInfo, needStreamGrpInfo);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
@@ -1102,7 +1128,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       return pTaskInfo->code;
     }
 
-    msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals);
+    msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamRtInfo, needStreamGrpInfo);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);

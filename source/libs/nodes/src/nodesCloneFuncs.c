@@ -736,6 +736,9 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_LIST_FIELD(pProjs);
   COPY_SCALAR_FIELD(isSingleTable);
   COPY_SCALAR_FIELD(inputHasOrder);
+  COPY_SCALAR_FIELD(needGroupSort);
+  COPY_SCALAR_FIELD(extWinSplit);
+  COPY_SCALAR_FIELD(calcWithPartition);
   COPY_SCALAR_FIELD(extendOption);
   return TSDB_CODE_SUCCESS;
 }
@@ -822,6 +825,7 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
   COPY_SCALAR_FIELD(vtbScan.scanAllCols);
   COPY_SCALAR_FIELD(vtbScan.isSuperTable);
+  COPY_SCALAR_FIELD(vtbScan.useTagScan);
   COPY_SCALAR_FIELD(vtbScan.rversion);
   COPY_SCALAR_FIELD(vtbScan.suid);
   COPY_SCALAR_FIELD(vtbScan.uid);

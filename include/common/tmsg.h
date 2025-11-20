@@ -3447,7 +3447,7 @@ typedef struct {
   // used for new-stream
 } SResFetchReq;
 
-int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq, bool needStreamPesudoFuncVals);
+int32_t tSerializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeSResFetchReq(void* buf, int32_t bufLen, SResFetchReq* pReq);
 void    tDestroySResFetchReq(SResFetchReq* pReq);
 typedef struct {
@@ -3905,6 +3905,7 @@ void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq);
 
 typedef struct {
   int32_t        code;
+  int32_t        index;  // index in batch req, start from 0
   STableMetaRsp* pMeta;
 } SVCreateTbRsp, SVUpdateTbRsp;
 

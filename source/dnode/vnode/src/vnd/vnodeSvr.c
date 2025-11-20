@@ -2239,16 +2239,18 @@ _exit:
   return code;
 }
 
-static int32_t buildExistTableInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
+static int32_t buildExistTableInStreamRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, SVCreateTbRsp *pCreateTbRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pSubmitTbData->pCreateTbReq->flags & TD_CREATE_NORMAL_TB_IN_STREAM) {
-    int32_t code = buildExistNormalTalbeRsp(pVnode, pSubmitTbData->uid, ppRsp);
+    code = buildExistNormalTalbeRsp(pVnode, pSubmitTbData->uid, &pCreateTbRsp->pMeta);
     if (code) {
       vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
       return code;
     }
-    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    pCreateTbRsp->code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    return TSDB_CODE_SUCCESS;
   } else if (pSubmitTbData->pCreateTbReq->flags & TD_CREATE_SUB_TB_IN_STREAM) {
-    return buildExistSubTalbeRsp(pVnode, pSubmitTbData, ppRsp);
+    return buildExistSubTalbeRsp(pVnode, pSubmitTbData, &pCreateTbRsp->pMeta);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2287,6 +2289,7 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
     vDebug("vgId:%d start to handle auto create table, version:%" PRId64, TD_VID(pVnode), version);
 
     SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pResponse->aCreateTbRsp, 1);
+    pCreateTbRsp->index = i;
     code = metaCreateTable2(pVnode->pMeta, version, pTbData->pCreateTbReq, &pCreateTbRsp->pMeta);
     if (code == TSDB_CODE_SUCCESS) {
       // Allocate necessary resources
@@ -2316,16 +2319,12 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
       pTbData->uid = pTbData->pCreateTbReq->uid;  // update uid if table exist for using below
 
       // stream: get sver from meta, write to pCreateTbRsp, and need to check crateTbReq is same as meta.
-      if (i == 0) {
-        // In the streaming scenario, multiple grouped req requests will only operate on the same write table, and
-        // only the first one needs to be processed.
-        code = buildExistTableInStreamRsp(pVnode, pTbData, &pCreateTbRsp->pMeta);
-        if (code) {
-          vInfo("vgId:%d failed to create table in stream:%s, code(0x%0x):%s", TD_VID(pVnode),
-                pTbData->pCreateTbReq->name, code, tstrerror(code));
-          taosArrayDestroy(newTbUids);
-          return code;
-        }
+      code = buildExistTableInStreamRsp(pVnode, pTbData, pCreateTbRsp);
+      if (code) {
+        vInfo("vgId:%d failed to create table in stream:%s, code(0x%0x):%s", TD_VID(pVnode),
+              pTbData->pCreateTbReq->name, code, tstrerror(code));
+        taosArrayDestroy(newTbUids);
+        return code;
       }
     } else {
       code = terrno;
@@ -2352,22 +2351,21 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
 }
 
 static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse,
-                                     SSubmitTbData *pTbData, int32_t numTbData) {
+                                     SSubmitTbData *pTbData, int32_t index) {
   int32_t code = 0;
   int32_t lino = 0;
   if ((pTbData->flags & SUBMIT_REQ_SCHEMA_RES) == 0) {
     return;
   }
-  if (pResponse->aCreateTbRsp) {  // If aSubmitTbData is not NULL, it means that the request is a create table request,
-                                  // so table info has exitst and we do not need to add again.
-    return;
-  }
-  pResponse->aCreateTbRsp = taosArrayInit(numTbData, sizeof(SVCreateTbRsp));
-  if (pResponse->aCreateTbRsp == NULL) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
+  if (!pResponse->aCreateTbRsp) {
+    pResponse->aCreateTbRsp = taosArrayInit(index, sizeof(SVCreateTbRsp));
+    if (pResponse->aCreateTbRsp == NULL) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
   SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pResponse->aCreateTbRsp, 1);
+  pCreateTbRsp->index = index;
   if (pCreateTbRsp == NULL) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -2438,7 +2436,7 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
 
     if (pTbData->sver != info.skmVer) {
       code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-      addExistTableInfoIntoRes(pVnode, pRequest, pResponse, pTbData, numTbData);
+      addExistTableInfoIntoRes(pVnode, pRequest, pResponse, pTbData, i);
       vDebug("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64
              " sver:%d"
              " info.skmVer:%d",

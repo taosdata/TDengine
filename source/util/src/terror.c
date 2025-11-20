@@ -848,6 +848,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND,     "Not supported join 
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_SLOT_NOT_FOUND,            "Planner slot key not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INVALID_TABLE_TYPE,        "Planner invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE,     "Planner invalid query control plan type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INVALID_WINDOW_TYPE,       "Planner invalid window type")
 
 //function
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_ERROR,            "Function internal error")
@@ -1037,6 +1038,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG,     "Stream output table
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table not created")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calculate need redeploy")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_JSON,        "Stream mnd invalid json message")
 
 #ifdef TAOS_ERROR_C
 };

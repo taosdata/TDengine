@@ -303,6 +303,10 @@ static bool stbSplHasMultiTbScan(SLogicNode* pNode) {
       return ((SScanLogicNode*)pChild)->needSplit;
     }
   }
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pChild) &&
+      ((SWindowLogicNode*)pChild)->winType == WINDOW_TYPE_EXTERNAL) {
+    return stbSplHasMultiTbScan((SLogicNode*)pChild);
+  }
   return false;
 }
 
@@ -587,8 +591,8 @@ static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode*
 
   int32_t index = 0;
   PLAN_ERR_JRET(stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, NULL, &pMergeWindow->pFuncs));
-  if (pCxt->pPlanCxt->streamCalcQuery) {
-    PLAN_ERR_JRET(stbSplAppendPlaceHolder(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision, pCxt->pPlanCxt->streamTriggerWinType));
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
+    PLAN_ERR_JRET(stbSplAppendPlaceHolder(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision, pCxt->pPlanCxt->streamCxt.triggerWinType));
   } else {
     PLAN_ERR_JRET(stbSplAppendWStart(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision));
   }
@@ -841,7 +845,20 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
 }
 
 static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  switch (((SWindowLogicNode*)pInfo->pSplitNode)->winType) {
+  SWindowLogicNode* pWin = (SWindowLogicNode*)pInfo->pSplitNode;
+  SNode*            pChild = nodesListGetNode(pWin->node.pChildren, 0);
+
+  if (pChild && nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_WINDOW &&
+      ((SWindowLogicNode*)pChild)->winType == WINDOW_TYPE_EXTERNAL) {
+    ((SWindowLogicNode*)pChild)->needGroupSort = true;
+  }
+
+  if (pWin->winType == WINDOW_TYPE_EXTERNAL) {
+    pWin->extWinSplit = true;
+    pWin->needGroupSort = pWin->calcWithPartition;
+  }
+
+  switch (pWin->winType) {
     case WINDOW_TYPE_INTERVAL:
     case WINDOW_TYPE_EXTERNAL:
       return stbSplSplitIntervalForBatch(pCxt, pInfo);
@@ -1604,7 +1621,7 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
   }
 
-  if (info.pSplitNode && !pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamCalcQuery) {
+  if (info.pSplitNode && !inStreamTriggerClause(pCxt->pPlanCxt) && !inStreamCalcClause(pCxt->pPlanCxt)) {
     info.pSplitNode->splitDone = true;
   }
   pCxt->split = true;
@@ -2081,7 +2098,7 @@ static bool streamScanFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan
 static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   int32_t                     code = TSDB_CODE_SUCCESS;
   SStreamScanSplitInfo info = {0};
-  if (!pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamCalcQuery) {
+  if (!inStreamCalcClause(pCxt->pPlanCxt) && !inStreamTriggerClause(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
   while (splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)streamScanFindSplitNode, &info)) {
