@@ -2,15 +2,15 @@ use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
 use taos::Dsn;
-use tokio_util::sync::CancellationToken;
-
-use crate::get_data_dir;
-use crate::{OpcType, opc_datasets_by_command, opc_datasets_by_csv};
-
 use taosx_core::runners::opc::config::collect::da::DaNodeConfig;
 use taosx_core::runners::opc::config::collect::ua::UANodeConfig;
 use taosx_core::runners::opc::config::points::UpdateMode;
 use taosx_core::runners::opc::config::{OPCConfig, PointsMode};
+use taosx_core::sink::point::csv::parse_csv_config_files;
+use tokio_util::sync::CancellationToken;
+
+use crate::get_data_dir;
+use crate::{OpcType, opc_datasets_by_command, opc_datasets_by_csv};
 
 use taosx_ipc::types::DataSet;
 
@@ -46,7 +46,7 @@ impl PointsUpdater {
 
         let update_by = match points_mode {
             PointsMode::ByCsv => {
-                let csv_config_files = OPCConfig::parse_csv_config_files(&origin_dsn).ok_or(
+                let csv_config_files = parse_csv_config_files(&origin_dsn).ok_or(
                     anyhow::anyhow!("csv config file not found in dsn: {:?}", origin_dsn),
                 )?;
                 let csv = csv_config_files.first().ok_or(anyhow::anyhow!(

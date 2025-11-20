@@ -13,9 +13,5 @@ fn main() {
         bindings
             .write_to_file(&bindings_path)
             .expect("Couldn't write bindings!");
-        println!("cargo:rustc-link-lib=KRTDBAPIx64");
-        let sdk_path = std::env::var("KINGHISTORIAN_SDK_PATH")
-            .unwrap_or_else(|_| "C:\\Program Files\\KingHistorian\\SDK\\C".to_string());
-        println!("cargo:rustc-link-search=native={}", sdk_path);
     }
 }

@@ -977,6 +977,16 @@ fn main() -> anyhow::Result<()> {
 
     tracing::info!("Start");
 
+    // Register KingHistorian datasets lister to avoid taosx-core <-> kinghistorian circular deps
+    // Safe to call once; subsequent calls are ignored by OnceLock
+    #[allow(clippy::redundant_closure)]
+    {
+        taosx_core::plugins::register_kinghist_datasets_lister(
+            source_kinghistorian::kinghist_datasets_lister,
+        );
+        tracing::info!("Registered KingHistorian datasets lister");
+    }
+
     // todo: arrow flight rpc client.
     let rt = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(4096)

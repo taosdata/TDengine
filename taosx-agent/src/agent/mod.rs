@@ -392,7 +392,7 @@ impl Client {
                         ("context", context),
                         ("req_id", req_id),
                     ]);
-                    tracing::info!("{item:?}");
+                    tracing::debug!("{item:?}");
                     item
                 }
                 RespAction::CheckOk(response) => {

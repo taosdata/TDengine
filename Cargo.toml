@@ -197,6 +197,7 @@ orc-rust = "0.6"
 duckdb = "1.3"
 num = "0.4"
 criterion = { version = "0.7", features = ["html_reports"] }
+dlopen2 = "0.8.0"
 
 pulsar = "6.4.1"
 md5 = "0.8"
@@ -207,6 +208,7 @@ taosx-task.path = "crates/task"
 taosx-metrics.path = "./taosx-metrics"
 source-csv.path = "./crates/source-csv"
 source-kafka.path = "./crates/source-kafka"
+source-kinghistorian.path = "./crates/source-kinghistorian"
 tmq-to-local.path = "./crates/tmq-to-local"
 tmq-to-td.path = "./crates/tmq-to-td"
 legacy-to-taos.path = "./crates/legacy-to-taos"
@@ -370,6 +372,7 @@ legacy-to-taos.workspace = true
 local-to-taos.workspace = true
 source-opc.workspace = true
 source-csv.workspace = true
+source-kinghistorian.workspace = true
 
 archive = { workspace = true }
 cached = { version = "0.56.0", features = ["async"] }

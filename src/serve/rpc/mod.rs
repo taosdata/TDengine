@@ -282,8 +282,7 @@ async fn action_to_arrow(
         }
         AgentAction::GetSample(dsn, sender) => {
             let action: ArrayRef = Arc::new(StringArray::from_iter_values(["sample".to_string()]));
-            // modify dsn params
-            let dsn = modify_dsn_params(&dsn).await?.to_string();
+            let dsn = modify_dsn_params_for_list_action(&dsn).await?.to_string();
             let context: ArrayRef =
                 Arc::new(StringArray::from_iter_values([serde_json::to_string(&dsn)
                     .map_err(|err| {
@@ -1168,21 +1167,6 @@ async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
             .insert("csv_config_file_origin".to_string(), csv_path.to_string());
     }
 
-    // let mut map = BTreeMap::new();
-    // for (k, v) in dsn.params {
-    //     let new_value = if k == "csv_config_file" {
-    //         encode_csv_config_file(v.clone())?
-    //     } else if k == "transform_config_file" {
-    //         String::new()
-    //     } else if v.contains("@") {
-    //         get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
-    //     } else {
-    //         String::new()
-    //     };
-    //     let new_value = if new_value.is_empty() { v } else { new_value };
-    //     map.insert(k, new_value);
-    // }
-    // dsn.params = map;
     for (k, v) in dsn.params.iter_mut() {
         if k == "csv_config_file" {
             *v = encode_csv_config_file(v.clone())?;
@@ -1199,6 +1183,48 @@ async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
     }
 
     tracing::debug!("dsn after modify: {}", &dsn);
+    Ok(dsn)
+}
+
+/// For GetSample: only inline csv_config_file for drivers that need to parse CSV immediately
+/// (opcda/opcua/opc). Other drivers keep the original @path to avoid large logs and unnecessary I/O.
+#[instrument(skip(dsn))]
+async fn modify_dsn_params_for_list_action(dsn: &str) -> anyhow::Result<Dsn> {
+    let mut dsn = json_to_dsn(&serde_json::Value::String(dsn.to_string()))?;
+    let driver = dsn.driver.clone();
+    tracing::debug!("dsn before modify (driver={}): {}", driver, &dsn);
+    let need_inline = matches!(driver.to_lowercase().as_str(), "opcda" | "opcua" | "opc");
+
+    if let Some(csv_config_file) = dsn.params.get("csv_config_file").cloned() {
+        if csv_config_file.starts_with('@') && csv_config_file.len() > 1 {
+            let csv_path = &csv_config_file[1..];
+            dsn.params
+                .insert("csv_config_file_origin".to_string(), csv_path.to_string());
+        }
+        if need_inline {
+            // Inline only for OPC drivers.
+            let new_v = encode_csv_config_file(csv_config_file)?;
+            dsn.params.insert("csv_config_file".to_string(), new_v);
+        }
+    }
+
+    if need_inline {
+        // Inline other @file params (except transform_config_file) to keep previous behavior.
+        for (k, v) in dsn.params.clone().into_iter() {
+            if k == "csv_config_file" || k == "transform_config_file" {
+                continue;
+            }
+            if v.contains('@')
+                && let Some(new_value) = get_string_content_from_param_value(&v, false, false)?
+            {
+                dsn.params.insert(k, new_value);
+            }
+        }
+        tracing::debug!("dsn after modify (inlined): {}", &dsn);
+    } else {
+        tracing::debug!("dsn after modify (no inline needed): {}", &dsn);
+    }
+
     Ok(dsn)
 }
 

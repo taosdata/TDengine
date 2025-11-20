@@ -888,7 +888,7 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
             s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.server", telemetry.server).as_str();
             s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.port", telemetry.port).as_str();
         }
-        
+
     }
     s += "===================================================================================";
     tracing::info!("{}", s);
@@ -953,6 +953,15 @@ fn main() -> Result<()> {
     let handle = init_tracing_layers(&mut args, tracing_level_filter)?;
 
     let _span = tracing::info_span!("main").entered();
+
+    // Register KingHistorian datasets lister to avoid taosx-core <-> kinghistorian circular deps
+    // Safe to call once; subsequent calls are ignored by OnceLock
+    #[allow(clippy::redundant_closure)]
+    {
+        taosx_core::plugins::register_kinghist_datasets_lister(
+            source_kinghistorian::kinghist_datasets_lister,
+        );
+    }
 
     let config_file = get_effective_config_path(&args);
     let mut _notify_watcher = None;

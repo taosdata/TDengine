@@ -67,6 +67,7 @@ bytes = { workspace = true }
 sysinfo = { workspace = true }
 
 taosx-task.workspace = true
+source-kinghistorian.workspace = true
 
 [build-dependencies]
 dotenv = "0.15.0"

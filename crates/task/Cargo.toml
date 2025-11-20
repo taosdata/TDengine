@@ -16,6 +16,7 @@ serde_json.workspace = true
 
 source-csv.path = "../source-csv"
 source-historian.path = "../source-historian"
+source-kinghistorian.path = "../source-kinghistorian"
 source-influxdb.path = "../source-influxdb"
 source-kafka.path = "../source-kafka"
 source-mongodb.path = "../source-mongodb"

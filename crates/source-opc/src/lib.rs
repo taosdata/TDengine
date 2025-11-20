@@ -1,30 +1,27 @@
+use anyhow::Context;
+use csv_async::AsyncReader;
+use futures_util::StreamExt;
+use itertools::Itertools;
 use ringbuf::traits::{Consumer, RingBuffer};
+use schema::get_schema_path;
+use std::fs::File;
+use std::{io::prelude::*, sync::Arc};
+use taos::{Dsn, IntoDsn};
 use taosx_core::dsv::DataSourceValidation;
-use taosx_core::runners::opc::csv::CsvParser;
-use taosx_core::runners::opc::csv::header::CsvHeader;
-use taosx_core::runners::opc::model::{ModelType, OpcModelConfig};
+use taosx_core::plugins::sink::point::csv::{CsvHeader, CsvParser};
+use taosx_core::plugins::sink::point::model::{ModelType, PointModelConfig};
+use taosx_core::runners::opc::config::{OPCConfig, PointsMode};
+use taosx_core::runners::opc::{OpcType, exe_path};
 use taosx_core::runners::{get_data_dir, get_logs_home_dir, new_rolling_file_appender};
 use taosx_core::sink::persist::PersistConfig;
+use taosx_core::sink::point::csv::parse_csv_config_files;
+use taosx_core::sink::point::model::SourceType;
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::monitor::send_sub_process_info;
 use taosx_core::{
     Action, DataSet, DataSetsReq, Transferred, build_ipc, utils::port_pool::PortPool,
 };
 use taosx_core::{TaskNotifySender, core_metrics, get_log_dir};
-
-use crate::point_updater::PointsUpdater;
-
-use taosx_core::runners::opc::config::{OPCConfig, PointsMode};
-use taosx_core::runners::opc::{OpcType, exe_path};
-
-use anyhow::Context;
-use csv_async::AsyncReader;
-use futures_util::StreamExt;
-use itertools::Itertools;
-use schema::get_schema_path;
-use std::fs::File;
-use std::{io::prelude::*, sync::Arc};
-use taos::{Dsn, IntoDsn};
 use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
@@ -33,6 +30,8 @@ use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing_subscriber::fmt::MakeWriter;
+
+use crate::point_updater::PointsUpdater;
 
 pub mod failover;
 mod point_updater;
@@ -111,6 +110,7 @@ pub async fn opc_to_taos(
         OpcType::OPCDA => Some("opc_da"),
         OpcType::FAKE => None,
     };
+
     let (mut ipc_handler, _) = build_ipc(
         Some(&config.report.remote),
         None,
@@ -248,7 +248,7 @@ pub async fn opc_to_taos(
                     anyhow::bail!("OPC exit with {}\n{error}", status);
                 } else {
                     safe_exit!();
-                   anyhow:: bail!("OPC process was killed by signal");
+                    anyhow::bail!("OPC process was killed by signal");
                 }
             },
             err = ipc_handler.recv_error() => {
@@ -313,12 +313,13 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
         // 解析 csv 文件中的点位
         PointsMode::ByCsv => {
             let opc_type = OpcType::from_dsn(&from)?;
-            let csv_files = OPCConfig::parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
+            let csv_files = parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
                 "csv_config_file not found in dsn: {}",
                 from.to_string()
             ))?;
 
-            let parser = CsvParser::try_new(opc_type, csv_files)?;
+            let source_type = SourceType::try_from(opc_type.as_static_str())?;
+            let parser = CsvParser::try_new(source_type, csv_files)?;
             let model_config = parser.parse().await?;
             to_opc_dataset_vec(&model_config).await?
         }
@@ -344,7 +345,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
 }
 
 /// 从 model_config 中提取所有 OPC 点位
-async fn to_opc_dataset_vec(model_config: &OpcModelConfig) -> anyhow::Result<Vec<DataSet>> {
+async fn to_opc_dataset_vec(model_config: &PointModelConfig) -> anyhow::Result<Vec<DataSet>> {
     let mut datasets = vec![];
     for (point_id, point_config) in model_config.point_config_map.iter() {
         let point_type = point_config.value_type.as_ref().map(|v| v.to_string());
@@ -396,7 +397,8 @@ async fn opc_datasets_by_csv(
 
     let header = rdr.headers().await?;
 
-    let header = CsvHeader::try_new(opc_type, header)?;
+    let source_type = SourceType::try_from(opc_type.as_static_str())?;
+    let header = CsvHeader::try_new(source_type, header)?;
     let point_id_idx = header.id_index();
     let enabled_idx = header.enabled_index();
 
@@ -614,7 +616,8 @@ pub async fn append_point_to_csv(from: &Dsn, to: &Dsn, csv_line: String) -> anyh
 
     // 解析 csv 文件，验证合法性
     let opc_type = OpcType::from_dsn(from)?;
-    let model = CsvParser::parse_csv(opc_type, csv.clone()).await?;
+    let source_type = SourceType::try_from(opc_type.as_static_str())?;
+    let model = CsvParser::parse_csv(source_type, csv.clone()).await?;
     model.validate()?;
     // 如果前端配置了 model_type，则校验 model 是否和 TDengine 的 schema 冲突
     if let Some(model_type) = ModelType::from_dsn(from) {
@@ -637,24 +640,24 @@ pub async fn append_point_to_csv(from: &Dsn, to: &Dsn, csv_line: String) -> anyh
 
 /// 检查新增的 point_id 是否在 CSV 中重复
 async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Result<()> {
-    let opc_type = OpcType::from_dsn(dsn)?;
+    let source_type = SourceType::try_from(dsn)?;
 
     // new point
     let mut rdr = AsyncReader::from_reader(csv_line.as_bytes());
     // new point header
     let headers = rdr.headers().await?;
-    let csv_header = CsvHeader::try_new(opc_type, headers)?;
+    let csv_header = CsvHeader::try_new(source_type, headers)?;
     // new point line
     let mut records = rdr.records();
     let record = records.next().await.unwrap()?;
     let point_id = CsvParser::parse_point_id(&csv_header, &record)?;
 
     // old points
-    let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+    let csv_files = parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
         "csv_config_file not found in dsn: {}",
         dsn.to_string()
     ))?;
-    let parser = CsvParser::try_new(opc_type, csv_files)?;
+    let parser = CsvParser::try_new(source_type, csv_files)?;
     let point_ids = parser.parse_all_point_id().await?;
 
     // check if point_id already exists
@@ -667,9 +670,116 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
     Ok(())
 }
 
+pub fn get_template(opc_type: OpcType, with_demo: bool) -> String {
+    match opc_type {
+        OpcType::OPCUA => ua_template(with_demo),
+        OpcType::OPCDA => da_template(with_demo),
+        _ => unimplemented!("template for opc type {:?} is not supported", opc_type),
+    }
+}
+
+fn ua_template(with_demo: bool) -> String {
+    let mut template = UA_HEADER.iter().join(",");
+    template.push('\n');
+    if with_demo {
+        template.push_str("1,ns=3;i=1010,1,opc_{type},t_{ns}_{id},val,val*1.8+32,double,quality,ts,,qts,,rts,,temperature\n");
+        template.push_str("2,ns=3;i=1011,1,opc_{type},t_{ns}_{id},val,val + 10,int,quality,ts,ts+8*3600*1000,qts,qts+8*3600*1000,rts,rts+8*3600*1000,pressure\n");
+        template.push_str("3,ns=5;s=abcd,1,opc_{type},t_{ns}_{id},val,,,quality,ts,ts-6*1000,qts,qts-6*1000,rts,rts-6*1000,current\n");
+    }
+    template
+}
+
+fn da_template(with_demo: bool) -> String {
+    let mut template = DA_HEADER.iter().join(",");
+    template.push('\n');
+    if with_demo {
+        template.push_str("1,root.parent.temperature,1,opc_{type},t_{tag_name},val,val*1.8+32,float,quality,ts,,qts,,rts,,temperature\n");
+        template.push_str("2,root.parent.pressure,1,opc_{type},t_{tag_name},val,val+10,,quality,ts,ts+8*3600*1000,qts,qts+8*3600*1000,rts,rts+8*3600*1000,pressure\n");
+        template.push_str("3,root.parent.current,1,opc_{type},t_{tag_name},val,,,quality,ts,ts-6*1000,qts,qts-6*1000,rts,rts-6*1000,current\n");
+    }
+    template
+}
+
+pub const UA_HEADER: [&str; 16] = [
+    "No.",
+    "point_id",
+    "enabled",
+    "stable",
+    "tbname",
+    "value_col",
+    "value_transform",
+    "type",
+    "quality_col",
+    "ts_col",
+    "ts_transform",
+    "request_ts_col",
+    "request_ts_transform",
+    "received_ts_col",
+    "received_ts_transform",
+    "tag::VARCHAR(200)::name",
+];
+pub const UA_ROW: [&str; 16] = [
+    "",
+    "",
+    "",
+    "opc_{type}",
+    "t_{ns}_{id}",
+    "val",
+    "",
+    "",
+    "quality",
+    "ts",
+    "",
+    "qts",
+    "",
+    "rts",
+    "",
+    "",
+];
+
+pub const DA_HEADER: [&str; 16] = [
+    "No.",
+    "tag_name",
+    "enabled",
+    "stable",
+    "tbname",
+    "value_col",
+    "value_transform",
+    "type",
+    "quality_col",
+    "ts_col",
+    "ts_transform",
+    "request_ts_col",
+    "request_ts_transform",
+    "received_ts_col",
+    "received_ts_transform",
+    "tag::VARCHAR(200)::name",
+];
+
+pub const DA_ROW: [&str; 16] = [
+    "",
+    "",
+    "",
+    "opc_{type}",
+    "t_{tag_name}",
+    "val",
+    "",
+    "",
+    "quality",
+    "ts",
+    "",
+    "qts",
+    "",
+    "rts",
+    "",
+    "",
+];
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
+    use csv_async::StringRecord;
 
     use super::*;
 
@@ -696,6 +806,46 @@ mod tests {
         assert_eq!(
             "point id: ns=3;i=1007 already exists",
             res.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_get_template() {
+        let template = get_template(OpcType::OPCUA, true);
+        let lines = template.trim().split("\n").collect_vec();
+        assert_eq!(lines.len(), 4);
+
+        let header = StringRecord::from(lines[0].split(",").collect_vec());
+        let header = CsvHeader::try_new(SourceType::OPCUA, &header).unwrap();
+        assert_eq!(header.source_type, SourceType::OPCUA);
+        assert_eq!(header.columns.len(), 16);
+        assert_eq!(header.get_column("point_id").unwrap().index, 1);
+        assert_eq!(header.get_primary_timestamp().unwrap().name, "ts_col");
+        assert_eq!(header.get_column("ts_transform").unwrap().index, 10);
+        assert_eq!(header.get_column("request_ts_col").unwrap().index, 11);
+        assert_eq!(header.get_column("request_ts_transform").unwrap().index, 12);
+        assert_eq!(header.get_column("received_ts_col").unwrap().index, 13);
+        assert_eq!(
+            header.get_column("received_ts_transform").unwrap().index,
+            14
+        );
+
+        let template = get_template(OpcType::OPCDA, true);
+        let lines = template.trim().split("\n").collect_vec();
+        assert_eq!(lines.len(), 4);
+        let header = StringRecord::from(lines[0].split(",").collect_vec());
+        let header = CsvHeader::try_new(SourceType::OPCDA, &header).unwrap();
+        assert_eq!(header.source_type, SourceType::OPCDA);
+        assert_eq!(header.columns.len(), 16);
+        assert_eq!(header.get_column("tag_name").unwrap().index, 1);
+        assert_eq!(header.get_primary_timestamp().unwrap().name, "ts_col");
+        assert_eq!(header.get_column("ts_transform").unwrap().index, 10);
+        assert_eq!(header.get_column("request_ts_col").unwrap().index, 11);
+        assert_eq!(header.get_column("request_ts_transform").unwrap().index, 12);
+        assert_eq!(header.get_column("received_ts_col").unwrap().index, 13);
+        assert_eq!(
+            header.get_column("received_ts_transform").unwrap().index,
+            14
         );
     }
 }

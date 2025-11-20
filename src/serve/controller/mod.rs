@@ -57,8 +57,9 @@ use crate::serve::task::{DeleteTaskParam, ExportTaskDetail, ExportTasksResult};
 use taosx_core::QueryDataSourceReq;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
+use taosx_core::plugins::sink::point::csv::CsvParser;
 use taosx_core::plugins::transform::sample::DsSamples;
-use taosx_core::runners::opc::{config::OPCConfig, csv::CsvParser};
+use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir};
@@ -673,6 +674,30 @@ async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
     for (k, v) in dsn_clone.params {
         let mut new_value = String::new();
         if v.contains("@") {
+            new_value.push_str(
+                get_string_content_from_param_value(&v, false, false)?
+                    .unwrap_or(String::new())
+                    .as_str(),
+            );
+        }
+        let new_value = if new_value.is_empty() { v } else { new_value };
+        map.insert(k, new_value);
+    }
+    dsn.params = map;
+    Ok(())
+}
+
+// 与 set_file_contents 类似，但允许排除某些 key 不进行内容内联。
+async fn set_file_contents_except(dsn: &mut Dsn, exclude: &[&str]) -> anyhow::Result<()> {
+    let dsn_clone = dsn.clone();
+    let mut map = BTreeMap::new();
+    for (k, v) in dsn_clone.params {
+        if exclude.iter().any(|ek| k == *ek) {
+            map.insert(k, v); // 保持原值
+            continue;
+        }
+        let mut new_value = String::new();
+        if v.contains('@') {
             new_value.push_str(
                 get_string_content_from_param_value(&v, false, false)?
                     .unwrap_or(String::new())
@@ -2157,7 +2182,24 @@ impl TaskController {
                     .to_string(),
             );
         }
-        let result = set_file_contents(&mut dsn_agent).await;
+        // 避免在校验时把 csv_config_file 内联为巨大字符串：
+        // 1) 如果是 @path，优先下发至 agent 并改为 agent 本地 @路径；
+        if let Some(csv_cfg) = dsn_agent.params.get("csv_config_file").cloned()
+            && csv_cfg.starts_with('@')
+            && csv_cfg.len() > 1
+        {
+            tracing::info!("Put csv_config_file to agent {}: {}", agent, csv_cfg);
+            let _ = self.put_file_to_agent(agent, csv_cfg.clone()).await;
+            let local = get_data_dir()
+                .join(csv_cfg.trim_start_matches('@'))
+                .display()
+                .to_string();
+            dsn_agent
+                .params
+                .insert("csv_config_file".to_string(), format!("@{}", local));
+        }
+        // 2) 其余 @file 参数按原逻辑内联，但跳过 csv_config_file。
+        let result = set_file_contents_except(&mut dsn_agent, &["csv_config_file"]).await;
         if let Err(err) = result {
             return DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string());
         }

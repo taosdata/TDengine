@@ -20,7 +20,7 @@ rayon = { workspace = true }
 tonic = { workspace = true, features = ["gzip", "tls"] }
 zerocopy = { workspace = true }
 dashmap = { workspace = true }
-dlopen2 = "0.8.0"
+dlopen2.workspace = true
 regex = { workspace = true }
 arrow-cast-guess-precision = { workspace = true }
 arrow-compute-ext = { workspace = true }

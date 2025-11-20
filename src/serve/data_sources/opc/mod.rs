@@ -8,8 +8,8 @@ use taosx_core::utils::dsn::json_to_dsn;
 use utoipa::*;
 
 use taosx_core::get_data_dir;
-use taosx_core::plugins::runners::opc::csv::column::CsvColumn;
-use taosx_core::plugins::runners::opc::csv::get_csv_headers;
+use taosx_core::plugins::sink::point::csv::CsvColumn;
+use taosx_core::plugins::sink::point::csv::get_csv_headers;
 use taosx_ipc::prelude::IpcDataType;
 
 use crate::serve::controller::TaskControllerRef;
@@ -234,7 +234,7 @@ async fn get_point_header_impl(
     let mut point_details = Vec::new();
     // get headers from the first file
     if let Some((_filename, header)) = csv_headers.iter().next() {
-        for column in header.get_columns() {
+        for column in header.columns() {
             let p = PointDetail::from(column.clone());
             point_details.push(p);
         }

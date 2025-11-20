@@ -383,6 +383,22 @@ pub fn parse_datetime_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Date
         .transpose()
 }
 
+pub fn parse_local_datetime_in_dsn(
+    dsn: &Dsn,
+    key: &str,
+) -> anyhow::Result<Option<DateTime<chrono::Local>>> {
+    parse_key_in_dsn::<String>(dsn, key)?
+        .map(|val| {
+            if val.to_lowercase() == "now" {
+                return Ok(chrono::Local::now());
+            }
+            DateTime::parse_from_rfc3339(val.as_str())
+                .map(|dt| dt.with_timezone(&chrono::Local))
+                .map_err(|err| anyhow::Error::from(err).context(format!("invalid {key}: {val}")))
+        })
+        .transpose()
+}
+
 /// 从 DSN 的参数中解析目录路径，返回绝对路径，但不保证路径存在
 pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<PathBuf>> {
     let p = match key {

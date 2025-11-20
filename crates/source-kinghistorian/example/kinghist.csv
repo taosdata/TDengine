@@ -1,0 +1,21 @@
+tag_name,stable,tbname,enabled,value_col,value_transform,type,quality_col,ts_col,ts_transform,request_ts_col,request_ts_transform,received_ts_col,received_ts_transform,tag::VARCHAR(200)::name
+OPC_数据类型示例.16 位设备.R 寄存器.Boolean1,kinghist,t_{tag_name},1,val,,boolean,quality,ts,,qts,,rts,,标签1
+OPC_数据类型示例.16 位设备.R 寄存器.Boolean2,kinghist,t_{tag_name},1,val,,boolean,quality,ts,,qts,,rts,,标签2
+OPC_数据类型示例.16 位设备.R 寄存器.Boolean3,kinghist,t_{tag_name},1,val,,boolean,quality,ts,,qts,,rts,,标签3
+OPC_数据类型示例.16 位设备.R 寄存器.Boolean4,kinghist,t_{tag_name},1,val,,boolean,quality,ts,,qts,,rts,,标签4
+OPC_数据类型示例.16 位设备.R 寄存器.Double1,kinghist,t_{tag_name},1,val,,double,quality,ts,,qts,,rts,,标签5
+OPC_数据类型示例.16 位设备.R 寄存器.Double2,kinghist,t_{tag_name},1,val,,double,quality,ts,,qts,,rts,,标签6
+OPC_数据类型示例.16 位设备.R 寄存器.Double3,kinghist,t_{tag_name},1,val,,double,quality,ts,,qts,,rts,,标签7
+OPC_数据类型示例.16 位设备.R 寄存器.Double4,kinghist,t_{tag_name},1,val,,double,quality,ts,,qts,,rts,,标签8
+OPC_数据类型示例.16 位设备.R 寄存器.DWord1,kinghist,t_{tag_name},1,val,,int unsigned,quality,ts,,qts,,rts,,标签9
+OPC_数据类型示例.16 位设备.R 寄存器.DWord2,kinghist,t_{tag_name},1,val,,int unsigned,quality,ts,,qts,,rts,,标签10
+OPC_数据类型示例.16 位设备.R 寄存器.DWord3,kinghist,t_{tag_name},1,val,,int unsigned,quality,ts,,qts,,rts,,标签11
+OPC_数据类型示例.16 位设备.R 寄存器.DWord4,kinghist,t_{tag_name},1,val,,int unsigned,quality,ts,,qts,,rts,,标签12
+OPC_数据类型示例.16 位设备.R 寄存器.Float1,kinghist,t_{tag_name},1,val,,float,quality,ts,,qts,,rts,,标签13
+OPC_数据类型示例.16 位设备.R 寄存器.Float2,kinghist,t_{tag_name},1,val,,float,quality,ts,,qts,,rts,,标签14
+OPC_数据类型示例.16 位设备.R 寄存器.Float3,kinghist,t_{tag_name},1,val,,float,quality,ts,,qts,,rts,,标签15
+OPC_数据类型示例.16 位设备.R 寄存器.Float4,kinghist,t_{tag_name},1,val,,float,quality,ts,,qts,,rts,,标签16
+OPC_数据类型示例.16 位设备.R 寄存器.Long1,kinghist,t_{tag_name},1,val,,bigint,quality,ts,,qts,,rts,,标签17
+OPC_数据类型示例.16 位设备.R 寄存器.Long2,kinghist,t_{tag_name},1,val,,bigint,quality,ts,,qts,,rts,,标签18
+OPC_数据类型示例.16 位设备.R 寄存器.Long3,kinghist,t_{tag_name},1,val,,bigint,quality,ts,,qts,,rts,,标签19
+OPC_数据类型示例.16 位设备.R 寄存器.Long4,kinghist,t_{tag_name},1,val,,bigint,quality,ts,,qts,,rts,,标签20

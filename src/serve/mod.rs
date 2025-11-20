@@ -205,13 +205,14 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
+            .service(get_point_options)
             .service(data_source_sample)
             .service(stable_preview)
             .service(list_all_parser_plugins)
             .service(download_all_data_set_file)
             .service(download_pi_default_config)
             .service(download_point_template_file)
-            .service(data_sources::is_opc_csv_valid)
+            .service(data_sources::is_csv_valid)
             .service(init_download_file_task_get)
             .service(init_download_file_task_post)
             .service(check_point_file_ready)
@@ -521,6 +522,7 @@ impl Cli {
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
+                get_point_options,
                 data_source_sample,
                 list_all_parser_plugins,
                 download_all_data_set_file,
@@ -529,7 +531,7 @@ impl Cli {
                 check_point_file_ready,
                 download_point_file,
                 download_point_template_file,
-                data_sources::is_opc_csv_valid,
+                data_sources::is_csv_valid,
                 page_point_data,
                 opc::get_point_header,
                 opc::append_point,

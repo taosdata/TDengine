@@ -51,7 +51,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use crate::core_metrics::{get_metrics, get_metrics_arc_from_i64, get_metrics_arc_or};
 use crate::core_metrics::{CoreMetrics, TaskMetrics};
 use crate::plugins::runners::opc::config::OPCConfig;
-use crate::plugins::runners::opc::model::OpcModelConfig;
+use crate::plugins::sink::point::model::PointModelConfig;
 use crate::plugins::transform::archive_records;
 use crate::plugins::transform::handling_strategy::{HandlingResult, ProcessOnAbnormalEnum};
 use crate::plugins::transform::WrittenMethod;
@@ -157,7 +157,7 @@ async fn ipc_tcp_forward(
     cancel: CancellationToken,
     with_agent: (i64, String, String),
     batch_counter: BatchCounter,
-    config: Option<OpcModelConfig>,
+    config: Option<PointModelConfig>,
     persist_components: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
     let reader_stream = stream
@@ -232,7 +232,7 @@ pub async fn ipc_forward(
     cancel: CancellationToken,
     with_agent: (i64, String, String),
     batch_counter: BatchCounter,
-    config: Option<OpcModelConfig>,
+    config: Option<PointModelConfig>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let (task_id, remote, token) = with_agent;
@@ -709,7 +709,7 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
 async fn ipc_tcp_read(
     pool: TaosPool,
     stream: std::net::TcpStream, //socket2::Socket,
-    opc_model_config: Option<OpcModelConfig>,
+    opc_model_config: Option<PointModelConfig>,
     lush_model_config: Option<LushModelConfig>,
     cancel: CancellationToken,
     parser: Option<Parser>,
@@ -1505,9 +1505,14 @@ fn get_ts_from_sql(sql: &str) -> Option<String> {
 }
 
 /********** handle Point Message START **********/
-/// PointMessage 的初始化：如果 table_config_map 中的 enabled 为 0，则删除对应的表
+/// PointMessage 的初始化
+/// (1) 如果 table_config_map 中的 enabled 为 0，则删除对应的表
+/// (2) 提前批量建表
 #[instrument(skip_all)]
-pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> anyhow::Result<()> {
+pub async fn handle_point_message_init(
+    config: &PointModelConfig,
+    taos: &Taos,
+) -> anyhow::Result<()> {
     let point_config_map = &config.point_config_map;
     let table_config_map = &config.table_config_map;
 
@@ -1536,6 +1541,18 @@ pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> 
         }
     }
 
+    let sqls = config.to_create_table_sqls();
+    for sql in sqls {
+        match taos.exec(&sql).await {
+            Ok(_) => {}
+            Err(err) => {
+                tracing::warn!(
+                    "failed to execute sql during point message init, sql: {sql}, err: {err:#}"
+                );
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -1546,7 +1563,7 @@ async fn consume_point_record(
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     record: &PointMessage,
     count: &mut usize,
-    config: &OpcModelConfig,
+    config: &PointModelConfig,
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
 ) -> anyhow::Result<usize> {
@@ -1671,6 +1688,9 @@ async fn consume_point_record(
                                                 break_err = Err(err);
                                             } else {
                                                 tracing::error!("create stable sql error: {err:#}");
+                                                // Mark non-connection DDL/SQL errors as fatal for this insertion
+                                                // so that after retries are exhausted, the error will be propagated
+                                                break_err = Err(err);
                                             }
                                             retry += 1;
                                             continue 'outer;
@@ -1733,6 +1753,9 @@ async fn consume_point_record(
                                                     sql = create_child_sql,
                                                     "create table sql error: {err:#}"
                                                 );
+                                                // Non-connection DDL/SQL errors (e.g., invalid TAG value) should be marked
+                                                // as fatal to avoid silently completing the task after retries.
+                                                break_err = Err(err);
                                             }
                                             retry += 1;
                                             continue 'outer;
@@ -2496,7 +2519,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
-    config: Option<OpcModelConfig>,
+    config: Option<PointModelConfig>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     _ipc_error_strategy: IpcErrorStrategy,
@@ -2510,7 +2533,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
     #[derive(Clone)]
     struct WriterContext {
         pool: TaosPool,
-        config: Option<Arc<OpcModelConfig>>,
+        config: Option<Arc<PointModelConfig>>,
         target_precision: taos::Precision,
     }
 
@@ -2907,7 +2930,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
-    opc_model_config: Option<OpcModelConfig>,
+    opc_model_config: Option<PointModelConfig>,
     lush_model_config: Option<LushModelConfig>,
     cancel: CancellationToken,
     parser: Option<Parser>,
@@ -3205,7 +3228,7 @@ pub struct IpcStreamWorker {
     task: Option<i64>,
     from: Dsn,
     config: Option<Arc<OPCConfig>>,
-    opc_table_config: OnceCell<OpcModelConfig>,
+    opc_table_config: OnceCell<PointModelConfig>,
     pub lush_model_config: OnceCell<Arc<LushModelConfig>>,
     pub lush_table_cache: Option<Arc<TableTagCache>>,
     breakpoint_db: Option<BreakpointDb>,
@@ -3257,11 +3280,11 @@ impl IpcStreamWorker {
         task: Option<i64>,
         // license: Option<>
     ) -> anyhow::Result<Self> {
-        let opc_table_config: OnceCell<OpcModelConfig> = OnceCell::const_new();
+        let opc_table_config: OnceCell<PointModelConfig> = OnceCell::const_new();
         if let Some(config) = schema.metadata().get("config") {
             opc_table_config
                 .get_or_try_init(|| async {
-                    serde_json::from_str::<OpcModelConfig>(config).context("config error")
+                    serde_json::from_str::<PointModelConfig>(config).context("config error")
                 })
                 .await?;
         }
@@ -3439,7 +3462,7 @@ impl IpcStreamWorker {
         }
     }
 
-    pub fn opc_model_config(&self) -> Option<&OpcModelConfig> {
+    pub fn opc_model_config(&self) -> Option<&PointModelConfig> {
         self.opc_table_config.get()
     }
 }
@@ -3448,7 +3471,7 @@ pub async fn listen_tcp_socket_with_agent(
     socket: Option<impl AsRef<str>>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    config: Option<OpcModelConfig>,
+    config: Option<PointModelConfig>,
     persist_config: Option<PersistConfig>,
 ) -> anyhow::Result<(IpcHandler, SocketAddr)> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
@@ -3661,7 +3684,7 @@ impl IpcHandler {
 pub async fn listen_tcp_socket(
     target: TaosPool,
     socket: Option<impl AsRef<str>>,
-    opc_model_config: Option<OpcModelConfig>,
+    opc_model_config: Option<PointModelConfig>,
     lush_model_config: Option<LushModelConfig>,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
@@ -4140,9 +4163,9 @@ async fn read_file_and_rewrite(
 
 #[cfg(test)]
 mod tests {
-    use crate::plugins::runners::opc::model::PointConfig;
-    use crate::plugins::runners::opc::model::TableConfig;
-    use crate::runners::opc::OpcType;
+    use crate::plugins::sink::point::model::PointConfig;
+    use crate::plugins::sink::point::model::TableConfig;
+    use crate::sink::point::model::SourceType;
     use crate::utils::port_pool::PortPool;
     use crate::utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID};
     use linked_hash_map::LinkedHashMap;
@@ -4200,8 +4223,8 @@ mod tests {
                 },
             );
         }
-        let config = OpcModelConfig {
-            opc_type: OpcType::OPCUA,
+        let config = PointModelConfig {
+            source_type: SourceType::OPCUA,
             generate_rule: None,
             point_config_map,
             table_config_map,

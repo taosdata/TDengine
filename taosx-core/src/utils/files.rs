@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
 use arrow::array::RecordBatch;
+use base64::engine::general_purpose;
+use base64::Engine;
 use chardetng::EncodingDetector;
 use chrono::{Duration, Utc};
 use encoding_rs::Encoding;
@@ -45,6 +47,7 @@ pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Err
 }
 
 pub fn get_encode<T: AsRef<Path>>(file_path: T) -> anyhow::Result<&'static Encoding> {
+    const SAMPLE_LIMIT: usize = 256 * 1024; // 256KB is enough for charset detection
     let file_path = file_path.as_ref();
     let mut file = File::open(file_path).map_err(|e| {
         anyhow::anyhow!(
@@ -54,16 +57,50 @@ pub fn get_encode<T: AsRef<Path>>(file_path: T) -> anyhow::Result<&'static Encod
         )
     })?;
 
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).map_err(|e| {
-        anyhow::anyhow!(
-            "failed to read file: {}, cause: {}",
-            file_path.display(),
-            e.to_string()
-        )
-    })?;
+    let mut buffer = Vec::with_capacity(SAMPLE_LIMIT);
+    let mut tmp = [0u8; 8192];
+    let mut read_total = 0usize;
+    loop {
+        let n = file.read(&mut tmp).map_err(|e| {
+            anyhow::anyhow!(
+                "failed to read file: {}, cause: {}",
+                file_path.display(),
+                e.to_string()
+            )
+        })?;
+        if n == 0 {
+            break;
+        }
+        let take = n.min(SAMPLE_LIMIT.saturating_sub(read_total));
+        buffer.extend_from_slice(&tmp[..take]);
+        read_total += take;
+        if read_total >= SAMPLE_LIMIT {
+            break;
+        }
+    }
 
     get_encode_from_buffer(buffer.as_slice())
+}
+
+pub fn decode_csv_content(content: &str, encoded: bool) -> anyhow::Result<Vec<u8>> {
+    let decoded = if encoded {
+        general_purpose::STANDARD.decode(content).map_err(|err| {
+            anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
+        })?
+    } else {
+        content.as_bytes().to_vec()
+    };
+
+    // check the file encoding
+    let encoding = get_encode_from_buffer(decoded.as_slice())?;
+    if encoding.name() != "UTF-8" {
+        anyhow::bail!(
+            "invalid CSV file encoding: {}, only UTF-8 or UTF-8 BOM supported",
+            encoding.name()
+        );
+    };
+
+    Ok(decoded)
 }
 
 pub fn get_encode_from_buffer(buffer: &[u8]) -> anyhow::Result<&'static Encoding> {
