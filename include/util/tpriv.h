@@ -221,7 +221,8 @@ typedef struct {
 #define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
 
 typedef enum {
-  PRIV_CATEGORY_SYSTEM = 0,
+  PRIV_CATEGORY_UNKNOWN = -1,
+  PRIV_CATEGORY_SYSTEM,
   PRIV_CATEGORY_OBJECT,
   PRIV_CATEGORY_LEGACY,
   PRIV_CATEGORY_MAX,
@@ -229,18 +230,22 @@ typedef enum {
 
 typedef enum {
   OBJ_TYPE_UNKNOWN = -1,
-  OBJ_TYPE_DB = 0,
+  OBJ_TYPE_CLUSTER,
+  OBJ_TYPE_NODE,
+  OBJ_TYPE_DB,
   OBJ_TYPE_TABLE,
   OBJ_TYPE_FUNCTION,
   OBJ_TYPE_INDEX,
   OBJ_TYPE_VIEW,
+  OBJ_TYPE_USER,
+  OBJ_TYPE_ROLE,
   OBJ_TYPE_RSMA,
   OBJ_TYPE_TSMA,
+  OBJ_TYPE_TOPIC,
+  OBJ_TYPE_STREAM,
   OBJ_TYPE_MOUNT,
   OBJ_TYPE_AUDIT,
   OBJ_TYPE_TOKEN,
-  OBJ_TYPE_TOPIC,
-  OBJ_TYPE_STREAM,
   OBJ_TYPE_MAX,
 } EObjType;
 
@@ -261,7 +266,7 @@ static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
   return merged;
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet);
+int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EObjType* pObjType);
 
 #ifdef __cplusplus
 }

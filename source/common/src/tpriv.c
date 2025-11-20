@@ -204,8 +204,8 @@ static void initPrivLookup(void) {
   }
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet) {
-  if (!privSet) return 0;
+int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EObjType* pObjType) {
+  if (!privSet) goto _exit;
 
   (void)taosThreadOnce(&privInit, initPrivLookup);
 
@@ -252,12 +252,28 @@ int32_t checkPrivConflicts(const SPrivSet* privSet) {
             return 1;
           }
           hasLegacyPriv = true;
+          if (objectType == OBJ_TYPE_UNKNOWN) {
+            objectType = privInfo->objType;
+          } else if (objectType != privInfo->objType) {
+            return 2;
+          }
           break;
         }
         default:
           break;
       }
     }
+  }
+
+_exit:
+  if (pCategory) {
+    *pCategory = hasSystemPriv   ? PRIV_CATEGORY_SYSTEM
+                 : hasObjectPriv ? PRIV_CATEGORY_OBJECT
+                 : hasLegacyPriv ? PRIV_CATEGORY_LEGACY
+                                 : PRIV_CATEGORY_UNKNOWN;
+  }
+  if (pObjType) {
+    *pObjType = objectType;
   }
 
   return 0;

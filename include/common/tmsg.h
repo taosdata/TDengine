@@ -219,21 +219,6 @@ typedef enum {
   TSDB_TRIGGER_AUTO = 1,
 } ETriggerType;
 
-typedef enum {
-  TSDB_OBJ_CLUSTER = 0,
-  TSDB_OBJ_NODE = 1,
-  TSDB_OBJ_DB = 2,
-  TSDB_OBJ_TABLE = 3,
-  TSDB_OBJ_VIEW = 4,
-  TSDB_OBJ_USER = 5,
-  TSDB_OBJ_ROLE = 6,
-  TSDB_OBJ_RSMA = 7,
-  TSDB_OBJ_INDEX = 8,
-  TSDB_OBJ_STREAM = 9,
-  TSDB_OBJ_TOPIC = 10,
-  TSDB_OBJ_MAX = 11,
-} ETsdbObjType;
-
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
