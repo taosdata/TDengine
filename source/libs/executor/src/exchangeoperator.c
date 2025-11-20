@@ -1230,7 +1230,9 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     // data from mnode
     pRes->info.dataLoad = 1;
     pRes->info.rows = pBlock->info.rows;
-    pRes->info.scanFlag = MAIN_SCAN;
+    pRes->info.scanFlag = pBlock->info.scanFlag;
+    pRes->info.id.groupId = pBlock->info.id.groupId;
+    pRes->info.id.baseGId = pBlock->info.id.baseGId;
     code = relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
     QUERY_CHECK_CODE(code, lino, _end);
 

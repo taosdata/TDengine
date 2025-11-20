@@ -2232,7 +2232,7 @@ static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (pCxt->pPlanCxt->streamCxt.hasNotify || pCxt->pPlanCxt->streamCxt.hasForceOutput) {
     // stream has notify or force output, external window node must be the root node, if not, do not use external window
-    if (pSelect->pFill || pSelect->hasInterpFunc || pSelect->hasForecastFunc || pSelect->hasImputationFunc ||
+    if (pSelect->pFill || pSelect->hasInterpFunc || pSelect->hasForecastFunc || pSelect->hasGenericAnalysisFunc ||
         pSelect->isDistinct || pSelect->pOrderByList) {
       nodesDestroyNode(pSelect->pExtWindow);
       pSelect->pExtWindow = NULL;

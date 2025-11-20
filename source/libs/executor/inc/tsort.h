@@ -165,7 +165,7 @@ void tsortGetValue(STupleHandle* pVHandle, int32_t colId, void** pVal);
  * @param pVHandle
  * @return
  */
-uint64_t tsortGetGroupId(STupleHandle* pVHandle);
+void     tsortGetGroupId(STupleHandle* pVHandle, uint64_t* gid, uint64_t* baseGid);
 uint64_t tsortGetBlockId(STupleHandle* pVHandle);
 void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pInfo);
 
