@@ -88,7 +88,7 @@ class TsfmBaseService(AbstractForecastService):
 
     def get_status(self) -> str:
         try:
-            _ = requests.get(self.service_host, headers=self.headers)
+            _ = requests.get(self.service_host, headers=self.headers, timeout=5)
         except Exception as e:
             app_logger.log_inst.error("failed to connect the service: %s %s", self.service_host, str(e))
             return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
