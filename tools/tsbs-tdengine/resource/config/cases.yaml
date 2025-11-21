@@ -3,29 +3,29 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a1 
+        create stream db.stm_a1 
                 sliding(1h) 
-                from db1.readings 
+                from db.readings 
                 stream_options(fill_history_first) 
-                into db1.res_a1 
+                into db.res_a1 
                 as select _tcurrent_ts ts, avg(fuel_consumption)
-                        from db1.readings 
+                        from db.readings 
                         where _c0 >= _tprev_ts and _c0 < _tcurrent_ts;
 
     - scenarioId: "A2"
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a2 
+        create stream db.stm_a2 
                sliding(1m) 
-               from db1.readings 
+               from db.readings 
                stream_options(fill_history_first) 
-               into db1.res_a2 
+               into db.res_a2 
                as 
                   select _tcurrent_ts ts, count(*), avg(fuel_consumption) 
                       from (  
                             select fuel_consumption, last(grade) cur_grade 
-                            from db1.readings 
+                            from db.readings 
                             where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname) 
                       where cur_grade > 70;
 
@@ -33,16 +33,16 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a3 
+        create stream db.stm_a3 
             sliding(1m) 
-            from db1.readings 
+            from db.readings 
             stream_options(fill_history_first) 
-            into db1.res_a3 
+            into db.res_a3 
             as 
               select _tcurrent_ts cur_ts, count(*), avg(avg_fuel) 
                   from (
                         select last(elevation) last_elev, avg(fuel_consumption) avg_fuel 
-                        from db1.readings 
+                        from db.readings 
                           where _c0 >= _tprev_ts and _c0 < _tcurrent_ts 
                           partition by tbname 
                       ) 
@@ -52,16 +52,16 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a4 
+        create stream db.stm_a4 
             sliding(10m) 
-            from db1.readings 
+            from db.readings 
             stream_options(fill_history_first) 
-            into db1.res_a4 
+            into db.res_a4 
             as 
               select _tcurrent_ts, sum(load) 
                 from (
                       select last(current_load) load 
-                        from db2.diagnostics 
+                        from db.diagnostics 
                         where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                         partition by tbname
                      )
@@ -70,11 +70,11 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a5 
+        create stream db.stm_a5 
             sliding(10m) 
-            from db1.readings 
+            from db.readings 
             stream_options(fill_history_first) 
-            into db1.res_a5 (ts, last_heading primary key, num) 
+            into db.res_a5 (ts, last_heading primary key, num) 
             as 
               select _tcurrent_ts, last_heading, count(*) 
                 from (
@@ -82,7 +82,7 @@ testCases:
                                   when last(heading) >= 45 and last(heading) < 135  then 90 
                                   when last(heading) >= 135 and last(heading) < 225 then 180 
                                   else 270 end last_heading 
-                          from db1.readings 
+                          from db.readings 
                           where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                           partition by tbname
                      ) 
@@ -92,22 +92,22 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a6 
+        create stream db.stm_a6 
             sliding(1h) 
-            from db1.readings 
+            from db.readings 
             stream_options(fill_history_first) 
-            into db1.res_a6 
+            into db.res_a6 
             as 
               select _tcurrent_ts, count(*), avg(last_velocity) 
                   from (
                             select _tprev_ts ts, last(current_load) load, load_capacity, name 
-                              from db2.diagnostics 
+                              from db.diagnostics 
                               where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                               partition by tbname
                         ) a 
                    join (
                             select _tprev_ts ts, last(velocity) last_velocity, name 
-                              from db1.readings where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                              from db.readings where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                               partition by tbname
                        ) b 
                   on a.ts = b.ts and a.load < 0.1 * a.load_capacity and a.name = b.name;
@@ -116,32 +116,32 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a7
+        create stream db.stm_a7
             interval(1d) 
             sliding(1d) 
-            from db1.readings 
+            from db.readings 
             stream_options(fill_history_first) 
-            into db1.res_a7 
+            into db.res_a7 
             as 
               select _twstart, avg(fuel_consumption) 
-                from db1.readings 
+                from db.readings 
                 where _c0 >= _twstart and _c0 < _twend;
 
     - scenarioId: "A8"
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db2.stm_a8
+        create stream db.stm_a8
             interval(1d) 
             sliding(1d) 
-            from db2.diagnostics 
+            from db.diagnostics 
             stream_options(fill_history_first) 
-            into db2.res_a8 
+            into db.res_a8 
             as 
               select _twstart, sum(tduration)/3600000 
                  from (
                         select _wduration tduration, count(*) 
-                          from db2.diagnostics 
+                          from db.diagnostics 
                           where _c0 >= _twstart and _c0 < _twend 
                           partition by tbname 
                           event_window start with status > 0 end with status = 0
@@ -151,19 +151,19 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream db2.stm_a9 
+        create stream db.stm_a9 
             interval(1d) 
             sliding(1d) 
-            from db2.diagnostics 
+            from db.diagnostics 
             stream_options(fill_history_first) 
-            into db2.res_a9
+            into db.res_a9
             as 
               select _twstart, count(*) 
                 from (
                        select sum(tduration) sduration 
                        from (
                               select tbname name, _wduration tduration, count(*) 
-                                from db2.diagnostics 
+                                from db.diagnostics 
                                 where _c0 >= _twstart and _c0 < _twend 
                                 partition by tbname 
                                 event_window start with status > 0 end with status = 0
@@ -176,15 +176,15 @@ testCases:
       classfication: "Fleet"
       description: ""
       sql: |
-        create stream db1.stm_f1 
+        create stream db.stm_f1 
             period(1m) 
-            from db1.readings partition by fleet 
-            into db1.res_f1 
+            from db.readings partition by fleet 
+            into db.res_f1 
             as 
               select cast(_tlocaltime/1000000 as timestamp), count(*) 
                 from (
                       select last(velocity) last_velocity, fleet 
-                        from db1.readings 
+                        from db.readings 
                         where fleet = %%1 
                         partition by tbname
                       ) 
@@ -194,15 +194,15 @@ testCases:
       classfication: "Fleet"
       description: ""
       sql: |
-        create stream db2.stm_f2 
+        create stream db.stm_f2 
             period(1m) 
-            from db2.diagnostics partition by fleet 
-            into db2.res_f2 
+            from db.diagnostics partition by fleet 
+            into db.res_f2 
             as 
               select cast(_tlocaltime/1000000 as timestamp), count(*) 
                 from (
                       select last(status) last_status, fleet 
-                        from db2.diagnostics 
+                        from db.diagnostics 
                         where fleet = %%1 
                         partition by tbname
                      ) 
@@ -212,37 +212,37 @@ testCases:
       classfication: "Fleet"
       description: ""
       sql: |
-        create stream db1.stm_f3 
+        create stream db.stm_f3 
         interval(1h) 
         sliding(1h) 
-        from db1.readings partition by fleet 
+        from db.readings partition by fleet 
         stream_options(fill_history_first) 
-        into db1.res_f3 
+        into db.res_f3 
         as 
           select _twend, avg(fuel_consumption) 
-            from db1.readings 
+            from db.readings 
             where fleet = %%1 and _c0 >= _twstart and _c0 < _twend;
 
     - scenarioId: "F4"
       classfication: "Fleet"
       description: ""
       sql: |
-         create stream db1.stm_f4 
+         create stream db.stm_f4 
          interval(1d) 
          sliding(1d) 
-         from db1.readings  
+         from db.readings  
          stream_options(fill_history_first) 
-         into db1.res_f4 (ts, fleet primary key, efficiency) 
+         into db.res_f4 (ts, fleet primary key, efficiency) 
          as 
           select _twstart, a.fleet, avg_load/avg_fuel efficiency 
             from (
                   select _twstart ts, avg(fuel_consumption) avg_fuel, fleet 
-                    from db1.readings 
+                    from db.readings 
                     where _c0 >= _twstart and _c0 < _twend partition by fleet
                   ) a 
             join (
                   select _twstart ts, avg(current_load) avg_load, fleet 
-                    from db2.diagnostics where _c0 >= _twstart and _c0 < _twend 
+                    from db.diagnostics where _c0 >= _twstart and _c0 < _twend 
                     partition by fleet
                   ) b 
             on a.ts = b.ts and a.fleet = b.fleet;
@@ -252,18 +252,18 @@ testCases:
       classfication: "Fleet"
       description: ""
       sql: |
-        create stream db2.stm_f5 
+        create stream db.stm_f5 
         interval(1d) 
         sliding(1d) 
-        from db2.diagnostics 
+        from db.diagnostics 
         partition by fleet 
         stream_options(fill_history_first) 
-        into db2.res_f5 
+        into db.res_f5 
         as 
           select _twstart, sum(tduration)/3600000 
           from (
                 select _wduration tduration, count(*) 
-                  from db2.diagnostics 
+                  from db.diagnostics 
                   where fleet = %%1 and _c0 >= _twstart and _c0 < _twend 
                   partition by tbname 
                   event_window start with status > 0 end with status = 0
@@ -273,16 +273,16 @@ testCases:
       classfication: "Fleet"
       description: ""
       sql: |
-        create stream db2.stm_f6 
+        create stream db.stm_f6 
             sliding(1h) 
-            from db2.diagnostics partition by fleet 
+            from db.diagnostics partition by fleet 
             stream_options(fill_history_first) 
-            into db2.res_f6 
+            into db.res_f6 
             as 
               select _tcurrent_ts, sum(cur_load)/sum(load_capacity) 
                 from (
                         select fleet, last(current_load) cur_load, load_capacity 
-                        from db2.diagnostics 
+                        from db.diagnostics 
                           where fleet = %%1 and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                           partition by tbname 
                       )
@@ -291,16 +291,16 @@ testCases:
       classfication: "Fleet"
       description: ""
       sql: |
-        create stream db2.stm_f7 
+        create stream db.stm_f7 
             sliding(1h) 
-            from db2.diagnostics partition by fleet 
+            from db.diagnostics partition by fleet 
             stream_options(fill_history_first) 
-            into db2.res_f7 
+            into db.res_f7 
             as 
               select _tcurrent_ts, sum(breakdown)/count(*) 
                 from (
                        select fleet, case when last(status) > 0 then 1 else 0 end breakdown 
-                       from db2.diagnostics 
+                       from db.diagnostics 
                           where fleet = %%1 and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                           partition by tbname
                      )
@@ -309,17 +309,17 @@ testCases:
       classfication: "Fleet"
       description: ""
       sql: |
-        create stream db1.stm_f8 
+        create stream db.stm_f8 
         interval(1d) 
         sliding(1d) 
-        from db1.readings partition by fleet 
+        from db.readings partition by fleet 
         stream_options(fill_history_first) 
-        into db1.res_f8 (ts, name primary key, top_fuel) 
+        into db.res_f8 (ts, name primary key, top_fuel) 
         as 
           select _twstart ts, name, top(avg_fuel, 5) top_fuel 
             from (
                   select name, fleet, avg(fuel_consumption) avg_fuel 
-                    from db1.readings where fleet = %%1 and _c0 >= _twstart and _c0 < _twend 
+                    from db.readings where fleet = %%1 and _c0 >= _twstart and _c0 < _twend 
                     partition by tbname
                  )
 
@@ -327,12 +327,12 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db1.stm_t1 
+        create stream db.stm_t1 
             interval(1h) 
             sliding(1h) 
-            from db1.readings partition by tbname 
+            from db.readings partition by tbname 
             stream_options(fill_history_first) 
-            into db1.res_t1 
+            into db.res_t1 
             as 
               select _twstart ts, avg(fuel_consumption) avg_fuel 
                 from %%tbname 
@@ -342,12 +342,12 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db1.stm_t2 
+        create stream db.stm_t2 
             interval(1h) 
             sliding(1h) 
-            from db1.readings partition by tbname 
+            from db.readings partition by tbname 
             stream_options(fill_history_first) 
-            into db1.res_t2 
+            into db.res_t2 
             as 
               select _twstart ts, sum(stime) stop_time 
                 from (
@@ -361,14 +361,14 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db1.stm_t3 
+        create stream db.stm_t3 
             state_window (
                 case when grade <= 30 then 0 
                      when grade <= 70 then 1 
                      else 2 end ) 
-            from db1.readings partition by tbname 
+            from db.readings partition by tbname 
             stream_options(fill_history_first) 
-            into db1.res_t3 
+            into db.res_t3 
             as 
               select _twstart ts, avg(fuel_consumption), avg(velocity) 
                 from  %%tbname 
@@ -378,16 +378,16 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db1.stm_t4 
+        create stream db.stm_t4 
             state_window(
                           case when velocity <= 30 then 0 
                                when velocity <= 70 then 1 
                           else 2 end
                         ) 
-            from db1.readings 
+            from db.readings 
             partition by tbname 
             stream_options(fill_history_first) 
-            into db1.res_t4 
+            into db.res_t4 
             as 
               select _twstart ts, avg(fuel_consumption) 
                 from %%tbname 
@@ -397,14 +397,14 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db2.stm_t5 
+        create stream db.stm_t5 
           state_window(
                         case when status > 0 then 1 
                         else 0 end
                       ) 
-          from db2.diagnostics partition by tbname 
+          from db.diagnostics partition by tbname 
           stream_options(fill_history_first) 
-          into db2.res_t5 
+          into db.res_t5 
           as 
             select _twstart, _twduration, avg(current_load) 
               from %%tbname 
@@ -414,14 +414,14 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db2.stm_t6 
+        create stream db.stm_t6 
             state_window(
                           case when fuel_state < 0.2 * fuel_capacity 
                           then 1 else 0 end
                          ) 
-            from db2.diagnostics partition by tbname 
+            from db.diagnostics partition by tbname 
             stream_options(fill_history_first) 
-            into db2.res_t6 
+            into db.res_t6 
             as 
                select  _twstart, _twduration, count(*) 
                   from %%tbname 
@@ -431,14 +431,14 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db1.stm_t7 
+        create stream db.stm_t7 
             state_window(
                           case when fuel_consumption > 2 * nominal_fuel_consumption then 1 
                           else 0 end
                         ) 
-            from db1.readings partition by tbname, name 
+            from db.readings partition by tbname, name 
             stream_options(fill_history_first) 
-            into db1.res_t7 
+            into db.res_t7 
             as 
               select a.ts, a.wduration, a.avg_velocity, a.avg_grade, a.avg_elevation, b.avg_load 
                 from (
@@ -448,7 +448,7 @@ testCases:
                      ) a 
                 join (
                        select _twstart ts, avg(current_load) avg_load 
-                          from db2.diagnostics 
+                          from db.diagnostics 
                           where name = %%2 and _c0 >= _twstart and _c0 <= _twend
                      ) b 
                 on a.ts = b.ts;
@@ -457,14 +457,14 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db1.stm_t8 
+        create stream db.stm_t8 
             event_window(
                          start with velocity > 70 and grade > 70 
                          end   with velocity <= 70 or grade <= 70
                         ) 
-            from db1.readings partition by tbname 
+            from db.readings partition by tbname 
             stream_options(fill_history_first) 
-            into db1.res_t8 
+            into db.res_t8 
             as 
               select _twstart, _twduration, avg(fuel_consumption) 
                   from %%tbname 
@@ -474,14 +474,14 @@ testCases:
       classfication: "Vehicle"
       description: ""
       sql: |
-        create stream db2.stm_t9 
+        create stream db.stm_t9 
             state_window(
                           case when fuel_state = 1 then 1 
                           else 0 end 
                         ) 
-            from db2.diagnostics partition by tbname 
+            from db.diagnostics partition by tbname 
             stream_options(fill_history_first) 
-            into db2.res_t9 
+            into db.res_t9 
             as 
               select _twstart, first(current_load) 
                 from %%tbname 

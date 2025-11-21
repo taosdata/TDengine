@@ -1,75 +1,75 @@
 testCases:
     - scenarioId: "A4"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
 
     - scenarioId: "A6"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
 
     - scenarioId: "F4"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779      
 
     - scenarioId: "T7"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779  
 
     # A8 A9
     - scenarioId: "A8"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_a8
+      verifySql: select count(*) from db.res_a8
       expectRows: 16
 
     - scenarioId: "A9"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_a9
+      verifySql: select count(*) from db.res_a9
       expectRows: 16
 
     # F2 F5 F6 F7
 
     - scenarioId: "F2"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_f2
+      verifySql: select count(*) from db.res_f2
       expectRows: 8888
 
     - scenarioId: "F5"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_f5
+      verifySql: select count(*) from db.res_f5
       expectRows: 4
 
     - scenarioId: "F6"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_f6
+      verifySql: select count(*) from db.res_f6
       expectRows: 20
 
     - scenarioId: "F7"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_f7
+      verifySql: select count(*) from db.res_f7
       expectRows: 25
 
     # T5 T6 T9  
 
     - scenarioId: "T5"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_t5
+      verifySql: select count(*) from db.res_t5
       expectRows: 8888
 
     - scenarioId: "T6"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_t6
+      verifySql: select count(*) from db.res_t6
       expectRows: 8888
 
     - scenarioId: "T9"
-      querySql: select count(*) from db2.diagnostics
+      querySql: select count(*) from db.diagnostics
       dataRows: 9988779
-      verifySql: select count(*) from db2.res_t9
+      verifySql: select count(*) from db.res_t9
       expectRows: 8888
