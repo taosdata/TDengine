@@ -31,7 +31,7 @@ import PlatformSupported from "./05-connector/_platform_supported.mdx";
 | **凝思磐石**           | **V8.0 以上**    | ●/E           |           |
 | **华为欧拉 openEuler** | **V20.03 以上**  | ●/E           |           |
 | **龙蜥 Anolis OS**     | **V8.6 以上**   | ●/E           |           |
-| **macOS**             | **11.0 以上**   |                | ●         |
+| **macOS**             | **14.0 以上**   |                | ●         |
 
 ## TDengine TSDB 客户端和连接器支持的平台列表
 
