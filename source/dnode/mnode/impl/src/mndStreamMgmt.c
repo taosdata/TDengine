@@ -4163,7 +4163,6 @@ _exit:
     
     TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), finalCode, lino, _final, terrno);
 
-    tFreeSStreamMgmtRsp(&rsp);
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), finalCode, lino, _final, terrno);
