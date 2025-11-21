@@ -1982,10 +1982,12 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
 
   pTask->leaderSnodeId = pMsg->leaderSnodeId;
+  TSWAP(pTask->readerList, pMsg->readerList);
   if (pTask->isVirtualTable) {
-    TSWAP(pTask->virtReaderList, pMsg->readerList);
-  } else {
-    TSWAP(pTask->readerList, pMsg->readerList);
+    pTask->virtReaderList = taosArrayInit(0, sizeof(SStreamTaskAddr));
+    QUERY_CHECK_NULL(pTask->virtReaderList, code, lino, _end, terrno);
+    void *px = taosArrayAddAll(pTask->virtReaderList, pTask->readerList);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   }
   TSWAP(pTask->runnerList, pMsg->runnerList);
 
@@ -2278,21 +2280,33 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
-      if (pTask->task.status != STREAM_STATUS_INIT) {
-        ST_TASK_DLOG("ignore redundant start message, current status: %d", pTask->task.status);
+      int8_t realtimeStarted = atomic_load_8(&pTask->realtimeStarted);
+      if (realtimeStarted) {
+        ST_TASK_DLOG("ignore redundant start message, current status: %d, started: %d", pTask->task.status,
+                     realtimeStarted);
         break;
       }
-      if (taosArrayGetSize(pTask->pVirTableInfoRsp) > 0 && taosArrayGetSize(pTask->readerList) == 0) {
-        ST_TASK_DLOG("ignore start message since orig table readers are not ready, vir table count: %" PRIzu,
-                     TARRAY_SIZE(pTask->pVirTableInfoRsp));
-        break;
+
+      int32_t leaderSid = pTask->leaderSnodeId;
+      SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
+      if (epSet != NULL) {
+        ST_TASK_DLOG("[checkpoint] trigger task deploy, sync checkpoint leaderSnodeId:%d", leaderSid);
+        atomic_store_8(&pTask->isCheckpointReady, 0);
+        code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, NULL, 0);
+        if (code != 0) {
+          atomic_store_8(&pTask->isCheckpointReady, 1);
+        }
+      } else {
+        atomic_store_8(&pTask->isCheckpointReady, 1);
       }
+
       if (pTask->pRealtimeContext == NULL) {
         pTask->pRealtimeContext = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
         QUERY_CHECK_NULL(pTask->pRealtimeContext, code, lino, _end, terrno);
         code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
         QUERY_CHECK_CODE(code, lino, _end);
       }
+
       SSTriggerCtrlRequest req = {.type = STRIGGER_CTRL_START,
                                   .streamId = pTask->task.streamId,
                                   .taskId = pTask->task.taskId,
@@ -2315,31 +2329,22 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       ST_TASK_DLOG("control request 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
 
       pTask->task.status = STREAM_STATUS_RUNNING;
-
-      int32_t leaderSid = pTask->leaderSnodeId;
-      SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
-      if (epSet != NULL) {
-        ST_TASK_DLOG("[checkpoint] trigger task deploy, sync checkpoint leaderSnodeId:%d", leaderSid);
-        atomic_store_8(&pTask->isCheckpointReady, 0);
-        code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, NULL, 0);
-        if (code != 0) {
-          atomic_store_8(&pTask->isCheckpointReady, 1);
-        }
-      } else {
-        atomic_store_8(&pTask->isCheckpointReady, 1);
-      }
+      atomic_store_8(&pTask->realtimeStarted, 1);
       break;
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
-      if (pTask->task.status != STREAM_STATUS_INIT || taosArrayGetSize(pTask->readerList) > 0) {
-        ST_TASK_DLOG("ignore redundant original reader info, current status: %d, reader count: %" PRIzu,
-                     pTask->task.status, taosArrayGetSize(pTask->readerList));
+      SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
+      int64_t         reqId = pRsp->reqId;
+      int64_t         waitingReqId = atomic_load_64(&pTask->waitingMgmtReqId);
+      if (reqId != waitingReqId) {
+        ST_TASK_DLOG("ignore outdated original reader info, reqId: %" PRId64 ", waitingReqId: %" PRId64, reqId,
+                     waitingReqId);
         break;
       }
-      SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
-      int32_t        *pVgId = TARRAY_DATA(pRsp->cont.vgIds);
-      int32_t         iter1 = 0;
-      void           *px = tSimpleHashIterate(pTask->pOrigTableCols, NULL, &iter1);
+      ST_TASK_DLOG("receive original reader info, reqId: %" PRId64, reqId);
+      int32_t *pVgId = TARRAY_DATA(pRsp->cont.vgIds);
+      int32_t  iter1 = 0;
+      void    *px = tSimpleHashIterate(pTask->pOrigTableCols, NULL, &iter1);
       while (px != NULL) {
         SSHashObj               *pDbInfo = *(SSHashObj **)px;
         int32_t                  iter2 = 0;
@@ -2354,20 +2359,22 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
                             TSDB_CODE_INVALID_PARA);
 
       SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
-      if (pTask->readerList == NULL) {
-        pTask->readerList = taosArrayInit(0, sizeof(SStreamTaskAddr));
-        QUERY_CHECK_NULL(pTask->readerList, code, lino, _end, terrno);
-      }
-      px = taosArrayAddAll(pTask->readerList, pTask->virtReaderList);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      QUERY_CHECK_NULL(pTask->readerList, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int32_t nPartReaders = TARRAY_SIZE(pTask->readerList);
       if (taosArrayGetSize(pRsp->cont.readerList) > 0) {
         px = taosArrayAddAll(pTask->readerList, pRsp->cont.readerList);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
 
-      for (int32_t i = nPartReaders; i < TARRAY_SIZE(pTask->readerList); i++) {
-        SStreamTaskAddr     *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
+        SStreamTaskAddr *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+        if (i < nPartReaders) {
+          SSTriggerWalProgress *pProgress =
+              tSimpleHashGet(pTask->pRealtimeContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
+          QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          pProgress->pTaskAddr = pReader;
+          continue;
+        }
         SSTriggerWalProgress progress = {0};
         code = tSimpleHashPut(pTask->pRealtimeContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t), &progress,
                               sizeof(SSTriggerWalProgress));
@@ -2399,6 +2406,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         pProgress->pCalcBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
         QUERY_CHECK_NULL(pProgress->pCalcBlock, code, lino, _end, terrno);
       }
+      atomic_store_64(&pTask->waitingMgmtReqId, -1);
+      atomic_store_8(&pTask->realtimeStarted, 0);
       break;
     }
     case STREAM_MSG_UPDATE_RUNNER: {
@@ -2527,6 +2536,9 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     switch (req.type) {
       case STRIGGER_CTRL_START: {
         if (req.sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
+          while (atomic_load_8(&pTask->realtimeStarted) == 0) {
+            taosMsleep(5);
+          }
           code = stRealtimeContextCheck(pTask->pRealtimeContext);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (req.sessionId == STREAM_TRIGGER_HISTORY_SESSIONID) {
@@ -2674,10 +2686,9 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   pContext->pReaderWalProgress = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pContext->pReaderWalProgress, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pContext->pReaderWalProgress, stRealtimeContextDestroyWalProgress);
-  SArray *pReaderList = pTask->isVirtualTable ? pTask->virtReaderList : pTask->readerList;
-  int32_t nReaders = taosArrayGetSize(pReaderList);
+  int32_t nReaders = taosArrayGetSize(pTask->readerList);
   for (int32_t i = 0; i < nReaders; i++) {
-    SStreamTaskAddr     *pReader = TARRAY_GET_ELEM(pReaderList, i);
+    SStreamTaskAddr     *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
     SSTriggerWalProgress progress = {0};
     code = tSimpleHashPut(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t), &progress,
                           sizeof(SSTriggerWalProgress));
@@ -3746,13 +3757,6 @@ static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pCont
   QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(*(SSTriggerPullRequest **)pNode->data == pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTask->virtReaderList); i++) {
-    SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->virtReaderList, i);
-    if (pTempReader->taskId == pReq->readerTaskId) {
-      pReader = pTempReader;
-      break;
-    }
-  }
   for (int32_t i = 0; i < taosArrayGetSize(pTask->readerList); i++) {
     SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->readerList, i);
     if (pTempReader->taskId == pReq->readerTaskId) {
@@ -5259,17 +5263,25 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
         px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);
       }
-      SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
-      QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
-      pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
-      pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
-      pReq->cont.pReqs = pOrigTableNames;
-      pOrigTableNames = NULL;
-
-      // wait to be exeucted again
-      pContext->status = STRIGGER_CONTEXT_IDLE;
-      atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
-      pTask->task.status = STREAM_STATUS_INIT;
+      int64_t nOrigTables = TARRAY_SIZE(pOrigTableNames);
+      if (nOrigTables > 0) {
+        SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
+        QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
+        pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
+        pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+        pReq->cont.pReqs = pOrigTableNames;
+        pOrigTableNames = NULL;
+        pContext->status = STRIGGER_CONTEXT_IDLE;
+        pTask->task.status = STREAM_STATUS_INIT;
+        ST_TASK_DLOG("add orig table reader request, reqId:%" PRId64 ", nTables:%" PRId64, pReq->reqId, nOrigTables);
+        atomic_store_64(&pTask->waitingMgmtReqId, pReq->reqId);
+        atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
+      } else {
+        int64_t nReaders = taosArrayGetSize(pTask->readerList);
+        ST_TASK_DLOG("skip empty orig table request, nReaders:%" PRId64, nReaders);
+        code = stRealtimeContextCheck(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       break;
     }
 
@@ -5502,15 +5514,9 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   pContext->pReaderTsdbProgress = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pContext->pReaderTsdbProgress, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pContext->pReaderTsdbProgress, stHistoryContextDestroyTsdbProgress);
-  int32_t nVirReaders = taosArrayGetSize(pTask->virtReaderList);
   int32_t nReaders = taosArrayGetSize(pTask->readerList);
-  for (int32_t i = 0; i < nVirReaders + nReaders; i++) {
-    SStreamTaskAddr *pReader = NULL;
-    if (i < nVirReaders) {
-      pReader = TARRAY_GET_ELEM(pTask->virtReaderList, i);
-    } else {
-      pReader = TARRAY_GET_ELEM(pTask->readerList, i - nVirReaders);
-    }
+  for (int32_t i = 0; i < nReaders; i++) {
+    SStreamTaskAddr *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
     if (tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t)) != NULL) {
       continue;
     }
@@ -6198,13 +6204,6 @@ static int32_t stHistoryContextRetryPullRequest(SSTriggerHistoryContext *pContex
   QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(*(SSTriggerPullRequest **)pNode->data == pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTask->virtReaderList); i++) {
-    SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->virtReaderList, i);
-    if (pTempReader->taskId == pReq->readerTaskId) {
-      pReader = pTempReader;
-      break;
-    }
-  }
   for (int32_t i = 0; i < taosArrayGetSize(pTask->readerList); i++) {
     SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->readerList, i);
     if (pTempReader->taskId == pReq->readerTaskId) {
