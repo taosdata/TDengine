@@ -511,6 +511,7 @@ typedef struct {
   int64_t triggerTblUid;  // suid or uid
   int64_t triggerTblSuid;
   int8_t  triggerTblType;
+  int8_t  isTriggerTblVirt;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
   void*   partitionCols;  // nodelist of SColumnNode

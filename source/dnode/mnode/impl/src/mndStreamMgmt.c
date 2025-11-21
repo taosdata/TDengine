@@ -757,6 +757,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     pTrigger->triggerTblUid = pInfo->pCreate->triggerTblUid;
     pTrigger->triggerTblSuid = pInfo->pCreate->triggerTblSuid;
     pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
+    pTrigger->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pInfo->pCreate->triggerTblType, pInfo->pCreate->flags);
     pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
     pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
     pTrigger->partitionCols = pInfo->pCreate->partitionCols;
