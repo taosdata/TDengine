@@ -2135,22 +2135,38 @@ class TestStreamNotifyTrigger:
             )
             
         def insert2(self):
-            tdLog.info(f"=============== insert2 data into st0 open window data")
-            sqls = [
-                "insert into st0 values ('2025-01-01 00:02:02.000', 8);",
-                "insert into st0 values ('2025-01-01 00:03:03.000', 9);",
-                "insert into st0 values ('2025-01-01 00:04:03.000', 10);",
-                "insert into st0 values ('2025-01-01 00:05:03.000', 11);",
-            ]
+            tdSql.execute(f"alter dnode 1 'uDebugFlag 135'")
+            
+            tdSql.execute("insert into st0 values ('2025-01-01 00:02:02.000', 8);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:03:03.000', 9);")           
 
-            tdSql.executes(sqls)
 
         def check2(self):
-            tdLog.info(f"check the stream {self.db}.s1")
-
+            tdLog.info(f"check2 the stream {self.db}.s1")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 3
+            )
+ 
+            tdSql.execute("insert into st0 values ('2025-01-01 00:04:04.000', 10);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:05:05.000', 11);")           
             tdSql.checkResultsByFunc(
                 sql=f"select * from {self.db}.res_st",
                 func=lambda: tdSql.getRows() == 5
+            )
+
+            tdSql.execute("insert into st0 values ('2025-01-01 00:06:06.000', 12);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:07:07.000', 13);")           
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 7
+            )
+            
+            tdSql.execute("insert into st0 values ('2025-01-01 00:08:08.000', 14);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:09:09.000', 15);")           
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 9
             )
             expect_event_count(
                 os.path.join(NOTIFY_RESULT_DIR, "basic16_s1.log"),
@@ -2158,6 +2174,48 @@ class TestStreamNotifyTrigger:
                 eventType="ON_TIME",
                 triggerType="Sliding",
                 tableName="ana_st0_ana",
-                expectCount=5,
+                expectCount=9,
+            )
+            
+            tdLog.info(f"=============== stop notify server temporarily")                                
+            stop_notify_server_background()
+            
+            tdSql.execute("insert into st0 values ('2025-01-01 00:10:10.000', 16);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:11:11.000', 17);")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 11
+            )            
+            tdSql.execute("insert into st0 values ('2025-01-01 00:12:10.000', 16);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:13:11.000', 17);")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 13
+            )               
+            
+            time.sleep(10)
+            
+            start_notify_server_background(port=12345, log_path=NOTIFY_RESULT_DIR)
+            tdLog.info(f"=============== notify server started again successfully")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:14:10.000', 16);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:15:11.000', 17);")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 15
+            )
+            tdSql.execute("insert into st0 values ('2025-01-01 00:16:10.000', 16);")
+            tdSql.execute("insert into st0 values ('2025-01-01 00:17:11.000', 17);")
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_st",
+                func=lambda: tdSql.getRows() == 17
+            )     
+            
+            expect_event_count(
+                os.path.join(NOTIFY_RESULT_DIR, "basic16_s1.log"),
+                streamName="idmp2.s1",
+                eventType="ON_TIME",
+                triggerType="Sliding",
+                tableName="ana_st0_ana",
+                expectCount=13,
             )
 

@@ -23,8 +23,9 @@
 #include "curl/curl.h"
 
 typedef struct SCurl {
-  CURL* pConn;
-  char* url;
+  CURL*   pConn;
+  char*   url;
+  int64_t lastConnectCheckTime;
 } SCURL;
 
 int32_t tcurlGetConnection(const char* url, SCURL** pConn);
