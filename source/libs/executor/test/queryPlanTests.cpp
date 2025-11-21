@@ -2381,10 +2381,10 @@ void qptCreateWindowPhysiNode(SWindowPhysiNode* pWindow) {
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
   qptMakeColumnNode(&pWindow->pTsEnd);
 
-  pWindow->triggerType = taosRand();
-  pWindow->watermark = taosRand();
-  pWindow->deleteMark = taosRand();
-  pWindow->igExpired = taosRand();
+  pWindow->unusedParam1 = taosRand();
+  pWindow->unusedParam2 = taosRand();
+  pWindow->unusedParam3 = taosRand();
+  pWindow->unusedParam4 = taosRand();
   pWindow->mergeDataBlock = QPT_RAND_BOOL_V;
 }
 

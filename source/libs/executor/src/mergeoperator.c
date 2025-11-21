@@ -392,40 +392,6 @@ int32_t openColsMergeOperator(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc) {
-  bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
-  int32_t code = 0;
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == targetBlkId) {
-      SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, pNode->slotId);
-      if (pDstCol == NULL) {
-        return terrno;
-      }
-
-      if (isNull) {
-        code = colDataSetVal(pDstCol, 0, NULL, true);
-      } else {
-        SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, ((SColumnNode*)pNode->pExpr)->slotId);
-        if (pSrcCol == NULL) {
-          code = terrno;
-          return code;
-        }
-
-        code = colDataAssign(pDstCol, pSrcCol, 1, &pDst->info);
-      }
-
-      if (code) {
-        break;
-      }
-    }
-  }
-
-  return code;
-}
-
 int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
 
@@ -433,34 +399,54 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                pBlock = NULL;
   SColsMergeInfo*             pColsMerge = &pInfo->colsMergeInfo;
-  int32_t                     nullBlkNum = 0;
   int32_t                     code = 0;
+  int32_t                     numOfRows = 0;
+  int32_t                     lino = 0;
+  STimeWindow                 timeWindow = {.skey = INT64_MAX, .ekey = INT64_MIN};
+  bool                        allNull = true;
+
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE) {
+      pOperator->status = OP_OPENED;
+    }
+    numOfRows = ((SMergeOperatorParam*)(pOperator->pOperatorGetParam)->value)->winNum;
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
+  } else {
+    numOfRows = 1;
+  }
 
   qDebug("start to merge columns, %s", GET_TASKID(pTaskInfo));
 
+  blockDataCleanup(pInfo->binfo.pRes);
+  code = blockDataEnsureCapacity(pInfo->binfo.pRes, numOfRows);
+  QUERY_CHECK_CODE(code, lino, _return);
+
   for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
     pBlock = getNextBlockFromDownstream(pOperator, i);
-    if (pBlock && pBlock->info.rows > 1) {
-      qError("more than 1 row returned from downstream, rows:%" PRId64, pBlock->info.rows);
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-    } else if (NULL == pBlock) {
-      nullBlkNum++;
-    }
-    
-    code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock);
-    if (code) {
-      return code;
+    if (pBlock) {
+      code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+      QUERY_CHECK_CODE(code, lino, _return);
+
+      timeWindow.skey = TMIN(timeWindow.skey, pBlock->info.window.skey);
+      timeWindow.ekey = TMAX(timeWindow.ekey, pBlock->info.window.ekey);
+      allNull = false;
     }
   }
 
   setOperatorCompleted(pOperator);
-  if (pColsMerge->sourceNum == nullBlkNum) {
+  if (allNull) {
     return code;
   }
 
-  pInfo->binfo.pRes->info.rows = 1;
+  pInfo->binfo.pRes->info.window.skey = timeWindow.skey;
+  pInfo->binfo.pRes->info.window.ekey = timeWindow.ekey;
+  pInfo->binfo.pRes->info.rows = numOfRows;
   *pResBlock = pInfo->binfo.pRes;
 
+  return code;
+_return:
+  qError("failed to merge columns, line:%d code:%s", lino, tstrerror(code));
   return code;
 }
 
@@ -515,7 +501,7 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  if (pOperator->status == OP_EXEC_DONE) {
+  if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     return 0;
   }
 
