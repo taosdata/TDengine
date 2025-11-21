@@ -462,7 +462,8 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t enable : 1;
-      uint8_t reserve : 7;
+      uint8_t sys : 1;  // system role
+      uint8_t reserve : 6;
     };
   };
   SPrivSet  privSet;

@@ -24,13 +24,13 @@ extern "C" {
 
 typedef enum {
   // ==================== Legacy Privilege ====================
-  PRIV_TYPE_ALL = 1,        // ALL PRIVILEGES
-  PRIV_TYPE_READ = 2,       // READ PRIVILEGE
-  PRIV_TYPE_WRITE = 3,      // WRITE PRIVILEGE
-  PRIV_TYPE_SUBSCRIBE = 4,  // SUBSCRIBE PRIVILEGE
-  PRIV_TYPE_ALTER = 5,      // ALTER PRIVILEGE
-  // ==================== DB Privileges(6~49) ====================
-  PRIV_DB_CREATE = 6,      // CREATE DATABASE
+  PRIV_TYPE_ALL = 0,        // ALL PRIVILEGES
+  PRIV_TYPE_READ = 1,       // READ PRIVILEGE
+  PRIV_TYPE_WRITE = 2,      // WRITE PRIVILEGE
+  PRIV_TYPE_SUBSCRIBE = 3,  // SUBSCRIBE PRIVILEGE
+  PRIV_TYPE_ALTER = 4,      // ALTER PRIVILEGE
+  // ==================== DB Privileges(5~49) ====================
+  PRIV_DB_CREATE = 5,      // CREATE DATABASE
   PRIV_DB_ALTER,           // ALTER DATABASE
   PRIV_DB_DROP,            // DROP DATABASE
   PRIV_DB_USE,             // USE DATABASE
@@ -257,6 +257,12 @@ typedef struct {
   const char*   name;
 } SPrivInfo;
 
+typedef struct {
+  SPrivSet* privSet;
+  uint64_t  curPriv;
+  int32_t   groupIndex;
+} SPrivIter;
+
 static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
   SPrivSet merged = privSet1;
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
@@ -268,6 +274,8 @@ static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
 }
 
 int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EObjType* pObjType);
+void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
+bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 
 #ifdef __cplusplus
 }

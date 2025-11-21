@@ -4074,7 +4074,7 @@ _err:
   return NULL;
 }
 
-static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName) {
+static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName, bool checkSysName) {
   if (NULL == pName) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else {
@@ -4085,12 +4085,18 @@ static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName) {
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     trimEscape(pCxt, pName, true);
   }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    if (checkSysName && strncmp(pName->z, "SYS", 3) == 0) {  // system reserved role name prefix
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Cannot create/drop/alter roles with reserved prefix SYS");
+    }
+  }
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
 SNode* createCreateRoleStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pName) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkRoleName(pCxt, pName));
+  CHECK_NAME(checkRoleName(pCxt, pName, true));
   SCreateRoleStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ROLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -4103,7 +4109,7 @@ _err:
 
 SNode* createDropRoleStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pName) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkRoleName(pCxt, pName));
+  CHECK_NAME(checkRoleName(pCxt, pName, true));
   SDropRoleStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ROLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -5241,7 +5247,7 @@ _err:
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPrivLevel, SToken* pPrincipal,
                        SNode* pTagCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkRoleName(pCxt, pPrincipal));
+  CHECK_NAME(checkRoleName(pCxt, pPrincipal, false));
   SGrantStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_GRANT_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -5265,7 +5271,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPri
     }
     case TSDB_ALTER_ROLE_ROLE: {
       SToken* pRole = (SToken*)resouces;
-      CHECK_NAME(checkRoleName(pCxt, pRole));
+      CHECK_NAME(checkRoleName(pCxt, pRole, false));
       COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
       break;
     }
@@ -5299,7 +5305,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPr
     pStmt->pTagCond = pTagCond;
   } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
     SToken* pRole = (SToken*)resouces;
-    CHECK_NAME(checkRoleName(pCxt, pRole));
+    CHECK_NAME(checkRoleName(pCxt, pRole, false));
     COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unsupported revoke type");

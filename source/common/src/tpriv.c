@@ -267,3 +267,28 @@ _exit:
 
   return 0;
 }
+
+void privIterInit(SPrivIter* pIter, SPrivSet* privSet) {
+  (void)taosThreadOnce(&privInit, initPrivLookup);
+  pIter->privSet = privSet;
+  pIter->groupIndex = 0;
+  pIter->curPriv = privSet->set[0];
+}
+
+bool privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo) {
+_loop:
+  while (iter->curPriv == 0) {
+    if (++iter->groupIndex >= PRIV_GROUP_CNT) {
+      return false;
+    }
+    iter->curPriv = iter->privSet->set[iter->groupIndex];
+  }
+  int32_t   bitPos = BUILDIN_CTZL(iter->curPriv);
+  EPrivType privType = (iter->groupIndex << 6) + bitPos;
+  iter->curPriv &= ~(1ULL << bitPos);
+  if (ppPrivInfo) {
+    *ppPrivInfo = privLookup[privType];
+    if (!(*ppPrivInfo)) goto _loop;
+  }
+  return true;
+}
