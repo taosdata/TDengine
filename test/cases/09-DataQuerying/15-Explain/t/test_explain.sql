@@ -160,3 +160,41 @@ explain verbose true select _wstart, _wend, count(*), last(ts) from meters state
 
 explain verbose true select _wstart, _wend, last(ts) from (select _wstart as ts, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc) interval(1h) order by _wstart desc\G;
 explain verbose true select _wstart, _wend, last(ts) from (select _wstart as ts, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc) interval(1h) order by _wstart desc\G;
+
+
+explain verbose true select * from meters where cc = 'a'\G;
+explain verbose true select * from meters where cc != 'a'\G;
+explain verbose true select * from meters where cc >= 'a'\G;
+explain verbose true select * from meters where cc <= 'a'\G;
+explain verbose true select * from meters where cc > 'a'\G;
+explain verbose true select * from meters where cc < 'a'\G;
+explain verbose true select * from meters where cc like 'a'\G;
+explain verbose true select * from meters where cc not like 'a'\G;
+explain verbose true select * from meters where cc in ('a')\G;
+explain verbose true select * from meters where cc not in ('a')\G;
+explain verbose true select * from meters where cc = abs(-1)\G;
+explain verbose true select * from meters where cc = concat(cc, 'a')\G;
+explain verbose true select * from meters where case when cc > 'a' then 'a' else 'b' end > 'a'\G;
+explain verbose true select * from meters where cc + 'a' = 'a'\G;
+
+
+explain verbose true select * from meters where cc2 = 'a'\G;
+explain verbose true select * from meters where cc2 != 'a'\G;
+explain verbose true select * from meters where cc2 >= 'a'\G;
+explain verbose true select * from meters where cc2 <= 'a'\G;
+explain verbose true select * from meters where cc2 > 'a'\G;
+explain verbose true select * from meters where cc2 < 'a'\G;
+explain verbose true select * from meters where cc2 like 'a'\G;
+explain verbose true select * from meters where cc2 not like 'a'\G;
+explain verbose true select * from meters where cc2 in ('a')\G;
+explain verbose true select * from meters where cc2 not in ('a')\G;
+explain verbose true select * from meters where cc2 = abs(-1)\G;
+explain verbose true select * from meters where cc2 = concat(cc, 'a')\G;
+explain verbose true select * from meters where case when cc2 > 'a' then 'a' else 'b' end > 'a'\G;
+explain verbose true select * from meters where cc2 + 'a' = 'a'\G;
+
+explain verbose true select * from meters where cc = 'a' or cc = 'b'\G;
+explain verbose true select * from meters where cc = 'a' and cc = 'b'\G;
+explain verbose true select * from meters where cc = 'a' and cc != 'b'\G;
+explain verbose true select * from meters where cc = 'a' and cc2 = 'b'\G;
+explain verbose true select * from meters where cc = 'a' and cc2 != 'b'\G;
