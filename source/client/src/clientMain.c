@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <strings.h>
 #include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
