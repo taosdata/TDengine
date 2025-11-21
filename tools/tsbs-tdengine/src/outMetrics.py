@@ -16,6 +16,7 @@
 import os
 import sys
 import time
+import json
 from outLog import log
 
 class OutMetrics:
@@ -122,6 +123,14 @@ class OutMetrics:
         self.write_log(header)
         self.write_log(separator)
         
+        # Collect metrics data for JSON output
+        metrics_data = {
+            'test_start_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.time_start)) if self.time_start else None,
+            'test_end_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.time_end)) if self.time_end else None,
+            'total_duration_seconds': (self.time_end - self.time_start) if (self.time_end and self.time_start) else 0,
+            'scenarios': []
+        }
+        
         # Data rows
         for scenario in self.scenarioId:
             start_time = self.time_start_write.get(scenario, 0)
@@ -156,8 +165,43 @@ class OutMetrics:
                 f"| {status:<{col_widths['status']}} |"
             )
             self.write_log(row)
+            
+            # Add to JSON data
+            scenario_data = {
+                'scenario_id': self.scenarioId[scenario],
+                'classification': self.classification[scenario],
+                'out_records': out_rows,
+                'in_records': in_rows,
+                'start_time': start_time_str,
+                'end_time': end_time_str,
+                'duration_ms': round(duration, 0),
+                'throughput_rec_per_sec': round(throughput, 2),
+                'status': status
+            }
+            metrics_data['scenarios'].append(scenario_data)
         
         # End
-        log.out("Metrics output complete. record file: %s" % self.metrics_file)
+        log.out("\nMetrics appand: %s" % self.metrics_file)
+        
+        # Save to single metrics json file to metrics/ subfolder
+        
+        # Create metrics directory
+        metrics_dir = os.path.join(os.path.dirname(self.metrics_file), 'metrics')
+        os.makedirs(metrics_dir, exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = time.strftime('_%Y-%m-%d_%H:%M:%S', time.localtime())
+        json_filename = f'tsbs_{timestamp}.json'
+        json_filepath = os.path.join(metrics_dir, json_filename)
+        
+        # Write JSON file
+        try:
+            with open(json_filepath, 'w', encoding='utf-8') as f:
+                json.dump(metrics_data, f, indent=2, ensure_ascii=False)
+            log.out(f"Metrics json saved: {json_filepath}")
+        except Exception as e:
+            log.out(f"Failed to save metrics JSON: {e}")
+        
+        
         
 metrics = OutMetrics()
