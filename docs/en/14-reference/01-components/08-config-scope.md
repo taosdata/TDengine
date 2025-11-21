@@ -48,6 +48,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | **Query Related** | | |
 | countAlwaysReturnValue | both | Whether count/hyperloglog functions return a value when input data is empty or NULL |
 | tagFilterCache | taosd | Whether to cache tag filter results |
+| stableTagFilterCache | taosd | Whether to cache tag equal condition filter results.  It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
 | queryBufferSize | taosd | Query available cache size |
 | queryRspPolicy | taosd | Query response strategy |
 | queryUseMemoryPool | taosd | Whether query will use memory pool to manage memory |
