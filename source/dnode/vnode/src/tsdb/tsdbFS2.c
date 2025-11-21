@@ -1325,6 +1325,13 @@ static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
   // get file set details
   pReader->fid = pReader->pFileSet->fid;
   tsdbFidKeyRange(pReader->fid, pTsdb->keepCfg.days, pTsdb->keepCfg.precision, &pReader->startTime, &pReader->endTime);
+  if (pTsdb->keepCfg.precision == TSDB_TIME_PRECISION_MICRO) {
+    pReader->startTime /= 1000;
+    pReader->endTime /= 1000;
+  } else if (pTsdb->keepCfg.precision == TSDB_TIME_PRECISION_NANO) {
+    pReader->startTime /= 1000000;
+    pReader->endTime /= 1000000;
+  }
   pReader->lastCompactTime = pReader->pFileSet->lastCompact;
   pReader->totalSize = 0;
   for (int32_t i = 0; i < TSDB_FTYPE_MAX; i++) {

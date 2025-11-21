@@ -44,6 +44,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_group.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter_origin_table.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_schema_is_old.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/decimal/test_TS6333.py
@@ -557,6 +558,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-33225.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts7662.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td35698.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32471.py
