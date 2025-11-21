@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+import os
 from new_test_framework.utils import tdSql, tdLog, tdCom, tdStream
 from new_test_framework.utils import etool
 
@@ -45,6 +46,7 @@ class TestStateWindowNullBlock:
 
         """
         self.prepare_data()
+        self.check_end_with_null_block()
         self.check_all_non_null()
         self.check_inner_null()
         self.check_border_null1()
@@ -76,6 +78,14 @@ class TestStateWindowNullBlock:
         tdSql.execute(f"insert into t5 file '{datafile}'")
         datafile = etool.getFilePath(__file__, "data", "data6.csv")
         tdSql.execute(f"insert into t6 file '{datafile}'")
+
+        # prepare with taosBenchmark
+        # insert 5k rows with all nulls
+        json_file = os.path.join(os.path.dirname(__file__), "json/all_null_5k.json")
+        etool.benchMark(json=json_file)
+        # insert to create a window
+        tdSql.execute("use test_end_null")
+        tdSql.execute("insert into d0 values('2025-10-01 01:00:00', 1);")
 
     # test data pattern:
     # | true ... true | true ... false | true ... true |
@@ -544,3 +554,24 @@ class TestStateWindowNullBlock:
         tdSql.checkData(2, 2, True)
         tdSql.checkData(2, 3, 5995)
         tdSql.checkData(2, 4, 3995)
+
+    def check_end_with_null_block(self):
+        tdSql.execute("use test_end_null")
+        tdSql.query("select _wstart, _wend, count(*), sum(v) from d0 state_window(v)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-10-01 01:00:00.000")
+        tdSql.checkData(0, 1, "2025-10-01 01:00:00.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.query("select _wstart, _wend, count(*), sum(v) from d0 state_window(v, 1)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-10-01 01:00:00.000")
+        tdSql.checkData(0, 1, "2025-10-01 01:23:19.000")
+        tdSql.checkData(0, 2, 1400)
+        tdSql.checkData(0, 3, 1)
+        tdSql.query("select _wstart, _wend, count(*), sum(v) from d0 state_window(v, 2)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-10-01 00:00:00.000")
+        tdSql.checkData(0, 1, "2025-10-01 01:00:00.000")
+        tdSql.checkData(0, 2, 3601)
+        tdSql.checkData(0, 3, 1)

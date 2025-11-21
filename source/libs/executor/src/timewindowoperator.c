@@ -1112,10 +1112,12 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
     }
   }
 
-  // if the block ends with null state columns,
-  // we do not process them here,
-  // since we don't know the belonging of these null rows 
-  if (pRowSup->numOfRows == 0) {
+  if (!pInfo->hasKey || 
+    (pRowSup->numOfRows == 0 && 
+    extendOption != STATE_WIN_EXTEND_OPTION_BACKWARD)) {
+    // if no valid state window or we don't know
+    // the belonging of these null rows,
+    // just return
     return;
   }
   doKeepCurStateWindowEndInfo(pRowSup, tsList, *endIndex, &extendOption, false);
