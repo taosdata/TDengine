@@ -310,7 +310,7 @@ static size_t pkcs7_padding_data_length(uint8_t *buffer, size_t buffer_size, uin
 
 int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
   uint32_t       encryptlen = taes_encrypt_len(len);
-  int32_t        blocks = encryptlen % AES_BLOCKLEN;
+  int32_t        blocks = encryptlen / AES_BLOCKLEN;
   struct AES_ctx ctx;
 
   pkcs7_padding_pad_buffer(key, keylen, AES_BLOCKLEN);
@@ -325,7 +325,7 @@ int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len,
   } else {
     AES_init_ctx(&ctx, key);
 
-    for (int32_t block = 0; block < blocks; ++blocks) {
+    for (int32_t block = 0; block < blocks; ++block) {
       AES_ECB_encrypt(&ctx, pBuf + block * AES_BLOCKLEN);
     }
   }
@@ -334,7 +334,7 @@ int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len,
 }
 
 int32_t taosAesDecrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
-  int32_t        blocks = len % AES_BLOCKLEN;
+  int32_t        blocks = len / AES_BLOCKLEN;
   size_t         datalen = 0;
   struct AES_ctx ctx;
 
@@ -349,7 +349,7 @@ int32_t taosAesDecrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len,
   } else {
     AES_init_ctx(&ctx, key);
 
-    for (int32_t block = 0; block < blocks; ++blocks) {
+    for (int32_t block = 0; block < blocks; ++block) {
       AES_ECB_decrypt(&ctx, pBuf + block * AES_BLOCKLEN);
     }
   }

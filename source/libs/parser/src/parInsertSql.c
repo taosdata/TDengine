@@ -733,6 +733,150 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
       int32_t len = taosCreateSHA1Hash(*pData, inputBytes);
       *nData = len;
+    } else if (0 == strncasecmp(pToken->z, "aes_encrypt(", 12)) {
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_LP != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "( expected", pToken->z);
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      } else {
+        inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
+        input = tmpTokenBuf;
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_COMMA != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+      }
+
+      char*   key = NULL;
+      int32_t keyBytes = 0;
+      char    tmpKeyBuf[TSDB_MAX_BYTES_PER_ROW];
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "key expected", pToken->z);
+      } else {
+        keyBytes = trimString(pToken->z, pToken->n, tmpKeyBuf, TSDB_MAX_BYTES_PER_ROW);
+        key = tmpKeyBuf;
+      }
+
+      char*   iv = NULL;
+      int32_t ivBytes = 0;
+      char    tmpIvBuf[TSDB_MAX_BYTES_PER_ROW];
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_RP != pToken->type && TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ") or iv expected", pToken->z);
+      } else if (TK_NK_STRING == pToken->type) {
+        ivBytes = trimString(pToken->z, pToken->n, tmpIvBuf, TSDB_MAX_BYTES_PER_ROW);
+        iv = tmpIvBuf;
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+        }
+      }
+
+      int32_t outputBytes = taes_encrypt_len(inputBytes);
+      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+
+      int32_t bufLen = outputBytes + VARSTR_HEADER_SIZE + 1;
+      *pData = taosMemoryMalloc(bufLen);
+      if (NULL == *pData) {
+        return terrno;
+      }
+
+      (void)memcpy(*pData, input, inputBytes);
+
+      int32_t keypaddedlen = taes_encrypt_len(keyBytes);
+      char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
+      if (!pKeyPaddingBuf) {
+        return terrno;
+      }
+      (void)memcpy(pKeyPaddingBuf, key, keyBytes);
+
+      int32_t len = taosAesEncrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes, iv);
+      *nData = len;
+
+      taosMemoryFree(pKeyPaddingBuf);
+    } else if (0 == strncasecmp(pToken->z, "aes_decrypt(", 12)) {
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_LP != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "( expected", pToken->z);
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      } else {
+        inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
+        input = tmpTokenBuf;
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_COMMA != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+      }
+
+      char*   key = NULL;
+      int32_t keyBytes = 0;
+      char    tmpKeyBuf[TSDB_MAX_BYTES_PER_ROW];
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "key expected", pToken->z);
+      } else {
+        keyBytes = trimString(pToken->z, pToken->n, tmpKeyBuf, TSDB_MAX_BYTES_PER_ROW);
+        key = tmpKeyBuf;
+      }
+
+      char*   iv = NULL;
+      int32_t ivBytes = 0;
+      char    tmpIvBuf[TSDB_MAX_BYTES_PER_ROW];
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_RP != pToken->type && TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ") or iv expected", pToken->z);
+      } else if (TK_NK_STRING == pToken->type) {
+        ivBytes = trimString(pToken->z, pToken->n, tmpIvBuf, TSDB_MAX_BYTES_PER_ROW);
+        iv = tmpIvBuf;
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+        }
+      }
+
+      int32_t outputBytes = taes_encrypt_len(inputBytes);
+      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+
+      int32_t bufLen = outputBytes + VARSTR_HEADER_SIZE + 1;
+      *pData = taosMemoryMalloc(bufLen);
+      if (NULL == *pData) {
+        return terrno;
+      }
+
+      (void)memcpy(*pData, input, inputBytes);
+
+      int32_t keypaddedlen = taes_encrypt_len(keyBytes);
+      char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
+      if (!pKeyPaddingBuf) {
+        return terrno;
+      }
+      (void)memcpy(pKeyPaddingBuf, key, keyBytes);
+
+      int32_t len = taosAesDecrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes, iv);
+      *nData = len;
+
+      taosMemoryFree(pKeyPaddingBuf);
     } else {
       return buildSyntaxErrMsg(&pCxt->msg, "invalid identifier", pToken->z);
     }
@@ -2685,11 +2829,10 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   }
 }
 
-static void parsedValueDestroy(void *p)
-{
+static void parsedValueDestroy(void* p) {
   if (!p) return;
 
-  SColVal *pVal = (SColVal*)p;
+  SColVal* pVal = (SColVal*)p;
 
   if (COL_VAL_IS_VALUE(pVal) && IS_VAR_DATA_TYPE(pVal->value.type)) {
     taosMemoryFreeClear(pVal->value.pData);
