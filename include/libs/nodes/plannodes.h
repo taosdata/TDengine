@@ -319,17 +319,6 @@ typedef struct SMergeLogicNode {
   bool       inputWithGroupId;
 } SMergeLogicNode;
 
-typedef enum EWindowType {
-  WINDOW_TYPE_INTERVAL = 1,
-  WINDOW_TYPE_SESSION,
-  WINDOW_TYPE_STATE,
-  WINDOW_TYPE_EVENT,
-  WINDOW_TYPE_COUNT,
-  WINDOW_TYPE_ANOMALY,
-  WINDOW_TYPE_EXTERNAL,
-  WINDOW_TYPE_PERIOD
-} EWindowType;
-
 typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,
   INTERVAL_ALGO_MERGE,

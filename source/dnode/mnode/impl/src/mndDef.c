@@ -15,6 +15,7 @@
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndDef.h"
+#include "mndStream.h"
 #include "taoserror.h"
 #include "tunit.h"
 
@@ -44,7 +45,12 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_EXIT(terrno);
   }
   
-  TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
+  if (MND_STREAM_VER_NUMBER == sver) {
+    TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
+  } else {
+    TAOS_CHECK_RETURN(
+      tDeserializeSCMCreateStreamReqImplOld(pDecoder, pObj->pCreate, 21));
+  }
 
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->mainSnodeId));
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->userStopped));

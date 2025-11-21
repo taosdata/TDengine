@@ -651,6 +651,7 @@ Below are the business error codes for each module.
 | 0x80007014 | Stream output table name too long     | Output table name exceeds length limit       | Check if the output table name rules in the stream creation statement are correct and if the result is too long |
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
+| 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 
 ## Connectors
 Below are the error codes specific to connectors for various programming languages. In addition to returning their own error codes, connectors also return the TSDB error codes mentioned above.
