@@ -92,6 +92,11 @@ class TestSnapshot:
         
         self.alterReplica3()
 
+        # after alter replica, one of replica is delayed, this replica can't be forcely leader, 
+        # balance vgroup leader will randomly choose this replica
+        # so need wait a while
+        time.sleep(10)
+
         vgids = self.getVGroup(self.db)
         selid = random.choice(vgids)
         self.balanceVGroupLeaderOn(selid)
