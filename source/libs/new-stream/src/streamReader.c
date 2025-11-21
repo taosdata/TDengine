@@ -78,11 +78,32 @@ end:
   return code;
 }
 
+int32_t initStreamTableListInfo(StreamTableListInfo* pTableListInfo){
+  int32_t                   code = 0;
+  int32_t                   lino = 0;
+  if (pTableListInfo->pTableList == NULL) {
+    pTableListInfo->pTableList = taosArrayInit(4, POINTER_BYTES);
+    STREAM_CHECK_NULL_GOTO(pTableListInfo->pTableList, terrno);
+  }
+  if (pTableListInfo->gIdMap == NULL) {
+    pTableListInfo->gIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    STREAM_CHECK_NULL_GOTO(pTableListInfo->gIdMap, terrno);
+  }
+  if (pTableListInfo->uIdMap == NULL) {
+    pTableListInfo->uIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    STREAM_CHECK_NULL_GOTO(pTableListInfo->uIdMap, terrno);
+  }
+
+end:
+  return code;
+}
+
 int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid){
   int32_t code = 0;
   int32_t lino = 0;
 
   stDebug("stream reader set table list, uid:%"PRIu64", gid:%"PRIu64, uid, gid);
+  STREAM_CHECK_RET_GOTO(initStreamTableListInfo(pTableListInfo));
   SStreamTableKeyInfo* keyInfo = taosMemoryCalloc(1, sizeof(SStreamTableKeyInfo));
   STREAM_CHECK_NULL_GOTO(keyInfo, terrno);
   *keyInfo = (SStreamTableKeyInfo){.uid = uid, .groupId = gid, .markedDeleted = false, .prev = NULL, .next = NULL};
@@ -583,6 +604,12 @@ static void freeTagCache(void* pData){
   taosArrayDestroyP(tagCache, taosMemFree);
 }
 
+static void freeSchema(void* pData){
+  if (pData == NULL) return;
+  STSchema* schema = *(STSchema**)pData;
+  taosMemoryFree(schema);
+}
+
 static bool groupbyTbname(SNodeList* pGroupList) {
   bool   bytbname = false;
   SNode* pNode = NULL;
@@ -707,7 +734,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
 
   sStreamReaderInfo->triggerTableSchemaMapVTable = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerTableSchemaMapVTable, terrno);
-  taosHashSetFreeFp(sStreamReaderInfo->triggerTableSchemaMapVTable, taosMemFree);
+  taosHashSetFreeFp(sStreamReaderInfo->triggerTableSchemaMapVTable, freeSchema);
 
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->triggerBlock));
   SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver

@@ -2951,6 +2951,7 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   pDst->triggerPrec = pSrc->triggerPrec;
   pDst->deleteReCalc = pSrc->deleteReCalc;
   pDst->deleteOutTbl = pSrc->deleteOutTbl;
+  pDst->flags = pSrc->flags;
   
 _exit:
 

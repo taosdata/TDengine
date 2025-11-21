@@ -225,26 +225,6 @@ static int32_t  qTransformStreamTableList(SStreamTriggerReaderInfo* sStreamReade
   return 0;
 }
 
-static int32_t initStreamTableListInfo(StreamTableListInfo* pTableListInfo){
-  int32_t                   code = 0;
-  int32_t                   lino = 0;
-  if (pTableListInfo->pTableList == NULL) {
-    pTableListInfo->pTableList = taosArrayInit(4, POINTER_BYTES);
-    STREAM_CHECK_NULL_GOTO(pTableListInfo->pTableList, terrno);
-  }
-  if (pTableListInfo->gIdMap == NULL) {
-    pTableListInfo->gIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-    STREAM_CHECK_NULL_GOTO(pTableListInfo->gIdMap, terrno);
-  }
-  if (pTableListInfo->uIdMap == NULL) {
-    pTableListInfo->uIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-    STREAM_CHECK_NULL_GOTO(pTableListInfo->uIdMap, terrno);
-  }
-
-end:
-  return code;
-}
-
 static int32_t generateTablistForStreamReader(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t                   code = 0;
   int32_t                   lino = 0;
@@ -1191,16 +1171,16 @@ static int32_t getSchemas(SVnode* pVnode, int64_t suid, int64_t uid, int32_t sve
   if (sStreamReaderInfo->isVtableStream) {
     STSchema** schemaTmp = taosHashGet(sStreamReaderInfo->triggerTableSchemaMapVTable, &id, LONG_BYTES);
     if (schemaTmp == NULL || *schemaTmp == NULL || (*schemaTmp)->version != sver) {
-      if (schemaTmp != NULL) taosMemoryFree(*schemaTmp);
-      *schemaTmp = metaGetTbTSchema(pVnode->pMeta, id, sver, 1);
-      STREAM_CHECK_NULL_GOTO(*schemaTmp, terrno);
-      code = taosHashPut(sStreamReaderInfo->triggerTableSchemaMapVTable, &id, LONG_BYTES, schemaTmp, POINTER_BYTES);
+      *schema = metaGetTbTSchema(pVnode->pMeta, id, sver, 1);
+      STREAM_CHECK_NULL_GOTO(*schema, terrno);
+      code = taosHashPut(sStreamReaderInfo->triggerTableSchemaMapVTable, &id, LONG_BYTES, schema, POINTER_BYTES);
       if (code != 0) {
-        taosMemoryFree(*schemaTmp);
+        taosMemoryFree(*schema);
         goto end;
       }
+    } else {
+      *schema = *schemaTmp;
     }
-    *schema = *schemaTmp;
   } else {
     if (sStreamReaderInfo->triggerTableSchema == NULL || sStreamReaderInfo->triggerTableSchema->version != sver) {
       taosMemoryFree(sStreamReaderInfo->triggerTableSchema);

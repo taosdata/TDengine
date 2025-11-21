@@ -143,7 +143,8 @@ int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTas
                          SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi);
 
 int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** ppTask, SStorageAPI* api);
-                        
+         
+int32_t  initStreamTableListInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);
