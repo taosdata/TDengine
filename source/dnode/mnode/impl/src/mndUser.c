@@ -3139,6 +3139,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
   }
 
+  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pOperUser, pUser, &alterReq), &lino, _OVER);
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (alterReq.hasPassword) {
@@ -3163,10 +3164,18 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       newUser.passwords = passwords;
       ++newUser.numOfPasswords;
       ++newUser.passVersion;
+      if (strcmp(newUser.user, pOperUser->user) == 0) {
+        // if user change own password, set changePass to 2 so that user won't be
+        // forced to change password at next login
+        newUser.changePass = 2;
+      }
     } else if (0 != strncmp(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN)) {
       memcpy(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN);
       newUser.passwords[0].setTime = taosGetTimestampSec();
       ++newUser.passVersion;
+      if (strcmp(newUser.user, pOperUser->user) == 0) {
+        newUser.changePass = 2;
+      }
     }
   }
 

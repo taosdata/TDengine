@@ -270,6 +270,29 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
 
 
 
+// TODO: if there are many connections, this function may be slow
+static int32_t mndCountUserConns(SMnode *pMnode, const char *user) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  SCacheIter   *pIter = taosCacheCreateIter(pMgmt->connCache);
+  if (pIter == NULL) {
+    mError("failed to create conn cache iterator");
+    return -1;
+  }
+
+  int32_t    count = 0;
+  SConnObj  *pConn = NULL;
+  while ((pConn = mndGetNextConn(pMnode, pIter)) != NULL) {
+    if (strncmp(pConn->user, user, TSDB_USER_LEN) == 0) {
+      count++;
+    }
+    mndReleaseConn(pMnode, pConn, true);
+  }
+
+  return count;
+}
+
+
+
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SUserObj       *pUser = NULL;
@@ -330,6 +353,15 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     if((now - pUser->lastFailedLoginTime) < (pUser->passwordLockTime * 60)) {
       mGError("user:%s, failed to login from %s since too many login failures", pReq->info.conn.user, ip);
       code = TSDB_CODE_MND_USER_DISABLED;
+      goto _OVER;
+    }
+  }
+
+  if (pUser->sessionPerUser >= 0) {
+    int32_t currentSessions = mndCountUserConns(pMnode, pReq->info.conn.user);
+    if (currentSessions >= pUser->sessionPerUser) {
+      mGError("user:%s, failed to login from %s since exceed max connections:%d", pReq->info.conn.user, ip, pUser->sessionPerUser);
+      code = TSDB_CODE_MND_TOO_MANY_CONNECTIONS;
       goto _OVER;
     }
   }
@@ -397,6 +429,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
+  connectRsp.mustChangePass = mndMustChangePassword(pUser) ? 1 : 0;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;

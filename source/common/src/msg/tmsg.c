@@ -9168,6 +9168,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pRsp->monitorParas));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditDelete));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteListVer));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->mustChangePass));
   tEndEncode(&encoder);
 
 _exit:
@@ -9226,8 +9227,10 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->timeWhiteListVer));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->mustChangePass));
   } else {
     pRsp->timeWhiteListVer = 0;
+    pRsp->mustChangePass = 0;
   }
 
   tEndDecode(&decoder);
