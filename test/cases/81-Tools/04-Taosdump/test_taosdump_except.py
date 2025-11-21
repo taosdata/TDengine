@@ -188,11 +188,11 @@ class TestTaosdumpRetry:
         tdLog.info("call stopKillThread end\n")
 
     def test_taosdump_retry(self):
-        """taosdump bugs
+        """taosdump except
 
         1. taosBenchmark prepare data with super table and normal table
         2. taosdump start dump out database
-        3. Kill -9 taosadapter during dump out
+        3. Create except with kill -9 taosadapter during dump out
         4. Start taosadapter again
         5. taosdump dump in database
         6. Verify data correctness with sum aggregation

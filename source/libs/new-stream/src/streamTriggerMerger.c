@@ -1520,7 +1520,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
         pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
       }
       if (pLastSlice != NULL && pLastSlice->endIdx == slice.startIdx &&
-          pTsData[pLastSlice->endIdx - 1] <= pTsData[slice.startIdx]) {
+          pTsData[pLastSlice->endIdx - 1] < pTsData[slice.startIdx]) {
         // merge with the last slice
         pLastSlice->endIdx = slice.endIdx;
       } else {

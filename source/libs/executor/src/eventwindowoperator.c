@@ -41,6 +41,7 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;
   pEvent->inWindow = false;
+  pEvent->winSup.lastTs = INT64_MIN;
 
   colDataDestroy(&pEvent->twAggSup.timeWindowData);
   int32_t code = initExecTimeWindowInfo(&pEvent->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -122,6 +123,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
   pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
+  pInfo->winSup.lastTs = INT64_MIN;
 
   pInfo->twAggSup = (STimeWindowAggSupp){.waterMark = pEventWindowNode->window.watermark,
                                          .calTrigger = pEventWindowNode->window.triggerType};
@@ -326,6 +328,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     // this is a new group, reset the info
     pInfo->inWindow = false;
     pInfo->groupId = gid;
+    pInfo->winSup.lastTs = INT64_MIN;
     pInfo->pPreDataBlock = pBlock;
     goto _return;
   }
@@ -348,6 +351,20 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   code = filterExecute(pInfo->pEndCondInfo, pBlock, &pe, NULL, param2.numOfCols, &status2);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (pBlock->info.scanFlag != PRE_SCAN) {
+      if (pInfo->winSup.lastTs == INT64_MIN) {
+        pInfo->winSup.lastTs = tsList[i];
+      } else {
+        if (tsList[i] == pInfo->winSup.lastTs) {
+          qError("duplicate timestamp found in event window operator, groupId: %" PRId64 ", timestamp: %" PRId64,
+                 gid, tsList[i]);
+          code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
+      }
+    }
+  }
   int32_t startIndex = pInfo->inWindow ? 0 : -1;
   while (rowIndex < pBlock->info.rows) {
     if (pInfo->inWindow) {  // let's find the first end value

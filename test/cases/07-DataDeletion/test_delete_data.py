@@ -248,6 +248,8 @@ class TestDeleteData:
                 tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
             else:
                 tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
+        
+        tdSql.error(f'delete from {tbname} where _c0 > forecast(_c0)')
 
     def delete_data_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
@@ -317,7 +319,7 @@ class TestDeleteData:
         tdSql.checkData(0, 1, 2)        
     
     def test_delete_data(self):
-        """Delete Data Test (obsolete)
+        """Delete data test (obsolete)
 
         1. Delete data from normal table
         2. Insert data into child table

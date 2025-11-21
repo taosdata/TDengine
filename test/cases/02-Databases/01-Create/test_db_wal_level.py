@@ -39,7 +39,7 @@ class TestWalLevelSkip:
         tdSql.execute("alter database db0 wal_level %d;"%level)
 
     def test_wal_level_skip(self):
-        """WAL level 
+        """Options: wal level 
 
         1. create database wal_level = 0 and insert data
         2. stop/kill taosd before alter wal level

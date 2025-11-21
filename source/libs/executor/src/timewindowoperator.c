@@ -1070,6 +1070,18 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   EStateWinExtendOption  extendOption = pInfo->extendOption;
   SWindowRowsSup*        pRowSup = &pInfo->winSup;
   for (int32_t j = *startIndex; j < *endIndex; ++j) {
+    if (pBlock->info.scanFlag != PRE_SCAN) {
+      if (pInfo->winSup.lastTs == INT64_MIN || gid != pRowSup->groupId || !pInfo->hasKey) {
+        pInfo->winSup.lastTs = tsList[j];
+      } else {
+        if (tsList[j] == pInfo->winSup.lastTs) {
+          // forbid duplicated ts rows
+          qError("%s:%d duplicated ts found in state window aggregation", __FILE__, __LINE__);
+          pTaskInfo->code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+          T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP);
+        }
+      }
+    }
     pAgg = (pBlock->pBlockAgg != NULL) ?
       &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
@@ -1858,7 +1870,7 @@ static int32_t resetStatewindowOperState(SOperatorInfo* pOper) {
 
   pInfo->cleanGroupResInfo = false;
   pInfo->hasKey = false;
-
+  pInfo->winSup.lastTs = INT64_MIN;
   cleanupGroupResInfo(&pInfo->groupResInfo);
   memset(pInfo->stateKey.pData, 0, pInfo->stateKey.bytes);
   return code;
@@ -1942,6 +1954,8 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pInfo->cleanGroupResInfo = false;
   pInfo->extendOption = pStateNode->extendOption;
   pInfo->trueForLimit = pStateNode->trueForLimit;
+  pInfo->winSup.lastTs = INT64_MIN;
+
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAggNext, NULL, destroyStateWindowOperatorInfo,

@@ -7,7 +7,7 @@ class TestGroupByBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_groupby_basic(self):
-        """Group By Basic
+        """Group by basic
 
         1. Including multiple data types
         2. Including data columns and tag columns

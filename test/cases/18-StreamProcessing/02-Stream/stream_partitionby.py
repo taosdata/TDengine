@@ -12,7 +12,7 @@ class Test_STREAM_PartitionBy:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_partition_by(self):
-        """Nevados
+        """Stream nevados
 
         Refer: NULL
 

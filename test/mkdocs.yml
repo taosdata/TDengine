@@ -55,15 +55,8 @@ nav:
         - 06-Precision: case_list_docs/Databases/Precision.md
         - 07-Flush: case_list_docs/Databases/Flush.md
     - 03-Tables:
-        - 01-NormalTables:
-            - 01-Create: case_list_docs/Tables/NormalTables/Create.md
-            - 02-Drop: case_list_docs/Tables/NormalTables/Drop.md
-            - 03-Alter: case_list_docs/Tables/NormalTables/Alter.md
-            - 04-Query: case_list_docs/Tables/NormalTables/Query.md
-        - 02-SubTables:
-            - 01-Create: case_list_docs/Tables/SubTables/Create.md
-            - 03-Alter: case_list_docs/Tables/SubTables/Alter.md
-            - 04-Query: case_list_docs/Tables/SubTables/Query.md
+        - 01-NormalTables: case_list_docs/Tables/NormalTables.md
+        - 02-SubTables: case_list_docs/Tables/SubTables.md
     - 04-Super Tables:
         - 01-Create: case_list_docs/SuperTables/Create.md
         - 02-Drop: case_list_docs/SuperTables/Drop.md
@@ -93,7 +86,12 @@ nav:
         - 14-Tags: case_list_docs/DataQuerying/Tags.md
         - 15-Explain: case_list_docs/DataQuerying/Explain.md
         - 17-BiMode: case_list_docs/DataQuerying/BiMode.md
-    - 10-Operators: case_list_docs/Operators.md
+    - 10-Operators:
+        - 01-Arithmetic: case_list_docs/Operators/Arithmetic.md
+        - 03-Json: case_list_docs/Operators/Json.md
+        - 04-Set: case_list_docs/Operators/Set.md
+        - 05-Comparison: case_list_docs/Operators/Comparison.md
+        - 06-Logical: case_list_docs/Operators/Logical.md
     - 11-Functions:
         - 01-Scalar: case_list_docs/Functions/Scalar.md
         - 02-Aggregate: case_list_docs/Functions/Aggregate.md
@@ -103,7 +101,7 @@ nav:
         - 06-System: case_list_docs/Functions/System.md
         - 07-Geometry: case_list_docs/Functions/Geometry.md
     - 12-UDFs: case_list_docs/UDFs.md
-    - 13-Time-SeriesExt:
+    - 13-TimeSeries-Ext:
         - 01-PartitionBy: case_list_docs/TimeSeriesExt/PartitionBy.md
         - 02-Fill: case_list_docs/TimeSeriesExt/Fill.md
         - 03-TimeWindow: case_list_docs/TimeSeriesExt/TimeWindow.md
@@ -117,7 +115,6 @@ nav:
         - 01-Mgmt: case_list_docs/DataSubscription/Mgmt.md
         - 02-Native: case_list_docs/DataSubscription/Native.md
         - 04-MQTT: case_list_docs/DataSubscription/MQTT.md
-        - sh: case_list_docs/DataSubscription/sh.md
     - 18-Stream Processing:
         - 01-Snode: case_list_docs/StreamProcessing/Snode.md
         - 02-Stream: case_list_docs/StreamProcessing/Stream.md
@@ -128,11 +125,9 @@ nav:
         - 07-SubQuery: case_list_docs/StreamProcessing/SubQuery.md
         - 08-Recalc: case_list_docs/StreamProcessing/Recalc.md
         - 20-UseCase: case_list_docs/StreamProcessing/UseCase.md
-        - 22-Performance: case_list_docs/StreamProcessing/Performance.md
         - 23-Compatibility: case_list_docs/StreamProcessing/Compatibility.md
         - 30-OldPyCases: case_list_docs/StreamProcessing/OldPyCases.md
         - 31-OldTsimCases: case_list_docs/StreamProcessing/OldTsimCases.md
-        - 99-Others: case_list_docs/StreamProcessing/Others.md
     - 19-TSMAs: case_list_docs/TSMAs.md
     - 20-RSMAs: case_list_docs/RSMAs.md
     - 21-Meta Data: case_list_docs/MetaData.md
@@ -140,7 +135,12 @@ nav:
     - 23-Show Commands: case_list_docs/ShowCommands.md
     - 24-Users: case_list_docs/Users.md
     - 25-Privileges: case_list_docs/Privileges.md
-    - 26-Node Manager: case_list_docs/NodeManager.md
+    - 26-Node Manager:
+        - 01-Dnode: case_list_docs/NodeManager/Dnode.md
+        - 02-Mnode: case_list_docs/NodeManager/Mnode.md
+        - 03-Qnode: case_list_docs/NodeManager/Qnode.md
+        - 04-Snode: case_list_docs/NodeManager/Snode.md
+        - 05-Bnode: case_list_docs/NodeManager/Bnode.md
     - 27-Mount: case_list_docs/Mount.md
     - 28-Except: case_list_docs/Except.md
     - 29-Escape Characters: case_list_docs/Escape.md
@@ -155,10 +155,3 @@ nav:
         - 02-Taos: case_list_docs/Tools/Taos.md
         - 03-Benchmark: case_list_docs/Tools/Benchmark.md
         - 04-Taosdump: case_list_docs/Tools/Taosdump.md
-        - 05-Valgrind: case_list_docs/Tools/Valgrind.md
-    - 82-UnitTest: case_list_docs/UnitTest.md
-    - 83-DocTest: case_list_docs/DocTest.md
-
-  - Util funcs docs:
-      - new_test_framework:
-          - utils: util_funcs_docs/new_test_framework/utils.md

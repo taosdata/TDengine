@@ -7,12 +7,13 @@ class TestJoinPk:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_pk(self):
-        """Join Test
+        """Join inner 
 
-        1.
-
-        Catalog:
-            - Query:Join
+        1. Create 1 database and 1 super table
+        2. Create 2 child tables
+        3. Insert 1 rows data to each child table with different timestamps
+        4. Inner join two child tables on timestamp with interval(1s)
+        5. Check the result of join correctly 
 
         Since: v3.0.0.0
 

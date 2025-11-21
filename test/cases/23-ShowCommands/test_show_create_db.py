@@ -46,7 +46,7 @@ class TestShowCreateDb:
             tdSql.execute(f"drop database if exists {dbname}")
 
     def test_show_create_db(self):
-        """Show Create Database
+        """Show create database
 
         1. Create three databases with different options
         2. Check "show create database dbname" output correctness

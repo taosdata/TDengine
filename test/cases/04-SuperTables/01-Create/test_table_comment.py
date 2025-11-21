@@ -121,7 +121,7 @@ class TestTableComment:
         tdSql.execute('drop database db')
 
     def test_table_comment(self):
-        """Table Comment Case
+        """Stable comment options
 
         1. Create normal table, stable and child table with/without comment
         2. Alter table comment

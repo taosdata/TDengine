@@ -3571,8 +3571,18 @@ taos> select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_vi
                                    -1 |
                                    -1 |
 
-taos> select twa(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5
+taos> select twa(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
        twa(int_tag)        |
 ============================
                          0 |
+
+taos> select count(tbname) from test_vtable_select.vtb_virtual_ctb_full;
+     count(tbname)     |
+========================
+                 23333 |
+
+taos> select count(1) from test_vtable_select.vtb_virtual_ctb_full
+       count(1)        |
+========================
+                 23333 |
 

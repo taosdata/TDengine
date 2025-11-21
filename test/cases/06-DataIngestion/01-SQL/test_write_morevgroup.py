@@ -345,7 +345,7 @@ class TestInsertwithmorevgroup:
 
     # run case
     def test_write_morevgroup(self):
-        """ Write Data with More Vgroups
+        """Write more vgroups
 
         1. Write data with taosBenchmark with 5 threads
         2. Write data with taosBenchmark with 8 threads

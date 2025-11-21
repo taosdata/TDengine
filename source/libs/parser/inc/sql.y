@@ -248,6 +248,7 @@ cmd ::= USE db_name(A).                                                         
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
+cmd ::= TRIM DATABASE db_name(A) WAL.                                             { pCxt->pRootNode = createTrimDbWalStmt(pCxt, &A); }
 cmd ::= SSMIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createSsMigrateDatabaseStmt(pCxt, &A); }
 cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D) force_opt(E).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D, E); }
 cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E) force_opt(F).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E, F); }
@@ -1083,6 +1084,7 @@ cmd ::= ASSIGN LEADER FORCE.                                                    
 
 cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A).                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A); }
 cmd ::= BALANCE VGROUP LEADER DATABASE db_name(A).                                { pCxt->pRootNode = createBalanceVgroupLeaderDBNameStmt(pCxt, &A); }
+cmd ::= ALTER VGROUP NK_INTEGER(A) SET KEEP NK_INTEGER(B).                { pCxt->pRootNode = createSetVgroupKeepVersionStmt(pCxt, &A, &B); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
 cmd ::= SPLIT VGROUP NK_INTEGER(A) force_opt(B).                                  { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A, B); }

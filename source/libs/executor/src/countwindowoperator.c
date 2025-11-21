@@ -33,6 +33,7 @@ typedef struct SCountWindowSupp {
   SArray* pWinStates;
   int32_t stateIndex;
   int32_t curStateIndex;
+  TSKEY   lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
 } SCountWindowSupp;
 
 typedef struct SCountWindowOperatorInfo {
@@ -131,6 +132,20 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   if (newSize > pRes->info.capacity) {
     code = blockDataEnsureCapacity(pRes, newSize);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    if (pBlock->info.scanFlag != PRE_SCAN) {
+      if (pInfo->countSup.lastTs == INT64_MIN) {
+        pInfo->countSup.lastTs = tsCols[i];
+      } else {
+        if (tsCols[i] == pInfo->countSup.lastTs) {
+          qError("duplicate timestamp found in count window operator" PRId64 ", timestamp: %" PRId64, tsCols[i]);
+          code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
   }
 
   for (int32_t i = 0; i < pBlock->info.rows;) {
@@ -269,6 +284,7 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
       pRes->info.id.groupId = pInfo->groupId;
       buildCountResult(pExprSup, &pInfo->countSup, pTaskInfo, pOperator->exprSupp.pFilterInfo, pInfo->preStateIndex, pRes);
       pInfo->groupId = pBlock->info.id.groupId;
+      pInfo->countSup.lastTs = INT64_MIN;
       if (pRes->info.rows > 0) {
         (*ppRes) = pRes;
         return code;
@@ -305,6 +321,7 @@ static int32_t resetCountWindowOperatorState(SOperatorInfo* pOper) {
   resetBasicOperatorState(&pCount->binfo);
   pCount->groupId = 0;
   pCount->countSup.stateIndex = 0;
+  pCount->countSup.lastTs = INT64_MIN;
   pCount->pPreDataBlock = NULL;
   pCount->preStateIndex = 0;
   pCount->pRow = NULL;
@@ -392,6 +409,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->countSup.stateIndex = 0;
   pInfo->pPreDataBlock = NULL;
   pInfo->preStateIndex = 0;
+  pInfo->countSup.lastTs = INT64_MIN;
 
   code = filterInitFromNode((SNode*)pCountWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);

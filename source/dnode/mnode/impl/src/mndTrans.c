@@ -2081,9 +2081,9 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
   }
 
   if (*actionPos >= numOfActions) {
-    mError("trans:%d, failed to execute action in serail group, actionPos:%d >= numOfActions:%d at group %d",
-           pTrans->id, *actionPos, numOfActions, groupId);
-    return TSDB_CODE_INTERNAL_ERROR;
+    mInfo("trans:%d, this serial group is finished, actionPos:%d >= numOfActions:%d at group %d", pTrans->id,
+          *actionPos, numOfActions, groupId);
+    return TSDB_CODE_MND_TRANS_GROUP_FINISHED;
   }
 
   for (int32_t action = *actionPos; action < numOfActions; ++action) {
@@ -2260,6 +2260,8 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
             tstrerror(code));
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, group:%d/%d(%d) is executed and still in progress", pTrans->id, currentGroup, groupCount, *key);
+    } else if (code == TSDB_CODE_MND_TRANS_GROUP_FINISHED) {
+      mInfo("trans:%d, group:%d/%d(%d) is finished", pTrans->id, currentGroup, groupCount, *key);
     } else if (code != 0) {
       mError("trans:%d, group:%d/%d(%d) failed to execute, code:%s", pTrans->id, currentGroup, groupCount, *key,
              tstrerror(code));

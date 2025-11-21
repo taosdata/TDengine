@@ -176,7 +176,7 @@ class TestShowTableDistributed:
     # ------------------- main ----------------
     #
     def test_show_table_distributed(self):
-        """Show Table Distributed
+        """Show table distributed
 
         1. Tests basic distributed table display for super/normal/temporary tables
         2. Verifies error handling for system/internal tables

@@ -447,7 +447,7 @@ class TestWalRetention:
 
     # run
     def test_wal_retention(self):
-        """WAL retention 
+        """Options: wal retention
 
         1. Create database with different wal_retention_period and wal_retention_size
         2. Create super table and child tables

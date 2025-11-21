@@ -9,12 +9,12 @@ class TestUdfC:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_udf_c(self):
-        """Udf
+        """Udf for C language
 
-        1.-
-
-        Catalog:
-            - Udf
+        1. Compile UDF C code
+        2. Create scalar UDF function bit_and
+        3. Create aggregate UDF function l2norm
+        4. Test scalar UDF function bit_and
 
         Since: v3.0.0.0
 

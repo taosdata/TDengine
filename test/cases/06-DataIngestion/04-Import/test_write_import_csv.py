@@ -71,7 +71,7 @@ class TestInsertFromCsv:
 
         
     def test_write_import_csv(self):
-        """ From CSV File
+        """From csv file
 
         1. Create table and import data from csv file
         2. Check the imported data

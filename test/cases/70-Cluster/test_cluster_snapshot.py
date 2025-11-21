@@ -103,7 +103,7 @@ class TestSnapshot:
 
     # run
     def test_snapshot(self):
-        """Check data correct after cluster actions
+        """Cluster snapshot aggregation
 
         1. Create 3 dnode cluster environment
         2. taosBenchmark insert data with full data-type columns

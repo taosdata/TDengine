@@ -229,7 +229,7 @@ class TestTagIndexBasic:
 
     # run
     def test_index_tag_basic(self):
-        """Index tag basic
+        """Tagindex basic
         
         1. Create 1 stable and 1000 child tables
         2. Create tag index for each tag column except the first one

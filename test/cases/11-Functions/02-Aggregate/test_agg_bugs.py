@@ -136,7 +136,7 @@ class TestTD_21561:
     # ------------------- main ----------------
     #
     def test_select_bugs(self):
-        """Select function bugs
+        """Agg function bugs
 
         1. Verify bug TD-21561 (count fun with group by error)
         

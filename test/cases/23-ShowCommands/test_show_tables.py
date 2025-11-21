@@ -105,7 +105,7 @@ class TestShowDbTableKind:
     # ------------------- main ----------------
     #
     def test_show_tables(self):
-        """Show Databases and Tables
+        """Show databases & tables
 
         1. Testing various show commands for database/table classification
         2. Verifying filtering capabilities with like clauses

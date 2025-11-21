@@ -7,12 +7,14 @@ class TestJoinInterval:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_interval(self):
-        """Join Test
+        """Join interval
 
-        1.
-
-        Catalog:
-            - Query:Join
+        1.Create database d1 and d2
+        2.Create table t1 in d1 with tags and t1 in d2 without tags
+        3.Insert data into d1.t1 with different tag values
+        4.Insert data into d2.t1 with same timestamps as d1.t1
+        5.Join query between d1.t1 and d2.t1 with interval(1a)
+        6. Check the result of join correctly
 
         Since: v3.0.0.0
 

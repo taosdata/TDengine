@@ -8,7 +8,7 @@ class TestStreamStateTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_state_trigger(self):
-        """Event:
+        """Trigger mode event
 
         Verification testing during the development process.
 

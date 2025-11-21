@@ -458,7 +458,7 @@ class TestInsertDouble:
     # main
     #
     def test_write(self):
-        """ Write Data Basic
+        """ Write basic
 
         1. Write data with timestamp
         2. Write data with double

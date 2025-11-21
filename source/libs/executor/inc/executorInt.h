@@ -214,7 +214,7 @@ typedef struct SExchangeInfo {
   bool         dynTbname;         // %%tbname for stream    
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
-  uint64_t            self;
+  int64_t             self;
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
@@ -682,6 +682,7 @@ typedef struct SWindowRowsSup {
   int32_t     numOfRows;
   uint64_t    groupId;
   uint32_t    numNullRows;  // number of continuous rows with null state col
+  TSKEY       lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col

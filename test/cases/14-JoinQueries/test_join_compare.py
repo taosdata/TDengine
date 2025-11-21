@@ -586,7 +586,7 @@ class TestCompare:
         tdSql.checkRows(1)
 
     def test_join_compare(self):
-        """Join compare from different data types
+        """Join compare
         
         1. Create normal tables with full data types
         2. Insert 6 rows data

@@ -647,6 +647,13 @@ ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
 int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm) { return syncUpdateArbTerm(pVnode->sync, arbTerm); }
 int32_t vnodeGetArbToken(SVnode *pVnode, char *outToken) { return syncGetArbToken(pVnode->sync, outToken); }
 
+int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion) {
+  if (pVnode == NULL || pVnode->pWal == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return walSetKeepVersion(pVnode->pWal, keepVersion);
+}
+
 void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }

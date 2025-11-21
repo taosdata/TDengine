@@ -207,7 +207,7 @@ class TestFsync:
 
 
     def test_db_wal_fsync_period(self):
-        """Database option wal_fsync_period
+        """Database wal_fsync_period
         
         1. Create database with wal_fsync_period options
         2. Verify wal_fsync_period value from information_schema.ins_databases
