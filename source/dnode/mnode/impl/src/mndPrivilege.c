@@ -21,6 +21,7 @@
 #ifndef _PRIVILEGE
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 void    mndCleanupPrivilege(SMnode *pMnode) {}
+bool    mndMustChangePassword(SUserObj* pUser) { return false; }
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) { return 0; }
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) { return 0; }

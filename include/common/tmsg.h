@@ -245,41 +245,12 @@ typedef enum {
 #define TSDB_FILL_NEXT        7
 #define TSDB_FILL_NEAR        8
 
-#if 1
 
 #define TSDB_ALTER_USER_BASIC_INFO             1
 // these definitions start from 5 is to keep compatible with old versions
-#define TSDB_ALTER_USER_ADD_PRIVILEGES         2
-#define TSDB_ALTER_USER_DEL_PRIVILEGES         3
-
-#else
-#define TSDB_ALTER_USER_PASSWD                 1
-#define TSDB_ALTER_USER_SUPERUSER              2
-#define TSDB_ALTER_USER_ENABLE                 3
-#define TSDB_ALTER_USER_SYSINFO                4
 #define TSDB_ALTER_USER_ADD_PRIVILEGES         5
 #define TSDB_ALTER_USER_DEL_PRIVILEGES         6
-#define TSDB_ALTER_USER_ADD_ALLOWED_HOST       7
-#define TSDB_ALTER_USER_DROP_ALLOWED_HOST      8
-#define TSDB_ALTER_USER_CREATEDB               9
-#define TSDB_ALTER_USER_CHANGEPASS            10
-#define TSDB_ALTER_USER_TOTPSEED              11
-#define TSDB_ALTER_USER_SESSION_PER_USER      12
-#define TSDB_ALTER_USER_CONNECT_IDLE_TIME     13
-#define TSDB_ALTER_USER_CONNECT_TIME          14
-#define TSDB_ALTER_USER_CALL_PER_SESSION      15
-#define TSDB_ALTER_USER_FAILED_LOGIN_ATTEMPTS 16
-#define TSDB_ALTER_USER_PASSWORD_LIFE_TIME    17
-#define TSDB_ALTER_USER_PASSWORD_REUSE_TIME   18
-#define TSDB_ALTER_USER_PASSWORD_REUSE_MAX    19
-#define TSDB_ALTER_USER_PASSWORD_LOCK_TIME    20
-#define TSDB_ALTER_USER_PASSWORD_GRACE_TIME   21
-#define TSDB_ALTER_USER_INACTIVE_ACCOUNT_TIME 22
-#define TSDB_ALTER_USER_ALLOW_TOKEN_NUM       23
-#define TSDB_ALTER_USER_ADD_ALLOWED_TIME      24
-#define TSDB_ALTER_USER_DROP_ALLOWED_TIME     25
-// #define TSDB_ALTER_USER_VNODE_PER_CALL        26
-#endif
+
 
 #define TSDB_ALTER_RSMA_FUNCTION        0x1
 
@@ -1307,13 +1278,14 @@ int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 int32_t tDeserializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
 
 typedef struct {
-  int32_t       acctId;
   int64_t       clusterId;
+  int32_t       acctId;
   uint32_t      connId;
   int32_t       dnodeNum;
   int8_t        superUser;
   int8_t        sysInfo;
   int8_t        connType;
+  int8_t        mustChangePass;
   SEpSet        epSet;
   int32_t       svrTimestamp;
   int32_t       passVer;
