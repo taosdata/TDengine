@@ -2635,9 +2635,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INVALID_JSON);
   }
   TAOS_CHECK_EXIT(jsonToSCMCreateStreamReq(pJson, pReq));
-  taosMemoryFreeClear(json);
 
 _exit:
+  taosMemoryFreeClear(json);
   if (NULL != pJson) {
     tjsonDelete(pJson);
   }
