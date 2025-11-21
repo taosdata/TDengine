@@ -304,6 +304,7 @@ TDengine TSDB 在写入数据时如果有很严重的乱序写入问题，会严
 默认情况，启动 taos 服务会使用系统默认的用户名（root）和密码尝试连接 taosd，在 root 密码修改后，启用 taos 连接就需要指明用户名和密码，例如 `taos -h xxx.xxx.xxx.xxx -u root -p`，然后输入新密码进行连接。修改密码后，您还需要相应地修改 taosKeeper 组件的配置文件（默认位于 /etc/taos/taoskeeper.toml），修改其访问 TDengine TSDB 的密码后重启服务。
 
 在 V3.3.6.6 版本之后，针对 Docker 环境新增了 `TAOS_ROOT_PASSWORD` 环境变量，用于设置自定义密码。使用 `docker run` 命令启动容器时，添加 `-e TAOS_ROOT_PASSWORD=<password>` 参数，即可使用自定义密码启动 TDengine TSDB 服务，无需修改配置文件。
+如果在旧版本通过 taos 命令行等客户端修改了密码，则需要在 data 目录 touch 一个空文件 .docker-entrypoint-root-password-changed，再次启动 taosd
 
 ### 29 修改 database 的 root 密码后，Grafana 监控插件 TDinsight 无数据展示
 
@@ -387,3 +388,4 @@ TDengine TSDB 3.3.5.0 及以上的版本，有些用户可能会遇到一个问�
 这种情况通常不会产生乱序，首先我们来解释下 TDengine TSDB 中乱序是指什么？TDengine TSDB 中的乱序是指从时间戳为 0 开始按数据库设置的 Duration 参数（默认是 10 天）切割成时间窗口，在每个时间窗口中写入的数据不按顺序时间写入导致的现象为乱序现象，只要保证同一窗口是顺序写入的，即使窗口之间写入并非顺序，也不会产生乱序。
 
 再看上面场景，补旧数据和新数据同时写入，新旧数据之间一般会存在较大距离，不会落在同一窗口中，只要保证新老数据都是顺序写的，即不会产生乱序现象。
+
