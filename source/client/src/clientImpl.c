@@ -267,6 +267,15 @@ _return:
       tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
       return code;
     }
+
+    
+    SSessParam pPara = {.refCont = 1, .lastAccessTime = 0, .currentAccessTime = taosGetTimestampMs()};  
+    code = sessMgtUpdateUserMetric((char *)user, &pPara);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("failed to connect with user:%s, code:%s", user, tstrerror(code));
+      return code;
+    }
+
     return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType, pObj);
   }
 }

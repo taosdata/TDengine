@@ -443,6 +443,7 @@ typedef struct {
   SHashObj* useDbs;
   SRWLatch  lock;
   int8_t    passEncryptAlgorithm;
+  SUserSessCfg sessCfg;
 } SUserObj;
 
 typedef struct {

@@ -1056,11 +1056,14 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   if (code != 0) {
     tWarn("%s conn:%p, failed to set recv opt since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
   }
+
+  tDebug("%s conn:%p, ssl recv nread:%ld", CONN_GET_INST_LABEL(conn), conn, nread);
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     code = sslRead(conn->pTls, pBuf, nread, 1);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
+    conn->saslConn->isAuthed = 1;
     if (sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
       code = saslConnHandleAuth(conn->saslConn, (const char*)pBuf->buf, pBuf->len);
       if (code != 0) {

@@ -39,6 +39,7 @@
 #include "tversion.h"
 
 #include "cus_name.h"
+#include "clientSession.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -70,6 +71,7 @@ int32_t   clientReqRefPool = -1;
 int32_t   clientConnRefPool = -1;
 int32_t   clientStop = -1;
 SHashObj *pTimezoneMap = NULL;
+
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -1138,6 +1140,9 @@ void taos_init_imp(void) {
 #ifdef TAOSD_INTEGRATED
   ENV_ERR_RET(shellStartDaemon(0, NULL), "failed to start taosd daemon");
 #endif
+
+  ENV_ERR_RET(sessMgtInit(), "failed to init session management");
+  
   tscInfo("TAOS driver is initialized successfully");
 }
 

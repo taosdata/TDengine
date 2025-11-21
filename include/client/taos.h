@@ -450,6 +450,8 @@ DLL_EXPORT void    tmq_free_raw(tmq_raw_data raw);
 // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
 DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
+
+DLL_EXPORT int32_t taos_connect_is_alive(TAOS *taos);
 /* ---- end ---- */
 
 /* -- implemented in the native interface, for internal component only, the API may change -- */

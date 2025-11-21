@@ -31,7 +31,8 @@
 
 // clang-format on
 
-#define USER_VER_NUMBER                      7
+#define USER_VER_NUMBER                      8 
+#define USER_VER_SUPPORT_SESS_NUMBER             7 
 #define USER_VER_SUPPORT_WHITELIST           5
 #define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
 #define USER_RESERVE_SIZE                    63
@@ -899,6 +900,13 @@ _error:
   return 0;
 }
 
+static void initUserDefautSessCfg(SUserSessCfg *pCfg) {
+   pCfg->sessPerUser = -1;  
+   pCfg->sessConnTime = -1;
+   pCfg->sessConnIdleTime = -1;
+   pCfg->sessMaxConcurrency = -1;
+   pCfg->sessMaxCallVnodeNum = -1;
+}
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -916,6 +924,8 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.superUser = 1;
     userObj.createdb = 1;
   }
+
+  initUserDefautSessCfg(&userObj.sessCfg);
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
   if (pRaw == NULL) goto _ERROR;
@@ -1226,7 +1236,15 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   SDB_SET_INT64(pRaw, dataPos, pUser->ipWhiteListVer, _OVER);
   SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorithm, _OVER);
+  
+  if (USER_VER_NUMBER >= USER_VER_SUPPORT_SESS_NUMBER) {
+    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessPerUser, _OVER);
+    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessConnTime, _OVER);
+    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessConnIdleTime, _OVER);
+    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessMaxConcurrency, _OVER);
+    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessMaxCallVnodeNum, _OVER);
 
+  }
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -1572,6 +1590,14 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorithm, _OVER);
 
+  if (sver >= USER_VER_SUPPORT_SESS_NUMBER) {
+    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessPerUser, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessConnTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessConnIdleTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessMaxConcurrency, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessMaxCallVnodeNum, _OVER);
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
 
@@ -1689,6 +1715,8 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  memcpy(&pNew->sessCfg, &pUser->sessCfg, sizeof(SUserSessCfg));
+
 _OVER:
   taosRUnLockLatch(&pUser->lock);
   TAOS_RETURN(code);
@@ -1744,6 +1772,8 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->writeViews, pNew->writeViews);
   TSWAP(pOld->alterViews, pNew->alterViews);
   TSWAP(pOld->useDbs, pNew->useDbs);
+
+  memcpy(&pOld->sessCfg, &pNew->sessCfg, sizeof(SUserSessCfg));
 
   int32_t sz = sizeof(SIpWhiteListDual) + pNew->pIpWhiteListDual->num * sizeof(SIpRange);
   TAOS_MEMORY_REALLOC(pOld->pIpWhiteListDual, sz);
@@ -1859,6 +1889,9 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.enable = pCreate->enable;
   userObj.createdb = pCreate->createDb;
 
+  memcpy(&userObj.sessCfg, &pCreate->sessCfg, sizeof(SUserSessCfg));
+
+
   if (pCreate->numIpRanges == 0) {
     TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteListDual));
   } else {
@@ -1914,6 +1947,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   }
 
   userObj.ipWhiteListVer = taosGetTimestampMs();
+  //initUserDefautSessCfg(&userObj.sessCfg);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-user");
   if (pTrans == NULL) {
@@ -2521,6 +2555,28 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndProcessAlterUserSessReq(SAlterUserReq *pReq) {
+  int32_t code = 0;
+  int8_t type = pReq->alterType;
+  if (type < TSDB_ALTER_USER_SESSION_PER_USER || type > TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE) {
+    return code;
+  }
+
+  switch (type) {
+    case TSDB_ALTER_USER_SESSION_PER_USER:
+     break;
+    case TSDB_ALTER_USER_SESSION_CONN_TIMER: 
+     break;
+    case TSDB_ALTER_USER_SESSION_CONN_IDLE_TIME:
+     break;
+    case TSDB_ALTER_USER_SESSION_MAX_CONCURR:
+     break;
+    case TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE:
+     break;
+  }  
+
+  return code;
+}
 static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SSdb         *pSdb = pMnode->pSdb;
@@ -2594,6 +2650,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
     newUser.createdb = alterReq.createdb;
   }
+
+   
 
   if (ALTER_USER_ADD_PRIVS(alterReq.alterType) || ALTER_USER_DEL_PRIVS(alterReq.alterType)) {
     TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);

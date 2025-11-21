@@ -227,6 +227,8 @@ extern TSDB_SERVER_STATUS (*fp_taos_check_server_status)(const char *fqdn, int p
 extern void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context);
 extern char *(*fp_getBuildInfo)();
 
+extern int32_t (*fp_taos_connect_is_alive)(TAOS *taos);
+
 #ifdef __cplusplus
 }
 #endif

@@ -2627,6 +2627,30 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
 
   return code;
 }
+
+static int32_t tEncodeSessCfg(SEncoder *encoder, SUserSessCfg *pCfg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessPerUser)); 
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnTime)); 
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnIdleTime)); 
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxConcurrency)); 
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxCallVnodeNum)); 
+_exit:
+  return code;
+}
+
+static int32_t tDecodeSessCfg(SDecoder *decoder, SUserSessCfg *pCfg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &pCfg->sessPerUser));
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &pCfg->sessConnTime));
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &pCfg->sessConnIdleTime));
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &pCfg->sessMaxConcurrency));
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &pCfg->sessMaxCallVnodeNum));
+_exit:
+  return code;
+}
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -2656,6 +2680,10 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
     code = tSerializeIpRange(&encoder, pRange);
     TAOS_CHECK_EXIT(code);
   }
+
+  code = tEncodeSessCfg(&encoder, &pReq->sessCfg);  
+  TAOS_CHECK_EXIT(code);
+
   tEndEncode(&encoder);
 
 _exit:
@@ -2709,6 +2737,11 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
       code = tDeserializeIpRange(&decoder, pRange);
       TAOS_CHECK_EXIT(code);
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    code = tDecodeSessCfg(&decoder, &pReq->sessCfg);
+    TAOS_CHECK_EXIT(code);
   }
 
   tEndDecode(&decoder);

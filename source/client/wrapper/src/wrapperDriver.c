@@ -261,6 +261,8 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_write_crashinfo, "taos_write_crashinfo");
   LOAD_FUNC(fp_getBuildInfo, "getBuildInfo");
 
+  LOAD_FUNC(fp_taos_connect_is_alive, "taos_connect_is_alive");
+
   code = 0;
 
 _OVER:

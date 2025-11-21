@@ -770,6 +770,8 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     code = sslRead(conn->pTls, pBuf, nread, 0);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
+
+    conn->saslConn->isAuthed = 1;
     if (sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
       code = saslConnHandleAuth(conn->saslConn, (const char*)pBuf->buf, pBuf->len);
       TAOS_CHECK_GOTO(code, &lino, _error);

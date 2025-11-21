@@ -255,6 +255,12 @@ typedef enum {
 #define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
 #define TSDB_ALTER_USER_CREATEDB        0x9
 
+#define TSDB_ALTER_USER_SESSION_PER_USER 0xA
+#define TSDB_ALTER_USER_SESSION_CONN_TIMER 0xB
+#define TSDB_ALTER_USER_SESSION_CONN_IDLE_TIME 0xC
+#define TSDB_ALTER_USER_SESSION_MAX_CONCURR 0xD
+#define TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE 0xE
+
 #define TSDB_ALTER_RSMA_FUNCTION        0x1
 
 #define TSDB_KILL_MSG_LEN 30
@@ -1355,6 +1361,14 @@ int32_t           cvtIpWhiteListDualToV4(SIpWhiteListDual* pWhiteListDual, SIpWh
 int32_t           createDefaultIp6Range(SIpRange* pRange);
 int32_t           createDefaultIp4Range(SIpRange* pRange);
 
+
+typedef struct {
+  int32_t sessPerUser; 
+  int32_t sessConnTime;
+  int32_t sessConnIdleTime;
+  int32_t sessMaxConcurrency;
+  int32_t sessMaxCallVnodeNum;
+} SUserSessCfg;
 typedef struct {
   int8_t  createType;
   int8_t  superUser;  // denote if it is a super user or not
@@ -1371,6 +1385,7 @@ typedef struct {
   int8_t      createDb;
   int8_t      passIsMd5;
   SIpRange*   pIpDualRanges;
+  SUserSessCfg sessCfg;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);

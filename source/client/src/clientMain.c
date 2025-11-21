@@ -31,6 +31,7 @@
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "clientSession.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -278,6 +279,8 @@ void taos_cleanup(void) {
   if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
     tscWarn("failed to cleanup task queue");
   }
+
+  sessMgtDestroy();
 
   taosConvDestroy();
   DestroyRegexCache();
@@ -643,9 +646,17 @@ void taos_close_internal(void *taos) {
   if (taos == NULL) {
     return;
   }
+  int32_t code = 0;
 
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+
+  SSessParam para = {.refCont = -1, .currentAccessTime = taosGetTimestampMs()};
+  code = sessMgtUpdateUserMetric((char *)pTscObj->user, &para);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("conn:0x%" PRIx64 ", failed to update user:%s metric when close connection, code:%d", pTscObj->id,
+            pTscObj->user, code);
+  } 
 
   if (TSDB_CODE_SUCCESS != taosRemoveRef(clientConnRefPool, pTscObj->id)) {
     tscError("conn:0x%" PRIx64 ", failed to remove ref from conn pool", pTscObj->id);
@@ -2576,3 +2587,14 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
 }
 
 char *getBuildInfo() { return td_buildinfo; }
+
+int32_t taos_connect_is_alive(TAOS *taos) {
+  int32_t code = 0;
+  code = TSDB_CODE_TSC_SESS_CONN_TIMEOUT;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    return 0; 
+  } else {
+    return 1;
+  }
+}

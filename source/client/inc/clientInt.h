@@ -35,6 +35,7 @@ extern "C" {
 #include "trpc.h"
 
 #include "tconfig.h"
+#include "clientSession.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms

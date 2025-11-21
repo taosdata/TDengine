@@ -12452,6 +12452,14 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
     memcpy(createReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
   }
+
+  SUserSessCfg *pCfg = &createReq.sessCfg;
+  pCfg->sessPerUser = -1;
+  pCfg->sessConnTime = -1;
+  pCfg->sessConnIdleTime = -1;
+  pCfg->sessMaxConcurrency = -1;;
+  pCfg->sessMaxCallVnodeNum = -1;;
+
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
   tFreeSCreateUserReq(&createReq);
   return code;

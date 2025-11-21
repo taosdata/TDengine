@@ -205,3 +205,5 @@ void (*fp_tmq_free_json_meta)(char *jsonMeta) = NULL;
 TSDB_SERVER_STATUS (*fp_taos_check_server_status)(const char *fqdn, int port, char *details, int maxlen) = NULL;
 void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context) = NULL;
 char *(*fp_getBuildInfo)() = NULL;
+
+int32_t (*fp_taos_connect_is_alive)(TAOS *taos) = NULL;

@@ -51,6 +51,7 @@ typedef struct {
   int8_t      isAuthed;
 
   int8_t server;
+  char authId[256];
 } SSaslConn;
 
 #ifdef __cplusplus
