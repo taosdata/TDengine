@@ -101,7 +101,7 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 使用 TDgpt 的高级时序数据分析功能需要在 TDengine TSDB 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
 
-- Python: 3.10 或 3.11 版本。3.12 及以上版本 Python 部分依赖库有冲突。
+- Python: 3.10 或 3.11 版本。由于部分依赖库与 Python 3.12 及以上版本存在冲突，因此暂不支持。
 - TDengine TSDB：需使用 3.3.6.0 或以上版本。
 - C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
@@ -158,6 +158,7 @@ tar -zxvf tdengine-tdgpt-oss-3.3.8.4-linux-x64.tar.gz
 ### 执行安装脚本
 
 解压安装包后，进入目录执行其中的 `install.sh` 脚本进行安装。
+
 ```bash
 cd tdengine-tdgpt-oss-3.3.8.4
 ./install.sh
