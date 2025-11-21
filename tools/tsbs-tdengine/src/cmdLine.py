@@ -40,6 +40,7 @@ class CmdLine:
         self.password    = "taosdata"
         self.timeout     = 120 # seconds
         self.max_test_time = 1800 # seconds
+        self.use_previous = False
         
         # args
         self.parser = None
@@ -118,13 +119,13 @@ class CmdLine:
             help='Execute specific test scenario (default: all scenarios)'
         )
         
-        # Parallelism
+        # use-previous
         self.parser.add_argument(
-            '-p', '--parallelism',
-            type=int,
-            default=4,
+            '-P', '--use-previous',
+            type=bool,
+            default=False,
             metavar='NUM',
-            help='Processing parallelism level (default: 4)'
+            help='No create new cluster and use previous cluster (default: False)'
         )
         
         # Version
@@ -166,11 +167,6 @@ class CmdLine:
         """Get scenario name, returns None if all scenarios should run"""
         return self.args.scenario
     
-    
-    def get_parallelism(self):
-        """Get parallelism level"""
-        return self.args.parallelism
-    
     def show_config(self):
         """Print current configuration"""
         log.out("\n=== Current Configuration ===")
@@ -179,7 +175,7 @@ class CmdLine:
         log.out(f"Log Output:     {self.args.log_output}")
         log.out(f"JSON Output:    {self.args.json_output}")
         log.out(f"Scenario:       {self.args.scenario or 'All scenarios'}")
-        log.out(f"Parallelism:    {self.args.parallelism}")
+        log.out(f"Use Previous Cluster:    {self.args.use_previous}")
         log.out("============================\n")
 
 
@@ -252,6 +248,13 @@ class CmdLine:
         if args_max_test_time is not None:
             self.max_test_time = args_max_test_time
             log.out(f"Set max test time to {self.max_test_time} seconds")    
+
+        # max test time
+        args_use_previous = self.args.use_previous
+        if args_use_previous is not None:
+            self.use_previous = args_use_previous
+            log.out(f"Use previous cluster: {self.use_previous}")
+
 
         # init file name
         self.cases_yaml = os.path.join(self.config_path, 'cases.yaml')        

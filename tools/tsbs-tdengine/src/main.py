@@ -28,7 +28,6 @@ import writeData
 import doTest
 
 
-from outLog import log
 from outMetrics import metrics
 from deployCluster import cluster
 from cmdLine import cmd
@@ -36,8 +35,11 @@ from outLog import log
 
 
 
-def doScene(scene):
-    print("\n\n************ Running scene: %s ************\n" % scene.name)
+def doScene(scene):    
+    log.out("\n\n************ Running scene: %s ************\n" % scene.name)
+    
+    # create cluster
+    cluster.create_cluster(dnode=1, snode=1, use_previous=cmd.use_previous)
     
     # scene init
     metrics.scenarioId[scene.name]     = scene.name
@@ -76,10 +78,7 @@ if __name__ == "__main__":
     
     log.init_log("tsbs_tdengine.log")
     metrics.init_metrics("tsbs_tdengine.metrics")
-            
-    # create cluster
-    cluster.create_cluster(1, 1)
-    
+                
     # do test
     metrics.start()
     scenes = cmd.get_scenes()

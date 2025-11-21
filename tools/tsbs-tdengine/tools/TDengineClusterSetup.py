@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# filepath: /Users/kuanjunduan/Documents/createCluster.py
 #
 # Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
@@ -13,23 +15,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-
-
-from logging import log
-import sys
-import os
-import getopt
-import socket
-import time
-import subprocess
-import shutil
-from datetime import datetime
-from typing import Dict, List, Optional
-from baseStep import BaseStep
-from outLog import log
-
-import taos
-
 """
 TDengine Standalone Cluster Setup Module
 
@@ -41,7 +26,17 @@ Usage:
     python3 createCluster.py --dnodes 3 --mnodes 2 --snodes 2 --path /tmp/tdengine
 """
 
+import sys
+import os
+import getopt
+import socket
+import time
+import subprocess
+import shutil
+from datetime import datetime
+from typing import Dict, List, Optional
 
+import taos
 
 
 # ==================== Logging Module ====================
@@ -53,11 +48,10 @@ class Logger:
         
     def _log(self, level: str, msg: str):
         """Internal log method"""
-        log.out(f"{level}: {msg}")
-        
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        log_msg = f"{timestamp} [{level}] {msg}"
+        print(log_msg)
         if self.log_file:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            log_msg = f"{timestamp} [{level}] {msg}"            
             with open(self.log_file, 'a') as f:
                 f.write(log_msg + '\n')
                 
@@ -411,6 +405,7 @@ class ClusterManager:
             self.adapter_manager = TaosAdapterManager(self.base_path, logger=self.logger)
         
     def create_cluster(self, dnode_nums: int, mnode_nums: int, 
+                      independent_mnode: bool = False,
                       update_dict: Optional[Dict] = None,
                       use_previous: bool = False) -> bool:
         """Create a cluster with specified configuration"""
@@ -426,11 +421,12 @@ class ClusterManager:
             return True
             
         self.logger.info(f"Creating cluster: {dnode_nums} DNODEs, {mnode_nums} MNODEs")
+        self.logger.info(f"Independent MNode: {independent_mnode}")
         self.logger.info(f"Storage: {self.level} levels, {self.disk} disks per level")
         
         self.dnode_manager.stop_all()
         # clear self.base_path
-        self.dnode_manager.clean_data()
+        self.dnode_manager.clean_data()        
         
         first_ep = f"{self.fqdn}:6030"
         second_ep = f"{self.fqdn}:6130" if dnode_nums > 1 else first_ep
@@ -618,32 +614,130 @@ class ClusterManager:
         self.logger.error("Cluster failed to become ready within timeout")
         return False
 
-# ==================== DeployCluster ====================
 
-class DeployCluster(BaseStep):
+# ==================== Main Setup Class ====================
+class TDengineClusterSetup:
+    """Main cluster setup orchestrator"""
+    
     def __init__(self):
-        self.update_cfg_dict = {}
-        self.logger = Logger("./cluster.log")
-        self.fqdn = socket.gethostname()
-
-    def create_cluster(self, dnode = 1 , mnode =1, snode =1, level=1, disk=1, use_previous=False):
-        print("create cluster with %d dnodes and %d mnodes" % (dnode, mnode))
-        
-        # param        
-        self.dnodes = dnode  # Changed from 3 to 1
-        self.mnodes = mnode  # Changed from 2 to 1
-        self.snodes = snode
-        self.level = level
-        self.disk = disk
-        self.use_previous = use_previous
-
-        # init
-        self.base_path = os.path.expanduser("./td_cluster")
+        self.dnodes = 1  # Changed from 3 to 1
+        self.mnodes = 1  # Changed from 2 to 1
+        self.snodes = 0
+        self.level = 1
+        self.disk = 1
+        self.base_path = os.path.expanduser("~/td_cluster")
+        self.fqdn = ""
+        self.independent_mnode = False
+        self.use_previous = False
         self.start_adapter = False
+        self.update_cfg_dict = {}
+        self.logger = Logger()
+        
+    def parse_args(self, argv):
+        """Parse command line arguments"""
+        try:
+            opts, args = getopt.gnu_getopt(
+                argv,
+                'N:M:S:L:D:p:f:i:PBh',
+                ['dnodes=', 'mnodes=', 'snodes=', 'level=', 'disk=', 
+                 'path=', 'fqdn=', 'independent=', 'previous', 'adapter', 'help']
+            )
+        except getopt.GetoptError as e:
+            self.print_help()
+            sys.exit(2)
             
-        self.logger.info("=" * 30)
+        for key, value in opts:
+            if key in ['-h', '--help']:
+                self.print_help()
+                sys.exit(0)
+            elif key in ['-N', '--dnodes']:
+                self.dnodes = int(value)
+            elif key in ['-M', '--mnodes']:
+                self.mnodes = int(value)
+            elif key in ['-S', '--snodes']:
+                self.snodes = int(value)
+            elif key in ['-L', '--level']:
+                self.level = int(value)
+                if self.level < 1 or self.level > 3:
+                    self.logger.exit("Level must be between 1 and 3")
+            elif key in ['-D', '--disk']:
+                self.disk = int(value)
+                if self.disk < 1 or self.disk > 10:
+                    self.logger.exit("Disk number must be between 1 and 10")
+            elif key in ['-p', '--path']:
+                self.base_path = value
+            elif key in ['-f', '--fqdn']:
+                self.fqdn = value
+            elif key in ['-i', '--independent']:
+                self.independent_mnode = value.lower() == 'true'
+            elif key in ['-P', '--previous']:
+                self.use_previous = True
+            elif key in ['-B', '--adapter']:
+                self.start_adapter = True
+                
+    def print_help(self):
+        """Print help message"""
+        help_text = """
+TDengine Standalone Cluster Setup Tool
+
+This tool creates a TDengine cluster without depending on frame modules.
+
+Usage:
+    python3 createCluster.py [OPTIONS]
+
+Options:
+    -N, --dnodes NUM        Number of DNODEs (default: 1)
+    -M, --mnodes NUM        Number of MNODEs (default: 1)
+    -S, --snodes NUM        Number of SNODEs (default: 0)
+    -L, --level NUM         Multiple level number (range: 1-3, default: 1)
+    -D, --disk NUM          Disk number on each level (range: 1-10, default: 1)
+    -p, --path PATH         Base path for deployment (default: ~/td_cluster)
+    -f, --fqdn FQDN         FQDN for cluster (default: hostname)
+    -i, --independent BOOL  Independent MNODE mode (true/false)
+    -P, --previous          Run with previous cluster, do not create new cluster
+    -B, --adapter           Start taosadapter process
+    -h, --help              Show this help message
+
+Examples:
+    # Create single node cluster (default)
+    python3 createCluster.py
+    
+    # Create 3-node cluster with 2 MNODEs and 2 SNODEs
+    python3 createCluster.py -N 3 -M 2 -S 2
+    
+    # Create cluster with multi-level storage
+    python3 createCluster.py -N 5 -M 3 -L 2 -D 3
+    
+    # Use previous cluster and start taosadapter
+    python3 createCluster.py -P -B
+    
+    # Custom path and FQDN
+    python3 createCluster.py -N 3 -M 2 -p /tmp/tdengine -f myhost.local
+
+Configuration Files:
+    After setup, configuration files are located at:
+    {base_path}/dnode{N}/cfg/taos.cfg
+    
+Connect to Cluster:
+    taos -h {fqdn}
+    taos -h {fqdn} -c {base_path}/dnode1/cfg
+
+Note:
+    - When using default L=1 and D=1, data directory will be named 'data'
+    - For multi-level/multi-disk setup, directories will be named 'data{level}_{disk}'
+"""
+        print(help_text)
+        
+    def run(self, argv):
+        """Main execution"""
+        self.parse_args(argv)
+        
+        if not self.fqdn:
+            self.fqdn = socket.gethostname()
+            
+        self.logger.info("=" * 70)
         self.logger.info("TDengine Standalone Cluster Setup")
-        self.logger.info("=" * 30)
+        self.logger.info("=" * 70)
         self.logger.info(f"Configuration:")
         self.logger.info(f"  DNODEs: {self.dnodes}")
         self.logger.info(f"  MNODEs: {self.mnodes}")
@@ -652,12 +746,13 @@ class DeployCluster(BaseStep):
         self.logger.info(f"  Disks per Level: {self.disk}")
         self.logger.info(f"  FQDN: {self.fqdn}")
         self.logger.info(f"  Base Path: {self.base_path}")
+        self.logger.info(f"  Independent MNode: {self.independent_mnode}")
         self.logger.info(f"  Use Previous Cluster: {self.use_previous}")
         self.logger.info(f"  Start TaosAdapter: {self.start_adapter}")
-        self.logger.info("=" * 30)
+        self.logger.info("=" * 70)
         
         try:
-            self.cluster_mgr = ClusterManager(
+            cluster_mgr = ClusterManager(
                 fqdn=self.fqdn,
                 base_path=self.base_path,
                 level=self.level,
@@ -666,43 +761,44 @@ class DeployCluster(BaseStep):
             )
             
             # Create or use existing cluster
-            self.cluster_mgr.create_cluster(
+            cluster_mgr.create_cluster(
                 dnode_nums=self.dnodes,
                 mnode_nums=self.mnodes,
+                independent_mnode=self.independent_mnode,
                 update_dict=self.update_cfg_dict,
                 use_previous=self.use_previous
             )
             
             # Connect to cluster
-            self.cluster_mgr.connect()
+            cluster_mgr.connect()
             
             if not self.use_previous:
                 # Create DNODEs in cluster
                 if self.dnodes > 1:
-                    self.cluster_mgr.create_dnodes_in_cluster(self.dnodes)
+                    cluster_mgr.create_dnodes_in_cluster(self.dnodes)
                     
                 # Create MNODEs
                 if self.mnodes > 0:
-                    self.cluster_mgr.create_mnodes_in_cluster(self.mnodes)
+                    cluster_mgr.create_mnodes_in_cluster(self.mnodes)
                     
                 # Wait for cluster ready
-                self.cluster_mgr.wait_for_cluster_ready()
+                cluster_mgr.wait_for_cluster_ready()
                 
                 # Create SNODEs
                 if self.snodes > 0:
-                    self.cluster_mgr.create_snodes_in_cluster(self.snodes)
+                    cluster_mgr.create_snodes_in_cluster(self.snodes)
             
             # Start TaosAdapter if requested - only initialized when -B flag is used
             if self.start_adapter:
-                self.cluster_mgr.start_taosadapter()
+                cluster_mgr.start_taosadapter()
             
             # Check final status
-            self.cluster_mgr.check_cluster_status(check_snodes=(self.snodes > 0))
+            cluster_mgr.check_cluster_status(check_snodes=(self.snodes > 0))
             
             # Print summary
-            self.logger.info("\n" + "=" * 30)
+            self.logger.info("\n" + "=" * 70)
             self.logger.success("✓ Cluster setup completed successfully!")
-            self.logger.info("=" * 30)
+            self.logger.info("=" * 70)
             self.logger.info("\nCluster Summary:")
             self.logger.info(f"  Total DNODEs: {self.dnodes}")
             self.logger.info(f"  Total MNODEs: {self.mnodes}")
@@ -714,9 +810,23 @@ class DeployCluster(BaseStep):
             self.logger.info(f"  1. Connect: taos -h {self.fqdn}")
             self.logger.info(f"  2. Config: {self.base_path}/dnode1/cfg/taos.cfg")
             self.logger.info(f"  3. Logs: {self.base_path}/dnode*/log/")
-            self.logger.info("=" * 30)
+            self.logger.info("\nUseful Commands:")
+            self.logger.info("  SHOW DNODES;")
+            self.logger.info("  SHOW MNODES;")
+            if self.snodes > 0:
+                self.logger.info("  SHOW SNODES;")
+            self.logger.info("  SHOW QNODES;")
+            self.logger.info("=" * 70)
             
         except Exception as e:
-            self.logger.exit(f"Setup failed: {e}")   
-        
-cluster = DeployCluster()        
+            self.logger.exit(f"Setup failed: {e}")
+
+
+def main():
+    """Entry point"""
+    setup = TDengineClusterSetup()
+    setup.run(sys.argv[1:])
+
+
+if __name__ == "__main__":
+    main()

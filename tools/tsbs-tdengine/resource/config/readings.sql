@@ -1,21 +1,2 @@
-DROP STREAM IF EXISTS db1.stm_a1 
-DROP STREAM IF EXISTS db1.stm_a2 
-DROP STREAM IF EXISTS db1.stm_a3 
-DROP STREAM IF EXISTS db1.stm_a4 
-DROP STREAM IF EXISTS db1.stm_a5 
-DROP STREAM IF EXISTS db1.stm_a6 
-DROP STREAM IF EXISTS db1.stm_a7
-DROP STREAM IF EXISTS db1.stm_f1 
-DROP STREAM IF EXISTS db1.stm_f3 
-DROP STREAM IF EXISTS db1.stm_f4 
-DROP STREAM IF EXISTS db1.stm_f8 
-DROP STREAM IF EXISTS db1.stm_t1 
-DROP STREAM IF EXISTS db1.stm_t2 
-DROP STREAM IF EXISTS db1.stm_t3 
-DROP STREAM IF EXISTS db1.stm_t4 
-DROP STREAM IF EXISTS db1.stm_t7 
-DROP STREAM IF EXISTS db1.stm_t8 
-DROP DATABASE IF EXISTS db1;
-WAIT TRANSACTIONS OVER
 CREATE DATABASE db1 vgroups 8;
 CREATE TABLE db1.`readings` (`ts` TIMESTAMP, `latitude` DOUBLE, `longitude` DOUBLE, `elevation` DOUBLE, `velocity` DOUBLE, `heading` DOUBLE, `grade` DOUBLE, `fuel_consumption` DOUBLE) TAGS (`name` VARCHAR(30), `fleet` VARCHAR(30), `driver` VARCHAR(30), `model` VARCHAR(30), `device_version` VARCHAR(30), `load_capacity` DOUBLE, `fuel_capacity` DOUBLE, `nominal_fuel_consumption` DOUBLE)
