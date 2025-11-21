@@ -378,6 +378,19 @@ static int32_t walRenameCorruptedDir(SWal* pWal) {
   char    newPath[WAL_FILE_LEN + 32];
   int64_t now = taosGetTimestampMs();
 
+  // Close all open file handles before renaming the directory
+  // This is critical especially for Windows systems where open files prevent directory rename
+  if (pWal->pLogFile != NULL) {
+    wDebug("vgId:%d, closing log file before renaming corrupted directory", pWal->cfg.vgId);
+    (void)taosCloseFile(&pWal->pLogFile);
+    pWal->pLogFile = NULL;
+  }
+  if (pWal->pIdxFile != NULL) {
+    wDebug("vgId:%d, closing idx file before renaming corrupted directory", pWal->cfg.vgId);
+    (void)taosCloseFile(&pWal->pIdxFile);
+    pWal->pIdxFile = NULL;
+  }
+
   // Build old and new directory paths
   tstrncpy(oldPath, pWal->path, sizeof(oldPath));
   snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, oldPath, now);
