@@ -258,7 +258,7 @@ function batch_remove_paths_and_clean_dir() {
 }
 
 function remove_data_and_config() {
-   echo "Start to removing data log and configuration files..."
+  echo "Starting to remove data, log, and configuration files..."
 
   data_dir=$(grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
   if [ -z "$data_dir" ]; then
