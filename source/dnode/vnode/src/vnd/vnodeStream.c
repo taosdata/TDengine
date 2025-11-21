@@ -164,11 +164,28 @@ static bool needReLoadTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int
 
 static bool uidInTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t suid, int64_t uid, uint64_t* id){
   int32_t  ret = false;
-  if (sStreamReaderInfo->tableType == TD_SUPER_TABLE && suid != sStreamReaderInfo->suid) {
-    goto end;
+  if (sStreamReaderInfo->tableType == TD_SUPER_TABLE) {
+    if (suid != sStreamReaderInfo->suid) goto end;
+    if (qStreamGetTableListNum(sStreamReaderInfo) == 0) goto end;
+    if (sStreamReaderInfo->pTagCond == NULL) {
+      if (sStreamReaderInfo->partitionCols == NULL){
+        *id = 0;
+      } else if (sStreamReaderInfo->groupByTbname){
+        *id= uid;
+      } else {
+        *id = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
+        if (*id == -1) goto end;
+      }
+    } else {
+      //*id= uid;
+      *id = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
+      if (*id == -1) goto end;
+    }
+  } else {
+    *id = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
+    if (*id == -1) goto end;
   }
-  *id = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
-  if (*id != -1) ret = true;
+  ret = true;
 
 end:
   stTrace("%s ret:%d check suid:%" PRId64 " uid:%" PRId64 " gid:%"PRIu64, __func__, ret, suid, uid, *id);
