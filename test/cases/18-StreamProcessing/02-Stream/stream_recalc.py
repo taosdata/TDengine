@@ -85,7 +85,6 @@ class TestStreamMetaChangeTable:
             
         def insert1(self):
             tdSql.execute(f"insert into ct1 values ('2025-01-01 00:00:11', 11)")
-            tdSql.execute(f"drop table {self.db}.ct1") 
 
         def check1(self):
             tdSql.checkResultsByFunc(
@@ -107,30 +106,30 @@ class TestStreamMetaChangeTable:
 
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct1",
-                func=lambda: tdSql.getRows() == 2
+                func=lambda: tdSql.getRows() == 5
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
-                and tdSql.compareData(0, 2, 6)
-                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 3, 3)
                 and tdSql.compareData(0, 4, 1)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
-                and tdSql.compareData(1, 2, 6)
-                and tdSql.compareData(1, 3, 12)
-                and tdSql.compareData(1, 4, 2),
-            )
-
-            tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct2",
-                func=lambda: tdSql.getRows() == 2
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
-                and tdSql.compareData(0, 2, 6)
-                and tdSql.compareData(0, 3, 6)
-                and tdSql.compareData(0, 4, 1)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
-                and tdSql.compareData(1, 2, 6)
-                and tdSql.compareData(1, 3, 12)
-                and tdSql.compareData(1, 4, 2),
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:11")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:11")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 11)
+                and tdSql.compareData(1, 4, 11)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:15")
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:25")
+                and tdSql.compareData(2, 2, 3)
+                and tdSql.compareData(2, 3, 3)
+                and tdSql.compareData(2, 4, 1)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:30")
+                and tdSql.compareData(3, 1, "2025-01-01 00:00:55")
+                and tdSql.compareData(3, 2, 6)
+                and tdSql.compareData(3, 3, 12)
+                and tdSql.compareData(3, 4, 2)
+                and tdSql.compareData(4, 0, "2025-01-01 00:01:00")
+                and tdSql.compareData(4, 1, "2025-01-01 00:01:00")
+                and tdSql.compareData(4, 2, 1)
+                and tdSql.compareData(4, 3, 3)
+                and tdSql.compareData(4, 4, 3),
             )

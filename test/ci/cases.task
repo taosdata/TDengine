@@ -188,6 +188,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
@@ -506,6 +507,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/01-Snode/test_snode_privileges_twodb.py
 ## 02-Stream
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_td37724.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_check_name.py
@@ -583,6 +585,7 @@
 ## 22-Performance
 ## 23-Compatibility 
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_cross_version.py
+,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
 ## 30-OldPyCases
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
@@ -606,6 +609,9 @@
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+## 99-Others
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
+
 
 # 19-TSMAs
 
@@ -1085,6 +1091,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5906.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts7402.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts7662.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_32187.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_33225.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts4563.py
