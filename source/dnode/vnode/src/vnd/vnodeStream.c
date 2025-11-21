@@ -3632,8 +3632,8 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       taosWLockLatch(&sStreamReaderInfo->lock);
       sStreamReaderInfo->pVnode = pVnode;
       initStorageAPI(&sStreamReaderInfo->storageApi);
-      STREAM_CHECK_RET_GOTO(initStreamTableListInfo(&sStreamReaderInfo->tableList));
       if (sStreamReaderInfo->tableList.pTableList == NULL) {
+        STREAM_CHECK_RET_GOTO(initStreamTableListInfo(&sStreamReaderInfo->tableList));
         code = generateTablistForStreamReader(pVnode, sStreamReaderInfo);
       }
       taosWUnLockLatch(&sStreamReaderInfo->lock);
