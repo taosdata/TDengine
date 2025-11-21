@@ -3390,19 +3390,15 @@ _exit:
   }
 }
 
-void msmHandleStatusUpdateErr(SStmGrpCtx* pCtx, EStmErrType err, SStmTaskStatusMsg* pStatus) {
+void msmHandleStreamTaskErr(SStmGrpCtx* pCtx, EStmErrType err, SStmTaskStatusMsg* pStatus) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SStreamTask* pTask = (SStreamTask*)pStatus;
   int64_t streamId = pStatus->streamId;
 
-  msttInfo("start to handle task status update exception, type: %d", err);
-  
-  // STREAMTODO
+  msttInfo("start to handle task error, type: %d", err);
 
-  if (STM_ERR_TASK_NOT_EXISTS == err || STM_ERR_STREAM_STOPPED == err) {
-    TAOS_CHECK_EXIT(msmGrpAddActionUndeploy(pCtx, streamId, pTask));
-  }
+  TAOS_CHECK_EXIT(msmGrpAddActionUndeploy(pCtx, streamId, pTask));
 
 _exit:
 
@@ -3471,7 +3467,7 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     SStmTaskStatus** ppStatus = taosHashGet(mStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
     if (NULL == ppStatus) {
       msttWarn("task no longer exists in taskMap, will try to undeploy current task, taskIdx:%d", pTask->taskIdx);
-      msmHandleStatusUpdateErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
+      msmHandleStreamTaskErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
       continue;
     }
 
@@ -3479,7 +3475,7 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     int8_t stopped = atomic_load_8(&pStream->stopped);
     if (stopped) {
       msttWarn("stream already stopped %d, will try to undeploy current task, taskIdx:%d", stopped, pTask->taskIdx);
-      msmHandleStatusUpdateErr(pCtx, STM_ERR_STREAM_STOPPED, pTask);
+      msmHandleStreamTaskErr(pCtx, STM_ERR_STREAM_STOPPED, pTask);
       continue;
     }
 
@@ -3487,7 +3483,7 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
       msttInfo("task mismatch with it in taskMap, will try to rm it, current seriousId:%" PRId64 ", nodeId:%d", 
           (*ppStatus)->id.seriousId, (*ppStatus)->id.nodeId);
           
-      msmHandleStatusUpdateErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
+      msmHandleStreamTaskErr(pCtx, STM_ERR_TASK_NOT_EXISTS, pTask);
       continue;
     }
 
@@ -4068,7 +4064,7 @@ _exit:
 }
 
 int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, finalCode = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t vgId = 0;
   int64_t streamId = pTask->streamId;
@@ -4084,6 +4080,11 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   SSHashObj* pVgs = NULL;
   SStreamMgmtReq* pMgmtReq = NULL;
   int8_t stopped = 0;
+
+  if (NULL == pCtx->pRsp->rsps.rspList) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, finalCode, lino, _final, terrno);
+  }
   
   TSWAP(pTask->pMgmtReq, pMgmtReq);
   rsp.task = *(SStreamTask*)pTask;
@@ -4149,28 +4150,33 @@ int32_t msmDeployTriggerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     mstsDebug("the %dth otrigReader src added to trigger's virtual orig readerList, TASK:%" PRIx64 " nodeId:%d", i, addr.taskId, addr.nodeId);
   }
 
-  if (NULL == pCtx->pRsp->rsps.rspList) {
-    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
-    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
-  }
-
-  TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), code, lino, _exit, terrno);
-
 _exit:
 
   tFreeSStreamMgmtReq(pMgmtReq);
   taosMemoryFree(pMgmtReq);
 
   tSimpleHashCleanup(pVgs);
-
-  if (code) {
-    tFreeSStreamMgmtRsp(&rsp);
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  }
-
   mstDestroyDbVgroupsHash(pDbVgroups);
 
-  return code;
+  if (code) {
+    rsp.code = code;
+    
+    TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), finalCode, lino, _final, terrno);
+
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), finalCode, lino, _final, terrno);
+  }
+
+_final:
+
+  if (finalCode) {
+    tFreeSStreamMgmtRsp(&rsp);
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code)); 
+    msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
+  }
+
+  return finalCode;
 }
 
 int32_t msmGetCalcScanFromList(int64_t streamId, SArray* pList, int64_t uid, SStreamCalcScan** ppRes) {
@@ -4250,7 +4256,7 @@ _exit:
 
 
 int32_t msmDeployRunnerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, finalCode = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t vgId = 0;
   int64_t streamId = pTask->streamId;
@@ -4265,6 +4271,11 @@ int32_t msmDeployRunnerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int8_t stopped = 0;
   int32_t vgNum = 0;
   SStreamTaskAddr* pAddr = NULL;
+
+  if (NULL == pCtx->pRsp->rsps.rspList) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, finalCode, lino, _final, terrno);
+  }
   
   TSWAP(pTask->pMgmtReq, pMgmtReq);
   rsp.task = *(SStreamTask*)pTask;
@@ -4304,24 +4315,30 @@ int32_t msmDeployRunnerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     }
   }
 
-  if (NULL == pCtx->pRsp->rsps.rspList) {
-    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
-    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
-  }
-
-  TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), code, lino, _exit, terrno);
-
 _exit:
 
   tFreeSStreamMgmtReq(pMgmtReq);
   taosMemoryFree(pMgmtReq);
 
   if (code) {
-    tFreeSStreamMgmtRsp(&rsp);
+    rsp.code = code;
+    
+    TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), finalCode, lino, _final, terrno);
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), finalCode, lino, _final, terrno);
   }
 
-  return code;
+
+_final:
+
+  if (finalCode) {
+    tFreeSStreamMgmtRsp(&rsp);
+    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code)); 
+    msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
+  }
+
+  return finalCode;
 }
 
 
@@ -4331,10 +4348,10 @@ int32_t msmHandleTaskMgmtReq(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
 
   switch (pTask->pMgmtReq->type) {
     case STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER:
-      TAOS_CHECK_EXIT(msmDeployTriggerOrigReader(pCtx, pTask));
+      msmDeployTriggerOrigReader(pCtx, pTask);
       break;
     case STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER:
-      TAOS_CHECK_EXIT(msmDeployRunnerOrigReader(pCtx, pTask));
+      msmDeployRunnerOrigReader(pCtx, pTask);
       break;
     default:
       msttError("Invalid mgmtReq type:%d", pTask->pMgmtReq->type);
