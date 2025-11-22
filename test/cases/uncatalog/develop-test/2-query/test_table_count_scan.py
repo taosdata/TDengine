@@ -84,7 +84,7 @@ class TestTableCountScan:
                 tdSql.checkData(i, 0, 47)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'performance_schema':
-                tdSql.checkData(i, 0, 5)
+                tdSql.checkData(i, 0, 6)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'tbl_count':
                 tdSql.checkData(i, 0, 3)

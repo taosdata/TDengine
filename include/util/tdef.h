@@ -310,6 +310,10 @@ typedef enum ELogicConditionType {
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
 
+#define TSDB_INSTANCE_ID_LEN   256
+#define TSDB_INSTANCE_TYPE_LEN 64
+#define TSDB_INSTANCE_DESC_LEN 512
+
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
 

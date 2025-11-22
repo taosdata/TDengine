@@ -63,6 +63,7 @@ build/bin/clientTest
 build/bin/connectOptionsTest 
 build/bin/stmtTest
 build/bin/stmt2Test
+build/bin/instanceTest
 build/bin/tssTest
 build/bin/tmqTest
 build/bin/catalogTest 
