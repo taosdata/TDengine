@@ -199,8 +199,7 @@ def save_scan_res(res_base_path, file_path, out, err):
     ext_map = {".c": "-c", ".h": "-h", ".cpp": "-cpp"}
     suffix = ext_map.get(ext, ext)
     file_res_path = os.path.join(res_base_path, base.lstrip(os.sep) + suffix + ".txt")
-    if not os.path.exists(os.path.dirname(file_res_path)):
-        os.makedirs(os.path.dirname(file_res_path))
+    os.makedirs(os.path.dirname(file_res_path), exist_ok=True)
     logger.info("Save scan result to: %s" % file_res_path)
     with open(file_res_path, "w") as f:
         f.write(err)
