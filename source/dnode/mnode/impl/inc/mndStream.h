@@ -29,6 +29,7 @@ bool mstEventHandledChkSet(int32_t event);
 typedef enum {
   STM_ERR_TASK_NOT_EXISTS = 1,
   STM_ERR_STREAM_STOPPED,
+  STM_ERR_PROCESSING_ERR,
 } EStmErrType;
 
 
