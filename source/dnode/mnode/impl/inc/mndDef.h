@@ -256,8 +256,10 @@ typedef struct {
 } SDnodeObj;
 
 typedef struct {
-  int32_t nameLen;
   char*   name;
+  int32_t nameLen;
+  char*   pStatus;
+  char*   pNote;
 } SAnodeAlgo;
 
 typedef struct {
