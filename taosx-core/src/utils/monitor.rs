@@ -32,7 +32,11 @@ impl SubInfo {
     }
 }
 
-pub fn send_sub_process_info(sub_pid: Option<u32>, task_id: Option<i64>, datasource_name: &str) {
+pub async fn send_sub_process_info(
+    sub_pid: Option<u32>,
+    task_id: Option<i64>,
+    datasource_name: &str,
+) {
     if task_id.is_none() {
         tracing::debug!("task id is None");
         return;
@@ -41,7 +45,7 @@ pub fn send_sub_process_info(sub_pid: Option<u32>, task_id: Option<i64>, datasou
     if let Some(sub_pid) = sub_pid {
         let sub_info = SubInfo::new(sub_pid, task_id, datasource_name);
         let sender = CHANNEL.0.clone();
-        if let Err(err) = sender.send(sub_info) {
+        if let Err(err) = sender.send_async(sub_info).await {
             tracing::error!("send sub process info error: {}", err);
         }
     } else {
@@ -49,7 +53,7 @@ pub fn send_sub_process_info(sub_pid: Option<u32>, task_id: Option<i64>, datasou
     }
 }
 
-pub fn update_sub_connector_process_metrics(
+pub async fn update_sub_connector_process_metrics(
     sys: &sysinfo::System,
     taosx_id: String,
     parent_process_id: sysinfo::Pid,
@@ -113,7 +117,7 @@ pub fn update_sub_connector_process_metrics(
 
     // 对于还活着的子进程，重新入队，等待下次更新 metrics
     for sub_info in living_sub_processes {
-        if let Err(err) = CHANNEL.0.send(sub_info) {
+        if let Err(err) = CHANNEL.0.send_async(sub_info).await {
             tracing::error!("enqueue sub process info error: {}", err);
         }
     }

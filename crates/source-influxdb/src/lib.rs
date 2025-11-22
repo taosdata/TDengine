@@ -176,7 +176,7 @@ pub async fn influxdb_to_taos(
     };
 
     let mut child = child.spawn().context("Start InfluxDB collector error")?;
-    send_sub_process_info(child.id(), task_id, "influxdb");
+    send_sub_process_info(child.id(), task_id, "influxdb").await;
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();

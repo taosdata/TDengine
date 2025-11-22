@@ -162,7 +162,7 @@ pub async fn opc_to_taos(
         .stderr(std::process::Stdio::piped());
 
     let mut child = child.spawn()?;
-    send_sub_process_info(child.id(), task_id, config.opc_type.to_string().as_str());
+    send_sub_process_info(child.id(), task_id, config.opc_type.to_string().as_str()).await;
 
     // start points updating task
     let pu_cancel_token = CancellationToken::new();

@@ -146,7 +146,7 @@ pub async fn local_to_taos(
             }
         } else {
             tracing::info!("local_to_taos send files: {:?} to worker", files_to_send);
-            tx.send(files_to_send).inspect_err(|err| {
+            tx.send_async(files_to_send).await.inspect_err(|err| {
                 tracing::error!("failed to send files to worker: {:#}", err);
             })?;
         }

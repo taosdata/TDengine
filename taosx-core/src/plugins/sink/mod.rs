@@ -2333,7 +2333,7 @@ async fn handle_flat_abnormal<'a>(
                 Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                 Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                 Ok((HandlingResult::Retry, _)) => {
-                    if let Err(e) = process_cache(batch, archive_tx.clone()) {
+                    if let Err(e) = process_cache(batch, archive_tx.clone()).await {
                         tracing::error!("cache error: {e:#}");
                     }
                     Ok(())
@@ -2360,7 +2360,7 @@ async fn handle_flat_abnormal<'a>(
     }
 }
 
-fn process_cache(
+async fn process_cache(
     batch: &RecordBatch,
     archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
@@ -2369,7 +2369,8 @@ fn process_cache(
     };
     if batch.num_rows() > 0 {
         archive_tx
-            .send(ArchiveType::Cache(batch.clone()))
+            .send_async(ArchiveType::Cache(batch.clone()))
+            .await
             .context("archive process task exit")?;
     }
     Ok(())
@@ -2483,7 +2484,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             });
 
             if notifier
-                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                .send_async(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                .await
                 .is_err()
             {
                 bail!("write batch error: {err:#}");
@@ -2642,7 +2644,10 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
                     Err(err) => {
                         metrics.add_failed_batches(1);
                         tracing::warn!("Writing batch error: {err:#}");
-                        let _ = notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)));
+                        notifier
+                            .send_async(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                            .await
+                            .ok();
                         let ack = LushAck {
                             code: 0,
                             message: Some(err.to_string()),
@@ -3997,7 +4002,7 @@ pub async fn channel_based_transformer(
     let taos = target.get().await?;
     let target_precision = get_current_precision(&taos).in_current_span().await?;
     let (msg_tx, msg_rx) = flume::bounded(send_capacity);
-    let (ack_tx, ack_rx) = flume::unbounded();
+    let (ack_tx, ack_rx) = flume::bounded(send_capacity);
 
     let stream = msg_rx.into_stream();
     let sink = futures_util::sink::unfold(ack_tx, |ack_tx, ack| async move {

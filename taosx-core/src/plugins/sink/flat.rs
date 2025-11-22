@@ -1734,7 +1734,9 @@ pub async fn flat_write_with_raw_block(
                         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                         Ok((HandlingResult::Retry, _)) => {
-                            if let Err(e) = process_cache(&records.records, archive_tx.clone()) {
+                            if let Err(e) =
+                                process_cache(&records.records, archive_tx.clone()).await
+                            {
                                 tracing::error!("cache error: {e:#}");
                             }
                             metrics_failed!(raw);
@@ -2474,14 +2476,14 @@ impl FlatSink {
                                                 unreachable!()
                                             }
                                             Ok((HandlingResult::Retry, _)) => {
-                                                messages.iter().for_each(|m| {
+                                                for m in messages {
                                                     if let Err(e) = process_cache(
                                                         &m.records,
                                                         archive_tx.clone(),
-                                                    ) {
+                                                    ).await {
                                                         tracing::error!("cache error: {e:#}");
                                                     }
-                                                });
+                                                }
                                                 continue;
                                             }
                                             Err(e) => {
@@ -2740,7 +2742,8 @@ pub async fn ipc_flat_stream_worker_vgroup(
                             ack_tx.send_async(ack).await.context("ACK writer error")?;
                             if ipc_error_strategy.will_stop()
                                 || notifier
-                                    .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                                    .send_async(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                                    .await
                                     .is_err()
                             {
                                 Err(err).context("write batch error")?;
@@ -2909,7 +2912,8 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                         ack_tx.send_async(ack).await.context("ACK writer error")?;
                         if ipc_error_strategy.will_stop()
                             || notifier
-                                .send(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                                .send_async(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                                .await
                                 .is_err()
                         {
                             Err(err).context("write batch error")?;
@@ -3122,8 +3126,9 @@ pub async fn ipc_flat_stream_worker_concurrent(
                                 ack_tx.send(ack).ok();
                             }
 
-                            if let Err(error) =
-                                notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                            if let Err(error) = notifier
+                                .send_async(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                                .await
                             {
                                 tracing::warn!(%error, "Send error notify failed");
                                 cancel.cancel();

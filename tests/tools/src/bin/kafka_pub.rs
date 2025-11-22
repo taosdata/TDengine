@@ -26,6 +26,8 @@ struct Args {
     servers: String,
     #[clap(long = "topic", short = 't')]
     topic: String,
+    #[clap(long = "partitions", short = 'p', default_value_t = 1)]
+    partitions: usize,
     #[clap(long = "perallel", short = 'l', default_value_t = std::thread::available_parallelism().unwrap().get())]
     parallel: usize,
     #[clap(long = "interval", default_value = "100ms", value_parser = fundu::parse_duration)]
@@ -69,34 +71,39 @@ async fn main() {
         let published = published.clone();
         let token = token.clone();
         async move {
-            let start = Instant::now();
+            let mut start = Instant::now();
+            let mut last_published = 0;
             loop {
                 tokio::select! {
-                _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                    let duration = start.elapsed().as_secs();
-                    if duration == 0 {
-                        continue;
-                    }
-                    let published = published.load(atomic::Ordering::Acquire);
-                    println!("published {published}, speed: {}/s", published / duration);
-                },
-                _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                        let duration = start.elapsed().as_secs();
+                        if duration == 0 {
+                            continue;
+                        }
+                        start = Instant::now();
+                        let published = published.load(atomic::Ordering::Acquire);
+                        let delta = published - last_published;
+                        last_published = published;
+                        println!("published {published}, speed: {}/s", delta / duration);
+                    },
+                    _ = token.cancelled() => break,
                 }
             }
         }
     });
 
-    for _ in 0..args.parallel {
+    let partitions = args.partitions;
+    for i in 0..args.parallel {
         join_set.spawn({
-            let producer: FutureProducer = match  config.create() {
+            let producer: FutureProducer = match config.create() {
                 Ok(p) => {
                     println!("create producer ok");
                     p
-                },
+                }
                 Err(e) => {
                     println!("create producer error: {e:#}");
-                    return
-                },
+                    return;
+                }
             };
             let topic = args.topic.clone();
             let faker = faker.clone();
@@ -115,35 +122,53 @@ async fn main() {
                     }
                 };
 
+                let (msg_tx, msg_rx) = flume::bounded(10000);
+                std::thread::spawn(move || loop {
+                    let value = faker
+                        .rand_json_value()
+                        .context("gen fake data error")
+                        .and_then(|value| {
+                            serde_json::to_vec(&value).context("serialize json error")
+                        })
+                        .and_then(|value| {
+                            processor.process(value).context("processor process error")
+                        })
+                        .inspect_err(|e| println!("get value error: {e:#}"));
+                    msg_tx.send(value).ok();
+                });
+
                 loop {
-                    tokio::select! {
-                        _ = stream.next() => {
-                            let (tx, rx) = tokio::sync::oneshot::channel();
-                            rayon::spawn({
-                                let faker = faker.clone();
-                                move || {
-                                    let value = faker
-                                        .rand_json_value()
-                                        .context("gen fake data error")
-                                        .and_then(|value| serde_json::to_vec(&value).context("serialize json error"))
-                                        .and_then(|value| processor.process(value).context("processor process error"))
-                                        .inspect_err(|e| println!("get value error: {e:#}"))
-                                        .unwrap();
-                                    tx.send(value).ok();
-                                }
-                            });
-                            let Ok(value) = rx.await else {
-                                continue
-                            };
-                            let record = FutureRecord::to(&topic).payload(&value).key("key");
-                            tokio::select! {
-                                _ = producer.send(record, Timeout::Never) => {
-                                    published.fetch_add(1, atomic::Ordering::Release);
-                                },
-                                _ = token.cancelled() => break,
-                            }
-                        },
-                        _ = token.cancelled() => break,
+                    if token.run_until_cancelled(stream.next()).await.is_none() {
+                        break;
+                    }
+                    let Some(Ok(value)) = token.run_until_cancelled(msg_rx.recv_async()).await
+                    else {
+                        break;
+                    };
+                    let value = match value {
+                        Err(e) => {
+                            println!("get value error: {e:#}");
+                            continue;
+                        }
+                        Ok(value) => value,
+                    };
+                    let record = FutureRecord::to(&topic)
+                        .payload(&value)
+                        .partition((i % partitions) as _)
+                        .key("key");
+                    let Some(res) = token
+                        .run_until_cancelled(producer.send(record, Timeout::Never))
+                        .await
+                    else {
+                        break;
+                    };
+                    match res {
+                        Ok(_) => {
+                            published.fetch_add(1, atomic::Ordering::AcqRel);
+                        }
+                        Err((e, _)) => {
+                            println!("publish message error: {e:#}");
+                        }
                     }
                 }
                 producer.flush(std::time::Duration::from_secs(5)).unwrap();
@@ -154,6 +179,5 @@ async fn main() {
     ctrl_c().await.ok();
     println!("received ctrl_c signal");
     token.cancel();
-    join_set.abort_all();
     while join_set.join_next().await.is_some() {}
 }

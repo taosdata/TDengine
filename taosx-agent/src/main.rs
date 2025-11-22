@@ -554,7 +554,7 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
 
     let agent = client.agent();
     let agent_id = agent.id;
-    let (resp_tx, resp_rx) = flume::unbounded::<RespAction>();
+    let (resp_tx, resp_rx) = flume::bounded::<RespAction>(1000);
 
     let (runner, tasks, sender, status) =
         runner::spawn_runner(agent_id, &args.endpoint, &args.token, resp_tx.clone());
@@ -741,13 +741,14 @@ fn start_collect_agent_metrics(monitor_interval: u64, taosx_id: &'static str, ag
                 agent_id,
                 process_id,
                 monitor_interval as f64,
-            );
+            )
+            .await;
             collect_interval.tick().await;
         }
     });
 }
 
-pub fn process_metrics(
+pub async fn process_metrics(
     sys: &mut sysinfo::System,
     taosx_id: &'static str,
     agent_id: &'static str,
@@ -786,7 +787,8 @@ pub fn process_metrics(
         process_id,
         monitor_interval,
         cpu_cores,
-    );
+    )
+    .await;
     Ok(())
 }
 
@@ -796,7 +798,7 @@ fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
         let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(61));
         loop {
             heart_beat_interval.tick().await;
-            if resp_tx.send(RespAction::Heartbeat).is_err() {
+            if resp_tx.send_async(RespAction::Heartbeat).await.is_err() {
                 tracing::warn!("Send heartbeat action error");
                 break;
             }
@@ -819,7 +821,10 @@ fn export_metrics(
             }
             if !metrics_events.is_empty() {
                 tracing::debug!("Export metric events, total: {}", metrics_events.len());
-                if let Err(err) = resp_tx.send(RespAction::Metrics(metrics_events)) {
+                if let Err(err) = resp_tx
+                    .send_async(RespAction::Metrics(metrics_events))
+                    .await
+                {
                     tracing::warn!("Send metrics action error: {err}");
                     break;
                 }

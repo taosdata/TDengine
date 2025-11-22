@@ -1853,10 +1853,10 @@ async fn sync_specified_tables_with_workers(
         task_id, "Synchronize table data with {} workers", workers
     );
     let mut count = 0;
-    let (tx, rx) = flume::unbounded::<(
+    let (tx, rx) = flume::bounded::<(
         Option<(Arc<String>, TimeRange)>,
         oneshot::Receiver<anyhow::Result<()>>,
-    )>();
+    )>(100);
     let breakpoints = scheduler.breakpoints();
     let handle = tokio::spawn(async move {
         let mut fails = 0;

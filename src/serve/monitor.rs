@@ -404,7 +404,8 @@ pub async fn process_metrics(
         process_id,
         monitor_interval as f64,
         cpu_cores,
-    );
+    )
+    .await;
     Ok(())
 }
 

@@ -199,7 +199,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI collector error")?;
-            send_sub_process_info(child_command.id(), task_id, "pi");
+            send_sub_process_info(child_command.id(), task_id, "pi").await;
         }
         _ => {
             anyhow::bail!("wrong driver configured");

@@ -772,7 +772,7 @@ impl Client {
 pub async fn listen_task_metrics(resp_tx: Sender<RespAction>) -> Result<()> {
     use crate::agent::plugins::sink::ipc_metric::AGENT_METRICS_SENDER;
 
-    let (tx, rx) = flume::unbounded();
+    let (tx, rx) = flume::bounded(100);
 
     let _ = AGENT_METRICS_SENDER.set(tx);
 

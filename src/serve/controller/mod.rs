@@ -1641,7 +1641,7 @@ impl TaskController {
 
                 let from: Dsn = task.from.parse()?;
                 let to: Dsn = task.to.parse()?;
-                let (tx, _rx) = flume::unbounded();
+                let (tx, _rx) = flume::bounded(100);
                 let opts = TaskOpts {
                     from,
                     transform: vec![],

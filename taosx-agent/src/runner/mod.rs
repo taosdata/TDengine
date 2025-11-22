@@ -108,7 +108,7 @@ pub fn spawn_runner(
                             let cancellation = CancellationToken::new();
                             let cancel = cancellation.clone();
 
-                            let (task_tx, task_rx) = flume::unbounded();
+                            let (task_tx, task_rx) = flume::bounded(100);
 
                             let opts = TaskOpts {
                                 transform: vec![],
