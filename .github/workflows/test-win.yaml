@@ -1,0 +1,35 @@
+
+name: Test-for-win
+on:
+  pull_request:
+    branches:
+      - 'main'
+      
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-Test-for-win
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on:
+      group: CI
+      labels: [self-hosted, Windows, X64,testing, win-93]
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Run your script
+        shell: cmd 
+        run: which python3 ; which pytest
+
+        
+      - name: Run your script
+        shell: cmd 
+        run: python3 -V
+
+
+
+
+        
+        
