@@ -53,7 +53,7 @@ class _ProphetService(AbstractForecastService):
 
         # Generate time index
         time_index = pd.date_range(
-            start=pd.Timestamp(self.start_ts, unit=self.precision),
+            start=pd.Timestamp(self.ts_list[0], unit=self.precision),
             periods=len(self.list),
             freq=pd.to_timedelta(self.time_step, unit=self.precision)
         )
@@ -90,7 +90,7 @@ class _ProphetService(AbstractForecastService):
         return (
             res,
             None,  # Prophet does not expose MSE by default
-            "Prophet Model"
+            "Prophet"
         )
 
     def execute(self):
@@ -106,7 +106,7 @@ class _ProphetService(AbstractForecastService):
 
         res, mse, model_info = self.__do_forecast_helper(self.rows)
 
-        insert_ts_list(res, self.start_ts + len(self.list) * self.time_step, self.time_step, self.rows)
+        insert_ts_list(res, self.start_ts, self.time_step, self.rows)
 
         return {
             "mse": mse,
