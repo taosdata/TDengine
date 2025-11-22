@@ -401,14 +401,27 @@ int32_t walEndSnapshot(SWal *pWal, bool forceTrim) {
     ver = TMIN(ver, refVer);
   }
 
-  // check keepVersion constraint (skip if forceTrim is true)
-  if (!forceTrim && pWal->keepVersion >= 0) {
-    wInfo("vgId:%d, wal keep version constraint, keep version:%" PRId64 ", calculated ver:%" PRId64, pWal->cfg.vgId,
-          pWal->keepVersion, ver);
-    ver = TMIN(ver, pWal->keepVersion - 1);
-  } else if (forceTrim && pWal->keepVersion >= 0) {
-    wInfo("vgId:%d, wal force trim, ignore keep version constraint:%" PRId64 ", calculated ver:%" PRId64, 
-          pWal->cfg.vgId, pWal->keepVersion, ver);
+  // check keepVersion and preserveVer constraint (skip if forceTrim is true)
+  // choose the minimum value between keepVersion and preserveVer
+  int64_t minKeepVer = -1;
+  if (pWal->keepVersion >= 0) {
+    minKeepVer = pWal->keepVersion;
+  }
+  if (tsWalPreserveForRestore && pWal->preserveVer >= 0) {
+    if (minKeepVer < 0 || pWal->preserveVer < minKeepVer) {
+      minKeepVer = pWal->preserveVer;
+    }
+  }
+
+  if (!forceTrim && minKeepVer >= 0) {
+    wInfo("vgId:%d, wal version constraint, min keep version:%" PRId64 " (keepVersion:%" PRId64 ", preserveVer:%" PRId64
+          "), calculated ver:%" PRId64,
+          pWal->cfg.vgId, minKeepVer, pWal->keepVersion, pWal->preserveVer, ver);
+    ver = TMIN(ver, minKeepVer - 1);
+  } else if (forceTrim && minKeepVer >= 0) {
+    wInfo("vgId:%d, wal force trim, ignore version constraint:%" PRId64 " (keepVersion:%" PRId64
+          ", preserveVer:%" PRId64 "), calculated ver:%" PRId64,
+          pWal->cfg.vgId, minKeepVer, pWal->keepVersion, pWal->preserveVer, ver);
   }
 
   // find files safe to delete

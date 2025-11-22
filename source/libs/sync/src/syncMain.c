@@ -441,6 +441,22 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   return minMatchIndex;
 }
 
+// Get minimum match index for WAL preservation, considering all replicas including offline ones
+static SyncIndex syncMinMatchIndexForWalPreserve(SSyncNode* pSyncNode) {
+  SyncIndex minMatchIndex = INT64_MAX;
+
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
+    SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
+    minMatchIndex = TMIN(minMatchIndex, matchIndex);
+  }
+
+  if (minMatchIndex < 0) {
+    return 0;
+  }
+
+  return minMatchIndex;
+}
+
 static SyncIndex syncLogRetentionIndex(SSyncNode* pSyncNode, int64_t bytes) {
   return pSyncNode->pLogStore->syncLogIndexRetention(pSyncNode->pLogStore, bytes);
 }
@@ -503,6 +519,16 @@ _DEL_WAL:
       if (snapshottingIndex == SYNC_INDEX_INVALID) {
         atomic_store_64(&pSyncNode->snapshottingIndex, lastApplyIndex);
         pSyncNode->snapshottingTime = taosGetTimestampMs();
+
+        // Set preserveVer in WAL if walPreserveForRestore is enabled
+        if (tsWalPreserveForRestore && pSyncNode->peersNum > 0) {
+          SyncIndex minMatchIndexForPreserve = syncMinMatchIndexForWalPreserve(pSyncNode);
+          if (minMatchIndexForPreserve != INT64_MAX) {
+            pData->pWal->preserveVer = minMatchIndexForPreserve;
+            sDebug("vgId:%d, walPreserveForRestore enabled, set preserveVer to minMatchIndex:%" PRId64, pSyncNode->vgId,
+                   minMatchIndexForPreserve);
+          }
+        }
 
         code = walBeginSnapshot(pData->pWal, lastApplyIndex, logRetention);
         if (code == 0) {
