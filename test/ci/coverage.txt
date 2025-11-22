@@ -50,8 +50,6 @@
 /home/TDinternal/community/source/libs/parser/src/parUtil.c
 /home/TDinternal/community/source/dnode/vnode/src/meta/metaEntry2.c
 /home/TDinternal/community/source/libs/function/src/udfd.c
-/home/TDinternal/community/source/dnode/mnode/impl/src/mndStreamMgmt.c
-/home/TDinternal/community/source/dnode/mnode/impl/src/mndDnode.c
 /home/TDinternal/community/source/libs/executor/src/scanoperator.c
 /home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbUtil.c
 /home/TDinternal/community/source/libs/scheduler/src/schTask.c
