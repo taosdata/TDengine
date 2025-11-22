@@ -43,6 +43,7 @@ members = [
   "crates/source-kinghistorian",
   "crates/source-kinghistorian/kinghistorian-sys",
   "crates/source-pulsar",
+  "crates/reclaim-memory",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -57,6 +58,7 @@ reqwest = { version = "0.12" }
 clap = { version = "4.5.30", features = ["default", "derive"] }
 clap-verbosity-flag = { version = "3.0.2" }
 regex = { version = "1.11.0" }
+libc = { version = "0.2" }
 
 arrow = { version = "55", features = [
   "chrono-tz",
@@ -191,7 +193,8 @@ snap = "1.1.1"
 const_format = "0.2"
 assert_cmd = "2"
 assert_fs = "1.1.2"
-mimalloc = { version = "0.1.43", default-features = false }
+mimalloc = { version = "0.1.48", default-features = false }
+libmimalloc-sys = { version = "0.1.44", default-features = false }
 pin-project-lite = "0.2"
 orc-rust = "0.6"
 duckdb = "1.3"
@@ -216,6 +219,7 @@ local-to-taos.path = "./crates/local-to-taos"
 source-opc.path = "./crates/source-opc"
 taoslog = { path = "crates/taoslog", features = ["ansi"] }
 archive = { path = "./crates/archive" }
+reclaim-memory = { path = "./crates/reclaim-memory" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -373,6 +377,7 @@ local-to-taos.workspace = true
 source-opc.workspace = true
 source-csv.workspace = true
 source-kinghistorian.workspace = true
+reclaim-memory.workspace = true
 
 archive = { workspace = true }
 cached = { version = "0.56.0", features = ["async"] }
@@ -403,6 +408,7 @@ deadpool = { workspace = true }
 [features]
 default = ["rustls", "mimalloc"]
 optin = []
+mimalloc = ["dep:mimalloc", "reclaim-memory/mimalloc"]
 jemallocator = [
   "tikv-jemallocator",
   "tikv-jemalloc-sys",

@@ -12,9 +12,8 @@ LimitNOFILE=1048576
 LimitNPROC=infinity
 LimitCORE=infinity
 TimeoutStartSec=0
-StartLimitBurst=3
+StartLimitBurst=10
 StartLimitInterval=60s
-StandardOutput=null
 
 [Install]
 WantedBy=multi-user.target
