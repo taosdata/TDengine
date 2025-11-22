@@ -163,6 +163,7 @@ extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
+extern bool    tsWalPreserveForRestore;
 
 // dnode
 extern int64_t tsDndStart;

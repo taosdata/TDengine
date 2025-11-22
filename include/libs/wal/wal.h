@@ -121,6 +121,8 @@ typedef struct SWal {
   SHashObj *pRefHash;  // refId -> SWalRef
   // keep version for preventing auto deletion
   int64_t keepVersion;
+  // preserve version for walPreserveForRestore feature
+  int64_t preserveVer;
   // path
   char path[WAL_PATH_LEN];
 
