@@ -6,7 +6,7 @@ slug: /developer-guide/manage-consumers
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced-features/data-subscription/)
+TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced/subscription/)
 
 ## Creating Topics
 
