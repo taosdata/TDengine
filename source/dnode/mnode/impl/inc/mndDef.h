@@ -712,15 +712,10 @@ typedef struct {
   SRWLatch lock;
 } SFuncObj;
 
-// instance metadata
-#define MND_INSTANCE_ID_LEN   256
-#define MND_INSTANCE_TYPE_LEN 64
-#define MND_INSTANCE_DESC_LEN 512
-
 typedef struct {
-  char    id[MND_INSTANCE_ID_LEN];
-  char    type[MND_INSTANCE_TYPE_LEN];
-  char    desc[MND_INSTANCE_DESC_LEN];
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
   int64_t firstRegTime;
   int64_t lastRegTime;
   int32_t expire;

@@ -95,10 +95,6 @@ typedef uint16_t tmsg_t;
     pReq->sql = NULL;            \
   } while (0)
 
-#define TSDB_INSTANCE_ID_LEN   256
-#define TSDB_INSTANCE_TYPE_LEN 64
-#define TSDB_INSTANCE_DESC_LEN 512
-
 static inline bool tmsgIsValid(tmsg_t type) {
   // static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
   int8_t maxSegIdx = TMSG_SEG_CODE(TDMT_MAX_MSG_MIN);
@@ -5465,13 +5461,13 @@ typedef struct {
 
 typedef struct {
   int32_t count;
-  char    ids[0];  // Variable length: count * TSDB_INSTANCE_ID_LEN
+  char**  ids;  // Array of instance IDs
 } SInstanceListRsp;
 
 int32_t tSerializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
 int32_t tDeserializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
-int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp, const char** ids, int32_t count);
-int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp, char*** ids, int32_t* count);
+int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
+int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
 
 #ifdef USE_MOUNT
 typedef struct {

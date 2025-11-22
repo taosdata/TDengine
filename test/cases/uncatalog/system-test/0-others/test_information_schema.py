@@ -58,7 +58,7 @@ class TestInformationSchema:
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
                         "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details' ]
         cls.perf_list = ['perf_connections', 'perf_queries',
-                         'perf_consumers',  'perf_trans', 'perf_apps']
+                         'perf_consumers',  'perf_trans', 'perf_apps', 'perf_instances']
 
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)

@@ -33,7 +33,7 @@ static int32_t  mndProcessInstanceList(SRpcMsg *pReq);
 static int32_t  mndProcessInstanceTimer(SRpcMsg *pReq);
 
 static inline int32_t mndInstanceDataSize(void) {
-  return MND_INSTANCE_ID_LEN + MND_INSTANCE_TYPE_LEN + MND_INSTANCE_DESC_LEN + sizeof(int64_t) * 2 + sizeof(int32_t);
+  return TSDB_INSTANCE_ID_LEN + TSDB_INSTANCE_TYPE_LEN + TSDB_INSTANCE_DESC_LEN + sizeof(int64_t) * 2 + sizeof(int32_t);
 }
 
 int32_t mndInitInstance(SMnode *pMnode) {
@@ -160,9 +160,9 @@ static SSdbRaw *mndInstanceEncode(const SInstanceObj *pInstance) {
   }
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pInstance->id, MND_INSTANCE_ID_LEN, _OVER);
-  SDB_SET_BINARY(pRaw, dataPos, pInstance->type, MND_INSTANCE_TYPE_LEN, _OVER);
-  SDB_SET_BINARY(pRaw, dataPos, pInstance->desc, MND_INSTANCE_DESC_LEN, _OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pInstance->id, TSDB_INSTANCE_ID_LEN, _OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pInstance->type, TSDB_INSTANCE_TYPE_LEN, _OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pInstance->desc, TSDB_INSTANCE_DESC_LEN, _OVER);
   SDB_SET_INT64(pRaw, dataPos, pInstance->firstRegTime, _OVER);
   SDB_SET_INT64(pRaw, dataPos, pInstance->lastRegTime, _OVER);
   SDB_SET_INT32(pRaw, dataPos, pInstance->expire, _OVER);
@@ -198,9 +198,9 @@ static SSdbRow *mndInstanceDecode(SSdbRaw *pRaw) {
 
   SInstanceObj *pInstance = sdbGetRowObj(pRow);
   int32_t       dataPos = 0;
-  SDB_GET_BINARY(pRaw, dataPos, pInstance->id, MND_INSTANCE_ID_LEN, _OVER);
-  SDB_GET_BINARY(pRaw, dataPos, pInstance->type, MND_INSTANCE_TYPE_LEN, _OVER);
-  SDB_GET_BINARY(pRaw, dataPos, pInstance->desc, MND_INSTANCE_DESC_LEN, _OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pInstance->id, TSDB_INSTANCE_ID_LEN, _OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pInstance->type, TSDB_INSTANCE_TYPE_LEN, _OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pInstance->desc, TSDB_INSTANCE_DESC_LEN, _OVER);
   SDB_GET_INT64(pRaw, dataPos, &pInstance->firstRegTime, _OVER);
   SDB_GET_INT64(pRaw, dataPos, &pInstance->lastRegTime, _OVER);
   SDB_GET_INT32(pRaw, dataPos, &pInstance->expire, _OVER);
@@ -342,7 +342,9 @@ static int32_t mndProcessInstanceList(SRpcMsg *pReq) {
 
   // Serialize response
   SInstanceListRsp rsp = {0};
-  int32_t          contLen = tSerializeSInstanceListRsp(NULL, 0, &rsp, ids, count);
+  rsp.count = count;
+  rsp.ids = (char **)ids;
+  int32_t contLen = tSerializeSInstanceListRsp(NULL, 0, &rsp);
   if (contLen <= 0) {
     code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
     goto _cleanup;
@@ -354,7 +356,7 @@ static int32_t mndProcessInstanceList(SRpcMsg *pReq) {
     goto _cleanup;
   }
 
-  if (tSerializeSInstanceListRsp(pReq->info.rsp, contLen, &rsp, ids, count) < 0) {
+  if (tSerializeSInstanceListRsp(pReq->info.rsp, contLen, &rsp) < 0) {
     code = terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
     rpcFreeCont(pReq->info.rsp);
     pReq->info.rsp = NULL;
@@ -438,17 +440,17 @@ static int32_t mndRetrieveInstance(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
-    char idBuf[MND_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE] = {0};
+    char idBuf[TSDB_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(idBuf, pInstance->id, sizeof(idBuf));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, idBuf, false), pInstance, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    char typeBuf[MND_INSTANCE_TYPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    char typeBuf[TSDB_INSTANCE_TYPE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(typeBuf, pInstance->type, sizeof(typeBuf));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, typeBuf, false), pInstance, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    char descBuf[MND_INSTANCE_DESC_LEN + VARSTR_HEADER_SIZE] = {0};
+    char descBuf[TSDB_INSTANCE_DESC_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(descBuf, pInstance->desc, sizeof(descBuf));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, descBuf, false), pInstance, &lino, _OVER);
 
@@ -470,10 +472,6 @@ static int32_t mndRetrieveInstance(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   }
 
 _OVER:
-  if (pInstance != NULL) {
-    sdbRelease(pSdb, pInstance);
-  }
-
   pShow->numOfRows += numOfRows;
   pBlock->info.rows += numOfRows;
 

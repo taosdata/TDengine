@@ -2846,7 +2846,6 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
     tscError("failed to send instance register req since %s", tstrerror(code));
     // rpcSendRecv failed, pCont may not be freed, but check _RETURN1 path
     // In error path, rpcSendRecv may free pCont, but we free it here to be safe
-    rpcFreeCont(pCont);
     rpcClose(clientRpc);
     return code;
   }
@@ -3013,26 +3012,26 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
   // Deserialize response
   if (rpcRsp.pCont != NULL && rpcRsp.contLen > 0) {
     SInstanceListRsp rsp = {0};
-    code = tDeserializeSInstanceListRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp, pList, pCount);
+    code = tDeserializeSInstanceListRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp);
     if (code != TSDB_CODE_SUCCESS) {
       tscError("failed to deserialize instance list rsp, code:%s", tstrerror(code));
-      if (pList != NULL && *pList != NULL) {
-        for (int32_t i = 0; i < *pCount; i++) {
-          if ((*pList)[i] != NULL) {
-            taosMemoryFree((*pList)[i]);
+      if (rsp.ids != NULL) {
+        for (int32_t i = 0; i < rsp.count; i++) {
+          if (rsp.ids[i] != NULL) {
+            taosMemoryFree(rsp.ids[i]);
           }
         }
-        taosMemoryFree(*pList);
-        *pList = NULL;
+        taosMemoryFree(rsp.ids);
+        rsp.ids = NULL;
       }
-      if (pCount != NULL) {
-        *pCount = 0;
-      }
+      rsp.count = 0;
       rpcFreeCont(rpcRsp.pCont);
       rpcClose(clientRpc);
       terrno = code;
       return code;
     }
+    *pList = rsp.ids;
+    *pCount = rsp.count;
   } else {
     *pList = NULL;
     *pCount = 0;

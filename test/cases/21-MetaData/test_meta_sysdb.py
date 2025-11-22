@@ -754,7 +754,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 53)
+        tdSql.checkData(0, 1, 54)
 
         tdSql.checkData(1, 1, 10)
 
@@ -771,7 +771,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(2, 1, 47)
 
-        tdSql.checkData(3, 1, 5)
+        tdSql.checkData(3, 1, 6)
 
         tdSql.query(
             f"select db_name,stable_name,count(table_name) from information_schema.ins_tables group by db_name, stable_name order by db_name, stable_name;"

@@ -353,9 +353,9 @@ static const SSysDbTableSchema transSchema[] = {
 };
 
 static const SSysDbTableSchema instanceSchema[] = {
-    {.name = "id", .bytes = PERF_INSTANCE_ID_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "type", .bytes = PERF_INSTANCE_TYPE_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "desc", .bytes = PERF_INSTANCE_DESC_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "id", .bytes = PERF_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "type", .bytes = PERF_INSTANCE_TYPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "desc", .bytes = PERF_INSTANCE_DESC_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "first_reg_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "last_reg_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "expire", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},

@@ -705,14 +705,6 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
       }
     }
 #endif
-    // // If cache is empty or failed, fallback to catalogGetTableMeta (e.g., for system tables)
-    // if (TSDB_CODE_PAR_INTERNAL_ERROR == code || (pMetaCache == NULL && TSDB_CODE_SUCCESS != code)) {
-    //   SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-    //                            .requestId = pParCxt->requestId,
-    //                            .requestObjRefId = pParCxt->requestRid,
-    //                            .mgmtEps = pParCxt->mgmtEpSet};
-    //   code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
-    // }
   } else {
     SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                              .requestId = pParCxt->requestId,
