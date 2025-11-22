@@ -718,6 +718,10 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
     JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));
   }
 
+  char gidBuf[32];
+  snprintf(gidBuf, sizeof(gidBuf), "%" PRId64, groupId);
+  JSON_CHECK_ADD_ITEM(obj, "groupId", cJSON_CreateString(gidBuf));
+
   if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
     if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
@@ -796,6 +800,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   code = streamAppendNotifyHeader(streamName, &sb);
   QUERY_CHECK_CODE(code, lino, _end);
   sb.pos -= msgTailLen;
+  int32_t nSentParams = 0;
   for (int32_t i = 0; i < nParam; ++i) {
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
@@ -803,6 +808,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
+    nSentParams++;
   }
   sb.pos -= 1;
   taosStringBuilderAppendStringLen(&sb, msgTail, msgTailLen);
@@ -856,6 +862,8 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
         // simply ignore the failure in DROP error handling mode
         code = TSDB_CODE_SUCCESS;
       }
+    } else {
+      ST_TASK_DLOG("notify %d events to %s successfully", nSentParams, *pUrl);
     }
   }
 

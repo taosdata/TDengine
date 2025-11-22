@@ -303,7 +303,6 @@ taos> select count(*) from test_vtable_select.vtb_virtual_stb group by tbname sl
 taos> select tbname from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
              tbname             |
 =================================
- vtb_virtual_ctb_empty          |
  vtb_virtual_ctb_full           |
  vtb_virtual_ctb_half_full      |
  vtb_virtual_ctb_mix            |

@@ -379,7 +379,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
                ", min-match:%" PRId64 ", snap:{last-index:%" PRId64 ", term:%" PRIu64
                "}, standby:%d, batch-sz:%d, replicas:%d, last-cfg:%" PRId64
                ", chging:%d, restore:%d, quorum:%d, peer:%s, cfg:%s",
-               pNode->vgId, eventLog, syncStr(pNode->state), pSender, pSender->term, pSender->startTime,
+               pNode->vgId, eventLog, syncStr(pNode->state), pSender, pSender->term, pSender->senderStartTime,
                pSender->snapshotParam.start, pSender->snapshotParam.end, pSender->snapshot.lastApplyIndex,
                pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, pSender->seq, pSender->ack,
                pSender->pSndBuf->start, pSender->pSndBuf->cursor, pSender->pSndBuf->end, pSender->finish,
@@ -428,8 +428,8 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
       ", term:%" PRIu64 ", commit-index:%" PRId64 ", firstver:%" PRId64 ", lastver:%" PRId64 ", min-match:%" PRId64
       ", snap:{last-index:%" PRId64 ", last-term:%" PRIu64 "}, standby:%d, batch-sz:%d, replicas:%d, last-cfg:%" PRId64
       ", chging:%d, restore:%d, quorum:%d, peer:%s, cfg:%s",
-      pNode->vgId, eventLog, syncStr(pNode->state), pReceiver, pReceiver->term, pReceiver->startTime, pReceiver->start,
-      pReceiver->ack, pReceiver->pRcvBuf->start, pReceiver->pRcvBuf->cursor, pReceiver->pRcvBuf->end,
+      pNode->vgId, eventLog, syncStr(pNode->state), pReceiver, pReceiver->term, pReceiver->receiverStartTime,
+      pReceiver->start, pReceiver->ack, pReceiver->pRcvBuf->start, pReceiver->pRcvBuf->cursor, pReceiver->pRcvBuf->end,
       DID(&pReceiver->fromId), pReceiver->snapshotParam.start, pReceiver->snapshotParam.end,
       pReceiver->snapshot.lastApplyIndex, pReceiver->snapshot.lastApplyTerm, pReceiver->snapshot.lastConfigIndex,
       raftStoreGetTerm(pNode), pNode->commitIndex, logBeginIndex, logLastIndex, pNode->minMatchIndex,
@@ -621,11 +621,11 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
       }
     }
 
-    sHError(pSyncNode,
-            "recv sync-heartbeat-reply from dnode:%d slow(%d ms) {term:%" PRId64 ", ts:%s}, net elapsed:%" PRId64
-            ", timeDiff:%" PRId64 " QID:0x%" PRIx64 ":0x%" PRIx64,
-            DID(&pMsg->srcId), SYNC_HEARTBEAT_REPLY_SLOW_MS, pMsg->term, pBuf, netElapse, timeDiff, trace->rootId,
-            trace->msgId);
+    sHWarn(pSyncNode,
+           "recv sync-heartbeat-reply from dnode:%d slow(%d ms) {term:%" PRId64 ", ts:%s}, net elapsed:%" PRId64
+           ", timeDiff:%" PRId64 " QID:0x%" PRIx64 ":0x%" PRIx64,
+           DID(&pMsg->srcId), SYNC_HEARTBEAT_REPLY_SLOW_MS, pMsg->term, pBuf, netElapse, timeDiff, trace->rootId,
+           trace->msgId);
   } else {
     if(tsSyncLogHeartbeat){
       char pBuf[TD_TIME_STR_LEN] = {0};
@@ -664,7 +664,7 @@ void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* p
           "send sync-snapshot-send to dnode:%d, %s, seq:%d, term:%" PRId64 ", begin-index:%" PRId64
           ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64,
           DID(&pMsg->destId), s, pMsg->seq, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm,
-          pMsg->startTime, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
+          pMsg->snapStartTime, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
 }
 
 void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s,
@@ -674,7 +674,7 @@ void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* p
           ", last-index:%" PRId64 ", last-term:%" PRId64 ", start-time:%" PRId64 ", data-len:%u, QID:0x%" PRIx64
           ":0x%" PRIx64,
           DID(&pMsg->srcId), s, pMsg->seq, pMsg->term, pMsg->beginIndex, pMsg->lastIndex, pMsg->lastTerm,
-          pMsg->startTime, pMsg->dataLen, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
+          pMsg->snapStartTime, pMsg->dataLen, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
 }
 
 void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s,

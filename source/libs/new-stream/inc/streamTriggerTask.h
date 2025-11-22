@@ -151,6 +151,7 @@ typedef struct SSTriggerRealtimeContext {
   int32_t    curReaderIdx;
   bool       catchUp;  // whether all readers have caught up the latest wal data
   bool       continueToFetch;
+  bool       recovering;
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
@@ -403,9 +404,11 @@ typedef struct SStreamTriggerTask {
 
   // runtime status
   volatile int8_t           isCheckpointReady;
+  volatile int8_t           historyFinished;
+  volatile int8_t           realtimeStarted;
   volatile int32_t          checkpointVersion;
   volatile int64_t          mgmtReqId;
-  volatile int8_t           historyFinished;
+  volatile int64_t          waitingMgmtReqId;
   volatile int64_t          latestVersionTime;
   bool                      historyCalcStarted;
   char                     *streamName;

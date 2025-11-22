@@ -49,18 +49,18 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
   SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
 
   if (myLastTerm == SYNC_TERM_INVALID) {
-    sNTrace(ths,
-            "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-            ", recv-term:%" PRIu64 "}",
-            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    sNWarn(ths,
+           "logok:0, my last term invalid, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
+           ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
+           myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
     return false;
   }
 
   if (pMsg->lastLogTerm > myLastTerm) {
-    sNTrace(ths,
-            "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-            ", recv-term:%" PRIu64 "}",
-            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    sNInfo(ths,
+           "logok:1, larger log term, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
+           ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
+           myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
 
     if (pMsg->lastLogIndex < ths->commitIndex) {
       sNWarn(ths,
@@ -72,17 +72,17 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
   }
 
   if (pMsg->lastLogTerm == myLastTerm && pMsg->lastLogIndex >= myLastIndex) {
-    sNTrace(ths,
-            "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-            ", recv-term:%" PRIu64 "}",
-            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    sNInfo(ths,
+           "logok:1, larger log index , {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
+           ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
+           myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
     return true;
   }
 
-  sNTrace(ths,
-          "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-          ", recv-term:%" PRIu64 "}",
-          myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+  sNWarn(ths,
+         "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+         ", recv-term:%" PRIu64 "}",
+         myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
   return false;
 }
 
@@ -103,7 +103,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
   // maybe update term
   if (pMsg->term > raftStoreGetTerm(ths)) {
-    syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "requestVote");
+    syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "requestVote-1");
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -117,7 +117,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     raftStoreVote(ths, &(pMsg->srcId));
 
     // candidate ?
-    syncNodeStepDown(ths, currentTerm, pMsg->srcId, "requestVote");
+    syncNodeStepDown(ths, currentTerm, pMsg->srcId, "requestVote-2");
 
     // forbid elect for this round
     resetElect = true;

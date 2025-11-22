@@ -1311,7 +1311,7 @@ class TDSql:
     def compareData(self, row, col, data, show=False):
         return self.checkData(row, col, data, show, False)
 
-    def checkData(self, row, col, data, show=False, exit=True, dbPrecision=""):
+    def checkData(self, row, col, data, show=False, exit=True, dbPrecision="", tolerance: float = 0.0):
         """
         Checks if the data at the specified row and column matches the expected data.
 
@@ -1618,6 +1618,38 @@ class TDSql:
                     else:
                         return False
                 return True
+
+            elif isinstance(data, int) and tolerance != 0.0:
+                bound1 = data
+                bound2 = data * (1 + tolerance)
+                lower = min(bound1, bound2)
+                upper = max(bound1, bound2)
+                actual = self.queryResult[row][col]
+                tdLog.info(f"Tolerance check: lower={lower}, actual={actual}, upper={upper}")
+                if lower <= actual <= upper:
+                    if show:
+                        tdLog.info("check successfully")
+                    return True
+                else:
+                    if exit:
+                        filename, lineno = _fast_caller(1)
+                        args = (
+                            filename,
+                            lineno,
+                            self.sql,
+                            row,
+                            col,
+                            self.queryResult[row][col],
+                            lower,
+                            upper,
+                        )
+                        tdLog.exit(
+                            "%s(%d) failed: sql:%s row:%d col:%d data:%s not in range [%.6f, %.6f]"
+                            % args
+                        )
+                    else:
+                        return False
+
             else:
                 if exit:
                     filename, lineno = _fast_caller(1)
@@ -2755,9 +2787,6 @@ class TDSql:
         if delay != 0:
             time.sleep(delay)
 
-        # show sql
-        tdLog.info(sql)
-
         if retry <= 0:
             retry = 1
 
@@ -2766,18 +2795,23 @@ class TDSql:
             # clear
             self.clearResult()
             # query
+            result = self.getResult(sql, exit=False)
             exp_result = self.getResult(exp_sql, exit=False)
             # check result
-            if exp_result != [] and exp_result != None:
+            if self.compareResults(result, exp_result):
                 # success
-                break
+                return 
+
             # sleep and retry
             if loop != retry - 1:
                 if show:
                     self.printResult(f"check continue {loop} after sleep 1s ...")
                 time.sleep(1)
+        
+        print(f"result is: {result}")
+        print(f"exp_result is: {exp_result}")
 
-        self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
+        raise Exception(f"check failed for {retry} seconds, sql={sql}, exp_sql={exp_sql}")
 
     def checkTableType(
         self,

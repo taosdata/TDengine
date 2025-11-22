@@ -61,6 +61,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
       continue;
     }
 
+    sInfo("vgId:%d, send request-vote msg to peerId:%" PRId64 ", lastLogIndex:%" PRId64 ", lastLogTerm:%" PRId64,
+           pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm);
     ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
     if (ret < 0) {
       sError("vgId:%d, failed to send msg to peerId:%" PRId64, pNode->vgId, pNode->peersId[i].addr);

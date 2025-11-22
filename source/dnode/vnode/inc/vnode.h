@@ -210,7 +210,7 @@ void     tsdbSetFilesetDelimited(STsdbReader *pReader);
 void     tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
 int32_t  tsdbCreateFirstLastTsIter(void *pVnode, STimeWindow *pWindow, SVersionRange *pVerRange, uint64_t suid, void *pTableList,
                                    int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
-int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes);
+int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes, bool* hasNext);
 void     tsdbDestroyFirstLastTsIter(void *pIter);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);

@@ -96,6 +96,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
 
         self.return_conf = 1
         self.conf = 0.95
+        self.precision = 'ms'
 
         self.past_dynamic_real = []
         self.dynamic_real = []
@@ -139,6 +140,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
             raise ValueError("invalid value of conf, should between 0 and 1.0")
 
         self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
+        self.precision = params.get('precision', 'ms')
 
     def get_params(self):
         return {

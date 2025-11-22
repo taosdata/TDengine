@@ -215,6 +215,9 @@ end:
   tDecoderClear(&decoder);
 
 static void tDeleteCommon(void* parm) {}
+static void tDeleteAlterTable(SVAlterTbReq* req) {
+  taosArrayDestroy(req->pMultiTag);
+}
 
 #define POLL_RSP_TYPE(pRequest,taosxRsp) \
 taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : \
@@ -361,7 +364,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           if (pHead->msgType == TDMT_VND_CREATE_TABLE) {
             PROCESS_EXCLUDED_MSG(SVCreateTbBatchReq, tDecodeSVCreateTbBatchReq, tDeleteSVCreateTbBatchReq)
           } else if (pHead->msgType == TDMT_VND_ALTER_TABLE) {
-            PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq, tDeleteCommon)
+            PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq, tDeleteAlterTable)
           } else if (pHead->msgType == TDMT_VND_CREATE_STB || pHead->msgType == TDMT_VND_ALTER_STB) {
             PROCESS_EXCLUDED_MSG(SVCreateStbReq, tDecodeSVCreateStbReq, tDeleteCommon)
           } else if (pHead->msgType == TDMT_VND_DELETE) {

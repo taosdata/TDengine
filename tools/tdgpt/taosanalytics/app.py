@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from flask import Flask, request
 
-from taosanalytics.algo.imputation import do_imputation, do_set_imputation_params
+from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
@@ -15,12 +15,9 @@ from taosanalytics.algo.correlation import do_dtw, do_tlcc
 from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
-from taosanalytics.util import (app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise,
-                                parse_options, get_past_dynamic_data, get_dynamic_data, get_second_data_list,
+from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
+                                get_second_data_list,
                                 do_check_before_exec)
-
-from taosanalytics.error import white_noise_error_msg
-
 
 app = Flask(__name__)
 
@@ -149,15 +146,19 @@ def handle_imputation_req():
     algo = req_json['algo'].lower() if 'algo' in req_json else 'moment'
 
     try:
-        res1 = do_imputation(payload[data_index], payload[ts_index], algo, params)
+        freq = req_json["freq"] if 'freq' in req_json else '1ms'
+        prec = req_json['prec'] if 'prec' in req_json else 'ms'
+        check_freq_param(payload[ts_index], freq, prec)
 
-        res = {"option": options, "rows": len(res1["ts"])}
-        res.update(res1)
+        imputat_res = do_imputation(payload[data_index], payload[ts_index], algo, params)
 
-        app_logger.log_inst.debug("imputation result: %s", res)
-        return res
+        final_res = {"option": options, "rows": len(imputat_res["ts"])}
+        final_res.update(imputat_res)
+
+        app_logger.log_inst.debug("imputation result: %s", final_res)
+        return final_res
     except Exception as e:
-        app_logger.log_inst.error('impu failed, %s', str(e))
+        app_logger.log_inst.error('imputation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 

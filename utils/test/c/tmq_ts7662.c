@@ -23,9 +23,6 @@
 #include "tmsg.h"
 #include "types.h"
 
-char* result1 = "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"stream_query\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"id\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}";
-char* result2 = "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"stream_out\",\"columns\":[{\"name\":\"_twstart\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"avg(id)\",\"type\":7,\"isPrimarykey\":false,\"encode\":\"bss\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}";
-
 static void msg_process(TAOS_RES* msg) {
   printf("-----------topic-------------: %s\n", tmq_get_topic_name(msg));
   printf("db: %s\n", tmq_get_db_name(msg));
@@ -33,12 +30,9 @@ static void msg_process(TAOS_RES* msg) {
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META || tmq_get_res_type(msg) == TMQ_RES_METADATA) {
     char* result = tmq_get_json_meta(msg);
     printf("meta result: %s\n", result);
-    ASSERT(strcmp(result, result1) == 0 || strcmp(result, result2) == 0);
+    ASSERT(strstr(result, "t2") == NULL);
     tmq_free_json_meta(result);
-  } else {
-    printf("no meta result\n");
   }
-
 }
 
 void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
@@ -47,12 +41,12 @@ void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
 
 tmq_t* build_consumer() {
   tmq_conf_t* conf = tmq_conf_new();
-  tmq_conf_set(conf, "group.id", "ttt");
+  tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "client.id", "my app 1");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
-  tmq_conf_set(conf, "enable.auto.commit", "false");
+  tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -64,7 +58,7 @@ tmq_t* build_consumer() {
 
 tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
-  tmq_list_append(topic_list, "tt");
+  tmq_list_append(topic_list, "topic_ts7662");
   return topic_list;
 }
 
