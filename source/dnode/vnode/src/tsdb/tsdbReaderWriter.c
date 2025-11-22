@@ -29,6 +29,16 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
 
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
+    if (TD_FILE_READ == flag) {
+      int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
+      if (expired && tsS3Enabled) {
+        tsdbWarn("s3 grant expired: %d", expired);
+        tsS3Enabled = false;
+      } else if (!expired && tsS3EnabledCfg) {
+        tsS3Enabled = true;
+      }
+    }
+
     if (tsS3Enabled && pFD->lcn > 1 && !strncmp(path + strlen(path) - 5, ".data", 5)) {
       char lc_path[TSDB_FILENAME_LEN];
       tstrncpy(lc_path, path, TSDB_FQDN_LEN);
