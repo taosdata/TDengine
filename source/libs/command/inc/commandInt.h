@@ -52,6 +52,7 @@ extern "C" {
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
+#define EXPLAIN_TAG_INDEX_FORMAT "Tag Index Filter: "
 #define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
 #define EXPLAIN_PRIM_CONDITIONS_FORMAT "Join Prim Cond: "
@@ -147,6 +148,7 @@ typedef struct SExplainGroup {
 typedef struct SExplainResNode {
   SNodeList*        pChildren;
   SPhysiNode*       pNode;
+  SSubplan*         pPlan;
   SArray*           pExecInfo; // Array<SExplainExecInfo>
 } SExplainResNode;
 
