@@ -1379,6 +1379,20 @@ pub async fn tmq_to_td(
         .map(|s| parse_timeout_duration(&s))
         .transpose()?
         .unwrap_or_else(|| Duration::from_secs(60));
+    // enable sync from newer version to older version
+    let minimal = from
+        .remove("minimal")
+        .map(|s| match s.as_str() {
+            "" | "true" | "TRUE" | "1" | "yes" | "YES" => true,
+            "false" | "FALSE" | "0" | "no" | "NO" => false,
+            other => {
+                tracing::warn!(
+                    "Invalid value for `minimal`: `{other}`, using default value `false`"
+                );
+                false
+            }
+        })
+        .unwrap_or(false);
     let mut options = WriteOptions {
         with_meta_delete,
         with_meta_drop,
@@ -1393,6 +1407,7 @@ pub async fn tmq_to_td(
 
     let version = builder.server_version().await?.to_owned();
     tracing::debug!("Source version: {version}");
+
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
     if !from_params.contains_key("group.id") {
@@ -1422,7 +1437,7 @@ pub async fn tmq_to_td(
     {
         let source_version = semver::Version::parse(&version.split('.').take(3).join("."))?;
         let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
-        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+        if !minimal && source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
             bail!(
                 "Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported."
             );

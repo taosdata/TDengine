@@ -20,7 +20,7 @@ rayon = { workspace = true }
 tonic = { workspace = true, features = ["gzip", "tls"] }
 zerocopy = { workspace = true }
 dashmap = { workspace = true }
-dlopen2 = "0.8.0"
+dlopen2.workspace = true
 regex = { workspace = true }
 arrow-cast-guess-precision = { workspace = true }
 arrow-compute-ext = { workspace = true }
@@ -75,7 +75,6 @@ csv.workspace = true
 glob.workspace = true
 notify.workspace = true
 futures-ext.workspace = true
-file-rotate = "0.7.5"
 ringbuf.workspace = true
 deadpool.workspace = true
 actix-web.workspace = true

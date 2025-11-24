@@ -1,4 +1,4 @@
-use rhai::{Dynamic, ImmutableString, FLOAT};
+use rhai::{Dynamic, ImmutableString, FLOAT, INT};
 use std::any::TypeId;
 
 #[allow(dead_code)]
@@ -16,7 +16,7 @@ pub fn replacen(
     s: ImmutableString,
     pat: ImmutableString,
     to: ImmutableString,
-    n: rhai::INT,
+    n: INT,
 ) -> ImmutableString {
     s.as_str()
         .replacen(pat.as_str(), to.as_str(), n as _)
@@ -24,7 +24,7 @@ pub fn replacen(
 }
 
 #[allow(dead_code)]
-pub fn truncate(s: ImmutableString, n: rhai::INT) -> ImmutableString {
+pub fn truncate(s: ImmutableString, n: INT) -> ImmutableString {
     s.as_str().chars().take(n as _).collect::<String>().into()
 }
 
@@ -53,36 +53,161 @@ pub fn add_or_set(lhs: Dynamic, rhs: Dynamic) -> Dynamic {
     } else {
         let t_s: TypeId = TypeId::of::<ImmutableString>();
         let t_f: TypeId = TypeId::of::<FLOAT>();
-        let t_i: TypeId = TypeId::of::<rhai::INT>();
-        match (lhs.type_id(), lhs.type_id()) {
+        let t_i: TypeId = TypeId::of::<INT>();
+        match (lhs.type_id(), rhs.type_id()) {
             (lt, rt) if lt == rt => {
-                if lt == TypeId::of::<FLOAT>() {
+                if lt == t_f {
                     Dynamic::from(lhs.as_float().unwrap() + rhs.as_float().unwrap())
-                } else if lt == TypeId::of::<rhai::INT>() {
+                } else if lt == t_i {
                     Dynamic::from(lhs.as_int().unwrap() + rhs.as_int().unwrap())
-                } else if lt == TypeId::of::<ImmutableString>() {
+                } else if lt == t_s {
                     Dynamic::from(format!("{}{}", lhs, rhs))
                 } else {
                     Dynamic::UNIT
                 }
             }
             (lt, rt) if lt == t_s || rt == t_s => Dynamic::from(format!("{}{}", lhs, rhs)),
-            #[allow(clippy::nonminimal_bool)]
-            (lt, rt) if (lt == t_f && rt == t_i) || (rt == t_f && rt == t_i) => {
-                Dynamic::from(lhs.cast::<FLOAT>() + rhs.cast::<FLOAT>())
+            (lt, rt) if lt == t_f && rt == t_i => {
+                Dynamic::from(lhs.as_float().unwrap() + rhs.as_int().unwrap() as FLOAT)
             }
-            _ => Dynamic::UNIT,
+            (lt, rt) if rt == t_f && lt == t_i => {
+                Dynamic::from(rhs.as_float().unwrap() + lhs.as_int().unwrap() as FLOAT)
+            }
+            _ => {
+                tracing::warn!("add_or_set: unsupported {lhs:?} + {rhs:?}");
+                Dynamic::UNIT
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::expr::functions::between_time_range;
+    use super::*;
+
+    #[test]
+    pub fn test_append() {
+        let a: ImmutableString = "hello".into();
+        let b: ImmutableString = "world".into();
+        let r = append(a, b);
+        assert_eq!(r.as_str(), "helloworld");
+    }
+
+    #[test]
+    pub fn test_replace_and_replacen() {
+        let s: ImmutableString = "the quick brown fox jumps over the lazy dog".into();
+        let r = replace(s.clone(), "fox".into(), "cat".into());
+        assert_eq!(r.as_str(), "the quick brown cat jumps over the lazy dog");
+
+        let s2: ImmutableString = "a a a a".into();
+        let r2 = replacen(s2, "a".into(), "b".into(), 2 as INT);
+        assert_eq!(r2.as_str(), "b b a a");
+    }
+
+    #[test]
+    pub fn test_truncate() {
+        let s: ImmutableString = "abcdef".into();
+        assert_eq!(truncate(s.clone(), 3 as INT).as_str(), "abc");
+        // unicode characters: counts by chars, not bytes
+        let uni: ImmutableString = "héllo".into();
+        assert_eq!(truncate(uni, 2 as INT).as_str(), "hé");
+    }
+
+    #[test]
+    pub fn test_add_or_set_basic_cases() {
+        // lhs is unit -> return rhs
+        let res = add_or_set(Dynamic::UNIT, Dynamic::from(5_i64));
+        assert!(res.is::<INT>());
+        assert_eq!(res.as_int().unwrap(), 5);
+
+        // rhs is unit -> return lhs
+        let res = add_or_set(Dynamic::from(7_i64), Dynamic::UNIT);
+        assert!(res.is::<INT>());
+        assert_eq!(res.as_int().unwrap(), 7);
+
+        // both ints
+        let res = add_or_set(Dynamic::from(2_i64), Dynamic::from(3_i64));
+        assert!(res.is::<INT>());
+        assert_eq!(res.as_int().unwrap(), 5);
+
+        // both floats
+        let res = add_or_set(Dynamic::from(1.5_f64), Dynamic::from(2.25_f64));
+        assert!(res.is::<FLOAT>());
+        let v = res.as_float().unwrap();
+        assert!((v - 3.75).abs() < 1e-12);
+
+        // both strings
+        let s1: ImmutableString = "foo".into();
+        let s2: ImmutableString = "bar".into();
+        let res = add_or_set(Dynamic::from(s1.clone()), Dynamic::from(s2.clone()));
+        // result should be concatenation "foobar"
+        assert_eq!(res.to_string(), "foobar");
+
+        // one is string, other is int -> concatenation
+        let res = add_or_set(Dynamic::from("x".to_string()), Dynamic::from(10_i64));
+        assert_eq!(res.to_string(), "x10");
+    }
+
+    #[test]
+    pub fn test_add_or_set_float_int_mixed_behaviour() {
+        // lhs float, rhs int -> conversion to float and addition (per current logic)
+        let lhs = Dynamic::from(1.5_f64);
+        let rhs = Dynamic::from(2_i64);
+        let res = add_or_set(lhs, rhs);
+        assert!(res.is::<FLOAT>());
+        assert!((res.as_float().unwrap() - 3.5).abs() < 1e-12);
+
+        // reversed: lhs int, rhs float -> conversion to float and addition
+        let lhs = Dynamic::from(2_i64);
+        let rhs = Dynamic::from(1.5_f64);
+        let res = add_or_set(lhs, rhs);
+        assert!(res.is::<FLOAT>());
+        assert!((res.as_float().unwrap() - 3.5).abs() < 1e-12);
+
+        let lhs = Dynamic::from(i64::MAX);
+        let rhs = Dynamic::from(f64::MAX);
+        let res = add_or_set(lhs, rhs);
+        assert!(res.is::<FLOAT>());
+        assert!((res.as_float().unwrap() - f64::MAX).abs() < 1e-12);
+    }
+
+    #[test]
+    pub fn test_add_or_set_string_int_or_float() {
+        // one is string, other is int -> concatenation
+        let lhs = Dynamic::from("value: ".to_string());
+        let rhs = Dynamic::from(42_i64);
+        let res = add_or_set(lhs, rhs);
+        assert!(res.is::<ImmutableString>());
+        assert_eq!(res.to_string(), "value: 42");
+        // one is string, other is float -> concatenation
+        let lhs = Dynamic::from("value: ".to_string());
+        let rhs = Dynamic::from(3.15_f64);
+        let res = add_or_set(lhs, rhs);
+        assert!(res.is::<ImmutableString>());
+        assert_eq!(res.to_string(), "value: 3.15");
+    }
+
+    #[test]
+    pub fn test_add_or_set_mismatched_types() {
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .try_init();
+        // bool + bool -> UNIT
+        let lhs = Dynamic::from(true);
+        let rhs = Dynamic::from(false);
+        let res = add_or_set(lhs, rhs);
+        assert!(res.is::<()>());
+        // mismatched types that are not handled -> UNIT
+        let lhs = Dynamic::from(true);
+        let rhs = Dynamic::from(5_i64);
+        let res = add_or_set(lhs, rhs);
+        assert!(res.is::<()>());
+    }
 
     #[test]
     pub fn test_between_time_range() -> anyhow::Result<()> {
         let str_to_parse = vec![
+            "2025-07-18",
             "2025-07-18 10:20:30",
             "2025-07-18 10:20:30+08:00",
             "2025-07-18T10:20:30+08:00",

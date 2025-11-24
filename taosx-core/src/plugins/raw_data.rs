@@ -1,9 +1,10 @@
 use std::io::Write;
+use std::path::Path;
 
-use file_rotate::compression::Compression;
-use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
-use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
+use crate::global::GLOBAL_LOG_OPTS;
 use flume::Receiver;
+use taoslog::writer::RollingFileAppender;
+use tracing_subscriber::fmt::MakeWriter;
 
 pub struct RawDataLogger {
     task_id: i64,
@@ -36,38 +37,64 @@ impl RawDataLogger {
             let rx = self.rx.clone();
             tokio::spawn(async move { while rx.recv_async().await.is_ok() {} });
         } else {
-            let log_name = format!("{}/tasks/{}/rawdata", self.data_dir, self.task_id);
-            let mut log = raw_data_log(log_name.clone(), self.keep_days);
+            let log_dir = format!("{}/tasks/{}", self.data_dir, self.task_id);
+            let appender = raw_data_log(Path::new(&log_dir), self.keep_days)
+                .expect("failed to create raw data logger");
             tracing::debug!(
                 "keep task:{} raw data in files: {:?}",
                 self.task_id,
-                log_name
+                log_dir
             );
 
             let rx = self.rx.clone();
 
+            let task_id = self.task_id;
             tokio::spawn(async move {
                 while let Ok(raw_data) = rx.recv_async().await {
-                    writeln!(log, "{}", raw_data).expect("failed to write raw data");
+                    let mut w = appender.make_writer();
+                    // writeln!(w, "{}", raw_data).expect("failed to write raw data");
+                    if let Err(e) = writeln!(w, "{}", raw_data) {
+                        eprintln!(
+                            "[raw_data_logger] failed to write raw data for task {}: {}",
+                            task_id, e
+                        );
+                    }
+                    if let Err(e) = w.flush() {
+                        eprintln!(
+                            "[raw_data_logger] failed to flush raw data for task {}: {}",
+                            task_id, e
+                        );
+                    }
                 }
             });
         }
     }
 }
 
-fn raw_data_log(log_file: String, keep_days: usize) -> FileRotate<AppendTimestamp> {
-    FileRotate::new(
-        log_file,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::MaxFiles(keep_days),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    )
+fn raw_data_log(log_dir: &Path, keep_files: usize) -> anyhow::Result<RollingFileAppender> {
+    let log_opts = GLOBAL_LOG_OPTS
+        .get()
+        .ok_or(anyhow::anyhow!("log opts not set"))?;
+
+    let mut builder = RollingFileAppender::builder(log_dir, "rawdata", log_opts.instance_id);
+
+    if let Some(compression) = log_opts.compress {
+        builder = builder.compress(compression);
+    }
+    if let Some(reserved_disk_size) = &log_opts.reserved_disk_size {
+        builder = builder.reserved_disk_size(reserved_disk_size);
+    }
+    if keep_files > 0 {
+        builder = builder.rotation_count(keep_files as u16);
+    } else if let Some(rotation_count) = log_opts.rotation_count {
+        builder = builder.rotation_count(rotation_count);
+    }
+    if let Some(rotation_size) = &log_opts.rotation_size {
+        builder = builder.rotation_size(rotation_size);
+    }
+    // We don't set keep_days here; raw data retention by file count only.
+    let appender = builder.build()?;
+    Ok(appender)
 }
 
 #[cfg(test)]

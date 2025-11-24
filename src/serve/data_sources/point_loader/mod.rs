@@ -1,26 +1,23 @@
 use actix_files::NamedFile;
 use actix_web::web::Json;
 use actix_web::web::{Data, Query};
-use anyhow::anyhow;
+use anyhow::{Context, anyhow};
 use csv::Reader;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde::Serialize;
+use source_opc::{DA_ROW, UA_ROW};
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 use taos::IntoDsn;
+use taosx_core::runners::opc::OpcType;
 use taosx_core::utils::dsn::json_to_dsn;
+use taosx_core::{DataSetsReq, list_datasets_from};
+use taosx_ipc::types::DataSet;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
-
-use taosx_core::runners::opc::{
-    OpcType,
-    csv::header::{DA_ROW, UA_ROW, get_template},
-};
-use taosx_core::{DataSetsReq, list_datasets_from};
-use taosx_ipc::types::DataSet;
 
 use crate::serve::TaskController;
 use crate::serve::controller::TaskControllerRef;
@@ -225,12 +222,8 @@ pub async fn arrange_point_file_download_task(
             }
             Err(err) => {
                 let mut map = SHARED_MAP.write().await;
-                let err_msg = err.to_string();
-                let err_msg = if let Some(idx) = err_msg.find("\n") {
-                    err_msg[..idx].to_string()
-                } else {
-                    err_msg
-                };
+                // Preserve the full error chain for better diagnostics in logs and HTTP responses
+                let err_msg = format!("{:#}", err);
                 map.insert(task_id, TaskStatus::Error(err_msg));
             }
         }
@@ -316,9 +309,15 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
         .unwrap_or(Err(anyhow!("task not found")))
 }
 
-pub async fn get_point_file_template(opc_type: &str, _lang: &str) -> anyhow::Result<NamedFile> {
-    let opc_type = OpcType::try_from(opc_type)?;
-    let template = get_template(opc_type, true);
+pub async fn get_point_file_template(driver: &str, _lang: &str) -> anyhow::Result<NamedFile> {
+    let template = match driver.to_lowercase().as_str() {
+        "kinghist" => source_kinghistorian::get_template(),
+        "opcua" => source_opc::get_template(OpcType::OPCUA, true),
+        "opcda" => source_opc::get_template(OpcType::OPCDA, true),
+        _ => {
+            return Err(anyhow!("unsupported driver: {}", driver));
+        }
+    };
 
     let mut config_file = tempfile::NamedTempFile::new()?;
     tracing::debug!(
@@ -352,7 +351,7 @@ async fn get_all_points(
     };
     let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
 
-    match if let Some(agent) = via {
+    let datasets = if let Some(agent) = via {
         controller
             .list_datasets_via_agent_v1(agent, &mut from, categories, via)
             .await
@@ -368,37 +367,44 @@ async fn get_all_points(
             lang: None,
         };
         list_datasets_from(&data).await
-    } {
-        Ok(data) => {
-            let point_count = data.len();
-            let data = match from.driver.as_str() {
-                "opcda" => {
-                    // header
-                    let mut result = get_template(OpcType::OPCDA, false);
-                    // rows
-                    data.iter().enumerate().for_each(|(i, item)| {
-                        let row = da_template_row(i + 1, item);
-                        result.push_str(row.as_str());
-                    });
-
-                    result
-                }
-                "opcua" => {
-                    // header
-                    let mut result = get_template(OpcType::OPCUA, false);
-                    // rows
-                    data.iter().enumerate().for_each(|(i, item)| {
-                        let row = ua_template_row(i + 1, item);
-                        result.push_str(row.as_str());
-                    });
-                    result
-                }
-                _ => unimplemented!(),
-            };
-            Ok((data, point_count))
-        }
-        Err(err) => Err(err),
     }
+    .context("failed to list datasets")?;
+
+    let point_count = datasets.len();
+    let data = match from.driver.as_str() {
+        "opcda" => {
+            // header
+            let mut result = source_opc::get_template(OpcType::OPCDA, false);
+            // rows
+            datasets.iter().enumerate().for_each(|(i, item)| {
+                let row = da_template_row(i + 1, item);
+                result.push_str(row.as_str());
+            });
+            result
+        }
+        "opcua" => {
+            // header
+            let mut result = source_opc::get_template(OpcType::OPCUA, false);
+            // rows
+            datasets.iter().enumerate().for_each(|(i, item)| {
+                let row = ua_template_row(i + 1, item);
+                result.push_str(row.as_str());
+            });
+            result
+        }
+        "kinghist" => source_kinghistorian::to_csv_context(datasets)
+            .await
+            .inspect_err(|err| {
+                tracing::error!(
+                    "failed to generate kinghistorian csv content, err: {:?}",
+                    err
+                )
+            })
+            .context("failed to generate kinghistorian csv content")?,
+        _ => unimplemented!(),
+    };
+
+    Ok((data, point_count))
 }
 
 fn get_enabled(item: DataSet) -> i8 {

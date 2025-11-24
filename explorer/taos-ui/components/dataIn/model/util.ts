@@ -274,23 +274,58 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
           dataDisplay[key] = rdata[key];
         }
       } else {
-        dataDisplay[key] = rdata[key];
+        // 兼容旧版本时间格式：当后端返回的时间为 "YYYY-MM-DD HH:mm:ss" 等非 RFC3339 格式时，转换为前端时间组件所需的
+        // "YYYY-MM-DDTHH:mm:ssZ" 规范格式，避免编辑时时间控件不显示。
+        const rawVal = rdata[key];
+        if (
+          typeof rawVal === 'string' &&
+          TimeFormats.includes(key) &&
+          (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawVal) || // 形如 2024-06-01 00:00:00
+            (/^\d{4}-\d{2}-\d{2}T/.test(rawVal) && !(/[Zz]$/.test(rawVal) || /[+-]\d{2}:\d{2}$/.test(rawVal)))) // 有 T 无时区
+        ) {
+          dataDisplay[key] = formatDateInTimeZone(rawVal, 'YYYY-MM-DDTHH:mm:ssZ');
+        } else {
+          dataDisplay[key] = rawVal;
+        }
       }
     } else if (rdata[`${parentKey}.${key}`] !== undefined) {
       // 有值的情况下，需要恢复
-      dataDisplay[key] = rdata[`${parentKey}.${key}`];
+      const rawVal = rdata[`${parentKey}.${key}`];
+      if (
+        typeof rawVal === 'string' &&
+        TimeFormats.includes(key) &&
+        (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawVal) ||
+          (/^\d{4}-\d{2}-\d{2}T/.test(rawVal) && !(/[Zz]$/.test(rawVal) || /[+-]\d{2}:\d{2}$/.test(rawVal))))
+      ) {
+        dataDisplay[key] = formatDateInTimeZone(rawVal, 'YYYY-MM-DDTHH:mm:ssZ');
+      } else {
+        dataDisplay[key] = rawVal;
+      }
     }
   });
 }
 
 export function formatFromData(from: Recordable) {
   const { agent, type, data } = from;
+  // Create a shallow clone so we can inject computed fields without mutating the original reactive data
+  const dataCopy = cloneDeep(data);
+
+  // For KingHistorian, map the selected dataset tab to a top-level `mode` query param
+  // history tab -> mode=history; realtime tab -> mode=realtime
+  if (type === 'kinghist') {
+    const selected = dataCopy?.datasets?.currentTab;
+    if (selected === 'history' || selected === 'realtime') {
+      // Keep original currentTab for backward compatibility, add explicit `mode`
+      dataCopy.mode = selected;
+    }
+  }
+
   const resultFrom = {
     agent,
     type,
     data: {}
   };
-  mergeToFromData(data, resultFrom.data);
+  mergeToFromData(dataCopy, resultFrom.data);
   return resultFrom;
 }
 

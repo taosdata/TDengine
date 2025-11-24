@@ -125,7 +125,7 @@ impl Cli {
         // let span = tracing::info_span!("cli");
         let cancel = CancellationToken::new();
 
-        let (notify, receiver) = flume::unbounded::<TaskNotify>();
+        let (notify, receiver) = flume::bounded::<TaskNotify>(100);
 
         tokio::spawn(async move {
             while let Ok(notify) = receiver.recv_async().await {

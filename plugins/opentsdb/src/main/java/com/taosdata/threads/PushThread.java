@@ -14,6 +14,7 @@ import com.taosdata.utils.arrow.ArrowUtils;
 import com.taosdata.utils.flux.FluxEnums;
 import com.taosdata.utils.flux.FluxManager;
 import io.netty.channel.Channel;
+import com.taosdata.utils.logging.ErrorLimiter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,18 @@ import java.util.*;
 public class PushThread implements Runnable {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
+
+    /**
+     * Debounce repeated error logs within window
+     */
+    private static final ErrorLimiter ERROR_LIMITER = new ErrorLimiter(60_000L);
+
+    /**
+     * Exponential backoff state (ms)
+     */
+    private long backoffMs = 0L;
+    private static final long BASE_BACKOFF_MS = 1000L; // 1s
+    private static final long MAX_BACKOFF_MS = 30_000L; // 30s
 
     /**
      * 线程名
@@ -107,6 +120,8 @@ public class PushThread implements Runnable {
                 FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).cycleCheck(opentsdbDataEntityList.size(), this.performanceConfig.getLimitSpeed());
                 // 推送数据
                 push(opentsdbDataEntityList);
+                // success, reset backoff
+                this.backoffMs = 0L;
                 // 线程结束
                 sleep(this.performanceConfig.getThread().getPushInterval(), start, StatusEnums.NORMAL);
             } catch (InterruptedException e) {
@@ -114,10 +129,13 @@ public class PushThread implements Runnable {
                 break;
             } catch (Exception e) {
                 exception(start, StatusEnums.EXCEPTION, e);
+                // exponential backoff
+                this.backoffMs = (this.backoffMs == 0L) ? BASE_BACKOFF_MS : Math.min(MAX_BACKOFF_MS, this.backoffMs * 2);
                 try {
-                    Thread.sleep(1000L);
+                    Thread.sleep(this.backoffMs);
                 } catch (InterruptedException e1) {
-                    this.logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
+                    this.logger.error(this.name + "#Thread sleep exception#" + e1.getMessage(), e1);
+                    break;
                 }
             }
         }
@@ -151,7 +169,14 @@ public class PushThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        this.logger.error(this.name + "#Thread exception (Take time" + (end - start) + " ms)#" + e.getMessage(), e);
+        String key = ErrorLimiter.key(this.name == null ? "PushThread" : this.name, e);
+        if (ERROR_LIMITER.shouldLog(key)) {
+            int suppressed = ERROR_LIMITER.getAndResetSuppressed(key);
+            if (suppressed > 0) {
+                this.logger.error(this.name + "#Suppressed {} repeated errors in last {} ms", suppressed, 60_000);
+            }
+            this.logger.error(this.name + "#Thread exception (Take time" + (end - start) + " ms)#" + e.getMessage(), e);
+        }
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }

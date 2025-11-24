@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-pub const CLIENT_OPTIONS: [&str; 63] = [
+pub const CLIENT_OPTIONS: [&str; 71] = [
     // taos.cfg options
     "shellActivityTimer",
     "firstEp",
@@ -67,6 +67,14 @@ pub const CLIENT_OPTIONS: [&str; 63] = [
     "max_queue_length",
     "max_errors_in_window",
     "excursion",
+    "conn_retries",
+    "retry_backoff_ms",
+    "retry_backoff_max_ms",
+    "tcp_nodelay",
+    "timezone",
+    "conn_timeout",
+    "read_timeout",
+    "version_prefer",
 ];
 
 lazy_static::lazy_static! {

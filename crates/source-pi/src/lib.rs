@@ -2,10 +2,10 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::runners::pi::config::PiConfig;
-use taosx_core::runners::{get_data_dir, get_plugin_dir, log_rotation};
+use taosx_core::runners::{get_data_dir, get_plugin_dir, new_rolling_file_appender};
 use taosx_core::sink::lush::LushModelConfig;
 use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{Action, Transferred, build_ipc, get_log_keep_days, utils::port_pool::PortPool};
+use taosx_core::{Action, Transferred, build_ipc, utils::port_pool::PortPool};
 use taosx_core::{TaskNotify, TaskNotifySender, get_log_dir};
 
 use anyhow::Context;
@@ -15,6 +15,7 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
+use tracing_subscriber::fmt::MakeWriter;
 
 fn pi_exe_path() -> anyhow::Result<PathBuf> {
     let path = get_plugin_dir("pi").join("taosx-pi.exe");
@@ -177,15 +178,13 @@ pub async fn pi_to_taos(
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
-    let mut log_path = log_path();
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push(format!("pi-{}.log", task_id.unwrap_or(0)));
-    tracing::info!("Log file dir: {}", &log_path.display());
+    let log_dir = log_path();
+    std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
+    let component = format!("pi-{}", task_id.unwrap_or(0));
+    tracing::info!("Log dir: {}", &log_dir.display());
 
-    let log_keep_days = get_log_keep_days();
-
-    let mut log_rotation = log_rotation(&log_path, log_keep_days);
+    let appender = new_rolling_file_appender(log_dir.as_path(), &component)
+        .context("failed to create pi log")?;
 
     let mut child_command;
 
@@ -200,7 +199,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI collector error")?;
-            send_sub_process_info(child_command.id(), task_id, "pi");
+            send_sub_process_info(child_command.id(), task_id, "pi").await;
         }
         _ => {
             anyhow::bail!("wrong driver configured");
@@ -221,7 +220,12 @@ pub async fn pi_to_taos(
             if bytes_read == 0 {
                 break; // End of stream, exit the loop
             }
-            write!(log_rotation, "[task:{}]{}", log_task_id, line).unwrap();
+            let mut w = appender.make_writer();
+            use std::io::Write as _;
+            w.write_all(format!("[task:{}]{}", log_task_id, line).as_bytes())?;
+            if let Err(err) = w.flush() {
+                eprintln!("failed to write PI log: {err}");
+            }
             line.clear();
         }
         Ok::<(), std::io::Error>(())
@@ -318,13 +322,12 @@ pub async fn query_data_source(from_dsn: Dsn, args: Vec<String>) -> anyhow::Resu
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let mut command = tokio::process::Command::new(pi_exe_path()?);
-    let mut log_path = log_path();
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push("pi.log");
-    tracing::info!("log file: {}", &log_path.display());
+    let log_dir = log_path();
+    std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
+    tracing::info!("log dir: {}", &log_dir.display());
 
-    let mut log_rotation = log_rotation(&log_path, 700);
+    let appender =
+        new_rolling_file_appender(log_dir.as_path(), "pi").context("failed to create pi log")?;
     let cmd: &mut tokio::process::Command = command
         .arg("-f")
         .arg(&config_path)
@@ -334,7 +337,14 @@ pub async fn query_data_source(from_dsn: Dsn, args: Vec<String>) -> anyhow::Resu
         .stderr(std::process::Stdio::piped());
     tracing::info!("{:?}", cmd);
     let output = cmd.output().await?;
-    writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
+    {
+        let mut w = appender.make_writer();
+        use std::io::Write as _;
+        w.write_all(String::from_utf8_lossy(&output.stderr).as_bytes())?;
+        if let Err(err) = w.flush() {
+            eprintln!("failed to flush PI log: {err}");
+        }
+    }
     // .context("Start PI collector error")?;
     tracing::info!("PI Connector exit with status {}", output.status);
     let mut lines = output.stdout.lines();

@@ -497,9 +497,10 @@ async fn execute(
                                     .metrics()
                                     .add_extra_metric(&METRIC_CONSUMERS, 1);
                                 notify
-                                    .send(TaskNotify::info(format!(
+                                    .send_async(TaskNotify::info(format!(
                                         "Rebuild consumer {idx} with subtask id {id}"
                                     )))
+                                    .await
                                     .context("Task logging listener seems closed")?;
 
                                 continue;

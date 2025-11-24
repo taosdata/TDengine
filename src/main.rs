@@ -209,8 +209,18 @@ struct Global {
     #[clap(long, env = "SQL_TAG_CACHE_CAPACITY", global = true, hide = true)]
     sql_tag_cache_capacity: Option<usize>,
 
+    /// Memory reclaim interval in seconds.
+    #[clap(long, env = "MEMORY_RECLAIM_INTERVAL", global = true, hide = true)]
+    memory_reclaim_interval: Option<u64>,
+
     #[clap(flatten)]
     telemetry: Option<Telemetry>,
+}
+
+impl Global {
+    fn memory_reclaim_interval(&self) -> u64 {
+        self.memory_reclaim_interval.unwrap_or(300).max(10) // default to 5 minutes, minimum 10 seconds
+    }
 }
 
 #[serde_as]
@@ -888,7 +898,7 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
             s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.server", telemetry.server).as_str();
             s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.port", telemetry.port).as_str();
         }
-        
+
     }
     s += "===================================================================================";
     tracing::info!("{}", s);
@@ -954,6 +964,15 @@ fn main() -> Result<()> {
 
     let _span = tracing::info_span!("main").entered();
 
+    // Register KingHistorian datasets lister to avoid taosx-core <-> kinghistorian circular deps
+    // Safe to call once; subsequent calls are ignored by OnceLock
+    #[allow(clippy::redundant_closure)]
+    {
+        taosx_core::plugins::register_kinghist_datasets_lister(
+            source_kinghistorian::kinghist_datasets_lister,
+        );
+    }
+
     let config_file = get_effective_config_path(&args);
     let mut _notify_watcher = None;
     if let Some(handle) = handle {
@@ -989,6 +1008,25 @@ fn main() -> Result<()> {
             .jobs
             .unwrap_or_else(|| executor_worker_threads(0)),
     )?;
+
+    let reclaim_memory_interval = args.global.memory_reclaim_interval();
+    runtime.spawn(async move {
+        // 1. Spawn a task to reclaim memory by interval
+        reclaim_memory::spawn_reclaim_memory_by_interval(reclaim_memory_interval);
+        // 2. Reclaim memory by SIGHUP signal
+        #[cfg(unix)]
+        if let Ok(mut sighup) =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
+        {
+            loop {
+                let _ = sighup.recv().await;
+                eprintln!("received SIGHUP signal, reclaiming memory by force");
+                tracing::info!("received SIGHUP signal, reclaiming memory by force");
+                tokio::task::spawn_blocking(|| reclaim_memory::reclaim_memory(true));
+            }
+        }
+    });
+
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");

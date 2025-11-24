@@ -472,11 +472,12 @@ pub async fn write(
                         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                         Ok((HandlingResult::Retry, _)) => {
-                            messages.iter().for_each(|m| {
-                                if let Err(e) = process_cache(&m.records, archive_tx.clone()) {
+                            for m in messages {
+                                if let Err(e) = process_cache(&m.records, archive_tx.clone()).await
+                                {
                                     tracing::error!("cache error: {e:#}");
                                 }
-                            });
+                            }
                             return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
                         }
                         Err(e) => {
@@ -706,11 +707,11 @@ pub async fn write(
                     Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                     Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                     Ok((HandlingResult::Retry, _)) => {
-                        records.batches.iter().for_each(|batch| {
-                            if let Err(e) = process_cache(batch, archive_tx.clone()) {
+                        for batch in records.batches {
+                            if let Err(e) = process_cache(&batch, archive_tx.clone()).await {
                                 tracing::error!("cache error: {e:#}");
                             }
-                        });
+                        }
                         break;
                     }
                     Err(e) => {

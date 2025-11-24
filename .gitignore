@@ -64,3 +64,6 @@ docker/ci/zig-x86_64-linux-*.tar.xz
 .hypothesis
 .rhai-repl-history
 .license_report.md
+
+# Allow King Historian CSV template to be committed
+!crates/source-kinghistorian/example/*.csv

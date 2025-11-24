@@ -1,10 +1,3 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock};
-use std::time::Duration;
-use std::vec;
-
 use anyhow::{Context, Result, anyhow, bail};
 use arrow::array::{ArrayRef, StringArray};
 use arrow::record_batch::RecordBatch;
@@ -18,13 +11,13 @@ use futures_util::{Stream, StreamExt, TryStreamExt};
 use notify::{Config, Event, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
+use std::vec;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
-use tokio::sync::Semaphore;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
-use tokio_util::sync::CancellationToken;
-use tracing::{Instrument, Span, info, instrument, warn};
-
 use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_or, insert_metrics};
 use taosx_core::sink::channel_based_transformer;
 use taosx_core::sink::ipc_metric::IpcMetrics;
@@ -33,6 +26,11 @@ use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::{Parser, TaskNotifySender, Transferred, utils};
 use taosx_ipc::types::dsv::DataSourceValidation;
+use tokio::sync::Semaphore;
+use tokio::task::JoinHandle;
+use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
+use tracing::{Instrument, Span, info, instrument, warn};
 
 type MsgSender = flume::Sender<std::result::Result<RecordBatch, ArrowError>>;
 trait CsvReaderExt: Send + Sync + std::io::Read {}
@@ -162,14 +160,16 @@ async fn csv_to_taos_with_channel(
         // task_id is None if taosx run
         Arc::new(CoreMetrics::IPC(IpcMetrics::new(
             "taosx_task_csv".to_string(),
-            -1,
+            task_id.unwrap_or(-1),
             None,
         )))
     })
     .await;
-    insert_metrics(-1, metrics_arc.clone()).await;
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics_arc.clone());
+    }
+    if task_id.is_none() {
+        insert_metrics(-1, metrics_arc.clone()).await;
     }
 
     tracing::info!("CSV to Taos, from: {from}, to: {to}");

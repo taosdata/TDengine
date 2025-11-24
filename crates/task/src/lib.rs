@@ -327,6 +327,18 @@ impl TaskOpts {
                     )
                     .await?;
                 }
+                (source_kinghistorian::KING_HIST_ID, "taos") => {
+                    source_kinghistorian::kinghist_to_taos(
+                        task_id_number,
+                        from.clone(),
+                        to.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        notify.clone(),
+                    )
+                    .await?;
+                }
                 (source_mysql::MYSQL_ID, "taos") => {
                     mysql_to_taos(
                         from.clone(),

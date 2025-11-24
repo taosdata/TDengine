@@ -268,6 +268,13 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
     if version.starts_with("2.") {
         bail!("tmq does not support TDengine Query");
     }
+    let current_version = parse_server_version(version);
+
+    if let Some((a, b, c, d)) = current_version {
+        if need_remove_wal_marker(a, b, c, d) {
+            from.remove("enable.wal.marker");
+        }
+    }
 
     let source = builder.build().await?;
     const DEFAULT_VGROUPS: usize = 2;
@@ -278,7 +285,9 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
         .collect_vec();
     if let Some(topic) = use_topic_name {
         if topics.len() > 1 {
-            anyhow::bail!("`use.topic.name` option does not work for multi databases, use \"{from}\" directly");
+            anyhow::bail!(
+                "`use.topic.name` option does not work for multi databases, use \"{from}\" directly"
+            );
         }
         let database = topics.pop().unwrap();
 
@@ -294,7 +303,9 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
             match err.code().into() {
                 // WAL retention period is zero
                 0x038C => {
-                    anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                    anyhow::bail!(
+                        "{err:#}, use `alter database {database} wal_retention_period 3600` to enable it"
+                    );
                 }
                 _ => return Err(err.into()),
             }
@@ -345,7 +356,11 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
             {
                 Ok(Some((_, sql))) => Some(sql),
                 Err(err) => {
-                    tracing::warn!("SHOW CREATE DATABASE `{}` error: {}, so that we can't automatically create a same database", topic.db_name(), err);
+                    tracing::warn!(
+                        "SHOW CREATE DATABASE `{}` error: {}, so that we can't automatically create a same database",
+                        topic.db_name(),
+                        err
+                    );
                     None
                 }
                 _ => unreachable!(),
@@ -378,7 +393,9 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                 match err.code().into() {
                     // WAL retention period is zero
                     0x038C => {
-                        anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                        anyhow::bail!(
+                            "{err:#}, use `alter database {database} wal_retention_period 3600` to enable it"
+                        );
                     }
                     _ => return Err(err.into()),
                 }
@@ -716,7 +733,9 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                         match err.code().into() {
                             // WAL retention period is zero
                             0x038C => {
-                                anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                                anyhow::bail!(
+                                    "{err:#}, use `alter database {database} wal_retention_period 3600` to enable it"
+                                );
                             }
                             _ => return Err(err.into()),
                         }
@@ -950,6 +969,23 @@ impl BackupObject {
     }
 }
 
+fn parse_server_version(version: &str) -> Option<(u8, u8, u8, u8)> {
+    version
+        .split(".")
+        .take(4)
+        .filter_map(|v| v.parse::<u8>().ok())
+        .collect_tuple::<(u8, u8, u8, u8)>()
+}
+
+/// Determines if the `enable.wal.marker` parameter should be removed based on the server version.
+///
+/// The parameter is not supported and should be removed for versions:
+/// 1. Older than `3.3.6.32`.
+/// 2. From `3.3.7.0` (inclusive) up to `3.3.8.6` (exclusive).
+fn need_remove_wal_marker(a: u8, b: u8, c: u8, d: u8) -> bool {
+    ((a, b, c, d) < (3, 3, 6, 32)) || ((a, b, c) >= (3, 3, 7) && (a, b, c, d) < (3, 3, 8, 6))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1098,7 +1134,10 @@ mod tests {
         assert!(!dsv.valid);
         assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine Query", dsv.message.unwrap());
+        assert_eq!(
+            "failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine Query",
+            dsv.message.unwrap()
+        );
 
         // TDengine 3.X non-exist topic
         let dsn =
@@ -1108,7 +1147,10 @@ mod tests {
         assert!(!dsv.valid);
         assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!("failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic", dsv.message.unwrap());
+        assert_eq!(
+            "failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic",
+            dsv.message.unwrap()
+        );
     }
 
     async fn drop_topic_and_database(taos: &Taos, topic: &str, database: &str) {
@@ -1246,5 +1288,25 @@ mod tests {
 
         // clear the test data
         drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
+    }
+
+    #[test]
+    fn parse_server_version_test() {
+        assert!(parse_server_version("3.3").is_none());
+        assert!(parse_server_version("3.3.3").is_none());
+        assert_eq!(parse_server_version("3.3.3.4"), Some((3, 3, 3, 4)));
+        assert_eq!(parse_server_version("3.3.3.4.4"), Some((3, 3, 3, 4)));
+    }
+
+    #[test]
+    fn need_remove_wal_marker_test() {
+        assert!(need_remove_wal_marker(3, 3, 1, 0));
+        assert!(need_remove_wal_marker(3, 3, 6, 30));
+        assert!(!need_remove_wal_marker(3, 3, 6, 32));
+        assert!(!need_remove_wal_marker(3, 3, 6, 35));
+        assert!(need_remove_wal_marker(3, 3, 7, 1));
+        assert!(need_remove_wal_marker(3, 3, 8, 5));
+        assert!(!need_remove_wal_marker(3, 3, 8, 6));
+        assert!(!need_remove_wal_marker(3, 3, 8, 9));
     }
 }

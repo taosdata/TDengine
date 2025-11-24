@@ -8,6 +8,9 @@ rust-version.workspace = true
 chrono.workspace = true
 bigdecimal.workspace = true
 flume.workspace = true
+dlopen2.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
 
 [build-dependencies]
 bindgen = "0.72"

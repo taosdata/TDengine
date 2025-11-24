@@ -243,7 +243,7 @@ pub async fn poll_message(
                         }
 
                         // It will be handled by next consuming.
-                        let _ = notify.send(TaskNotify::warn(format!("failed to polling from Pulsar, cause: {:#}", e)));
+                        let _ = notify.send_async(TaskNotify::warn(format!("failed to polling from Pulsar, cause: {:#}", e))).await;
                         tracing::error!("failed to polling from Pulsar, cause: {:#}", e);
                         anyhow::bail!("failed to polling from Pulsar, cause: {:#}", e);
                     }
@@ -258,7 +258,7 @@ pub async fn poll_message(
                                 let elapsed = last_message.elapsed();
                                 if elapsed > duration {
                                     tracing::warn!("Consumer {index} has no messages received in {:?} consumer polling timeout", elapsed);
-                                    let _ = notify.send(crate::TaskNotify::warn(format!("Consumer {index} has no messages received in {:?} consumer polling timeout", duration)));
+                                    let _ = notify.send_async(crate::TaskNotify::warn(format!("Consumer {index} has no messages received in {:?} consumer polling timeout", duration))).await;
                                     if last_warning_interval < MAX_NON_MESSAGE_WARNING_INTERVAL {
                                         last_warning_interval *= 2;
                                         last_message = Instant::now();

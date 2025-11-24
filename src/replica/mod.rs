@@ -265,6 +265,7 @@ impl Replica {
         tmq.set("replica", "");
         tmq.set("timeout", "never");
         tmq.set("prefer", "raw");
+        tmq.set("enable.wal.marker", "true");
         if topic != database {
             tmq.set("use.topic.name", topic);
         }

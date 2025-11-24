@@ -145,6 +145,16 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'switch'
+            },
+            {
+              label: '同步高版本数据',
+              description: '如启用，将从源端同步数据库高版本格式的数据，默认关闭。\n',
+              field: 'minimal',
+              placeholder: '',
+              defaultValue: false,
+              pattern: null,
+              grid_two: false,
+              type: 'switch'
             }
           ],
           hide: false

@@ -1,22 +1,22 @@
-use crate::runners::log_rotation;
-use crate::runners::opc::config::{OPCConfig, PointsMode};
-use crate::runners::opc::model::OpcModelConfig;
-use crate::utils::dsn::json_to_dsn;
-use crate::{DataSet, DataSetsReq};
 use anyhow::{bail, Context};
-use csv::CsvParser;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::{io::prelude::*, path::PathBuf};
 use taos::{Dsn, IntoDsn};
-use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
+use tracing_subscriber::fmt::MakeWriter;
+
+use crate::plugins::sink::point::csv::CsvParser;
+use crate::plugins::sink::point::model::PointModelConfig;
+use crate::runners::new_rolling_file_appender;
+use crate::runners::opc::config::{OPCConfig, PointsMode};
+use crate::sink::point::csv::parse_csv_config_files;
+use crate::sink::point::model::SourceType;
+use crate::utils::dsn::json_to_dsn;
+use crate::{DataSet, DataSetsReq};
 
 pub mod config;
-pub mod csv;
-pub mod model;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
@@ -117,181 +117,6 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     ))
 }
 
-/// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
-/// OPC DA: <table_prefix>_{tag_name/TagName}_<table_suffix>
-fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
-    let tbname = match ty {
-        "opcua" => {
-            // ns=13;i=1003
-            // ns=6;s=Scalar_Instructions
-            // ns=6;g=00000000-0000-0000-0000-000000009204
-            // ns=6;b=CQIABQ==
-            if let Some((ns, id)) = point_id.split_once(";") {
-                let ns = if ns.contains("ns=") {
-                    let (_, ns) = ns.split_once("=").unwrap();
-                    ns
-                } else {
-                    ns
-                };
-                let id = if let Some((_, id)) = id.split_once('=') {
-                    id
-                } else {
-                    id
-                };
-                assert!(!id.is_empty(), "id should not be empty: {}", point_id);
-                tb_name.replace("{ns}", ns).replace("{id}", id)
-            } else {
-                assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
-                tb_name.replace("{ns}", "0").replace("{id}", point_id)
-            }
-        }
-        "opcda" => {
-            if tb_name.contains("{TagName}") || tb_name.contains("{tag_name}") {
-                let tag_index = point_id.rfind(".");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device.DeviceType.TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                let tb_name = tb_name.replace("{TagName}", tag_name);
-                tb_name.replace("{tag_name}", tag_name)
-            } else if tb_name.contains("{/tag_name}") {
-                let tag_index = point_id.rfind("/");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device/DeviceType/TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                tb_name.replace("{/tag_name}", tag_name)
-            } else if tb_name.contains("{id}") {
-                tb_name.replace("{id}", point_id)
-            } else if tb_name.contains("{_id}") {
-                tb_name.replace("{_id}", &point_id.replace("/", "_"))
-            } else {
-                tb_name.to_string()
-            }
-        }
-        _ => tb_name.to_string(),
-    };
-
-    tbname.replace(".", "_").replace("`", "_")
-}
-
-/// OPC UA: {ns} {id}
-/// OPC DA: {tag_name/TagName}
-pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str) -> String {
-    match ty {
-        "opcua" => {
-            // ns=13;i=1003
-            // ns=6;s=Scalar_Instructions
-            // ns=6;g=00000000-0000-0000-0000-000000009204
-            // ns=6;b=CQIABQ==
-            if let Some((ns, id)) = point_id.split_once(";") {
-                let ns = if ns.contains("ns=") {
-                    let (_, ns) = ns.split_once("=").unwrap();
-                    ns
-                } else {
-                    ns
-                };
-                let id = if let Some((_, id)) = id.split_once('=') {
-                    id
-                } else {
-                    id
-                };
-                assert!(!id.is_empty(), "id should not be empty: {}", point_id);
-                template
-                    .replace("{ns}", ns)
-                    .replace("{id}", id) // original id
-                    // Trim id after the last '.'
-                    .replace("{id.}", id.rsplit_once('.').map_or(id, |(id, _)| id))
-                    // Trim id after the last '/'
-                    .replace("{id/}", id.rsplit_once('/').map_or(id, |(id, _)| id))
-                    // Trim id after the last '_'
-                    .replace("{id_}", id.rsplit_once('_').map_or(id, |(id, _)| id))
-                    .replace(
-                        "{id..}",
-                        id.rsplit_once('.')
-                            .map(|(prefix, _)| prefix.rsplit_once('.').map_or(prefix, |(l, _)| l))
-                            .unwrap_or(id),
-                    )
-                    .replace(
-                        "{..id.}",
-                        id.rsplit('.').tuples().next().map_or(id, |(_, id)| id),
-                    )
-            } else {
-                assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
-                let id = point_id;
-                template
-                    .replace("{ns}", "0")
-                    .replace("{id}", id)
-                    // Trim id after the last '.'
-                    .replace("{id.}", id.rsplit_once('.').map_or(id, |(id, _)| id))
-                    // Trim id after the last '/'
-                    .replace("{id/}", id.rsplit_once('/').map_or(id, |(id, _)| id))
-                    // Trim id after the last '_'
-                    .replace("{id_}", id.rsplit_once('_').map_or(id, |(id, _)| id))
-                    .replace(
-                        "{id..}",
-                        id.rsplit_once('.')
-                            .map(|(prefix, _)| prefix.rsplit_once('.').map_or(prefix, |(l, _)| l))
-                            .unwrap_or(id),
-                    )
-                    .replace(
-                        "{..id.}",
-                        id.rsplit('.').tuples().next().map_or(id, |(_, id)| id),
-                    )
-            }
-        }
-        "opcda" => {
-            if template.contains("{TagName}") || template.contains("{tag_name}") {
-                let tag_index = point_id.rfind(".");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device.DeviceType.TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                let tb_name = template.replace("{TagName}", tag_name);
-                tb_name.replace("{tag_name}", tag_name)
-            } else if template.contains("{/tag_name}") {
-                let tag_index = point_id.rfind("/");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device/DeviceType/TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                template.replace("{/tag_name}", tag_name)
-            } else if template.contains("{id}") {
-                template.replace("{id}", point_id)
-            } else if template.contains("{_id}") {
-                template.replace("{_id}", &point_id.replace("/", "_"))
-            } else {
-                template.to_string()
-            }
-        }
-        _ => template.to_string(),
-    }
-}
-fn generate_stable_from_pattern(stable_expr: &str, value_type: &Option<IpcDataType>) -> String {
-    let mut stable = stable_expr.to_string();
-    if stable_expr.contains(".") {
-        stable = stable.replace(".", "_");
-    }
-
-    if let Some(t) = value_type {
-        stable = match t {
-            IpcDataType::VarChar(_len) => stable.replace("{type}", "varchar"),
-            IpcDataType::NChar(_len) => stable.replace("{type}", "nchar"),
-            _ => stable.replace("{type}", &t.sql_repr().replace(" ", "_")),
-        };
-    }
-
-    stable
-}
-
 /// 解析为文件路径: 如果以@开头，表示文件路径, 返回 None;
 /// 否则，认为参数值是文件内容，写入临时文件后，返回 NamedTempFile。
 fn get_temp_file(dsn: &Dsn, key: &str) -> Option<NamedTempFile> {
@@ -335,12 +160,13 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
         // 解析 csv 文件中的点位
         PointsMode::ByCsv => {
             let opc_type = OpcType::from_dsn(&from)?;
-            let csv_files = OPCConfig::parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
+            let csv_files = parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
                 "csv_config_file not found in dsn: {}",
                 from.to_string()
             ))?;
 
-            let parser = CsvParser::try_new(opc_type, csv_files)?;
+            let source_type = SourceType::try_from(opc_type.as_static_str())?;
+            let parser = CsvParser::try_new(source_type, csv_files)?;
             let model_config = parser.parse().await?;
             to_opc_dataset_vec(&model_config).await?
         }
@@ -366,7 +192,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
 }
 
 /// 从 model_config 中提取所有 OPC 点位
-async fn to_opc_dataset_vec(model_config: &OpcModelConfig) -> anyhow::Result<Vec<DataSet>> {
+async fn to_opc_dataset_vec(model_config: &PointModelConfig) -> anyhow::Result<Vec<DataSet>> {
     let mut datasets = vec![];
     for (point_id, point_config) in model_config.point_config_map.iter() {
         let point_type = point_config.value_type.as_ref().map(|v| v.to_string());
@@ -427,15 +253,17 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
         .output()
         .await
         .with_context(|| "Start OPC collector error")?;
-    let mut log_path = super::get_log_dir("");
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push("opc.log");
-
-    let mut log_rotation = log_rotation(&log_path, 700);
-
-    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
-        .context("writing logs error")?;
+    let log_dir = super::get_log_dir("");
+    std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
+    let appender =
+        new_rolling_file_appender(log_dir.as_path(), "opc").context("failed to create opc log")?;
+    {
+        let mut w = appender.make_writer();
+        use std::io::Write as _;
+        w.write_all(String::from_utf8_lossy(&output.stderr).as_bytes())
+            .context("writing logs error")?;
+        w.flush().ok();
+    }
 
     tracing::info!("opc_datasets OPC exit with status {}", output.status);
     if !output.status.success() {
@@ -509,77 +337,6 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_tbname_from_pattern() {
-        // OPC UA
-        assert_eq!(
-            generate_tbname_from_pattern("opcua", "t_{ns}_{id}", "ns=13;i=10003"),
-            "t_13_10003"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcua", "t_{ns}_{id}", "ns=13;b=GCC"),
-            "t_13_GCC"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern(
-                "opcua",
-                "t_{ns}_{id}",
-                "ns=13;g=00000000-0000-0000-0000-000000009204"
-            ),
-            "t_13_00000000-0000-0000-0000-000000009204"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern(
-                "opcua",
-                "t_{ns}_{id}",
-                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#
-            ),
-            r#"t_3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#
-        );
-
-        // OPC DA
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{TagName}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
-            "t_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{tag_name}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
-            "t_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{/tag_name}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
-            "t_EDCGQ_MP706AT_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
-            "t_/ASSETS/AB/EDCGQ_MP706AT_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t{_id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
-            "t_ASSETS_AB_EDCGQ_MP706AT_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{TagName}", "02_LI7059.DACA.PV"),
-            "t_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{tag_name}", "02_LI7059.DACA.PV"),
-            "t_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{/tag_name}", "02_LI7059.DACA.PV"),
-            "t_02_LI7059_DACA_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{id}", "02_LI7059.DACA.PV"),
-            "t_02_LI7059_DACA_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t_{_id}", "02_LI7059.DACA.PV"),
-            "t_02_LI7059_DACA_PV"
-        );
-    }
-
-    #[test]
     fn test_opc_type() {
         let dsn = Dsn::from_str("opcua://").unwrap();
         let opc_type = OpcType::from_dsn(&dsn).unwrap();
@@ -639,23 +396,6 @@ panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
 
             let datasets = opc_datasets_by_command(&config).await.unwrap();
             dbg!(&datasets);
-        }
-    }
-
-    #[test]
-    fn test_generate_tag_value_from_pattern() {
-        let point_id = "ns=2;s=PLC.DETAIL.DEV.METRIC";
-
-        let expects = [
-            ("{id}", "PLC.DETAIL.DEV.METRIC"),
-            ("{id.}", "PLC.DETAIL.DEV"),
-            ("{id..}", "PLC.DETAIL"),
-            ("{..id.}", "DEV"),
-        ];
-
-        for (t, e) in expects {
-            let v = generate_tag_value_from_pattern("opcua", t, point_id);
-            assert_eq!(v, e);
         }
     }
 }

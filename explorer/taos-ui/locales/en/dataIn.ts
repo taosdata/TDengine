@@ -259,6 +259,11 @@ export default {
     opcua: 'Match the point id or name',
     opcda: 'Match the point TagName'
   },
+  kinghist: {
+    group: 'Group',
+    point: 'Point',
+    tag: 'Tag'
+  },
   generateToken: 'Generate Token',
   pInName: 'Please enter the name',
   statuses: {
@@ -545,7 +550,7 @@ export default {
   targetname: 'Name',
   agentInfo: `
       1. When using PI or OPC-DA data sources, you need to enable the agent.
-      <br /> 
+      <br />
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, agents are used to provide cross-network access to the data source.
     `,
   replicationTargetInfo: `Please login TDengine cloud service or open taosExplorer in enterprise edition, click "Explorer", select the database, click "View Database Config" icon. At the bottom of the page, DSN is shown there, copy and paste it into this box.`,

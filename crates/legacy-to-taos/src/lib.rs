@@ -13,10 +13,11 @@ use std::{
 
 use anyhow::{Context, bail};
 use chrono::{DateTime, TimeZone, Utc};
+use faststr::FastStr;
 use futures::TryFutureExt;
 use futures_util::FutureExt;
 use rand::seq::SliceRandom;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_with::serde_as;
 use taos::*;
 use taosx_core::utils::sql::TaosConnection;
@@ -306,19 +307,94 @@ fn test_time_range() {
     dbg!(&chunks);
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct QueryOpts {
     time_range: TimeRange,
     unit: Duration,
     limit: Limit,
     select_from_stable: bool,
     smooth_init: Duration,
+    /// Additional WHERE clause for selecting data from source.
+    r#where: Option<FastStr>,
 }
 
 impl Display for QueryOpts {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.time_range, self.limit)
+        if self.time_range.is_none() {
+            if let Some(ref clause) = self.r#where {
+                write!(f, " {}{}", clause, self.limit)
+            } else {
+                write!(f, " 1=1{}", self.limit)
+            }
+        } else if let Some(ref clause) = self.r#where {
+            write!(f, "{} and {}{}", self.time_range, clause, self.limit)
+        } else {
+            write!(f, "{}{}", self.time_range, self.limit)
+        }
     }
+}
+
+#[test]
+fn test_query_opts() {
+    let start = chrono::DateTime::parse_from_rfc3339("2025-11-18T05:06:07Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let end = chrono::DateTime::parse_from_rfc3339("2025-11-20T05:06:07Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let mut opts = QueryOpts {
+        time_range: TimeRange::new().start(start).end(end),
+        unit: Duration::from_secs(3600),
+        limit: Limit {
+            limit: 100,
+            offset: Some(10),
+        },
+        select_from_stable: false,
+        smooth_init: Duration::ZERO,
+        r#where: Some(FastStr::from("_c1 > 100")),
+    };
+    println!("{:#?}", &opts);
+    assert!(!opts.is_none());
+    assert!(opts.time_range.has_start());
+    assert!(opts.time_range.has_end());
+    assert!(!opts.time_range.is_none());
+    assert_eq!(
+        opts.to_string(),
+        " _c0 >= '2025-11-18T05:06:07+00:00' and _c0 < '2025-11-20T05:06:07+00:00' and _c1 > 100 LIMIT 100 OFFSET 10",
+        "query format error"
+    );
+    opts.time_range.start.take();
+    assert_eq!(
+        opts.to_string(),
+        " _c0 < '2025-11-20T05:06:07+00:00' and _c1 > 100 LIMIT 100 OFFSET 10",
+        "query format error with end only"
+    );
+    opts.time_range.end.take();
+    assert_eq!(
+        opts.to_string(),
+        " _c1 > 100 LIMIT 100 OFFSET 10",
+        "query format error with where only and limit/offset"
+    );
+    opts.limit.offset.take();
+    assert_eq!(
+        opts.to_string(),
+        " _c1 > 100 LIMIT 100",
+        "query format error with where only and limit"
+    );
+    opts.limit.limit = 0;
+    assert_eq!(
+        opts.to_string(),
+        " _c1 > 100",
+        "query format error with where only"
+    );
+    opts.r#where.take();
+    assert_eq!(opts.to_string(), " 1=1", "query format error with none");
+    opts.limit.limit = 100;
+    assert_eq!(
+        opts.to_string(),
+        " 1=1 LIMIT 100",
+        "query format error with limit only"
+    );
 }
 
 impl QueryOpts {
@@ -399,7 +475,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
         .0
         .get()
         .await
-        .context("Get source connection error")?;
+        .context("Get target connection error")?;
     let stable = context.from.1.stable.as_deref();
     let table = &context.from.1.name;
     let actions = &context.actions;
@@ -1777,10 +1853,10 @@ async fn sync_specified_tables_with_workers(
         task_id, "Synchronize table data with {} workers", workers
     );
     let mut count = 0;
-    let (tx, rx) = flume::unbounded::<(
+    let (tx, rx) = flume::bounded::<(
         Option<(Arc<String>, TimeRange)>,
         oneshot::Receiver<anyhow::Result<()>>,
-    )>();
+    )>(100);
     let breakpoints = scheduler.breakpoints();
     let handle = tokio::spawn(async move {
         let mut fails = 0;
@@ -1968,14 +2044,18 @@ pub struct SourceOpts {
     query: QueryOpts,
     /// Create database automatically if not exists.
     assert: bool,
+    /// Schema mode.
     schema: SchemaMode,
+    /// Sync mode.
     mode: SyncMode,
+    /// Realtime only table options.
     table: TableOpts,
     forever: bool,
     /// Sync metadata with less information to migrate from newer version to older version.
     minimal: bool,
+    /// Specified tables to sync, if not set, sync all tables.
     tables: Option<Vec<String>>,
-    /// Specified stables to sync.
+    /// Specified stables to sync, if not set, sync all stables.
     stables: Option<Vec<String>>,
     /// The concurrent workers number for query.
     workers: usize,
@@ -2056,6 +2136,9 @@ impl SourceOpts {
             opts.query.smooth_init = value;
         } else {
             opts.query.smooth_init = Duration::ZERO;
+        }
+        if let Some(value) = dsn.remove("where") {
+            opts.query.r#where.replace(value.into());
         }
 
         if let Some(value) = dsn.remove("mode") {
@@ -3185,6 +3268,74 @@ async fn realtime(
     }
 }
 
+trait TaosDsn {
+    fn pool_config(&mut self) -> deadpool::managed::PoolConfig;
+}
+impl TaosDsn for Dsn {
+    fn pool_config(&mut self) -> deadpool::managed::PoolConfig {
+        const DEFAULT_POOL_TIMEOUT: u64 = 600;
+        let pool_timeout_secs = self
+            .remove("pool_timeout")
+            .or(self.remove("pool-timeout"))
+            .or(self.remove("poolTimeout"))
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_POOL_TIMEOUT);
+        const DEFAULT_POOL_SIZE: usize = 5000;
+        let max_size = self
+            .remove("pool_size")
+            .or(self.remove("pool-size"))
+            .or(self.remove("poolSize"))
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_POOL_SIZE);
+        let queue_mode = self
+            .remove("pool_queue_mode")
+            .or(self.remove("pool-queue-mode"))
+            .or(self.remove("poolQueueMode"))
+            .and_then(|s| {
+                struct Visitor;
+                impl serde::de::Visitor<'_> for Visitor {
+                    type Value = deadpool::managed::QueueMode;
+
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        formatter.write_str("a valid QueueMode string: fifo, lifo or integer 0, 1")
+                    }
+
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match v {
+                            "FIFO" | "fifo" | "0" => Ok(deadpool::managed::QueueMode::Fifo),
+                            "LIFO" | "lifo" | "1" => Ok(deadpool::managed::QueueMode::Lifo),
+                            _ => Err(serde::de::Error::custom(format!(
+                                "invalid QueueMode: {}",
+                                v
+                            ))),
+                        }
+                    }
+                }
+                type StringDeserializer =
+                    serde::de::value::StringDeserializer<serde::de::value::Error>;
+                StringDeserializer::new(s)
+                    .deserialize_str(Visitor)
+                    .inspect_err(|err| warn!("Deserialize queue_mode error: {err:#}"))
+                    .ok()
+            })
+            .unwrap_or(deadpool::managed::QueueMode::Fifo);
+        deadpool::managed::PoolConfig {
+            max_size,
+            timeouts: deadpool::managed::Timeouts {
+                wait: None,
+                create: Some(std::time::Duration::from_secs(pool_timeout_secs)),
+                recycle: None,
+            },
+            queue_mode,
+        }
+    }
+}
 #[instrument(skip_all)]
 pub async fn legacy_to_taos(
     mut from: Dsn,
@@ -3227,6 +3378,7 @@ pub async fn legacy_to_taos(
     }
 
     verify::verify_dsn_and_retain(&mut from);
+    let pool_config = from.pool_config();
 
     let target_db = to.subject.take();
 
@@ -3239,7 +3391,7 @@ pub async fn legacy_to_taos(
     // let connect_timeout = Duration::from_secs(10);
     tracing::debug!("Building source connection pool...");
     let from_pool = from_builder
-        .pool()
+        .with_pool_config(pool_config)
         .context("Source connection pool error")?;
     tracing::debug!("Getting connection from source connection pool...");
     let source_taos = from_pool.get().await.context("Source connection error")?;
@@ -3335,7 +3487,10 @@ pub async fn legacy_to_taos(
     }
 
     tracing::debug!("Building target connection pool...");
-    let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
+    let pool_config = to.pool_config();
+    let to_pool = TaosBuilder::from_dsn(&to)?
+        .with_pool_config(pool_config)
+        .with_context(|| format!("Failed to build target connection pool: {to}"))?;
     tracing::debug!("Getting connection from target connection pool...");
     let target_taos = to_pool.get().await?;
 
@@ -3427,7 +3582,7 @@ pub async fn legacy_to_taos(
     let scheduler = scheduler::Scheduler::new(
         from_pool.clone(),
         to_pool.clone(),
-        Arc::new(source_opts.query),
+        Arc::new(source_opts.query.clone()),
         Arc::new(target_opts.clone()),
         source_opts.workers as _,
         &actions,
@@ -3585,7 +3740,7 @@ pub async fn legacy_to_taos(
                                 sync_specified_tables_with_workers(
                                     &schema_polling_scheduler,
                                     &schema_polling_pool,
-                                    schema_polling_source_opts.query,
+                                    schema_polling_source_opts.query.clone(),
                                     &updates,
                                     schema_polling_target_opts.clone(),
                                     schema_polling_source_opts.workers as _,
@@ -3626,7 +3781,7 @@ pub async fn legacy_to_taos(
             let future = sync_specified_tables_with_workers(
                 &scheduler,
                 &from_pool,
-                source_opts.query,
+                source_opts.query.clone(),
                 &todo_non_changed,
                 target_opts_cloned,
                 source_opts.workers as _,
@@ -3682,7 +3837,7 @@ pub async fn legacy_to_taos(
                             sync_specified_tables_with_workers(
                                 &schema_polling_scheduler,
                                 &schema_polling_pool,
-                                schema_polling_source_opts.query,
+                                schema_polling_source_opts.query.clone(),
                                 &updates,
                                 schema_polling_target_opts.clone(),
                                 schema_polling_source_opts.workers as _,
@@ -3748,7 +3903,7 @@ pub async fn legacy_to_taos(
             if latest_offset_end < now {
                 // sync historian data: latest_offset_end -> now
                 let time_range = TimeRange::new().start(latest_offset_end).end(now);
-                let mut query_opts = source_opts.query;
+                let mut query_opts = source_opts.query.clone();
                 query_opts.time_range = time_range;
                 query_opts.unit = Duration::from_secs(60 * 10);
                 let todo = Arc::new(todo.as_ref().clone());

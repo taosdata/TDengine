@@ -504,7 +504,7 @@ async fn execute(
                                 };
 
                                 notify
-                                    .send(TaskNotify::info(instance.as_deref().map_or_else(
+                                    .send_async(TaskNotify::info(instance.as_deref().map_or_else(
                                         || format!("Rebuild consumer {idx}"),
                                         |instance| {
                                             format!(
@@ -512,6 +512,7 @@ async fn execute(
                                             )
                                         },
                                     )))
+                                    .await
                                     .context("Task logging listener seems closed")?;
                                 continue;
                             }

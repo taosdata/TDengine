@@ -2615,6 +2615,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cty"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
+
+[[package]]
 name = "curve25519-dalek"
 version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3431,16 +3437,6 @@ checksum = "21ef72acf95ec3d7dbf61275be556299490a245f017cf084bd23b4f68cf9407c"
 dependencies = [
  "libc",
  "winapi",
-]
-
-[[package]]
-name = "file-rotate"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a3ed82142801f5b1363f7d463963d114db80f467e860b1cd82228eaebc627a0"
-dependencies = [
- "chrono",
- "flate2",
 ]
 
 [[package]]
@@ -4806,7 +4802,10 @@ dependencies = [
  "bigdecimal 0.4.8",
  "bindgen",
  "chrono",
+ "dlopen2 0.8.0",
  "flume",
+ "parking_lot 0.12.4",
+ "tracing",
 ]
 
 [[package]]
@@ -4870,6 +4869,8 @@ dependencies = [
  "async-backtrace",
  "chrono",
  "csv",
+ "deadpool",
+ "faststr",
  "flume",
  "fundu",
  "futures",
@@ -4993,11 +4994,12 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "libmimalloc-sys"
-version = "0.1.43"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf88cd67e9de251c1781dbe2f641a1a3ad66eaae831b8a2c38fbdc5ddae16d4d"
+checksum = "667f4fec20f29dfc6bc7357c582d91796c169ad7e2fce709468aefeb2c099870"
 dependencies = [
  "cc",
+ "cty",
  "libc",
 ]
 
@@ -5383,9 +5385,9 @@ dependencies = [
 
 [[package]]
 name = "mimalloc"
-version = "0.1.47"
+version = "0.1.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1791cbe101e95af5764f06f20f6760521f7158f69dbf9d6baf941ee1bf6bc40"
+checksum = "e1ee66a4b64c74f4ef288bcbb9192ad9c3feaad75193129ac8509af543894fd8"
 dependencies = [
  "libmimalloc-sys",
 ]
@@ -7385,6 +7387,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "reclaim-memory"
+version = "1.11.0"
+dependencies = [
+ "libc",
+ "libmimalloc-sys",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8943,6 +8955,7 @@ dependencies = [
  "tokio-util",
  "toml 0.9.2",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -8978,7 +8991,23 @@ dependencies = [
 name = "source-kinghistorian"
 version = "1.11.0"
 dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "csv-async",
+ "flume",
+ "futures-util",
  "kinghistorian-sys",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -9126,6 +9155,7 @@ dependencies = [
  "tokio-util",
  "toml 0.9.2",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -9180,6 +9210,7 @@ dependencies = [
  "tokio-util",
  "toml 0.9.2",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -9999,6 +10030,7 @@ dependencies = [
  "opentelemetry_sdk",
  "prettytable",
  "rand 0.8.5",
+ "reclaim-memory",
  "reqwest 0.12.22",
  "rustls 0.23.29",
  "scc",
@@ -10012,6 +10044,7 @@ dependencies = [
  "socket2 0.6.0",
  "source-csv",
  "source-kafka",
+ "source-kinghistorian",
  "source-opc",
  "sqlite-optimizer",
  "sqlx",
@@ -10073,6 +10106,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shadow-rs 0.38.1",
+ "source-kinghistorian",
  "sysinfo",
  "taoslog",
  "taosx-core",
@@ -10131,7 +10165,6 @@ dependencies = [
  "encoding_rs",
  "faststr",
  "file-guard",
- "file-rotate",
  "flate2",
  "flume",
  "fundu",
@@ -10257,6 +10290,7 @@ dependencies = [
  "source-historian",
  "source-influxdb",
  "source-kafka",
+ "source-kinghistorian",
  "source-mongodb",
  "source-mqtt",
  "source-mssql",
