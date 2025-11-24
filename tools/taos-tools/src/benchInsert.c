@@ -1733,7 +1733,7 @@ int32_t submitStmt2Impl(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64
 
 // no retry function submitStmt2
 int32_t submitStmt2(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *delay1, int64_t *delay3,
-                    int64_t* startTs, int64_t* endTs, uint32_t* generated, int32_t /*w*/) {
+                    int64_t* startTs, int64_t* endTs, uint32_t* generated, int32_t) {
     return submitStmt2Impl(pThreadInfo, bindv, delay1, delay3, startTs, endTs, generated);
 }
 
