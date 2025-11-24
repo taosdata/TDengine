@@ -363,16 +363,8 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
   SQL 日志轮转时间（默认值：`24h`）。
 
-1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括：panic、fatal、error、warn、warning、info、debug 以及 trace。
-2. 从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
 
-以下是通过 curl 命令将日志级别设置为 debug 的示例：
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括：panic、fatal、error、warn、warning、info、debug 以及 trace。
 
 ### 第三方数据源配置
 
@@ -755,6 +747,35 @@ queryMaxWait = 10
 
 当其他用户发起查询请求时，将使用默认的并发限制配置进行处理。每个用户配置独立，不共享 `request.default` 的并发限制。比如用户 user1 发起 200 个并发查询请求时，用户 user2 也可以同时发起 200 个并发查询请求而不会阻塞。
 
+### 禁用查询 SQL 配置
+
+从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持通过配置禁用特定的查询 SQL，防止执行某些不安全或资源消耗过大的查询操作。
+当启用该功能后，taosAdapter 会检查每个非 insert（忽略大小写）开头的 SQL，如果匹配到配置的禁用正则表达式，则直接返回错误响应，提示用户该查询被禁用。
+当被禁用的查询 SQL 被匹配到时，RESTful 接口将返回 HTTP 状态码 `403`，WebSocket 接口将返回错误码 `0xFFFD`，
+taosAdapter 将打印警告日志，包含此 SQL 的来源等内容，例如：
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+该配置会影响以下接口：
+- **RESTful 接口**
+- **WebSocket SQL 执行接口**
+
+**参数说明**
+
+- **`rejectQuerySqlRegex`**
+  - 配置禁用查询 SQL 的正则表达式列表。
+  - 默认值：空列表，表示不禁用任何查询 SQL。
+
+**示例说明**
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+
+`rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']` 禁用了所有 drop database、drop table 和 alter table 的查询操作，忽略大小写。
+
 ### 环境变量
 
 配置项与环境变量对应如下表：
@@ -900,6 +921,26 @@ taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 
 ### 移除 taosAdapter
 
 使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine TSDB server 软件。
+
+## 动态配置
+
+### 动态修改日志级别
+
+1. 从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
+
+以下是通过 curl 命令将日志级别设置为 debug 的示例：
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+2. 从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持监听配置文件的变更，并动态应用新的日志级别配置。用户只需修改配置文件中的 `log.level` 参数，taosAdapter 将自动检测到该变更并更新日志级别，无需重启服务。
+
+### 动态修改禁用查询 SQL 列表
+
+从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持监听配置文件的变更，并动态应用新的禁用查询 SQL 列表配置。用户只需修改配置文件中的 `rejectQuerySqlRegex` 参数，taosAdapter 将自动检测到该变更并更新禁用查询 SQL 列表，无需重启服务。
 
 ## IPv6 支持
 
