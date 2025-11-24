@@ -2,28 +2,28 @@ import time
 from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
-class TestStreamMetaChangeTable:
+class TestStreamRecalcBugs13:
     precision = 'ms'
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_meta_change_table(self):
+    def test_stream_recalc(self):
         """Meta change: table
 
-        test meta change (add/drop/modify) cases to stream
+        test recalc bugs in stream
 
         Catalog:
-            - Streams:UseCases
+            - Streams:08-Recalc
 
-        Since: v3.3.3.7
+        Since: v3.3.8
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-6-16 Lihui Created
+            - 2025-11-24 MarksWang Created
 
         """
 
@@ -31,7 +31,7 @@ class TestStreamMetaChangeTable:
         tdSql.execute(f"alter all dnodes 'debugflag 143';")
 
         streams = []
-        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb 
+        streams.append(self.Basic0())
         
         tdStream.checkAll(streams)
 
