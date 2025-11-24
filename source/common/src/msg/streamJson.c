@@ -96,8 +96,10 @@ static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
     pJson, jkStateTriggerSlotId, pTrigger->slotId));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerExtend, pTrigger->extend));
-  TAOS_CHECK_RETURN(tjsonAddStringToObject(
-    pJson, jkStateTriggerZeroth, (const char*)pTrigger->zeroth));
+  if (NULL != pTrigger->zeroth) {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(
+      pJson, jkStateTriggerZeroth, (const char*)pTrigger->zeroth));
+  }
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerTrueForDuration, pTrigger->trueForDuration));
   if (NULL != pTrigger->expr) {
