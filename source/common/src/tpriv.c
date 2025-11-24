@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "tpriv.h"
-#include "tdef.h"
 
 static TdThreadOnce privInit = PTHREAD_ONCE_INIT;
 
@@ -128,14 +127,6 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_TBL_READ, PRIV_CATEGORY_OBJECT, OBJ_TYPE_TABLE, "READ TABLE"},
     {PRIV_TBL_WRITE, PRIV_CATEGORY_OBJECT, OBJ_TYPE_TABLE, "WRITE TABLE"},
     {PRIV_TBL_DELETE, PRIV_CATEGORY_OBJECT, OBJ_TYPE_TABLE, "DELETE TABLE"},
-
-    // Column Privileges
-    {PRIV_COL_READ_DATA, PRIV_CATEGORY_OBJECT, OBJ_TYPE_TABLE, "READ COLUMN DATA"},
-    {PRIV_COL_WRITE_DATA, PRIV_CATEGORY_OBJECT, OBJ_TYPE_TABLE, "WRITE COLUMN DATA"},
-
-    // Row Privileges
-    {PRIV_ROW_READ_DATA, PRIV_CATEGORY_OBJECT, OBJ_TYPE_TABLE, "READ ROW DATA"},
-    {PRIV_ROW_WRITE_DATA, PRIV_CATEGORY_OBJECT, OBJ_TYPE_TABLE, "WRITE ROW DATA"},
 
     // Index Privileges
     {PRIV_IDX_CREATE, PRIV_CATEGORY_OBJECT, OBJ_TYPE_INDEX, "CREATE INDEX"},
@@ -291,4 +282,18 @@ _loop:
     if (!(*ppPrivInfo)) goto _loop;
   }
   return true;
+}
+
+int32_t privObjKey(EObjType objType, const char* db, const char* tb, char* buf, size_t bufLen) {
+  return (objType == OBJ_TYPE_DB) ? snprintf(buf, bufLen, "%d.%s", objType, db ? db : "")
+                                  : snprintf(buf, bufLen, "%d.%s.%s", objType, db ? db : "", tb ? tb : "");
+}
+
+int32_t privRowKey(ETableType tbType, const char* db, const char* tb, int64_t tsStart, int64_t tsEnd, char* buf,
+                   size_t bufLen) {
+  return snprintf(buf, bufLen, "%d.%s.%s.%" PRIi64 ".%" PRIi64, tbType, db, tb, tsStart, tsEnd);
+}
+
+int32_t privColKey(ETableType tbType, const char* db, const char* tb, const char* col, char* buf, size_t bufLen) {
+  return snprintf(buf, bufLen, "%d.%s.%s.%s", tbType, db ? db : "", tb ? tb : "", col ? col : "");
 }

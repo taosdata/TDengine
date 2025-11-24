@@ -140,6 +140,11 @@ typedef struct STokenTriplet {
   SToken    name[3];
 } STokenTriplet;
 
+typedef struct {
+  STokenPair level;
+  SNodeList* cols;
+} SPrivLevelArgs;
+
 typedef struct SShowTablesOption {
   EShowKind kind;
   SToken    dbName;
@@ -409,10 +414,10 @@ SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, cons
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force);
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
-SNode* createGrantStmt(SAstCreateContext* pCxt, void* resources, STokenPair* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, int8_t optrType);
-SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resources, STokenPair* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, int8_t optrType);
+SNode* createGrantStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                       SNode* pTagCond, SNodeList* pRowCond, int8_t optrType);
+SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                        SNode* pTagCond, SNodeList* pRowCond, int8_t optrType);
 SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere);
 SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery);
 SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery);

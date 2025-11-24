@@ -1779,6 +1779,29 @@ int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
+int32_t mndDupPrivilegeHash(SHashObj *pOld, SHashObj **ppNew) {
+  int32_t code = 0;
+  *ppNew =
+      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (*ppNew == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  SPrivSet *privSet = NULL;
+  while ((privSet = taosHashIterate(pOld, privSet))) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(privSet, &keyLen);
+
+    if ((code = taosHashPut(*ppNew, key, keyLen, privSet, sizeof(*privSet))) != 0) {
+      taosHashCancelIterate(pOld, privSet);
+      taosHashCleanup(*ppNew);
+      TAOS_RETURN(code);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   int32_t code = 0;
   (void)memcpy(pNew, pUser, sizeof(SUserObj));

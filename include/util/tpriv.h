@@ -17,6 +17,7 @@
 #define _TD_UTIL_PRIV_H_
 
 #include "os.h"
+#include "taosdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,11 +68,6 @@ typedef enum {
   PRIV_TBL_WRITE,        // WRITE TABLE(equivalent to INSERT TABLE)
   PRIV_TBL_UPDATE,       // UPDATE TABLE(reserved)
   PRIV_TBL_DELETE = 58,  // DELETE TABLE
-
-  PRIV_COL_READ_DATA = 60,  // READ COLUMN DATA
-  PRIV_COL_WRITE_DATA,      // WRITE COLUMN DATA
-  PRIV_ROW_READ_DATA,       // READ ROW DATA
-  PRIV_ROW_WRITE_DATA,      // WRITE ROW DATA
 
   // ==================== Other Privileges ================
   // function management
@@ -276,6 +272,11 @@ static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
 int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EObjType* pObjType);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
+
+int32_t privObjKey(EObjType objType, const char* db, const char* tb, char* buf, size_t bufLen);
+int32_t privRowKey(ETableType tbType, const char* db, const char* tb, int64_t tsStart, int64_t tsEnd, char* buf,
+                   size_t bufLen);
+int32_t privColKey(ETableType tbType, const char* db, const char* tb, const char* col, char* buf, size_t bufLen);
 
 #ifdef __cplusplus
 }

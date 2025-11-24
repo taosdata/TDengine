@@ -39,6 +39,7 @@ int32_t  mndDupDbHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTableHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTopicHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndDupPrivilegeHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                  int32_t *pRspLen, int64_t ipWhiteListVer);
 int32_t  mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers);

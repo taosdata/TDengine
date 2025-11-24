@@ -148,27 +148,27 @@ cmd ::= UNLOCK ROLE role_name(A).                                               
                                                                                     SToken t = {.n = 1, .z = "0", .type = TK_STRING };
                                                                                     pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t); 
                                                                                   }
-cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
-cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
+cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
+cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
 cmd ::= GRANT ALL priv_level_opt(B) with_clause_opt(D) TO user_name(C).           {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
-cmd ::= REVOKE ALL  priv_level_opt(B) with_clause_opt(D) FROM user_name(C).       {
+cmd ::= REVOKE ALL  priv_level_opt(B) with_clause_opt(D)  FROM user_name(C).      {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= GRANT ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) TO user_name(C). {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= REVOKE ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) FROM user_name(C). {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
-cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
-cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
+cmd ::= GRANT privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
+cmd ::= REVOKE privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
 
 %type privileges                                                                  { SPrivSet }
 %destructor privileges                                                            { }
@@ -216,14 +216,8 @@ priv_type(A) ::= DROP TABLE.                                                    
 priv_type(A) ::= ALTER TABLE.                                                     { A = PRIV_TYPE(PRIV_TBL_ALTER); }
 priv_type(A) ::= SHOW TABLES.                                                     { A = PRIV_TYPE(PRIV_TBL_SHOW); }
 priv_type(A) ::= SHOW CREATE TABLE.                                               { A = PRIV_TYPE(PRIV_TBL_SHOW_CREATE); }
-priv_type(A) ::= READ TABLE.                                                      { A = PRIV_TYPE(PRIV_TBL_READ); }
-priv_type(A) ::= WRITE TABLE.                                                     { A = PRIV_TYPE(PRIV_TBL_WRITE); }
-priv_type(A) ::= DELETE TABLE.                                                    { A = PRIV_TYPE(PRIV_TBL_DELETE); }
 
-priv_type(A) ::= READ COLUMN DATA.                                                { A = PRIV_TYPE(PRIV_COL_READ_DATA); }
-priv_type(A) ::= WRITE COLUMN DATA.                                               { A = PRIV_TYPE(PRIV_COL_WRITE_DATA); }
-priv_type(A) ::= READ ROW DATA.                                                   { A = PRIV_TYPE(PRIV_ROW_READ_DATA); }
-priv_type(A) ::= WRITE ROW DATA.                                                  { A = PRIV_TYPE(PRIV_ROW_WRITE_DATA); }
+priv_type(A) ::= priv_type_tbl_dml(B).                                            { A = B; }
 
 priv_type(A) ::= CREATE FUNCTION.                                                 { A = PRIV_TYPE(PRIV_FUNC_CREATE); }
 priv_type(A) ::= DROP FUNCTION.                                                   { A = PRIV_TYPE(PRIV_FUNC_DROP); }
@@ -335,18 +329,45 @@ priv_type(A) ::= SHOW GRANTS.                                                   
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_TYPE(PRIV_APPS_SHOW); }
 
-%type priv_level_opt                                                              { STokenPair }
-%destructor priv_level_opt                                                        { }
-priv_level_opt(A) ::= .                                                           { A.first = nil_token; A.second = nil_token; }
+%type priv_type_tbl_dml                                                           { SPrivSet }
+%destructor priv_type_tbl_dml                                                     { }
+priv_type_tbl_dml(A) ::= READ TABLE.                                              { A = PRIV_TYPE(PRIV_TBL_READ); }
+priv_type_tbl_dml(A) ::= WRITE TABLE.                                             { A = PRIV_TYPE(PRIV_TBL_WRITE); }
+priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_TYPE(PRIV_TBL_DELETE); }
+
+%type priv_level_opt                                                              { SPrivLevelArgs }
+%destructor priv_level_opt                                                        {
+                                                                                    if ($$.cols != NULL) {
+                                                                                      nodesDestroyList($$.cols);
+                                                                                    }
+                                                                                  }
+priv_level_opt(A) ::= .                                                           { A.level.first = nil_token; A.level.second = nil_token; A.cols = NULL; }
 priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; }
 
-%type priv_level                                                                  { STokenPair }
-%destructor priv_level                                                            { }
-priv_level(A) ::= NK_STAR(B).                                                     { A.first = B; A.second = nil_token; }
-priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
-priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
-priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; }
+%type priv_level                                                                 { SPrivLevelArgs }
+%destructor priv_level                                                           {
+                                                                                    if ($$.cols != NULL) {
+                                                                                      nodesDestroyList($$.cols);
+                                                                                    }
+                                                                                  }
+priv_level(A) ::= NK_STAR(B).                                                     { A.level.first = B; A.level.second = nil_token; A.cols = NULL; }
+priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.level.first = B; A.level.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.level.first = B; A.level.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
+
+priv_level(A) ::= db_name(B) NK_DOT table_name(C) NK_LP col_name_list(D) NK_RP.   { A.level.first = B; A.level.second = C; A.cols = D; }
+priv_level(A) ::= table_name(C) NK_LP col_name_list(D) NK_RP.                     { A.level.first = nil_token; A.level.second = C; A.cols = D; }
+
+%type between_clause_opt                                                          { SNodeList* }
+%destructor between_clause_opt                                                    { nodesDestroyList($$); }
+between_clause_opt(A) ::= .                                                       { A = NULL; }
+between_clause_opt(A) ::= BETWEEN signed_integer(B) AND signed_integer(C).        { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B));
+                                                                                    A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C));
+                                                                                  }
+between_clause_opt(A) ::= BETWEEN NK_STRING(B) AND NK_STRING(C).                  { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B));
+                                                                                    A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C));
+                                                                                  }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }

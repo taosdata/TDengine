@@ -474,7 +474,7 @@ typedef struct {
 
   SPrivSet  sysPrivs;
   SHashObj* objPrivs;  // key: EObjType + "." + objName, value: SPrivSet
-  SHashObj* rowPrivs;  // key: ETableType + "." + objName + "." + startTs + "." + endTs, value: SPrivSet
+  SHashObj* rowPrivs;  // key: ETableType + "." + g`objName + "." + startTs + "." + endTs, value: SPrivSet
   SHashObj* colPrivs;  // key: ETableType + "." + objName + "." + colName, value: SPrivSet
 
   SHashObj* parentUsers;

@@ -5244,8 +5244,8 @@ _err:
   return NULL;
 }
 
-SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, int8_t optrType) {
+SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                       SNode* pTagCond, SNodeList* pRowCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkRoleName(pCxt, pPrincipal, false));
   SGrantStmt* pStmt = NULL;
@@ -5285,8 +5285,8 @@ _err:
   return NULL;
 }
 
-SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, int8_t optrType) {
+SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                        SNode* pTagCond, SNodeList* pRowCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pPrincipal));
   SRevokeStmt* pStmt = NULL;

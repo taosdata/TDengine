@@ -802,6 +802,9 @@ int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
   pNew->updateTime = taosGetTimestampMs();
 
   taosRLockLatch(&pOld->lock);
+  TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->objPrivs, &pNew->objPrivs));
+  TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->rowPrivs, &pNew->rowPrivs));
+  TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->colPrivs, &pNew->colPrivs));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentUsers, &pNew->parentUsers));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentRoles, &pNew->parentRoles));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->subRoles, &pNew->subRoles));

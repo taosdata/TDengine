@@ -821,9 +821,13 @@ typedef struct SGrantStmt {
   char      objName[TSDB_OBJ_NAME_LEN];  // db or topic
   char      tabName[TSDB_TABLE_NAME_LEN];
   union {
-    SPrivSet privileges;
+  SPrivSet privileges;
     char     roleName[TSDB_ROLE_LEN];
   };
+
+  TSKEY   rowStart;  // for row-level privilege
+  TSKEY   rowEnd;
+  SArray* pCols;  // for col-level privilege
 
   SNode* pTagCond;
 } SGrantStmt;
