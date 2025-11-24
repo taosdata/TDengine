@@ -15935,8 +15935,8 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
       }
       SDbCfgInfo dbCfg = {0};
       if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST, "Failed to get database %s since %s",
-                                    pStmt->objName, tstrerror(code));
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST, "Failed to get database %s since %s",
+                                       pStmt->objName, tstrerror(code));
       }
       break;
     }
@@ -15949,7 +15949,7 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
           toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
           code = getTargetMeta(pCxt, &name, &pTableMeta, true);
           if (TSDB_CODE_SUCCESS != code) {
-            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code));
           }
           if (((OBJ_TYPE_TABLE == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
               ((OBJ_TYPE_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
