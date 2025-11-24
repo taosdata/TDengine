@@ -381,7 +381,7 @@
           </el-tooltip>
         </div>
         <div v-if="tableData.length > 0" :key="refreshKey" class="table-detail">
-          <el-table :data="pageTableData" border style="width: 100%">
+          <el-table ref="mappingTable" :data="pageTableData" border style="width: 100%">
             <el-table-column prop="Name" show-overflow-tooltip label="Name" width="180px">
               <template #default="scope">
                 <div style="display: flex; align-items: end">
@@ -437,7 +437,6 @@
                       v-if="
                         scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'
                       "
-                      :key="Math.random()"
                       v-model="scope.row.Expression"
                       :placeholder="t('dataIn.transformer.coltip')"
                       :clearable="scope.row.exprname == 'mapping'"
@@ -445,6 +444,7 @@
                       filterable
                       class="mapping-rule-expression"
                       :multiple="scope.row.exprname != 'mapping'"
+                      @clear="onMappingExpressionCleared(scope.row)"
                     >
                       <el-option
                         v-for="val in mappingcolumns"
@@ -469,7 +469,10 @@
                       "
                       size="default"
                       :disabled="scope.row['exprname'] == 'generator'"
-                      @change="statisticCol"
+                      @change="
+                        statisticCol;
+                        relayout();
+                      "
                     ></el-input>
                     <!-- 第三列组件 -->
                     <el-input
@@ -659,6 +662,7 @@ const dialogForm = reactive({
 const showCreateDialog = ref<boolean>(false);
 const stableLists = ref<string[]>([]);
 const sruleFormRef = ref<FormInstance>();
+const mappingTable = ref();
 const sruleForm = reactive({
   s_name: ''
 });
@@ -711,6 +715,7 @@ watch(
   tableData,
   () => {
     statisticCol();
+    relayout();
   },
   {
     deep: true
@@ -826,7 +831,33 @@ function changeCurrentMapExpr(scope: Recordable) {
     if (scope.row.exprname == 'generator') {
       pageTableData.value[scope.$index].Expression = 'now';
     }
+    mappingTable.value?.doLayout?.();
   });
+}
+function relayout() {
+  nextTick(() => {
+    try {
+      mappingTable.value?.doLayout?.();
+    } catch (e) {
+      console.error('Failed to relayout mapping table:', e);
+    }
+  });
+}
+function onMappingExpressionCleared(row?: TableRow) {
+  // 清空 mapping/select 时，重置当前行的表达式和默认值，避免表格状态与布局不一致
+  if (row) {
+    row.Expression = '';
+    if (row.exprname === 'mapping') {
+      if (row.default !== undefined) {
+        row.default = '';
+      }
+      if (row.defaultValueError) {
+        row.defaultValueError = '';
+      }
+    }
+  }
+  // 重新计算表格布局，避免列宽错乱
+  relayout();
 }
 async function getMsgBody() {
   sruleFormRef.value?.clearValidate();
@@ -839,7 +870,8 @@ async function getMsgBody() {
   });
   async function onValid() {
     requesting.value = true;
-    const isSupportType = sourceForm.type == 'kafka' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya' || sourceForm.type == 'mqtt' || sourceForm.type == 'mongodb';
+    const supportedTypes = ['kafka', 'pulsar', 'pulsarTuya', 'mqtt', 'mongodb'];
+    const isSupportType = supportedTypes.includes(sourceForm.type);
     const params: Recordable = { dsn: sourceForm };
     params.dsn.sample_data_limit = transformerState.limitOffset;
     // if (isSupportType) {
@@ -1172,7 +1204,7 @@ async function handleParseResult(topParser: TopParseType) {
     );
   });
   columnsArr.value = (
-    (sourceForm.type == 'csv' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya')
+    sourceForm.type == 'csv' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya'
       ? result[0].fields
       : result[0].fields.filter((item: { name: string }) => {
           if (sourceForm.type == 'mqtt' && !defaultColsMap.mqtt.includes(item.name)) {
@@ -1292,6 +1324,7 @@ function setPageTableData() {
     (currentPage.value - 1) * pageSize.value,
     currentPage.value * pageSize.value
   );
+  relayout();
 }
 function onDefaultValueInput(name: any, val: string, range: number[]) {
   if (val === undefined || val.trim() === '') {
@@ -1341,12 +1374,14 @@ function setDefaultValueError(name: string, errorMsg: string) {
       item.defaultValueError = errorMsg;
     }
   });
+  relayout();
 }
 
 function handleCurrentChange(val: number) {
   currentPage.value = val;
   pageTableData.value.splice(0, Infinity);
   setPageTableData();
+  relayout();
 }
 
 //编辑回显数据--编辑状态不自动显示result table
@@ -1926,7 +1961,7 @@ function generateInput() {
           if (item.name == 'payload') {
             inputobj['payload'] = msg;
           }
-        } else if (sourceForm.type == 'kafka' || sourceForm.type == 'mongodb' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya') {
+        } else if (['kafka', 'mongodb', 'pulsar', 'pulsarTuya'].includes(sourceForm.type)) {
           inputobj = inputobj ? inputobj : {};
           if (item.name == 'value') {
             inputobj['value'] = msg;
