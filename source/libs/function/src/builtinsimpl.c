@@ -7296,13 +7296,14 @@ int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
   // try to find a non-null value
   if (NULL != pInputCol->pData) {
     if (isWindow) {
-      // for 'window', non-null value can be from either start or end row
-      int32_t startIndex = pInput->startRowIndex;
-      int32_t endIndex   = pInput->startRowIndex + pInput->numOfRows - 1;
-      if (!colDataIsNull_s(pInputCol, startIndex)) {
-        valueRowIndex = startIndex;
-      } else if (!colDataIsNull_s(pInputCol, endIndex)) {
-        valueRowIndex = endIndex;
+      // for 'window', non-null value can appear at any row of any data block
+      int64_t startIndex = pInput->startRowIndex;
+      int64_t endIndex   = pInput->startRowIndex + pInput->numOfRows - 1;
+      for (int64_t i = startIndex; i <= endIndex; ++i) {
+        if (!colDataIsNull_s(pInputCol, i)) {
+          valueRowIndex = i;
+          break;
+        }
       }
     } else {
       // for 'group by', just take the first row
