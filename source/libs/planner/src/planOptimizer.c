@@ -8085,26 +8085,32 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
 
 static int32_t eliminateVirtualScanOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                                 SLogicNode* pVirtualScanNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SNode* pTargets = NULL;
   SNode* pSibling = NULL;
 
   FOREACH(pSibling, pVirtualScanNode->pParent->pChildren) {
     if (nodesEqualNode(pSibling, (SNode*)pVirtualScanNode)) {
-      SNode* pChild;
-      FOREACH(pChild, pVirtualScanNode->pChildren) {
-        // clear the mask to try scanPathOptimize again.
-        OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pChild)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
-        ((SLogicNode*)pChild)->pParent = pVirtualScanNode->pParent;
-      }
+      SNode* pChild = nodesListGetNode(pVirtualScanNode->pChildren, 0);
+      QUERY_CHECK_NULL(pChild, code, lino, _return, terrno)
+      // clear the mask to try scanPathOptimize again.
+      OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pChild)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+      ((SLogicNode*)pChild)->pParent = pVirtualScanNode->pParent;
+
+      TSWAP(pVirtualScanNode->pTargets, ((SLogicNode *)pChild)->pTargets);
+
       INSERT_LIST(pVirtualScanNode->pParent->pChildren, pVirtualScanNode->pChildren);
       pVirtualScanNode->pChildren = NULL;
 
       ERASE_NODE(pVirtualScanNode->pParent->pChildren);
+      nodesDestroyNode((SNode*)pVirtualScanNode);
       pCxt->optimized = true;
       return TSDB_CODE_SUCCESS;
     }
   }
 
+_return:
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
