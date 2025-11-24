@@ -3979,6 +3979,43 @@ _err:
   return NULL;
 }
 
+static int32_t initSessCfgFromToken(SToken* pVal, SUserSessCfg* pCfg) {
+  int32_t      code = 0;
+  static char* sessKeyword[] = {"sessPerUser", "sessConnTime", "sessConnIdleTime", "sessMaxConcurrency",
+                                "sessMaxCallVnodeNum"};
+  int32_t      array[sizeof(sessKeyword) / sizeof(sessKeyword[0])] = {0};
+
+  char buf[128] = {0};
+  if (pVal->n >= sizeof(buf)) {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  strncpy(buf, pVal->z, pVal->n);
+  int32_t n = strdequote(buf);
+  n = strtrim(buf);
+
+  for (int32_t i = 0; i < sizeof(sessKeyword) / sizeof(sessKeyword[0]); ++i) {
+    if (0 == strncasecmp(buf, sessKeyword[i], strlen(sessKeyword[i]))) {
+      if (strlen(buf) <= strlen(sessKeyword[i]) + 1) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      char* z = buf + strlen(sessKeyword[i]) + 1;
+      code = taosStr2Int32(z, NULL, 10);
+      if (code < 0) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      break;
+    }
+  }
+
+  pCfg->sessPerUser = array[0];
+  pCfg->sessConnTime = array[1];
+  pCfg->sessConnIdleTime = array[2];
+  pCfg->sessMaxConcurrency = array[3];
+  pCfg->sessMaxCallVnodeNum = array[4];
+
+  return 0;
+}
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo) {
   SAlterUserStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -4020,6 +4057,13 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
 
       pCxt->errCode = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pStmt->pIpRanges);
       CHECK_PARSER_STATUS(pCxt);
+      break;
+    }
+    case TSDB_ALTER_USER_SESSION: {
+      SToken* pVal = pAlterInfo;
+      pCxt->errCode = initSessCfgFromToken(pVal, &pStmt->sessCfg);
+      CHECK_PARSER_STATUS(pCxt);
+
       break;
     }
     default:

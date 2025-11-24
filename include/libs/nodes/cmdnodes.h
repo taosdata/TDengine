@@ -427,6 +427,7 @@ typedef struct SAlterUserStmt {
   SIpRange*   pIpRanges;
 
   SNodeList* pNodeListIpRanges;
+  SUserSessCfg sessCfg;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {

@@ -900,13 +900,6 @@ _error:
   return 0;
 }
 
-static void initUserDefautSessCfg(SUserSessCfg *pCfg) {
-   pCfg->sessPerUser = -1;  
-   pCfg->sessConnTime = -1;
-   pCfg->sessConnIdleTime = -1;
-   pCfg->sessMaxConcurrency = -1;
-   pCfg->sessMaxCallVnodeNum = -1;
-}
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -2565,7 +2558,7 @@ static int32_t mndProcessAlterUserSessReq(SAlterUserReq *pReq) {
   switch (type) {
     case TSDB_ALTER_USER_SESSION_PER_USER:
      break;
-    case TSDB_ALTER_USER_SESSION_CONN_TIMER: 
+    case TSDB_ALTER_USER_SESSION_CONN_TIME:
      break;
     case TSDB_ALTER_USER_SESSION_CONN_IDLE_TIME:
      break;

@@ -19,13 +19,12 @@
 static SSessionMgt sessMgt = {0};
 
 static SSessionError sessErrorDict[] = {
-    {SESSION_PER_USER, TSDB_CODE_TSC_SESS_PER_USER_LIMIT},
-    {SESSION_CONN_TIME, TSDB_CODE_TSC_SESS_CONN_TIMEOUT},
-    {SESSION_CONN_IDLE_TIME, TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT},
-    {SESSION_MAX_CONCURRENCY, TSDB_CODE_TSC_SESS_MAX_CONCURRENCY_LIMIT},
-    {SESSION_MAX_CALL_VNODE_NUM, TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT},
+    {SESSION_PER_USER, TSDB_CODE_TSC_SESS_PER_USER_LIMIT, NULL, NULL},
+    {SESSION_CONN_TIME, TSDB_CODE_TSC_SESS_CONN_TIMEOUT, NULL, NULL},
+    {SESSION_CONN_IDLE_TIME, TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT, NULL, NULL},
+    {SESSION_MAX_CONCURRENCY, TSDB_CODE_TSC_SESS_MAX_CONCURRENCY_LIMIT, NULL, NULL},
+    {SESSION_MAX_CALL_VNODE_NUM, TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT, NULL, NULL},
 };
-
 
 int32_t sessMetricCreate(SSessMetric **ppMetric) {
   int32_t code = 0;
@@ -77,10 +76,15 @@ int32_t sessMetricCheckImpl(SSessMetric *pMetric) {
       continue;
     }
 
-    if (pMetric->value[i] > pMetric->limit[i]) {
+    code = sessErrorDict[i].checkFn(pMetric->value[i], pMetric->limit[i]);
+    if (code != 0) {
       code = sessErrorDict[i].code;
-      break;
-    } 
+    }
+
+    // if (pMetric->value[i] > pMetric->limit[i]) {
+    //   code = sessErrorDict[i].code;
+    //   break;
+    // }
   }
 
 
@@ -195,6 +199,7 @@ int32_t sessMgtUpdateUserMetric(char* user, SSessParam *pPara) {
 
   SSessMetric *pMetric = NULL;
   taosThreadRwlockWrlock(&pMgt->lock);
+
   SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
   if (ppMetric == NULL || *ppMetric == NULL) {
     code = sessMetricCreate(&pMetric);
@@ -212,9 +217,9 @@ int32_t sessMgtUpdateUserMetric(char* user, SSessParam *pPara) {
 _error:    
   if (code != 0) {
     uError("failed to update user session metric, line:%d, code:%d", lino, code);
-  } 
+  }
 
-  taosThreadRwlockWrlock(&pMgt->lock);
+  taosThreadRwlockUnlock(&pMgt->lock);
   return code;
 }
 

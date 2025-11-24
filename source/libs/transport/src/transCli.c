@@ -1628,7 +1628,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     }
   }
 
-  if (!saslAuthIsInited(pConn->saslConn)) {
+  if (pConn->saslConn && !saslAuthIsInited(pConn->saslConn)) {
     tDebug("%s conn:%p, sasl auth not completed, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
     return 0;
   }

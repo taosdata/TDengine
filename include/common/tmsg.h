@@ -254,12 +254,13 @@ typedef enum {
 #define TSDB_ALTER_USER_ADD_WHITE_LIST  0x7
 #define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
 #define TSDB_ALTER_USER_CREATEDB        0x9
+#define TSDB_ALTER_USER_SESSION         0xA
 
-#define TSDB_ALTER_USER_SESSION_PER_USER 0xA
-#define TSDB_ALTER_USER_SESSION_CONN_TIMER 0xB
-#define TSDB_ALTER_USER_SESSION_CONN_IDLE_TIME 0xC
-#define TSDB_ALTER_USER_SESSION_MAX_CONCURR 0xD
-#define TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE 0xE
+#define TSDB_ALTER_USER_SESSION_PER_USER 0xB
+#define TSDB_ALTER_USER_SESSION_CONN_TIME      0xC
+#define TSDB_ALTER_USER_SESSION_CONN_IDLE_TIME 0xD
+#define TSDB_ALTER_USER_SESSION_MAX_CONCURR 0xE
+#define TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE 0xF
 
 #define TSDB_ALTER_RSMA_FUNCTION        0x1
 
@@ -1369,6 +1370,8 @@ typedef struct {
   int32_t sessMaxConcurrency;
   int32_t sessMaxCallVnodeNum;
 } SUserSessCfg;
+
+void initUserDefautSessCfg(SUserSessCfg* pCfg);
 typedef struct {
   int8_t  createType;
   int8_t  superUser;  // denote if it is a super user or not
@@ -1434,6 +1437,8 @@ typedef struct {
   char*       sql;
   int8_t      passIsMd5;
   SIpRange*   pIpDualRanges;
+
+  SUserSessCfg sessCfg;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
