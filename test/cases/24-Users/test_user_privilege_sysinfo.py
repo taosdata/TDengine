@@ -191,7 +191,7 @@ class TestUserPrivilegeSysinfo:
             tdSql.error(f"select * from information_schema.ins_grants_full")
             tdSql.error(f"select * from information_schema.ins_grants_logs")
             tdSql.error(f"select * from information_schema.ins_machines")
-            tdSql.error(f"select * from information_schema.ins_vgroups")
+            tdSql.query(f"select * from information_schema.ins_vgroups")
             tdSql.query(f"select * from information_schema.ins_configs")
             tdSql.error(f"select * from information_schema.ins_dnode_variables")
 
