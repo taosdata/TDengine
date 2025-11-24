@@ -1581,23 +1581,23 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_cos)
 endif()                      # }
 
-IF(TD_WEBSOCKET)
-    MESSAGE("${Green} use libtaos-ws${ColourReset}")
+if(TD_WEBSOCKET)
+    message("${Green} use libtaos-ws${ColourReset}")
     if(${TD_LINUX})
-        set(ext_taosws_dll      libtaosws.so)
+        set(ext_taosws_dll libtaosws.so)
         set(ext_taosws_lib_from libtaosws.a)
-        set(ext_taosws_lib_to   libtaosws.a)
-        set(ext_taosws_link     ${ext_taosws_dll})
+        set(ext_taosws_lib_to libtaosws.a)
+        set(ext_taosws_link ${ext_taosws_dll})
     elseif(${TD_DARWIN})
-        set(ext_taosws_dll      libtaosws.dylib)
+        set(ext_taosws_dll libtaosws.dylib)
         set(ext_taosws_lib_from libtaosws.a)
-        set(ext_taosws_lib_to   libtaosws.a)
-        set(ext_taosws_link     ${ext_taosws_dll})
+        set(ext_taosws_lib_to libtaosws.a)
+        set(ext_taosws_link ${ext_taosws_dll})
     elseif(${TD_WINDOWS})
-        set(ext_taosws_dll      taosws.dll)
+        set(ext_taosws_dll taosws.dll)
         set(ext_taosws_lib_from taosws.dll.lib)
-        set(ext_taosws_lib_to   taosws.lib)
-        set(ext_taosws_link     ${ext_taosws_lib_to})
+        set(ext_taosws_lib_to taosws.lib)
+        set(ext_taosws_link ${ext_taosws_lib_to})
     endif()
     INIT_EXT(ext_taosws
         INC_DIR include
@@ -1612,16 +1612,15 @@ IF(TD_WEBSOCKET)
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E echo "taosws-rs no need cmake to config"
+        COMMAND "${CMAKE_COMMAND}" -E echo "taosws-rs no need cmake to config"
         BUILD_COMMAND
-            COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
+        COMMAND "${CMAKE_COMMAND}" -E env "TD_VERSION=${TD_VER_NUMBER}" cargo build --release --locked -p taos-ws-sys --features rustls
         INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws.h
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws.h
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
     add_dependencies(build_externals ext_taosws)
-ENDIF()
-
+endif()
