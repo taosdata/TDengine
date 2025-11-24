@@ -106,3 +106,6 @@ class TestInsertColumns:
         tdSql.error(f"insert into d2.st(ts, f, tbname) values(now, 1, 'd2.ct2');")
         tdSql.error(f"insert into d2.st(ts, tbname) values(now, 1, 34)")
         tdSql.error(f"insert into st using st2 tags(2) values(now,1);")
+        # TS-7696
+        tdSql.error(f"insert into d2.st(tbname, ts ,ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)values('ct1', now,1);")
+
