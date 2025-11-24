@@ -403,13 +403,12 @@ int32_t walEndSnapshot(SWal *pWal, bool forceTrim) {
 
   // check keepVersion and preserveVer constraint (skip if forceTrim is true)
   // choose the minimum value between keepVersion and preserveVer
-  int64_t minKeepVer = -1;
-  if (pWal->keepVersion >= 0) {
-    minKeepVer = pWal->keepVersion;
-  }
+  int64_t minKeepVer = pWal->keepVersion;
   if (tsWalPreserveForRestore && pWal->preserveVer >= 0) {
-    if (minKeepVer < 0 || pWal->preserveVer < minKeepVer) {
+    if (minKeepVer < 0) {
       minKeepVer = pWal->preserveVer;
+    } else {
+      minKeepVer = TMIN(minKeepVer, pWal->preserveVer);
     }
   }
 
