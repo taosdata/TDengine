@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ARG ZIG_VERSION=0.14.1
 ARG RUST_VERSION=1.90.0
 COPY ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources
-RUN apt update && apt install -y wget gcc make cmake libssl-dev pkg-config perl g++ gcc-aarch64-linux-gnu curl xz-utils ca-certificates
+RUN apt update && apt install -y wget gcc make cmake libssl-dev pkg-config perl g++ gcc-aarch64-linux-gnu curl xz-utils ca-certificates protobuf-compiler
 
 COPY zig-x86_64-linux-${ZIG_VERSION}.tar.xz .
 RUN tar -xf zig-x86_64-linux-${ZIG_VERSION}.tar.xz --strip-components 1 -C /usr/bin/

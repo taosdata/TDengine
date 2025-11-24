@@ -1379,6 +1379,20 @@ pub async fn tmq_to_td(
         .map(|s| parse_timeout_duration(&s))
         .transpose()?
         .unwrap_or_else(|| Duration::from_secs(60));
+    // enable sync from newer version to older version
+    let minimal = from
+        .remove("minimal")
+        .map(|s| match s.as_str() {
+            "" | "true" | "TRUE" | "1" | "yes" | "YES" => true,
+            "false" | "FALSE" | "0" | "no" | "NO" => false,
+            other => {
+                tracing::warn!(
+                    "Invalid value for `minimal`: `{other}`, using default value `false`"
+                );
+                false
+            }
+        })
+        .unwrap_or(false);
     let mut options = WriteOptions {
         with_meta_delete,
         with_meta_drop,
@@ -1393,6 +1407,7 @@ pub async fn tmq_to_td(
 
     let version = builder.server_version().await?.to_owned();
     tracing::debug!("Source version: {version}");
+
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
     if !from_params.contains_key("group.id") {
@@ -1422,7 +1437,7 @@ pub async fn tmq_to_td(
     {
         let source_version = semver::Version::parse(&version.split('.').take(3).join("."))?;
         let target_version = semver::Version::parse(&target_version.split('.').take(3).join("."))?;
-        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+        if !minimal && source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
             bail!(
                 "Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported."
             );
@@ -1726,21 +1741,6 @@ pub async fn tmq_to_td(
                                 break;
                             }
                             Err(err) => {
-                                let err_str = format!("{err:#}");
-                                if !(err_str.contains("0xE001")
-                                    || err_str.contains("0xE002")
-                                    || err_str.contains("0xE003")
-                                    || err_str.contains("0xE004")
-                                    || err_str.contains("0xE00B"))
-                                {
-                                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
-                                    // 0xE001: internal error
-                                    // 0xE002: connection closed
-                                    // 0xE003: send timeout
-                                    // 0xE004: receive timeout
-                                    // 0x000B: unable to establish connection
-                                    return Err(err);
-                                }
                                 if retries > max_retries {
                                     tracing::error!("Consumer error: {err:#}");
                                     return Err(err);
@@ -2145,9 +2145,9 @@ mod tests {
         unsafe {
             std::env::set_var("RUST_LOG", "debug");
         }
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::level_filters::LevelFilter::DEBUG)
-            .init();
+            .try_init();
 
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = std::env::var("WS_ENABLE").is_ok_and(|w| w.eq_ignore_ascii_case("true"));

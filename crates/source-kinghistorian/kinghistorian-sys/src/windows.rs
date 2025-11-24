@@ -1,6 +1,9 @@
-use std::collections::HashMap;
+#![allow(non_snake_case)]
+
+use std::{collections::HashMap, sync::OnceLock};
 
 use chrono::{DateTime, Utc};
+use dlopen2::wrapper::{Container, WrapperApi};
 
 #[allow(clippy::all)]
 #[allow(warnings)]
@@ -14,6 +17,10 @@ pub enum Error {
     KDB {
         code: error::KDBError,
         description: Option<String>,
+    },
+    Dlopen {
+        path: String,
+        error: dlopen2::Error,
     },
 }
 
@@ -30,15 +37,173 @@ impl std::fmt::Display for Error {
                     write!(f, "[{code}]")
                 }
             },
+            Error::Dlopen { path, error } => write!(f, "load dll {path} error: {error}"),
         }
     }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(WrapperApi)]
+pub struct KDBFunctions {
+    KDBAPIStartup: unsafe extern "system" fn(Flags: bindings::KDB_UINT32) -> bindings::KDB_RET,
+    KDBAPICleanup: unsafe extern "system" fn() -> bindings::KDB_RET,
+    KDBAPIVersion: unsafe extern "system" fn(Version: bindings::KDB_WSTR, Length: bindings::ULONG),
+    KDBAPITrace: unsafe extern "system" fn(
+        EnableTrace: bindings::KDB_BOOLEAN,
+        LogFileName: bindings::KDB_CWSTR,
+    ),
+    KDBUtilGetErrorDescription: unsafe extern "system" fn(
+        ErrorCode: bindings::KDB_RET,
+        ErrorDescription: bindings::KDB_WSTR,
+        Length: bindings::KDB_UINT32,
+    ),
+    KDBServerConnect: unsafe extern "system" fn(
+        ConnectionOption: bindings::PKDB_CONNECTION_OPTION,
+        DBHandle: *mut bindings::KDB_HANDLE,
+    ) -> bindings::KDB_RET,
+    KDBServerIsConnected:
+        unsafe extern "system" fn(DBHandle: bindings::KDB_HANDLE) -> bindings::KDB_BOOLEAN,
+    KDBServerGetTime: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        CurrentTime: *mut bindings::KDB_TIMESTAMP,
+    ) -> bindings::KDB_RET,
+    KDBDataOpenRecordset: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        DataCriteria: bindings::PKDB_DATA_CRITERIA,
+        DataRecordsets: bindings::PKDB_DATA_RECORDSETS,
+    ) -> bindings::KDB_RET,
+    KDBDataCloseRecordset:
+        unsafe extern "system" fn(DataRecordsets: bindings::PKDB_DATA_RECORDSETS),
+    KDBTagExists: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        TagName: bindings::KDB_CWSTR,
+    ) -> bindings::KDB_RET,
+    KDBTagGetAllNames: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        TagNames: bindings::PKDB_STRING_ARRAY,
+    ) -> bindings::KDB_RET,
+    KDBUtilFreeStringArray: unsafe extern "system" fn(StringArray: bindings::PKDB_STRING_ARRAY),
+    KDBTagGetNames: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        TagNameMask: bindings::KDB_CWSTR,
+        DescriptionMask: bindings::KDB_CWSTR,
+        CollectorName: bindings::KDB_CWSTR,
+        SourceAddress: bindings::KDB_CWSTR,
+        TagNames: bindings::PKDB_STRING_ARRAY,
+    ) -> bindings::KDB_RET,
+    KDBTagOpenRecordset: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        TagCriteria: bindings::PKDB_TAG_CRITERIA,
+        TagFields: bindings::PKDB_TAG_FIELDS,
+        TagRecordset: bindings::PKDB_TAG_RECORDSET,
+    ) -> bindings::KDB_RET,
+    KDBTagCloseRecordset:
+        unsafe extern "system" fn(TagRecordset: bindings::PKDB_TAG_RECORDSET) -> bindings::KDB_RET,
+    KDBTagGetProperties: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        TagName: bindings::KDB_CWSTR,
+        TagFields: bindings::PKDB_TAG_FIELDS,
+        TagProperties: bindings::PKDB_TAG_PROPERTIES,
+    ) -> bindings::KDB_RET,
+    KDBTagFreeProperties: unsafe extern "system" fn(TagProperties: bindings::PKDB_TAG_PROPERTIES),
+    KDBDataGetCurrentValue: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        NumberOfTags: bindings::KDB_UINT32,
+        TagNames: bindings::KDB_WSTR_ARRAY,
+        DigitalAsString: bindings::KDB_BOOLEAN,
+        DataProperties: bindings::PKDB_DATA_PROPERTIES,
+        ErrorStatuses: *mut bindings::KDB_RET,
+    ) -> bindings::KDB_RET,
+    KDBDataFreeCurrentValue: unsafe extern "system" fn(
+        NumberOfTags: bindings::KDB_UINT32,
+        DataProperties: bindings::PKDB_DATA_PROPERTIES,
+    ),
+    KDBDataRegisterCallback: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        CallbackFunction: bindings::KDB_DATA_CALLBACK_FUNCTION,
+        UserParameter: bindings::KDB_PTR,
+    ) -> bindings::KDB_RET,
+    KDBDataSubscribeEx: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        NumberOfTags: bindings::KDB_UINT32,
+        TagNames: bindings::KDB_WSTR_ARRAY,
+        MinimumElapsedTime: bindings::KDB_UINT32,
+        ErrorStatuses: *mut bindings::KDB_RET,
+        Subscribe: bindings::KDB_BOOLEAN,
+    ) -> bindings::KDB_RET,
+    KDBTagRegisterPropertiesCallback: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        CallbackFunction: bindings::KDB_TAG_PROPERTIES_CALLBACK_FUNCTION,
+        UserParameter: bindings::KDB_PTR,
+    ) -> bindings::KDB_RET,
+    KDBTagSubscribePropertiesEx: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        NumberOfTags: bindings::KDB_UINT32,
+        TagNames: bindings::KDB_WSTR_ARRAY,
+        ErrorStatuses: *mut bindings::KDB_RET,
+        Subscribe: bindings::KDB_BOOLEAN,
+    ) -> bindings::KDB_RET,
+    KDBTagGroupGetChildren: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        GroupID: bindings::KDB_UINT32,
+        ChildrenIDs: bindings::PKDB_INT_ARRAY,
+    ) -> bindings::KDB_RET,
+    KDBUtilFreeIntArray: unsafe extern "system" fn(IntArray: bindings::PKDB_INT_ARRAY),
+    KDBTagGroupGetTags: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        GroupID: bindings::KDB_UINT32,
+        TagNames: bindings::PKDB_STRING_ARRAY,
+    ) -> bindings::KDB_RET,
+    KDBServerDisconnect:
+        unsafe extern "system" fn(DBHandle: bindings::KDB_HANDLE) -> bindings::KDB_RET,
+    KDBTagGroupGetProperties: unsafe extern "system" fn(
+        DBHandle: bindings::KDB_HANDLE,
+        GroupID: bindings::KDB_UINT32,
+        GroupProperties: bindings::PKDB_TAG_GROUP_PROPERTIES,
+    ) -> bindings::KDB_RET,
+    KDBTagGroupFreeProperties:
+        unsafe extern "system" fn(GroupProperties: bindings::PKDB_TAG_GROUP_PROPERTIES),
+}
+
+static KDB_API: OnceLock<KDBContainer> = OnceLock::new();
+
+struct KDBContainer {
+    container: Container<KDBFunctions>,
+}
+
+impl KDBContainer {
+    fn open<'a>() -> Result<&'a Container<KDBFunctions>> {
+        match KDB_API.get() {
+            Some(this) => Ok(&this.container),
+            None => {
+                let path = std::env::var("KINGHISTORIAN_SDK_DLL_PATH")
+                    .unwrap_or_else(|_| "KRTDBAPIx64.dll".to_string());
+                let container = match unsafe { Container::load(&path) } {
+                    Ok(container) => Self { container },
+                    Err(error) => {
+                        tracing::warn!(
+                            "load KRTDBAPIx64.dll path error, use default C:\\Program Files\\KingHistorian\\SDK\\C\\KRTDBAPIx64.dll: {error}, "
+                        );
+                        let path =
+                            "C:\\Program Files\\KingHistorian\\SDK\\C\\KRTDBAPIx64.dll".to_string();
+                        match unsafe { Container::load(&path) } {
+                            Ok(container) => Self { container },
+                            Err(error) => return Err(Error::Dlopen { path, error }),
+                        }
+                    }
+                };
+                Ok(&KDB_API.get_or_init(|| container).container)
+            }
+        }
+    }
+}
+
 fn ret_to_error<T>(ret: bindings::KDB_RET) -> Result<T> {
     let mut buf = [0u16; 256];
-    unsafe { bindings::KDBUtilGetErrorDescription(ret, &mut buf as *mut _, 256) }
+    unsafe {
+        KDBContainer::open()?.KDBUtilGetErrorDescription(ret, &mut buf as *mut _, 256);
+    }
     Err(Error::KDB {
         code: (ret as bindings::KDBErrorCode).into(),
         description: string_from_wptr(&mut buf as *mut _),
@@ -46,7 +211,7 @@ fn ret_to_error<T>(ret: bindings::KDB_RET) -> Result<T> {
 }
 
 pub fn api_start_up() -> Result<()> {
-    let ret = unsafe { bindings::KDBAPIStartup(0) };
+    let ret = unsafe { KDBContainer::open()?.KDBAPIStartup(0) };
     if ret == 0 {
         return Ok(());
     }
@@ -54,26 +219,27 @@ pub fn api_start_up() -> Result<()> {
 }
 
 pub fn api_cleanup() -> Result<()> {
-    let ret = unsafe { bindings::KDBAPICleanup() };
+    let ret = unsafe { KDBContainer::open()?.KDBAPICleanup() };
     if ret == 0 {
         return Ok(());
     }
     ret_to_error(ret)
 }
 
-pub fn api_trace(filename: &str, enable: bool) {
+pub fn api_trace(filename: &str, enable: bool) -> Result<()> {
     let filename = string_to_wptr_vec(filename);
     unsafe {
-        bindings::KDBAPITrace(enable as _, filename.as_ptr());
+        KDBContainer::open()?.KDBAPITrace(enable as _, filename.as_ptr());
     }
+    Ok(())
 }
 
-pub fn api_version() -> Option<String> {
+pub fn api_version() -> Result<Option<String>> {
     let mut res = [0; 30];
     unsafe {
-        bindings::KDBAPIVersion(res.as_mut_ptr(), 30);
+        KDBContainer::open()?.KDBAPIVersion(res.as_mut_ptr(), 30);
     }
-    string_from_wptr(res.as_mut_ptr())
+    Ok(string_from_wptr(res.as_mut_ptr()))
 }
 
 pub struct ConnectionOptionsBuilder<'a> {
@@ -242,7 +408,7 @@ impl ServerConnection {
             Reserved4: std::ptr::null_mut(),
         };
         let mut handle = std::ptr::null_mut();
-        let ret = unsafe { bindings::KDBServerConnect(&mut opts, &mut handle) };
+        let ret = unsafe { KDBContainer::open()?.KDBServerConnect(&mut opts, &mut handle) };
         if ret != 0 {
             return ret_to_error(ret);
         }
@@ -253,8 +419,8 @@ impl ServerConnection {
         })
     }
 
-    pub fn is_connected(&mut self) -> bool {
-        unsafe { bindings::KDBServerIsConnected(self.handle) > 0 }
+    pub fn is_connected(&mut self) -> Result<bool> {
+        unsafe { Ok(KDBContainer::open()?.KDBServerIsConnected(self.handle) > 0) }
     }
 
     pub fn get_server_time(&mut self) -> Result<Option<DateTime<Utc>>> {
@@ -262,7 +428,7 @@ impl ServerConnection {
             Seconds: 0,
             Millisecs: 0,
         };
-        let ret = unsafe { bindings::KDBServerGetTime(self.handle, &mut ts as *mut _) };
+        let ret = unsafe { KDBContainer::open()?.KDBServerGetTime(self.handle, &mut ts as *mut _) };
         if ret == 0 {
             return Ok(DateTime::from_timestamp(
                 ts.Seconds as _,
@@ -330,7 +496,11 @@ impl ServerConnection {
             DataRecordset: std::ptr::null_mut(),
         };
         let ret = unsafe {
-            bindings::KDBDataOpenRecordset(self.handle, &mut criteria, &mut data_record_sets)
+            KDBContainer::open()?.KDBDataOpenRecordset(
+                self.handle,
+                &mut criteria,
+                &mut data_record_sets,
+            )
         };
         if ret != 0 {
             return ret_to_error(ret);
@@ -369,20 +539,20 @@ impl ServerConnection {
                     quality: record.Quality as _,
                     value,
                 };
-                tag_data.push(data)
+                tag_data.push(data);
             }
             res.insert(tag_name, tag_data);
         }
 
         unsafe {
-            bindings::KDBDataCloseRecordset(&mut data_record_sets);
+            KDBContainer::open()?.KDBDataCloseRecordset(&mut data_record_sets);
         }
         Ok(res)
     }
 
     pub fn tag_exists(&mut self, tag_name: &str) -> Result<bool> {
         let tag_name_v = string_to_wptr_vec(tag_name);
-        let ret = unsafe { bindings::KDBTagExists(self.handle, tag_name_v.as_ptr()) };
+        let ret = unsafe { KDBContainer::open()?.KDBTagExists(self.handle, tag_name_v.as_ptr()) };
         if ret == 0 {
             return Ok(true);
         }
@@ -398,7 +568,7 @@ impl ServerConnection {
             SizeOfArray: 0,
             StringArray: std::ptr::null_mut(),
         };
-        let ret = unsafe { bindings::KDBTagGetAllNames(self.handle, &mut buf) };
+        let ret = unsafe { KDBContainer::open()?.KDBTagGetAllNames(self.handle, &mut buf) };
         if ret != 0 {
             return ret_to_error(ret);
         }
@@ -422,7 +592,9 @@ impl ServerConnection {
             res.push(s);
         }
 
-        unsafe { bindings::KDBUtilFreeStringArray(&mut buf as _) };
+        unsafe {
+            KDBContainer::open()?.KDBUtilFreeStringArray(&mut buf as _);
+        }
 
         Ok(res)
     }
@@ -439,7 +611,7 @@ impl ServerConnection {
             StringArray: std::ptr::null_mut(),
         };
         let ret = unsafe {
-            bindings::KDBTagGetNames(
+            KDBContainer::open()?.KDBTagGetNames(
                 self.handle,
                 tag_name_mask
                     .map(|s| string_to_wptr_vec(&s))
@@ -483,7 +655,9 @@ impl ServerConnection {
             res.push(s);
         }
 
-        unsafe { bindings::KDBUtilFreeStringArray(&mut buf as _) };
+        unsafe {
+            KDBContainer::open()?.KDBUtilFreeStringArray(&mut buf as _);
+        }
 
         Ok(res)
     }
@@ -530,7 +704,12 @@ impl ServerConnection {
             TagRecords: std::ptr::null_mut(),
         };
         let ret = unsafe {
-            bindings::KDBTagOpenRecordset(self.handle, &mut criteria, &mut fields, &mut recordset)
+            KDBContainer::open()?.KDBTagOpenRecordset(
+                self.handle,
+                &mut criteria,
+                &mut fields,
+                &mut recordset,
+            )
         };
         if ret != 0 {
             return ret_to_error(ret);
@@ -545,10 +724,12 @@ impl ServerConnection {
 
         let mut res = Vec::with_capacity(size);
         for prop in records {
-            res.push(TagProperties::from_kdb(prop))
+            res.push(TagProperties::from_kdb(prop));
         }
 
-        unsafe { bindings::KDBTagCloseRecordset(&mut recordset) };
+        unsafe {
+            KDBContainer::open()?.KDBTagCloseRecordset(&mut recordset);
+        }
 
         return Ok(res);
     }
@@ -671,7 +852,7 @@ impl ServerConnection {
         };
         let mut fields = fields.to_kdb_tag_fields();
         let ret = unsafe {
-            bindings::KDBTagGetProperties(
+            KDBContainer::open()?.KDBTagGetProperties(
                 self.handle,
                 tag_name.as_ptr(),
                 &mut fields as _,
@@ -682,7 +863,9 @@ impl ServerConnection {
             return ret_to_error(ret);
         }
         let res = TagProperties::from_kdb(&prop);
-        unsafe { bindings::KDBTagFreeProperties(&mut prop) };
+        unsafe {
+            KDBContainer::open()?.KDBTagFreeProperties(&mut prop);
+        }
         Ok(res)
     }
 
@@ -715,7 +898,7 @@ impl ServerConnection {
         }
         let mut error_status_arr = vec![0; len];
         let ret = unsafe {
-            bindings::KDBDataGetCurrentValue(
+            KDBContainer::open()?.KDBDataGetCurrentValue(
                 self.handle,
                 len as _,
                 tags.as_mut_ptr(),
@@ -754,7 +937,9 @@ impl ServerConnection {
             res.push(Ok(data));
         }
 
-        unsafe { bindings::KDBDataFreeCurrentValue(len as _, properties.as_mut_ptr()) };
+        unsafe {
+            KDBContainer::open()?.KDBDataFreeCurrentValue(len as _, properties.as_mut_ptr());
+        }
 
         Ok(res)
     }
@@ -774,7 +959,7 @@ impl ServerConnection {
             Some(sender) => {
                 let sender = Box::into_raw(Box::new(sender));
                 let ret = unsafe {
-                    bindings::KDBDataRegisterCallback(
+                    KDBContainer::open()?.KDBDataRegisterCallback(
                         self.handle,
                         Some(data_change_callback),
                         sender as *mut _,
@@ -793,7 +978,11 @@ impl ServerConnection {
                     let _ = unsafe { Box::from_raw(sender) };
                 }
                 let ret = unsafe {
-                    bindings::KDBDataRegisterCallback(self.handle, None, std::ptr::null_mut())
+                    KDBContainer::open()?.KDBDataRegisterCallback(
+                        self.handle,
+                        None,
+                        std::ptr::null_mut(),
+                    )
                 };
                 if ret != 0 {
                     return ret_to_error(ret);
@@ -809,7 +998,7 @@ impl ServerConnection {
         let len = tag_names.len();
         let mut error_status_arr = vec![0; len];
         let ret = unsafe {
-            bindings::KDBDataSubscribeEx(
+            KDBContainer::open()?.KDBDataSubscribeEx(
                 self.handle,
                 len as _,
                 tag_names.as_mut_ptr(),
@@ -819,7 +1008,13 @@ impl ServerConnection {
             )
         };
         if ret != 0 {
-            unsafe { bindings::KDBDataRegisterCallback(self.handle, None, std::ptr::null_mut()) };
+            unsafe {
+                KDBContainer::open()?.KDBDataRegisterCallback(
+                    self.handle,
+                    None,
+                    std::ptr::null_mut(),
+                );
+            }
             return ret_to_error(ret);
         }
 
@@ -843,7 +1038,7 @@ impl ServerConnection {
             Some(sender) => {
                 let sender = Box::into_raw(Box::new(sender));
                 let ret = unsafe {
-                    bindings::KDBTagRegisterPropertiesCallback(
+                    KDBContainer::open()?.KDBTagRegisterPropertiesCallback(
                         self.handle,
                         Some(tag_change_callback),
                         sender as *mut _,
@@ -862,7 +1057,7 @@ impl ServerConnection {
                     let _ = unsafe { Box::from_raw(sender) };
                 }
                 let ret = unsafe {
-                    bindings::KDBTagRegisterPropertiesCallback(
+                    KDBContainer::open()?.KDBTagRegisterPropertiesCallback(
                         self.handle,
                         None,
                         std::ptr::null_mut(),
@@ -884,7 +1079,7 @@ impl ServerConnection {
         let mut error_status_arr = vec![0; len];
 
         let ret = unsafe {
-            bindings::KDBTagSubscribePropertiesEx(
+            KDBContainer::open()?.KDBTagSubscribePropertiesEx(
                 self.handle,
                 len as _,
                 tag_names.as_mut_ptr(),
@@ -894,8 +1089,12 @@ impl ServerConnection {
         };
         if ret != 0 {
             unsafe {
-                bindings::KDBTagRegisterPropertiesCallback(self.handle, None, std::ptr::null_mut())
-            };
+                KDBContainer::open()?.KDBTagRegisterPropertiesCallback(
+                    self.handle,
+                    None,
+                    std::ptr::null_mut(),
+                );
+            }
             return ret_to_error(ret);
         }
 
@@ -910,8 +1109,9 @@ impl ServerConnection {
             SizeOfArray: 0,
             IntArray: std::ptr::null_mut(),
         };
-        let ret =
-            unsafe { bindings::KDBTagGroupGetChildren(self.handle, group_id as _, &mut array) };
+        let ret = unsafe {
+            KDBContainer::open()?.KDBTagGroupGetChildren(self.handle, group_id as _, &mut array)
+        };
         if ret != 0 {
             return ret_to_error(ret);
         }
@@ -924,7 +1124,9 @@ impl ServerConnection {
         let children = unsafe { std::slice::from_raw_parts(array.IntArray, len) };
         res.extend(children.iter().map(|v| *v as u32));
 
-        unsafe { bindings::KDBUtilFreeIntArray(&mut array) };
+        unsafe {
+            KDBContainer::open()?.KDBUtilFreeIntArray(&mut array);
+        }
         Ok(res)
     }
 
@@ -933,7 +1135,9 @@ impl ServerConnection {
             SizeOfArray: 0,
             StringArray: std::ptr::null_mut(),
         };
-        let ret = unsafe { bindings::KDBTagGroupGetTags(self.handle, group_id as _, &mut array) };
+        let ret = unsafe {
+            KDBContainer::open()?.KDBTagGroupGetTags(self.handle, group_id as _, &mut array)
+        };
         if ret != 0 {
             return ret_to_error(ret);
         }
@@ -945,8 +1149,30 @@ impl ServerConnection {
         let mut res = Vec::with_capacity(len);
         res.extend(tag_names.iter().filter_map(|s| string_from_wptr(*s)));
 
-        unsafe { bindings::KDBUtilFreeStringArray(&mut array) };
+        unsafe {
+            KDBContainer::open()?.KDBUtilFreeStringArray(&mut array);
+        }
 
+        Ok(res)
+    }
+
+    pub fn get_tag_group_properties(&mut self, group_id: u32) -> Result<TagGroupProperties> {
+        let mut prop = bindings::KDBTagGroupProperties {
+            GroupID: group_id as _,
+            ParentID: 0,
+            GroupName: std::ptr::null_mut(),
+            Description: std::ptr::null_mut(),
+        };
+        let ret = unsafe {
+            KDBContainer::open()?.KDBTagGroupGetProperties(self.handle, group_id as _, &mut prop)
+        };
+        if ret != 0 {
+            return ret_to_error(ret);
+        }
+        let res = TagGroupProperties::from_kdb(&prop);
+        unsafe {
+            KDBContainer::open()?.KDBTagGroupFreeProperties(&mut prop);
+        }
         Ok(res)
     }
 }
@@ -997,10 +1223,14 @@ unsafe extern "C" fn data_change_callback(
     let _ = sender.send(Ok(record));
 
     unsafe {
-        bindings::KDBDataCloseRecordset(&mut bindings::KDBDataRecordsets {
-            NumberOfTags: 1,
-            DataRecordset: &mut records,
-        })
+        if let Ok(container) = KDBContainer::open() {
+            container.KDBDataCloseRecordset(
+                &mut (bindings::KDBDataRecordsets {
+                    NumberOfTags: 1,
+                    DataRecordset: &mut records,
+                }),
+            );
+        }
     }
 
     0
@@ -1031,7 +1261,11 @@ unsafe extern "C" fn tag_change_callback(
 impl Drop for ServerConnection {
     fn drop(&mut self) {
         if let Some(sender) = self.data_sender.take() {
-            unsafe { bindings::KDBDataRegisterCallback(self.handle, None, std::ptr::null_mut()) };
+            unsafe {
+                if let Ok(container) = KDBContainer::open() {
+                    container.KDBDataRegisterCallback(self.handle, None, std::ptr::null_mut());
+                }
+            }
             if !sender.is_null() {
                 let _ = unsafe { Box::from_raw(sender) };
             }
@@ -1039,8 +1273,14 @@ impl Drop for ServerConnection {
 
         if let Some(sender) = self.tag_sender.take() {
             unsafe {
-                bindings::KDBTagRegisterPropertiesCallback(self.handle, None, std::ptr::null_mut())
-            };
+                if let Ok(container) = KDBContainer::open() {
+                    container.KDBTagRegisterPropertiesCallback(
+                        self.handle,
+                        None,
+                        std::ptr::null_mut(),
+                    );
+                }
+            }
             if !sender.is_null() {
                 let _ = unsafe { Box::from_raw(sender) };
             }
@@ -1048,7 +1288,9 @@ impl Drop for ServerConnection {
 
         if !self.handle.is_null() {
             unsafe {
-                bindings::KDBServerDisconnect(self.handle);
+                if let Ok(container) = KDBContainer::open() {
+                    container.KDBServerDisconnect(self.handle);
+                }
             }
             self.handle = std::ptr::null_mut();
         }
@@ -1214,7 +1456,7 @@ impl Value {
                     varVal: Box::into_raw(Box::new(v.as_kdb_value().0)),
                 },
                 Value::Dec(v) => bindings::KDBValue__bindgen_ty_1 {
-                    decVal: &mut bindings::tagDEC {
+                    decVal: &mut (bindings::tagDEC {
                         wReserved: 0,
                         __bindgen_anon_1: bindings::tagDEC__bindgen_ty_1 {
                             __bindgen_anon_1: bindings::tagDEC__bindgen_ty_1__bindgen_ty_1 {
@@ -1229,7 +1471,7 @@ impl Value {
                                 Mid32: v.mid_32 as _,
                             },
                         },
-                    },
+                    }),
                 },
             },
         };
@@ -1316,14 +1558,14 @@ impl Drop for SafeVal {
 
 fn free_val(val: &mut SafeVal) {
     if ValueType::from(val.0.DataType) == ValueType::Str
-        && unsafe { !val.0.__bindgen_anon_1.strVal.is_null() }
+        && (unsafe { !val.0.__bindgen_anon_1.strVal.is_null() })
     {
         let _ = unsafe { std::ffi::CString::from_raw(val.0.__bindgen_anon_1.strVal) };
         val.0.__bindgen_anon_1.strVal = std::ptr::null_mut();
     }
 
     if ValueType::from(val.0.DataType) == ValueType::Var
-        && unsafe { !val.0.__bindgen_anon_1.varVal.is_null() }
+        && (unsafe { !val.0.__bindgen_anon_1.varVal.is_null() })
     {
         let boxed = unsafe { Box::from_raw(val.0.__bindgen_anon_1.varVal) };
         free_val(&mut SafeVal(*boxed));
@@ -1337,21 +1579,21 @@ impl Value {
             Value::Empty => 0,
             Value::Bool(_) => 1,
             Value::I8(_) => 2,
-            Value::I16(_) => 3,
-            Value::I32(_) => 4,
-            Value::I64(_) => 5,
-            Value::U8(_) => 6,
-            Value::U16(_) => 7,
-            Value::U32(_) => 8,
+            Value::U8(_) => 3,
+            Value::I16(_) => 4,
+            Value::U16(_) => 5,
+            Value::I32(_) => 6,
+            Value::U32(_) => 7,
+            Value::I64(_) => 8,
             Value::U64(_) => 9,
             Value::F32(_) => 10,
             Value::F64(_) => 11,
             Value::Str(_) => 12,
             Value::WStr(_) => 13,
-            Value::Blob(_) => 14,
-            Value::FileTime(_) => 15,
-            Value::Timestamp(_) => 16,
-            Value::Var(_) => 17,
+            Value::Timestamp(_) => 14,
+            Value::Blob(_) => 15,
+            Value::Var(_) => 16,
+            Value::FileTime(_) => 17,
             Value::Dec(_) => 18,
         }
     }
@@ -1363,21 +1605,21 @@ pub enum ValueType {
     Empty = 0,
     Bool = 1,
     I8 = 2,
-    I16 = 3,
-    I32 = 4,
-    I64 = 5,
-    U8 = 6,
-    U16 = 7,
-    U32 = 8,
+    U8 = 3,
+    I16 = 4,
+    U16 = 5,
+    I32 = 6,
+    U32 = 7,
+    I64 = 8,
     U64 = 9,
     F32 = 10,
     F64 = 11,
     Str = 12,
     WStr = 13,
-    Blob = 14,
-    FileTime = 15,
-    Timestamp = 16,
-    Var = 17,
+    Timestamp = 14,
+    Blob = 15,
+    Var = 16,
+    FileTime = 17,
     Dec = 18,
 }
 
@@ -1386,21 +1628,21 @@ impl From<u16> for ValueType {
         match value {
             1 => ValueType::Bool,
             2 => ValueType::I8,
-            3 => ValueType::I16,
-            4 => ValueType::I32,
-            5 => ValueType::I64,
-            6 => ValueType::U8,
-            7 => ValueType::U16,
-            8 => ValueType::U32,
+            3 => ValueType::U8,
+            4 => ValueType::I16,
+            5 => ValueType::U16,
+            6 => ValueType::I32,
+            7 => ValueType::U32,
+            8 => ValueType::I64,
             9 => ValueType::U64,
             10 => ValueType::F32,
             11 => ValueType::F64,
             12 => ValueType::Str,
             13 => ValueType::WStr,
-            14 => ValueType::Blob,
-            15 => ValueType::FileTime,
-            16 => ValueType::Timestamp,
-            17 => ValueType::Var,
+            14 => ValueType::Timestamp,
+            15 => ValueType::Blob,
+            16 => ValueType::Var,
+            17 => ValueType::FileTime,
             18 => ValueType::Dec,
             _ => ValueType::Empty,
         }
@@ -1422,7 +1664,7 @@ pub struct FileTime {
     dw_high_date_time: u32,
 }
 pub struct DataCriteriaBuilder<'a> {
-    tag_names: Vec<String>,
+    tag_names: &'a [String],
     start_time: Option<DateTime<Utc>>,
     end_time: Option<DateTime<Utc>>,
     data_version: Option<DataVersion>,
@@ -1510,7 +1752,7 @@ impl<'a> DataCriteriaBuilder<'a> {
             tag_names: self
                 .tag_names
                 .iter()
-                .map(|s| string_to_wptr_vec(&s))
+                .map(|s| string_to_wptr_vec(s))
                 .collect(),
             start_time: self.start_time,
             end_time: self.end_time,
@@ -1547,13 +1789,9 @@ pub struct DataCriteria {
 }
 
 impl DataCriteria {
-    pub fn builder<'a, I, T>(tag_names: I) -> DataCriteriaBuilder<'a>
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<String>,
-    {
+    pub fn builder<'a>(tag_names: &'a [String]) -> DataCriteriaBuilder<'a> {
         DataCriteriaBuilder {
-            tag_names: tag_names.into_iter().map(|s| s.into()).collect(),
+            tag_names,
             start_time: None,
             end_time: None,
             data_version: None,
@@ -1599,7 +1837,7 @@ pub struct Data {
 #[derive(Debug, Default)]
 pub struct TagCriteriaBuilder<'a> {
     tag_name_mask: Option<&'a str>,
-    tag_names: Option<Vec<String>>,
+    tag_names: Option<&'a [String]>,
     description_mask: Option<&'a str>,
     collector_name: Option<&'a str>,
     source_address: Option<&'a str>,
@@ -1611,20 +1849,8 @@ impl<'a> TagCriteriaBuilder<'a> {
         self
     }
 
-    pub fn tag_names<I, T>(mut self, names: I) -> Self
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<String>,
-    {
-        self.tag_names = Some(names.into_iter().map(|s| s.into()).collect());
-        self
-    }
-
-    pub fn push_tag_name(mut self, name: &'a str) -> Self {
-        match self.tag_names.as_mut() {
-            Some(vec) => vec.push(name.into()),
-            None => self.tag_names = Some(vec![name.into()]),
-        }
+    pub fn tag_names(mut self, names: &'a [String]) -> Self {
+        self.tag_names = Some(names);
         self
     }
 
@@ -2540,10 +2766,54 @@ impl ItemChangeType {
     }
 }
 
+#[derive(Debug)]
+pub struct TagGroupProperties {
+    pub group_id: u32,
+    pub parent_id: u32,
+    pub group_name: Option<String>,
+    pub description: Option<String>,
+}
+
+impl TagGroupProperties {
+    fn from_kdb(prop: &bindings::KDBTagGroupProperties) -> Self {
+        TagGroupProperties {
+            group_id: prop.GroupID,
+            parent_id: prop.ParentID,
+            group_name: string_from_wptr(prop.GroupName),
+            description: string_from_wptr(prop.Description),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
+
+    #[test]
+    fn value_type_from_codes_should_match_header() {
+        // Integer family
+        assert_eq!(ValueType::from(2u16), ValueType::I8);
+        assert_eq!(ValueType::from(3u16), ValueType::U8);
+        assert_eq!(ValueType::from(4u16), ValueType::I16);
+        assert_eq!(ValueType::from(5u16), ValueType::U16);
+        assert_eq!(ValueType::from(6u16), ValueType::I32);
+        assert_eq!(ValueType::from(7u16), ValueType::U32);
+        assert_eq!(ValueType::from(8u16), ValueType::I64);
+        assert_eq!(ValueType::from(9u16), ValueType::U64);
+
+        // Float & string
+        assert_eq!(ValueType::from(10u16), ValueType::F32);
+        assert_eq!(ValueType::from(11u16), ValueType::F64);
+        assert_eq!(ValueType::from(12u16), ValueType::Str);
+        assert_eq!(ValueType::from(13u16), ValueType::WStr);
+
+        // Others
+        assert_eq!(ValueType::from(14u16), ValueType::Timestamp);
+        assert_eq!(ValueType::from(15u16), ValueType::Blob);
+        assert_eq!(ValueType::from(16u16), ValueType::Var);
+        assert_eq!(ValueType::from(17u16), ValueType::FileTime);
+        assert_eq!(ValueType::from(18u16), ValueType::Dec);
+    }
 
     #[test]
     #[ignore]
@@ -2558,7 +2828,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         api_cleanup().unwrap();
     }
 
@@ -2575,7 +2845,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         let tags = conn.all_tags().unwrap();
         for tag in tags {
             println!("{tag}");
@@ -2596,7 +2866,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         match conn.get_data_current_value(["Tag000020"], false) {
             Ok(values) => {
                 println!("len: {}", values.len());
@@ -2607,7 +2877,7 @@ mod tests {
             Err(e) => {
                 println!("error: {e}");
             }
-        };
+        }
         api_cleanup().unwrap();
     }
 
@@ -2624,7 +2894,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         match conn.tag_exists("Tag000020") {
             Ok(v) => {
                 println!("tag exists: {v}");
@@ -2649,7 +2919,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         match conn.get_tag_names_by_filter(Some("OPC".into()), None, None, None) {
             Ok(tags) => {
                 for tag in tags {
@@ -2676,10 +2946,10 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         let (sender, receiver) = flume::bounded(1);
         match conn.data_subscribe(
-            ["OPC_数据类型示例.8 位设备.K 寄存器.Double1"],
+            ["OPC_数据类型示例.16 位设备.R 寄存器.Short1"],
             1000,
             Some(sender),
         ) {
@@ -2707,14 +2977,14 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("error data: {e:?}")
+                println!("error data: {e:?}");
             }
         }
         api_cleanup().unwrap();
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn query_data_test() {
         api_start_up().unwrap();
         let opts = ConnectionOptions::builder("127.0.0.1", "5678", "sa", "sa").build();
@@ -2726,9 +2996,11 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
 
-        let filter = DataCriteria::builder(["OPC_数据类型示例.8 位设备.K 寄存器.Double1"]).build();
+        let filter =
+            DataCriteria::builder(&["OPC_数据类型示例.16 位设备.R 寄存器.Double1".to_string()])
+                .build();
         match conn.query_tag_values(filter) {
             Ok(tags) => {
                 for (key, value) in tags {
@@ -2740,6 +3012,60 @@ mod tests {
             }
         }
         api_cleanup().unwrap();
+    }
+
+    #[test]
+    fn test_query_multi_tags() {
+        api_start_up().unwrap();
+        let opts = ConnectionOptions::builder("127.0.0.1", "5678", "sa", "sa").build();
+        let mut conn = match ServerConnection::new(opts) {
+            Ok(conn) => conn,
+            Err(e) => {
+                api_cleanup().unwrap();
+                println!("connect error: {e:?}");
+                return;
+            }
+        };
+        assert!(conn.is_connected().unwrap());
+
+        let start = DateTime::parse_from_rfc3339("2025-10-15T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let end = DateTime::parse_from_rfc3339("2025-10-16T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        use std::io::Write;
+        use std::time::Instant;
+
+        let file = std::fs::File::create("test_query_multi_tags.txt").unwrap();
+        let mut file = std::io::BufWriter::new(file);
+        let elapse = Instant::now();
+        let filter = DataCriteria::builder(&[
+            "OPC_数据类型示例.16 位设备.R 寄存器.Double1".to_string(),
+            "OPC_数据类型示例.16 位设备.R 寄存器.Double2".to_string(),
+            "OPC_数据类型示例.16 位设备.R 寄存器.Double3".to_string(),
+            "OPC_数据类型示例.16 位设备.R 寄存器.Double4".to_string(),
+        ])
+        .start_time(start)
+        .end_time(end)
+        .row_count(86400000)
+        .build();
+        match conn.query_tag_values(filter) {
+            Ok(tags) => {
+                let elapsed = elapse.elapsed();
+                for (key, value) in tags {
+                    println!("key: {}, len: {}, elapsed: {:?}", key, value.len(), elapsed);
+                    for v in &value {
+                        writeln!(file, "{key}, {:?}", v).unwrap();
+                    }
+                    file.flush().unwrap();
+                }
+            }
+            Err(e) => {
+                println!("filter error: {e}");
+            }
+        }
     }
 
     #[test]
@@ -2755,10 +3081,10 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
 
         let filter = TagCriteria::builder()
-            .tag_names(["OPC_数据类型示例.8 位设备.K 寄存器.Double1"])
+            .tag_names(&["OPC_数据类型示例.8 位设备.K 寄存器.Double1".to_string()])
             .build();
         let fields = TagFields::builder().all_fields().build();
         match conn.query_tag_properties(filter, fields) {
@@ -2787,7 +3113,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
 
         let fields = TagFields::builder().all_fields().build();
         match conn.get_tag_properties("OPC_数据类型示例.8 位设备.K 寄存器.Double1", fields)
@@ -2815,7 +3141,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         let (sender, receiver) = flume::bounded(1);
         match conn.tag_subscribe(["Tag0"], Some(sender)) {
             Ok(res) => {
@@ -2850,7 +3176,7 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         match conn.tag_group_get_children(1) {
             Ok(res) => {
                 println!("{res:?}");
@@ -2876,13 +3202,39 @@ mod tests {
                 return;
             }
         };
-        assert!(conn.is_connected());
+        assert!(conn.is_connected().unwrap());
         match conn.tag_group_get_tags(1) {
             Ok(res) => {
                 println!("{res:?}");
             }
             Err(e) => {
                 println!("tag group get tags error: {e:?}");
+            }
+        }
+
+        api_cleanup().unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn get_tag_group_properties_test() {
+        api_start_up().unwrap();
+        let opts = ConnectionOptions::builder("127.0.0.1", "5678", "sa", "sa").build();
+        let mut conn = match ServerConnection::new(opts) {
+            Ok(conn) => conn,
+            Err(e) => {
+                api_cleanup().unwrap();
+                println!("connect error: {e:?}");
+                return;
+            }
+        };
+        assert!(conn.is_connected().unwrap());
+        match conn.get_tag_group_properties(1) {
+            Ok(res) => {
+                println!("{res:?}");
+            }
+            Err(e) => {
+                println!("get tag group properties error: {e:?}");
             }
         }
 

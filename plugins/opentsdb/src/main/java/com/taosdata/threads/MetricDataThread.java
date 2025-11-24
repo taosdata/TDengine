@@ -14,6 +14,7 @@ import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.flux.FluxEnums;
 import com.taosdata.utils.flux.FluxManager;
 import lombok.Getter;
+import com.taosdata.utils.logging.ErrorLimiter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,18 @@ import java.util.List;
 public class MetricDataThread implements Runnable {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
+
+    /**
+     * Debounce repeated error logs within window
+     */
+    private static final ErrorLimiter ERROR_LIMITER = new ErrorLimiter(60_000L);
+
+    /**
+     * Exponential backoff state (ms)
+     */
+    private long backoffMs = 0L;
+    private static final long BASE_BACKOFF_MS = 1000L; // 1s
+    private static final long MAX_BACKOFF_MS = 30_000L; // 30s
 
     /**
      * 线程名
@@ -100,6 +113,8 @@ public class MetricDataThread implements Runnable {
                         }
                     }
                 }
+                // success, reset backoff
+                this.backoffMs = 0L;
                 // 记录任务完成信息
                 StatisticCache.noteCompletedTask(this.key);
                 // 终止
@@ -109,10 +124,13 @@ public class MetricDataThread implements Runnable {
                 break;
             } catch (Exception e) {
                 exception(start, StatusEnums.EXCEPTION, e);
+                // exponential backoff
+                this.backoffMs = (this.backoffMs == 0L) ? BASE_BACKOFF_MS : Math.min(MAX_BACKOFF_MS, this.backoffMs * 2);
                 try {
-                    Thread.sleep(1000L);
+                    Thread.sleep(this.backoffMs);
                 } catch (InterruptedException e1) {
-                    logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
+                    logger.error(this.name + "#Thread sleep exception#" + e1.getMessage(), e1);
+                    break;
                 }
             }
         }
@@ -146,7 +164,14 @@ public class MetricDataThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.error(this.name + "#Thread exception (Take time " + (end - start) + " ms)#" + e.getMessage(), e);
+        String key = ErrorLimiter.key(this.name == null ? "MetricDataThread" : this.name, e);
+        if (ERROR_LIMITER.shouldLog(key)) {
+            int suppressed = ERROR_LIMITER.getAndResetSuppressed(key);
+            if (suppressed > 0) {
+                logger.error(this.name + "#Suppressed {} repeated errors in last {} ms", suppressed, 60_000);
+            }
+            logger.error(this.name + "#Thread exception (Take time " + (end - start) + " ms)#" + e.getMessage(), e);
+        }
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -156,7 +181,7 @@ public class MetricDataThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.info(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
+        logger.debug(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
         // 清除线程信息
         StatusCache.forgetThread(this.name);
         // 释放阻塞

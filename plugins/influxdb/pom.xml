@@ -23,6 +23,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
         <spring-cloud.version>2021.0.0</spring-cloud.version>
+        <arrow.version>13.0.0</arrow.version>
     </properties>
 
     <dependencies>
@@ -95,12 +96,12 @@
         <dependency>
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-vector</artifactId>
-            <version>11.0.0</version>
+            <version>${arrow.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-memory-netty</artifactId>
-            <version>11.0.0</version>
+            <version>${arrow.version}</version>
         </dependency>
         <!-- 解析toml文件 -->
         <dependency>

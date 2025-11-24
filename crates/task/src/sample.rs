@@ -41,6 +41,13 @@ pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSamples> {
         source_mongodb::MONGODB_ID => source_mongodb::get_sample(&dsn)
             .await
             .map(DsSamples::Simple),
+        source_pulsar::PULSAR_ID | source_pulsar::PULSAR_TUYA_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            source_pulsar::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::Simple)
+        }
         s => Err(anyhow::anyhow!(
             "get sample from data source {s} is unsupported"
         )),

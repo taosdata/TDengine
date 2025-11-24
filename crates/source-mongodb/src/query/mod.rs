@@ -201,12 +201,8 @@ impl MongoDBQuery {
                     match item {
                         Some(Ok(item)) => {
                             if documents.len() >= batch_size {
-                                send_documents_to_ipc(
-                                    &mut documents,
-                                    batch_size,
-                                    &tx,
-                                    &mut amount,
-                                )?;
+                                send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)
+                                    .await?;
                             }
                             documents.push(item);
                         }
@@ -217,7 +213,7 @@ impl MongoDBQuery {
                     }
                 }
                 if !documents.is_empty() {
-                    send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount)?;
+                    send_documents_to_ipc(&mut documents, batch_size, &tx, &mut amount).await?;
                 }
                 Ok(amount)
             }
@@ -264,7 +260,7 @@ impl MongoDBQuery {
     }
 }
 
-fn send_documents_to_ipc(
+async fn send_documents_to_ipc(
     documents: &mut Vec<Document>,
     batch_size: usize,
     tx: &Sender<RecordBatch>,
@@ -275,7 +271,7 @@ fn send_documents_to_ipc(
         if batch.num_rows() > 0 {
             // if the sending fails, retry 3 times by sleeping 1 second each time
             for i in 1..4 {
-                let send_result = tx.send(batch.clone());
+                let send_result = tx.send_async(batch.clone()).await;
                 match send_result {
                     Ok(_) => break,
                     Err(e) => {

@@ -6,14 +6,14 @@ use super::*;
 
 #[actix_web::test]
 async fn test_large_task_expand() {
-    tracing_subscriber::fmt()
+    let _ = tracing_subscriber::fmt()
         .with_level(true)
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_span_events(FmtSpan::ACTIVE)
         .with_max_level(tracing::Level::DEBUG)
         .compact()
-        .init();
+        .try_init();
     let mut args = Args::default();
     const EXPLORER_PORT: u16 = 6060;
     const EXPLORER_CLUSTER: &str = "http://localhost:6041";
@@ -62,13 +62,13 @@ async fn test_large_task_expand() {
 
 #[actix_web::test]
 async fn test_rest_proxy_with_tz() {
-    tracing_subscriber::fmt()
+    let _ = tracing_subscriber::fmt()
         .with_level(true)
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_max_level(tracing::Level::DEBUG)
         .compact()
-        .init();
+        .try_init();
     let mut args = Args::default();
     const EXPLORER_PORT: u16 = 6060;
     const EXPLORER_CLUSTER: &str = "http://localhost:6041";

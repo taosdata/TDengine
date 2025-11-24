@@ -261,23 +261,26 @@ async fn ipc_stream_writer(
                             tokio::time::sleep(std::time::Duration::from_millis(period * 80)).await;
                             let message =
                                 format!("IPC processing record {} error: {err:#}", qid.display());
-                            let _ = notify_sender.send(
-                                crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                            notify_sender
+                                .send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                     agent_id,
                                     Activity::warn(task_id, message),
-                                ),
-                            );
+                                ))
+                                .ok();
                             if ipc_error_strategy.will_stop() || last_errors > 10 {
-                                let _ = abort_message_tx.send(Err(Status::cancelled(format!(
-                                    "IPC worker will be stopped since {err:#}"
-                                ))));
-                                let _ = notify_sender.send(
-                                    crate::serve::scheduler::agent::AgentNotify::WriterError(
+                                abort_message_tx
+                                    .send_async(Err(Status::cancelled(format!(
+                                        "IPC worker will be stopped since {err:#}"
+                                    ))))
+                                    .await
+                                    .ok();
+                                notify_sender
+                                    .send(crate::serve::scheduler::agent::AgentNotify::WriterError(
                                         agent_id,
                                         task_id,
                                         format!("{err:#}"),
-                                    ),
-                                );
+                                    ))
+                                    .ok();
                                 bail!("IPC worker will be stopped since {err:#}");
                             }
                             if let Some(tx) = tx.upgrade() {
@@ -378,6 +381,7 @@ async fn spawn_stream_writer(
         "kafka" => Some("kafka"),
         "avevaHistorian" => Some("avevahistorian"),
         "mqtt" => Some("mqtt"),
+        "pulsar" | "pulsarTuya" => Some("pulsar"),
         _ => None,
     };
 
@@ -533,11 +537,12 @@ async fn spawn_stream_writer(
                     error.source = format!("{err:#}"),
                     "IPC stream writer spawn error"
                 );
-                let _ =
-                    notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                notify_sender
+                    .send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                         agent_id,
                         Activity::warn(task_id, format!("{err:#}")),
-                    ));
+                    ))
+                    .ok();
                 drop(rx);
                 return;
             }
@@ -552,10 +557,12 @@ async fn spawn_stream_writer(
                     tracing::error!("IPC stream writer stopped, err:{:#?}", err);
                 }
             }
-            let _ = notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                agent_id,
-                Activity::ipc_finished(task_id),
-            ));
+            notify_sender
+                .send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                    agent_id,
+                    Activity::ipc_finished(task_id),
+                ))
+                .ok();
 
             tracing::info!(
                 ipc.channel.capacity = rx.capacity(),

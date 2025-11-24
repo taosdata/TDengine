@@ -29,6 +29,10 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
             source_oracle::ORACLE_ID => source_oracle::is_valid(&dsn).await,
             source_mssql::MSSQL_ID => source_mssql::is_valid(&dsn).await,
             source_mongodb::MONGODB_ID => source_mongodb::is_valid(&dsn).await,
+            source_pulsar::PULSAR_ID | source_pulsar::PULSAR_TUYA_ID => {
+                source_pulsar::is_valid(&dsn).await
+            }
+            source_kinghistorian::KING_HIST_ID => source_kinghistorian::is_valid(&dsn).await,
             &_ => DataSourceValidation::unknown(),
         },
     }

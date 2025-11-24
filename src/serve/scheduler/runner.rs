@@ -121,7 +121,7 @@ async fn task_opts_init(
 
     let breakpoints = load_breakpoints(id);
 
-    let (notify, notify_rx) = flume::unbounded();
+    let (notify, notify_rx) = flume::bounded(100);
 
     let parser: Option<plugins::Parser> = task
         .parser

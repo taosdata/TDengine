@@ -62,6 +62,8 @@ env_scripts = ['''
 
   # 获取当前系统平台
   os = os_family
+  echo "Build on OS: ${os}"
+  set_env "CARGO_MAKE_BUILD_OS_FAMILY" "${os}"
   if is_empty "${plugins_home}"
     if eq ${os} "windows"
       set_env "PLUGINS_HOME" "C:\\${cus_name}\\plugins"
@@ -95,6 +97,28 @@ echo BUILD_PROFILE=$BUILD_PROFILE
 echo CFLAGS=$CFLAGS
 echo PLUGINS_HOME=$PLUGINS_HOME
 """
+[tasks.taosx-unlicensed]
+condition.files_modified = { input = [
+  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
+  "src/**/*.rs",
+  "crates/**/*.rs",
+  "taosx-core/src/**/*.rs",
+  "taosx-ipc/src/**/*.rs",
+  "taosx-metrics/src/**/*.rs",
+], output = [
+  "target/${BUILD_PROFILE}/taosx",
+] }
+dependencies = ["install-protoc"]
+command = "cargo"
+args = [
+  "build",
+  "-p",
+  "taosx",
+  "--features",
+  "disable-enterprise-only-validation,disable-enterprise-connector-validation",
+  "--profile",
+  "${BUILD_PROFILE}",
+]
 
 [tasks.taosx]
 condition.files_modified = { input = [
@@ -107,6 +131,7 @@ condition.files_modified = { input = [
 ], output = [
   "target/${BUILD_PROFILE}/taosx",
 ] }
+dependencies = ["install-protoc"]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
 
@@ -125,6 +150,7 @@ args = [
 
 [tasks.taosx-agent]
 command = "cargo"
+dependencies = ["install-protoc"]
 args = ["build", "--profile", "${BUILD_PROFILE}", "-p", "taosx-agent"]
 
 [tasks.plugins]
@@ -211,7 +237,6 @@ run_task = { name = [
   "install-plugin-influxdb",
   "install-plugin-opentsdb",
 ] }
-
 
 [tasks.install-plugin-opc]
 condition = { files_exist = ["plugins/opc/taosx-opc"] }
@@ -363,7 +388,7 @@ rm -rf ./TDengine-enterprise-client-${VER_NUMBER}
 """
 dependencies = [
   "taosx",
-  #"taos-explorer",
+  # "taos-explorer",
   "plugins",
 ]
 
@@ -438,9 +463,11 @@ rm -rf ./docker/integrated/release
 rm -rf ./TDengine-enterprise-${VER_NUMBER}
 """
 dependencies = [
-  #"taosx",
-  #"plugins",
-  #"taos-explorer"
+
+
+  # "taosx",
+  # "plugins",
+  # "taos-explorer"
 ]
 
 [tasks.verify-integrated-image]
@@ -495,13 +522,39 @@ rm -rf ./TDengine-enterprise-${VER_NUMBER}
 cwd = "docker/dev/"
 script = """
 echo use manylinux2014 as base image with docker/dev/Dockerfile .
-docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev:${RUST_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} --load .
+set -e
+PLATFORM=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --platform)
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --platform=*)
+      PLATFORM="${1#--platform=}"
+      shift
+      ;;
+    *)
+      echo "Unknown param: $1, ignored"
+      ;;
+  esac
+done
+if [ -z "$PLATFORM" ]; then
+  PLATFORM="linux/amd64,linux/arm64" # default platform
+fi
+echo "Building taosx/dev:${RUST_VERSION} for platform: ${PLATFORM}"
+docker buildx build --platform ${PLATFORM} -t taosx/dev:${RUST_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} --load .
 """
 [tasks.install-taosx-dev-docker-image]
 install_script = """
 #!/bin/bash
 echo "Prepare dev image for version $RUST_VERSION"
-docker images --format json | jq 'select(.Repository == "taosx/dev" and .Tag == "'$RUST_VERSION'")' |grep Tag || cargo make build-docker-dev
+if ! docker image inspect taosx/dev:${RUST_VERSION} >/dev/null 2>&1; then
+  echo "Dev image taosx/dev:${RUST_VERSION} not found locally. Building..."
+  cargo make build-docker-dev
+else
+  echo "Dev image taosx/dev:${RUST_VERSION} already present. Skipping build."
+fi
 """
 
 [tasks.check-aarch64]
@@ -538,42 +591,53 @@ dependencies = ["install-taosx-dev-docker-image"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 
-# Get platform
-export PLATFORM=$(echo "$@" | rg '\\--platform (\\S+)' -o -r '$1')
-export EXTRAS="$(echo $@ | rg '\\--platform \\S+ (.*)' --replace '$1')"
+# Parse arguments: extract --platform (linux/amd64 or linux/arm64) and pass remaining to cargo.
+PLATFORM=""
+EXTRAS=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --platform)
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --platform=*)
+      PLATFORM="${1#--platform=}"
+      shift
+      ;;
+    *)
+      if [ -z "$EXTRAS" ]; then
+        EXTRAS="$1"
+      else
+        EXTRAS="$EXTRAS $1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$PLATFORM" ]; then
+  PLATFORM="linux/amd64" # default platform
+fi
 
 case "${PLATFORM}" in
-  "linux/amd64" | "linux/arm64")
-    echo Build taosX release for target $PLATFORM
+  "linux/amd64"|"linux/arm64")
+    echo "Build taosX release for target ${PLATFORM}"
     echo "EXTRAS: ${EXTRAS}"
     echo "BUILD_PROFILE: ${BUILD_PROFILE}"
-    export TARGET_DIR=$PWD/target/${PLATFORM}
-    mkdir -p $TARGET_DIR
-    docker run --platform $PLATFORM --rm \
+    TARGET_DIR=$PWD/target/${PLATFORM}
+    mkdir -p "$TARGET_DIR"
+    docker run --platform "${PLATFORM}" --rm \
       -v .:/app \
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
-      -v $TARGET_DIR:/app/target \
+      -v "$TARGET_DIR":/app/target \
       -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
       taosx/dev:${RUST_VERSION} \
-      cargo build --profile ${BUILD_PROFILE} ${EXTRAS}
-    ;;
-  "")
-    export TARGET_DIR=$PWD/target/centos7
-    mkdir -p $TARGET_DIR
-    echo "ARGS: $@"
-    docker run --rm \
-      -v .:/app \
-      -v $HOME/.cargo/registry:/root/.cargo/registry \
-      -v $HOME/.cargo/git:/root/.cargo/git \
-      -v $TARGET_DIR:/app/target \
-      -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
-      taosx/dev:${RUST_VERSION} \
-      cargo build --profile ${BUILD_PROFILE} $@
+      cargo build --profile "${BUILD_PROFILE}" ${EXTRAS}
     ;;
   *)
-    echo Unsupported platform $PLATFORM
-    exit -1
+    echo "Unsupported platform: ${PLATFORM}. Allowed: linux/amd64 or linux/arm64"
+    exit 1
     ;;
 esac
 
@@ -771,7 +835,12 @@ docker build -t taosx/zigbuilder:${RUST_VERSION} -f build.arm64.Dockerfile \
 [tasks.zigbuild-aarch64-taosx]
 install_script = """
 echo "Prepare zigbuilder image for aarch64"
-docker images --format json | jq -e 'select(.Repository == "taosx/zigbuilder" and .Tag == "$RUST_VERSION")' || cargo make zigbuild-aarch64-image
+if ! docker image inspect taosx/zigbuilder:${RUST_VERSION} >/dev/null 2>&1; then
+  echo "zigbuilder image taosx/zigbuilder:${RUST_VERSION} not found. Building..."
+  cargo make zigbuild-aarch64-image
+else
+  echo "zigbuilder image taosx/zigbuilder:${RUST_VERSION} already present."
+fi
 """
 script = """
 docker run --rm -v .:/app -w /app \
@@ -783,11 +852,12 @@ docker run --rm -v .:/app -w /app \
 """
 
 [tasks.fmt]
+dependencies = ["assert-explorer-dist", "install-protoc"]
 command = "cargo"
 args = ["fmt", "--check", "--all"]
 
 [tasks.clippy]
-dependencies = ["assert-explorer-dist"]
+dependencies = ["assert-explorer-dist", "install-protoc"]
 command = "cargo"
 args = [
   "clippy",
@@ -911,7 +981,6 @@ dependencies = ["explorer-ui-prod"]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
 
-
 [tasks.explorer]
 run_task = [
   { name = "explorer-disable-x-api", condition = { env_true = [
@@ -967,6 +1036,95 @@ install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rust
 install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
 [tasks.install-toml-cli]
 install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
+[tasks.install-protoc]
+script_runner = "@duckscript"
+install_script = """
+# 设置 protoc 版本和下载 URL
+protoc_version = set "33.0"
+protoc_url_prefix = set "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}"
+
+protoc_cmd = which protoc
+if is_empty ${protoc_cmd}
+  echo "Install protoc v${protoc_version}"
+else
+  installed_version = exec protoc --version
+  echo "Protoc has been installed: ${installed_version.stdout}"
+  exit
+end
+
+family = os_family
+
+if equals ${family} "windows"
+  file = set "protobuf-${protoc_version}.zip"
+elseif equals ${family} "mac"
+  file = set "protoc-${protoc_version}-osx-aarch_64.zip"
+else
+  apt_exe = which apt-get
+  if is_empty ${apt_exe}
+  else
+    code = exec --get-exit-code sudo apt-get install protobuf-compiler
+    if equals ${code} 0
+      installed_version = exec protoc --version
+      echo successfully installed.. ${installed_version}
+      exit
+    end
+  end
+
+  arch = get_env "CARGO_MAKE_RUST_TARGET_ARCH"
+  echo "Build arch: " ${arch}
+  if equals "${arch}" "x86_64"
+    file = set "protoc-${protoc_version}-linux-x86_64.zip"
+  elseif equals ${arch} "aarch64"
+    file = set "protoc-${protoc_version}-linux-aarch_64.zip"
+  elseif equals ${arch} "s390"
+    file = set "protoc-${protoc_version}-linux-s390_64.zip"
+  elseif equals ${arch} "powerpc64le"
+    file = set "protoc-${protoc_version}-linux-ppcle_64.zip"
+  else
+    echo "Unsupported architecture: ${arch}"
+    exit 1
+  end
+end
+
+download_url = set "${protoc_url_prefix}/${file}"
+
+echo "Downloading: ${download_url}"
+
+size = wget -O ${file} ${download_url}
+
+install_path = get_env "CARGO_HOME"
+
+unzip_exe = which unzip
+if is_empty ${unzip_exe}
+  echo "Guess you're using windows"
+  exec powershell -command "Expand-Archive -Force '${file}' '${install_path}/'"
+else
+  output = exec unzip -o "${file}" -d ${install_path}
+  stdout = set ${output.stdout}
+  stderr = set ${output.stderr}
+  exit_code = set ${output.code}
+
+  if equals ${exit_code} 0
+    echo "Stdout:"
+    echo ${stdout}
+  else
+    echo "Stderr:"
+    echo ${stderr}
+  end
+end
+
+protoc_file = join_path "${install_path}" bin protoc
+echo "Installed at: " ${protoc_file}
+chmod 770 ${protoc_file}
+
+protoc_expect = which protoc
+if is_empty "${protoc_expect}"
+  echo "Error: Protoc installation failed: protoc file not found in ${install_path}"
+  exit 1
+end
+echo "Installed proto compiler (protoc)"
+rm ${file}
+"""
 [tasks.install-nvm]
 windows_alias = "empty"
 install_script = """
@@ -999,7 +1157,6 @@ args = [
   "nextest",
   "--workspace",
   "--no-fail-fast",
-  "--html",
   "--exclude",
   "taos-explorer",
   "--profile",
@@ -1016,6 +1173,19 @@ args = [
   "taos-explorer",
   "--no-fail-fast",
   "--html",
+]
+[tasks.test-ci]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov.lcov",
+  "nextest",
+  "--workspace",
+  "--no-fail-fast",
+  "--profile",
+  "ci",
 ]
 
 [tasks.test]

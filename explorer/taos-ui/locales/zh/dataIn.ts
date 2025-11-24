@@ -254,6 +254,11 @@ export default {
     opcua: '数据点位名称或 id 需要满足设置的正则表达式',
     opcda: '数据点位 TagName 需要满足设置的正则表达式'
   },
+  kinghist: {
+    group: '测点组',
+    point: '测点',
+    tag: '标签'
+  },
   generateToken: '生成令牌',
   pInName: '请输入名称',
   statuses: {
@@ -541,7 +546,7 @@ export default {
   targetname: '名称',
   agentInfo: `
       1. 使用 PI 或 OPC-DA 数据源时，需启用代理。
-      <br /> 
+      <br />
       2. 其他情况下，如当数据源与 TDengine 集群网络隔离时，使用代理以提供跨网络访问数据源的能力。
     `,
 

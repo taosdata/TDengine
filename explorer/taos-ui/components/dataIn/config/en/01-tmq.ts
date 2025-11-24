@@ -148,6 +148,16 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'switch'
+            },
+            {
+              label: 'Sync Higher Version Data',
+              description: 'If enabled, sync high-version formatted data from source. Disabled by default.\n',
+              field: 'minimal',
+              placeholder: '',
+              defaultValue: false,
+              pattern: null,
+              grid_two: false,
+              type: 'switch'
             }
           ],
           hide: false

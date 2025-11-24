@@ -2,10 +2,11 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
-use crate::plugins::runners::opc::csv::CsvParser;
+use crate::plugins::sink::point::csv::CsvParser;
+use crate::plugins::sink::point::model::SourceType;
 use crate::runners::opc::config::collect::{parse_opc_node_ids, CollectMode};
-use crate::runners::opc::config::{OPCConfig, PointsMode};
-use crate::runners::opc::OpcType;
+use crate::runners::opc::config::PointsMode;
+use crate::sink::point::csv::parse_csv_config_files;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UaCollectConfig {
@@ -42,10 +43,10 @@ impl UaCollectConfig {
         let points_mode = PointsMode::from_dsn(dsn)?;
         let node_vec = match points_mode {
             PointsMode::ByCsv => {
-                let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+                let csv_files = parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
                     "csv_config_file is required for PointsMode::ByCsv"
                 ))?;
-                let parser = CsvParser::try_new(OpcType::OPCUA, csv_files)?;
+                let parser = CsvParser::try_new(SourceType::OPCUA, csv_files)?;
                 let node_ids = parser.parse_point_id_and_tbname().await?;
 
                 node_ids.iter().map(|(tag, _)| tag.clone()).collect_vec()

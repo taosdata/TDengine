@@ -4,9 +4,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::global::GLOBAL_LOG_OPTS;
-use file_rotate::compression::Compression;
-use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
-use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
 use itertools::Itertools;
 use rumqttc::tokio_rustls;
 use rumqttc::tokio_rustls::rustls;
@@ -217,20 +214,7 @@ pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
     plugins
 }
 
-pub fn log_rotation(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
-    FileRotate::new(
-        log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::OnRotate(2),
-        #[cfg(unix)]
-        None,
-    )
-}
+// file-rotate based log_rotation has been removed; use new_rolling_file_appender instead.
 
 pub fn new_rolling_file_appender(
     log_dir: impl AsRef<Path>,
