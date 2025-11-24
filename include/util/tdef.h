@@ -289,7 +289,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN    1024
-#define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
+// TSDB_MAX_ALLOWED_SQL_LEN is deprecated, use tsSqlMaxLen instead (defined in tglobal.h)
 
 #define TSDB_VIEW_NAME_LEN  193
 #define TSDB_VIEW_FNAME_LEN (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)

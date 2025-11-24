@@ -288,6 +288,9 @@ int32_t tsMinIntervalTime = 1;
 // maximum batch rows numbers imported from a single csv load
 int32_t tsMaxInsertBatchRows = 1000000;
 
+// maximum length of a SQL statement
+int32_t tsSqlMaxLen = (1 * 1024 * 1024);  // 1MB
+
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
 char    tsTagFilterCache = 0;
@@ -828,6 +831,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
 
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "sqlMaxLen", tsSqlMaxLen, 1024 * 1024, INT32_MAX, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL) != 0);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1628,6 +1633,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlMaxLen");
+  tsSqlMaxLen = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -3117,6 +3125,10 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false), &lino, _out);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
+        matched = true;
+      } else if (strcasecmp("sqlMaxLen", name) == 0) {
+        tsSqlMaxLen = pItem->i32;
+        uInfo("%s set to %d", name, tsSqlMaxLen);
         matched = true;
       }
       break;
