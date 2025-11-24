@@ -123,7 +123,7 @@ class CmdLine:
         self.parser.add_argument(
             '-P', '--use-previous',
             type=bool,
-            default=False,
+            default=None,
             metavar='NUM',
             help='No create new cluster and use previous cluster (default: False)'
         )

@@ -1,4 +1,7 @@
 {
+  "global": {
+    "written_concurrent": 10
+  },
   "parse": {
     "ts": { "as": "TIMESTAMP(ms)" },
     "latitude": { "as": "DOUBLE" },

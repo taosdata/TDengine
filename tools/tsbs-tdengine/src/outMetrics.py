@@ -144,11 +144,13 @@ class OutMetrics:
             # Format time strings
             if start_time == 0 or start_time is None:
                 start_time_str = "-"
+                duration = "-"
             else:
                 start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
     
             if end_time == 0 or end_time is None:
                 end_time_str = "-"
+                duration = "-"
             else:
                 end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))
             
@@ -190,7 +192,7 @@ class OutMetrics:
         os.makedirs(metrics_dir, exist_ok=True)
         
         # Generate filename with timestamp
-        timestamp = time.strftime('_%Y-%m-%d_%H:%M:%S', time.localtime())
+        timestamp = time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime())
         json_filename = f'tsbs_{timestamp}.json'
         json_filepath = os.path.join(metrics_dir, json_filename)
         

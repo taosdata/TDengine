@@ -405,9 +405,7 @@ class ClusterManager:
             self.adapter_manager = TaosAdapterManager(self.base_path, logger=self.logger)
         
     def create_cluster(self, dnode_nums: int, mnode_nums: int, 
-                      independent_mnode: bool = False,
-                      update_dict: Optional[Dict] = None,
-                      use_previous: bool = False) -> bool:
+                      update_dict: Optional[Dict] = None) -> bool:
         """Create a cluster with specified configuration"""
         
         if dnode_nums < 1:
@@ -416,12 +414,7 @@ class ClusterManager:
         if mnode_nums > dnode_nums:
             self.logger.exit(f"MNode count ({mnode_nums}) cannot exceed DNode count ({dnode_nums})")
             
-        if use_previous:
-            self.logger.info("Using previous cluster, skipping creation")
-            return True
-            
         self.logger.info(f"Creating cluster: {dnode_nums} DNODEs, {mnode_nums} MNODEs")
-        self.logger.info(f"Independent MNode: {independent_mnode}")
         self.logger.info(f"Storage: {self.level} levels, {self.disk} disks per level")
         
         self.dnode_manager.stop_all()
@@ -627,8 +620,6 @@ class TDengineClusterSetup:
         self.disk = 1
         self.base_path = os.path.expanduser("~/td_cluster")
         self.fqdn = ""
-        self.independent_mnode = False
-        self.use_previous = False
         self.start_adapter = False
         self.update_cfg_dict = {}
         self.logger = Logger()
@@ -640,7 +631,7 @@ class TDengineClusterSetup:
                 argv,
                 'N:M:S:L:D:p:f:i:PBh',
                 ['dnodes=', 'mnodes=', 'snodes=', 'level=', 'disk=', 
-                 'path=', 'fqdn=', 'independent=', 'previous', 'adapter', 'help']
+                 'path=', 'fqdn=', 'adapter', 'help']
             )
         except getopt.GetoptError as e:
             self.print_help()
@@ -668,10 +659,6 @@ class TDengineClusterSetup:
                 self.base_path = value
             elif key in ['-f', '--fqdn']:
                 self.fqdn = value
-            elif key in ['-i', '--independent']:
-                self.independent_mnode = value.lower() == 'true'
-            elif key in ['-P', '--previous']:
-                self.use_previous = True
             elif key in ['-B', '--adapter']:
                 self.start_adapter = True
                 
@@ -693,8 +680,6 @@ Options:
     -D, --disk NUM          Disk number on each level (range: 1-10, default: 1)
     -p, --path PATH         Base path for deployment (default: ~/td_cluster)
     -f, --fqdn FQDN         FQDN for cluster (default: hostname)
-    -i, --independent BOOL  Independent MNODE mode (true/false)
-    -P, --previous          Run with previous cluster, do not create new cluster
     -B, --adapter           Start taosadapter process
     -h, --help              Show this help message
 
@@ -708,8 +693,8 @@ Examples:
     # Create cluster with multi-level storage
     python3 createCluster.py -N 5 -M 3 -L 2 -D 3
     
-    # Use previous cluster and start taosadapter
-    python3 createCluster.py -P -B
+    # Start taosadapter
+    python3 createCluster.py -B
     
     # Custom path and FQDN
     python3 createCluster.py -N 3 -M 2 -p /tmp/tdengine -f myhost.local
@@ -746,8 +731,6 @@ Note:
         self.logger.info(f"  Disks per Level: {self.disk}")
         self.logger.info(f"  FQDN: {self.fqdn}")
         self.logger.info(f"  Base Path: {self.base_path}")
-        self.logger.info(f"  Independent MNode: {self.independent_mnode}")
-        self.logger.info(f"  Use Previous Cluster: {self.use_previous}")
         self.logger.info(f"  Start TaosAdapter: {self.start_adapter}")
         self.logger.info("=" * 70)
         
@@ -764,29 +747,26 @@ Note:
             cluster_mgr.create_cluster(
                 dnode_nums=self.dnodes,
                 mnode_nums=self.mnodes,
-                independent_mnode=self.independent_mnode,
                 update_dict=self.update_cfg_dict,
-                use_previous=self.use_previous
             )
             
             # Connect to cluster
             cluster_mgr.connect()
             
-            if not self.use_previous:
-                # Create DNODEs in cluster
-                if self.dnodes > 1:
-                    cluster_mgr.create_dnodes_in_cluster(self.dnodes)
-                    
-                # Create MNODEs
-                if self.mnodes > 0:
-                    cluster_mgr.create_mnodes_in_cluster(self.mnodes)
-                    
-                # Wait for cluster ready
-                cluster_mgr.wait_for_cluster_ready()
+            # Create DNODEs in cluster
+            if self.dnodes > 1:
+                cluster_mgr.create_dnodes_in_cluster(self.dnodes)
                 
-                # Create SNODEs
-                if self.snodes > 0:
-                    cluster_mgr.create_snodes_in_cluster(self.snodes)
+            # Create MNODEs
+            if self.mnodes > 0:
+                cluster_mgr.create_mnodes_in_cluster(self.mnodes)
+                
+            # Wait for cluster ready
+            cluster_mgr.wait_for_cluster_ready()
+            
+            # Create SNODEs
+            if self.snodes > 0:
+                cluster_mgr.create_snodes_in_cluster(self.snodes)
             
             # Start TaosAdapter if requested - only initialized when -B flag is used
             if self.start_adapter:
