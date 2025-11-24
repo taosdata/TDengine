@@ -1287,7 +1287,6 @@ void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
   for (int32_t i = 0; i < taosArrayGetSize(pParam->pChildren); i++) {
     SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pParam->pChildren, i);
     pChild->reUse = false;
-    freeOperatorParam(pChild, OP_GET_PARAM);
   }
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }

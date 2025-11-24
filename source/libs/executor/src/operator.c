@@ -1034,7 +1034,7 @@ int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock
       QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno)
 
       if (isNull) {
-        colDataSetNNULL(pDstCol, 0, numOfRows);
+        colDataSetNNULL(pDstCol, 0, totalRows);
       } else {
         SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, ((SColumnNode*)pNode->pExpr)->slotId);
         QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno)

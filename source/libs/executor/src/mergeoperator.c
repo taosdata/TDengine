@@ -404,6 +404,7 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t                     lino = 0;
   STimeWindow                 timeWindow = {.skey = INT64_MAX, .ekey = INT64_MIN};
   bool                        allNull = true;
+  bool                        isVtableMerge = false;
 
   if (pOperator->pOperatorGetParam) {
     if (pOperator->status == OP_EXEC_DONE) {
@@ -412,8 +413,10 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     numOfRows = ((SMergeOperatorParam*)(pOperator->pOperatorGetParam)->value)->winNum;
     freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
+    isVtableMerge = true;
   } else {
     numOfRows = 1;
+    isVtableMerge = false;
   }
 
   qDebug("start to merge columns, %s", GET_TASKID(pTaskInfo));
@@ -423,14 +426,31 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QUERY_CHECK_CODE(code, lino, _return);
 
   for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
-    pBlock = getNextBlockFromDownstream(pOperator, i);
-    if (pBlock) {
-      code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+    if (isVtableMerge) {
+      SOperatorInfo*  pExtWinOp = pOperator->pDownstream[i];
+      SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
+      code = pExtWinOp->fpSet.getNextExtFn(pExtWinOp, pParam, &pBlock);
+      pOperator->pDownstreamGetParams[i] = NULL;
       QUERY_CHECK_CODE(code, lino, _return);
+      if (pBlock) {
+        printDataBlock(pBlock, __func__, "colsMerge", pTaskInfo->id.queryId);
+        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+        QUERY_CHECK_CODE(code, lino, _return);
 
-      timeWindow.skey = TMIN(timeWindow.skey, pBlock->info.window.skey);
-      timeWindow.ekey = TMAX(timeWindow.ekey, pBlock->info.window.ekey);
-      allNull = false;
+        timeWindow.skey = TMIN(timeWindow.skey, pBlock->info.window.skey);
+        timeWindow.ekey = TMAX(timeWindow.ekey, pBlock->info.window.ekey);
+        allNull = false;
+      } else {
+        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+    } else {
+      pBlock = getNextBlockFromDownstream(pOperator, i);
+      if (pBlock) {
+        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+        QUERY_CHECK_CODE(code, lino, _return);
+        allNull = false;
+      }
     }
   }
 

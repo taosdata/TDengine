@@ -1953,6 +1953,7 @@ static int32_t updateDynQueryCtrlVtbWindowInfo(SPhysiPlanContext* pCxt, SNodeLis
   pDynCtrl->vtbWindow.wendSlotId = pLogicNode->vtbWindow.wendSlotId;
   pDynCtrl->vtbWindow.wdurationSlotId = pLogicNode->vtbWindow.wdurationSlotId;
   pDynCtrl->vtbWindow.isVstb = pLogicNode->vtbWindow.isVstb;
+  pDynCtrl->vtbWindow.singleWinMode = pLogicNode->vtbWindow.singleWinMode;
   pDynCtrl->vtbWindow.extendOption = pLogicNode->vtbWindow.extendOption;
 
   PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, false, pLogicNode->node.pTargets, &pDynCtrl->vtbWindow.pTargets));

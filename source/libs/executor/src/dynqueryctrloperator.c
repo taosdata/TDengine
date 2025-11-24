@@ -2319,6 +2319,7 @@ static int32_t initVtbWindowInfo(SDynQueryCtrlOperatorInfo* pInfo, SDynQueryCtrl
   pInfo->vtbWindow.wdurationSlotId = pPhyciNode->vtbWindow.wdurationSlotId;
   pInfo->vtbWindow.pTargets = pPhyciNode->vtbWindow.pTargets;
   pInfo->vtbWindow.isVstb = pPhyciNode->vtbWindow.isVstb;
+  pInfo->vtbWindow.singleWinMode = pPhyciNode->vtbWindow.singleWinMode;
   pInfo->vtbWindow.extendOption = pPhyciNode->vtbWindow.extendOption;
 
   pInfo->vtbWindow.pRes = createDataBlockFromDescNode(pDescNode);
@@ -2516,20 +2517,37 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
     code = extractTsCol(pBlock, pDynInfo->vtbWindow.wendSlotId, &wendCol);
     QUERY_CHECK_CODE(code, lino, _return);
 
-    SArray* pWin = taosArrayInit(pBlock->info.rows, sizeof(SExtWinTimeWindow));
-    QUERY_CHECK_NULL(pWin, code, lino, _return, terrno)
+    if (pDynInfo->vtbWindow.singleWinMode) {
+      for (int32_t i = 0; i < pBlock->info.rows; i++) {
+        SArray* pWin = taosArrayInit(pBlock->info.rows, sizeof(SExtWinTimeWindow));
+        QUERY_CHECK_NULL(pWin, code, lino, _return, terrno)
 
-    QUERY_CHECK_NULL(taosArrayReserve(pWin, pBlock->info.rows), code, lino, _return, terrno);
+        QUERY_CHECK_NULL(taosArrayReserve(pWin, 1), code, lino, _return, terrno);
 
-    for (int32_t i = 0; i < pBlock->info.rows; i++) {
-      SExtWinTimeWindow* pWindow = taosArrayGet(pWin, i);
-      QUERY_CHECK_NULL(pWindow, code, lino, _return, terrno)
-      pWindow->tw.skey = wstartCol[i];
-      pWindow->tw.ekey = wendCol[i] + 1;
-      pWindow->winOutIdx = -1;
+        SExtWinTimeWindow* pWindow = taosArrayGet(pWin, 0);
+        QUERY_CHECK_NULL(pWindow, code, lino, _return, terrno)
+        pWindow->tw.skey = wstartCol[i];
+        pWindow->tw.ekey = wendCol[i] + 1;
+        pWindow->winOutIdx = -1;
+
+        QUERY_CHECK_NULL(taosArrayPush(pDynInfo->vtbWindow.pWins, &pWin), code, lino, _return, terrno);
+      }
+    } else {
+      SArray* pWin = taosArrayInit(pBlock->info.rows, sizeof(SExtWinTimeWindow));
+      QUERY_CHECK_NULL(pWin, code, lino, _return, terrno)
+
+      QUERY_CHECK_NULL(taosArrayReserve(pWin, pBlock->info.rows), code, lino, _return, terrno);
+
+      for (int32_t i = 0; i < pBlock->info.rows; i++) {
+        SExtWinTimeWindow* pWindow = taosArrayGet(pWin, i);
+        QUERY_CHECK_NULL(pWindow, code, lino, _return, terrno)
+        pWindow->tw.skey = wstartCol[i];
+        pWindow->tw.ekey = wendCol[i] + 1;
+        pWindow->winOutIdx = -1;
+      }
+
+      QUERY_CHECK_NULL(taosArrayPush(pDynInfo->vtbWindow.pWins, &pWin), code, lino, _return, terrno);
     }
-
-    QUERY_CHECK_NULL(taosArrayPush(pDynInfo->vtbWindow.pWins, &pWin), code, lino, _return, terrno);
   }
 
   // handle first window's start key and last window's end key
