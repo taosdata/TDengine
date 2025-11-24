@@ -101,6 +101,8 @@
 #define ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(_type, _priv) \
   (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 
+static void generateSalt(char *salt, size_t len);
+
 static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList);
 static int32_t createIpWhiteList(void *buf, int32_t len, SIpWhiteListDual **ppWhiteList, bool supportNeg);
 
@@ -985,13 +987,17 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   int32_t  code = 0;
   int32_t  lino = 0;
   SUserObj userObj = {0};
+
+  generateSalt(userObj.salt, sizeof(userObj.salt));
   userObj.passwords = taosMemCalloc(1, sizeof(SUserPassword));
   if (userObj.passwords == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _ERROR);
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
+  TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _ERROR);
   userObj.passwords[0].setTime = taosGetTimestampSec();
   userObj.numOfPasswords = 1;
+
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
@@ -1203,9 +1209,10 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   dropOldPasswords(pUser);
   SDB_SET_INT32(pRaw, dataPos, pUser->numOfPasswords, _OVER)
   for (int32_t i = 0; i < pUser->numOfPasswords; i++) {
-    SDB_SET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, TSDB_PASSWORD_LEN, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, sizeof(pUser->passwords[i].pass), _OVER)
     SDB_SET_INT64(pRaw, dataPos, pUser->passwords[i].setTime, _OVER)
   }
+  SDB_SET_BINARY(pRaw, dataPos, pUser->salt, sizeof(pUser->salt), _OVER)
 
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, _OVER)
@@ -1439,6 +1446,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[0].pass, TSDB_PASSWORD_LEN, _OVER)
     pUser->passwords->setTime = pUser->updateTime / 1000;
     pUser->numOfPasswords = 1;
+    memset(pUser->salt, 0, sizeof(pUser->salt));
   } else {
     SDB_GET_INT32(pRaw, dataPos, &pUser->numOfPasswords, _OVER)
     pUser->passwords = taosMemoryCalloc(pUser->numOfPasswords, sizeof(SUserPassword));
@@ -1446,9 +1454,10 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
     }
     for (int32_t i = 0; i < pUser->numOfPasswords; ++i) {
-      SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, TSDB_PASSWORD_LEN, _OVER);
+      SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, sizeof(pUser->passwords[i].pass), _OVER);
       SDB_GET_INT64(pRaw, dataPos, &pUser->passwords[i].setTime, _OVER);
     }
+    SDB_GET_BINARY(pRaw, dataPos, pUser->salt, sizeof(pUser->salt), _OVER)
   }
   
   SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
@@ -2070,32 +2079,51 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
   sdbRelease(pSdb, pUser);
 }
 
-int32_t mndEncryptPass(char *pass, int8_t *algo) {
+
+
+int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   int32_t code = 0;
-  if (tsiEncryptPassAlgorithm == DND_CA_SM4) {
-    if (strlen(tsEncryptKey) == 0) {
-      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      goto _OVER;
-    }
-    unsigned char packetData[TSDB_PASSWORD_LEN] = {0};
-    int           newLen = 0;
-
-    SCryptOpts opts = {0};
-    opts.len = TSDB_PASSWORD_LEN;
-    opts.source = pass;
-    opts.result = packetData;
-    opts.unitLen = TSDB_PASSWORD_LEN;
-    tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
-
-    newLen = CBC_Encrypt(&opts);
-
-    memcpy(pass, packetData, newLen);
-
-    if (algo != NULL) *algo = DND_CA_SM4;
+  if (tsiEncryptPassAlgorithm != DND_CA_SM4) {
+    return 0;
   }
-_OVER:
-  return code;
+
+  if (strlen(tsEncryptKey) == 0) {
+    return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+  }
+
+  if (salt[0] != 0) {
+    char passWithSalt[TSDB_PASSWORD_LEN + TSDB_PASSWORD_SALT_LEN + 1];
+    snprintf(passWithSalt, sizeof(passWithSalt), "%s%s", pass, salt);
+    taosEncryptPass_c((uint8_t *)passWithSalt, strlen(passWithSalt), pass);
+  }
+
+  unsigned char packetData[TSDB_PASSWORD_LEN] = {0};
+  SCryptOpts opts = {0};
+  opts.len = TSDB_PASSWORD_LEN;
+  opts.source = pass;
+  opts.result = packetData;
+  opts.unitLen = TSDB_PASSWORD_LEN;
+  tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+  int newLen = CBC_Encrypt(&opts);
+
+  memcpy(pass, packetData, newLen);
+  if (algo != NULL) {
+    *algo = DND_CA_SM4;
+  }
 }
+
+
+
+static void generateSalt(char *salt, size_t len) {
+  const char* set = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  int32_t     setLen = 62;
+  for (int32_t i = 0; i < len - 1; ++i) {
+    salt[i] = set[taosSafeRand() % setLen];
+  }
+  salt[len - 1] = 0;
+}
+
+
 
 static int32_t addDefaultIpToTable(int8_t enableIpv6, SHashObj *pUniqueTab) {
   int32_t code = 0;
@@ -2134,15 +2162,13 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   }
   userObj.numOfPasswords = 1;
 
-  if (pCreate->passIsMd5 == 1) {
-    memcpy(userObj.passwords[0].pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
-    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, &userObj.passEncryptAlgorithm), &lino, _OVER);
-  } else if (pCreate->isImport != 1) {
-    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
-    userObj.passwords[0].pass[TSDB_PASSWORD_LEN - 1] = 0;
-    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, &userObj.passEncryptAlgorithm), &lino, _OVER);
-  } else {
+  if (pCreate->isImport == 1) {
+    memset(userObj.salt, 0, sizeof(userObj.salt));
     memcpy(userObj.passwords[0].pass, pCreate->pass, TSDB_PASSWORD_LEN);
+  } else {
+    generateSalt(userObj.salt, sizeof(userObj.salt));
+    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
+    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _OVER);
   }
   userObj.passwords[0].setTime = taosGetTimestampSec();
 
@@ -2533,18 +2559,16 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.isImport != 1) {
     TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER), &lino, _OVER);
-  } else {
-    if (strcmp(pReq->info.conn.user, "root") != 0) {
-      mError("The operation is not permitted, user:%s", pReq->info.conn.user);
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
-    }
+  } else if (strcmp(pReq->info.conn.user, "root") != 0) {
+    mError("The operation is not permitted, user:%s", pReq->info.conn.user);
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
   }
 
   if (createReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  if (createReq.passIsMd5 == 0 && createReq.isImport != 1) {
+  if (createReq.isImport != 1) {
     code = mndCheckPasswordFmt(createReq.pass);
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
@@ -3143,9 +3167,13 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (alterReq.hasPassword) {
+    TAOS_CHECK_GOTO(mndCheckPasswordFmt(alterReq.pass), &lino, _OVER);
+    if (newUser.salt[0] == 0) {
+      generateSalt(newUser.salt, sizeof(newUser.salt));
+    }
     char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
-    TAOS_CHECK_GOTO(mndEncryptPass(pass, &newUser.passEncryptAlgorithm), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
 
     if (newUser.passwordReuseMax > 0 || newUser.passwordReuseTime > 0) {
       for(int32_t i = 0; i < newUser.numOfPasswords; ++i) {

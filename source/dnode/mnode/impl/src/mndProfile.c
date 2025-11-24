@@ -374,7 +374,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       goto _OVER;
     }
-    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, pUser->salt, NULL), NULL, _OVER);
   }
 
   if (strncmp(tmpPass, pUser->passwords[0].pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {

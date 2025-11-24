@@ -421,8 +421,9 @@ typedef struct {
 
   // passwords history, from newest to oldest,
   // the latest one is the current password
-  int32_t  numOfPasswords;
+  int32_t        numOfPasswords;
   SUserPassword* passwords;
+  char           salt[TSDB_PASSWORD_SALT_LEN + 1];
 
   char    acct[TSDB_USER_LEN];
   char    totpsecret[TSDB_TOTP_SECRET_LEN];

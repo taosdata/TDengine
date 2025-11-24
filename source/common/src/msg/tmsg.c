@@ -2762,7 +2762,6 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isImport));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createDb));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->passIsMd5));
 
   for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
     SIpRange *pRange = &pReq->pIpDualRanges[i];
@@ -2831,9 +2830,6 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isImport));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createDb));
-  }
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->passIsMd5));
   }
 
   if (!tDecodeIsEnd(&decoder)) {
