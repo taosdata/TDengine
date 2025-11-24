@@ -259,7 +259,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
     }
 
     char tmpTokenBuf[TSDB_COL_NAME_LEN + 2] = {0};  // used for deleting Escape character backstick(`)
-    if (token.n > TSDB_COL_NAME_LEN + 2) {
+    if (token.n >= TSDB_COL_NAME_LEN + 2) {
       taosMemoryFree(pUseCols);
       return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
     }
