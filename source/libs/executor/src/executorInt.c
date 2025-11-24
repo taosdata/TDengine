@@ -1253,6 +1253,8 @@ void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeTagScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
 
+void freeSysScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
@@ -1266,6 +1268,8 @@ void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
 void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
+void freeSysScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
@@ -1305,6 +1309,9 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      type == OP_GET_PARAM ? freeSysScanGetOperatorParam(pParam) : freeSysScanNotifyOperatorParam(pParam);
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);

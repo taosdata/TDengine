@@ -4185,6 +4185,7 @@ static const char* jkDynQueryCtrlPhysiPlanEpSet = "EpSet";
 static const char* jkDynQueryCtrlPhysiPlanScanCols = "ScanCols";
 static const char* jkDynQueryCtrlPhysiPlanRVersion = "RVersion";
 static const char* jkDynQueryCtrlPhysiPlanOrgVgIds = "OrgVgIds";
+static const char* jkDynQueryCtrlPhysiPlanSysVgIds = "SysVgIds";
 
 static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
   const SDynQueryCtrlPhysiNode* pNode = (const SDynQueryCtrlPhysiNode*)pObj;
@@ -4248,6 +4249,9 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = nodeListToJson(pJson, jkDynQueryCtrlPhysiPlanOrgVgIds, pNode->vtbScan.pOrgVgIds);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodeListToJson(pJson, jkDynQueryCtrlPhysiPlanSysVgIds, pNode->vtbScan.pSysScanVgIds);
         }
         break;
       }
@@ -4326,6 +4330,9 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = jsonToNodeList(pJson, jkDynQueryCtrlPhysiPlanOrgVgIds, &pNode->vtbScan.pOrgVgIds);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = jsonToNodeList(pJson, jkDynQueryCtrlPhysiPlanSysVgIds, &pNode->vtbScan.pSysScanVgIds);
         }
         break;
       }

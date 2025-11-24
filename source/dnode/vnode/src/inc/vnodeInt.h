@@ -540,8 +540,9 @@ struct SVnode {
   SVMonitorObj  monitor;
   uint32_t      applyQueueErrorCount;
 
-  // Notification Handles
-  SStreamNotifyHandleMap* pNotifyHandleMap;
+  // version for virtual super table
+  TdThreadRwlock versionLock;
+  SHashObj*      pVtableVersion;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
