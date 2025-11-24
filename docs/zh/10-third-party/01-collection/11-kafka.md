@@ -30,9 +30,10 @@ TDengine TSDB Source Connector 用于把数据实时地从 TDengine TSDB 读出�
 - 在任意目录下执行：
 
     ```shell
-    curl -O https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
-    tar xzf kafka_2.13-3.4.0.tgz -C /opt/
-    ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
+    KAFKA_PKG="kafka_2.13-3.4.0"
+    curl -O "https://archive.apache.org/dist/kafka/3.4.0/${KAFKA_PKG}.tgz"
+    tar xzf "${KAFKA_PKG}.tgz" -C /opt/
+    ln -s "/opt/${KAFKA_PKG}" /opt/kafka
     ```
 
 - 然后需要把 `$KAFKA_HOME/bin` 目录加入 PATH。
