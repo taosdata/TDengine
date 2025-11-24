@@ -438,6 +438,11 @@ typedef struct {
 
   SHashObj* roles;
 
+  SPrivSet  sysPrivs;
+  SHashObj* objPrivs;  // key: EObjType + "." + objName, value: SPrivSet
+  SHashObj* rowPrivs;  // key: ETableType + "." + objName + "." + startTs + "." + endTs, value: SPrivSet
+  SHashObj* colPrivs;  // key: ETableType + "." + objName + "." + colName, value: SPrivSet
+
   SHashObj* readDbs;  //      db.*, *.*
   SHashObj* writeDbs;
   SHashObj* topics;
@@ -466,7 +471,12 @@ typedef struct {
       uint8_t reserve : 6;
     };
   };
-  SPrivSet  privSet;
+
+  SPrivSet  sysPrivs;
+  SHashObj* objPrivs;  // key: EObjType + "." + objName, value: SPrivSet
+  SHashObj* rowPrivs;  // key: ETableType + "." + objName + "." + startTs + "." + endTs, value: SPrivSet
+  SHashObj* colPrivs;  // key: ETableType + "." + objName + "." + colName, value: SPrivSet
+
   SHashObj* parentUsers;
   SHashObj* parentRoles;  // not supported yet
   SHashObj* subRoles;     // not supported yet

@@ -164,62 +164,102 @@ static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
 }
 
 static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pObj) {
-  int32_t  code = 0, lino = 0;
-  int32_t  tlen = 0;
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
+    int32_t  code = 0, lino = 0;
+    int32_t  tlen = 0;
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, buf, bufLen);
 
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->name));
-  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createdTime));
-  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->updateTime));
-  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
-  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->version));
-  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pObj->flag));
-  TAOS_CHECK_EXIT(tEncodeU8(&encoder, PRIV_GROUP_CNT));
-  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-    TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->privSet.set[i]));
-  }
-  size_t  klen = 0;
-  int32_t nParentUsers = taosHashGetSize(pObj->parentUsers);
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentUsers));
-  if (nParentUsers > 0) {
-    void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->parentUsers, pIter)) {
-      char *userName = taosHashGetKey(pIter, &klen);
-      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, userName));
+    TAOS_CHECK_EXIT(tStartEncode(&encoder));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->name));
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createdTime));
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->updateTime));
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->version));
+    TAOS_CHECK_EXIT(tEncodeU8(&encoder, pObj->flag));
+    TAOS_CHECK_EXIT(tEncodeU8(&encoder, PRIV_GROUP_CNT));
+    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+      TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->sysPrivs.set[i]));
     }
-  }
-  int32_t nParentRoles = taosHashGetSize(pObj->parentRoles);
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentRoles));
-  if (nParentRoles > 0) {
-    void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->parentRoles, pIter)) {
-      char *roleName = taosHashGetKey(pIter, &klen);
-      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
-    }
-  }
-  int32_t nSubRoles = taosHashGetSize(pObj->subRoles);
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nSubRoles));
-  if (nSubRoles > 0) {
-    void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
-      char *roleName = taosHashGetKey(pIter, &klen);
-      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
-    }
-  }
 
-  tEndEncode(&encoder);
-  tlen = encoder.pos;
-_exit:
-  tEncoderClear(&encoder);
-  if (code < 0) {
-    mError("role:%s, %s failed at line %d since %s", pObj->name, __func__, lino, tstrerror(code));
-    TAOS_RETURN(code);
-  }
+    size_t  klen = 0;
+    int32_t nObjPrivs = taosHashGetSize(pObj->objPrivs);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nObjPrivs));
+    if (nObjPrivs > 0) {
+      void *pIter = NULL;
+      while (pIter = taosHashIterate(pObj->objPrivs, pIter)) {
+        char *objKey = taosHashGetKey(pIter, &klen);
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, objKey));
+        for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+          TAOS_CHECK_EXIT(tEncodeU64v(&encoder, ((SPrivSet *)pIter)->set[i]));
+        }
+      }
+    }
 
-  return tlen;
-}
+    int32_t nRowPrivs = taosHashGetSize(pObj->rowPrivs);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nRowPrivs));
+    if (nRowPrivs > 0) {
+      void *pIter = NULL;
+      while (pIter = taosHashIterate(pObj->rowPrivs, pIter)) {
+        char *rowKey = taosHashGetKey(pIter, &klen);
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, rowKey));
+        for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+          TAOS_CHECK_EXIT(tEncodeU64v(&encoder, ((SPrivSet *)pIter)->set[i]));
+        }
+      }
+    }
+
+    int32_t nColPrivs = taosHashGetSize(pObj->colPrivs);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nColPrivs));
+    if (nColPrivs > 0) {
+      void *pIter = NULL;
+      while (pIter = taosHashIterate(pObj->colPrivs, pIter)) {
+        char *colKey = taosHashGetKey(pIter, &klen);
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, colKey));
+        for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+          TAOS_CHECK_EXIT(tEncodeU64v(&encoder, ((SPrivSet *)pIter)->set[i]));
+        }
+      }
+    }
+
+    int32_t nParentUsers = taosHashGetSize(pObj->parentUsers);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentUsers));
+    if (nParentUsers > 0) {
+      void *pIter = NULL;
+      while (pIter = taosHashIterate(pObj->parentUsers, pIter)) {
+        char *userName = taosHashGetKey(pIter, &klen);
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, userName));
+      }
+    }
+    int32_t nParentRoles = taosHashGetSize(pObj->parentRoles);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentRoles));
+    if (nParentRoles > 0) {
+      void *pIter = NULL;
+      while (pIter = taosHashIterate(pObj->parentRoles, pIter)) {
+        char *roleName = taosHashGetKey(pIter, &klen);
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
+      }
+    }
+    int32_t nSubRoles = taosHashGetSize(pObj->subRoles);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nSubRoles));
+    if (nSubRoles > 0) {
+      void *pIter = NULL;
+      while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
+        char *roleName = taosHashGetKey(pIter, &klen);
+        TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
+      }
+    }
+
+    tEndEncode(&encoder);
+    tlen = encoder.pos;
+  _exit:
+    tEncoderClear(&encoder);
+    if (code < 0) {
+      mError("role:%s, %s failed at line %d since %s", pObj->name, __func__, lino, tstrerror(code));
+      TAOS_RETURN(code);
+    }
+
+    return tlen;
+  }
 
 static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   int32_t  code = 0, lino = 0;
@@ -237,9 +277,81 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   uint8_t nPrivGroups = 0;
   TAOS_CHECK_EXIT(tDecodeU8(&decoder, &nPrivGroups));
   int32_t nRealGroups = nPrivGroups > PRIV_GROUP_CNT ? PRIV_GROUP_CNT : nPrivGroups;
-  for (int32_t i = 0; i < nRealGroups; ++i) {
-    TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pObj->privSet.set[i]));
+  for (int32_t i = 0; i < nPrivGroups; ++i) {
+    if (i < nRealGroups) {
+      TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pObj->sysPrivs.set[i]));
+    } else {
+      uint64_t discard = 0;
+      TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &discard));
+    }
   }
+  int32_t nObjPrivs = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nObjPrivs));
+  if (nObjPrivs > 0) {
+    if (!(pObj->objPrivs =
+              taosHashInit(nObjPrivs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nObjPrivs; ++i) {
+      char objKey[TSDB_OBJ_FNAME_LEN] = {0};
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, objKey));
+      SPrivSet privSet = {0};
+      for (int32_t j = 0; j < nRealGroups; ++j) {
+        if (j < nRealGroups) {
+          TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &privSet.set[j]));
+        } else {
+          uint64_t discard = 0;
+          TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &discard));
+        }
+      }
+      TAOS_CHECK_EXIT(taosHashPut(pObj->objPrivs, objKey, strlen(objKey) + 1, &privSet, sizeof(SPrivSet)));
+    }
+  }
+  int32_t nRowPrivs = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nRowPrivs));
+  if (nRowPrivs > 0) {
+    if (!(pObj->rowPrivs =
+              taosHashInit(nRowPrivs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nRowPrivs; ++i) {
+      char rowKey[TSDB_OBJ_FNAME_LEN + 50] = {0};
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, rowKey));
+      SPrivSet privSet = {0};
+      for (int32_t j = 0; j < nRealGroups; ++j) {
+        if (j < nRealGroups) {
+          TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &privSet.set[j]));
+        } else {
+          uint64_t discard = 0;
+          TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &discard));
+        }
+      }
+      TAOS_CHECK_EXIT(taosHashPut(pObj->rowPrivs, rowKey, strlen(rowKey) + 1, &privSet, sizeof(SPrivSet)));
+    }
+  }
+  int32_t nColPrivs = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nColPrivs));
+  if (nColPrivs > 0) {
+    if (!(pObj->colPrivs =
+              taosHashInit(nColPrivs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nColPrivs; ++i) {
+      char colKey[TSDB_OBJ_FNAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN] = {0};
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, colKey));
+      SPrivSet privSet = {0};
+      for (int32_t j = 0; j < nRealGroups; ++j) {
+        if (j < nRealGroups) {
+          TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &privSet.set[j]));
+        } else {
+          uint64_t discard = 0;
+          TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &discard));
+        }
+      }
+      TAOS_CHECK_EXIT(taosHashPut(pObj->colPrivs, colKey, strlen(colKey) + 1, &privSet, sizeof(SPrivSet)));
+    }
+  }
+
   char    userName[TSDB_USER_LEN] = {0};
   int32_t nParentUsers = 0;
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nParentUsers));
@@ -370,6 +482,18 @@ _exit:
 
 void mndRoleFreeObj(SRoleObj *pObj) {
   if (pObj) {
+    if (pObj->objPrivs) {
+      taosHashCleanup(pObj->objPrivs);
+      pObj->objPrivs = NULL;
+    }
+    if (pObj->rowPrivs) {
+      taosHashCleanup(pObj->rowPrivs);
+      pObj->rowPrivs = NULL;
+    }
+    if (pObj->colPrivs) {
+      taosHashCleanup(pObj->colPrivs);
+      pObj->colPrivs = NULL;
+    }
     if (pObj->parentUsers) {
       taosHashCleanup(pObj->parentUsers);
       pObj->parentUsers = NULL;
@@ -400,9 +524,12 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   mTrace("role:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
-  pOld->privSet = pNew->privSet;
+  pOld->sysPrivs = pNew->sysPrivs;
   pOld->version = pNew->version;
   pOld->flag = pNew->flag;
+  TSWAP(pOld->objPrivs, pNew->objPrivs);
+  TSWAP(pOld->rowPrivs, pNew->rowPrivs);
+  TSWAP(pOld->colPrivs, pNew->colPrivs);
   TSWAP(pOld->parentUsers, pNew->parentUsers);
   TSWAP(pOld->parentRoles, pNew->parentRoles);
   TSWAP(pOld->subRoles, pNew->subRoles);
@@ -866,7 +993,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     STR_WITH_MAXSIZE_TO_VARSTR(roleName, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
 
     SPrivIter privIter = {0};
-    privIterInit(&privIter, &pObj->privSet);
+    privIterInit(&privIter, &pObj->sysPrivs);
     SPrivInfo *pPrivInfo = NULL;
     while (privIterNext(&privIter, &pPrivInfo)) {
       cols = 0;
