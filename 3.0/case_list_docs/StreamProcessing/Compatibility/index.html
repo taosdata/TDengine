@@ -2905,6 +2905,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="md-nav__link">
+        Comp: stream backward and forward 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.23-Compatibility.test_compatibility_cross_version.TestStreamCompatibility.test_stream_compatibility" class="md-nav__link">
         Comp: stream cross-version 
       </a>
@@ -3904,6 +3915,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="md-nav__link">
+        Comp: stream backward and forward 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.23-Compatibility.test_compatibility_cross_version.TestStreamCompatibility.test_stream_compatibility" class="md-nav__link">
         Comp: stream cross-version 
       </a>
@@ -4329,6 +4351,52 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade_all.py" target="_blank">
                       cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade_all.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.23-Compatibility.test_new_stream_compatibility.TestNewStreamCompatibility.test_stream_compatibility" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Comp: stream backward and forward</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test compatibility across 3 baseline versions with stream processing validation:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test [v3.3.7.9 Base Version Compatibility]</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Install v3.3.7.9 and prepare data using tdCb.prepareDataOnOldVersion()</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.1 Create test databases and tables</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.2 Create streams and insert sample data</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.3 Verify stream functionality on v3.3.7.9</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Upgrade to new version with mode 2 (no upgrade mode)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.1 Kill all dnodes and update to new version</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.2 Start new version with existing data</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.3 Verify cross-major version compatibility (corss_major_version=True)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 Verify data and functionality using tdCb.verifyData()</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.1 Check table counts and row counts consistency</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.2 Verify stream processing functionality</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.3 Validate aggregation results accuracy</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test [v3.3.8.5 Base Version Compatibility]</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test [v3.3.8.6 Base Version Compatibility]</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py" target="_blank">
+                      cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
                     </a>
                   </div>
         </div>
