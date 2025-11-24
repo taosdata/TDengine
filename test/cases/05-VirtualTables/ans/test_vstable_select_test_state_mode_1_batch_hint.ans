@@ -1,5 +1,5 @@
 
-taos> select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100 ;
          _wstart         |          _wend          |        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |  first(u_bigint_col)  | first(tinyint_col) | first(smallint_col) | first(int_col) |   first(bigint_col)   |   first(float_col)   |     first(double_col)     | first(bool_col) | first(binary_16_col) |      first(binary_32_col)      |      first(nchar_16_col)       |      first(nchar_32_col)       |        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |       count(*)        |
 ==================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | 2020-10-01 00:00:00.000 |                   29 |                 13238 |        432633471 |            1825145387 |                 80 |               32519 |     -650873068 |  -9223372036854775808 |              99528.7 |           73495720.958304 | true            | San Diego            | Shanghai - Los Angles          | 一。San Franc                  | 圣克拉拉 - Santa Clara         | 2020-10-01 00:00:00.002 |                 158 |                13238 |       432633471 |             722563855 |                80 |              32519 |     -77824226 |  -9223372036854775808 |              99528.7 |           34582987.167108 | true           | San Diego           | Xian - Sunnyvale               | 一。San Franc                  | 圣克拉拉 - Santa Clara         |                     2 |
@@ -103,7 +103,7 @@ taos> select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select
  2020-10-01 00:00:00.645 | 2020-10-01 00:00:00.647 | 2020-10-01 00:00:00.645 |                   93 |                 50372 |       1756705093 |            1907448798 |                  4 |               11012 |      178925870 |  -9223372036854775808 |             -28602.3 |           97352300.942508 | false           | Mountain View        | Taiyuan - Santa Clara          | 二。Los Angle                  | 圣地亚哥 - San Diego           | 2020-10-01 00:00:00.646 |                  93 |                50372 |      1756705093 |            1907448798 |                 4 |              11012 |     178925870 |  -9223372036854775808 |             -28602.3 |           97352300.942508 | false          | Mountain View       | Taiyuan - Santa Clara          | 二。Los Angle                  | 圣地亚哥 - San Diego           |                     2 |
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | 2020-10-01 00:00:00.648 |                   36 |                 40209 |        370021384 |            2011281951 |                 87 |                6525 |      237103738 |  -9223372036854775808 |              48541.3 |          -60794244.376766 | true            | Sunnyvale            | Taiyuan - Santa Clara          | 一。San Franc                  | 圣克拉拉 - Santa Clara         | 2020-10-01 00:00:00.650 |                 150 |                40209 |       370021384 |            1329988603 |                87 |               6525 |     827934694 |  -9223372036854775808 |              48541.3 |          -45783508.615958 | true           | Sunnyvale           | Tianjin - Mountain View        | 一。San Franc                  | 圣克拉拉 - Santa Clara         |                     2 |
 
-taos> select _wstart, _wend, first(bool_col), last(bool_col), count(bool_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, first(bool_col), last(bool_col), count(bool_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100 ;
          _wstart         |          _wend          | first(bool_col) | last(bool_col) |    count(bool_col)    |
 ===============================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true            | true           |                     1 |
@@ -207,7 +207,7 @@ taos> select _wstart, _wend, first(bool_col), last(bool_col), count(bool_col) fr
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true            | true           |                     1 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 | false           | false          |                     1 |
 
-taos> select _wstart, _wend, first(bool_col), first(u_tinyint_col), last(bool_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, first(bool_col), first(u_tinyint_col), last(bool_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100;
          _wstart         |          _wend          | first(bool_col) | first(u_tinyint_col) | last(bool_col) | last(u_tinyint_col) | count(u_tinyint_col)  |
 ============================================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true            |                   29 | true           |                 158 |                     2 |
@@ -311,7 +311,7 @@ taos> select _wstart, _wend, first(bool_col), first(u_tinyint_col), last(bool_co
  2020-10-01 00:00:00.645 | 2020-10-01 00:00:00.647 | false           |                   93 | false          |                  93 |                     1 |
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true            |                   36 | true           |                 150 |                     2 |
 
-taos> select _wstart, _wend, first(bool_col), first(u_tinyint_col), first(u_smallint_col), last(bool_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, first(bool_col), first(u_tinyint_col), first(u_smallint_col), last(bool_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname state_window(bool_col, 1) order by _wstart limit 100 ;
          _wstart         |          _wend          | first(bool_col) | first(u_tinyint_col) | first(u_smallint_col) | last(bool_col) | last(u_tinyint_col) | last(u_smallint_col) | count(u_tinyint_col)  |
 ===========================================================================================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true            |                   29 |                 13238 | true           |                 158 |                13238 |                     2 |
@@ -415,7 +415,7 @@ taos> select _wstart, _wend, first(bool_col), first(u_tinyint_col), first(u_smal
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true            |                   36 |                 40209 | true           |                 150 |                40209 |                     2 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 | false           |                   37 |                 24193 | false          |                  37 |                24193 |                     1 |
 
-taos> select _wstart, _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          |    count(bool_col)    |
 ============================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 |                     1 |
@@ -519,7 +519,7 @@ taos> select _wstart, _wend, count(bool_col) from test_vtable_select.vtb_virtual
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 |                     1 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 |                     1 |
 
-taos> select _wstart, _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          |    count(bool_col)    |    avg(u_tinyint_col)     |
 ========================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 |                     1 |                      93.5 |
@@ -623,7 +623,7 @@ taos> select _wstart, _wend, count(bool_col), avg(u_tinyint_col) from test_vtabl
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 |                     1 |                        93 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 |                     1 |                        37 |
 
-taos> select _wstart, _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 |                     1 |                      93.5 |                 13238 |
@@ -727,7 +727,7 @@ taos> select _wstart, _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 |                     1 |                        37 |                 24193 |
 
-taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ===========================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |
@@ -831,7 +831,7 @@ taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 |
 
-taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) |
 ============================================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |
@@ -935,7 +935,7 @@ taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |
 
-taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) |
 ===========================================================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |
@@ -1039,7 +1039,7 @@ taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 |
 
-taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |
 =======================================================================================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |
@@ -1143,7 +1143,7 @@ taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |
 
-taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |   var_pop(tinyint_col)    |
 ===================================================================================================================================================================================================================================
  2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |                         0 |
@@ -1247,7 +1247,7 @@ taos> select _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |                         0 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |                         0 |
 
-taos> select _wstart, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |    count(bool_col)    |
 ==================================================
  2020-10-01 00:00:00.000 |                     1 |
@@ -1351,7 +1351,7 @@ taos> select _wstart, count(bool_col) from test_vtable_select.vtb_virtual_stb st
  2020-10-01 00:00:00.648 |                     1 |
  2020-10-01 00:00:00.651 |                     1 |
 
-taos> select _wstart, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |    count(bool_col)    |    avg(u_tinyint_col)     |
 ==============================================================================
  2020-10-01 00:00:00.000 |                     1 |                      93.5 |
@@ -1455,7 +1455,7 @@ taos> select _wstart, count(bool_col), avg(u_tinyint_col) from test_vtable_selec
  2020-10-01 00:00:00.648 |                     1 |                        93 |
  2020-10-01 00:00:00.651 |                     1 |                        37 |
 
-taos> select _wstart, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ======================================================================================================
  2020-10-01 00:00:00.000 |                     1 |                      93.5 |                 13238 |
@@ -1559,7 +1559,7 @@ taos> select _wstart, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) f
  2020-10-01 00:00:00.648 |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.651 |                     1 |                        37 |                 24193 |
 
-taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 =================================================================================================================
  2020-10-01 00:00:00.000 | true     |                     1 |                      93.5 |                 13238 |
@@ -1663,7 +1663,7 @@ taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_small
  2020-10-01 00:00:00.648 | true     |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.651 | false    |                     1 |                        37 |                 24193 |
 
-taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) |
 ==================================================================================================================================
  2020-10-01 00:00:00.000 | true     |                     1 |                      93.5 |                 13238 |      432633471 |
@@ -1767,7 +1767,7 @@ taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_small
  2020-10-01 00:00:00.648 | true     |                     1 |                        93 |                 40209 |      370021384 |
  2020-10-01 00:00:00.651 | false    |                     1 |                        37 |                 24193 | NULL           |
 
-taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) |
 =================================================================================================================================================
  2020-10-01 00:00:00.000 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |
@@ -1871,7 +1871,7 @@ taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_small
  2020-10-01 00:00:00.648 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |
  2020-10-01 00:00:00.651 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 |
 
-taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |
 =============================================================================================================================================================================
  2020-10-01 00:00:00.000 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |
@@ -1975,7 +1975,7 @@ taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_small
  2020-10-01 00:00:00.648 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |
  2020-10-01 00:00:00.651 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |
 
-taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |   var_pop(tinyint_col)    |
 =========================================================================================================================================================================================================
  2020-10-01 00:00:00.000 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |                         0 |
@@ -2079,7 +2079,7 @@ taos> select _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_small
  2020-10-01 00:00:00.648 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |                         0 |
  2020-10-01 00:00:00.651 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |                         0 |
 
-taos> select _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          |    count(bool_col)    |
 ==================================================
  2020-10-01 00:00:00.002 |                     1 |
@@ -2183,7 +2183,7 @@ taos> select _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb stat
  2020-10-01 00:00:00.650 |                     1 |
  2020-10-01 00:00:00.653 |                     1 |
 
-taos> select _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          |    count(bool_col)    |    avg(u_tinyint_col)     |
 ==============================================================================
  2020-10-01 00:00:00.002 |                     1 |                      93.5 |
@@ -2287,7 +2287,7 @@ taos> select _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.
  2020-10-01 00:00:00.650 |                     1 |                        93 |
  2020-10-01 00:00:00.653 |                     1 |                        37 |
 
-taos> select _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ======================================================================================================
  2020-10-01 00:00:00.002 |                     1 |                      93.5 |                 13238 |
@@ -2391,7 +2391,7 @@ taos> select _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) fro
  2020-10-01 00:00:00.650 |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.653 |                     1 |                        37 |                 24193 |
 
-taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 =================================================================================================================
  2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |
@@ -2495,7 +2495,7 @@ taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallin
  2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 |
 
-taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) |
 ==================================================================================================================================
  2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |
@@ -2599,7 +2599,7 @@ taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallin
  2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |
  2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |
 
-taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) |
 =================================================================================================================================================
  2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |
@@ -2703,7 +2703,7 @@ taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallin
  2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |
  2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 |
 
-taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |
 =============================================================================================================================================================================
  2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |
@@ -2807,7 +2807,7 @@ taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallin
  2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |
  2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |
 
-taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
           _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |   var_pop(tinyint_col)    |
 =========================================================================================================================================================================================================
  2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |                         0 |
@@ -2911,7 +2911,7 @@ taos> select _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallin
  2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |                         0 |
  2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |                         0 |
 
-taos> select _wstart, _wduration, _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          |    count(bool_col)    |
 ====================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 |                     1 |
@@ -3015,7 +3015,7 @@ taos> select _wstart, _wduration, _wend, count(bool_col) from test_vtable_select
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 |                     1 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 |                     1 |
 
-taos> select _wstart, _wduration, _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          |    count(bool_col)    |    avg(u_tinyint_col)     |
 ================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 |                     1 |                      93.5 |
@@ -3119,7 +3119,7 @@ taos> select _wstart, _wduration, _wend, count(bool_col), avg(u_tinyint_col) fro
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 |                     1 |                        93 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 |                     1 |                        37 |
 
-taos> select _wstart, _wduration, _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ========================================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 |                     1 |                      93.5 |                 13238 |
@@ -3223,7 +3223,7 @@ taos> select _wstart, _wduration, _wend, count(bool_col), avg(u_tinyint_col), su
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 |                     1 |                        37 |                 24193 |
 
-taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ===================================================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |
@@ -3327,7 +3327,7 @@ taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyin
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 |
 
-taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) |
 ====================================================================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |
@@ -3431,7 +3431,7 @@ taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyin
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |
 
-taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) |
 ===================================================================================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |
@@ -3535,7 +3535,7 @@ taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyin
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 |
 
-taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |
 ===============================================================================================================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |
@@ -3639,7 +3639,7 @@ taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyin
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |
 
-taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
          _wstart         |      _wduration       |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |   var_pop(tinyint_col)    |
 ===========================================================================================================================================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |                         0 |
@@ -3743,7 +3743,7 @@ taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyin
  2020-10-01 00:00:00.648 |                     2 | 2020-10-01 00:00:00.650 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |                         0 |
  2020-10-01 00:00:00.651 |                     2 | 2020-10-01 00:00:00.653 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |                         0 |
 
-taos> select _wduration, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       |    count(bool_col)    |
 ================================================
                      2 |                     1 |
@@ -3847,7 +3847,7 @@ taos> select _wduration, count(bool_col) from test_vtable_select.vtb_virtual_stb
                      2 |                     1 |
                      2 |                     1 |
 
-taos> select _wduration, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       |    count(bool_col)    |    avg(u_tinyint_col)     |
 ============================================================================
                      2 |                     1 |                      93.5 |
@@ -3951,7 +3951,7 @@ taos> select _wduration, count(bool_col), avg(u_tinyint_col) from test_vtable_se
                      2 |                     1 |                        93 |
                      2 |                     1 |                        37 |
 
-taos> select _wduration, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ====================================================================================================
                      2 |                     1 |                      93.5 |                 13238 |
@@ -4055,7 +4055,7 @@ taos> select _wduration, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col
                      2 |                     1 |                        93 |                 40209 |
                      2 |                     1 |                        37 |                 24193 |
 
-taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  |
 ===============================================================================================================
                      2 | true     |                     1 |                      93.5 |                 13238 |
@@ -4159,7 +4159,7 @@ taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_sm
                      2 | true     |                     1 |                        93 |                 40209 |
                      2 | false    |                     1 |                        37 |                 24193 |
 
-taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) |
 ================================================================================================================================
                      2 | true     |                     1 |                      93.5 |                 13238 |      432633471 |
@@ -4263,7 +4263,7 @@ taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_sm
                      2 | true     |                     1 |                        93 |                 40209 |      370021384 |
                      2 | false    |                     1 |                        37 |                 24193 | NULL           |
 
-taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) |
 ===============================================================================================================================================
                      2 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |
@@ -4367,7 +4367,7 @@ taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_sm
                      2 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |
                      2 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 |
 
-taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |
 ===========================================================================================================================================================================
                      2 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |
@@ -4471,7 +4471,7 @@ taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_sm
                      2 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |
                      2 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |
 
-taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1) limit 100 ;
       _wduration       | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |   var_pop(tinyint_col)    |
 =======================================================================================================================================================================================================
                      2 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |                         0 |
@@ -4575,7 +4575,7 @@ taos> select _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_sm
                      2 | true     |                     1 |                        93 |                 40209 |      370021384 |    237103738 |                         0 |                         0 |
                      2 | false    |                     1 |                        37 |                 24193 | NULL           |   -861773645 | NULL                      |                         0 |
 
-taos> select _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1);
+taos> select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 1);
          _wstart         |      _wduration       |          _wend          | bool_col |    count(bool_col)    |    avg(u_tinyint_col)     |  sum(u_smallint_col)  | max(u_int_col) | min(int_col) | stddev_pop(smallint_col)  |   var_pop(tinyint_col)    |
 ===========================================================================================================================================================================================================================================================
  2020-10-01 00:00:00.000 |                     2 | 2020-10-01 00:00:00.002 | true     |                     1 |                      93.5 |                 13238 |      432633471 |   -650873068 |                         0 |                         0 |

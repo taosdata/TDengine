@@ -984,6 +984,18 @@ static int32_t extWinGetNoOvlpWin(SOperatorInfo* pOperator, int64_t* tsCol, int3
         return TSDB_CODE_SUCCESS;
       }
 
+      if (!pOperator->pTaskInfo->pStreamRuntimeInfo && tsCol[r] >= pWin->tw.ekey) {
+        extWinSetCurWinIdx(pOperator, pExtW->blkWinIdx);
+        *ppWin = pWin;
+        *startPos = r;
+        *winRows = getNumOfRowsInTimeWindow(pInfo, tsCol, r, pWin->tw.ekey - 1, binarySearchForKey, NULL, pExtW->binfo.inputTsOrder);
+
+        qDebug("%s %s the %dth ext win TR[%" PRId64 ", %" PRId64 ") got %d rows rowStartidx %d ts[%" PRId64 ", %" PRId64 "] in blk",
+               GET_TASKID(pOperator->pTaskInfo), __func__, pExtW->blkWinIdx, pWin->tw.skey, pWin->tw.ekey, *winRows, r, tsCol[r], tsCol[r + *winRows - 1]);
+
+        return TSDB_CODE_SUCCESS;
+      }
+
       break;
     }
 
@@ -2287,6 +2299,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     SExprInfo* pExprInfo = NULL;
     code = createExprInfo(pPhynode->window.pFuncs, NULL, &pExprInfo, &num);
     QUERY_CHECK_CODE(code, lino, _error);
+    pOperator->exprSupp.hasWindow = true;
+    pOperator->exprSupp.hasWindowOrGroup = true;
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, 0, 0);
     QUERY_CHECK_CODE(code, lino, _error);
 

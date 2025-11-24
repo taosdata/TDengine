@@ -184,6 +184,7 @@ class TestVtableQueryUtil:
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
 
     def prepare_cross_db_vtables(self):
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
         tdLog.info(f"prepare org tables.")
         for i in range(4):
             tdSql.execute(f"drop database if exists test_vtable_select_{i};")
@@ -384,6 +385,7 @@ class TestVtableQueryUtil:
                       f"nchar_32_col from vtb_org_child_8.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
     def prepare_same_db_vtables(self):
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
         tdLog.info(f"prepare org tables.")
 
         tdSql.execute("drop database if exists test_vtable_select;")

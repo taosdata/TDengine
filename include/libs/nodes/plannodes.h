@@ -265,22 +265,12 @@ typedef struct SDynQueryCtrlVtbScan {
   SVgroupsInfo* pVgroupList;
 } SDynQueryCtrlVtbScan;
 
-typedef enum EWindowType {
-  WINDOW_TYPE_INTERVAL = 1,
-  WINDOW_TYPE_SESSION,
-  WINDOW_TYPE_STATE,
-  WINDOW_TYPE_EVENT,
-  WINDOW_TYPE_COUNT,
-  WINDOW_TYPE_ANOMALY,
-  WINDOW_TYPE_EXTERNAL,
-  WINDOW_TYPE_PERIOD
-} EWindowType;
-
 typedef struct SDynQueryCtrlVtbWindow {
   int32_t               wstartSlotId;
   int32_t               wendSlotId;
   int32_t               wdurationSlotId;
   bool                  isVstb;
+  bool                  singleWinMode;
   EStateWinExtendOption extendOption;
 } SDynQueryCtrlVtbWindow;
 
@@ -696,6 +686,7 @@ typedef struct SVtbWindowDynCtrlBasic {
   int32_t               wendSlotId;
   int32_t               wdurationSlotId;
   bool                  isVstb;
+  bool                  singleWinMode;
   SNodeList*            pTargets;
   EStateWinExtendOption extendOption;
 } SVtbWindowDynCtrlBasic;

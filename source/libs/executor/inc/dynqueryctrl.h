@@ -122,6 +122,7 @@ typedef struct SVtbWindowDynCtrlInfo {
   int32_t                  outputWendSlotId;
   int32_t                  outputWdurationSlotId;
   bool                     isVstb;
+  bool                     singleWinMode;
   SNodeList*               pTargets;
   SArray*                  pWins;        // SArray<SArray<SExtWinTimeWindow>>
   int32_t                  curWinBatchIdx;

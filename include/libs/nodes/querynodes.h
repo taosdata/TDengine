@@ -158,6 +158,8 @@ typedef enum EHintOption {
   HINT_SMALLDATA_TS_SORT,
   HINT_HASH_JOIN,
   HINT_SKIP_TSMA,
+  HINT_WIN_OPTIMIZE_BATCH,
+  HINT_WIN_OPTIMIZE_SINGLE,
 } EHintOption;
 
 typedef struct SHintNode {

@@ -4520,6 +4520,7 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_TARGETS,
   PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_VSTB,
   PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_STATE_EXTEND_OPTION,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_SPARSE_WINDOW,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4603,6 +4604,9 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_STATE_EXTEND_OPTION, pNode->vtbWindow.extendOption);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_SPARSE_WINDOW, pNode->vtbWindow.singleWinMode);
         }
         break;
       }
@@ -4704,7 +4708,9 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_STATE_EXTEND_OPTION:
         code = tlvDecodeI32(pTlv, (int32_t*)&pNode->vtbWindow.extendOption);
         break;
-
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_SPARSE_WINDOW:
+        code = tlvDecodeBool(pTlv, &pNode->vtbWindow.singleWinMode);
+        break;
       default:
         break;
     }

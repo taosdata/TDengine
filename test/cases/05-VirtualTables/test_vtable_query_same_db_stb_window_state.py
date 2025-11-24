@@ -19,9 +19,6 @@ class TestVTableQuerySameDBStbWindowState:
     def setup_class(cls):
         vtbUtil = TestVtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
-    def teardown_class(cls):
-        vtbUtil = TestVtableQueryUtil()
-        vtbUtil.clean_up_same_db_vtables()
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
@@ -49,7 +46,16 @@ class TestVTableQuerySameDBStbWindowState:
 
         """
 
-        self.run_normal_query("test_vstable_select_test_state_mode_0")
-        self.run_normal_query("test_vstable_select_test_state_mode_1")
-        self.run_normal_query("test_vstable_select_test_state_mode_2")
+        #self.run_normal_query("test_vstable_select_test_state_mode_0")
+        #self.run_normal_query("test_vstable_select_test_state_mode_1")
+        #self.run_normal_query("test_vstable_select_test_state_mode_2")
+
+        self.run_normal_query("test_vstable_select_test_state_mode_0_batch_hint")
+        self.run_normal_query("test_vstable_select_test_state_mode_1_batch_hint")
+        self.run_normal_query("test_vstable_select_test_state_mode_2_batch_hint")
+
+        self.run_normal_query("test_vstable_select_test_state_mode_0_single_hint")
+        self.run_normal_query("test_vstable_select_test_state_mode_1_single_hint")
+        self.run_normal_query("test_vstable_select_test_state_mode_2_single_hint")
+
 
