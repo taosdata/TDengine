@@ -1403,11 +1403,10 @@ bool isTimeInDateTimeWhiteList(SDateTimeWhiteList *wl, int64_t tm);
 typedef struct {
   int8_t createType;
   int8_t superUser;  // denote if it is a super user or not
-  int8_t passIsMd5;
   int8_t ignoreExisting;
 
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USER_PASSWORD_LEN];
+  char   pass[TSDB_USER_PASSWORD_LONGLEN];
   char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
   int8_t sysInfo;
@@ -1493,7 +1492,7 @@ typedef struct {
   int8_t changepass;
 
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USER_PASSWORD_LEN];
+  char   pass[TSDB_USER_PASSWORD_LONGLEN];
   char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
   int32_t sessionPerUser;
   int32_t connectTime;

@@ -29,7 +29,7 @@ void    mndCleanupUser(SMnode *pMnode);
 int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser);
 void    mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq);
 void    mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
-int32_t mndEncryptPass(char *pass, int8_t *algo);
+int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);
 
 // for trans test
 SSdbRaw *mndUserActionEncode(SUserObj *pUser);

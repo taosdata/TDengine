@@ -12467,15 +12467,10 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
   createReq.createType = 0;
   createReq.superUser = 0;
-  createReq.passIsMd5 = 1;
   createReq.ignoreExisting = pStmt->ignoreExisting;
 
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
-  if (pStmt->isImport == 1) {
-    tstrncpy(createReq.pass, pStmt->password, TSDB_USER_PASSWORD_LEN);
-  } else {
-    taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
-  }
+  tstrncpy(createReq.pass, pStmt->password, sizeof(createReq.pass));
   tstrncpy(createReq.totpseed, pStmt->totpseed, sizeof(createReq.totpseed));
 
   createReq.sysInfo = pStmt->sysinfo;
@@ -12552,10 +12547,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.changepass = opts->changepass;
 
   if (opts->hasPassword) {
-    int32_t len = strlen(opts->password);
-    if (len > 0) {
-      taosEncryptPass_c((uint8_t*)opts->password, len, alterReq.pass);
-    }
+    tstrncpy(alterReq.pass, opts->password, sizeof(alterReq.pass));
   }
   if (opts->hasTotpseed) {
     tstrncpy(alterReq.totpseed, opts->totpseed, sizeof(alterReq.totpseed));
