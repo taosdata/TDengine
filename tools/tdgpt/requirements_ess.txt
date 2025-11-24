@@ -6,8 +6,8 @@ pyculiarity==0.0.7
 Cython==3.0.11
 pmdarima==2.0.4
 Flask==3.0.3
-matplotlib==3.9.2
-uWSGI==2.0.27
+matplotlib==3.6.0
+gunicorn==23.0.0
 keras==3.9.0
 taospy==2.8.6
 transformers==4.40.0

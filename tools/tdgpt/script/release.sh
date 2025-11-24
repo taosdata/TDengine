@@ -36,7 +36,7 @@ top_dir="$(readlink -f ${script_dir}/..)"
 echo -e ${top_dir}
 
 serverName="taosanoded"
-configFile="taosanode.ini"
+configFile="taosanode.config.py"
 tarName="package.tar.gz"
 
 # create compressed install file.
