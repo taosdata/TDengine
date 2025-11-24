@@ -43,7 +43,8 @@ impl<Item> RotateWriter<Item> {
     pub async fn write(&self, data: Item) -> Result<(), RotateFileError> {
         let (resp_tx, resp_rx) = oneshot::channel();
         self.sender
-            .send(RequestMsg::Write(WriteData { data, resp_tx }))
+            .send_async(RequestMsg::Write(WriteData { data, resp_tx }))
+            .await
             .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
         resp_rx
             .await
@@ -53,7 +54,8 @@ impl<Item> RotateWriter<Item> {
     pub async fn snapshot(&self) -> Result<Vec<PathBuf>, RotateFileError> {
         let (resp_tx, resp_rx) = oneshot::channel();
         self.sender
-            .send(RequestMsg::Snapshot(SnapshotData { resp_tx }))
+            .send_async(RequestMsg::Snapshot(SnapshotData { resp_tx }))
+            .await
             .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
         resp_rx
             .await
@@ -63,7 +65,8 @@ impl<Item> RotateWriter<Item> {
     pub async fn close(&self) -> Result<(), RotateFileError> {
         if !self.sender.is_disconnected() {
             self.sender
-                .send(RequestMsg::Close)
+                .send_async(RequestMsg::Close)
+                .await
                 .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
         }
         Ok(())
@@ -72,7 +75,8 @@ impl<Item> RotateWriter<Item> {
     pub async fn force_rotate(&self) -> Result<(), RotateFileError> {
         let (resp_tx, resp_rx) = oneshot::channel();
         self.sender
-            .send(RequestMsg::ForceRotate(ForceRotateData { resp_tx }))
+            .send_async(RequestMsg::ForceRotate(ForceRotateData { resp_tx }))
+            .await
             .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
         resp_rx
             .await

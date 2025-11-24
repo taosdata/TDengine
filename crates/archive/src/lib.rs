@@ -19,7 +19,8 @@ pub async fn get_rewrite_files(
 ) -> Result<Vec<PathBuf>, ArchiveError> {
     let (resp_tx, rx) = oneshot::channel::<Result<Vec<PathBuf>, ArchiveError>>();
     archive_tx
-        .send(ArchiveType::CacheRewrite(RewriteMsg { resp_tx }))
+        .send_async(ArchiveType::CacheRewrite(RewriteMsg { resp_tx }))
+        .await
         .map_err(|e| ArchiveError::OneshotSendError(e.to_string()))?;
     rx.await
         .map_err(|e| ArchiveError::OneshotRecvError(e.to_string()))?

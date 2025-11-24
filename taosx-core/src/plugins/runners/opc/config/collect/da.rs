@@ -2,10 +2,11 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
-use crate::plugins::runners::opc::csv::CsvParser;
+use crate::plugins::sink::point::csv::CsvParser;
+use crate::plugins::sink::point::model::SourceType;
 use crate::runners::opc::config::collect::parse_opc_node_ids;
-use crate::runners::opc::config::{OPCConfig, PointsMode};
-use crate::runners::opc::OpcType;
+use crate::runners::opc::config::PointsMode;
+use crate::sink::point::csv::parse_csv_config_files;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaCollectConfig {
@@ -23,10 +24,10 @@ impl DaCollectConfig {
 
         let node_ids = match points_mode {
             PointsMode::ByCsv => {
-                let csv_files = OPCConfig::parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
+                let csv_files = parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
                     "csv_config_file is required for PointsMode::ByCsv"
                 ))?;
-                let parser = CsvParser::try_new(OpcType::OPCDA, csv_files)?;
+                let parser = CsvParser::try_new(SourceType::OPCDA, csv_files)?;
                 let node_ids = parser.parse_point_id_and_tbname().await?;
 
                 node_ids

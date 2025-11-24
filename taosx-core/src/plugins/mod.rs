@@ -1,22 +1,21 @@
-use std::sync::Arc;
-use std::time::Duration;
-
 use anyhow::Context;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sink::persist::PersistConfig;
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::Instrument;
 use tracing::Span;
 
+use crate::plugins::sink::point::model::PointModelConfig;
 use crate::runners::influxdb::influxdb_datasets;
 use crate::runners::opentsdb::opentsdb_datasets;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::mask_dsn;
 use crate::Transferred;
-use runners::opc::model::OpcModelConfig;
 use runners::opc::opc_datasets;
 
 pub use runners::{
@@ -69,6 +68,15 @@ impl std::ops::Deref for Parser {
     }
 }
 
+impl std::ops::DerefMut for Parser {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Parser::Inner(parser) => parser,
+            Parser::WithSample { parser, .. } => parser,
+        }
+    }
+}
+
 use self::sink::lush::LushModelConfig;
 use self::sink::IpcHandler;
 
@@ -97,13 +105,29 @@ pub const METRIC_POINT_FAILS: &str = "ipc.stream.point_fails";
 pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
 pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
+// =============== KingHistorian datasets lister hook ===============
+// To avoid circular dependency between taosx-core and source-kinghistorian,
+// we expose a registration point. The binary (taosx) can depend on
+// source-kinghistorian and register its lister at startup.
+// Then, list_datasets_from will invoke this hook when driver=="kinghist".
+
+type KinghistDatasetsFn = fn(from: &Dsn, req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>>;
+
+static KINGHIST_DATASETS_HOOK: OnceLock<KinghistDatasetsFn> = OnceLock::new();
+
+/// Register KingHistorian datasets lister.
+/// Call this once at process startup (e.g., in taosx main) if KingHistorian is enabled.
+pub fn register_kinghist_datasets_lister(f: KinghistDatasetsFn) {
+    let _ = KINGHIST_DATASETS_HOOK.set(f);
+}
+
 #[instrument(skip_all)]
 pub async fn build_ipc(
     socket: Option<&str>,
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
-    opc_model_config: Option<OpcModelConfig>,
+    opc_model_config: Option<PointModelConfig>,
     lush_model_config: Option<LushModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
@@ -167,6 +191,7 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
     } else {
         anyhow::bail!("from is required");
     };
+    tracing::debug!(driver = %from.driver, dsn = %from, "list_datasets_from resolved DSN");
     match from.driver.as_str() {
         "tmq" | "sync" => {
             let mut from = from.clone();
@@ -205,17 +230,28 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
             topics.extend(databases);
             Ok(topics)
         }
-        "opc" | "opcua" | "opcda" => {
-            // opc
-            opc_datasets(data).await
-        }
-        "influxdb" => {
-            // influxdb
-            influxdb_datasets(from).await
-        }
-        "opentsdb" => {
-            // opentsdb
-            opentsdb_datasets(from).await
+        "opc" | "opcua" | "opcda" => opc_datasets(data).await,
+        "influxdb" => influxdb_datasets(from).await,
+        "opentsdb" => opentsdb_datasets(from).await,
+        "kinghist" => {
+            // kinghistorian: delegate to registered hook to avoid circular deps
+            tracing::info!(dsn = %from, "kinghist datasets listing requested");
+            match KINGHIST_DATASETS_HOOK.get() {
+                Some(f) => {
+                    tracing::debug!("kinghist datasets lister hook found; delegating");
+                    let from = from.clone();
+                    let data_clone = data.clone();
+                    tokio::task::spawn_blocking(move || f(&from, &data_clone))
+                        .await
+                        .context("kinghist datasets lister task join error")?
+                }
+                None => {
+                    tracing::warn!("kinghist datasets lister hook not registered; returning error");
+                    anyhow::bail!(
+                        "KingHistorian datasets lister is not registered; please enable and register it at startup"
+                    )
+                }
+            }
         }
         _ => Ok(vec![]),
     }

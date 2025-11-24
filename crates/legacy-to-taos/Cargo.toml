@@ -15,6 +15,7 @@ taos.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
+faststr.workspace = true
 futures-util.workspace = true
 fundu.workspace = true
 async-backtrace.workspace = true
@@ -26,6 +27,7 @@ tracing-subscriber.workspace = true
 itertools.workspace = true
 lazy_static.workspace = true
 tempfile.workspace = true
+deadpool.workspace = true
 
 taosx-core.workspace = true
 

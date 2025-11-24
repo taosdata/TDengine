@@ -12,6 +12,7 @@ use source_opc::opc_to_taos;
 use source_opentsdb::opentsdb_to_taos;
 use source_orc::orc_to_taos;
 use source_pi::pi_to_taos;
+use source_pulsar::pulsar_to_taos;
 use taos::Dsn;
 use taoslog::QidManager;
 use taoslog::utils::{QidMetadataGetter, Span};
@@ -298,6 +299,18 @@ impl TaskOpts {
                     )
                     .await?;
                 }
+                (source_pulsar::PULSAR_ID | source_pulsar::PULSAR_TUYA_ID, "taos") => {
+                    pulsar_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        to.clone(),
+                        cancel.clone(),
+                        with_agent.clone(),
+                        task_id_number,
+                        notify.clone(),
+                    )
+                    .await?;
+                }
                 (source_historian::AVEVA_HISTORIAN_ID, "taos") => {
                     historian_to_taos(
                         from.clone(),
@@ -310,6 +323,18 @@ impl TaskOpts {
                         with_agent.clone(),
                         None,
                         task_id_number,
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (source_kinghistorian::KING_HIST_ID, "taos") => {
+                    source_kinghistorian::kinghist_to_taos(
+                        task_id_number,
+                        from.clone(),
+                        to.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
                         notify.clone(),
                     )
                     .await?;

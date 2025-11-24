@@ -394,9 +394,9 @@ mod test_tmq_to_local {
     #[ignore]
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     pub async fn test_replica_by_backup_and_restore_with_taos() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
 
         let host = env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = env::var("WS_ENABLE")

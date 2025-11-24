@@ -72,6 +72,7 @@ interface dataSourceProps {
     getDatasets: RequestApiFn<Recordable>;
     fechSets: RequestApiFn<Recordable>;
     generatePIDefaultConfigFile: RequestApiFn<Recordable>;
+    getPointOptionsApi?: RequestApiFn<Recordable>;
     validOpcFile: RequestApiFn<Recordable>;
     addSourceApi: RequestApiFn<Recordable>;
     editSourceApi: RequestApiFn<Recordable>;

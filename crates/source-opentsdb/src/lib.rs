@@ -17,9 +17,10 @@ use crate::config::{ConnectionConfig, OpentsdbConfig};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::runners::get_data_dir;
 use taosx_core::runners::get_plugin_dir;
-use taosx_core::runners::log_rotation;
+use taosx_core::runners::new_rolling_file_appender;
 use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{DataSet, Transferred, build_ipc, get_log_keep_days, utils::port_pool::PortPool};
+use taosx_core::{DataSet, Transferred, build_ipc, utils::port_pool::PortPool};
+use tracing_subscriber::fmt::MakeWriter;
 
 mod config;
 
@@ -116,14 +117,11 @@ pub async fn opentsdb_to_taos(
     // 连接器路径
     let connector_path = opentsdb_jar_path()?;
 
-    let mut log_path = log_path();
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push(format!("opentsdb-{}.log", task_id.unwrap_or(0)));
-
-    let log_keep_days = get_log_keep_days();
-
-    let mut log_rotation = log_rotation(&log_path, log_keep_days);
+    let log_dir = log_path();
+    std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
+    let component = format!("opentsdb-{}", task_id.unwrap_or(0));
+    let appender = new_rolling_file_appender(log_dir.as_path(), &component)
+        .context("failed to create opentsdb log")?;
 
     // get the version of jdk
     let get_jdk_version = tokio::process::Command::new("java")
@@ -178,7 +176,7 @@ pub async fn opentsdb_to_taos(
 
     {
         let mut child = child.spawn().context("Start OpenTSDB collector error")?;
-        send_sub_process_info(child.id(), task_id, "opentsdb");
+        send_sub_process_info(child.id(), task_id, "opentsdb").await;
         const ERROR_BUF_SIZE: usize = 2;
         let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
         let error_buf_producer = error_buf.clone();
@@ -196,8 +194,13 @@ pub async fn opentsdb_to_taos(
                     let mut guard = error_buf_producer.lock().await;
                     let _ = guard.push_overwrite(line.clone());
                 }
-                // Write the line to log_rotation
-                write!(log_rotation, "{}", line)?;
+                // Write the line to rolling file appender
+                let mut w = appender.make_writer();
+                use std::io::Write as _;
+                w.write_all(line.as_bytes())?;
+                if let Err(err) = w.flush() {
+                    eprintln!("failed to flush OpenTSDB log: {err}");
+                }
                 line.clear();
             }
             Ok::<(), std::io::Error>(())

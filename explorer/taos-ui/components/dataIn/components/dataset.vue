@@ -6,7 +6,7 @@
           <span v-dompurify-html="$t('common.communityTip')"></span>
         </template>
         <el-button
-          v-if="!isOpcDsnValid"
+          v-if="isOpc && !isOpcDsnValid"
           size="default"
           plain
           :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -44,7 +44,7 @@
           {{ t('dataIn.downloadTemplate') }}</a
         >
       </el-tooltip>
-      <el-tooltip class="opc-download-point" effect="light" :content="t('dataIn.downloadnodestip')">
+      <el-tooltip v-if="isOpc" class="opc-download-point" effect="light" :content="t('dataIn.downloadnodestip')">
         <a class="ml20" :class="{ disabled: dataInProps.isCommunity }" @click.prevent="openDialog">
           <el-icon><Download /></el-icon>
           {{ t('dataIn.downloadnodestip') }}
@@ -53,6 +53,18 @@
           </div>
         </a>
       </el-tooltip>
+      <el-tooltip v-if="isKinghist" class="opc-download-point" effect="light" :content="t('dataIn.downloadnodestip')">
+        <a class="ml20" :class="{ disabled: dataInProps.isCommunity }" @click.prevent="openKingDialog">
+          <el-icon><Download /></el-icon>
+          {{ t('dataIn.downloadnodestip') }}
+          <div class="csv-progress">
+            <el-progress v-if="progressVisible" :percentage="percentage" :format="format" />
+          </div>
+        </a>
+      </el-tooltip>
+      <el-button v-if="isShowAddOpcPoint" type="primary" size="small" class="ml15" @click="handleOpcPoint">{{
+        t('dataIn.addOpcPoint')
+      }}</el-button>
       <el-button
         v-if="isShowAddOpcPoint"
         :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -62,7 +74,7 @@
         >{{ t('dataIn.addOpcPoint') }}</el-button
       >
       <el-button
-        v-if="modelValue"
+        v-if="isOpc && modelValue"
         :loading="loading"
         :disabled="loading"
         :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -177,11 +189,78 @@
         </span>
       </template>
     </el-dialog>
+    <!-- KingHistorian Download Points Dialog -->
+    <el-dialog
+      v-model="kingDialogVisible"
+      :title="t('dataIn.filterPointTitle')"
+      :close-on-click-modal="false"
+      width="520px"
+    >
+      <template #header>
+        <div>
+          <div class="el-dialog-cus-title">{{ t('dataIn.filterPointTitle') }}</div>
+          <DocsContent :content="t('dataIn.filterPointDesc')" />
+        </div>
+      </template>
+      <div>
+        <el-form ref="kingFormRef" size="default" :model="kingFilters" label-width="150px" label-position="left">
+          <el-form-item :label="t('dataIn.kinghist.group')" prop="group">
+            <el-select
+              ref="groupSelectRef"
+              v-model="kingFilters.group"
+              filterable
+              :loading="kingLoading.groups"
+              style="width: 320px"
+              clearable
+            >
+              <el-option v-for="item in groupOptions" :key="item.id" :label="item.label" :value="item.id" />
+              <template #empty>
+                <div v-if="kingLoading.groups" class="select-empty">{{ t('common.loading') }}</div>
+                <div v-else class="select-empty">{{ t('common.noData') }}</div>
+              </template>
+            </el-select>
+          </el-form-item>
+          <el-form-item :label="t('dataIn.kinghist.point')" prop="pointMask">
+            <el-input
+              v-model="kingFilters.pointMask"
+              style="width: 320px"
+              clearable
+              :placeholder="isEn ? 'e.g., Tag*' : '例如：Tag*，* 表示任意字符'"
+            />
+          </el-form-item>
+          <el-form-item :label="t('dataIn.kinghist.tag')" prop="tags">
+            <el-select
+              v-model="kingFilters.tags"
+              multiple
+              filterable
+              :loading="kingLoading.tags"
+              style="width: 320px"
+              clearable
+              collapse-tags
+              :max-collapse-tags="10"
+              @change="onTagsChange"
+            >
+              <el-option :value="ALL_TAGS" :label="selectAllLabel" />
+              <el-option :value="NONE_TAGS" :label="selectNoneLabel" />
+              <el-option v-for="item in kingOptions.tags" :key="item.id" :label="item.label" :value="item.id" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="kingDialogVisible = false">{{ t('common.cancel') }}</el-button>
+          <el-button type="primary" :loading="kingSubmitLoading" @click="submitKingDownload">{{
+            t('common.confirm')
+          }}</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { FormInstance } from 'element-plus';
+import { FormInstance, ElMessage } from 'element-plus';
 import UploadCsv from './uploadCsv.vue';
 import DocsContent from 'components/MdRender.vue';
 import { getDataInProps } from '../model/useDataIn';
@@ -249,7 +328,7 @@ interface CsvHeadersItem {
   is_tag?: boolean;
   name?: string;
   description_cn: string;
-  value: string | number | [];
+  value: string | number;
 }
 const opcPointForm: Recordable<CsvHeadersItem[]> = reactive({
   opcCsvHeaders: [
@@ -290,6 +369,7 @@ const category = computed(() => 'nodes');
 const isEdit = computed(() => currentPageType.value == 'edit');
 const isOpc = computed(() => ['opcua', 'opcda'].includes(sourceForm.type));
 const isOpcUa = computed(() => ['opcua'].includes(sourceForm.type));
+const isKinghist = computed(() => sourceForm.type === 'kinghist');
 const agentId = computed(() => sourceForm.agent);
 const namespaceList = computed(() => {
   const { namespaces = [] } = connectivityCheckResult.value;
@@ -304,7 +384,9 @@ const namespaceList = computed(() => {
 
 const isShowAddOpcPoint = computed(() => {
   // 重新上传了一个 csv,此时的任务还没有提交，因此csv没有生效，所有也不应该显示增加点位按钮
-  return oldValue.value && props.modelValue != '*' && props.modelValue === oldValue.value && isEdit.value;
+  return (
+    isOpc.value && oldValue.value && props.modelValue != '*' && props.modelValue === oldValue.value && isEdit.value
+  );
 });
 
 watch(completed, val => {
@@ -333,15 +415,26 @@ function getFileList(data: string) {
     };
   });
 }
+
 function openDialog() {
   validateFormFields(sourceParent?.refs.formRef, () => {
     dialogVisible.value = true;
   });
 }
+
+function openKingDialog() {
+  validateFormFields(sourceParent?.refs.formRef, async () => {
+    kingDialogVisible.value = true;
+    // 一次性加载分组与标签
+    await fetchKingHistPointOptions('');
+  });
+}
+
 // 下载数据点位准备阶段
 async function submit() {
   if (requestIng.value) return;
   try {
+    if (!dataInProps.dataSource.api.getPointOptionsApi) return;
     requestIng.value = true;
 
     const via = sourceForm.agent;
@@ -490,6 +583,191 @@ async function handleValidOpcFile() {
 onBeforeUnmount(() => {
   timer.value && clearInterval(timer.value);
 });
+
+// ---------------- KingHistorian download points ----------------
+const kingDialogVisible = ref<boolean>(false);
+const kingSubmitLoading = ref<boolean>(false);
+const kingFormRef = ref<FormInstance>();
+
+// Types for KingHistorian options
+interface GroupNode {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  children?: GroupNode[];
+}
+
+const kingFilters = reactive<{ group: string | null; pointMask: string; tags: string[] }>({
+  group: null,
+  pointMask: '',
+  tags: []
+});
+// 选择模式：tags 保留多选，groups 为单选
+const tagsMode = ref<'some' | 'all' | 'none'>('some');
+const kingOptions = reactive<{ groups: GroupNode[]; tags: OptionItem[] }>({
+  groups: [],
+  tags: []
+});
+const kingLoading = reactive<{ groups: boolean; tags: boolean }>({
+  groups: false,
+  tags: false
+});
+const ALL_TAGS = '__ALL_TAGS__';
+const NONE_TAGS = '__NONE_TAGS__';
+
+// Paginated options for groups/points; avoid loading massive lists at once
+type OptionItem = { id: string; label: string };
+const groupOptions = ref<OptionItem[]>([]);
+const tagAllIds = computed(() => kingOptions.tags.map(t => t.id));
+
+// Label for Select-All; prefer i18n key under data.selectAll, fallback to Chinese "全选"
+const selectAllLabel = computed(() => {
+  try {
+    const key = 'data.selectAll';
+    const v = (t as any)(key);
+    // 如果返回值依旧是 key（未配置翻译），则使用中英文兜底
+    if (typeof v === 'string' && v && v !== key) return v;
+  } catch (_e) {
+    // ignore
+  }
+  return isEn.value ? 'Select all' : '全选';
+});
+
+// Label for Select-None; prefer i18n key under data.selectNone, fallback to Chinese "全不选"
+const selectNoneLabel = computed(() => {
+  try {
+    const key = 'data.selectNone';
+    const v = (t as any)(key);
+    if (typeof v === 'string' && v && v !== key) return v;
+  } catch (_e) {
+    // ignore
+  }
+  return isEn.value ? 'Select none' : '全不选';
+});
+
+function onTagsChange(vals: string[]) {
+  if (vals.includes(ALL_TAGS)) {
+    tagsMode.value = 'all';
+    kingFilters.tags = tagAllIds.value.slice();
+  } else if (vals.includes(NONE_TAGS)) {
+    tagsMode.value = 'none';
+    kingFilters.tags = [];
+  } else {
+    tagsMode.value = vals.length ? 'some' : 'none';
+    kingFilters.tags = vals;
+  }
+}
+
+// 移除单独 groups 拉取逻辑，统一在 fetchKingHistPointOptions 中一次性获取
+
+// Fetch options for groups & tags
+async function fetchKingHistPointOptions(query?: string) {
+  if (!dataInProps.dataSource.api.getPointOptionsApi) return;
+  kingLoading.groups = true;
+  kingLoading.tags = true;
+  try {
+    const payload: Record<string, any> = {
+      from_json: formatFromData(sourceForm),
+      categories: ['groups', 'tags'],
+      pattern: query ?? '',
+      offset: 0,
+      limit: 300 // groups < 200, tags ~10, 300 足够一次性获取
+    };
+    if (agentId.value) payload.via = agentId.value;
+    const res = await dataInProps.dataSource.api.getPointOptionsApi(payload);
+    if (res && typeof res === 'object') {
+      if (Array.isArray(res.groups)) {
+        kingOptions.groups = normalizeGroupTree(res.groups);
+        groupOptions.value = res.groups.map((g: any) => ({
+          id: String(g.id ?? g.name),
+          label: String(g.name ?? g.id)
+        }));
+      }
+      if (Array.isArray(res.tags)) {
+        kingOptions.tags = normalizeTags(res.tags);
+      }
+    }
+  } finally {
+    kingLoading.groups = false;
+    kingLoading.tags = false;
+  }
+}
+
+// ----- Normalizers for backend payloads -----
+function normalizeGroupTree(raw: any[]): GroupNode[] {
+  const recur = (nodes: any[]): GroupNode[] =>
+    (nodes || []).map(n => ({
+      id: String(n.id),
+      name: String(n.name ?? n.id),
+      parentId: undefined,
+      children: recur(n.groups || [])
+    }));
+  return recur(raw);
+}
+
+function normalizeTags(raw: any[]): OptionItem[] {
+  return (raw || []).map((t: any) => {
+    const id = String(t.id ?? t.name ?? t.value ?? '');
+    // English label prefers value/name/id; Chinese label prefers name_cn then falls back
+    const enLabel = String(t.value ?? t.name ?? t.id ?? '');
+    const zhLabel = String(t.name_cn ?? t.value ?? t.name ?? t.id ?? '');
+    const label = isEn.value ? enLabel : zhLabel;
+    return { id, label } as OptionItem;
+  });
+}
+
+async function submitKingDownload() {
+  if (kingSubmitLoading.value) return;
+  kingSubmitLoading.value = true;
+  try {
+    // 1) 构建带 filters 的 DSN（拼接到 from_json.params 中）
+    const dsn: any = formatFromData(sourceForm) || {};
+    const ensureParams = (obj: any) => {
+      if (!obj.params || typeof obj.params !== 'object') obj.params = {};
+      return obj.params;
+    };
+    const paramsObj = ensureParams(dsn);
+
+    // 选择模式：all/none/逗号分隔
+    const encodeVal = (mode: 'all' | 'none' | 'some', arr: string[]) => {
+      if (mode === 'all') return 'all';
+      if (mode === 'none') return 'none';
+      return arr && arr.length ? arr.join(',') : 'none';
+    };
+
+    // groups 单选：未选为 none，选了即为具体 group id
+    paramsObj.groups = (kingFilters.group && kingFilters.group.trim()) || 'none';
+    paramsObj.tag_name_mask = (kingFilters.pointMask || '').trim();
+    paramsObj.tags = encodeVal(tagsMode.value, kingFilters.tags);
+
+    // 2) 调用下载任务接口，走后端异步任务 + 轮询 + 下载
+    const payload: Record<string, any> = {
+      from_json: dsn,
+      categories: 'points',
+      lang: undefined as any
+    };
+    if (agentId.value) payload.via = agentId.value;
+
+    progressVisible.value = true;
+    const result = await dataInProps.dataSource.api.fechTicketApi(payload);
+    ticket.value = result.ticket;
+
+    // 轮询任务是否就绪
+    timer.value = setInterval(async () => {
+      const { complete } = await dataInProps.dataSource.api.checkReadyFile(result.ticket);
+      completed.value = complete;
+      const randomNum = Math.floor(Math.random() * 4);
+      if (!complete) {
+        percentage.value = percentage.value < 95 ? percentage.value + randomNum : 99;
+      }
+    }, 2000);
+    kingDialogVisible.value = false;
+  } catch (err: any) {
+    ElMessage.error(err?.message || 'Request failed');
+  } finally {
+    kingSubmitLoading.value = false;
+  }
+}
 </script>
 
 <style scoped lang="scss">

@@ -165,7 +165,7 @@ export function validateTask(data: Record<string, any>) {
       support: false,
       data_source: 'unknown',
       message: data.desc
-    }
+    };
   });
 }
 
@@ -308,6 +308,44 @@ export function downloadOpcPointFile(ticket: string) {
   });
 }
 
+// 获取 point 类型数据的选项
+// 例如：KingHistorian 要显示 Tag 的过滤条件：测点组、测点、标签等
+export function getPointOptions(data: Record<string, any>) {
+  // Support two call styles:
+  // 1) { kind, q, dsn } -> map to sets-like payload for fetching option lists
+  // 2) sets-like payload already provided (from_json, categories, pattern, ...)
+  let payload: Record<string, any>;
+
+  if (data && (data.from_json || data.categories || data.pattern || data.offset !== undefined)) {
+    // Assume caller already formed the payload in the same shape as /ds/in/sets
+    payload = { lang: language, ...data };
+  } else {
+    const { kind, q, dsn } = data || {};
+    const via = dsn?.agent ?? undefined;
+    payload = {
+      from_json: dsn,
+      categories: kind ? [kind] : [],
+      pattern: q ?? '',
+      offset: 0,
+      limit: 300,
+      lang: language
+    };
+    if (via !== undefined && via !== null && via !== '') {
+      payload.via = via;
+    }
+  }
+
+  return request({
+    baseURL: import.meta.env.VITE_APP_X_API,
+    url: `/ds/in/point/options`,
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    data: payload
+  });
+}
+
 /**
  * opc：分页获取数据点位
  * @param {*} ticket
@@ -395,7 +433,6 @@ export function batchDelTask(data: Record<string, any>) {
     data
   });
 }
-
 
 export function batchExportTask(ids: number[]) {
   return request({

@@ -1,5 +1,3 @@
-use crate::runners::opc::model::{ColumnConfig, OpcModelConfig, TableConfig, TagConfig};
-use crate::utils::sql::sql_value_escaped_fmt;
 use anyhow::Context;
 use arrow::array::{
     ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array, Int16Array,
@@ -8,12 +6,21 @@ use arrow::array::{
     UInt8Array,
 };
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
+use model::ColumnConfig;
+use model::PointModelConfig;
+use model::TableConfig;
+use model::TagConfig;
 use rhai::{Dynamic, Scope, AST};
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 use taosx_ipc::prelude::{record_batch_to_column_view, IpcDataType};
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
+
+use crate::utils::sql::sql_value_escaped_fmt;
+
+pub mod csv;
+pub mod model;
 
 static OPC_PARSER_ID_PATH_DEVICE: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
     std::env::var("OPC_PARSER_ID_PATH_DEVICE")
@@ -26,7 +33,7 @@ static OPC_PARSER_ID_PATH_DEVICE: std::sync::LazyLock<bool> = std::sync::LazyLoc
 /// request_ts_transform 需要兼容之前的行为，如果 message 中没有 request_ts 字段，则不进行 transform
 pub async fn handle_transform(
     message: &RecordMessage,
-    config: &OpcModelConfig,
+    config: &PointModelConfig,
 ) -> anyhow::Result<RecordMessage> {
     let transform_columns: [&str; 4] = [
         ColumnConfig::VALUE,
@@ -543,7 +550,7 @@ fn get_transform_expression_by_id(
 /// Point 类型的 RecordMessage 转为 SQL 插入语句
 pub async fn point_records_to_sql(
     message: RecordMessage,
-    config: &OpcModelConfig,
+    config: &PointModelConfig,
     target_precision: taos::Precision,
 ) -> anyhow::Result<(
     HashMap<String, Vec<SqlInsertion>>,
@@ -585,22 +592,20 @@ pub async fn point_records_to_sql(
             .ok_or(anyhow::anyhow!("id not found"))?
             .to_string()
             .context("invalid id value")?;
-        let point_config = point_config_map.get(&point_id);
-        tracing::info!(?point_config);
-        let point_id_short = crate::runners::opc::generate_tag_value_from_pattern(
-            config.opc_type.as_static_str(),
+        let point_id_short = model::generate_tag_value_from_pattern(
+            config.source_type.as_static_str(),
             "{id}",
             &point_id,
         );
-        let path = crate::runners::opc::generate_tag_value_from_pattern(
-            config.opc_type.as_static_str(),
+        let path = model::generate_tag_value_from_pattern(
+            config.source_type.as_static_str(),
             "{id..}",
             &point_id,
         );
         let point_path = sql_value_escaped_fmt(&path);
 
-        let device = crate::runners::opc::generate_tag_value_from_pattern(
-            config.opc_type.as_static_str(),
+        let device = model::generate_tag_value_from_pattern(
+            config.source_type.as_static_str(),
             "{..id.}",
             &point_id,
         );
@@ -718,7 +723,7 @@ pub async fn point_records_to_sql(
                     columns_in_insert.push_str(format!("`{temp_alias}`,").as_str());
                 }
                 ColumnConfig::VALUE => {
-                    let value_column = value_column_view
+                    let mut value_column = value_column_view
                         .slice(i..i + 1)
                         .unwrap()
                         .get(0)
@@ -726,6 +731,17 @@ pub async fn point_records_to_sql(
                         .into_value()
                         .to_sql_value()
                         .replace("NaN", "NULL");
+                    // Normalize empty string literals to NULL to avoid invalid numeric data errors
+                    // e.g. val="" should become val=NULL when target column is non-text
+                    let trimmed = value_column.trim();
+                    let is_empty_string_literal =
+                        (trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() == 2)
+                            || (trimmed.starts_with('\'')
+                                && trimmed.ends_with('\'')
+                                && trimmed.len() == 2);
+                    if is_empty_string_literal {
+                        value_column = "NULL".to_string();
+                    }
                     values.push_str(format!("{value_column},").as_str());
                     value_column_name = temp_alias;
                     value_column_length = cmp::max(value_column.len(), value_column_length);
@@ -766,11 +782,44 @@ pub async fn point_records_to_sql(
                     .unwrap()
                     .get(&tag_name)
                     .unwrap();
+                // Normalize tag value rendering:
+                // - Empty string -> NULL
+                // - Strings (VarChar/NChar/Json) -> single-quoted escaped
+                // - Timestamp: keep pure numbers as-is; empty -> NULL; otherwise single-quoted
+                // - Others: if empty -> NULL; else raw
                 let value = match ele.r#type {
                     IpcDataType::VarChar(_) | IpcDataType::NChar(_) | IpcDataType::Json => {
-                        format!("\"{value}\"")
+                        let v = value.trim();
+                        if v.is_empty() {
+                            "NULL".to_string()
+                        } else {
+                            sql_value_escaped_fmt(v).to_string()
+                        }
                     }
-                    _ => value.to_string(),
+                    IpcDataType::Timestamp(_unit) => {
+                        let v = value.trim();
+                        if v.is_empty() {
+                            "NULL".to_string()
+                        } else {
+                            // If it's a pure number (integer/decimal), write as-is; otherwise quote as string
+                            let is_pure_number = v
+                                .chars()
+                                .all(|c| c.is_ascii_digit() || c == '.' || c == '-' || c == '+');
+                            if is_pure_number {
+                                v.to_string()
+                            } else {
+                                sql_value_escaped_fmt(v).to_string()
+                            }
+                        }
+                    }
+                    _ => {
+                        let v = value.trim();
+                        if v.is_empty() {
+                            "NULL".to_string()
+                        } else {
+                            v.to_string()
+                        }
+                    }
                 };
                 tag_values.push_str(format!("{},", value.replace("NaN", "NULL")).as_str());
             }
@@ -1069,7 +1118,7 @@ pub struct ModifyStructForPointMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::plugins::runners::opc::csv::CsvParser;
+    use crate::plugins::sink::point::csv::CsvParser;
     use arrow::array::{
         Array, Float64Array, Int32Array, Int64Array, StringArray, TimestampMillisecondArray,
     };
@@ -1150,6 +1199,37 @@ mod tests {
         assert_eq!(opc_int.len(), 1);
         let sql = opc_int[0].sql.clone();
         assert_eq!(sql, "insert into `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1600000000000,11,1,1600000000000,1600000000000) `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1700000000000,22,1,1700000000000,1700000000000)  `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1800000000000,33,1,1800000000000,1800000000000) ");
+    }
+
+    #[tokio::test]
+    async fn test_point_records_to_sql_empty_value_to_null() {
+        // Ensure data dir for temporary files used by some helpers
+        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+
+        // Build a message whose value column is Utf8 empty strings ""
+        let message = mock_point_message_empty_value();
+        // Use existing csv to build config; it defines value alias "val"
+        let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8.csv").unwrap();
+        let parser = CsvParser::from_dsn(&dsn).unwrap();
+        let config = parser.parse().await.unwrap();
+
+        let (s, _t) = point_records_to_sql(message, &config, taos::Precision::Millisecond)
+            .await
+            .unwrap();
+        // Merge all SQL fragments for inspection
+        let sql = s
+            .values()
+            .flat_map(|v| v.iter())
+            .map(|e| e.sql.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        // Expect value column serialized as NULL (not ''), three rows combined
+        assert!(sql.contains("VALUES (1700000000000,NULL,0,1700000000000)"));
+        assert!(sql.contains("VALUES (1700000000000,NULL,1,1700000000000)"));
+        assert!(sql.contains("VALUES (1700000000000,NULL,0,1700000000000)"));
+        // Ensure no empty string literal remains
+        assert!(!sql.contains("''"));
+        assert!(!sql.contains("\"\""));
     }
 
     #[tokio::test]
@@ -1350,6 +1430,59 @@ mod tests {
                     ])
                     .with_timezone_opt::<&str>(None),
                 ),
+            ],
+        )
+        .unwrap();
+        RecordMessage::from_record(r)
+    }
+
+    // Build a RecordMessage whose value column is Utf8 and rows are empty strings
+    fn mock_point_message_empty_value() -> RecordMessage {
+        let fields = vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("name", DataType::Utf8, false),
+            Field::new(
+                "ts",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new(
+                "received",
+                DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                false,
+            ),
+            // value as Utf8 to simulate source emitting empty string
+            Field::new("value", DataType::Utf8, true),
+            Field::new("status", DataType::Int64, false),
+        ];
+
+        let r = RecordBatch::try_new(
+            Arc::new(Schema::new(fields)),
+            vec![
+                Arc::new(StringArray::from(vec![
+                    "ns=3;i=1005",
+                    "ns=3;i=1006",
+                    "ns=3;i=1007",
+                ])),
+                Arc::new(StringArray::from(vec!["标签5", "标签6", "标签7"])),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1700000000000,
+                        1700000000000,
+                        1700000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(
+                    TimestampMillisecondArray::from(vec![
+                        1700000000000,
+                        1700000000000,
+                        1700000000000,
+                    ])
+                    .with_timezone_opt::<&str>(None),
+                ),
+                Arc::new(StringArray::from(vec!["", "", ""])),
+                Arc::new(Int64Array::from(vec![0, 1, 0])),
             ],
         )
         .unwrap();

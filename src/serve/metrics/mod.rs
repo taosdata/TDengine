@@ -77,7 +77,9 @@ pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<C
         "tmq" | "sync" => try_get_metrics::<TmqMetrics>(task_id, &dsn).await,
         "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
         | "kafka" | "avevaHistorian" | "csv" | "mysql" | "postgres" | "oracle" | "mssql"
-        | "mongodb" | "sparkplugb" => try_get_metrics::<IpcMetrics>(task_id, &dsn).await,
+        | "mongodb" | "sparkplugb" | "pulsar" | "pulsarTuya" | "kinghist" => {
+            try_get_metrics::<IpcMetrics>(task_id, &dsn).await
+        }
         _ => None,
     }
 }

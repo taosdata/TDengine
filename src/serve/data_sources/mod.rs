@@ -7,6 +7,7 @@ use actix_web::{
     post,
     web::{self, Data, Json, Query},
 };
+use anyhow::Context;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, Dsn, IntoDsn};
@@ -18,8 +19,8 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
+use taosx_core::plugins::sink::point::{csv::CsvParser, model::ModelType};
 use taosx_core::plugins::transform::sample::DsSamples;
-use taosx_core::runners::opc::{csv::CsvParser, model::ModelType};
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from};
@@ -316,6 +317,8 @@ pub(super) async fn data_source_collection(
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
 
+    tracing::info!("try to list datasets, req: {:?}", data);
+
     let data = data.into_inner();
     match if let Some(agent) = data.via {
         controller.list_datasets_via_agent(agent, data).await
@@ -327,6 +330,80 @@ pub(super) async fn data_source_collection(
             .json(&data)),
         Err(err) => Err(Failed::from_error(err)),
     }
+}
+
+/// Get datasource point options (temporary string response)
+#[utoipa::path(
+    tag = "data sources",
+    request_body = DataSetsReq,
+    responses(
+        (status = 200, description = "Point options (temporary string)", body = String),
+        (status = 500, description = "List point options error", body = Failed),
+    ),
+)]
+#[post("/ds/in/point/options")]
+pub(super) async fn get_point_options(
+    controller: Data<TaskControllerRef>,
+    data: Json<DataSetsReq>,
+) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+    let data = data.into_inner();
+    match get_point_options_impl(controller, data).await {
+        Ok(options) => Ok(HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .json(&options)),
+        Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+async fn get_point_options_impl(
+    controller: Data<TaskControllerRef>,
+    data: DataSetsReq,
+) -> anyhow::Result<serde_json::Value> {
+    tracing::info!("try to get kinghistorian point options, req: {:?}", data);
+
+    // 解析 from DSN
+    let mut from = match (&data.from_json, &data.from) {
+        (Some(s), _) => json_to_dsn(s)?,
+        (_, Some(s)) => s.into_dsn()?,
+        _ => {
+            anyhow::bail!("from dsn is required");
+        }
+    };
+    // 为 from dsn 设置参数 only_groups=true
+    from.params
+        .insert("only_groups".to_string(), "true".to_string());
+    // 构造新的请求，携带修改过的 from
+    let req = DataSetsReq {
+        from: Some(from.to_string()),
+        from_json: None,
+        categories: data.categories,
+        via: data.via,
+        offset: data.offset,
+        pattern: data.pattern,
+        limit: data.limit,
+        lang: data.lang,
+    };
+
+    // 获取点位列表
+    let result = if let Some(agent) = req.via {
+        controller.list_datasets_via_agent(agent, req).await
+    } else {
+        list_datasets_from(&req).await
+    };
+    let datasets = result.context("Failed to list datasets when getting point options")?;
+
+    // 将点位列表转换为 serde_json::Value
+    let options = match from.driver.as_str() {
+        "kinghist" => source_kinghistorian::to_point_options(datasets)?,
+        _ => anyhow::bail!(
+            "failed to get point options since: Unsupported driver: {}",
+            from.driver
+        ),
+    };
+
+    Ok(options)
 }
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
@@ -860,18 +937,14 @@ pub(super) async fn download_point_template_file(
     ),
 )]
 #[post("/ds/in/point/file/is_valid")]
-pub async fn is_opc_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
+pub async fn is_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = req.into_inner();
     let timeout_sec = query.timeout.unwrap_or(Timeout::get(TimeoutType::Default));
 
-    let result = timeout(
-        Duration::from_secs(timeout_sec),
-        is_opc_csv_valid_impl(query),
-    )
-    .await;
+    let result = timeout(Duration::from_secs(timeout_sec), is_csv_valid_impl(query)).await;
 
     match result {
         Ok(Ok(())) => Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -897,9 +970,21 @@ pub async fn is_opc_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
     }
 }
 
-async fn is_opc_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
+async fn is_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
     let from = json_to_dsn(&req.dsn)?;
 
+    let driver = from.driver.to_lowercase();
+    match driver.as_str() {
+        "opcua" | "opcda" | "opc+ua" | "opc+da" => is_opc_csv_valid(from, req.to).await,
+        source_kinghistorian::KING_HIST_ID => source_kinghistorian::is_csv_valid(&from).await,
+        _ => Err(anyhow::anyhow!(
+            "unsupported driver: {} for csv validation",
+            driver
+        ))?,
+    }
+}
+
+async fn is_opc_csv_valid(from: Dsn, to: Option<String>) -> anyhow::Result<()> {
     let parser = CsvParser::from_dsn(&from)
         .map_err(|err| anyhow::anyhow!("failed to parse dsn: {}, cause: {:?}", from, err))?;
 
@@ -914,7 +999,7 @@ async fn is_opc_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
         .map_err(|err| anyhow::anyhow!("failed to validate csv file, cause: {:?}", err))?;
 
     // 如果 req.dsn.model_type 和 req.to 不为空，则检查 database 中的 schema 和 csv 中的 schema 是否冲突
-    if let (Some(model_type), Some(to)) = (ModelType::from_dsn(&from), req.to.as_ref()) {
+    if let (Some(model_type), Some(to)) = (ModelType::from_dsn(&from), to.as_ref()) {
         let to = to.into_dsn()?;
         model_config
             .validate_with_sink(model_type, &to)

@@ -18,7 +18,6 @@ mod performance;
 #[ignore]
 async fn test_performance() -> anyhow::Result<()> {
     // 设置日志
-    // tracing_subscriber::fmt::fmt().with_level(true).init();
     let _ = tracing_subscriber::fmt()
         .with_ansi(false)
         .with_max_level(tracing::Level::DEBUG)
