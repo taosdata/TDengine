@@ -200,4 +200,4 @@ def handle_correlation_req():
         return {"msg": str(e), "rows": -1}
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=6035)
+    app.run(port=6035)
