@@ -141,7 +141,8 @@ typedef struct STokenTriplet {
 } STokenTriplet;
 
 typedef struct {
-  STokenPair level;
+  SToken     first;
+  SToken     second;
   SNodeList* cols;
 } SPrivLevelArgs;
 

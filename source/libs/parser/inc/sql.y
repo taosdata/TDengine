@@ -341,7 +341,7 @@ priv_type_tbl_dml(A) ::= DELETE TABLE.                                          
                                                                                       nodesDestroyList($$.cols);
                                                                                     }
                                                                                   }
-priv_level_opt(A) ::= .                                                           { A.level.first = nil_token; A.level.second = nil_token; A.cols = NULL; }
+priv_level_opt(A) ::= .                                                           { A.first = nil_token; A.second = nil_token; A.cols = NULL; }
 priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; }
 
 %type priv_level                                                                 { SPrivLevelArgs }
@@ -350,23 +350,23 @@ priv_level_opt(A) ::= ON priv_level(B).                                         
                                                                                       nodesDestroyList($$.cols);
                                                                                     }
                                                                                   }
-priv_level(A) ::= NK_STAR(B).                                                     { A.level.first = B; A.level.second = nil_token; A.cols = NULL; }
-priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.level.first = B; A.level.second = C; A.cols = NULL; }
-priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.level.first = B; A.level.second = C; A.cols = NULL; }
+priv_level(A) ::= NK_STAR(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
+priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
 
-priv_level(A) ::= db_name(B) NK_DOT table_name(C) NK_LP col_name_list(D) NK_RP.   { A.level.first = B; A.level.second = C; A.cols = D; }
-priv_level(A) ::= table_name(C) NK_LP col_name_list(D) NK_RP.                     { A.level.first = nil_token; A.level.second = C; A.cols = D; }
+priv_level(A) ::= db_name(B) NK_DOT table_name(C) NK_LP col_name_list(D) NK_RP.   { A.first = B; A.second = C; A.cols = D; }
+priv_level(A) ::= table_name(C) NK_LP col_name_list(D) NK_RP.                     { A.first = nil_token; A.second = C; A.cols = D; }
 
 %type between_clause_opt                                                          { SNodeList* }
 %destructor between_clause_opt                                                    { nodesDestroyList($$); }
 between_clause_opt(A) ::= .                                                       { A = NULL; }
-between_clause_opt(A) ::= BETWEEN signed_integer(B) AND signed_integer(C).        { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B));
-                                                                                    A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &C));
+between_clause_opt(A) ::= BETWEEN signed_integer(B) AND signed_integer(C).        { A = createNodeList(pCxt, B);
+                                                                                    A = addNodeToList(pCxt, A, C);
                                                                                   }
 between_clause_opt(A) ::= BETWEEN NK_STRING(B) AND NK_STRING(C).                  { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B));
-                                                                                    A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C));
+                                                                                    A = addNodeToList(pCxt, A, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C));
                                                                                   }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
