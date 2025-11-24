@@ -168,7 +168,7 @@ class TestDdlInSysdb:
         tdSql.checkData(0, 0, "ins_anodes")
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'performance_schema' order by table_name")
-        tdSql.checkRows(5)
+        tdSql.checkRows(6)
         tdSql.checkData(0, 0, "perf_apps")
         
 
@@ -790,7 +790,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(5, 2, 47)
 
-        tdSql.checkData(6, 2, 5)
+        tdSql.checkData(6, 2, 6)
 
         tdSql.query(
             f"select count(table_name) from information_schema.ins_tables where db_name='db1' and stable_name='sta' group by stable_name"
