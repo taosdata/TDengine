@@ -41,7 +41,7 @@ class TestStreamRecalcBugs13:
             self.stbName = "stb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeTable.precision}'")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
 
