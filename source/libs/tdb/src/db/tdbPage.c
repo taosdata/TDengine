@@ -282,7 +282,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   if (szFull > szCell) {
     SPgno  pgno = *(SPgno *)(pCell + szCell - sizeof(SPgno));
     int    nLeft = szFull - szCell + sizeof(SPgno);
-    tdbFreeOvflPage(pgno, nLeft, pTxn, pBt);
+    (void)tdbFreeOvflPage(pgno, nLeft, pTxn, pBt);
   }
 
   ret = tdbPageFree(pPage, lidx, pCell, szCell);
