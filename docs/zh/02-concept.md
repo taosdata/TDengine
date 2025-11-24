@@ -152,11 +152,13 @@ toc_max_heading_level: 4
 5. 数据集的高基数（High-Cardinality）问题一直困扰着诸多主流的时序数据库产品。TDengine 3.0 是第一个解决了高基数问题的时序数据库。其设计思路是什么？点击[TDengine 3.0 是如何解决时序数据库中的高基数问题的？](https://www.taosdata.com/tdengine/time-series-database/high-cardinality-in-time-series-data)，了解相关内容。
 
 6. TDengine 发布了基于 TSBS 标准数据集时序数据库 InfluxDB 与 TDengine 的性能对比测试报告，从写入、查询、磁盘空间等三个角度，对 InfluxDB 和 TDengine 进行了全方位的对比，详细分析报告如下：
-- [时序数据库写入性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-write-performance)
-- [时序数据库查询性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-queries-performance)
-- [时序数据库磁盘空间占用对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-diskusage)
+
+    - [时序数据库写入性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-write-performance)
+    - [时序数据库查询性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-queries-performance)
+    - [时序数据库磁盘空间占用对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-diskusage)
 
 7. TDengine 发布了基于 TSBS 标准数据集时序数据库 TimescaleDB 与 TDengine 的性能对比测试报告，从写入、查询、磁盘空间等三个角度，对 TimescaleDB 和 TDengine 进行了全方位的对比，详细分析报告如下：
-- [时序数据库写入性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-write-performance)
-- [时序数据库查询性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-queries-performance)
-- [时序数据库磁盘空间占用对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-diskusage)
+
+    - [时序数据库写入性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-write-performance)
+    - [时序数据库查询性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-queries-performance)
+    - [时序数据库磁盘空间占用对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-diskusage)
