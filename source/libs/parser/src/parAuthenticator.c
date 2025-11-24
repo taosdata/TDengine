@@ -171,6 +171,11 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
     SNode*      pTagCond = NULL;
     STableNode* pTable = (STableNode*)pNode;
+    if ((pAuthCxt->pParseCxt->enableSysInfo == 0) && IS_INFORMATION_SCHEMA_DB(pTable->dbName) &&
+        (strcmp(pTable->tableName, TSDB_INS_TABLE_VGROUPS) == 0)) {
+      pAuthCxt->errCode = TSDB_CODE_PAR_PERMISSION_DENIED;
+      return DEAL_RES_ERROR;
+    }
 #ifdef TD_ENTERPRISE
     SName name = {0};
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
