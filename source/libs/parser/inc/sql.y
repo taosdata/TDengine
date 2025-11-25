@@ -108,14 +108,14 @@ option_value(A) ::= NK_INTEGER(B).                                              
 %destructor user_enabled                                                          { }
 user_enabled(A) ::= ACCOUNT LOCK.                                                 { A = 0; }
 user_enabled(A) ::= ACCOUNT UNLOCK.                                               { A = 1; }
-user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; }
+user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 %type user_option                                                                 { SUserOptions* }
 user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
 user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
-user_option(A) ::= SYSINFO NK_INTEGER(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); A->sysinfo = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasSysinfo = true; }
-user_option(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->isImport = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasIsImport = true; }
-user_option(A) ::= CREATEDB NK_INTEGER(B).                                        { A = mergeUserOptions(pCxt, NULL, NULL); A->createdb = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasCreatedb = true; }
+user_option(A) ::= SYSINFO NK_INTEGER(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); A->sysinfo = taosStr2Int8(B.z, NULL, 10); A->hasSysinfo = true; }
+user_option(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->isImport = taosStr2Int8(B.z, NULL, 10); A->hasIsImport = true; }
+user_option(A) ::= CREATEDB NK_INTEGER(B).                                        { A = mergeUserOptions(pCxt, NULL, NULL); A->createdb = taosStr2Int8(B.z, NULL, 10); A->hasCreatedb = true; }
 user_option(A) ::= CHANGEPASS NK_INTEGER(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); A->changepass = taosStr2Int8(B.z, NULL, 10); A->hasChangepass = true; }
 user_option(A) ::= SESSION_PER_USER option_value(B).                              {
     A = mergeUserOptions(pCxt, NULL, NULL);

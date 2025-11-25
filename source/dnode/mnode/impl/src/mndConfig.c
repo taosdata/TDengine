@@ -862,8 +862,10 @@ _send_req:
 _success:
   // dont care suss or succ;
   if (updateWhiteList) {
-    mndRefreshUserIpWhiteList(pMnode);
-    mndRefreshUserDateTimeWhiteList(pMnode);
+    int32_t dummy1 = mndRefreshUserIpWhiteList(pMnode);
+    int32_t dummy2 = mndRefreshUserDateTimeWhiteList(pMnode);
+    (void)dummy1;
+    (void)dummy2;
   }
   tFreeSMCfgDnodeReq(&cfgReq);
   sdbRelease(pMnode->pSdb, vObj);

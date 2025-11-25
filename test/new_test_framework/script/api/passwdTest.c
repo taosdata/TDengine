@@ -248,7 +248,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
   // users
   for (int i = 0; i < nUser; ++i) {
     sprintf(users[i], "user%d", i);
-    sprintf(qstr, "CREATE USER %s PASS 'taosdata'", users[i]);
+    sprintf(qstr, "CREATE USER %s PASS 'taosdata' password_reuse_max 0 password_reuse_time 0", users[i]);
     queryDB(taos, qstr);
 
     taosu[i] = taos_connect(host, users[i], "taosdata", NULL, 0);
@@ -476,7 +476,7 @@ _loop:
     nUserDropped = 0;
     for (int i = 0; i < nTestUsers; ++i) {
       sprintf(users[i], "user%d", i);
-      sprintf(qstr, "CREATE USER %s PASS 'taos@123'", users[i]);
+      sprintf(qstr, "CREATE USER %s PASS 'taos@123' password_reuse_max 0 password_reuse_time 0", users[i]);
       fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
       queryDB(taos, qstr);
     }
