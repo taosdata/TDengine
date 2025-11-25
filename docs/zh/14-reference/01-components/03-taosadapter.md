@@ -765,7 +765,7 @@ reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_
 **参数说明**
 
 - **`rejectQuerySqlRegex`**
-  - 配置禁用查询 SQL 的正则表达式列表。
+  - 配置禁用查询 SQL 的正则表达式列表。支持 [Goole RE2 语法](https://github.com/google/re2/wiki/Syntax)。
   - 默认值：空列表，表示不禁用任何查询 SQL。
 
 **示例说明**
@@ -926,7 +926,7 @@ taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 
 
 ### 动态修改日志级别
 
-1. 从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
+从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
 
 以下是通过 curl 命令将日志级别设置为 debug 的示例：
 
@@ -936,11 +936,12 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 --data '{"log.level": "debug"}'
 ```
 
-2. 从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持监听配置文件的变更，并动态应用新的日志级别配置。用户只需修改配置文件中的 `log.level` 参数，taosAdapter 将自动检测到该变更并更新日志级别，无需重启服务。
+### 监听配置文件变更
 
-### 动态修改禁用查询 SQL 列表
+从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持监听配置文件的变更，支持以下配置自动更新 
 
-从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持监听配置文件的变更，并动态应用新的禁用查询 SQL 列表配置。用户只需修改配置文件中的 `rejectQuerySqlRegex` 参数，taosAdapter 将自动检测到该变更并更新禁用查询 SQL 列表，无需重启服务。
+- `log.level` 日志级别参数
+- `rejectQuerySqlRegex` 拒绝查询 SQL 列表配置参数
 
 ## IPv6 支持
 

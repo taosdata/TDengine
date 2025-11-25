@@ -767,7 +767,7 @@ This configuration affects the following interfaces:
 **Parameter Description**
 
 - **`rejectQuerySqlRegex`**
-  - A list of regular expressions defining SQL patterns to disable.
+  - A list of regular expressions defining SQL patterns to disable. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
   - Default: an empty list, meaning no queries are disabled.
 
 **Example**
@@ -927,7 +927,7 @@ Use the command rmtaos to remove the TDengine server software, including taosAda
 
 ### Dynamically Modify Log Level
 
-1.  Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
+Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
 
 The following is an example of setting the log level to debug through the curl command:
 
@@ -937,11 +937,12 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 --data '{"log.level": "debug"}'
 ```
 
-2. Starting from **versions 3.3.6.34 / 3.4.0.0**, taosAdapter supports monitoring changes in the configuration file and dynamically applying new log level settings. Users only need to modify the `log.level` parameter in the configuration file, and taosAdapter will automatically detect the change and update the log level without restarting the service.
+### Monitor Configuration File Changes
 
-### Dynamically Modify Disabled Query SQL List
+Starting from version **3.3.6.34**/**3.4.0.0**, taosAdapter supports monitoring configuration file changes and automatically updates the following configurations:
 
-Starting from **versions 3.3.6.34 / 3.4.0.0**, taosAdapter supports monitoring configuration file changes and dynamically applying updates to the disabled query SQL list. Users can simply modify the `rejectQuerySqlRegex` parameter in the configuration file, and taosAdapter will automatically detect the change and update the disabled query SQL list without restarting the service.
+- `log.level` log level parameter
+- `rejectQuerySqlRegex` rejected query SQL list configuration parameter
 
 ## IPv6 Support
 
