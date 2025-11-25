@@ -2993,9 +2993,8 @@ int64_t queryDbForDumpOutCount(
         const char *tbName,
         const int precision) {
     int64_t count = -1;
-    int32_t i = 0;
 
-    while (1) {
+    for (int32_t i = 0; i <= g_args.retryCount; i++) {
         char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
         if (NULL == command) {
             errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
@@ -3027,17 +3026,12 @@ int64_t queryDbForDumpOutCount(
         // fail
         errorPrint("Failed to execute queryDbForDumpOutCount, dbName: %s, tbName: %s\n", dbName, tbName);
 
-        // check retry count
-        if (++i > g_args.retryCount) {
-            errorPrint("Retry count exceeds %d, give up retry.\n", g_args.retryCount);
-            break;
-        }
-
         // retry again
         debugPrint("Retry to execute queryDbForDumpOutCount for %d time(s) after sleep %dms, dbName: %s, tbName: %s\n", i, g_args.retrySleepMs, dbName, tbName);
         toolsMsleep(g_args.retrySleepMs);
     }
 
+    errorPrint("Retry count exceeds %d, give up retry.\n", g_args.retryCount);
     return count;
 }
 
