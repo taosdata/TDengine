@@ -341,7 +341,7 @@ typedef struct SGroupingSetNode {
   SNodeList*       pParameterList;
 } SGroupingSetNode;
 
-typedef enum EOrder { ORDER_ASC = 1, ORDER_DESC } EOrder;
+typedef enum EOrder { ORDER_UNKNOWN = 0, ORDER_ASC = 1, ORDER_DESC } EOrder;
 
 typedef enum ENullOrder { NULL_ORDER_DEFAULT = 1, NULL_ORDER_FIRST, NULL_ORDER_LAST } ENullOrder;
 
@@ -597,7 +597,7 @@ typedef struct SSelectStmt {
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
   int32_t         lastProcessByRowFuncId;
-  bool            timeLineFromOrderBy;
+  int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
   bool            hasAggFuncs;

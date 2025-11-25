@@ -1728,6 +1728,11 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
   pWindow->node.inputTsOrder = ORDER_ASC;
+  if (pSelect->timeLineFromOrderBy != ORDER_UNKNOWN) {
+    pWindow->node.inputTsOrder = pSelect->timeLineFromOrderBy;
+  } else {
+    pWindow->node.inputTsOrder = ORDER_ASC;
+  }
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs);
