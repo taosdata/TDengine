@@ -192,6 +192,32 @@ class TestTaosdumpRetry:
         self.thread.join()
         tdLog.info("call stopKillThread end\n")
 
+    def _run_retry_test(self, newdb, websocket):
+        # database
+        db = "redb"
+
+        # find
+        taosdump, benchmark, taosadapter, tmpdir = self.findPrograme()
+        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/retry.json"
+
+        # insert data with taosBenchmark
+        self.insertData(benchmark, json, db)
+
+        # start kill thread
+        self.startKillThread(taosadapter, 2, 5, 3)
+
+        # dump out
+        self.dumpOut(taosdump, db, tmpdir, websocket=websocket)
+
+        # stop kill
+        self.stopKillThread()
+
+        # dump in
+        self.dumpIn(taosdump, db, newdb, tmpdir)
+
+        # verify db
+        self.verifyResult(db, newdb, json)
+
     def test_taosdump_retry(self):
         """taosdump except
 
@@ -214,61 +240,6 @@ class TestTaosdumpRetry:
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py
 
         """
-        # database
-        db = "redb"
-        newdb = "nredb"
-
-        # find
-        taosdump, benchmark, taosadapter, tmpdir = self.findPrograme()
-        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/retry.json"
-
-        # insert data with taosBenchmark
-        self.insertData(benchmark, json, db)
-
-        # start kill thread
-        self.startKillThread(taosadapter, 2, 5, 3)
-
-        # dump out
-        self.dumpOut(taosdump, db, tmpdir)
-
-        # stop kill
-        self.stopKillThread()
-
-        # dump in
-        self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        self.verifyResult(db, newdb, json)
-
-
-        tdLog.success("%s native successfully executed" % __file__)
-
-
-    def test_taosdump_retry_websocket(self):
-        # database
-        db = "redb"
-        newdb = "nwredb"
-
-        # find
-        taosdump, benchmark, taosadapter, tmpdir = self.findPrograme()
-        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/retry.json"
-
-        # insert data with taosBenchmark
-        self.insertData(benchmark, json, db)
-
-        # start kill thread
-        self.startKillThread(taosadapter, 2, 5, 3)
-
-        # dump out
-        self.dumpOut(taosdump, db, tmpdir, websocket=True)
-
-        # stop kill
-        self.stopKillThread()
-
-        # dump in
-        self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        self.verifyResult(db, newdb, json)
-
-        tdLog.success("%s websocket successfully executed" % __file__)
+        self._run_retry_test(newdb="nredb", websocket=False)
+        self._run_retry_test(newdb="nwredb", websocket=True)
+        tdLog.success("%s successfully executed" % __file__)
