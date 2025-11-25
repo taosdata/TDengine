@@ -842,7 +842,7 @@ void taos_close_internal(void *taos) {
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  SSessParam para = {.refCont = -1, .currentAccessTime = taosGetTimestampMs()};
+  SSessParam para = {.type = SESSION_PER_USER, .value = -1};
   code = sessMgtUpdateUserMetric((char *)pTscObj->user, &para);
   if (code != TSDB_CODE_SUCCESS) {
     tscWarn("conn:0x%" PRIx64 ", failed to update user:%s metric when close connection, code:%d", pTscObj->id,

@@ -416,12 +416,11 @@ int32_t tsStreamBatchRequestWaitMs = 5000;     // ms, default 5s
 bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show only table name and db name
 int32_t tsRpcRecvLogThreshold = 3;        // in seconds, default 3s
 
-int32_t sessionPerUser = 32; 
-int32_t sessionConnTime = 480; 
-int32_t sessionConnIdleTime = 30;
-int32_t sessionMaxConcurrency = 10;  
-int32_t sessionMaxCallVnodeNum = 10;
-
+int32_t sessionPerUser = -1;
+int32_t sessionConnTime = -1;
+int32_t sessionConnIdleTime = -1;
+int32_t sessionMaxConcurrency = -1;
+int32_t sessionMaxCallVnodeNum = -1;
 
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 

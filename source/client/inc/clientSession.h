@@ -58,9 +58,11 @@ typedef struct SSessMetric {
 } SSessMetric;
 
 typedef struct {
-  int32_t refCont;
-  int64_t lastAccessTime; 
-  int64_t currentAccessTime; 
+  ESessionType type;
+  int64_t      value;
+  // int32_t refCont;
+  // int64_t lastAccessTime;
+  // int64_t currentAccessTime;
 } SSessParam;
 
 typedef struct SSessionMgt {

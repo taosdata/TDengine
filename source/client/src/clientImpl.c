@@ -268,8 +268,7 @@ _return:
       return code;
     }
 
-    
-    SSessParam pPara = {.refCont = 1, .lastAccessTime = 0, .currentAccessTime = taosGetTimestampMs()};  
+    SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
     code = sessMgtUpdateUserMetric((char *)user, &pPara);
     if (TSDB_CODE_SUCCESS != code) {
       tscError("failed to connect with user:%s, code:%s", user, tstrerror(code));

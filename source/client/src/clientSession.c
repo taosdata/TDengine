@@ -129,10 +129,6 @@ int32_t sessMetricCreate(SSessMetric **ppMetric) {
     return code;
   }
 
-  pMetric->refCnt = 0;
-  pMetric->accessTime = 0;
-  pMetric->lastAccessTime = 0;
-
   memset(pMetric->value, 0, sizeof(pMetric->value));
 
   pMetric->limit[SESSION_PER_USER] = sessionPerUser;
@@ -172,6 +168,9 @@ int32_t sessMetricCheckImpl(SSessMetric *pMetric) {
 
   return code;
 }
+int32_t sessMetricCheckByTypeImpl(SSessMetric *pMetric, ESessionType type) {
+  return sessFnSet[type].checkFn(pMetric->value[type], pMetric->limit[type]);
+}
 
 int32_t sessMetricCheck(SSessMetric *pMetric) {
   int32_t code = 0;
@@ -188,9 +187,7 @@ int32_t sessMetricCheckByType(SSessMetric *pMetric, ESessionType type) {
   int32_t code = 0;
 
   taosThreadRwlockRdlock(&pMetric->lock);
-
-  code = sessFnSet[type].checkFn(pMetric->value[type], pMetric->limit[type]);
-
+  code = sessMetricCheckByTypeImpl(pMetric, type);
   taosThreadRwlockUnlock(&pMetric->lock);
 
   return code;
@@ -211,21 +208,10 @@ int32_t sessMetricUpdate(SSessMetric *pMetric, SSessParam *p) {
   int32_t lino = 0;
   taosThreadRwlockWrlock(&pMetric->lock);
 
-  code = sessMetricCheckImpl(pMetric);
+  code = sessMetricCheckByTypeImpl(pMetric, p->type);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  if (p->refCont > 0) {
-    pMetric->refCnt += p->refCont;
-  }
-  pMetric->lastAccessTime = p->lastAccessTime;
-  pMetric->accessTime = p->currentAccessTime;
-
-  for (int32_t i = 0; i < sizeof(pMetric->limit) / sizeof(pMetric->limit[0]); i++) {
-    // if (p->limit[i] > 0) {
-    //   pMetric->limit[i] = p->limit[i];
-    // }
-  }
-
+  code = sessFnSet[p->type].updateFn(&pMetric->value[p->type], p->value);
 _error:
 
   taosThreadRwlockUnlock(&pMetric->lock);
