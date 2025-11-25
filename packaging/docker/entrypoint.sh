@@ -117,7 +117,7 @@ download_and_setup() {
 
     # Verify file was downloaded/created
     if [ -f "${subdir}/${flag_file}" ]; then
-        echo "Successfully downloaded/ ${model_name}"
+        echo "Successfully downloaded ${model_name}"
     else
         echo "Error: download Failed for ${subdir} "
         exit 1
@@ -202,8 +202,7 @@ else
     echo "Non-mounted mode: starting built-in models..."
     for model in tdtsfm timemoe moment; do
         model_dir=$(find_model_file "${model}")
-
-        if [ $? -eq 0 ] && [ -n "${model_dir}" ]; then
+        if [ -n "${model_dir}" ]; then
             echo "✓ Found ${model} model at: ${model_dir}"
             execute_startup "${model_dir}" "${model}" "${MODEL_NAMES[$model]}"
         else
@@ -221,10 +220,10 @@ if [ ! -f "${CONFIG_FILE}" ]; then
 fi
 
 
-echo "Starting uWSGI with config: ${CONFIG_FILE}"
+echo "Starting uWSGI with config: $CONFIG_FILE"
+exec /usr/local/bin/uwsgi --ini "$CONFIG_FILE"
 
-
-if /usr/local/bin/uwsgi --ini "${CONFIG_FILE}" ; then
+if [ $? -ne 0 ]; then
   echo "uWSGI failed to start. Exiting..."
   exit 1
 fi
