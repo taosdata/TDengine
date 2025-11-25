@@ -1473,7 +1473,7 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pT
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(tempTable->table.tableAlias, pTableAlias);
   } else {
-    taosRandStr(tempTable->table.tableAlias, 8);
+    taosRandStr(tempTable->table.tableAlias, 32);
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
     tstrncpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias, TSDB_TABLE_NAME_LEN);

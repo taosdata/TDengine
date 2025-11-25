@@ -131,6 +131,7 @@ typedef struct SValueNode {
   bool       translate;
   bool       notReserved;
   bool       isNull;
+  bool       isFromSubQ;
   int16_t    placeholderNo;
   union {
     bool     b;
@@ -142,6 +143,7 @@ typedef struct SValueNode {
   int64_t    typeData;
   int8_t     unit;
   timezone_t tz;
+  int32_t    subQIdx;
   void*      charsetCxt;
 } SValueNode;
 
@@ -569,8 +571,16 @@ typedef struct SExtWinTimeWindow {
   int32_t     winOutIdx;
 } SExtWinTimeWindow;
 
+
+typedef enum ESubQueryType {
+  E_SUB_QUERY_SCALAR = 1,
+  E_SUB_QUERY_COW,
+  E_SUB_QUERY_TABLE
+} ESubQueryType;
+
 typedef struct SSelectStmt {
   ENodeType       type;  // QUERY_NODE_SELECT_STMT
+  ESubQueryType   subQType;
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
@@ -633,6 +643,7 @@ typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } E
 typedef struct SSetOperator {
   ENodeType        type;  // QUERY_NODE_SET_OPERATOR
   ESetOperatorType opType;
+  ESubQueryType    subQType;
   SNodeList*       pProjectionList;
   SNode*           pLeft;
   SNode*           pRight;
@@ -780,6 +791,7 @@ typedef struct SQuery {
   bool            haveResultSet;
   bool            showRewrite;
   bool            stableQuery;
+  SArray*         pSubRoots;
   SNode*          pPrevRoot;
   SNode*          pRoot;
   SNode*          pPostRoot;

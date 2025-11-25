@@ -28,8 +28,10 @@ extern "C" {
 typedef struct STranslateContext {
   SParseContext*   pParseCxt;
   int32_t          errCode;
+  ESubQueryType    expSubQueryType;
   SMsgBuf          msgBuf;
   SArray*          pNsLevel;  // element is SArray*, the element of this subarray is STableNode*
+  SArray*          pSubQueries; // sub queries NOT from FROM clause， SArray<SNode*>
   int32_t          currLevel;
   int32_t          levelNo;
   ESqlClause       currClause;

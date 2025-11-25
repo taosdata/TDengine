@@ -839,6 +839,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS,    "More than 1 columns returned in subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS,    "Not single row returned in subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ,        "Not supported subquery as expr")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
