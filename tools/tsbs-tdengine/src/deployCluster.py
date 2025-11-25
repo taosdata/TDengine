@@ -334,24 +334,28 @@ class DNodeManager:
             self.logger.error(f"DNode {index} not found")
             return False
             
+        # Check if DNode is already running
         if index in self.processes:
             if self.processes[index].poll() is None:
                 self.logger.info(f"DNode {index} is already running")
                 return True
-                
-        cmd = f"nohup {self.taosd_path} -c {dnode.cfg_dir} > /dev/null 2>&1 &"
+        
+        # Start DNode with nohup to run in background
+        cmd = f"setsid nohup {self.taosd_path} -c {dnode.cfg_dir} > /dev/null 2>&1 &"
         self.logger.info(f"Starting DNode {index}: {cmd}")
         
         process = subprocess.Popen(
             cmd,
             shell=True,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            preexec_fn=os.setsid  # create new session
         )
         
         self.processes[index] = process
         time.sleep(1)
         
+        # Verify DNode started successfully
         if self._is_dnode_running(dnode.port):
             self.logger.success(f"DNode {index} started successfully on port {dnode.port}")
             return True
@@ -378,9 +382,40 @@ class DNodeManager:
         """Stop all DNODEs"""
         self.logger.info("Stopping all DNODEs...")
         subprocess.run("pkill -9 taosd", shell=True, capture_output=True)
+        
+        # Loop to verify all processes are stopped
+        max_wait_time = 10  # Maximum wait time in seconds
+        check_interval = 0.5  # Check every 0.5 seconds
+        elapsed_time = 0
+        
+        while elapsed_time < max_wait_time:
+            # Check if any taosd process is still running
+            result = subprocess.run(
+                "ps aux | grep taosd | grep -v grep",
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            
+            if not result.stdout.strip():
+                # No taosd processes found
+                self.logger.success(f"All DNODEs stopped successfully (took {elapsed_time:.1f}s)")
+                self.processes.clear()
+                return
+            
+            # Still running, wait and retry
+            time.sleep(check_interval)
+            elapsed_time += check_interval
+            
+            if elapsed_time % 2 == 0:  # Log every 2 seconds
+                self.logger.debug(f"Waiting for DNODEs to stop... ({elapsed_time:.0f}s)")
+        
+        # Timeout - force kill again and warn
+        self.logger.error(f"Some DNODEs did not stop within {max_wait_time}s, forcing shutdown...")
+        subprocess.run("pkill -9 taosd", shell=True, capture_output=True)
+        time.sleep(1)
         self.processes.clear()
-        time.sleep(2)
-        self.logger.info("All DNODEs stopped")
+        self.logger.info("All DNODEs stopped (forced)")
         
     def clean_data(self):
         """Clean all data directories"""
@@ -719,4 +754,4 @@ class DeployCluster(BaseStep):
         except Exception as e:
             self.logger.exit(f"Setup failed: {e}")   
         
-cluster = DeployCluster()        
+cluster = DeployCluster()

@@ -144,13 +144,13 @@ class OutMetrics:
             # Format time strings
             if start_time == 0 or start_time is None:
                 start_time_str = "-"
-                duration = "-"
+                duration = 0
             else:
                 start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
     
             if end_time == 0 or end_time is None:
                 end_time_str = "-"
-                duration = "-"
+                duration = 0
             else:
                 end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))
             

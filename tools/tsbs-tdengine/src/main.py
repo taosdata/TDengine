@@ -18,6 +18,7 @@ import os
 import taos
 import time
 import util
+import signal
 
 import argparse
 import sys
@@ -32,7 +33,6 @@ from outMetrics import metrics
 from deployCluster import cluster
 from cmdLine import cmd
 from outLog import log
-
 
 
 def doScene(scene):    
@@ -52,10 +52,18 @@ def doScene(scene):
     env = prepareEnv.PrepareEnv(scene)
     if env.run() == False:
         return False
+
+    if cmd.user_canceled:
+        log.out("User canceled the operation.")
+        return False
     
     # write data
     writer = writeData.WriteData(scene)
     if writer.run() == False:
+        return False
+
+    if cmd.user_canceled:
+        log.out("User canceled the operation.")
         return False
     
     # do test
@@ -64,11 +72,17 @@ def doScene(scene):
     
     return True
 
+# Handle SIGINT signal
+def signal_handler(sig, frame):
+    cmd.user_canceled = True
+    log.out('\nYou pressed Ctrl+C exiting ...')
+
 # 
 # --------------------- man ---------------------------
 #
 if __name__ == "__main__":
     print("TSBS TDengine Tool Ver 1.0")
+    signal.signal(signal.SIGINT, signal_handler)
     
     # Initialize command line arguments
     cmd.init()
@@ -84,6 +98,9 @@ if __name__ == "__main__":
     scenes = cmd.get_scenes()
     for scene in scenes:
         doScene(scene)
+        if cmd.user_canceled:
+            log.out("User canceled the operation.")
+            break
     
     metrics.end()
 

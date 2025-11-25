@@ -64,9 +64,16 @@ class DoTest(BaseStep):
                 log.out(f"i={i} query stream result table except: {e}")
                 # add step
                 i += 1
-                cnt += 1                
+                cnt += 1
+            
+            if cmd.user_canceled:
+                log.out("User canceled the operation during wait_stream_end.")
+                conn.close()
+                metrics.set_status(self.scene.name, "Canceled")
+                return    
+
             # sleep 1 second
-            time.sleep(1)
+            time.sleep(1)            
     
         log.out(f"{i} real rows: {last_rows}, expect rows: {expectRows} ==> Not Passed")
         conn.close()

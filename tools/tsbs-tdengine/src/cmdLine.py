@@ -41,6 +41,7 @@ class CmdLine:
         self.timeout     = 120 # seconds
         self.max_test_time = 1800 # seconds
         self.use_previous = False
+        self.user_canceled = False
         
         # args
         self.parser = None
