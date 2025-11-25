@@ -1,3 +1,2 @@
-CREATE DATABASE IF NOT EXISTS db vgroups 8;
-DROP TABLE IF EXISTS db.`readings`;
-CREATE TABLE db.`readings` (`ts` TIMESTAMP, `latitude` DOUBLE, `longitude` DOUBLE, `elevation` DOUBLE, `velocity` DOUBLE, `heading` DOUBLE, `grade` DOUBLE, `fuel_consumption` DOUBLE) TAGS (`name` VARCHAR(30), `fleet` VARCHAR(30), `driver` VARCHAR(30), `model` VARCHAR(30), `device_version` VARCHAR(30), `load_capacity` DOUBLE, `fuel_capacity` DOUBLE, `nominal_fuel_consumption` DOUBLE)
+CREATE DATABASE db1 vgroups 8;
+CREATE TABLE db1.`readings` (`ts` TIMESTAMP, `latitude` DOUBLE, `longitude` DOUBLE, `elevation` DOUBLE, `velocity` DOUBLE, `heading` DOUBLE, `grade` DOUBLE, `fuel_consumption` DOUBLE) TAGS (`name` VARCHAR(30), `fleet` VARCHAR(30), `driver` VARCHAR(30), `model` VARCHAR(30), `device_version` VARCHAR(30), `load_capacity` DOUBLE, `fuel_capacity` DOUBLE, `nominal_fuel_consumption` DOUBLE)
