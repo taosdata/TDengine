@@ -1005,6 +1005,9 @@ void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
         pRowSup->numNullRows : 0;
       resetNumNullRows(pRowSup);
   }
+  if(pRowSup->win.skey > pRowSup->win.ekey) {
+    TSWAP(pRowSup->win.skey, pRowSup->win.ekey);
+  }
 }
 
 void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {
