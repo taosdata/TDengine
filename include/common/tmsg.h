@@ -1471,6 +1471,8 @@ typedef struct {
   SHashObj* alterViews;
   SHashObj* useDbs;
   int64_t   whiteListVer;
+
+  SUserSessCfg sessCfg;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);

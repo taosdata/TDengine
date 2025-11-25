@@ -73,7 +73,9 @@ int32_t sessMgtGet(char* user, ESessionType type, int32_t* pValue);
 
 int32_t sessMgtUpdateUserMetric(char* user, SSessParam *pPara);
 
-int32_t sessMgtCheckUser(char* user);
+int32_t sessMgtCheckUser(char* user, ESessionType type);
+
+int32_t sessMgtRemoveUser(char* user);
 
 void sessMgtDestroy();
 

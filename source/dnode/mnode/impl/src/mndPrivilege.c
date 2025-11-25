@@ -75,6 +75,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
+  memcpy(&pRsp->sessCfg, &pUser->sessCfg, sizeof(SUserSessCfg));
   return 0;
 }
 

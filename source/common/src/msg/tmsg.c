@@ -3554,6 +3554,8 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   // since 3.0.7.0
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->passVer));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->whiteListVer));
+
+  TAOS_CHECK_RETURN(tEncodeSessCfg(pEncoder, &pRsp->sessCfg));
   return 0;
 }
 
@@ -3781,10 +3783,17 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
     } else {
       pRsp->passVer = 0;
     }
+
     if (!tDecodeIsEnd(pDecoder)) {
       if (tDecodeI64(pDecoder, &pRsp->whiteListVer) < 0) goto _err;
     } else {
       pRsp->whiteListVer = 0;
+    }
+
+    if (!tDecodeIsEnd(pDecoder)) {
+      if (tDecodeSessCfg(pDecoder, &pRsp->sessCfg) < 0) goto _err;
+    } else {
+      memset(&pRsp->sessCfg, 0, sizeof(SUserSessCfg));
     }
   }
   return 0;
