@@ -112,7 +112,13 @@ while true; do
 done
 
 function prepare_cases() {
-    cat "$t_file" >>"$task_file"
+    {
+        # 1. 有数字的行按数字逆序排序
+        grep "^[0-9]" "$t_file" | sort -nr
+        # 2. 无数字且非注释且非空的行保持原顺序
+        grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$"
+    } > "$task_file"
+    echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do
         echo "%%FINISHED%%" >>"$task_file"
@@ -416,19 +422,22 @@ function run_thread() {
                     cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 else
                     cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 fi
             fi
-
             # get remote sim dir
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
@@ -443,13 +452,17 @@ function run_thread() {
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
                 bash -c "$cmd"
-                cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
                 bash -c "$cmd"
-                cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             fi
 
             # # backup source code (disabled)

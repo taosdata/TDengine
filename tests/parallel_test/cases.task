@@ -1,10 +1,10 @@
 #Column Define
-#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#priority,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,script,./test.sh -f tsim/user/basic.sim
 
 #unit-test
 
-,,n,unit-test,bash test.sh
+100,,n,unit-test,bash test.sh
 
 #docs-examples test
 ,,n,docs-examples-test,bash c.sh
@@ -655,7 +655,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
+100,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
@@ -669,7 +669,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_delete.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
+100,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
