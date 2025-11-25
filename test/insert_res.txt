@@ -1,0 +1,22 @@
+[11/25 10:08:04.912830] SUCC: host:127.0.0.1 port:0 dbname:(null) connect successfully.
+[11/25 10:08:05.561676] SUCC: created database (test_end_null)
+[11/25 10:08:05.563014] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:08:05.570125] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:08:05.585722] INFO: start creating 1 table(s) with 4 thread(s)
+[11/25 10:08:05.586628] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:08:05.591099] SUCC: Spent 0.0060 seconds to create 1 table(s) with 4 thread(s) speed: 167 tables/s, already exist 0 table(s), actual 1 table(s) pre created, 0 table(s) will be auto created
+[11/25 10:08:05.591705] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:08:05.598130] SUCC: thread[0] progressive mode, completed total inserted rows: 5000, 1005631.54 records/second
+[11/25 10:08:05.598777] SUCC: Spent 0.006390 (real 0.004972) seconds to insert rows: 5000 with 1 thread(s) into test_end_null 782472.61 (real 1005631.54) records/second
+[11/25 10:08:05.598812] SUCC: insert delay, min: 4.9720ms, avg: 4.9720ms, p90: 4.9720ms, p95: 4.9720ms, p99: 4.9720ms, max: 4.9720ms
+[11/25 10:10:58.746100] SUCC: host:127.0.0.1 port:0 dbname:(null) connect successfully.
+[11/25 10:10:59.512320] SUCC: created database (test_end_null)
+[11/25 10:10:59.514189] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:10:59.522787] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:10:59.540832] INFO: start creating 1 table(s) with 4 thread(s)
+[11/25 10:10:59.541834] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:10:59.545452] SUCC: Spent 0.0050 seconds to create 1 table(s) with 4 thread(s) speed: 200 tables/s, already exist 0 table(s), actual 1 table(s) pre created, 0 table(s) will be auto created
+[11/25 10:10:59.546687] SUCC: host:127.0.0.1 port:0 dbname:test_end_null connect successfully.
+[11/25 10:10:59.553389] SUCC: thread[0] progressive mode, completed total inserted rows: 5000, 1067691.65 records/second
+[11/25 10:10:59.553973] SUCC: Spent 0.006002 (real 0.004683) seconds to insert rows: 5000 with 1 thread(s) into test_end_null 833055.65 (real 1067691.65) records/second
+[11/25 10:10:59.553987] SUCC: insert delay, min: 4.6830ms, avg: 4.6830ms, p90: 4.6830ms, p95: 4.6830ms, p99: 4.6830ms, max: 4.6830ms
