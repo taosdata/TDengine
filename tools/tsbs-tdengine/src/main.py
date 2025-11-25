@@ -97,7 +97,12 @@ if __name__ == "__main__":
     metrics.start()
     scenes = cmd.get_scenes()
     for scene in scenes:
-        doScene(scene)
+        try:
+            doScene(scene)
+        except Exception as e:
+            log.out("Error occurred during scene '%s': %s" % (scene.name, str(e)))
+            metrics.set_status(scene.name, "Failed")
+            continue
         if cmd.user_canceled:
             log.out("User canceled the operation.")
             break
