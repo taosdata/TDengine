@@ -306,7 +306,7 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsMaxInsertBatchRows = 1000000;
 
 // maximum length of a SQL statement
-int32_t tsSqlMaxLen = (1 * 1024 * 1024);  // 1MB
+int32_t tsMaxSQLLength = (1 * 1024 * 1024);  // 1MB
 
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
@@ -724,8 +724,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "sqlMaxLen", tsSqlMaxLen, 1024 * 1024, INT32_MAX, CFG_SCOPE_CLIENT,
-                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "maxSQLLength", tsMaxSQLLength, 1024, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                                CFG_CATEGORY_LOCAL) != 0);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1526,8 +1526,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
   tsEnableTLS = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlMaxLen");
-  tsSqlMaxLen = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxSQLLength");
+  tsMaxSQLLength = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2987,6 +2987,10 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsLogSpace.reserved);
         matched = true;
+      } else if (strcasecmp("maxSQLLength", name) == 0) {
+        tsMaxSQLLength = pItem->i32;
+        uInfo("%s set to %d", name, tsMaxSQLLength);
+        matched = true;
       }
       break;
     }
@@ -3044,10 +3048,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false), &lino, _out);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
-        matched = true;
-      } else if (strcasecmp("sqlMaxLen", name) == 0) {
-        tsSqlMaxLen = pItem->i32;
-        uInfo("%s set to %d", name, tsSqlMaxLen);
         matched = true;
       }
       break;

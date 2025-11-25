@@ -39,15 +39,15 @@ extern "C" {
 
 #define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
-// Use tsSqlMaxLen * 3 for buffer size to accommodate CREATE TABLE statement
-// Note: This is evaluated at runtime, so it will use the configured tsSqlMaxLen value
-#define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsSqlMaxLen * 3))
+// Use tsMaxSQLLength * 3 for buffer size to accommodate CREATE TABLE statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength * 3))
 
 #define SHOW_CREATE_VIEW_RESULT_COLS       2
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
-// Use tsSqlMaxLen + header for buffer size to accommodate CREATE VIEW statement
-// Note: This is evaluated at runtime, so it will use the configured tsSqlMaxLen value
-#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsSqlMaxLen + VARSTR_HEADER_SIZE))
+// Use tsMaxSQLLength + header for buffer size to accommodate CREATE VIEW statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
