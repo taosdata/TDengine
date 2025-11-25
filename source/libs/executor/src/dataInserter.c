@@ -2161,7 +2161,7 @@ int32_t streamDataBlocksToSubmitReq(SStreamRunnerTask* pTask, SDataInserterHandl
     ST_TASK_DLOG("[data inserter], Handle:%p, GROUP:%" PRId64
             " tbname:%s autoCreate:%d block: %d/%d rows:%" PRId64,
             pInserter, pInserterInfo->groupId, pInserterInfo->tbName,
-            pInserterInfo->isAutoCreateTable, i + 1, sz, pDataBlock->info.rows);
+            pInserterInfo->isAutoCreateTable, i + 1, sz, (pDataBlock != NULL ? pDataBlock->info.rows : 0));
     code = buildStreamSubmitReqFromBlock(pTask, pInserter, pInserterInfo, &pReq, pDataBlock, vgInfo, &tbDataInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   }

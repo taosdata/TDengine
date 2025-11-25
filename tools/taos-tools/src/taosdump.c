@@ -4807,7 +4807,7 @@ static void dumpInAvroDataNChar(FieldStruct *field,
 
     avro_value_get_bytes(&nchar_branch,
         (const void **)&bytesbuf, &bytessize);
-    if (NULL == bytesbuf || bytessize == 0) {
+    if (NULL == bytesbuf) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
@@ -4828,7 +4828,7 @@ static void dumpInAvroDataBytes(FieldStruct *field,
     avro_value_get_current_branch(value, &branch);
 
     avro_value_get_bytes(&branch, (const void **)&bytesbuf, &bytessize);
-    if (NULL == bytesbuf || bytessize == 0) {
+    if (NULL == bytesbuf) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {

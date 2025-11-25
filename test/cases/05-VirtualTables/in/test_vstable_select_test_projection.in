@@ -20,3 +20,19 @@ select count(*) from (select int_tag, bool_tag, ts from test_vtable_select.vtb_v
 select count(*) from (select int_tag, bool_tag, u_tinyint_col from test_vtable_select.vtb_virtual_stb);
 select count(*) from (select int_tag, bool_tag, u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_stb);
 select count(*) from (select int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_stb);
+
+select distinct tbname from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tbname, int_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tbname, int_tag, bool_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tbname, int_tag, bool_tag, float_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tbname, int_tag, bool_tag, float_tag, double_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag , binary_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+
+select distinct tags tbname from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tags tbname, int_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tags tbname, int_tag, bool_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tags tbname, int_tag, bool_tag, float_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tags tbname, int_tag, bool_tag, float_tag, double_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tags tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+select distinct tags tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag , binary_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;

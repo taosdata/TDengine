@@ -62,7 +62,7 @@ class TestGrantBugs:
     def test_grant_bugs(self):
         """Privileges bugs
         
-        1. Verify bug TD-3064
+        1. Verify bug TD-30642
         
         Since: v3.0.0.0
 

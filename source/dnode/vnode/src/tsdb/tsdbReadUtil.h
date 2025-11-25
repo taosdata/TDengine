@@ -69,6 +69,7 @@ typedef struct STsdbReaderInfo {
   STimeWindow   window;
   SVersionRange verRange;
   int16_t       order;
+  bool          cacheSttStatis;
 } STsdbReaderInfo;
 
 typedef struct SBlockInfoBuf {
@@ -126,8 +127,7 @@ typedef struct STableBlockScanInfo {
   bool         sttBlockReturned;  // result block returned alreay
   int64_t      numOfRowsInStt;
   SSttKeyRange sttRange;
-  //  STimeWindow sttWindow;         // timestamp window for current stt files
-  STimeWindow filesetWindow;  // timestamp window for current file set
+  STimeWindow  filesetWindow;  // timestamp window for current file set
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {
@@ -313,6 +313,13 @@ typedef struct SBrinRecordIter {
   SBrinBlock       block;
   SBrinRecord      record;
 } SBrinRecordIter;
+
+typedef struct STableFirstLastTsIter {
+  STsdbReader* pReader;
+  SHashObj*    pIgnoreTables;
+  SSDataBlock* pBlock;
+  bool         hasNext;
+} STableFirstLastTsIter;
 
 int32_t uidComparFunc(const void* p1, const void* p2);
 int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id);

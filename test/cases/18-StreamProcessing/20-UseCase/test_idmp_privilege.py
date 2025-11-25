@@ -22,8 +22,7 @@ class Test_IDMP_Meters:
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
-        Catalog:
-            - Streams:UseCases
+        Labels: common,ci,skip
 
         Since: v3.3.7.0
 

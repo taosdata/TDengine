@@ -23,15 +23,13 @@
 extern "C" {
 #endif
 
-enum {
-  IP_WHITE_ADD,
-  IP_WHITE_DROP,
-};
+
 int32_t mndInitUser(SMnode *pMnode);
 void    mndCleanupUser(SMnode *pMnode);
 int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser);
+void    mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq);
 void    mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
-int32_t mndEncryptPass(char *pass, int8_t *algo);
+int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);
 
 // for trans test
 SSdbRaw *mndUserActionEncode(SUserObj *pUser);
@@ -48,13 +46,13 @@ int32_t  mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
 void    mndUserFreeObj(SUserObj *pUser);
 
-int64_t mndGetIpWhiteVer(SMnode *pMnode);
-
-int32_t mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock);
-
+int64_t mndGetIpWhiteListVersion(SMnode *pMnode);
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode);
-
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
+
+int64_t mndGetTimeWhiteListVersion(SMnode *pMnode);
+int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
+int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 #ifdef __cplusplus
 }
 #endif

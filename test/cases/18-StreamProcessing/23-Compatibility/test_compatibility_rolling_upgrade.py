@@ -18,7 +18,7 @@ class TestCompatibilityRollingUpgrade:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_compatibility_rolling_upgrade(self):
-        """Comp: Rolling Upgrade
+        """Comp: rolling upgrade
 
         Test incremental rolling upgrade of individual nodes with stream processing validation:
 

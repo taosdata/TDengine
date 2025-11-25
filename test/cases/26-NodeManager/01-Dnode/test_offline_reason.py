@@ -8,7 +8,7 @@ class TestOfflineReason:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_offline_reason(self):
-        """Dnode: check offline reason
+        """Dnode check offline reason
 
         Check whether the offline_reason field of the offline dnode is correct.
 
@@ -49,6 +49,7 @@ class TestOfflineReason:
         tdSql.checkKeyData(2, 4, "ready")
 
         tdLog.info(f"========== step3")
+        time.sleep(5)
         sc.dnodeStop(2)
         clusterComCheck.checkDnodes(1)
 

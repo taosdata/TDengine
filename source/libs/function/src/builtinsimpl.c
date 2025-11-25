@@ -21,6 +21,7 @@
 #include "query.h"
 #include "querynodes.h"
 #include "tanalytics.h"
+#include "tarray.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdigest.h"
@@ -6853,7 +6854,9 @@ int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
+int32_t derivativeFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
+
+static int32_t DoDerivativeFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SDerivInfo*          pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -6983,6 +6986,17 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
 
   pResInfo->numOfRes = numOfElems;
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t derivativeFunctionByRow(SArray* pCtxArray) {
+  for (int32_t i = 0; i < taosArrayGetSize(pCtxArray); ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    int32_t         code = DoDerivativeFunction(pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 

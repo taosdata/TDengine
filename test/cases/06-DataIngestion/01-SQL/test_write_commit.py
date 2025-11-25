@@ -7,7 +7,7 @@ class TestWriteCommit:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_write_commit(self):
-        """Write: commit scenarios
+        """Write commit scenarios
 
         1. Data exists across multiple files
         2. Data distributed across multiple blocks

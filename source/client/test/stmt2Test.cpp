@@ -3923,6 +3923,8 @@ TEST(stmt2Case, exec_retry) {
     code = taos_stmt2_bind_param(stmt, &bindv1, -1);
     checkError(stmt, code, __FILE__, __LINE__);
 
+    // wait async bind finish
+    taosMsleep(2000);
     do_query(taos, "drop table if exists stmt2_testdb_21.tb1");
 
     code = taos_stmt2_exec(stmt, NULL);

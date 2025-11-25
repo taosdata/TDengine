@@ -194,7 +194,7 @@ class TestGeometry:
         tdSql.checkEqual(tdSql.queryResult[2][0], "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))")
 
     def test_fun_geo_basic(self):
-        """ Geometry Basic Test
+        """Geometry basic
 
         1. Create super/child/normal tables and insert geometry data
         2. Query with ST_GeomFromText() and check results

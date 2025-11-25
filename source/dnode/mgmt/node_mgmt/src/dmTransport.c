@@ -122,6 +122,23 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
   }
 }
 
+static void dmUpdateRpcTimeWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  int32_t        code = 0;
+  SRetrieveDateTimeWhiteListRsp timeWhite = {0};
+  code = tDeserializeSRetrieveDateTimeWhiteListRsp(pRpc->pCont, pRpc->contLen, &timeWhite);
+  if (code < 0) {
+    dError("failed to update rpc datetime-white since: %s", tstrerror(code));
+    return;
+  }
+  // TODO: implement rpcSetTimeWhite
+  //code = rpcSetIpWhite(pTrans, &ipWhite);
+  pData->timeWhiteVer = timeWhite.ver;
+
+  (void)tFreeSRetrieveDateTimeWhiteListRsp(&timeWhite);
+
+  rpcFreeCont(pRpc->pCont);
+}
+
 static void dmUpdateAnalyticFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   SRetrieveAnalyticAlgoRsp rsp = {0};
   if (tDeserializeRetrieveAnalyticAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
@@ -182,11 +199,14 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
-    case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_RSP:
       dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
+    case TDMT_MND_RETRIEVE_DATETIME_WHITELIST_RSP:
+      dmUpdateRpcTimeWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
       dmUpdateAnalyticFunc(&pDnode->data, pTrans->serverRpc, pRpc);

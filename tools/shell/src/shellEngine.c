@@ -284,7 +284,7 @@ void shellRunSingleCommandImp(char *command) {
     if (error_no == 0) {
       printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %" PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(NULL), numOfRows,
+      printf("Query interrupted (%s), %" PRId64 " row(s) in set (%.6fs)\r\n", tstrerror(error_no), numOfRows,
              (et - st) / 1E6);
     }
     taos_free_result(pSql);
@@ -1033,7 +1033,7 @@ void shellDumpResultCallback(void *param, TAOS_RES *tres, int num_of_rows) {
     }
   } else {
     if (num_of_rows < 0) {
-      printf("\033[31masync retrieve failed, code: %d\033, %s[0m\n", num_of_rows, tstrerror(num_of_rows));
+      printf("\033[31masync retrieve failed, code: %d, %s\033[0m\n", num_of_rows, tstrerror(num_of_rows));
     }
     tsem_post(&dump_info->sem);
   }

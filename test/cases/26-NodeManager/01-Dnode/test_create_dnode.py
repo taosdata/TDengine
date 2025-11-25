@@ -8,7 +8,7 @@ class TestCreateDnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_create_dnode(self):
-        """Dnode: create
+        """Dnode create
 
         1. Create dnode2
         2. Check system tables such as ins_dnodes and ins_mnodes

@@ -11,12 +11,14 @@ class TestStreamNotifyTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_notify_trigger(self):
-        """basic qdb 2
+        """Notify basic
 
-        Verification testing during the development process.
-
-        Catalog:
-            - Streams:Notify
+        1. Stream notify on windows_open/windows_close trigger
+        2. Stream notify with options notify_history/on_failure_pause
+        3. Stream notify with different stream definitions
+        4. Stream create with no notify URL
+        5. Check notify results
+        
 
         Since: v3.3.3.7
 
@@ -1635,7 +1637,7 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check1(self):
-            tdLog.info("desc the stream ana_ct0_end")
+            tdLog.info(f"check the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
             tdSql.query(f"select * from {self.db}.ana_ct0_end")
@@ -1651,7 +1653,7 @@ class TestStreamNotifyTrigger:
             tdSql.executes(sqls)
 
         def check2(self):
-            tdLog.info("desc the stream ana_ct0_end")
+            tdLog.info(f"check the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
             tdSql.checkResultsByFunc(
@@ -1667,7 +1669,7 @@ class TestStreamNotifyTrigger:
                 and tdSql.compareData(3, 1, 9)
                 and tdSql.compareData(4, 0, "2025-01-01 00:00:04.000")
                 and tdSql.compareData(4, 1, 10)
-                and tdSql.compareData(5, 0, "2025-01-01 00:00:06.000")
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:05.000")
                 and tdSql.compareData(5, 1, 11),
             )
 

@@ -66,7 +66,7 @@ typedef struct {
   const char* commands;
   const char* netrole;
   char        file[PATH_MAX];
-  char        password[TSDB_USET_PASSWORD_LONGLEN];
+  char        password[TSDB_USER_PASSWORD_LONGLEN];
   bool        is_gen_auth;
   bool        is_bi_mode;
   bool        is_raw_time;

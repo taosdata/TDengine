@@ -34,12 +34,15 @@ class TestStreamSameName:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_same_name(self):
-        """Stream: check same name
+        """Stream same name
 
-        Test stream with duplicate names.
+        1. Test stream with duplicate names.
+        2. Verify that creating a stream with an existing name fails.
+        3. Test recreating a stream with the same name.
+        4. Verify error handling for duplicate stream names.
+        5. Check stream name uniqueness in information_schema.ins_streams.
+        6. Ensure proper error messages for duplicate stream name attempts.
 
-        Catalog:
-            - Streams:Stream
 
         Since: v3.3.3.7
 

@@ -265,7 +265,7 @@ class TestDeleteStable:
                 tdSql.checkEqual(tdSql.queryRows, 0)
 
     def test_delete_stable(self):
-        """Delete Data in Super Table
+        """Delete super table
 
         1. Create super table
         2. Insert data into super table

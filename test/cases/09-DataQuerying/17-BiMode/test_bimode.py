@@ -7,7 +7,7 @@ class TestBiStarTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_bi_star_table(self):
-        """Bi Mode
+        """Bi mode
 
         1. In BI mode, querying a supertable with SELECT *, LAST(*), or FIRST(*) will return an additional tbname column
         2. In BI mode, querying only tag columns (without data columns) returns a number of records equal to the number of subtables

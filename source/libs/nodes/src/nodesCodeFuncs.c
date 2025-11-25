@@ -244,6 +244,10 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       return "BalanceVgroupLeaderStmt";
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:
+      return "SetVgroupKeepVersionStmt";
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      return "TrimDbWalStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -8087,8 +8091,8 @@ static const char* jkAlterUserStmtCreatedb = "Createdb";
 
 static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   const SAlterUserStmt* pNode = (const SAlterUserStmt*)pObj;
-
   int32_t code = tjsonAddStringToObject(pJson, jkAlterUserStmtUserName, pNode->userName);
+#if 0
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtAlterType, pNode->alterType);
   }
@@ -8104,14 +8108,14 @@ static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtCreatedb, pNode->createdb);
   }
-
+#endif
   return code;
 }
 
 static int32_t jsonToAlterUserStmt(const SJson* pJson, void* pObj) {
   SAlterUserStmt* pNode = (SAlterUserStmt*)pObj;
-
   int32_t code = tjsonGetStringValue(pJson, jkAlterUserStmtUserName, pNode->userName);
+#if 0
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtAlterType, &pNode->alterType);
   }
@@ -8127,7 +8131,7 @@ static int32_t jsonToAlterUserStmt(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtCreatedb, &pNode->createdb);
   }
-
+#endif
   return code;
 }
 
@@ -9736,6 +9740,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to serialize.
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:
+      return TSDB_CODE_SUCCESS;  // SSetVgroupKeepVersionStmt has simple fields, no need to serialize.
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      return TSDB_CODE_SUCCESS;  // STrimDbWalStmt has simple fields, no need to serialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return mergeVgroupStmtToJson(pObj, pJson);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -10153,6 +10161,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to deserialize.
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:
+      return TSDB_CODE_SUCCESS;  // SSetVgroupKeepVersionStmt has simple fields, no need to deserialize.
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      return TSDB_CODE_SUCCESS;  // STrimDbWalStmt has simple fields, no need to deserialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return jsonToMergeVgroupStmt(pJson, pObj);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:

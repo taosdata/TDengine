@@ -43,13 +43,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -66,7 +66,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -107,7 +107,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        
+
         tdSql.execute(
             "create table db.st(ts timestamp, c1 BINARY(5), c2 BINARY(5)) tags(btag BINARY(5))"
         )
@@ -120,11 +120,11 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))   
+        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
@@ -141,7 +141,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -182,7 +182,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db keep 3649 ")
 
-        
+
         tdSql.execute("create table db.st(ts timestamp, c1 BOOL) tags(btag BOOL)")
         tdSql.execute("create table db.t1 using  db.st tags(true)")
         tdSql.execute("insert into db.t1 values(1640000000000, true)")
@@ -194,13 +194,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
@@ -217,7 +217,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -254,7 +254,7 @@ class TestTaosdumpDataTypes:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
-  
+
         print("do type bool ....................... [passed]")
 
     #
@@ -264,7 +264,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        
+
         tdSql.execute("create table db.st(ts timestamp, c1 DOUBLE) tags(dbtag DOUBLE)")
         tdSql.execute("create table db.t1 using db.st tags(1.0)")
         tdSql.execute("insert into db.t1 values(1640000000000, 1.0)")
@@ -281,13 +281,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -304,7 +304,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -368,7 +368,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        
+
         tdSql.execute("create table db.st(ts timestamp, c1 FLOAT) tags(ftag FLOAT)")
         tdSql.execute("create table db.t1 using db.st tags(1.0)")
         tdSql.execute("insert into db.t1 values(1640000000000, 1.0)")
@@ -385,13 +385,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -408,7 +408,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -480,13 +480,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -503,7 +503,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -546,7 +546,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db keep 3649 ")
 
-        
+
         tdSql.execute("create table db.st(ts timestamp, c1 int) tags(jtag JSON)")
         tdSql.execute('create table db.t1 using db.st tags(\'{"location": "beijing"}\')')
         tdSql.execute("insert into db.t1 values(1500000000000, 1)")
@@ -560,7 +560,7 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
@@ -582,7 +582,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -630,7 +630,7 @@ class TestTaosdumpDataTypes:
                 break
 
         assert found == True
-    
+
         print("do type json .......................... [passed]")
 
     #
@@ -640,7 +640,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        
+
         tdSql.execute("create table db.st(ts timestamp, c1 SMALLINT) tags(sntag SMALLINT)")
         tdSql.execute("create table db.t1 using db.st tags(1)")
         tdSql.execute("insert into db.t1 values(1640000000000, 1)")
@@ -657,13 +657,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -680,7 +680,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -721,7 +721,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        
+
         tdSql.execute("create table db.st(ts timestamp, c1 TINYINT) tags(tntag TINYINT)")
         tdSql.execute("create table db.t1 using db.st tags(1)")
         tdSql.execute("insert into db.t1 values(1640000000000, 1)")
@@ -738,13 +738,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -761,7 +761,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -795,7 +795,7 @@ class TestTaosdumpDataTypes:
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
-    
+
         print("do type tiny int ...................... [passed]")
 
     #
@@ -805,7 +805,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        
+
         tdSql.execute(
             "create table db.st(ts timestamp, c1 BIGINT UNSIGNED) \
                     tags(ubntag BIGINT UNSIGNED)"
@@ -820,13 +820,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -843,7 +843,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -877,7 +877,7 @@ class TestTaosdumpDataTypes:
     def do_taosdump_type_unsigned_int(self, mode):
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
-  
+
         tdSql.execute(
             "create table db.st(ts timestamp, c1 INT UNSIGNED) tags(untag INT UNSIGNED)"
         )
@@ -891,13 +891,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -914,7 +914,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -942,7 +942,7 @@ class TestTaosdumpDataTypes:
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
-    
+
         print("do type unsigned int .................. [passed]")
 
     #
@@ -971,7 +971,7 @@ class TestTaosdumpDataTypes:
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -988,7 +988,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -1023,7 +1023,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        
+
         tdSql.execute(
             "create table db.st(ts timestamp, c1 TINYINT UNSIGNED) \
                     tags(utntag TINYINT UNSIGNED)"
@@ -1038,13 +1038,13 @@ class TestTaosdumpDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            
+
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
         os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
 
-        
+
         tdSql.execute("drop database db")
 
         os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
@@ -1061,7 +1061,7 @@ class TestTaosdumpDataTypes:
 
         assert found == True
 
-        
+
         tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
@@ -1090,13 +1090,13 @@ class TestTaosdumpDataTypes:
 
     #
     # ------------------- test_taosdump_type_geometry.py ----------------
-    #       
+    #
     def exec(self, command):
         tdLog.info(command)
         return os.system(command)
 
     def findPrograme(self):
-        # taosdump 
+        # taosdump
         taosdump = etool.taosDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
@@ -1126,7 +1126,7 @@ class TestTaosdumpDataTypes:
         #
         with open(jsonFile, "r") as file:
             data = json.load(file)
-        
+
         # db come from arguments
         if newdb is None:
             db = data["databases"][0]["dbinfo"]["name"]
@@ -1139,7 +1139,7 @@ class TestTaosdumpDataTypes:
         timestamp_step = data["databases"][0]["super_tables"][0]["timestamp_step"]
 
         tdLog.info(f"get json: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
-        
+
         # all count insert_rows * child_table_count
         sql = f"select * from {db}.{stb}"
         tdSql.query(sql)
@@ -1152,7 +1152,7 @@ class TestTaosdumpDataTypes:
             tdSql.checkRows(0)
 
     def testBenchmarkJson(self, benchmark, jsonFile, options="", checkInterval=False):
-        # exe insert 
+        # exe insert
         cmd = f"{benchmark} {options} -f {jsonFile}"
         self.exec(cmd)
         self.checkCorrectWithJson(jsonFile)
@@ -1193,13 +1193,14 @@ class TestTaosdumpDataTypes:
         if val1 == val2:
             tdLog.info(f"{db}.{stb} {row},{col} source db:{val1} import db:{val2} both equal.")
         else:
-            tdLog.exit(f"{db}.{stb} {row},{col} source db:{val1} len={len(val1)} import db:{val2} len={len(val2)} not equal.")
-
+            len1 = len(val1) if isinstance(val1, (str, bytes)) else 'N/A'
+            len2 = len(val2) if isinstance(val2, (str, bytes)) else 'N/A'
+            tdLog.exit(f"{db}.{stb} {row},{col} source db:{val1} len={len1} import db:{val2} len={len2} not equal, sql:{sql}.")
 
     def insertDataGeometry(self, benchmark, json, db):
         # insert super table
         self.testBenchmarkJson(benchmark, json)
-   
+
         # normal table
         sqls = [
             f"create table {db}.ntb(st timestamp, c1 int, c2 geometry(128))",
@@ -1216,7 +1217,7 @@ class TestTaosdumpDataTypes:
     def verifyResultGeometry(self, db, newdb, json):
         # compare with insert json
         self.checkCorrectWithJson(json, newdb)
-        
+
         #  compare sum(pk)
         stb = "meters"
         self.checkAggSame(db, newdb, stb, "sum(ic)")
@@ -1228,7 +1229,7 @@ class TestTaosdumpDataTypes:
         self.checkProjSame(db, newdb, stb, 8, 3)
         self.checkProjSame(db, newdb, stb, 8, 4)
         self.checkProjSame(db, newdb, stb, 8, 6) # tag
-        
+
 
         # check normal table
         self.checkAggSame(db, newdb, "ntb", "sum(c1)")
@@ -1245,7 +1246,7 @@ class TestTaosdumpDataTypes:
         # database
         db = "geodb"
         newdb = "ngeodb"
-        
+
         # find
         taosdump, benchmark, tmpdir = self.findPrograme()
         json = os.path.dirname(__file__) + "/json/geometry.json"
@@ -1253,7 +1254,7 @@ class TestTaosdumpDataTypes:
         # insert data with taosBenchmark
         self.insertDataGeometry(benchmark, json, db)
 
-        # dump out 
+        # dump out
         self.dumpOut(taosdump, db, tmpdir)
 
         # dump in
@@ -1270,7 +1271,7 @@ class TestTaosdumpDataTypes:
     def insertDataVarbinary(self, benchmark, json, db):
         # insert super table
         self.testBenchmarkJson(benchmark, json)
-        
+
         # normal table
         sqls = [
             f"create table {db}.ntb(st timestamp, c1 int, c2 varbinary(32))",
@@ -1287,7 +1288,7 @@ class TestTaosdumpDataTypes:
     def verifyResultVarbinary(self, db, newdb, json):
         # compare with insert json
         self.checkCorrectWithJson(json, newdb)
-        
+
         #  compare sum(pk)
         stb = "meters"
         self.checkAggSame(db, newdb, stb, "sum(ic)")
@@ -1299,7 +1300,7 @@ class TestTaosdumpDataTypes:
         self.checkProjSame(db, newdb, stb, 8, 3)
         self.checkProjSame(db, newdb, stb, 8, 4)
         self.checkProjSame(db, newdb, stb, 8, 6) # tag
-        
+
         # check normal table
         tb = "ntb"
         self.checkAggSame(db, newdb, tb, "sum(c1)")
@@ -1320,7 +1321,7 @@ class TestTaosdumpDataTypes:
         # database
         db = "varbin"
         newdb = "nvarbin"
-        
+
         # find
         taosdump, benchmark, tmpdir = self.findPrograme()
         json =  os.path.dirname(__file__) + "/json/varbinary.json"
@@ -1328,7 +1329,7 @@ class TestTaosdumpDataTypes:
         # insert data with taosBenchmark
         self.insertDataVarbinary(benchmark, json, db)
 
-        # dump out 
+        # dump out
         self.dumpOut(taosdump, db, tmpdir)
 
         # dump in
@@ -1336,13 +1337,13 @@ class TestTaosdumpDataTypes:
 
         # verify db
         self.verifyResultVarbinary(db, newdb, json)
-    
+
         print("do type varbinary ..................... [passed]")
 
 
     #
     # ------------------- main ----------------
-    #   
+    #
     def do_all_datatypes(self, mode):
         self.do_taosdump_type_big_int(mode)
         self.do_taosdump_type_binary(mode)
@@ -1396,7 +1397,7 @@ class TestTaosdumpDataTypes:
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_big_int.py
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_int.py
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_small_int.py
-            - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_tiny_int.py            
+            - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_tiny_int.py
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_type_geometry.py
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_type_varbinary.py
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_big_int.py
@@ -1418,13 +1419,12 @@ class TestTaosdumpDataTypes:
         if self.binPath == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found: %s" % self.binPath) 
-        
+            tdLog.info("taosdump found: %s" % self.binPath)
+
         # native
         self.do_all_datatypes("-Z 'Native'")
         self.do_taosdump_type_geometry()
         self.do_taosdump_type_varbinary()
-        
+
         # websocket
         self.do_all_datatypes("-Z 'WebSocket'")
-        

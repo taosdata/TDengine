@@ -34,12 +34,12 @@ class TestStreamCheckName:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_illegal_name(self):
-        """Stream: check illegal name
+        """Stream illegal name
 
-        Test stream with illegal names.
-
-        Catalog:
-            - Streams:Stream
+        1. Test stream with illegal names.
+        2. Test stream with special characters.
+        3. Test stream name length.
+        
 
         Since: v3.3.3.7
 

@@ -7,7 +7,7 @@ class TestWriteInsertSelect:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_write_insert_select(self):
-        """Write: insert into select
+        """Write from select clause
 
         1. Insert into select from child table
         2. Insert into select from normal table

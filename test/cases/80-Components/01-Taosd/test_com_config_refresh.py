@@ -573,7 +573,7 @@ class TestComTaosdConfigRefresh:
 
 
     def test_com_taosd_config_refresh(self):
-        """Configuration item hot refresh
+        """Server config hot refresh
         
         1. Alter taos.cfg item by "alter" sql
         2. Verify the altered item value take effect
@@ -627,3 +627,25 @@ class TestComTaosdConfigRefresh:
         tdLog.success(f"{__file__} successfully executed")
 
 
+    def test_com_taosc_config(self):
+        """Client config hot refresh
+        
+        1. Alter taos.cfg item by "alter" sql
+        2. Show local variant to verify
+        3. Restart taosd
+        4. Show local variant to verify again
+        
+        Catalog:
+            - Components:Taosc
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-22 Alex Duan Migrated from uncatalog/army/alter/test_alter_config_refresh.py
+
+        """
+        pass

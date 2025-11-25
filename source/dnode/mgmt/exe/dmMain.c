@@ -395,7 +395,7 @@ static int32_t dmCheckSs() {
   code = tssCreateDefaultInstance();
   if (code != 0) {
     printf("failed to create default shared storage instance, error code=%d.\n", code);
-    tssUninit();
+    (void)tssUninit();
     return code;
   }
 
@@ -412,8 +412,8 @@ static int32_t dmCheckSs() {
     printf("shared storage configuration check finished with error.\n");
   }
 
-  tssCloseDefaultInstance();
-  tssUninit();
+  (void)tssCloseDefaultInstance();
+  (void)tssUninit();
 
   return code;
 }

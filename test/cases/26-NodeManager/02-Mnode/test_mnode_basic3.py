@@ -8,7 +8,7 @@ class TestMnodeBasic3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mnode_basic3(self):
-        """replica 3: kill -9 then restart
+        """Mnode kill -9 then restart
 
         1. Create mnodes on the second and third dnodes
         2. Create a user (update mnode)

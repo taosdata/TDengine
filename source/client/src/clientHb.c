@@ -208,6 +208,25 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
                  oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
+
+      if (pTscObj->dateTimeWhiteListInfo.fp) {
+        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        if (oldVer != pRsp->timeWhiteListVer) {
+          atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+          if (whiteListInfo->fp) {
+            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->timeWhiteListVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
+          }
+          tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
+                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+        }
+      } else {
+        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+        tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
+                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+      }
       releaseTscObj(pReq->connKey.tscRid);
     }
   }
