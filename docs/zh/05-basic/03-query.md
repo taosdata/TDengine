@@ -543,6 +543,30 @@ count_window(1000);
 Query OK, 10 row(s) in set (0.062794s)
 ```
 
+## 时间范围表达式
+
+在时序数据库的查询中，经常需要根据主键列的时间范围进行查询，TDengine 提供了一系列函数和表达式来方便用户进行时间范围的表达，这里列出了常见的时间范围表达式及其与 MySQL 和 PostgreSQL 的区别：
+
+| 时间范围          |   MySQL 表达式                                                    |  PostgreSQL 表达式   |   TDengine 表达式   |
+|:------------:|:--------------------------------------------------------------------:|:-----------------------------------:|:--------------------------------:|
+| 昨天​ | CURDATE() - INTERVAL 1 DAY,<br/> CURDATE() | CURRENT_DATE - INTERVAL '1 day',<br/> CURRENT_DATE | TODAY() - 1d,<br/> TODAY() |
+| 今天 |​ CURDATE(),<br/> CURDATE() + INTERVAL 1 DAY | CURRENT_DATE,<br/> CURRENT_DATE + INTERVAL '1 day' | TODAY(),<br/> TODAY() + 1d |
+| 上周​	| DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1d) - (7 + WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) * 24 * 3600000,<br/> TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) * 24 * 3600000 |
+| 本周 | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) * 24 * 3600000,<br/> TIMETRUNCATE(NOW(), 1d) + (7 - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) * 24 * 3600000 |
+| 上月​ | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01')	| DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) |TO_TIMESTAMP(TO_CHAR(NOW() -1n, 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM') |
+| 本月​ | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') |TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1n, 'YYYY-MM'), 'YYYY-MM') |
+| 上季度​ | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) * 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) * 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TO_TIMESTAMP(CASE WHEN TO_CHAR(NOW(), 'MM') < 4 THEN CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') - 1 AS VARCHAR(5)), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') + 8) / 3) * 3 + 1 AS VARCHAR(3))) ELSE CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 4) / 3) * 3 + 1 AS VARCHAR(3))) END, 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) * 3 + 1 AS VARCHAR)), 'YYYY-MM') |
+| 本季度 | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) * 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) * 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) * 3 + 1 AS VARCHAR)), 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') + CASE WHEN TO_CHAR(NOW(), 'MM') > 9 THEN 1 ELSE 0 END AS VARCHAR), "-", CAST((FLOOR((TO_CHAR(NOW(), 'MM') + 2) / 3) * 3 + 1) % 12 AS VARCHAR)), 'YYYY-MM') |
+| 去年 | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TO_TIMESTAMP(TO_CHAR(NOW() - 1y, 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY') |
+| 今年 | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
+
+### 说明
+1. 每个时间范围区间都是左闭右开。
+2. 写法不唯一，这里作为示例仅供参考使用。
+3. 这里以周一作为一周的开始，非周一开始的场景需调整。
+4. 这里 TDengine 示例的时间戳是以毫秒为时间单位。
+
+
 ## 时序数据特有函数
 
 时序数据特有函数是 TDengine TSDB 针对时序数据查询场景专门设计的一组函数。在通用数据库中，要实现类似的功能通常需要编写复杂的查询语句，而且效率较低。为了降低用户的使用成本和简化查询过程，TDengine TSDB 将这些功能以内置函数的形式提供，从而实现了高效且易于使用的时序数据处理能力。时序数据特有函数如下表所示。
