@@ -31,8 +31,7 @@
 
 // clang-format on
 
-#define USER_VER_NUMBER                      8 
-#define USER_VER_SUPPORT_SESS_NUMBER             7 
+#define USER_VER_NUMBER                      7
 #define USER_VER_SUPPORT_WHITELIST           5
 #define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
 #define USER_RESERVE_SIZE                    63
@@ -1229,15 +1228,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   SDB_SET_INT64(pRaw, dataPos, pUser->ipWhiteListVer, _OVER);
   SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorithm, _OVER);
-  
-  if (USER_VER_NUMBER >= USER_VER_SUPPORT_SESS_NUMBER) {
-    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessPerUser, _OVER);
-    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessConnTime, _OVER);
-    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessConnIdleTime, _OVER);
-    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessMaxConcurrency, _OVER);
-    SDB_SET_INT32(pRaw, dataPos, pUser->sessCfg.sessMaxCallVnodeNum, _OVER);
 
-  }
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -1582,15 +1573,6 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   }
 
   SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorithm, _OVER);
-
-  if (sver >= USER_VER_SUPPORT_SESS_NUMBER) {
-    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessPerUser, _OVER);
-    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessConnTime, _OVER);
-    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessConnIdleTime, _OVER);
-    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessMaxConcurrency, _OVER);
-    SDB_GET_INT32(pRaw, dataPos, &pUser->sessCfg.sessMaxCallVnodeNum, _OVER);
-  }
-
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
 
@@ -2548,28 +2530,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessAlterUserSessReq(SAlterUserReq *pReq) {
-  int32_t code = 0;
-  int8_t type = pReq->alterType;
-  if (type < TSDB_ALTER_USER_SESSION_PER_USER || type > TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE) {
-    return code;
-  }
-
-  switch (type) {
-    case TSDB_ALTER_USER_SESSION_PER_USER:
-     break;
-    case TSDB_ALTER_USER_SESSION_CONN_TIME:
-     break;
-    case TSDB_ALTER_USER_SESSION_CONN_IDLE_TIME:
-     break;
-    case TSDB_ALTER_USER_SESSION_MAX_CONCURR:
-     break;
-    case TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE:
-     break;
-  }  
-
-  return code;
-}
 static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SSdb         *pSdb = pMnode->pSdb;

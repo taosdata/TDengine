@@ -2688,9 +2688,6 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
     TAOS_CHECK_EXIT(code);
   }
 
-  code = tEncodeSessCfg(&encoder, &pReq->sessCfg);  
-  TAOS_CHECK_EXIT(code);
-
   tEndEncode(&encoder);
 
 _exit:
@@ -2744,11 +2741,6 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
       code = tDeserializeIpRange(&decoder, pRange);
       TAOS_CHECK_EXIT(code);
     }
-  }
-
-  if (!tDecodeIsEnd(&decoder)) {
-    code = tDecodeSessCfg(&decoder, &pReq->sessCfg);
-    TAOS_CHECK_EXIT(code);
   }
 
   tEndDecode(&decoder);

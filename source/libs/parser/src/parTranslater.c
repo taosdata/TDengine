@@ -12460,28 +12460,6 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   tFreeSCreateUserReq(&createReq);
   return code;
 }
-static int32_t checkAlterUserSession(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
-  int32_t code = 0;
-  switch (pStmt->alterType) {
-    case TSDB_ALTER_USER_SESSION:
-      
-      break;
-    case TSDB_ALTER_USER_SESSION_PER_USER:
-      break;
-    case TSDB_ALTER_USER_SESSION_CONN_TIME:
-      break;
-    case TSDB_ALTER_USER_SESSION_CONN_IDLE_TIME:
-      break;
-    case TSDB_ALTER_USER_SESSION_MAX_CONCURR:
-      break;
-    case TSDB_ALTER_USER_SESSION_MAX_CALL_VNODE:
-      break;
-    default:
-      code = TSDB_CODE_INVALID_CFG;
-      break;
-  }
-  return code;
-}
 static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t code = 0;
   switch (pStmt->alterType) {
@@ -12495,7 +12473,6 @@ static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
       code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, false);
       break;
     default:
-      code = checkAlterUserSession(pCxt, pStmt);
       break;
   }
   return code;
