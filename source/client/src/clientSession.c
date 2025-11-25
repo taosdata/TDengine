@@ -18,12 +18,107 @@
 
 static SSessionMgt sessMgt = {0};
 
-static SSessionError sessErrorDict[] = {
-    {SESSION_PER_USER, TSDB_CODE_TSC_SESS_PER_USER_LIMIT, NULL, NULL},
-    {SESSION_CONN_TIME, TSDB_CODE_TSC_SESS_CONN_TIMEOUT, NULL, NULL},
-    {SESSION_CONN_IDLE_TIME, TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT, NULL, NULL},
-    {SESSION_MAX_CONCURRENCY, TSDB_CODE_TSC_SESS_MAX_CONCURRENCY_LIMIT, NULL, NULL},
-    {SESSION_MAX_CALL_VNODE_NUM, TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT, NULL, NULL},
+static int32_t sessPerUserCheckFn(int64_t value, int64_t limit) {
+  int32_t code = 0;
+  if (limit == -1) {
+    return 0;
+  }
+
+  if (value > limit) {
+    code = TSDB_CODE_TSC_SESS_PER_USER_LIMIT;
+  }
+
+  return code;
+}
+
+static int32_t sessPerUserUpdateFn(int64_t *value, int64_t limit) {
+  int32_t code = 0;
+  *value += limit;
+  return code;
+}
+
+static int32_t sessConnTimeCheckFn(int64_t value, int64_t limit) {
+  int32_t code = 0;
+  if (limit == -1) {
+    return code;
+  }
+  int64_t currentTime = taosGetTimestampMs();
+  if ((value + limit) < currentTime) {
+    code = TSDB_CODE_TSC_SESS_CONN_TIMEOUT;
+  }
+
+  return code;
+}
+
+static int32_t sessConnTimeUpdateFn(int64_t *value, int64_t limit) {
+  int32_t code = 0;
+  *value = taosGetTimestampMs();
+  return code;
+}
+
+static int32_t sessConnIdleTimeCheckFn(int64_t value, int64_t limit) {
+  if (limit == -1) {
+    return 0;
+  }
+  int32_t code = 0;
+  int64_t currentTime = taosGetTimestampMs();
+  if ((value + limit) < currentTime) {
+    code = TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT;
+  }
+  return code;
+}
+
+static int32_t sessConnIdleTimeUpdateFn(int64_t *value, int64_t limit) {
+  int32_t code = 0;
+  *value = taosGetTimestampMs();
+  return code;
+}
+
+static int32_t sessMaxConnCurrencyCheckFn(int64_t value, int64_t limit) {
+  int32_t code = 0;
+  if (limit == -1) {
+    return code;
+  }
+  return code;
+}
+
+static int32_t sessMaxConnCurrencyUpdateFn(int64_t *value, int64_t delta) {
+  int32_t code = 0;
+  if (delta == -1) {
+    return code;
+  }
+  return code;
+}
+
+static int32_t sessVnodeCallCheckFn(int64_t value, int64_t limit) {
+  int32_t code = 0;
+  if (limit == -1) {
+    return code;
+  }
+
+  if (value > limit) {
+    code = TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT;
+  }
+  return code;
+}
+
+static int32_t sessVnodeCallNumUpdateFn(int64_t *value, int64_t delta) {
+  int32_t code = 0;
+  *value += delta;
+  return code;
+}
+static int32_t sessSetValueLimitFn(int64_t *pLimit, int64_t src) {
+  int32_t code = 0;
+  *pLimit = src;
+  return code;
+}
+
+static SSessionError sessFnSet[] = {
+    {SESSION_PER_USER, sessPerUserCheckFn, sessPerUserUpdateFn, sessSetValueLimitFn},
+    {SESSION_CONN_TIME, sessConnTimeCheckFn, sessConnTimeUpdateFn, sessSetValueLimitFn},
+    {SESSION_CONN_IDLE_TIME, sessConnIdleTimeCheckFn, sessMaxConnCurrencyUpdateFn, sessSetValueLimitFn},
+    {SESSION_MAX_CONCURRENCY, sessMaxConnCurrencyCheckFn, sessMaxConnCurrencyUpdateFn, sessSetValueLimitFn},
+    {SESSION_MAX_CALL_VNODE_NUM, sessVnodeCallCheckFn, sessVnodeCallNumUpdateFn, sessSetValueLimitFn},
 };
 
 int32_t sessMetricCreate(SSessMetric **ppMetric) {
@@ -60,7 +155,7 @@ int32_t sessMetricUpdateLimit(SSessMetric *pMetric, ESessionType type, int32_t v
   int32_t code = 0;
 
   taosThreadRwlockWrlock(&pMetric->lock);
-  pMetric->limit[type] = value;
+  code = sessFnSet[type].limitFn(&pMetric->limit[type], value);
   taosThreadRwlockUnlock(&pMetric->lock);
   return code;
 }
@@ -69,20 +164,10 @@ int32_t sessMetricCheckImpl(SSessMetric *pMetric) {
   int32_t code = 0;
 
   for (int32_t i = 0; i < sizeof(pMetric->limit) / sizeof(pMetric->limit[0]); i++) {
-    if (pMetric->limit[i] <= -1) {
-      continue;
-    }
-
-    code = sessErrorDict[i].checkFn(pMetric->value[i], pMetric->limit[i]);
+    code = sessFnSet[i].checkFn(pMetric->value[i], pMetric->limit[i]);
     if (code != 0) {
-      code = sessErrorDict[i].code;
       break;
     }
-
-    // if (pMetric->value[i] > pMetric->limit[i]) {
-    //   code = sessErrorDict[i].code;
-    //   break;
-    // }
   }
 
   return code;
@@ -104,12 +189,7 @@ int32_t sessMetricCheckByType(SSessMetric *pMetric, ESessionType type) {
 
   taosThreadRwlockRdlock(&pMetric->lock);
 
-  if (pMetric->limit[type] > -1) {
-    code = sessErrorDict[type].checkFn(pMetric->value[type], pMetric->limit[type]);
-    if (code != 0) {
-      code = sessErrorDict[type].code;
-    }
-  }
+  code = sessFnSet[type].checkFn(pMetric->value[type], pMetric->limit[type]);
 
   taosThreadRwlockUnlock(&pMetric->lock);
 

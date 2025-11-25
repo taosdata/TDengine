@@ -34,13 +34,14 @@ typedef enum {
   SESSION_MAX_TYPE
 } ESessionType;
 
-typedef int8_t (*sessCheckFn)(int32_t value, int32_t limit);
-typedef int32_t (*sessUpdateFn)(int32_t* pValue, int32_t delta);
+typedef int32_t (*sessCheckFn)(int64_t value, int64_t limit);
+typedef int32_t (*sessUpdateValueFn)(int64_t* pValue, int64_t delta);
+typedef int32_t (*sessUpdateLimitFn)(int64_t* pValue, int64_t limit);
 typedef struct {
-    ESessionType type; 
-    int32_t      code;
-    sessCheckFn  checkFn;
-    sessUpdateFn updateFn;
+  ESessionType      type;
+  sessCheckFn       checkFn;
+  sessUpdateValueFn updateFn;
+  sessUpdateLimitFn limitFn;
 } SSessionError;
 
 
