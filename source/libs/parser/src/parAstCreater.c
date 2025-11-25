@@ -4194,7 +4194,10 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     if (a->pIpRanges == NULL) {
       a->pIpRanges = b->pIpRanges;
     } else {
-      nodesListAppendList(a->pIpRanges, b->pIpRanges);
+      int32_t code = nodesListAppendList(a->pIpRanges, b->pIpRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
     }
     b->pIpRanges = NULL;
   }
@@ -4203,7 +4206,10 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     if (a->pDropIpRanges == NULL) {
       a->pDropIpRanges = b->pDropIpRanges;
     } else {
-      nodesListAppendList(a->pDropIpRanges, b->pDropIpRanges);
+      int32_t code = nodesListAppendList(a->pDropIpRanges, b->pDropIpRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
     }
     b->pDropIpRanges = NULL;
   }
@@ -4212,7 +4218,10 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     if (a->pTimeRanges == NULL) {
       a->pTimeRanges = b->pTimeRanges;
     } else {
-      nodesListAppendList(a->pTimeRanges, b->pTimeRanges);
+      int32_t code = nodesListAppendList(a->pTimeRanges, b->pTimeRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
     }
     b->pTimeRanges = NULL;
   }
@@ -4221,7 +4230,10 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     if (a->pDropTimeRanges == NULL) {
       a->pDropTimeRanges = b->pDropTimeRanges;
     } else {
-      nodesListAppendList(a->pDropTimeRanges, b->pDropTimeRanges);
+      int32_t code = nodesListAppendList(a->pDropTimeRanges, b->pDropTimeRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
     }
     b->pDropTimeRanges = NULL;
   }

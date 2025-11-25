@@ -621,7 +621,7 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
   for (int i = 0; i < num; i++) {
     SIpRange *pRange = &range[i];
     SIpAddr   addr = {0};
-    tIpUintToStr(pRange, &addr);
+    (void)tIpUintToStr(pRange, &addr);
 
     len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
@@ -662,7 +662,7 @@ static bool isIpWhiteListEqual(SIpWhiteListDual *a, SIpWhiteListDual *b) {
 }
 
 
-static int32_t compareIpRange(const void *a, const void *b, const void*) {
+static int32_t compareIpRange(const void *a, const void *b, const void* arg) {
   SIpRange *ra = (SIpRange *)a;
   SIpRange *rb = (SIpRange *)b;
 
@@ -691,7 +691,7 @@ static int32_t compareIpRange(const void *a, const void *b, const void*) {
 }
 
 static void sortIpWhiteList(SIpWhiteListDual *pList) {
-  taosqsort(pList->pIpRanges, pList->num, sizeof(SIpRange), NULL, compareIpRange);
+  (void)taosqsort(pList->pIpRanges, pList->num, sizeof(SIpRange), NULL, compareIpRange);
 }
 
 
@@ -922,7 +922,7 @@ static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
 }
 
 
-static int32_t compareDateTimeInterval(const void *a, const void *b, const void*) {
+static int32_t compareDateTimeInterval(const void *a, const void *b, const void* arg) {
   SDateTimeWhiteListItem *pA = (SDateTimeWhiteListItem *)a;
   SDateTimeWhiteListItem *pB = (SDateTimeWhiteListItem *)b;
 
@@ -946,7 +946,7 @@ static int32_t compareDateTimeInterval(const void *a, const void *b, const void*
 }
 
 static void sortTimeWhiteList(SDateTimeWhiteList *pList) {
-  taosqsort(pList->ranges, pList->num, sizeof(SDateTimeWhiteListItem), NULL, compareDateTimeInterval);
+  (void)taosqsort(pList->ranges, pList->num, sizeof(SDateTimeWhiteListItem), NULL, compareDateTimeInterval);
 }
 
 
@@ -2110,6 +2110,8 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   if (algo != NULL) {
     *algo = DND_CA_SM4;
   }
+
+  return 0;
 }
 
 
