@@ -1333,6 +1333,36 @@ int32_t buildPartitionListFromOrderList(SNodeList* pOrderList, int32_t nodesNum,
   return code;
 }
 
+static bool isWindowPrimaryKey(SNode* pWindow, SNode* pExpr) {
+  bool found = false;
+  switch (nodeType(pWindow)) {
+    case QUERY_NODE_INTERVAL_WINDOW: {
+      SNode* pPriCol = ((SIntervalWindowNode*)pWindow)->pCol;
+      if(nodesIsExprNode(pPriCol) && nodesIsExprNode(pExpr)) {
+        SExprNode* pPriExpr = (SExprNode*)pPriCol;
+        SExprNode* pExprNode = (SExprNode*)pExpr;
+        if (0 == strcmp(pPriExpr->aliasName, pExprNode->aliasName)) {
+          found = true;
+        }
+      }
+      if (nodesEqualNode(pPriCol, pExpr)) {
+        found = true;
+      }
+      break;
+    }
+
+    case QUERY_NODE_SLIDING_WINDOW:
+      // pPriCol = ((SSlidingWindowNode*)pWindow)->pCol;
+      break;
+    case QUERY_NODE_SESSION_WINDOW:
+      // pPriCol = ((SSessionWindowNode*)pWindow)->pCol;
+      break;
+    default:
+      return false;
+  }
+  return found;
+}
+
 static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SSelectStmt* pSelect = (SSelectStmt*)pStmt;
@@ -1343,11 +1373,11 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
   if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
     if (pSelect->pPartitionByList) {
-      if (!pSub->timeLineFromOrderBy && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+      if (pSub->timeLineFromOrderBy == ORDER_UNKNOWN && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
         *pRes = true;
         return code;
       }
-      if (pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
+      if (pSub->timeLineFromOrderBy != ORDER_UNKNOWN && pSub->pOrderByList->length > 1) {
         SNodeList* pPartitionList = NULL;
         code = buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length, &pPartitionList);
         if (TSDB_CODE_SUCCESS == code) {
@@ -1359,6 +1389,19 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
             return code;
           }
         }
+      }
+    } else {
+      if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
+        SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
+        SNode* pOrder = pOrderExpr->pExpr;
+        if (isWindowPrimaryKey(pSelect->pWindow, pOrder)) {
+          pSelect->timeLineFromOrderBy = pOrderExpr->order;
+          *pRes = true;
+          return code;
+        }
+      } else {
+        *pRes = true;
+        return code;
       }
     }
   }
@@ -1373,6 +1416,16 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
         nodesDestroyList(pPartitionList);
 
         if (match) {
+          *pRes = true;
+          return code;
+        }
+      }
+    } else {
+      if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
+        SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
+        SNode*            pOrder = pOrderExpr->pExpr;
+        if (isWindowPrimaryKey(pSelect->pWindow, pOrder)) {
+          pSelect->timeLineFromOrderBy = pOrderExpr->order;
           *pRes = true;
           return code;
         }
@@ -5920,6 +5973,15 @@ static int32_t setJoinTimeLineResMode(STranslateContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setTimeLineResMode(STranslateContext* pCxt) {
+  SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pCurrSmt->pFromTable)) {
+    return setJoinTimeLineResMode(pCxt);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t mergeInnerJoinConds(SNode** ppDst, SNode** ppSrc) {
   SNode*  pNew = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -7868,9 +7930,18 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, "WINDOW");
   }
   int32_t code = 0;
+
+  pCxt->currClause = SQL_CLAUSE_WINDOW;
+  code = translateExpr(pCxt, &pSelect->pWindow);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateSpecificWindow(pCxt, pSelect);
+  }
+  if (code) {
+    return code;
+  }
+
   if (QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow)) {
-    if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-        !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
       bool isTimelineAlignedQuery = false;
       code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);
       if (TSDB_CODE_SUCCESS != code) return code;
@@ -7883,8 +7954,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
 
   if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-    if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-        !isBlockTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
       bool isTimelineAlignedQuery = false;
       code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);
       if (TSDB_CODE_SUCCESS != code) return code;
@@ -7896,11 +7966,6 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
   }
 
-  pCxt->currClause = SQL_CLAUSE_WINDOW;
-  code = translateExpr(pCxt, &pSelect->pWindow);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateSpecificWindow(pCxt, pSelect);
-  }
   return code;
 }
 
@@ -8902,10 +8967,11 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
     return;
   } else if (pSelect->pOrderByList->length > 1) {
     for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
-      pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i))->pExpr;
+      SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i);
+      pOrder = pOrderExpr->pExpr;
       if (isPrimaryKeyImpl(pOrder)) {
         pSelect->timeLineResMode = TIME_LINE_MULTI;
-        pSelect->timeLineFromOrderBy = true;
+        pSelect->timeLineFromOrderBy = pOrderExpr->order;
         return;
       }
     }
@@ -9259,7 +9325,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateWhere(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = setJoinTimeLineResMode(pCxt);
+    code = setTimeLineResMode(pCxt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect);
