@@ -2115,8 +2115,8 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     if (pCxt->currClause == SQL_CLAUSE_ORDER_BY) {
       if ((isSelectStmt(pCxt->pCurrStmt) && !(*pCol)->node.asParam) ||
           isSetOperator(pCxt->pCurrStmt)) {
-        // match column in alias first if column is 'bare' in select stmt
-        // or it is in set operator
+        // match column in select list first if column is 
+        // NOT param in select stmt or it is in set operator
         res = translateColumnUseAlias(pCxt, pCol, &found);
       }
     }
@@ -2124,11 +2124,12 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
       if (isSetOperator(pCxt->pCurrStmt)) {
         res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, (*pCol)->colName);
       } else {
-        // match column in table if not found or column is part of an expression in select stmt
+        // match column in table if not found or
+        // column is part of an expression in select stmt
         res = translateColumnWithoutPrefix(pCxt, pCol);
       }
     }
-    if (clauseSupportAlias(pCxt->currClause) && !(*pCol)->node.asParam && res != DEAL_RES_CONTINUE &&
+    if (clauseSupportAlias(pCxt->currClause) && res != DEAL_RES_CONTINUE &&
         res != DEAL_RES_END) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
