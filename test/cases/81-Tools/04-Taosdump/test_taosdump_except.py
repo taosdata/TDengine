@@ -20,7 +20,7 @@ from threading import Event
 import copy
 
 #
-#  kill taosadapter task 
+#  kill taosadapter task
 #
 def killTask(stopEvent, taosadapter, presleep, sleep, count):
     tdLog.info(f"kill task pre sleep {presleep}s\n")
@@ -37,6 +37,8 @@ def killTask(stopEvent, taosadapter, presleep, sleep, count):
             tdLog.info(" recv stop event and exit killTask ...\n")
             break
 
+        time.sleep(sleep)
+
     tdLog.info("kill task exited.\n")
 
 
@@ -46,7 +48,7 @@ class TestTaosdumpRetry:
         return os.system(command)
 
     def findPrograme(self):
-        # taosdump 
+        # taosdump
         taosdump = etool.taosDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
@@ -83,7 +85,7 @@ class TestTaosdumpRetry:
         #
         with open(jsonFile, "r") as file:
             data = json.load(file)
-        
+
         # db come from arguments
         if newdb is None:
             db = data["databases"][0]["dbinfo"]["name"]
@@ -96,7 +98,7 @@ class TestTaosdumpRetry:
         timestamp_step = data["databases"][0]["super_tables"][0]["timestamp_step"]
 
         tdLog.info(f"get json: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
-        
+
         # all count insert_rows * child_table_count
         sql = f"select * from {db}.{stb}"
         tdSql.query(sql)
@@ -109,18 +111,21 @@ class TestTaosdumpRetry:
             tdSql.checkRows(0)
 
     def testBenchmarkJson(self, benchmark, jsonFile, options="", checkInterval=False):
-        # exe insert 
+        # exe insert
         cmd = f"{benchmark} {options} -f {jsonFile}"
         self.exec(cmd)
 
     def insertData(self, benchmark, json, db):
         # insert super table
         self.testBenchmarkJson(benchmark, json)
-        
 
-    def dumpOut(self, taosdump, db , outdir):
+
+    def dumpOut(self, taosdump, db , outdir, websocket:bool=False):
         # dump out
-        self.exec(f"{taosdump} -T 2 -k 2 -z 800 -D {db} -o {outdir}")
+        command = f"{taosdump} -T 2 -k 2 -z 800 -D {db} -o {outdir}"
+        if websocket:
+            command += " -Z WebSocket"
+        self.exec(command)
 
     def dumpIn(self, taosdump, db, newdb, indir):
         # dump in
@@ -160,7 +165,7 @@ class TestTaosdumpRetry:
     def verifyResult(self, db, newdb, json):
         # compare with insert json
         self.checkCorrectWithJson(json, newdb)
-        
+
         #  compare sum(pk)
         stb = "meters"
         self.checkAggSame(db, newdb, stb, "sum(ic)")
@@ -198,7 +203,7 @@ class TestTaosdumpRetry:
         6. Verify data correctness with sum aggregation
         7. Verify data correctness with row by row comparison on some data
 
-        
+
         Since: v3.0.0.0
 
         Labels: common,ci
@@ -212,7 +217,7 @@ class TestTaosdumpRetry:
         # database
         db = "redb"
         newdb = "nredb"
-        
+
         # find
         taosdump, benchmark, taosadapter, tmpdir = self.findPrograme()
         json = f"{os.path.dirname(os.path.abspath(__file__))}/json/retry.json"
@@ -223,7 +228,7 @@ class TestTaosdumpRetry:
         # start kill thread
         self.startKillThread(taosadapter, 2, 5, 3)
 
-        # dump out 
+        # dump out
         self.dumpOut(taosdump, db, tmpdir)
 
         # stop kill
@@ -236,6 +241,34 @@ class TestTaosdumpRetry:
         self.verifyResult(db, newdb, json)
 
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s native successfully executed" % __file__)
 
 
+    def test_taosdump_retry_websocket(self):
+        # database
+        db = "redb"
+        newdb = "nwredb"
+
+        # find
+        taosdump, benchmark, taosadapter, tmpdir = self.findPrograme()
+        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/retry.json"
+
+        # insert data with taosBenchmark
+        self.insertData(benchmark, json, db)
+
+        # start kill thread
+        self.startKillThread(taosadapter, 2, 5, 3)
+
+        # dump out
+        self.dumpOut(taosdump, db, tmpdir, websocket=True)
+
+        # stop kill
+        self.stopKillThread()
+
+        # dump in
+        self.dumpIn(taosdump, db, newdb, tmpdir)
+
+        # verify db
+        self.verifyResult(db, newdb, json)
+
+        tdLog.success("%s websocket successfully executed" % __file__)
