@@ -1041,8 +1041,6 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.allowTokenNum = -1;
   }
 
-  initUserDefautSessCfg(&userObj.sessCfg);
-
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
   if (pRaw == NULL) goto _ERROR;
   TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), &lino, _ERROR);
@@ -1971,9 +1969,6 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
-
-  memcpy(&pNew->sessCfg, &pUser->sessCfg, sizeof(SUserSessCfg));
-
 _OVER:
   taosRUnLockLatch(&pUser->lock);
   TAOS_RETURN(code);

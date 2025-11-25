@@ -164,8 +164,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
 
       pTscObj->authVer = pRsp->version;
-
-      if (updateUserSessMetric(pTscObj->user, NULL) != 0) {
+      if (updateUserSessMetric(pTscObj->user, &pRsp->sessCfg) != 0) {
         tscError("failed to update user session metric, user:%s", pTscObj->user);
       }
 

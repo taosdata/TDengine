@@ -12508,20 +12508,10 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.allowTokenNum = pStmt->allowTokenNum;
 
   createReq.numIpRanges = pStmt->numIpRanges;
-  if (pStmt->numIpRanges > 0) {
-    createReq.pIpRanges = taosMemoryCalloc(1, createReq.numIpRanges * sizeof(SIpV4Range));
-    if (!createReq.pIpRanges) {
-      return terrno;
-    }
+  createReq.pIpDualRanges = pStmt->pIpRanges;
 
-    createReq.pIpDualRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpRange));
-    if (!createReq.pIpDualRanges) {
-      tFreeSCreateUserReq(&createReq);
-      return terrno;
-    }
-
-    memcpy(createReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
-  }
+  createReq.numTimeRanges = pStmt->numTimeRanges;
+  createReq.pTimeRanges = pStmt->pTimeRanges;
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
 
   // set to NULL because the memory is not owned by createReq, so that tFreeSCreateUserReq will not free them
