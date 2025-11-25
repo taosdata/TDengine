@@ -56,12 +56,12 @@ algo=expr1
 
 ### 伪列
 
-3.3.8.7 版本开始，增加了一个伪列提供补值的更多信息 `_improwts` 可以显示对应数据的时间戳信息。
+从 v3.3.8.7 版本开始，增加伪列 `_improwts`，显示对应数据的时间戳信息。
 
 ### 示例
 
 ```SQL
---- 使用 moment 时序模型提供自动补齐服务，针对 i32 列进行补齐操作，freq 参数为秒. 同时输出 时间戳 和 数值
+--- 使用 moment 时序模型提供自动补齐服务，针对 i32 列进行补齐操作，freq 参数为秒，同时输出时间戳和数值
 SELECT _improwts, imputation(i32, 'algo=moment, freq=s')
 FROM foo;
 
