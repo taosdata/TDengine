@@ -26,6 +26,8 @@ class TestIntervalBugFix:
 
     def test_interval_bugfix(self):
         """Interval: Bug TS-BUG-FIX
+        
+        test interval query bug fix
 
         Catalog:
             - Timeseries:TimeWindow
