@@ -1725,7 +1725,7 @@ void smlSetReqSQL(SRequestObj *request, char *lines[], char *rawLine, char *rawL
       return;
     }
 
-    rlen = TMIN(len, tsSqlMaxLen);
+    rlen = TMIN(len, tsMaxSQLLength);
     rlen = TMAX(rlen, 0);
 
     char *sql = taosMemoryMalloc(rlen + 1);
