@@ -156,37 +156,27 @@ function transfer_debug_dirs() {
     fi
 
     local i=0
-    while [ $i -lt ${#hosts[*]} ]; do
+    for i in "${!hosts[@]}"; do
         if is_local_host "${hosts[i]}"; then
             local_work_dir="${workdirs[i]}"
             break
         fi
-        i=$((i + 1))
     done
 
-    cd "$local_work_dir"
+    ( 
+    cd "$local_work_dir" || exit 1
     rm -rf debug.tar.gz
     tar -czf debug.tar.gz \
-        debugSan/build/bin/taos* \
-        debugSan/build/bin/tmq_* \
-        debugSan/build/bin/sml_test \
-        debugSan/build/bin/get_db_name_test \
-        debugSan/build/bin/replay_test \
-        debugSan/build/bin/varbinary_test \
-        debugSan/build/bin/write_raw_block_test \
-        debugSan/build/lib/*.so \
-        debugSan/build/share \
-        debugSan/build/include \
-        debugNoSan/build/bin/taos* \
-        debugNoSan/build/bin/tmq_* \
-        debugNoSan/build/bin/sml_test \
-        debugNoSan/build/bin/get_db_name_test \
-        debugNoSan/build/bin/replay_test \
-        debugNoSan/build/bin/varbinary_test \
-        debugNoSan/build/bin/write_raw_block_test \
-        debugNoSan/build/lib/*.so \
-        debugNoSan/build/share \
-        debugNoSan/build/include
+        debug{San,NoSan}/build/bin/taos* \
+        debug{San,NoSan}/build/bin/tmq_* \
+        debug{San,NoSan}/build/bin/sml_test \
+        debug{San,NoSan}/build/bin/get_db_name_test \
+        debug{San,NoSan}/build/bin/replay_test \
+        debug{San,NoSan}/build/bin/varbinary_test \
+        debug{San,NoSan}/build/bin/write_raw_block_test \
+        debug{San,NoSan}/build/lib/*.so \
+        debug{San,NoSan}/build/share \
+        debug{San,NoSan}/build/include
 
     local index=0
     while [ $index -lt ${#hosts[*]} ]; do
@@ -208,6 +198,7 @@ function transfer_debug_dirs() {
     done
 
     rm -rf debug.tar.gz
+    )
 }
 function clean_tmp() {
     local index=$1
