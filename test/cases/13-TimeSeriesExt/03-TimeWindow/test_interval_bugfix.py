@@ -37,6 +37,7 @@ class TestIntervalBugFix:
         History:
             - 2025-11-20 xs Ren Created
         """
+        
         self.ts_5400_test()
         self.ts_7676_test()
 
