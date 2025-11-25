@@ -73,8 +73,8 @@ class TestInsertColumns:
         tdSql.execute(f"create database dgxy;")
         tdSql.execute(f"use dgxy;")
         tdSql.execute(f"create table st(ts timestamp, f int) tags(t int);")
-        tdSql.execute(f"insert into ct1 using st tags(1) values(now, 1);")
-        tdSql.execute(f"insert into st(tbname, ts, f) values('ct1', now, 2);")
+        tdSql.execute(f"insert into ct1 using st tags(1) values('2021-04-19 08:00:03', 1);")
+        tdSql.execute(f"insert into st(tbname, ts, f) values('ct1', '2021-04-19 08:00:04', 2);")
         tdSql.query(f"select * from ct1;")
         tdSql.checkRows(2)
 
@@ -106,3 +106,17 @@ class TestInsertColumns:
         tdSql.error(f"insert into d2.st(ts, f, tbname) values(now, 1, 'd2.ct2');")
         tdSql.error(f"insert into d2.st(ts, tbname) values(now, 1, 34)")
         tdSql.error(f"insert into st using st2 tags(2) values(now,1);")
+        # TS-7696
+        tdSql.execute(f"create table d2.st3(ts timestamp, col64_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef int) tags(t int);")
+        tdSql.execute(f"create table d2.st4(`ts` timestamp, `col64_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef` int) tags(`t` int);")
+
+        tdSql.execute(f"insert into d2.st3(tbname, ts ,col64_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef)values('ct10', '2021-04-19 08:00:03',1);")
+        tdSql.execute(f"insert into d2.st3(tbname, ts ,`col64_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef`)values('ct11', '2021-04-19 08:00:03',1);")
+        tdSql.execute(f"insert into d2.ct10(ts ,col64_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef)values('2021-04-19 08:00:04',2);")
+        tdSql.execute(f"insert into d2.ct10(`ts` ,`col64_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef`)values('2021-04-19 08:00:05',3);")
+
+        tdSql.error(f"create table d2.st4(ts timestamp, col65_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef int) tags(t int);")
+        tdSql.error(f"create table d2.st4(ts timestamp, `col65_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef` int) tags(t int);")
+        tdSql.error(f"insert into d2.st3(tbname, ts ,col65_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefg)values('ct12', '2021-04-19 08:00:03',1);")
+        tdSql.error(f"insert into d2.st3(tbname, ts ,col65_abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefg)values('ct12', '2021-04-19 08:00:03',1);")
+
