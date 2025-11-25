@@ -79,6 +79,7 @@ int32_t sessMetricCheckImpl(SSessMetric *pMetric) {
     code = sessErrorDict[i].checkFn(pMetric->value[i], pMetric->limit[i]);
     if (code != 0) {
       code = sessErrorDict[i].code;
+      break;
     }
 
     // if (pMetric->value[i] > pMetric->limit[i]) {
