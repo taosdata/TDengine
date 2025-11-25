@@ -1,8 +1,11 @@
+use async_compression::tokio::bufread::ZstdDecoder;
 use std::path::Path;
+use taos::*;
+use taos_to_local::meta::Schema;
+use taosx_core::taoz::{ZCodec, ZFile, ZMessage};
+use tokio::io::BufReader;
 
 use crate::conf::LocalRestoreConfig;
-use taos::*;
-use taos_to_local::Schema;
 
 // 检查目录下，如果有 schema.meta 或 data.bin.* 文件，则认为是 t2l 备份文件
 pub async fn is_t2l(dir: &Path) -> anyhow::Result<bool> {
@@ -18,7 +21,7 @@ pub async fn is_t2l(dir: &Path) -> anyhow::Result<bool> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        tracing::info!("found entry: {}", path.display());
+        tracing::debug!("found entry: {}", path.display());
         if path.is_file() {
             let file_name = path.file_name().unwrap().to_string_lossy();
             if file_name.starts_with("schema.meta") {
@@ -236,5 +239,122 @@ async fn read_schema(path: &Path) -> anyhow::Result<Schema> {
 }
 
 async fn restore_data(_taos: &Taos, _config: &LocalRestoreConfig) -> anyhow::Result<()> {
+    let taos = _taos; // keep names to match signature
+    let config = _config;
+
+    // 列出备份目录下按时间顺序排序的 .z 备份文件
+    let files = ZFile::list_in_dir(&config.backup_dir).await?;
+    if files.is_empty() {
+        tracing::info!("no zfiles found in dir: {}", config.backup_dir.display());
+        return Ok(());
+    }
+
+    for f in files {
+        let Some(path) = f.raw_path.as_ref() else {
+            continue;
+        };
+        tracing::info!("restore t2l data from file: {}", path.display());
+
+        // 打开并解压 zstd，再用 ZCodec 读取
+        let file = match tokio::fs::File::open(path).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!("skip unreadable file {}: {:#}", path.display(), e);
+                continue;
+            }
+        };
+        let reader = BufReader::new(file);
+        let decoder = ZstdDecoder::new(reader);
+        let mut codec = ZCodec::new(decoder);
+
+        // 读取头信息（并不强依赖）
+        let _header = match codec.header_async().await {
+            Ok(h) => h,
+            Err(e) => {
+                tracing::warn!("skip file (invalid header) {}: {:#}", path.display(), e);
+                continue;
+            }
+        };
+
+        // 按消息流读取并写回 taos
+        loop {
+            match codec.read_message_async().await {
+                Ok(ZMessage::Meta(meta)) => {
+                    // schema 在 restore_schema 已经创建，这里可跳过或尝试写入（忽略已存在错误）
+                    if let Err(err) = taos.write_raw_meta(&meta).await {
+                        let code: i32 = err.code().into();
+                        if code != 0x0603 {
+                            // 0x0603: table already exists
+                            tracing::warn!("write_raw_meta ignored error: {:#}", err);
+                        }
+                    }
+                }
+                Ok(ZMessage::Data(data)) => {
+                    for raw in data {
+                        // 如果需要强制目标库名，可在 restore_schema 中 USE 之后，这里直接写入即可
+                        // raw.with_table_name("..."); // 可选
+
+                        // 记录目标表名（尽力而为）：优先从 to_create() 中提取
+                        let table_guess: Option<String> = raw.to_create().map(|mc| match mc {
+                            taos::MetaCreate::Super { table_name, .. } => table_name,
+                            taos::MetaCreate::Normal { table_name, .. } => table_name,
+                            taos::MetaCreate::Child { table_name, .. } => table_name,
+                        });
+                        if let Some(ref name) = table_guess {
+                            tracing::debug!("restore_data: writing raw block to table `{}`", name);
+                        } else {
+                            tracing::debug!("restore_data: writing raw block to <unknown-table>");
+                        }
+
+                        if let Err(err) = taos.write_raw_block(&raw).await {
+                            let code: i32 = err.code().into();
+                            if code == 0x2603 {
+                                // the table does not exist
+                                if let Some(create) = raw.to_create() {
+                                    if let Err(e2) = taos.exec(format!("{}", create)).await {
+                                        tracing::error!("create table failed: {:#}", e2);
+                                        return Err(e2.into());
+                                    }
+                                    tracing::info!(
+                                        "restore_data: created missing table, retry write_raw_block"
+                                    );
+                                    // retry once
+                                    if let Err(e3) = taos.write_raw_block(&raw).await {
+                                        tracing::error!("retry write_raw_block failed: {:#}", e3);
+                                        return Err(e3.into());
+                                    }
+                                    tracing::debug!("restore_data: retry write_raw_block success");
+                                } else {
+                                    tracing::error!(
+                                        "no create DDL in raw block, cannot recover table"
+                                    );
+                                    return Err(err.into());
+                                }
+                            } else {
+                                tracing::error!("write_raw_block failed: {:#}", err);
+                                return Err(err.into());
+                            }
+                        } else if let Some(name) = table_guess {
+                            tracing::debug!("restore_data: wrote raw block to table `{}`", name);
+                        }
+                    }
+                }
+                Ok(ZMessage::Raw(_ty, raw)) => {
+                    // 保底处理：当出现 Raw 消息时按 meta 看待
+                    if let Err(err) = taos.write_raw_meta(&raw).await {
+                        tracing::debug!("write_raw_meta (raw) ignored error: {:#}", err);
+                    }
+                }
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                        break;
+                    }
+                    tracing::warn!("read_message_async error on {}: {:#}", path.display(), e);
+                    break;
+                }
+            }
+        }
+    }
+
     Ok(())
 }

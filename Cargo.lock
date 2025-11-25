@@ -9903,6 +9903,7 @@ dependencies = [
  "async-compression",
  "bytes",
  "chrono",
+ "dashmap 6.1.0",
  "deadpool",
  "flume",
  "serde",

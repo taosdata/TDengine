@@ -65,7 +65,10 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
     tracing::debug!("backup config: {:#?}", config);
 
     // 等待并更新 upcoming
-    wait_for_upcoming(config.upcoming).await?;
+    if let Err(_e) = wait_for_upcoming(config.upcoming, cancel.clone()).await {
+        tracing::info!("tmq_to_local: cancelled before upcoming time");
+        return Ok(());
+    }
     if config.upcoming.is_some() {
         config.upcoming = Some(Utc::now());
     }

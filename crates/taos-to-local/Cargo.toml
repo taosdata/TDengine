@@ -21,6 +21,7 @@ taosx-core.workspace = true
 async-compression.workspace = true
 flume.workspace = true
 bytes.workspace = true
+dashmap.workspace = true
 
 [lints]
 workspace = true
