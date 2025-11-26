@@ -3,5 +3,5 @@ testCases:
     - scenarioId: "U1"
       querySql: select count(*) from metron_dmp.alarm;
       dataRows: 281634
-      verifySql: select * from metron_dmp.result_alarm
+      verifySql: select count(*) from metron_dmp.result_alarm
       expectRows: 8888
