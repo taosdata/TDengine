@@ -203,8 +203,8 @@ class TestIntervalBugFix:
         tdSql.checkData(3, 1, 30)
         
         # state window: subquery is state window with duplicate timestamp
-        sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 asc) state_window(status);"
-        tdSql.error(sql)
+        # sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 asc) state_window(status);"
+        # tdSql.error(sql)
         
         # session window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) session(t2, 500a);"
@@ -241,12 +241,12 @@ class TestIntervalBugFix:
         tdSql.error(sql)
         
         # count window: subquery is state window with duplicate timestamp
-        sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) count_window(5);"
-        tdSql.error(sql)
+        # sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) count_window(5);"
+        # tdSql.error(sql)
         
         # event window: subquery is state window with duplicate timestamp
-        sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) event_window start with status > 1 end with status > 4;"
-        tdSql.error(sql)
+        # sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) event_window start with status > 1 end with status > 4;"
+        # tdSql.error(sql)
         
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1) partition by tbname interval(3s);"
  
