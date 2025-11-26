@@ -3790,7 +3790,7 @@ TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NU
 void updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta) {
   int64_t* ts = (int64_t*)pColData->pData;
 
-  int64_t duration = pWin->ekey - pWin->skey + delta;
+  int64_t duration = pWin->ekey > pWin->skey ? pWin->ekey - pWin->skey + delta : pWin->skey - pWin->ekey + delta;
   ts[2] = duration;            // set the duration
   ts[3] = pWin->skey;          // window start key
   ts[4] = pWin->ekey + delta;  // window end key
