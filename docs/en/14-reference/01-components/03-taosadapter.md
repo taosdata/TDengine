@@ -748,12 +748,12 @@ When other users initiate query requests, the default concurrency limit configur
 Each user's configuration is independent and does not share the concurrency limit of `request.default`. 
 For example, when user user1 initiates 200 concurrent query requests, user user2 can also initiate 200 concurrent query requests simultaneously without blocking.
 
-### Disabled Query SQL Configuration
+### Reject Query SQL Configuration
 
-Starting from **versions 3.3.6.34 / 3.4.0.0**, taosAdapter supports disabling specific query SQL statements through configuration, preventing the execution of unsafe or highly resource-consuming queries.  
-When this feature is enabled, taosAdapter checks each SQL statement that does **not** start with `insert` (case-insensitive). If the SQL matches any of the configured disable-regex patterns, an error response is returned indicating that the query is forbidden.
+Starting from **version 3.3.6.34 / 3.4.0.0**, taosAdapter supports rejecting specific query SQL statements through configuration, preventing the execution of unsafe or highly resource-consuming queries.  
+When this feature is enabled, taosAdapter checks each SQL statement that does **not** start with `insert` (case-insensitive). If the SQL matches any of the configured reject patterns, an error response is returned indicating that the query is forbidden.
 
-When a disabled SQL query is matched, the RESTful API returns HTTP status code `403`, and the WebSocket interface returns error code `0xFFFD`.  
+When a rejected SQL query is matched, the RESTful API returns HTTP status code `403`, and the WebSocket interface returns error code `0xFFFD`.  
 Meanwhile, taosAdapter prints a warning log containing details such as the SQL source, for example:
 
 ```text
@@ -767,15 +767,15 @@ This configuration affects the following interfaces:
 **Parameter Description**
 
 - **`rejectQuerySqlRegex`**
-  - A list of regular expressions defining SQL patterns to disable. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
-  - Default: an empty list, meaning no queries are disabled.
+  - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
+  - Default: an empty list, meaning no queries are rejected.
 
 **Example**
 
 ```toml
 rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
 ```
-The configuration `rejectQuerySqlRegex = ['(?i)^drop\\s+database\\s+.*','(?i)^drop\\s+table\\s+.*','(?i)^alter\\s+table\\s+.*']` disables all `drop database`, `drop table`, and `alter table` queries, ignoring case.
+The configuration `rejectQuerySqlRegex = ['(?i)^drop\\s+database\\s+.*','(?i)^drop\\s+table\\s+.*','(?i)^alter\\s+table\\s+.*']` rejects all `drop database`, `drop table`, and `alter table` queries, ignoring case.
 
 ### Environment Variables
 
