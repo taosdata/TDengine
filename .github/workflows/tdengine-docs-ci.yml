@@ -53,12 +53,15 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: AutoCorrect
         uses: huacnlee/autocorrect-action@v2
         with:
           args: --lint docs/zh/* docs/en/*
         continue-on-error: true
+        
       - name: Report ReviewDog
         if: failure() && steps.autocorrect.conclusion == 'failure'
         uses: tomchon/autocorrect-action@fix/review-dog
@@ -89,6 +92,7 @@ jobs:
         with:
           config: 'docs/.markdownlint-cli2.jsonc'
           globs: ${{ steps.changed-files.outputs.all_changed_files }}
+          separator: ','
 
   build-doc:
     runs-on:
