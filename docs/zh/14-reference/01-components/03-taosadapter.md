@@ -226,7 +226,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - OpenTSDB HTTP 写入接口
 - Prometheus remote_read 和 remote_write 接口
 
-##### 参数说明
+###### 参数说明
 
 - **`pauseQueryMemoryThreshold`**：
   - 当内存使用超过此阈值时，taosAdapter 将停止处理查询请求。
