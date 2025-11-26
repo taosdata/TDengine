@@ -43,6 +43,7 @@ taosBenchmark -y
 执行该命令后，系统将迅速完成 1 亿条记录的写入过程。实际所需时间取决于硬件性能，但即便在普通 PC 服务器上，这个过程通常也只需要十几秒。
 
 taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如表的数目、记录条数等。要查看详细的参数列表，请在终端中输入如下命令
+
 ```shell
 taosBenchmark --help
 ```
@@ -54,26 +55,31 @@ taosBenchmark --help
 使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI（taos）输入查询命令，体验查询速度。
 
 1. 查询超级表 meters 下的记录总条数
+
 ```shell
 SELECT COUNT(*) FROM test.meters;
 ```
 
 2. 查询 1 亿条记录的平均值、最大值、最小值
+
 ```shell
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
 3. 查询 location = "California.SanFrancisco" 的记录总条数
+
 ```shell
 SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 ```
 
 4. 查询 groupId = 10 的所有记录的平均值、最大值、最小值
+
 ```shell
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
 ```
 
 5. 对表 d1001 按每 10 秒进行平均值、最大值和最小值聚合统计
+
 ```shell
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```
@@ -106,6 +112,7 @@ taosExplorer 是一个可视化工具，使用户可以通过浏览器，以直�
 
 1. 请先安装并启动 Grafana, 目前 TDengine 支持 Grafana 7.5 及以上的版本
 2. 使用以下命令写入测试数据，这个命令将在名为 test 的数据库下，创建超级表 meters, 这个超级表包含 100 个子表，每个子表 1000 条记录，记录的开始时间为 1 小时前：
+
     ```bash
     taosBenchmark --start-timestamp=$(date --date="1 hours ago" +%s%3N) \
         --time-step=1000 --records=1000 \
@@ -132,7 +139,7 @@ sudo systemctl restart grafana-server.service
 
 安装插件后，请进入 Connections - Add new connection 页面，搜索 "TDengine", 即可查询到 TDengine Datasource 插件。点击 Add new data source 按钮，进入数据源配置页面，并完成以下配置：
 
-- TDengine Host: 填写 taosAdapter 的地址和端口号，如果是在本地运行，可输入 http://localhost:6041
+- TDengine Host: 填写 taosAdapter 的地址和端口号，如果是在本地运行，可输入 [http://localhost:6041](http://localhost:6041)
 - TDengine Authentication: 配置 TDengine 数据库的认证方式，默认使用用户名、密码的认证方式（默认的用户名、密码为：`root/taosdata`）
 
 填写以上信息后，请点击 Save & test 按钮，如果看到以下消息：TDengine Data source is working, 即表示 TDengine 与 Grafana 的连接已创建成功。点击提示消息下方的 building a dashboard 链接，就可以创建 Dashboard 了。
@@ -140,9 +147,11 @@ sudo systemctl restart grafana-server.service
 #### 创建 Dashboard
 
 具体步骤如下所示：
+
 1. 点击 building a dashboard -> Add visualization, 并选择刚刚添加的 data source
 2. 在 Input SQL 文本框，输入以下 SQL 语句后，点击 Apply 按钮，即可查看到平均电流变化情况的曲线图。
-```
+
+```sql
 SELECT _wstart AS ts, avg(voltage) AS voltage, avg(phase) AS phase FROM test.meters
 WHERE groupid =1 and ts > $from AND ts < $to interval($interval) fill(null)
 ```
@@ -184,9 +193,11 @@ WHERE groupid =1 and ts > $from AND ts < $to interval($interval) fill(null)
 #### 配置 Payload 转换
 
 1. 为了简化配置，请直接在文本框中输入以下 JSON 格式的示例消息，它代表的是北京市 id 为 1 的智能电表的电压、电流、相位值：
-```
+
+```json
 { "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
 ```
+
 2. TDengine 支持对 MQTT 消息进行解析、提取、过滤后，映射至 TDengine 数据库的超级表中
 3. 在“解析”环节，直接点击解析配置行最右侧的预览按钮，即可在页面的右侧预览解析结果
 4. 在“映射”环节，可以在当前数据库中选择欲写入 MQTT 消息的超级表，如果不存在，可点击“创建超级表”按钮
@@ -218,18 +229,21 @@ MQTT Broker 及主题应与以上 MQTT 任务的配置保持一致，详情如�
 - MQTT Broker 端口：1883
 - MQTT 主题：tdengine-topic1
 - 示例数据：与上方配置“Payload 转换”时，填写的示例数据格式保持一致：
-    ```
-    { "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
-    ```
+
+```json
+{ "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
+```
 
 #### 查看数据
 
 1. 发送测试数据后，您可以通过 taosExplorer 查看数据是否成功写入 TDengine
 2. 在 taosExplorer 中，切换至“数据浏览器”页面，选择相应的数据库和超级表
 3. 执行 SQL 查询，查看数据是否存在，例如：
-    ```
-    SELECT * FROM `test-mqtt`.`meters`;
-    ```
+
+```sql
+SELECT * FROM `test-mqtt`.`meters`;
+```
+
 4. 如果有数据返回，说明数据已从 MQTT 主题成功写入到 TDengine 中。
 5. 在“数据写入”任务列表中，您还可以当前任务的运行状态、数据写入速率、错误信息等。
 
