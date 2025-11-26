@@ -41,19 +41,19 @@ description: 一些常见问题的解决方法汇总
 ### 3. 遇到加载 “libtaosnative.so” 或 “libtaosws.so” 失败怎么办？
 
 问题描述：
-在使用 TDengine TSDB 客户端应用（taos-CLI、taosBenchmark、taosdump 等）或客户端连接器（如 Java、Python、Go 等）时，可能会遇到加载动态链接库 “libtaosnative.so” 或 “libtaosws.so” 失败的错误。 
+在使用 TDengine TSDB 客户端应用（taos-CLI、taosBenchmark、taosdump 等）或客户端连接器（如 Java、Python、Go 等）时，可能会遇到加载动态链接库 “libtaosnative.so” 或 “libtaosws.so” 失败的错误。
 如：failed to load libtaosws.so since No such file or directory [0x80FF0002]
 
 问题原因：
 这是由于客户端无法找到所需的动态链接库文件，可能是因为文件未正确安装，或系统的库路径未正确配置等原因。
 
 问题解决：
+
 - **检查文件**：检查系统共享库目录下是否存在 `libtaosnative.so` 或 `libtaosws.so` 软链文件及相应实体文件也完整，如软链或实体文件已不存在，在 TDengine TSDB 客户端或服务器安装包中均包含这些文件，请重新安装。
 - **检查环境变量**：确保系统加载共享库目录环境变量`LD_LIBRARY_PATH` 包含 `libtaosnative.so` 或 `libtaosws.so` 文件所在目录， 若未包含，可通过 `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<new_path>` 添加。
 - **检查权限**：确保当前用户对 `libtaosnative.so` 或 `libtaosws.so` 软链及其实体文件具有读取和执行权限。
 - **检查文件损坏**： 可以通过 `readelf -h 库文件` 检查库文件是否完整。
 - **检查文件依赖**：可以通过 `ldd 库文件` 查看库文件的依赖项是否完整，确保所有依赖项均已正确安装且可访问。
-
 
 ### 4. 如何让 TDengine TSDB crash 时生成 core 文件？
 
@@ -84,7 +84,6 @@ description: 一些常见问题的解决方法汇总
 8. 对于 macOS 上的 JDBC（ODBC、Python、Go 等接口类似）连接，确保 *libtaos.dylib* 在目录 */usr/local/lib* 里，并且 */usr/local/lib* 在系统库函数搜索路径 *LD_LIBRARY_PATH* 里
 
 9. 对于 Windows 上的 JDBC、ODBC、Python、Go 等连接，确保 *C:\TDengine\driver\taos.dll* 在你的系统库函数搜索目录里 (建议 *taos.dll* 放在目录 *C:\Windows\System32*)
-
 
 10. 如果仍不能排除连接故障
 
@@ -387,4 +386,3 @@ TDengine TSDB 3.3.5.0 及以上的版本，有些用户可能会遇到一个问�
 这种情况通常不会产生乱序，首先我们来解释下 TDengine TSDB 中乱序是指什么？TDengine TSDB 中的乱序是指从时间戳为 0 开始按数据库设置的 Duration 参数（默认是 10 天）切割成时间窗口，在每个时间窗口中写入的数据不按顺序时间写入导致的现象为乱序现象，只要保证同一窗口是顺序写入的，即使窗口之间写入并非顺序，也不会产生乱序。
 
 再看上面场景，补旧数据和新数据同时写入，新旧数据之间一般会存在较大距离，不会落在同一窗口中，只要保证新老数据都是顺序写的，即不会产生乱序现象。
-
