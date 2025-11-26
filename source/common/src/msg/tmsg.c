@@ -45,6 +45,7 @@
 #include "tanalytics.h"
 #include "tcol.h"
 #include "tlog.h"
+#include "tRealloc.h"
 
 #if defined(WINDOWS)
 #include <IPHlpApi.h>
@@ -3519,6 +3520,18 @@ _exit:
   return code;
 }
 
+int32_t tSerializeHashString(SEncoder *pEncoder, SHashObj *pHash) {
+  int32_t numOfItems = taosHashGetSize(pHash);
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, numOfItems));
+
+  char *item = taosHashIterate(pHash, NULL);
+  while (item != NULL) {
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, item));
+    item = taosHashIterate(pHash, item);
+  }
+  return 0;
+}
+
 int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRsp->user));
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->superAuth));
@@ -3671,6 +3684,44 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   // since 3.0.7.0
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->passVer));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->whiteListVer));
+
+  // since 3.4.0.0
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, PRIV_GROUP_CNT));
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+    TAOS_CHECK_RETURN(tEncodeU64v(pEncoder, pRsp->sysPrivs.set[i]));
+  }
+
+  SPrivSet *pIter = NULL;
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, taosHashGetSize(pRsp->objPrivs)));
+  while ((pIter = taosHashIterate(pRsp->objPrivs, pIter))) {
+    size_t      keyLen = 0;
+    const char *key = taosHashGetKey(pIter, &keyLen);
+    TAOS_CHECK_RETURN(tEncodeCStrWithLen(pEncoder, key, keyLen));
+    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+      TAOS_CHECK_RETURN(tEncodeU64v(pEncoder, pIter->set[i]));
+    }
+  }
+
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, taosHashGetSize(pRsp->rowPrivs)));
+  while ((pIter = taosHashIterate(pRsp->rowPrivs, pIter))) {
+    size_t      keyLen = 0;
+    const char *key = taosHashGetKey(pIter, &keyLen);
+    TAOS_CHECK_RETURN(tEncodeCStrWithLen(pEncoder, key, keyLen));
+    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+      TAOS_CHECK_RETURN(tEncodeU64v(pEncoder, pIter->set[i]));
+    }
+  }
+
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, taosHashGetSize(pRsp->colPrivs)));
+  while ((pIter = taosHashIterate(pRsp->colPrivs, pIter))) {
+    size_t      keyLen = 0;
+    const char *key = taosHashGetKey(pIter, &keyLen);
+    TAOS_CHECK_RETURN(tEncodeCStrWithLen(pEncoder, key, keyLen));
+    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+      TAOS_CHECK_RETURN(tEncodeU64v(pEncoder, pIter->set[i]));
+    }
+  }
+
   return 0;
 }
 
@@ -3769,128 +3820,109 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       int32_t keyLen = 0;
       if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
 
-      if ((key = taosMemoryCalloc(keyLen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&key, (keyLen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
 
       int32_t valuelen = 0;
       if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
 
-      if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&value, (valuelen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
       if (taosHashPut(pRsp->readTbs, key, keyLen, value, valuelen + 1) < 0) goto _err;
-
-      taosMemoryFreeClear(key);
-      taosMemoryFreeClear(value);
     }
 
     for (int32_t i = 0; i < numOfWriteTbs; ++i) {
       int32_t keyLen = 0;
       if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
 
-      if ((key = taosMemoryCalloc(keyLen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&key, (keyLen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
 
       int32_t valuelen = 0;
       if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
 
-      if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&value, (valuelen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
       if (taosHashPut(pRsp->writeTbs, key, keyLen, value, valuelen + 1) < 0) goto _err;
-
-      taosMemoryFreeClear(key);
-      taosMemoryFreeClear(value);
     }
 
     for (int32_t i = 0; i < numOfAlterTbs; ++i) {
       int32_t keyLen = 0;
       if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
 
-      if ((key = taosMemoryCalloc(keyLen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&key, (keyLen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
 
       int32_t valuelen = 0;
       if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
 
-      if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&value, (valuelen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
       if (taosHashPut(pRsp->alterTbs, key, keyLen, value, valuelen + 1) < 0) goto _err;
-
-      taosMemoryFreeClear(key);
-      taosMemoryFreeClear(value);
     }
 
     for (int32_t i = 0; i < numOfReadViews; ++i) {
       int32_t keyLen = 0;
       if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
 
-      if ((key = taosMemoryCalloc(keyLen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&key, (keyLen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
 
       int32_t valuelen = 0;
       if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
 
-      if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&value, (valuelen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
       if (taosHashPut(pRsp->readViews, key, keyLen, value, valuelen + 1) < 0) goto _err;
-
-      taosMemoryFreeClear(key);
-      taosMemoryFreeClear(value);
     }
 
     for (int32_t i = 0; i < numOfWriteViews; ++i) {
       int32_t keyLen = 0;
       if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
 
-      if ((key = taosMemoryCalloc(keyLen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&key, (keyLen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
 
       int32_t valuelen = 0;
       if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
 
-      if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&value, (valuelen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
       if (taosHashPut(pRsp->writeViews, key, keyLen, value, valuelen + 1) < 0) goto _err;
-
-      taosMemoryFreeClear(key);
-      taosMemoryFreeClear(value);
     }
 
     for (int32_t i = 0; i < numOfAlterViews; ++i) {
       int32_t keyLen = 0;
       if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
 
-      if ((key = taosMemoryCalloc(keyLen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&key, (keyLen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
 
       int32_t valuelen = 0;
       if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
 
-      if ((value = taosMemoryCalloc(valuelen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&value, (valuelen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
       if (taosHashPut(pRsp->alterViews, key, keyLen, value, valuelen + 1) < 0) goto _err;
-
-      taosMemoryFreeClear(key);
-      taosMemoryFreeClear(value);
     }
 
     for (int32_t i = 0; i < numOfUseDbs; ++i) {
       int32_t keyLen = 0;
       if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
 
-      if ((key = taosMemoryCalloc(keyLen + 1, sizeof(char))) == NULL) goto _err;
+      if (tRealloc((uint8_t**)&key, (keyLen + 1) * sizeof(char))) goto _err;
       if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
 
       int32_t ref = 0;
       if (tDecodeI32(pDecoder, &ref) < 0) goto _err;
 
       if (taosHashPut(pRsp->useDbs, key, keyLen, &ref, sizeof(ref)) < 0) goto _err;
-      taosMemoryFreeClear(key);
     }
     // since 3.0.7.0
     if (!tDecodeIsEnd(pDecoder)) {
@@ -3902,6 +3934,35 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if (tDecodeI64(pDecoder, &pRsp->whiteListVer) < 0) goto _err;
     } else {
       pRsp->whiteListVer = 0;
+    }
+    // since 3.4.0.0
+    if (!tDecodeIsEnd(pDecoder)) {
+      int32_t privGroupCnt = 0;
+      if (tDecodeI32(pDecoder, &privGroupCnt) < 0) goto _err;
+      int32_t realGroupCnt = privGroupCnt > PRIV_GROUP_CNT ? PRIV_GROUP_CNT : privGroupCnt;
+      for (int32_t i = 0; i < privGroupCnt; ++i) {
+        if (i < realGroupCnt) {
+          if (tDecodeU64v(pDecoder, &pRsp->sysPrivs.set[i]) < 0) goto _err;
+        } else {
+          uint64_t dummy;
+          if (tDecodeU64v(pDecoder, &dummy) < 0) goto _err;
+        }
+      }
+      int32_t numOfObjPrivs = 0;
+      if (tDecodeI32(pDecoder, &numOfObjPrivs) < 0) goto _err;
+      if (numOfObjPrivs > 0) {
+        if (!(pRsp->objPrivs = taosHashInit(numOfObjPrivs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                                            HASH_ENTRY_LOCK)))
+          goto _err;
+        for (int32_t i = 0; i < numOfObjPrivs; ++i) {
+        }
+      }
+
+    } else {
+      memset(&pRsp->sysPrivs, 0, sizeof(SPrivSet));
+      pRsp->objPrivs = NULL;
+      pRsp->rowPrivs = NULL;
+      pRsp->colPrivs = NULL;
     }
   }
   return 0;
@@ -3949,6 +4010,9 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->writeViews);
   taosHashCleanup(pRsp->alterViews);
   taosHashCleanup(pRsp->useDbs);
+  taosHashCleanup(pRsp->objPrivs);
+  taosHashCleanup(pRsp->rowPrivs);
+  taosHashCleanup(pRsp->colPrivs);
 }
 
 int32_t tSerializeSGetUserWhiteListReq(void *buf, int32_t bufLen, SGetUserWhiteListReq *pReq) {

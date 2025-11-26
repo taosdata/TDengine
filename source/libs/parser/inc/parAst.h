@@ -146,6 +146,13 @@ typedef struct {
   SNodeList* cols;
 } SPrivLevelArgs;
 
+typedef struct {
+  SPrivSet   privSet;
+  SNodeList* selectCols;
+  SNodeList* insertCols;
+  SNodeList* updateCols;
+} SPrivSetArgs;
+
 typedef struct SShowTablesOption {
   EShowKind kind;
   SToken    dbName;
@@ -163,6 +170,8 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
+
+SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs prev, SPrivSetArgs curr);
 
 SNode*     createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId);
 SNode*     createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);
@@ -416,9 +425,9 @@ SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force);
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, SNodeList* pRowCond, int8_t optrType);
+                       SNode* pTagCond, SNodeList* pRows, int8_t optrType);
 SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, SNodeList* pRowCond, int8_t optrType);
+                        SNode* pTagCond, SNodeList* pRows, int8_t optrType);
 SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere);
 SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery);
 SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery);

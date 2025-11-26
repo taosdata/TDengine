@@ -526,6 +526,42 @@ _err:
   return NULL;
 }
 
+SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs arg1, SPrivSetArgs arg2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SPrivSetArgs merged = arg1;
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+    if (arg2.privSet.set[i]) {
+      merged.privSet.set[i] |= arg2.privSet.set[i];
+    }
+  }
+  if (merged.selectCols) {
+    if (arg2.selectCols) {
+      pCxt->errCode = nodesListAppendList(merged.selectCols, arg2.selectCols);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+  } else {
+    merged.selectCols = arg2.selectCols;
+  }
+  if (merged.insertCols) {
+    if (arg2.insertCols) {
+      pCxt->errCode = nodesListAppendList(merged.insertCols, arg2.insertCols);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+  } else {
+    merged.insertCols = arg2.insertCols;
+  }
+  if (merged.updateCols) {
+    if (arg2.updateCols) {
+      pCxt->errCode = nodesListAppendList(merged.updateCols, arg2.updateCols);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+  } else {
+    merged.updateCols = arg2.updateCols;
+  }
+_err:
+  return merged;
+}
+
 SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTableName(pCxt, pTableAlias) || !checkColumnName(pCxt, pColumnName)) {
@@ -5245,7 +5281,7 @@ _err:
 }
 
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, SNodeList* pRowCond, int8_t optrType) {
+                       SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkRoleName(pCxt, pPrincipal, false));
   SGrantStmt* pStmt = NULL;
@@ -5259,13 +5295,14 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       CHECK_NAME(checkObjName(pCxt, &pPrivLevel->first, false));
       CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
-      pStmt->privileges = *(SPrivSet*)resouces;
+      pStmt->privileges = *(SPrivSetArgs*)resouces;
       if (TK_NK_NIL != pPrivLevel->first.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
       }
       if (TK_NK_NIL != pPrivLevel->second.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
       }
+      pStmt->pRows = pRows;
       pStmt->pTagCond = pTagCond;
       break;
     }
@@ -5286,7 +5323,7 @@ _err:
 }
 
 SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, SNodeList* pRowCond, int8_t optrType) {
+                        SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pPrincipal));
   SRevokeStmt* pStmt = NULL;
@@ -5297,11 +5334,12 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs*
   if (optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
     CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
     CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
-    pStmt->privileges = *(SPrivSet*)resouces;
+    pStmt->privileges = *(SPrivSetArgs*)resouces;
     COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
     if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }
+    pStmt->pRows = pRows;
     pStmt->pTagCond = pTagCond;
   } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
     SToken* pRole = (SToken*)resouces;

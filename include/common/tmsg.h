@@ -1390,6 +1390,8 @@ typedef struct {
   char    principal[TSDB_ROLE_LEN];     // role or user name
   char    objName[TSDB_OBJ_FNAME_LEN];  // db or topic
   char    tblName[TSDB_TABLE_NAME_LEN];
+  SArray* pCols;       // col level privilege
+  TSKEY   rowSpan[2];  // row level privilege
   char*   tagCond;
   int32_t tagCondLen;
   int32_t sqlLen;
@@ -1529,8 +1531,11 @@ typedef struct {
   SHashObj* writeViews;
   SHashObj* alterViews;
   SHashObj* useDbs;
-  SHashObj* privileges;
   int64_t   whiteListVer;
+  SPrivSet  sysPrivs;
+  SHashObj* objPrivs;
+  SHashObj* rowPrivs;
+  SHashObj* colPrivs;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);

@@ -440,14 +440,31 @@ typedef struct {
 
   SPrivSet  sysPrivs;
   SHashObj* objPrivs;  // key: EObjType + "." + objName, value: SPrivSet
-  SHashObj* rowPrivs;  // key: ETableType + "." + objName + "." + startTs + "." + endTs, value: SPrivSet
-  SHashObj* colPrivs;  // key: ETableType + "." + objName + "." + colName, value: SPrivSet
 
+  SHashObj* readRows;   // key: tbFName, value: startTs + "," + endTs[;startTs + "," + endTs]
+  SHashObj* writeRows;  // key: tbFName, value: startTs + "." + endTs,
+  SHashObj* readCols;   // key: tbFName + "." + colName, value: t or tagCondition
+  SHashObj* writeCols;  // key: tbFName + "." + colName, value: t or tagCondition
+
+  // key : tbFName;
+  // value:
+
+  // 超级表
+  // 子表
+  // 普通表
+  // 虚拟超级表
+  // 虚拟子表
+  // 虚拟普通表
+  // 视图
+  // 不具体区分：read table, write table, delete table
+  // 行：查询时，增加 ts 时间范围，只返回该时间范围内的数据
+  // 列：查询时，增加列名过滤条件，只返回指定列的数据
+  
   SHashObj* readDbs;  //      db.*, *.*
   SHashObj* writeDbs;
   SHashObj* topics;
-  SHashObj* readTbs;
-  SHashObj* writeTbs;
+  SHashObj* readTbs;  // key: tbFName, value: t or tagCondition
+  SHashObj* writeTbs; // key: tbFName, value: t or tagCondition
   SHashObj* alterTbs;
   SHashObj* readViews;
   SHashObj* writeViews;
