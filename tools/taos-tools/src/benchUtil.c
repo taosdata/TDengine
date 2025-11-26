@@ -1399,7 +1399,7 @@ int fetchChildTableName(char *dbName, char *stbName) {
                 conn->taos, dbName, stbName,
                 g_queryInfo.superQueryInfo.childTblName,
                 g_queryInfo.superQueryInfo.childTblCount)) {
-        // faild
+        // failed
         tmfree(g_queryInfo.superQueryInfo.childTblName);
         closeBenchConn(conn);
         return -1;

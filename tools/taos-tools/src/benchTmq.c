@@ -300,13 +300,13 @@ static void* tmqConsume(void* arg) {
 
     code = tmq_consumer_close(pThreadInfo->tmq);
     if (code != 0) {
-        errorPrint("thread %d tmq_consumer_close() fail, reason: %s, try again after 3s\n",
+        errorPrint("thread %d tmq_consumer_close() failed, reason: %s, try again after 3s\n",
                 pThreadInfo->id, tmq_err2str(code));
 
         toolsMsleep(3000);
         code = tmq_consumer_close(pThreadInfo->tmq);
         if (code != 0) {
-            errorPrint("thread %d tmq_consumer_close() fail, reason: %s\n",
+            errorPrint("thread %d tmq_consumer_close() failed after retry, reason: %s\n",
                     pThreadInfo->id, tmq_err2str(code));
         }
     }
