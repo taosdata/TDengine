@@ -79,9 +79,6 @@ static int create_topic() {
 
         infoPrint("successfully create topic: %s\n", pConsumerInfo->topicName[i]);
         taos_free_result(res);
-
-        // 延时 10 秒
-        // toolsMsleep(5000);
         if (g_arguments->terminate) {
             infoPrint("%s\n", "user cancel , so exit testing.");
             taos_free_result(res);
