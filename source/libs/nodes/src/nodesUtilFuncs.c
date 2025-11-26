@@ -3798,3 +3798,21 @@ void tFreeStreamVtbDbVgInfo(void* param) {
   tSimpleHashCleanup(*ppHash);
 }
 
+
+bool isScalarSubQuery(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      return pSelect->subQType == E_SUB_QUERY_SCALAR;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      return pSet->subQType == E_SUB_QUERY_SCALAR;
+    }
+    default:
+      break;
+  }
+
+  return false;
+}
+

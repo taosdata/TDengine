@@ -723,21 +723,31 @@ int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schLaunchJobImpl(SSchJob *pJob) {
+  SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
+  if (NULL == level) {
+    SCH_JOB_ELOG("fail to get the %dth level, levelNum:%d", pJob->levelIdx, (int32_t)taosArrayGetSize(pJob->levels));
+    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+  }
+
+  SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t schLaunchJob(SSchJob *pJob) {
   if (EXPLAIN_MODE_STATIC == pJob->attr.explainMode) {
     SCH_ERR_RET(qExecStaticExplain(pJob->pDag, (SRetrieveTableRsp **)&pJob->fetchRes));
     SCH_ERR_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
-  } else {
-    SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
-    if (NULL == level) {
-      SCH_JOB_ELOG("fail to get the %dth level, levelNum:%d", pJob->levelIdx, (int32_t)taosArrayGetSize(pJob->levels));
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-    }
 
-    SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+    return TSDB_CODE_SUCCESS;
   }
 
-  return TSDB_CODE_SUCCESS;
+  if (SCH_IS_PARENT_JOB(pJob) && SCH_JOB_GOT_SUB_JOBS(pJob) && SCH_SUB_JOBS_EXEC_UNFINISHED(pJob)) {
+    return schLaunchJobImpl(taosArrayGetP(pJob->subJobs, pJob->execSubJobId));
+  }
+
+  return schLaunchJobImpl(pJob);
 }
 
 void schDropJobAllTasks(SSchJob *pJob) {
@@ -991,7 +1001,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     SNode* pNode = NULL;
     SSchJob* pSubJob = NULL;
     FOREACH_R(pNode, pReq->pDag->pChildren) {
-      SCH_ERR_JRET(schInitSubJob(pJob, pNode, i, &pSubJob, pReq));
+      SCH_ERR_JRET(schInitSubJob(pJob, (SQueryPlan*)pNode, i, &pSubJob, pReq));
       taosArraySet(pJob->subJobs, i, &pSubJob);
       i++;
     }
@@ -1161,7 +1171,9 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
-  SCH_JOB_DLOG("update job sId:%" PRId64 ", levelIdx:%d", pJob->seriesId, pJob->levelIdx);
+  pJob->execSubJobId = 0;
+  
+  SCH_JOB_DLOG("update job sId:%" PRId64 ", levelIdx:%d, execSubJobId:%d", pJob->seriesId, pJob->levelIdx, pJob->execSubJobId);
 
   return TSDB_CODE_SUCCESS;
 }

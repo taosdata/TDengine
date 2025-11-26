@@ -75,7 +75,7 @@ static void dumpLogicPlan(SLogicSubplan* pLogicSubplan, int32_t level) {
 
 
 static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArray* pExecNodeList) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   SPlanContext ctx;
   SNodeList* pSubQueries = NULL;
   SNode* pNode = NULL;
@@ -101,7 +101,7 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
     memcpy(&ctx, pSrc, sizeof(*pSrc));
     ctx.pAstRoot = pNode;
     TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
-    TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, pPlan));
+    TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pPlan));
     pParent->numOfSubplans += pPlan->numOfSubplans;
     pPlan->isScalarQ = isScalarSubQuery(pNode);
   }

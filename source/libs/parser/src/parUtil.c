@@ -1644,7 +1644,7 @@ STypeMod calcTypeMod(const SDataType* pType) {
 }
 
 
-static int32_t validateScalarSubQuery(SNode* pNode) {
+int32_t validateScalarSubQuery(SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
@@ -1670,7 +1670,7 @@ static int32_t validateScalarSubQuery(SNode* pNode) {
   return code;
 }
 
-static void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
+void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
@@ -1687,14 +1687,13 @@ static void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
       break;
     }
     default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
       break;
   }
 
-  return code;
+  return;
 }
 
-static int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type) {
+int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
@@ -1716,20 +1715,4 @@ static int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type) {
   return code;
 }
 
-bool isScalarSubQuery(SNode* pNode) {
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT: {
-      SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      return pSelect->subQType == E_SUB_QUERY_SCALAR;
-    }
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSet = (SSetOperator*)pNode;
-      return pSet->subQType == E_SUB_QUERY_SCALAR;
-    }
-    default:
-      break;
-  }
-
-  return false;
-}
 

@@ -460,6 +460,33 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
+
+static bool isEmptyResultQuery(SNode* pStmt) {
+  bool isEmptyResult = false;
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      isEmptyResult = ((SSelectStmt*)pStmt)->isEmptyResult;
+      break;
+    case QUERY_NODE_EXPLAIN_STMT:
+      isEmptyResult = isEmptyResultQuery(((SExplainStmt*)pStmt)->pQuery);
+      break;
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      isEmptyResult = isEmptyResultQuery(pSetOp->pLeft);
+      if (isEmptyResult) {
+        isEmptyResult = isEmptyResultQuery(pSetOp->pRight);
+      }
+      break;
+    }
+    case QUERY_NODE_DELETE_STMT:
+      isEmptyResult = ((SDeleteStmt*)pStmt)->deleteZeroRows;
+      break;
+    default:
+      break;
+  }
+  return isEmptyResult;
+}
+
 static int32_t calcSubQueries(SCalcConstContext* pCxt, SNodeList* pSubQueries) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode* pNode = NULL;
@@ -662,31 +689,6 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
   return code;
 }
 
-static bool isEmptyResultQuery(SNode* pStmt) {
-  bool isEmptyResult = false;
-  switch (nodeType(pStmt)) {
-    case QUERY_NODE_SELECT_STMT:
-      isEmptyResult = ((SSelectStmt*)pStmt)->isEmptyResult;
-      break;
-    case QUERY_NODE_EXPLAIN_STMT:
-      isEmptyResult = isEmptyResultQuery(((SExplainStmt*)pStmt)->pQuery);
-      break;
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSetOp = (SSetOperator*)pStmt;
-      isEmptyResult = isEmptyResultQuery(pSetOp->pLeft);
-      if (isEmptyResult) {
-        isEmptyResult = isEmptyResultQuery(pSetOp->pRight);
-      }
-      break;
-    }
-    case QUERY_NODE_DELETE_STMT:
-      isEmptyResult = ((SDeleteStmt*)pStmt)->deleteZeroRows;
-      break;
-    default:
-      break;
-  }
-  return isEmptyResult;
-}
 
 static void resetProjectNullTypeImpl(SNodeList* pProjects) {
   SNode* pProj = NULL;
@@ -718,8 +720,9 @@ static void resetProjectNullType(SNode* pStmt) {
   }
 }
 
-statc int32_t rewriteScalarSubQResValue(SParseContext* pParseCxt, SQuery* pQuery) {
+static int32_t rewriteScalarSubQResValue(SParseContext* pParseCxt, SQuery* pQuery) {
   // TODO
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {

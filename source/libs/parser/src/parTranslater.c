@@ -1027,7 +1027,7 @@ static void initStreamInfo(SParseStreamInfo* pInfo) {
   pInfo->triggerTbl = NULL;
 }
 
-static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* pMetaCache, STranslateContext* pCxt) {
+static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* pMetaCache, bool initSubQueries, STranslateContext* pCxt) {
   pCxt->pParseCxt = pParseCxt;
   pCxt->errCode = TSDB_CODE_SUCCESS;
   pCxt->msgBuf.buf = pParseCxt->pMsg;
@@ -1044,7 +1044,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   if (NULL == pCxt->pSubQueries || NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables || NULL == pCxt->pTargetTables) {
     return terrno;
   }
-  return nodesMakeList(&pCxt->pSubQueries);
+  return initSubQueries ? nodesMakeList(&pCxt->pSubQueries) : TSDB_CODE_SUCCESS;
 }
 
 static int32_t resetHighLevelTranslateNamespace(STranslateContext* pCxt) {
@@ -3837,7 +3837,7 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
       if (TSDB_CODE_SUCCESS == code) {
         STempTableNode** ppTable = (STempTableNode**)pNode;
         (*ppTable)->pSubquery = NULL;
-        nodesDestroyNode(*ppTable);
+        nodesDestroyNode((SNode*)*ppTable);
         *ppTable = NULL;
         code = nodesMakeNode(QUERY_NODE_VALUE, pNode);
       }
@@ -3867,7 +3867,7 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExpSubQuery(pCxt, pNode, (*(STempTableNode**)pNode)->pSubquery);
   }
-  return (TSDB_CODE_SUCCESS == code) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR);
+  return (TSDB_CODE_SUCCESS == code) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
 static EDealRes translateLogicCond(STranslateContext* pCxt, SLogicConditionNode* pCond) {
@@ -17595,13 +17595,69 @@ void updateContextNonLocalSubQ(STranslateContext* pCxt, SNode* pNode) {
       break;
   }
 
-  return false;
+  return;
 }
+
+
+static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateContext* pSrc) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  if (NULL != pSrc->pDbs) {
+    SFullDatabaseName* pDb = taosHashIterate(pSrc->pDbs, NULL);
+    while (NULL != pDb) {
+      code = taosHashPut(pCxt->pDbs, pDb->fullDbName, strlen(pDb->fullDbName), pDb->fullDbName, sizeof(pDb->fullDbName));
+      if (code && code != TSDB_CODE_DUP_KEY) {
+        taosHashCancelIterate(pSrc->pDbs, pDb);
+        return code;
+      }
+      pDb = taosHashIterate(pSrc->pDbs, pDb);
+    }
+  }
+
+  if (NULL != pSrc->pTables) {
+    char   fullName[TSDB_TABLE_FNAME_LEN];
+    SName* pTable = taosHashIterate(pSrc->pTables, NULL);
+    while (NULL != pTable) {
+      int32_t code = tNameExtractFullName(pTable, fullName);
+      if (TSDB_CODE_SUCCESS != code) {
+        taosHashCancelIterate(pSrc->pTables, pTable);
+        return code;
+      }
+      code = taosHashPut(pCxt->pTables, fullName, strlen(fullName), pTable, sizeof(SName));
+      if (code && code != TSDB_CODE_DUP_KEY) {
+        taosHashCancelIterate(pSrc->pTables, pTable);
+        return code;
+      }
+      pTable = taosHashIterate(pSrc->pTables, pTable);
+    }
+  }
+
+  if (NULL != pSrc->pTargetTables) {
+    char   fullName[TSDB_TABLE_FNAME_LEN];
+    SName* pTable = taosHashIterate(pSrc->pTargetTables, NULL);
+    while (NULL != pTable) {
+      int32_t code = tNameExtractFullName(pTable, fullName);
+      if (TSDB_CODE_SUCCESS != code) {
+        taosHashCancelIterate(pSrc->pTargetTables, pTable);
+        return code;
+      }
+      code = taosHashPut(pCxt->pTargetTables, fullName, strlen(fullName), pTable, sizeof(SName));
+      if (code && code != TSDB_CODE_DUP_KEY) {
+        taosHashCancelIterate(pSrc->pTargetTables, pTable);
+        return code;
+      }
+      pTable = taosHashIterate(pSrc->pTargetTables, pTable);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   int32_t    code = TSDB_CODE_SUCCESS;
   
-  if (SQL_CLAUSE_FROM == currClause) {
+  if (SQL_CLAUSE_FROM == pCxt->currClause) {
     ESqlClause currClause = pCxt->currClause;
     SNode*     pCurrStmt = pCxt->pCurrStmt;
     int32_t    currLevel = pCxt->currLevel;
@@ -22115,60 +22171,6 @@ static int32_t toMsgType(ENodeType type) {
   return TDMT_VND_CREATE_TABLE;
 }
 
-static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateContext* pSrc) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  if (NULL != pSrc->pDbs) {
-    SFullDatabaseName* pDb = taosHashIterate(pSrc->pDbs, NULL);
-    while (NULL != pDb) {
-      code = taosHashPut(pCxt->pDbs, pDb->fullDbName, strlen(pDb->fullDbName), pDb->fullDbName, sizeof(pDb->fullDbName));
-      if (code && code != TSDB_CODE_DUP_KEY) {
-        taosHashCancelIterate(pSrc->pDbs, pDb);
-        return code;
-      }
-      pDb = taosHashIterate(pSrc->pDbs, pDb);
-    }
-  }
-
-  if (NULL != pSrc->pTables) {
-    char   fullName[TSDB_TABLE_FNAME_LEN];
-    SName* pTable = taosHashIterate(pSrc->pTables, NULL);
-    while (NULL != pTable) {
-      int32_t code = tNameExtractFullName(pTable, fullName);
-      if (TSDB_CODE_SUCCESS != code) {
-        taosHashCancelIterate(pSrc->pTables, pTable);
-        return code;
-      }
-      code = taosHashPut(pCxt->pTables, fullName, strlen(fullName), pTable, sizeof(SName));
-      if (code && code != TSDB_CODE_DUP_KEY) {
-        taosHashCancelIterate(pSrc->pTables, pTable);
-        return code;
-      }
-      pTable = taosHashIterate(pSrc->pTables, pTable);
-    }
-  }
-
-  if (NULL != pSrc->pTargetTables) {
-    char   fullName[TSDB_TABLE_FNAME_LEN];
-    SName* pTable = taosHashIterate(pSrc->pTargetTables, NULL);
-    while (NULL != pTable) {
-      int32_t code = tNameExtractFullName(pTable, fullName);
-      if (TSDB_CODE_SUCCESS != code) {
-        taosHashCancelIterate(pSrc->pTargetTables, pTable);
-        return code;
-      }
-      code = taosHashPut(pCxt->pTargetTables, fullName, strlen(fullName), pTable, sizeof(SName));
-      if (code && code != TSDB_CODE_DUP_KEY) {
-        taosHashCancelIterate(pSrc->pTargetTables, pTable);
-        return code;
-      }
-      pTable = taosHashIterate(pSrc->pTargetTables, pTable);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
   if (NULL != pCxt->pDbs) {
     taosArrayDestroy(pQuery->pDbList);
@@ -22341,7 +22343,7 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
     pQuery->pPostRoot = cxt.pPostRoot;
   }
   if (TSDB_CODE_SUCCESS == code && cxt.pSubQueries->length > 0) {
-    code = transferSubQueries(&cxt, pQuery->pRoot);
+    transferSubQueries(&cxt, pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setQuery(&cxt, pQuery);
