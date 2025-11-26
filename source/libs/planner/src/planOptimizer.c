@@ -246,6 +246,14 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       }
       pNode->outputTsOrder = order;
       break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      if (pNode->groupAction != GROUP_ACTION_KEEP) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      } else {
+        pNode->outputTsOrder = order;
+        break;
+      }
     default:
       pNode->outputTsOrder = order;
       break;
@@ -5432,6 +5440,40 @@ static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return mergeProjectsOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
 }
 
+static int32_t keepGroupAction(SOptimizeContext* pCxt, SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_WINDOW: {
+      SWindowLogicNode* pWindow = (SWindowLogicNode*)(pNode);
+      if (GROUP_ACTION_KEEP != pWindow->node.groupAction) {
+        pWindow->node.groupAction = GROUP_ACTION_KEEP;
+        pCxt->optimized = true;
+      }
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_SORT: {
+      return TSDB_CODE_SUCCESS;
+    }
+    default:
+      break;
+  }
+  SLogicNode* pLogicNode = (SLogicNode*)(pNode);
+  if (LIST_LENGTH(pLogicNode->pChildren) != 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SNode* pChild = nodesListGetNode(pLogicNode->pChildren, 0);
+  return keepGroupAction(pCxt, pChild);
+}
+
+static int32_t keepGroupActionOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pLogicSubplan->pNode) ||
+      LIST_LENGTH(pLogicSubplan->pNode->pChildren) < 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pChild = nodesListGetNode(pLogicSubplan->pNode->pChildren, 0);
+  return keepGroupAction(pCxt, pChild);
+}
+
 static bool tagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || (SCAN_TYPE_TAG == ((SScanLogicNode*)pNode)->scanType)) {
     return false;
@@ -8409,6 +8451,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
   {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
+  //{.pName = "KeepGroupAction",            .optimizeFunc = keepGroupActionOptimize},
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "splitCacheLastFunc",         .optimizeFunc = splitCacheLastFuncOptimize},
