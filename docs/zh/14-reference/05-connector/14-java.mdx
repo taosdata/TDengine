@@ -232,31 +232,48 @@ TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，�
 > **注意**：应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
 
 properties 中的配置参数如下：  
+
+---
+
+##### 一、基础配置
+**配置描述**：用于配置基础信息，部分参数仅对 JDBC 原生连接生效。
 - TSDBDriver.PROPERTY_KEY_USER [`user`]：登录 TDengine TSDB 用户名，默认值 'root'。
 - TSDBDriver.PROPERTY_KEY_PASSWORD [`password`]：用户登录密码，默认值 'taosdata'。
-- TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR [`cfgdir`]：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 - TSDBDriver.PROPERTY_KEY_CHARSET [`charset`]：客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE [`locale`]：仅在使用 JDBC 原生连接时生效。客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE [`timezone`]：
-    - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
+    - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上海), GMT-8，Asia/Shanghai 这几种形式。
     - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。
+- TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
+
+---
+
+##### 二、WebSocket 连接属性配置
+**配置描述**：定义 WebSocket 连接超时、加密、压缩和重连等配置。
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT [`messageWaitTimeout`]：消息超时时间，单位 ms，默认值为 60000。仅 WebSocket 连接下有效。
+- TSDBDriver.PROPERTY_KEY_WS_KEEP_ALIVE_SECONDS [`wsKeepAlive`]：WebSocket 连接有效时间，单位秒，有效时间内调用 isValid 会直接返回上次结果。默认值为 300。
 - TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]：连接中是否使用 SSL。仅在 WebSocket 连接时生效。
+- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]：关闭 SSL 证书验证。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION [`enableCompression`]：传输过程是否启用压缩。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT [`enableAutoReconnect`]：是否启用自动重连。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
     > **注意**：启用自动重连对获取结果集无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
-
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS [`reconnectIntervalMs`]：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]：关闭 SSL 证书验证。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 
+---
+
+##### 三、WebSocket 连接扩展配置
+**配置描述**：仅对 WebSocket 连接生效的扩展参数，提升易用性。
 - TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]：BI模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
-- TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。  
-- TSDBDriver.PROPERTY_KEY_WS_KEEP_ALIVE_SECONDS [`wsKeepAlive`]：WebSocket 连接有效时间，单位秒，有效时间内调用 isValid 会直接返回上次结果。默认值为 300。  
+- TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。
 
+---
+
+##### 四、高效写入模式配置
+**配置描述**：控制 WebSocket 连接的高效写入模式的核心参数。
 - TSDBDriver.PROPERTY_KEY_ASYNC_WRITE [`asyncWrite`]：高效写入模式，目前仅支持 `stmt` 方式。仅在使用 WebSocket 连接时生效。默认值为空，即不启用高效写入模式。
 - TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM [`backendWriteThreadNum`]：高效写入模式下，后台写入线程数。仅在使用 WebSocket 连接时生效。默认值为 10。
 - TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW [`batchSizeByRow`]：高效写入模式下，写入数据的批大小，单位是行。仅在使用 WebSocket 连接时生效。默认值为 1000。
@@ -265,7 +282,24 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_STRICT_CHECK [`strictCheck`]：高效写入模式下，是否校验表名长度和变长数据类型长度。仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_RETRY_TIMES [`retryTimes`]：高效写入模式下，写入失败重试次数。仅在使用 WebSocket 连接时生效。默认值为 3。
 
-- TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]：参数绑定序列化模式，目前是实验特性，仅支持 `line` 模式，在参数绑定一批绑定的数据中每个子表仅一条数据时可以提升性能。仅在使用 WebSocket 连接时生效，不支持高效写入模式。默认值为空。  
+---
+
+##### 五、参数绑定序列化配置
+**配置描述**：实验性的参数绑定序列化模式配置，仅对 WebSocket 连接生效且不支持高效写入模式，用于优化特定场景下的参数绑定性能。
+- TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]：参数绑定序列化模式，目前是实验特性，仅支持 `line` 模式，在参数绑定一批绑定的数据中每个子表仅一条数据时可以提升性能。仅在使用 WebSocket 连接时生效，不支持高效写入模式。默认值为空。
+
+---
+
+##### 六、节点后台探活和重平衡配置
+**配置描述**：控制驱动对故障节点的主动探活策略，以及连接重平衡触发条件等。仅在 WebSocket 连接有效，且需要开启自动重连。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_INIT_INTERVAL [`healthCheckInitInterval`]：主动探活初始间隔（秒），达到初始间隔后按指数倍增。默认值为10。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_MAX_INTERVAL [`healthCheckMaxInterval`]：主动探活最大间隔（秒）。当指数倍增的间隔时间达到此最大值后，后续的探活将使用该最大间隔。默认值为300。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CON_TIMEOUT [`healthCheckConTimeout`]：探活连接超时时间（秒）。默认值为1。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CMD_TIMEOUT [`healthCheckCmdTimeout`]：探活命令超时时间（秒）。默认值为5。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_RECOVERY_COUNT [`healthCheckRecoveryCount`]：确认节点恢复所需的连续成功探活命令次数。默认值为3。可选值为≥1。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_RECOVERY_INTERVAL [`healthCheckRecoveryInterval`]：多次探活命令之间的间隔时间（秒）。默认值为60。可选值为≥0。
+- TSDBDriver.PROPERTY_KEY_REBALANCE_THRESHOLD [`rebalanceThreshold`]：重平衡触发阈值（“当前连接数比最小连接数多的部分” 占 “最小连接数” 的比例），达到或超过则触发重平衡。举例：若 rebalanceThreshold=20（20%），则当 current ≥ min × 1.2 时触发（比如最小 100 连接，当前≥120 时触发）。默认值为20。可选值为10-50。
+- TSDBDriver.PROPERTY_KEY_REBALANCE_CON_BASE_COUNT [`rebalanceConBaseCount`]：触发重平衡所需的最小连接总数。如果连接总数小于此值，则不进行重平衡。默认值为30。
 
 **配置参数的优先级**  
 

@@ -258,8 +258,7 @@ For REST connections, the common configuration parameters in the URL are as foll
 
 :::
 
-#### Properties
-
+### Properties
 In addition to obtaining a connection through a specified URL, you can also use Properties to specify parameters when establishing a connection.   
 All configuration parameters in Properties can also be specified in the JDBC URL. The parameter names in square brackets can be used in the JDBC URL (e.g., TSDBDriver.PROPERTY_KEY_USER[`user`] can be set in the JDBC URL as `user=root` to specify the username).
 
@@ -267,6 +266,10 @@ All configuration parameters in Properties can also be specified in the JDBC URL
 
 The configuration parameters in properties are as follows:
 
+---
+
+##### I. Basic Configuration
+**Configuration Description**: Used to configure basic information. Some parameters only take effect for native JDBC connections.
 - TSDBDriver.PROPERTY_KEY_USER [`user`]: Login username for TDengine, default value 'root'.
 - TSDBDriver.PROPERTY_KEY_PASSWORD [`password`]: User login password, default value 'taosdata'.
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD [`batchfetch`]: true: Fetch result sets in batches during query execution; false: Fetch result sets row by row. The default value is false. For historical reasons, when using a REST connection, setting this parameter to true will switch to a WebSocket connection.
@@ -279,23 +282,35 @@ The configuration parameters in properties are as follows:
   - WebSocket connections: Client time zone, default value is the current system time zone. Effective on the connection. Only IANA time zones are supported, such as Asia/Shanghai. It is recommended not to set this parameter, as using the system time zone provides better performance.
 - TSDBDriver.HTTP_CONNECT_TIMEOUT [`httpConnectTimeout`]: Connection timeout, in ms, default value is 60000. Effective only in REST connections.
 - TSDBDriver.HTTP_SOCKET_TIMEOUT [`httpSocketTimeout`]: Socket timeout, in ms, default value is 60000. Effective only in REST connections and when batchfetch is set to false.
-- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT [`messageWaitTimeout`]: Message timeout, in ms, default value is 60000. Effective only under WebSocket connections.
-- TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]: Whether to use SSL in the connection. Effective only in WebSocket/REST connections.
 - TSDBDriver.HTTP_POOL_SIZE [`httpPoolSize`]: REST concurrent request size, default 20.
+
+---
+
+##### II. WebSocket Connection Properties
+**Configuration Description**: Defines configurations such as timeout, encryption, compression and reconnection for WebSocket connections.
+- TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT [`messageWaitTimeout`]: Message timeout, in ms, default value is 60000. Effective only under WebSocket connections.
+- TSDBDriver.PROPERTY_KEY_WS_KEEP_ALIVE_SECONDS [`wsKeepAlive`]: The validity period of the WebSocket connection, in seconds. During this period, calling `isValid` will directly return the previous result. The default value is 300.
+- TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]: Whether to use SSL in the connection. Effective only in WebSocket/REST connections.
+- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION [`enableCompression`]: Whether to enable compression during transmission. Effective only when using REST/WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT [`enableAutoReconnect`]: Whether to enable auto-reconnect. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
   > **Note**: Enabling auto-reconnect is not effective for fetching result sets. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
-
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS [`reconnectIntervalMs`]: Auto-reconnect retry interval, in milliseconds, default value 2000. Effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]: Auto-reconnect retry count, default value 3, effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
-- TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
 
-- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]: BI mode takes effect only when the WebSocket connection is established. The default value is 0, and it can be set to 1. Setting it to 1 means enabling BI mode, where metadata information does not count sub-tables. This is mainly used in scenarios when integration with BI tools.
+---
+
+##### III. WebSocket Connection Extended Configuration
+**Configuration Description**: Extended parameters that only take effect for WebSocket connections, improving usability.
+- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]: BI mode takes effect only when the WebSocket connection is established. The default value is 0, and it can be set to 1. Setting it to 1 means enabling BI mode, where metadata information does not count sub-tables. This is mainly used in scenarios for integration with BI tools.
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.
-- TSDBDriver.PROPERTY_KEY_WS_KEEP_ALIVE_SECONDS [`wsKeepAlive`]: The validity period of the WebSocket connection, in seconds. During this period, calling `isValid` will directly return the previous result. The default value is 300.
 
+---
+
+##### IV. Efficient Writing Mode Configuration
+**Configuration Description**: Core parameters for controlling the Efficient Writing mode of WebSocket connections.
 - TSDBDriver.PROPERTY_KEY_ASYNC_WRITE [`asyncWrite`]: Efficient Writing mode. Currently, only the `stmt` method is supported. Effective only when using WebSocket connections. Default value is empty, meaning Efficient Writing mode is not enabled.
 - TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM [`backendWriteThreadNum`]: In Efficient Writing mode, this refers to the number of background write threads. Effective only when using WebSocket connections. Default value is 10.
 - TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW [`batchSizeByRow`]: In Efficient Writing mode, this is the batch size for writing data, measured in rows. Effective only when using WebSocket connections. Default value is 1000.
@@ -304,7 +319,24 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_STRICT_CHECK [`strictCheck`]: In Efficient Writing mode, this determines whether to validate the length of table names and variable-length data types. Effective only when using WebSocket connections. Default value is false.
 - TSDBDriver.PROPERTY_KEY_RETRY_TIMES [`retryTimes`]: In Efficient Writing mode, this is the number of retry attempts for failed write operations. Effective only when using WebSocket connections. Default value is 3.
 
+---
+
+##### V. Parameter Binding Serialization Configuration
+**Configuration Description**: Experimental parameter binding serialization mode configuration, which only takes effect for WebSocket connections and is not supported in efficient writing mode, used to optimize parameter binding performance in specific scenarios.
 - TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]: Parameter binding serialization mode, currently an experimental feature, only supports `line` mode, which can improve performance when each subtable has only one piece of data in a batch of bound data. Effective only when using WebSocket connections, and not supported in Efficient Writing mode. Default value is empty.
+
+---
+
+##### VI. Node Background Health Check and Rebalancing Configuration
+**Configuration Description**: Controls the active health check strategy of the driver for faulty nodes and the trigger conditions for connection rebalancing. These parameters only take effect for WebSocket connections and require auto-reconnection to be enabled.
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_INIT_INTERVAL [`healthCheckInitInterval`]: Initial interval for active health checks (in seconds). After reaching the initial interval, it increases exponentially. Default value is 10.
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_MAX_INTERVAL [`healthCheckMaxInterval`]: Maximum interval for active health checks (in seconds). Once the exponential backoff reaches this interval, it will be used for all subsequent checks. Default value is 300.
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CON_TIMEOUT [`healthCheckConTimeout`]: Connection timeout for health checks (in seconds). Default value is 1.
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CMD_TIMEOUT [`healthCheckCmdTimeout`]: Command timeout for health checks (in seconds). Default value is 5.
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_RECOVERY_COUNT [`healthCheckRecoveryCount`]: Number of consecutive successful health check commands required to confirm node recovery. Default value is 3. Optional values: ≥ 1.
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_RECOVERY_INTERVAL [`healthCheckRecoveryInterval`]: Interval between multiple health check commands (in seconds). Default value is 60. Optional values: ≥ 0.
+- TSDBDriver.PROPERTY_KEY_REBALANCE_THRESHOLD [`rebalanceThreshold`]: Rebalance trigger threshold (the proportion of "the part where the current connection count exceeds the minimum connection count" to the "minimum connection count"). Rebalancing will be triggered when the threshold is reached or exceeded. Example: If rebalanceThreshold=20 (20%), it will be triggered when current ≥ min × 1.2 (e.g., triggered when the minimum is 100 connections and the current is ≥ 120). Default value is 20. Optional values: 10-50.
+- TSDBDriver.PROPERTY_KEY_REBALANCE_CON_BASE_COUNT [`rebalanceConBaseCount`]: The minimum total number of connections required to trigger rebalancing. Rebalancing will not be performed if the total connection count is less than this value. Default value is 30.
 
 Priority of Configuration Parameters:
 
