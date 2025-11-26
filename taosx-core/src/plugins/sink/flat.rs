@@ -3883,7 +3883,7 @@ pub mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_archive_td38264() -> anyhow::Result<()> {
+    async fn test_archive_td38264_with_taos() -> anyhow::Result<()> {
         let _ = tracing_subscriber::fmt()
             .with_level(true)
             .with_file(true)

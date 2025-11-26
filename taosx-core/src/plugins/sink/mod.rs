@@ -1915,15 +1915,22 @@ async fn process_archive(
     archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
-    let err_vec = vec![err.to_string(); batch.num_rows()];
-    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-    archive_records(
-        batch,
-        err_vec.clone(),
-        err_timestamp_vec.clone(),
-        archive_tx,
-    )
-    .await
+    let mut err_vec = vec![None; batch.num_rows()];
+    if let Some(v) = err_vec.first_mut() {
+        *v = Some(err.to_string());
+    }
+    if let Some(v) = err_vec.last_mut() {
+        *v = Some(err.to_string());
+    }
+    let mut err_timestamp_vec = vec![0; batch.num_rows()];
+    let now = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    if let Some(v) = err_timestamp_vec.first_mut() {
+        *v = now;
+    }
+    if let Some(v) = err_timestamp_vec.last_mut() {
+        *v = now;
+    }
+    archive_records(batch, err_vec, err_timestamp_vec, archive_tx).await
 }
 
 #[instrument(skip_all)]
@@ -3854,7 +3861,7 @@ mod tests {
             Some(&archive_tx),
         )
         .await?;
-        let rs = rx.recv();
+        let rs = rx.recv_async().await;
         dbg!(&rs);
         assert!(rs.is_ok());
 
