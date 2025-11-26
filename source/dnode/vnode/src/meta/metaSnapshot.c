@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <bits/stdint-intn.h>
 #include "meta.h"
 
 // SMetaSnapReader ========================================
@@ -452,7 +451,6 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
     code = taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
     TSDB_CHECK_CODE(code, lino, END);
 
-    SDecoder   dc = {0};
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);
     code = metaDecodeEntry(&dc, &me);
