@@ -1062,9 +1062,9 @@ void shellReadHistory() {
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
-  char   *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  char   *line = taosMemoryMalloc(tsMaxSQLLength + 1);
   int32_t read_size = 0;
-  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
+  while ((read_size = taosGetsFile(pFile, tsMaxSQLLength, line)) > 0) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = taosStrdup(line);
@@ -1139,7 +1139,7 @@ bool shellIsCommentLine(char *line) {
 
 void shellSourceFile(const char *file) {
   int32_t read_len = 0;
-  char   *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  char   *cmd = taosMemoryCalloc(1, tsMaxSQLLength + 1);
   size_t  cmd_len = 0;
   char    fullname[PATH_MAX] = {0};
   char    sourceFileCommand[PATH_MAX + 8] = {0};
@@ -1158,13 +1158,13 @@ void shellSourceFile(const char *file) {
     return;
   }
 
-  char *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
-  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
-    if (cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
+  char *line = taosMemoryMalloc(tsMaxSQLLength + 1);
+  while ((read_len = taosGetsFile(pFile, tsMaxSQLLength, line)) > 0) {
+    if (cmd_len + read_len >= tsMaxSQLLength) {
       printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len,
              read_len);
       cmd_len = 0;
-      memset(line, 0, TSDB_MAX_ALLOWED_SQL_LEN + 1);
+      memset(line, 0, tsMaxSQLLength + 1);
       continue;
     }
     line[--read_len] = '\0';
@@ -1187,7 +1187,7 @@ void shellSourceFile(const char *file) {
     memcpy(cmd + cmd_len, line, read_len);
     printf("%s%s\r\n", shell.info.promptHeader, cmd);
     shellRunCommand(cmd, false);
-    memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+    memset(cmd, 0, tsMaxSQLLength);
     cmd_len = 0;
   }
 
