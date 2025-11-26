@@ -318,7 +318,7 @@ mod tests {
         });
         // send cache rewrite msg
         loop {
-            let rewrite_files = get_rewrite_files(archive_tx.clone()).await;
+            let rewrite_files = get_rewrite_files(&archive_tx).await;
             println!("get rewrite files: {:?}", rewrite_files);
             tokio::time::sleep(std::time::Duration::from_secs(120)).await;
         }

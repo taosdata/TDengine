@@ -34,3 +34,4 @@ types/components.d.ts
 .vite
 .pnpm-store
 vite.config.ts.*
+.env.dev

@@ -238,7 +238,7 @@ async fn ipc_stream_writer(
                                 metrics_arc,
                                 tables_messages_in_progress,
                                 None,
-                                Some(archive_tx.clone()),
+                                Some(&archive_tx),
                             )
                             .await
                         {
@@ -887,7 +887,7 @@ impl PutStream {
                 tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
             });
             if let Some(parser) = parser_clone {
-                read_cache_and_rewrite(task_id, &pool, &parser, archive_tx_clone, &cancellation)
+                read_cache_and_rewrite(task_id, &pool, &parser, &archive_tx_clone, &cancellation)
                     .await
             } else {
                 Ok(())

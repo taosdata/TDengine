@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
+use faststr::FastStr;
 use taos::Dsn;
 use taosx_core::plugins::sink::point::csv::CsvParser;
 use taosx_core::utils::{self, parse_key_in_dsn};
@@ -23,7 +24,7 @@ pub const DEFAULT_CSV_HEADERS: [&str; 14] = [
 ];
 
 // 解析 csv_config_file 参数
-pub fn parse_csv(dsn: &Dsn) -> anyhow::Result<(Option<PathBuf>, String)> {
+pub fn parse_csv(dsn: &Dsn) -> anyhow::Result<(Option<PathBuf>, FastStr)> {
     let csv = parse_key_in_dsn::<String>(dsn, "csv_config_file")?
         .ok_or(anyhow::anyhow!("csv_config_file is required"))?;
 
@@ -45,14 +46,14 @@ pub fn parse_csv(dsn: &Dsn) -> anyhow::Result<(Option<PathBuf>, String)> {
             )
         })?;
 
-        Ok((Some(path), context))
+        Ok((Some(path), context.into()))
     } else {
         // dsn 中直接包含 csv 内容，且 csv 是 URL encoded
         let content = utils::files::decode_csv_content(&csv, true)?;
         let content = String::from_utf8(content)
             .context("failed to convert DSN's csv_config_file to string")?;
 
-        Ok((None, content))
+        Ok((None, content.into()))
     }
 }
 

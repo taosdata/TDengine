@@ -92,21 +92,20 @@ pub async fn kinghist_to_taos(
     tracing::info!("kinghist_to_taos metrics initialized");
 
     // 解析配置参数
-    let config = KingHistConfig::try_from_dsn(&from)?;
-    context.task_config = Some(config.clone());
+    let config = Arc::new(KingHistConfig::try_from_dsn(&from)?);
     tracing::info!("kinghist_to_taos job config: {:#?}", &config);
 
     // 解析 csv 中的点位映射，直接解析 csv_content
-    let parser =
-        CsvParser::try_from_content(SourceType::KingHistorian, config.csv_content.clone())?;
+    let parser = CsvParser::try_from_content(SourceType::KingHistorian, &config.csv_content)?;
     let model_config = parser.parse().await?;
+    context.task_config = Some(config);
     // TODO: KingHistorian 目前需要在 CSV 中指定 Tag 类型，后续改为从 KingHistorian 读取元数据
     check_csv_type(&model_config)?;
     tracing::info!(
         "kinghist_to_taos csv config file parsed with {} points",
         model_config.point_config_map.len()
     );
-    context.model_config = Some(model_config);
+    context.model_config = Some(Arc::new(model_config));
 
     // 获取 IPC 端口
     let ipc_port = port_pool
@@ -338,13 +337,12 @@ async fn kinghist_collect(
     Ok(())
 }
 
-#[derive(Clone)]
 struct KingHistContext {
     pub task_id: Option<i64>,
     pub from: String,
     pub to: String,
-    pub task_config: Option<KingHistConfig>,
-    pub model_config: Option<PointModelConfig>,
+    pub task_config: Option<Arc<KingHistConfig>>,
+    pub model_config: Option<Arc<PointModelConfig>>,
     pub ipc_socket: Option<String>,
     pub metrics: Option<Arc<CoreMetrics>>,
 }

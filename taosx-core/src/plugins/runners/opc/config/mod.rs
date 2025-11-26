@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::bail;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -48,7 +50,7 @@ pub struct OPCConfig {
     #[serde(skip)]
     pub points_mode: Option<PointsMode>, // 数据点位的模式, csv 或 command
     #[serde(skip)]
-    model_config: Option<PointModelConfig>,
+    model_config: Option<Arc<PointModelConfig>>,
 }
 
 impl OPCConfig {
@@ -121,7 +123,7 @@ impl OPCConfig {
             points: Some(points_config),
             collect: Some(collect),
             points_mode: Some(points_mode),
-            model_config: Some(model_config),
+            model_config: Some(Arc::new(model_config)),
         })
     }
 
@@ -166,7 +168,7 @@ impl OPCConfig {
         })
     }
 
-    pub fn get_model_config(&self) -> Option<&PointModelConfig> {
+    pub fn get_model_config(&self) -> Option<&Arc<PointModelConfig>> {
         self.model_config.as_ref()
     }
 

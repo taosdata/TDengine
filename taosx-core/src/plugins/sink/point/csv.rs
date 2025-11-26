@@ -141,17 +141,17 @@ impl CsvHeader {
 
 /// CsvParser is used to parse csv files and generate model config
 #[derive(Debug)]
-pub struct CsvParser {
+pub struct CsvParser<'a> {
     source_type: SourceType,
     /// csv files could be file path or utf8 encoded string
     csv_files: Vec<String>,
     /// csv_origin 是原始的 DSN，其中的 csv_config_file 参数是 URL encoded 的 csv 内容
     csv_origin: Option<String>,
     /// csv_content: csv 文件的内容
-    csv_content: Option<String>,
+    csv_content: Option<&'a str>,
 }
 
-impl CsvParser {
+impl<'a> CsvParser<'a> {
     pub fn try_new(source_type: SourceType, csv_files: Vec<String>) -> anyhow::Result<Self> {
         if csv_files.is_empty() {
             bail!("csv_files is empty");
@@ -165,7 +165,7 @@ impl CsvParser {
         })
     }
 
-    pub fn try_from_content(source_type: SourceType, content: String) -> anyhow::Result<Self> {
+    pub fn try_from_content(source_type: SourceType, content: &'a str) -> anyhow::Result<Self> {
         if content.is_empty() {
             bail!("csv content is empty");
         }
