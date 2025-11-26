@@ -7931,28 +7931,24 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
-static void resetOrderyBySubqueryOrder(SSelectStmt* pSelect) {
+static void resetOrderBySubqueryOrder(SSelectStmt* pSelect) {
+  SNodeList* pOrderByList = NULL;
+
   if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
-    if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
-      SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
-      SNode*            pOrder = pOrderExpr->pExpr;
-      if (isPrimaryKeyImpl(pOrder)) {
-        pSelect->timeLineFromOrderBy = pOrderExpr->order;
-      } else {
-        pSelect->timeLineFromOrderBy = ORDER_UNKNOWN;
-      }
-    }
+    pOrderByList = pSub->pOrderByList;
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     SSetOperator* pSub = (SSetOperator*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
-    if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
-      SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
-      SNode*            pOrder = pOrderExpr->pExpr;
-      if (isPrimaryKeyImpl(pOrder)) {
-        pSelect->timeLineFromOrderBy = pOrderExpr->order;
-      } else {
-        pSelect->timeLineFromOrderBy = ORDER_UNKNOWN;
-      }
+    pOrderByList = pSub->pOrderByList;
+  }
+
+  if (pOrderByList != NULL && pOrderByList->length > 0) {
+    SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, 0);
+    SNode*            pOrder = pOrderExpr->pExpr;
+    if (isPrimaryKeyImpl(pOrder)) {
+      pSelect->timeLineFromOrderBy = pOrderExpr->order;
+    } else {
+      pSelect->timeLineFromOrderBy = ORDER_UNKNOWN;
     }
   }
 }
@@ -7978,7 +7974,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
         (TIME_LINE_GLOBAL != pSelect->timeLineCurMode && TIME_LINE_MULTI != pSelect->timeLineCurMode)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
     }
-    resetOrderyBySubqueryOrder(pSelect);
+    resetOrderBySubqueryOrder(pSelect);
   }
 
   if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
@@ -7993,7 +7989,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
         (TIME_LINE_NONE == pSelect->timeLineCurMode)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
     }
-    resetOrderyBySubqueryOrder(pSelect);
+    resetOrderBySubqueryOrder(pSelect);
   }
 
   pCxt->currClause = SQL_CLAUSE_WINDOW;

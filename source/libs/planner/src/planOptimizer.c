@@ -5481,7 +5481,7 @@ static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return mergeProjectsOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
 }
 
-static int32_t keepGroupAction(SOptimizeContext* pCxt, SNode* pNode, int32_t* order) {
+static int32_t keepGroupAction(SOptimizeContext* pCxt, SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
       SWindowLogicNode* pWindow = (SWindowLogicNode*)(pNode);
@@ -5492,8 +5492,6 @@ static int32_t keepGroupAction(SOptimizeContext* pCxt, SNode* pNode, int32_t* or
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {
-      SSortLogicNode* pSortLogic = (SSortLogicNode*)(pNode);
-      *order = pSortLogic->node.outputTsOrder;
       return TSDB_CODE_SUCCESS;
     }
     default:
@@ -5504,7 +5502,7 @@ static int32_t keepGroupAction(SOptimizeContext* pCxt, SNode* pNode, int32_t* or
     return TSDB_CODE_SUCCESS;
   }
   SNode* pChild = nodesListGetNode(pLogicNode->pChildren, 0);
-  return keepGroupAction(pCxt, pChild, order);
+  return keepGroupAction(pCxt, pChild);
 }
 
 static bool subPlanNeedKeepGroupAction(SLogicNode* pNode) {
@@ -5515,18 +5513,13 @@ static bool subPlanNeedKeepGroupAction(SLogicNode* pNode) {
 }
 
 static int32_t keepGroupActionOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (!subPlanNeedKeepGroupAction(pLogicSubplan->pNode)) {
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pLogicSubplan->pNode) ||
+      LIST_LENGTH(pLogicSubplan->pNode->pChildren) < 1) {
     return TSDB_CODE_SUCCESS;
   }
+
   SNode* pChild = nodesListGetNode(pLogicSubplan->pNode->pChildren, 0);
-
-  int32_t order = TSDB_ORDER_NONE;
-  int32_t code = keepGroupAction(pCxt, pChild, &order);
-  if (TSDB_CODE_SUCCESS == code && order != TSDB_ORDER_NONE) {
-    ((SWindowLogicNode*)pLogicSubplan->pNode)->node.inputTsOrder = order;
-  }
-
-  return code;
+  return keepGroupAction(pCxt, pChild);
 }
 
 static bool tagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
