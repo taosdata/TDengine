@@ -5925,13 +5925,11 @@ static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pCondit
 }
 
 static bool tbCntScanOptIsEligibleScan(STbCntScanOptInfo* pInfo) {
-  if (0 != strcmp(pInfo->pScan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB) ||
-      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_TABLES) || NULL != pInfo->pScan->pGroupTags ||
-      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_DISK_USAGE) ||
-      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_FILESETS)) {
-    return false;
-  }
-  if (1 == pInfo->pScan->pVgroupList->numOfVgroups && MNODE_HANDLE == pInfo->pScan->pVgroupList->vgroups[0].vgId) {
+  // only support information_schema.ins_tables
+  // don't add any other system tables here
+  if (strcmp(pInfo->pScan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB) != 0 ||
+      strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_TABLES) != 0 || 
+      pInfo->pScan->pGroupTags != NULL) {
     return false;
   }
   return tbCntScanOptIsEligibleConds(pInfo, pInfo->pScan->node.pConditions);
