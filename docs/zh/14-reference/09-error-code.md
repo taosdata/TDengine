@@ -789,7 +789,8 @@ Java 连接器可能报错的错误码包括 4 种：
 
 ### taosAdapter
 
-| 错误码    | 错误描述                                           | 可能的出错场景或者可能的原因        | 建议用户采取的措施    |
-|--------|------------------------------------------------|-----------------------|--------------|
-| 0xFFFF | taosAdapter request parameter or process error | taosAdapter 请求参数或流程错误 | 根据错误消息检查错误原因 |
-| 0xFFFE | taosAdapter query request exceeded the limit   | taosAdapter 查询请求超过限制  | 降低查询请求并发     |
+| 错误码    | 错误描述                                           | 可能的出错场景或者可能的原因        | 建议用户采取的措施                 |
+|--------|------------------------------------------------|-----------------------|---------------------------|
+| 0xFFFF | taosAdapter request parameter or process error | taosAdapter 请求参数或流程错误 | 根据错误消息检查错误原因              |
+| 0xFFFE | taosAdapter query request exceeded the limit   | taosAdapter 查询请求超过限制  | 降低查询请求并发                  |
+| 0xFFFD | Query SQL has been rejected                    | 查询 SQL 被拒绝            | 如果不希望被拦截排查 taosAdapter 配置 |

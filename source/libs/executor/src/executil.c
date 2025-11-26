@@ -2227,7 +2227,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     numOfTables = taosArrayGetSize(pUidList);
 
     if (canCacheTagEqCondFilter) {
-      qInfo("suid:%" PRIu64 ", %s add uid list to stable tag filter cache, "
+      qDebug("suid:%" PRIu64 ", %s add uid list to stable tag filter cache, "
         "uidListSize:%d", pScanNode->suid, idstr,
         (int32_t)taosArrayGetSize(pUidList));
 
