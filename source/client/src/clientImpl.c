@@ -35,6 +35,8 @@
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo);
 
+int32_t updateSessMgtMetric(TAOS* taos, SSessParam* pParam);
+
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
   if (pReq != NULL) {
@@ -3073,6 +3075,14 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
     return;
   }
 
+  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = 1};
+  code = updateSessMgtMetric(&connId, &para);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    fp(param, NULL, terrno);
+    return;
+  }
+
   pRequest->source = source;
   pRequest->body.queryFp = fp;
   doAsyncQuery(pRequest, false);
@@ -3108,9 +3118,32 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
     return;
   }
 
+  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = 1};
+  code = updateSessMgtMetric(&connId, &para);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    fp(param, NULL, terrno);
+    return;
+  }
+
   pRequest->body.queryFp = fp;
+
   doAsyncQuery(pRequest, false);
 }
+
+// int32_t updateSessMgtMetric(TAOS* taos, SSessParam* pParam) {
+//   int32_t code = 0;
+//   if (NULL == taos) {
+//     return TSDB_CODE_TSC_DISCONNECTED;
+//   }
+//   int64_t connId = *(int64_t*)taos;
+
+//   STscObj* pTscObj = acquireTscObj(connId);
+//   code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
+
+//   releaseTscObj(connId);
+//   return code;
+// }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
   if (NULL == taos) {
@@ -3122,6 +3155,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   if (NULL == param) {
     return NULL;
   }
+
   int32_t code = tsem_init(&param->sem, 0, 0);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -3290,6 +3324,9 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
+
+  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = -1};
+  code = updateSessMgtMetric(&this, &para);
 
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
