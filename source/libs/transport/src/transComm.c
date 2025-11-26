@@ -78,6 +78,8 @@ void transCacheRemoveByRefId(int64_t refId) {
   for (int32_t i = 0; i < transInstCache.num; i++) {
     if (transInstCache.tran[i].refId == refId) {
       atomic_store_32(&transInstCache.tran[i].remove, 1);
+      tDebug("trans %p removed by refId:%" PRId64 ", ref count:%d", transInstCache.tran[i].pTrans, refId,
+             atomic_load_32(&transInstCache.tran[i].ref));
       while (atomic_load_32(&transInstCache.tran[i].ref) > 0) {
         taosSsleep(1);
       }
@@ -89,7 +91,7 @@ void transCacheReleaseByRefId(int64_t refId) {
   for (int32_t i = 0; i < transInstCache.num; i++) {
     if (transInstCache.tran[i].refId == refId) {
       atomic_sub_fetch_32(&transInstCache.tran[i].ref, 1);
-      tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", transInstCache.tran[i].pTrans, refId,
+      tDebug("trans %p released by refId:%" PRId64 ", ref count:%d", transInstCache.tran[i].pTrans, refId,
              atomic_load_32(&transInstCache.tran[i].ref));
       return;
     }
