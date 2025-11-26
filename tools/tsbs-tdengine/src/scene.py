@@ -67,3 +67,6 @@ class Scene:
 
     def get_yaml_file(self, table):
             return os.path.join(self.config_path, f"{table}.yaml")
+        
+    def get_json_file(self, table):
+            return os.path.join(self.config_path, f"json/{table}.json")

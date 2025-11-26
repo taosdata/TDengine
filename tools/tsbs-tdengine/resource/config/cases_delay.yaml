@@ -1,0 +1,19 @@
+testCases:
+    - scenarioId: "D1"
+      classfication: "Delay"
+      description: ""
+      sql: |
+         create stream db.stm_d1 
+            interval(1a) 
+            sliding(1a)
+            from db.stbd1 
+            partition by tbname
+            stream_options(ignore_nodata_trigger) 
+            into db.res_d1 
+            output_subtable(tbname)
+            as 
+              select _twstart ts, 
+                      count(*)  cnt,
+                      last(ts)  lastts,
+                      first(ts) firstts
+                from %%trows

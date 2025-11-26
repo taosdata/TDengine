@@ -42,6 +42,7 @@ class CmdLine:
         self.max_test_time = 1800 # seconds
         self.use_previous = False
         self.user_canceled = False
+        self.check_delay = False  
         
         # args
         self.parser = None
@@ -129,6 +130,13 @@ class CmdLine:
             help='No create new cluster and use previous cluster (default: False)'
         )
         
+        # check-delay
+        self.parser.add_argument(
+            '-D', '--check-delay',
+            action='store_true',
+            help='Check delay metrics after test (default: False)'
+        )
+
         # Version
         self.parser.add_argument(
             '-v', '--version',
@@ -139,10 +147,10 @@ class CmdLine:
     # Getter methods for all parameters
     
     def get_config(self):
-        return self.args.config
+        return self.config_path
     
     def get_data(self):
-        return self.args.data
+        return self.data_path
     
     def get_host(self):
         return self.host
@@ -168,17 +176,21 @@ class CmdLine:
         """Get scenario name, returns None if all scenarios should run"""
         return self.args.scenario
     
+    def get_check_delay(self):
+        """Get check delay flag"""
+        return self.check_delay
+
     def show_config(self):
         """Print current configuration"""
         log.out("\n=== Current Configuration ===")
-        log.out(f"Config File:    {self.args.config or 'Built-in default'}")
-        log.out(f"Data File:      {self.args.data or 'Built-in default'}")
+        log.out(f"Config File:    {self.config_path or 'Built-in default'}")
+        log.out(f"Data File:      {self.data_path or 'Built-in default'}")
         log.out(f"Log Output:     {self.args.log_output}")
         log.out(f"JSON Output:    {self.args.json_output}")
         log.out(f"Scenario:       {self.args.scenario or 'All scenarios'}")
-        log.out(f"Use Previous Cluster:    {self.args.use_previous}")
+        log.out(f"Use Previous Cluster:    {self.use_previous}")
+        log.out(f"Check Delay:    {self.check_delay}")
         log.out("============================\n")
-
 
     def case_to_scene_obj(self, case):
         name = case["scenarioId"]
@@ -205,26 +217,19 @@ class CmdLine:
                     log.out(f"SQL:\n{case.get('sql', 'N/A')}")
                     log.out("-" * 50)
             '''
+            if data is None:
+                log.out(f"Error: No data found in YAML file: {yaml_file}")
+                exit(1)
             return data
             
         except FileNotFoundError:
             log.out(f"Error: File not found: {yaml_file}")
-            return None
+            exit(1)
         except yaml.YAMLError as e:
             log.out(f"Error parsing YAML: {e}")
-            return None
+            exit(1)
             
-            
-            
-
-    #
-    # ---------------------------- public methods ----------------------------
-    #
- 
-    #
-    # init    
-    #
-    def init(self):
+    def init_args(self):       
         # parse args
         self.args = self.parser.parse_args()
         
@@ -250,15 +255,36 @@ class CmdLine:
             self.max_test_time = args_max_test_time
             log.out(f"Set max test time to {self.max_test_time} seconds")    
 
-        # max test time
+        # use previous
         args_use_previous = self.args.use_previous
         if args_use_previous is not None:
             self.use_previous = args_use_previous
             log.out(f"Use previous cluster: {self.use_previous}")
 
+        # check delay
+        self.check_delay = self.args.check_delay
+        if self.check_delay:
+            log.out(f"Check delay metrics enabled")           
 
-        # init file name
-        self.cases_yaml = os.path.join(self.config_path, 'cases.yaml')        
+    #
+    # ---------------------------- public methods ----------------------------
+    #
+ 
+    #
+    # init    
+    #
+    def init(self):
+        # parse args
+        self.init_args() 
+
+        # init cases file name
+        if self.get_check_delay():
+            name = "cases_delay.yaml"
+        else:
+            name = "cases.yaml"
+        
+        # load cases yaml    
+        self.cases_yaml = os.path.join(self.config_path, name)        
         self.scenes = self.load_cases_yaml(self.cases_yaml)
         
     #

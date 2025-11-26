@@ -30,7 +30,7 @@ class DoTest(BaseStep):
     def __init__(self, scene):
         self.scene = scene
 
-    def wait_stream_end(self, verifySql, expectRows, timeout, max_test_time):
+    def wait_stream_end(self, verifySql, expectRows, compare, timeout, max_test_time):
         log.out("Waiting for stream processing to complete...")
         log.out(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Max Test Time: {max_test_time} seconds, Timeout: {timeout} seconds")
         conn = taos_connect()
@@ -50,12 +50,27 @@ class DoTest(BaseStep):
                     cnt = 0
                     metrics.output_rows[self.scene.name] = rows                    
                 
-                if rows == expectRows:
-                    log.out(f"{i} real rows: {rows}, expect rows: {expectRows} ==> Passed")
+                # check passed
+                passed = False
+                if compare == ">=":
+                    if rows >= expectRows:
+                        passed = True
+                elif compare == ">":
+                    if rows > expectRows:
+                        passed = True
+                else:
+                    compare = "="
+                    if rows == expectRows:
+                        passed = True
+                                        
+                # set status passed
+                if passed:
+                    log.out(f"{i} rows real: {rows} {compare} expect: {expectRows} ==> Passed")
                     conn.close()
                     metrics.set_status(self.scene.name, "Passed")
                     return
-                log.out(f"{i} real rows: {rows}, expect rows: {expectRows}")
+
+                log.out(f"{i} rows real: {rows}, expect: {expectRows}")
                 
                 # add step
                 i += 1
@@ -92,12 +107,13 @@ class DoTest(BaseStep):
                 # Search for matching test case by scenarioId
                 for case in cases:
                     if case.get('scenarioId') == scenario_id:
-                        verify_sql = case.get('verifySql')
+                        verify_sql  = case.get('verifySql')
                         expect_rows = case.get('expectRows')
+                        compare     = case.get('compare')
                         log.out(f"Found verify info for scenario '{scenario_id}':")
                         log.out(f"  Verify SQL: {verify_sql}")
                         log.out(f"  Expect Rows: {expect_rows}")
-                        return verify_sql, expect_rows
+                        return verify_sql, expect_rows, compare
                 
                 # If no matching scenario found
                 log.out(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
@@ -105,13 +121,13 @@ class DoTest(BaseStep):
                 
         except FileNotFoundError:
             log.out(f"YAML file not found: {yaml_file}")
-            return None, None
+            return None, None, None
         except yaml.YAMLError as e:
             log.out(f"Error parsing YAML file: {e}")
-            return None, None
+            return None, None, None
         except Exception as e:
             log.out(f"Error reading verify info: {e}")
-            return None, None
+            return None, None, None
 
     def run(self):
         log.out("DoTest step executed")
@@ -120,9 +136,9 @@ class DoTest(BaseStep):
         for table in self.scene.tables:
             yaml_file = self.scene.get_yaml_file(table)
             log.out(f"Processing YAML file: {yaml_file}")
-            verifySql, expectRows = self.read_verify_info(self.scene.name, yaml_file)
+            verifySql, expectRows, compare = self.read_verify_info(self.scene.name, yaml_file)
             if verifySql != None and expectRows != None:
-                self.wait_stream_end(verifySql, expectRows, timeout = cmd.timeout, max_test_time = cmd.max_test_time)
+                self.wait_stream_end(verifySql, expectRows, compare, timeout = cmd.timeout, max_test_time = cmd.max_test_time)
             else:
                 log.out(f"verify sql is none, skipping  {yaml_file}")
         

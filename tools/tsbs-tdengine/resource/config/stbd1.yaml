@@ -1,0 +1,8 @@
+testCases:
+    # U1
+    - scenarioId: "D1"
+      querySql: select count(*) from db.stbd1;
+      dataRows: 10000000
+      verifySql: select count(*) from db.res_d1
+      expectRows: 100
+      compare: ">="

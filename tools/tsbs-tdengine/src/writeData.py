@@ -40,6 +40,16 @@ class WriteData(BaseStep):
     
         return output, error, code
     
+    def benchmark_insert(sef, json_file):
+        command = f"taosBenchmark -f {json_file}"
+        log.out(f"Executing command: {command}")
+        output, error, code = util.exe_cmd(command)
+        log.out(f"Output: {output}")
+        log.out(f"Error: {error}")
+        log.out(f"Return code: {code}")
+    
+        return output, error, code
+    
     def read_data_info(self, scenario_id, yaml_file):
         try:
             with open(yaml_file, 'r') as f:
@@ -68,20 +78,30 @@ class WriteData(BaseStep):
             return None, None
         except Exception as e:
             log.out(f"Error reading verify info: {e}")
-            return None, None    
-
-    def run(self):
-        log.out("WriteData step executed")
-        metrics.start_write(self.scene.name)
-        for table in self.scene.tables:
+            return None, None 
+   
+    def insert_data(self, table):
+        if cmd.get_check_delay():
+            # benchmark
+            json_file = self.scene.get_json_file(table)
+            output, error, code = self.benchmark_insert(json_file)
+        else:
+            # taosX     
             csv_file = self.scene.get_csv_file(table)
-            log.out(f"Writing data from CSV file: {csv_file}")
             output, error, code = self.taosx_import_csv (
                 desc = self.des_url + self.scene.db_name[table],
                 source = f"csv:" + csv_file,
                 parser_file = csv_file .replace(".csv", ".taosx.json"),
                 batch_size = 50000
-            )
+            )                
+
+    def run(self):
+        log.out("WriteData step executed")
+        metrics.start_write(self.scene.name)
+        
+        # loop tables
+        for table in self.scene.tables:
+            self.insert_data(table)
             
         metrics.end_write(self.scene.name)
         
