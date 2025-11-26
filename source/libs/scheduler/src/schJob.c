@@ -849,8 +849,86 @@ int32_t schJobFetchRows(SSchJob *pJob) {
   SCH_RET(code);
 }
 
+int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSchJob** ppRes, SSchedulerReq *pReq) {
+  int32_t  code = 0;
+  int64_t  refId = -1;
+  SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
+  if (NULL == pJob) {
+    qError("QID:0x%" PRIx64 ", calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
+    SCH_ERR_JRET(terrno);
+  }
+
+  pJob->parent = pParent;
+  pJob->subJobId = subJobId;
+  pJob->attr.explainMode = pParent->attr.explainMode;
+  pJob->attr.localExec = false;
+  pJob->conn = pParent->conn;
+  
+  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p", pParent->queryId, subJobId, pJob->conn.pTrans);
+
+  // TODO COPY SQL
+  /*
+  pJob->sql = taosStrdup(pReq->sql);
+  if (NULL == pJob->sql) {
+    qError("QID:0x%" PRIx64 ", strdup sql %s failed", pReq->pDag->queryId, pReq->sql);
+    SCH_ERR_JRET(terrno);
+  }
+  */
+  
+  pJob->pDag = pDag;
+  pJob->chkKillFp = pParent->chkKillFp;
+  pJob->chkKillParam = pParent->chkKillParam;
+  pJob->userRes.execFp = pParent->userRes.execFp;
+  pJob->userRes.cbParam = pParent->userRes.cbParam;
+  pJob->source = pParent->source;
+  pJob->pWorkerCb = pParent->pWorkerCb;
+  pJob->nodeList = pParent->nodeList;
+
+  pJob->taskList = taosHashInit(SCH_GET_TASK_CAPACITY(pDag->numOfSubplans), taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
+                                HASH_ENTRY_LOCK);
+  if (NULL == pJob->taskList) {
+    SCH_JOB_ELOG("taosHashInit %d taskList failed", SCH_GET_TASK_CAPACITY(pDag->numOfSubplans));
+    SCH_ERR_JRET(terrno);
+  }
+
+  SCH_ERR_JRET(schValidateAndBuildJob(pDag, pJob));
+
+  if (SCH_IS_EXPLAIN_JOB(pJob)) {
+    SCH_ERR_JRET(qExecExplainBegin(pDag, &pJob->explainCtx, pReq->startTs));
+  }
+
+  pJob->execTasks = taosHashInit(pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
+                                 HASH_ENTRY_LOCK);
+  if (NULL == pJob->execTasks) {
+    SCH_JOB_ELOG("taosHashInit %d execTasks failed", pDag->numOfSubplans);
+    SCH_ERR_JRET(terrno);
+  }
+
+  if (tsem_init(&pJob->rspSem, 0, 0)) {
+    SCH_JOB_ELOG("tsem_init failed, errno:%d", ERRNO);
+    SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  SCH_JOB_TLOG("jobId:0x%" PRIx64 "-%d, job created", pJob->refId, subJobId);
+
+  *ppRes = pJob;
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  if (NULL == pJob) {
+    qDestroyQueryPlan(pDag);
+  } else {
+    schFreeJobImpl(pJob);
+  }
+  
+  SCH_RET(code);
+}
+
 int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   int32_t  code = 0;
+  int32_t  i = 0;
   int64_t  refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
@@ -903,6 +981,22 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     SCH_ERR_JRET(terrno);
   }
 
+  if (pReq->pDag->pChildren && pReq->pDag->pChildren->length > 0) {
+    pJob->subJobs = taosArrayInit_s(POINTER_BYTES, pReq->pDag->pChildren->length);
+    if (NULL == pJob->subJobs) {
+      SCH_JOB_ELOG("taosArrayInit %d subJobs failed", pReq->pDag->pChildren->length);
+      SCH_ERR_JRET(terrno);
+    }
+    
+    SNode* pNode = NULL;
+    SSchJob* pSubJob = NULL;
+    FOREACH_R(pNode, pReq->pDag->pChildren) {
+      SCH_ERR_JRET(schInitSubJob(pJob, pNode, i, &pSubJob, pReq));
+      taosArraySet(pJob->subJobs, i, &pSubJob);
+      i++;
+    }
+  }
+  
   SCH_ERR_JRET(schValidateAndBuildJob(pReq->pDag, pJob));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {

@@ -600,6 +600,7 @@ typedef struct SSelectStmt {
   SLimitNode*     pLimit;
   SLimitNode*     pSlimit;
   SNodeList*      pHint;
+  SNodeList*      pSubQueries;   // non table subqueries
   char            stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t         precision;
   int32_t         selectFuncNum;
@@ -607,6 +608,7 @@ typedef struct SSelectStmt {
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
   int32_t         lastProcessByRowFuncId;
+  bool            hasNonLocalSubQ;
   bool            timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
@@ -644,6 +646,7 @@ typedef struct SSetOperator {
   ENodeType        type;  // QUERY_NODE_SET_OPERATOR
   ESetOperatorType opType;
   ESubQueryType    subQType;
+  SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
   SNode*           pLeft;
   SNode*           pRight;
@@ -791,7 +794,6 @@ typedef struct SQuery {
   bool            haveResultSet;
   bool            showRewrite;
   bool            stableQuery;
-  SArray*         pSubRoots;
   SNode*          pPrevRoot;
   SNode*          pRoot;
   SNode*          pPostRoot;

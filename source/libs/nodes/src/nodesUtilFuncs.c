@@ -2439,6 +2439,7 @@ int32_t nodesListMakeStrictAppend(SNodeList** pList, SNode* pNode) {
   if (NULL == *pList) {
     int32_t code = nodesMakeList(pList);
     if (NULL == *pList) {
+      nodesDestroyNode(pNode);
       return code;
     }
   }

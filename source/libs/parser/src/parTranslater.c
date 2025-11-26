@@ -1033,7 +1033,6 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->msgBuf.buf = pParseCxt->pMsg;
   pCxt->msgBuf.len = pParseCxt->msgLen;
   pCxt->pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
-  pCxt->pSubQueries = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
   pCxt->currLevel = 0;
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
@@ -1045,7 +1044,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   if (NULL == pCxt->pSubQueries || NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables || NULL == pCxt->pTargetTables) {
     return terrno;
   }
-  return TSDB_CODE_SUCCESS;
+  return nodesMakeList(&pCxt->pSubQueries);
 }
 
 static int32_t resetHighLevelTranslateNamespace(STranslateContext* pCxt) {
@@ -3828,102 +3827,9 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
-static int32_t validateScalarSubQuery(SNode* pNode) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT: {
-      SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      if (pSelect->pProjectionList && pSelect->pProjectionList->length != 1) {
-        return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS;
-      }
-      break;
-    }
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSet = (SSetOperator*)pNode;
-      if (pSet->pProjectionList && pSet->pProjectionList->length != 1) {
-        return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS;
-      }
-      break;
-    }
-    default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
-      break;
-  }
-
-  return code;
-}
-
-static void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT: {
-      SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
-      memcpy(pType, &pExpr->resType, sizeof(*pType));
-      break;
-    }
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSet = (SSetOperator*)pNode;
-      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
-      memcpy(pType, &pExpr->resType, sizeof(*pType));
-      break;
-    }
-    default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
-      break;
-  }
-
-  return code;
-}
-
-static int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT: {
-      SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      pSelect->subQType = type;
-      break;
-    }
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSet = (SSetOperator*)pNode;
-      pSet->subQType = type;
-      break;
-    }
-    default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
-      break;
-  }
-
-  return code;
-}
-
-bool isScalarSubQuery(SNode* pNode) {
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT: {
-      SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      return pSelect->subQType == E_SUB_QUERY_SCALAR;
-    }
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSet = (SSetOperator*)pNode;
-      return pSet->subQType == E_SUB_QUERY_SCALAR;
-    }
-    default:
-      break;
-  }
-
-  return false;
-}
 
 static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
-
-  code = updateExprSubQueryType(pSubQuery, pCxt->expSubQueryType);
-  if (code) {
-    return code;
-  }
   
   switch (pCxt->expSubQueryType) {
     case E_SUB_QUERY_SCALAR: {
@@ -3938,7 +3844,7 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
       if (TSDB_CODE_SUCCESS == code) {
         SValueNode* pValue = (SValueNode*)*pNode;
         pValue->isFromSubQ = true;
-        pValue->subQIdx = taosArrayGetSize(pCxt->pSubQueries) - 1;
+        pValue->subQIdx = pCxt->pSubQueries->length - 1;
         getScalarSubQueryResType(pSubQuery, &pValue->node.resType);
       }
     }
@@ -3954,7 +3860,10 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
 }
 
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
-  int32_t code = translateSubquery(pCxt, (*(STempTableNode**)pNode)->pSubquery);
+  int32_t code = updateExprSubQueryType((*(STempTableNode**)pNode)->pSubquery, pCxt->expSubQueryType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateSubquery(pCxt, (*(STempTableNode**)pNode)->pSubquery);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExpSubQuery(pCxt, pNode, (*(STempTableNode**)pNode)->pSubquery);
   }
@@ -12074,7 +11983,7 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
   for (int32_t i = 1; i < num; ++i) {
     SRetention*       pRetension = taosArrayGet(dbCfg.pRetensions, i);
     STranslateContext cxt = {0};
-    code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, &cxt);
+    code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, false, &cxt);
     if (TSDB_CODE_SUCCESS == code) {
       code = getRollupAst(&cxt, pStmt, pRetension, dbCfg.precision, 1 == i ? &pReq->pAst1 : &pReq->pAst2,
                           1 == i ? &pReq->ast1Len : &pReq->ast2Len);
@@ -17652,6 +17561,43 @@ _return:
   return code;
 }
 
+static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateContext* pDst) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t levelNum = taosArrayGetSize(pSrc->pNsLevel);
+  if (levelNum <= 0) {
+    parserError("invalid parent ns level number:%d", levelNum);
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  if (NULL == taosArrayPush(pDst->pNsLevel, taosArrayGetLast(pSrc->pNsLevel))) {
+    code = terrno;
+    return code;
+  }
+
+  pDst->currLevel = ++(pDst->levelNo);
+
+  return code;
+}
+
+void updateContextNonLocalSubQ(STranslateContext* pCxt, SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pCxt->hasNonLocalSubQ = (NULL != pSelect->pFromTable);
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      // TODO 
+      break;
+    }
+    default:
+      break;
+  }
+
+  return false;
+}
+
 static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   int32_t    code = TSDB_CODE_SUCCESS;
   
@@ -17667,18 +17613,30 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   } else {
     STranslateContext cxt = {0};
 
-    int32_t code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, &cxt);
+    int32_t code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, false, &cxt);
+    if (TSDB_CODE_SUCCESS == code) {
+      cxt.pSubQueries = pCxt->pSubQueries;
+      code = setCurrLevelNsFromParent(pCxt, &cxt);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = translateQuery(&cxt, pNode);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      updateContextNonLocalSubQ(pCxt, pNode);
     }
     int32_t tmpCode = mergeTranslateContextMetas(pCxt, &cxt);
     if (TSDB_CODE_SUCCESS == code) {
       code = tmpCode;
     }
+    if (taosArrayGetSize(cxt.pNsLevel) > 0) {
+      taosArrayPopFrontBatch(cxt.pNsLevel, 1);
+    }
+    
+    cxt.pSubQueries = NULL;
     destroyTranslateContext(&cxt);
 
-    if (TSDB_CODE_SUCCESS == code && NULL == taosArrayPush(pCxt->pSubQueries, &pNode)) {
-      code = terrno;
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListAppend(pCxt->pSubQueries, pNode);
     }
   }
   return code;
@@ -22266,7 +22224,7 @@ static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
-      if (NULL == ((SSelectStmt*)pQuery->pRoot)->pFromTable && 0 == taosArrayGetSize(pCxt->pSubQueries)) {
+      if (NULL == ((SSelectStmt*)pQuery->pRoot)->pFromTable && !pCxt->hasNonLocalSubQ) {
         pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
         pQuery->haveResultSet = true;
         break;
@@ -22349,10 +22307,29 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pSelect->pSubQueries = pCxt->pSubQueries;
+      pCxt->pSubQueries = NULL;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      pSet->pSubQueries = pCxt->pSubQueries;
+      pCxt->pSubQueries = NULL;
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   STranslateContext cxt = {0};
 
-  int32_t code = initTranslateContext(pParseCxt, pMetaCache, &cxt);
+  int32_t code = initTranslateContext(pParseCxt, pMetaCache, true, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteQuery(&cxt, pQuery);
   }
@@ -22363,10 +22340,10 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
     pQuery->pPrevRoot = cxt.pPrevRoot;
     pQuery->pPostRoot = cxt.pPostRoot;
   }
+  if (TSDB_CODE_SUCCESS == code && cxt.pSubQueries->length > 0) {
+    code = transferSubQueries(&cxt, pQuery->pRoot);
+  }
   if (TSDB_CODE_SUCCESS == code) {
-    pQuery->pSubRoots = cxt.pSubQueries;
-    cxt.pSubQueries = NULL;
-
     code = setQuery(&cxt, pQuery);
   }
   int32_t tmpCode = setRefreshMeta(&cxt, pQuery);

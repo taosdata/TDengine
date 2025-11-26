@@ -460,12 +460,38 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
-static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
-  if (NULL == pSelect->pFromTable) {
-    return calcConstSelectWithoutFrom(pCxt, pSelect, subquery);
-  } else {
-    return calcConstSelectFrom(pCxt, pSelect, subquery);
+static int32_t calcSubQueries(SCalcConstContext* pCxt, SNodeList* pSubQueries) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pSubQueries) {
+    code = calcConstQuery(pCxt, pNode, false);
+    if (code) {
+      break;
+    }
+    if (isEmptyResultQuery(pNode) && isScalarSubQuery(pNode)) {
+      parserError("%" PRIx64 " scalar subquery got empty result", pCxt->pParseCxt->requestId);
+      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
+      break;
+    }
   }
+
+  return code;
+}
+
+static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  if (NULL == pSelect->pFromTable) {
+    code = calcConstSelectWithoutFrom(pCxt, pSelect, subquery);
+  } else {
+    code = calcConstSelectFrom(pCxt, pSelect, subquery);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSubQueries && pSelect->pSubQueries->length > 0) {
+    code = calcSubQueries(pCxt, pSelect->pSubQueries);
+  }
+
+  return code;
 }
 
 static int32_t calcConstDelete(SCalcConstContext* pCxt, SDeleteStmt* pDelete) {
@@ -604,6 +630,10 @@ static int32_t calcConstSetOperator(SCalcConstContext* pCxt, SSetOperator* pSetO
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSetOp->pOrderByList);
   }
+  if (TSDB_CODE_SUCCESS == code && pSetOp->pSubQueries && pSetOp->pSubQueries->length > 0) {
+    code = calcSubQueries(pCxt, pSetOp->pSubQueries);
+  }
+  
   return code;
 }
 
@@ -688,6 +718,10 @@ static void resetProjectNullType(SNode* pStmt) {
   }
 }
 
+statc int32_t rewriteScalarSubQResValue(SParseContext* pParseCxt, SQuery* pQuery) {
+  // TODO
+}
+
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
   SCalcConstContext cxt = {.pParseCxt = pParseCxt,
                            .msgBuf.buf = pParseCxt->pMsg,
@@ -695,28 +729,17 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
                            .code = TSDB_CODE_SUCCESS};
 
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t subQueriesNum = taosArrayGetSize(pQuery->pSubRoots);
-  for (int32_t i = 0; i < subQueriesNum; ++i) {
-    SNode* pNode = taosArrayGetP(pQuery->pSubRoots, i);
-    code = calcConstQuery(&cxt, pNode, false);
-    if (TSDB_CODE_SUCCESS == code) {
-      resetProjectNullType(pNode);
-      // TODO UPDATE SCALAR RES VALUE
-      if (isEmptyResultQuery(pNode) && isScalarSubQuery(pNode)) {
-        code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
-        break;
-      }
-    }
-  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstQuery(&cxt, pQuery->pRoot, false);
-    if (TSDB_CODE_SUCCESS == code) {
-      resetProjectNullType(pQuery->pRoot);
-      if (isEmptyResultQuery(pQuery->pRoot)) {
-        pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
-      }
-    }
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    resetProjectNullType(pQuery->pRoot);
+    if (isEmptyResultQuery(pQuery->pRoot)) {
+      pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
+    }
+    code = rewriteScalarSubQResValue(pParseCxt, pQuery);
+  }
+  
   return code;
 }

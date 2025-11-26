@@ -33,6 +33,11 @@ extern "C" {
        (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); \
        cell = pNext)
 
+#define FOREACH_R(node, list)                                                                                   \
+  for (SListCell* cell = (NULL != (list) ? (list)->pTail : NULL), *pPrev;                                     \
+       (NULL != cell ? (node = cell->pNode, pPrev = cell->pPrev, true) : (node = NULL, pPrev = NULL, false)); \
+       cell = pPrev)
+
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
 #define INSERT_LIST(target, src) nodesListInsertList((target), cell, src)

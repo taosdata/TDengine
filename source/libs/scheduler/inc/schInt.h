@@ -283,9 +283,13 @@ typedef struct SSchJob {
   uint64_t         queryId;
   uint64_t         seriesId;
   SSchJobAttr      attr;
+  void*            parent;
+  int32_t          subJobId;
+  int32_t          execSubJobId;
   int32_t          levelNum;
   int32_t          taskNum;
   SRequestConnInfo conn;
+  SArray          *subJobs;
   SArray          *nodeList;  // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray          *levels;    // starting from 0. SArray<SSchLevel>
   SQueryPlan      *pDag;

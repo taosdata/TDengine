@@ -906,9 +906,11 @@ typedef struct SExplainInfo {
 
 typedef struct SQueryPlan {
   ENodeType    type;
+  bool         isScalarQ;
   uint64_t     queryId;
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SNodeList*   pChildren;  // Element is SQueryPlan*
   SExplainInfo explainInfo;
   void*        pPostPlan;
 } SQueryPlan;
