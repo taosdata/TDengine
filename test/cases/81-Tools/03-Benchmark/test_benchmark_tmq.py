@@ -95,9 +95,9 @@ class TestBenchmarkTmq:
         time.sleep(10)
         pids = self.get_pids_by_name("taosBenchmark")
         if pids:
-            tdLog.info(f"Find a process named taosBbenchmark with PID: {pids}")
+            tdLog.info(f"Find a process named taosBenchmark with PID: {pids}")
         else:
-            tdLog.exit("No process named taosBbenchmark was found.")
+            tdLog.exit("No process named taosBenchmark was found.")
 
         os.kill(pids[0], signal.SIGINT)
         time.sleep(10)
