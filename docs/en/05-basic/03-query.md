@@ -570,11 +570,11 @@ In queries of time series databases, it is often necessary to query based on the
 | This Year | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
 
 ### Description
+
 1. Each time range interval is left-closed and right-open.
 2. The writing style is not unique, and this is provided here as an example for reference only.
 3. Here, Monday is used as the start of the week, and scenarios that do not start on Monday need to be adjusted.
 4. Here, the timestamp in the TDengine example uses milliseconds as the time unit.
-
 
 ## Time-Series Extensions
 
@@ -621,6 +621,7 @@ TDengine's nested queries follow these rules:
 ## UNION Clause
 
 In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+
 1. Each SELECT clause must return results with the same number of columns;
 2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
 
