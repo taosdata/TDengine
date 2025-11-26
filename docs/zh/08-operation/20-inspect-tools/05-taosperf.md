@@ -122,11 +122,11 @@ cmd:
 ```markdown
 # 性能检查报告
 
-时间: 2025-05-30 17:21:02  
+时间：2025-05-30 17:21:02  
 
 ## 磁盘配置
 
-| FQDN   | 磁盘名称 | 磁盘型号          | 序列号            | 磁盘类型| 磁盘空间 |
+| FQDN   | 磁盘名称 | 磁盘型号          | 序列号            | 磁盘类型 | 磁盘空间 |
 |--------|--------|------------------|------------------|--------|--------|
 | u1-11  | sda    | INTEL_SSDSC2BB48 | 55cd2e414d66c8cd | SSD    | 447.1G |
 | u1-11  | sdb    | INTEL_SSDSC2BB48 | 55cd2e414d72e38b | SSD    | 447.1G |
@@ -143,21 +143,21 @@ cmd:
 
 ### 1. 写盘命令
 
-#### 1.1 dd命令
+#### 1.1 dd 命令
 
 dd if=/dev/zero of=[file] bs=400K count=50000 oflag=direct conv=fsync  
 
-#### 1.2 fio命令
+#### 1.2 fio 命令
 
 fio --name=db_write_test --filename=[file] --size=5G --bsrange=480k-500k --rw=randwrite --ioengine=libaio --direct=1 --numjobs=4 --iodepth=32 --group_reporting  
 
 ### 2. 读盘命令
 
-#### 2.1 dd命令
+#### 2.1 dd 命令
 
 dd if=[file] of=/dev/null bs=1M count=20000 iflag=direct 
 
-#### 2.2 fio命令
+#### 2.2 fio 命令
 
 fio --name=db_read_test --filename=[file] --size=5G --bs=1M --rw=randread --ioengine=libaio --direct=1 --numjobs=4 --iodepth=32 --group_reporting  
 

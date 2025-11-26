@@ -280,9 +280,9 @@ URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../..
 
 Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：
     - url： `taosAdapter` Websocket 服务的 URL。默认是 `localhost` 的 `6041` 端口。
-    - user： TDengine TSDB 用户名。默认是 `root`。  
-    - password： TDengine TSDB 用户密码。默认是 `taosdata`。  
-    - timeout： HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
+    - user：TDengine TSDB 用户名。默认是 `root`。  
+    - password：TDengine TSDB 用户密码。默认是 `taosdata`。  
+    - timeout：HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
 
 URL 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/python/#url-规范)
 
@@ -336,7 +336,7 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 
 </TabItem>
 <TabItem label="Node.js" value="node">
-Node.js 连接器使用 DSN 来创建连接， DSN 描述字符串基本结构如下：
+Node.js 连接器使用 DSN 来创建连接，DSN 描述字符串基本结构如下：
 
 ```text
 [+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
