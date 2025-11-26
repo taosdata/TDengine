@@ -4937,6 +4937,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
       ST_TASK_DLOG("receive %" PRId64 " rows trig data of %d tables from vnode %d", pProgress->pTrigBlock->info.rows,
                    nTables, pProgress->pTaskAddr->nodeId);
+      bool maybeShrinked = pContext->recovering && (pContext->walMode == STRIGGER_WAL_META_WITH_DATA);
       if (pTask->isVirtualTable) {
         for (int32_t i = 0; i < nTables; i++) {
           int64_t           *ar = TARRAY_GET_ELEM(pContext->pTempSlices, i);
@@ -4956,10 +4957,17 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             int64_t gid = pVirtTableInfo->tbGid;
             void   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
             if (px == NULL) {
-              ST_TASK_ELOG("unable to find group %" PRId64 " for virt table %" PRId64 " orig table %" PRId64
-                           " from vnode %d",
-                           gid, vtbUid, otbUid, pProgress->pTaskAddr->nodeId);
-              QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+              if (maybeShrinked) {
+                ST_TASK_DLOG("ignore unfound group %" PRId64 " for virt table %" PRId64 " orig table %" PRId64
+                             " from vnode %d",
+                             gid, vtbUid, otbUid, pProgress->pTaskAddr->nodeId);
+                continue;
+              } else {
+                ST_TASK_ELOG("unable to find group %" PRId64 " for virt table %" PRId64 " orig table %" PRId64
+                             " from vnode %d",
+                             gid, vtbUid, otbUid, pProgress->pTaskAddr->nodeId);
+                QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+              }
             }
             SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
             if (IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
@@ -4981,9 +4989,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           QUERY_CHECK_CODE(code, lino, _end);
           void *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
           if (px == NULL) {
-            ST_TASK_ELOG("unable to find group %" PRId64 " for table %" PRId64 " from vnode %d", gid, uid,
-                         pProgress->pTaskAddr->nodeId);
-            QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+            if (maybeShrinked) {
+              ST_TASK_ILOG("ignore unfound group %" PRId64 " for table %" PRId64 " from vnode %d", gid, uid,
+                           pProgress->pTaskAddr->nodeId);
+              continue;
+            } else {
+              ST_TASK_ELOG("unable to find group %" PRId64 " for table %" PRId64 " from vnode %d", gid, uid,
+                           pProgress->pTaskAddr->nodeId);
+              QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+            }
           }
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
           if (IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
