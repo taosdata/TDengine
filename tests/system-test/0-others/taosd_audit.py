@@ -45,6 +45,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         """
         process POST request
         """
+        print ("receive POST request")
         contentEncoding = self.headers["Content-Encoding"]
 
         if contentEncoding == 'gzip':
@@ -148,6 +149,8 @@ class TDTestCase:
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
 
     def createTbThread(self, sql, newTdSql):
+        # wait for http server ready
+        time.sleep(2)
         tdLog.info("create tb")
         sql = "create table db3.tb using db3.stb tags (1)"
         tdSql.query(sql)
