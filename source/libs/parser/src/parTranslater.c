@@ -14,6 +14,7 @@
  */
 
 #include "parTranslater.h"
+#include <bits/stdint-intn.h>
 #include <stdint.h>
 #include "nodes.h"
 #include "parInt.h"
@@ -1343,11 +1344,11 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
   if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
     if (pSelect->pPartitionByList) {
-      if (!pSub->timeLineFromOrderBy && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+      if (pSub->timeLineFromOrderBy == ORDER_UNKNOWN && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
         *pRes = true;
         return code;
       }
-      if (pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
+      if (pSub->timeLineFromOrderBy != ORDER_UNKNOWN && pSub->pOrderByList->length > 1) {
         SNodeList* pPartitionList = NULL;
         code = buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length, &pPartitionList);
         if (TSDB_CODE_SUCCESS == code) {
@@ -7931,6 +7932,32 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
+static void resetOrderyBySubqueryOrder(SSelectStmt* pSelect) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
+      SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
+      SNode*            pOrder = pOrderExpr->pExpr;
+      if (isPrimaryKeyImpl(pOrder)) {
+        pSelect->timeLineFromOrderBy = pOrderExpr->order;
+      } else {
+        pSelect->timeLineFromOrderBy = ORDER_UNKNOWN;
+      }
+    }
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    SSetOperator* pSub = (SSetOperator*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
+      SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
+      SNode*            pOrder = pOrderExpr->pExpr;
+      if (isPrimaryKeyImpl(pOrder)) {
+        pSelect->timeLineFromOrderBy = pOrderExpr->order;
+      } else {
+        pSelect->timeLineFromOrderBy = ORDER_UNKNOWN;
+      }
+    }
+  }
+}
+
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -7952,6 +7979,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
         (TIME_LINE_GLOBAL != pSelect->timeLineCurMode && TIME_LINE_MULTI != pSelect->timeLineCurMode)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
     }
+    resetOrderyBySubqueryOrder(pSelect);
   }
 
   if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
@@ -7966,6 +7994,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
         (TIME_LINE_NONE == pSelect->timeLineCurMode)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
     }
+    resetOrderyBySubqueryOrder(pSelect);
   }
 
   pCxt->currClause = SQL_CLAUSE_WINDOW;
@@ -8974,10 +9003,11 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
     return;
   } else if (pSelect->pOrderByList->length > 1) {
     for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
-      pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i))->pExpr;
+      SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i);
+      pOrder = pOrderByExpr->pExpr;
       if (isPrimaryKeyImpl(pOrder)) {
         pSelect->timeLineResMode = TIME_LINE_MULTI;
-        pSelect->timeLineFromOrderBy = true;
+        pSelect->timeLineFromOrderBy = pOrderByExpr->order;
         return;
       }
     }
