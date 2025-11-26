@@ -40,7 +40,6 @@
 /home/TDinternal/community/source/dnode/mnode/impl/src/mndDb.c
 /home/TDinternal/community/source/client/src/clientTmq.c
 /home/TDinternal/community/source/common/src/ttime.c
-/home/TDinternal/community/source/libs/function/src/tudf.c
 /home/TDinternal/community/source/libs/nodes/src/nodesCloneFuncs.c
 /home/TDinternal/community/source/libs/command/src/explain.c
 /home/TDinternal/community/source/libs/executor/src/tsort.c
@@ -49,11 +48,9 @@
 /home/TDinternal/community/source/libs/function/src/builtinsimpl.c
 /home/TDinternal/community/source/libs/parser/src/parUtil.c
 /home/TDinternal/community/source/dnode/vnode/src/meta/metaEntry2.c
-/home/TDinternal/community/source/libs/function/src/udfd.c
 /home/TDinternal/community/source/libs/executor/src/scanoperator.c
 /home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbUtil.c
 /home/TDinternal/community/source/libs/scheduler/src/schTask.c
-/home/TDinternal/community/source/libs/executor/src/dynqueryctrloperator.c
 /home/TDinternal/community/source/libs/parser/src/parAstCreater.c
 /home/TDinternal/community/source/libs/planner/src/planPhysiCreater.c
 /home/TDinternal/community/source/libs/executor/src/sysscanoperator.c
