@@ -158,8 +158,7 @@ const emit = defineEmits([
   'select-column',
   'delete-extract',
   'validate-msgbody',
-  'update-extract-arr',
-  'update-extract-columns'
+  'update-extract-arr' 
 ]);
 
 watch(
@@ -351,7 +350,6 @@ async function getParserData(data: any, isall: boolean | undefined) {
       obj.value = finalVal.join('') ? finalVal.join(' ; ') : '';
       return obj;
     });
-    emit('update-extract-columns', props.indexKey, colLists);
 
     tableData.value = tbdata;
     transformerState.activeColumns = Object.keys(tbdata[0]);

@@ -251,7 +251,6 @@
           @select-column="changeColumnStatus"
           @set-extract-name="setExtractName"
           @change-extract-expr="changeExtractExpr"
-          @update-extract-columns="changeExtractColumns"
         ></ExtractSplit>
       </template>
       <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
@@ -1870,14 +1869,7 @@ function changeExtractExpr(colname: string, value: string) {
   const index = extractArr.value.findIndex((item: any) => item.columnname == colname);
   extractArr.value[index]['expression'] = value;
 }
-function changeExtractColumns(index: number, colList: Recordable[]) {
-  const currentColNames = new Set(extractArr.value[index].columns.map((item: any) => item.name));
-  colList.forEach(item => {
-    if (!currentColNames.has(item.name)) {
-      extractArr.value[index].columns.push(item);
-    }
-  });
-}
+
 //获取transformer的所有参数
 async function getTransformerParams() {
   await calculateMappingResult();
