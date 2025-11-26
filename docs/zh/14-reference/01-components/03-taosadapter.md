@@ -1137,7 +1137,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）                 |
 | ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）                    |
 | ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）                   |
-| cpu_percent               | DOUBLE    |         | taosAdapter 的 CPU 占用百分比（v3.3.6.24及以上 /v3.3.7.7 及以上） |
+| cpu_percent               | DOUBLE    |         | taosAdapter 的 CPU 占用百分比（v3.3.6.24 及以上 /v3.3.7.7 及以上） |
 | endpoint                  | NCHAR     | TAG     | 请求端点                                                |
 
 </details>

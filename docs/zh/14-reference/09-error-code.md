@@ -13,7 +13,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 ### 错误码结构
 
-错误码由 0x 开头的 8 位 16 进制数表示，格式如下:
+错误码由 0x 开头的 8 位 16 进制数表示，格式如下：
 
 错误码 = 分类前缀（前 4 位）+ 具体错误码（后 4 位）
 
@@ -711,7 +711,7 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0x231D | can't create connection with server within                      | 连接失败                                       | 请检查与 taosAdapter 之间的连接情况                                                      |
 | 0x231E | failed to complete the task within the specified time           | 请求处理超时                                   | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况    |
 | 0x2320 | type convert exception                                          | 类型转换错误                                   | 检查是否没有使用正确的类型                                                               |
-| 0x2321 | TDengine TSDB version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine TSDB 版本不匹配，请升级至对应版本。 或者采用 WebSocket 连接方式                 |
+| 0x2321 | TDengine TSDB version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine TSDB 版本不匹配，请升级至对应版本。或者采用 WebSocket 连接方式                 |
 | 0x2322 | resource has been freed                                         | 资源已经释放                                   | 资源已经释放，请确认操作正确                                                             |
 | 0x2323 | BLOB is unsupported on the server                               | 服务端版本低                                   | 服务端不支持 BLOB 类型，需要升级                                                         |
 | 0x2324 | line bind mode is unsupported on the server                     | 服务端版本低                                   | 服务端不支持行绑定模式，需要升级                                                         |

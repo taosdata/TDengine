@@ -39,8 +39,8 @@ Parameter description:
 
 - User: Login TDengine username, default value is' root '.
 - Password: User login password, default value 'taosdata'.
-- database_name: database name。
-- timezone: time zone。
+- database_name: database name.
+- timezone: time zone.
 - HttpConnectTimeout: The connection timeout time, measured in milliseconds, with a default value of 60000.
 - MessageWaitTimeout: The timeout period for a message, measured in milliseconds, with a default value of 60000.
 - UseSSL: Whether SSL is used in the connection.
@@ -134,9 +134,9 @@ Parameter Description
 - TDengineCdcParams.POLL_INTERVAL_MS: Pull data interval, default 500ms.
 - TDengineCdcParams. VALUE_DESERIALIZER: Result set deserialization method, If the received result set type is `RowData` of `Flink`, simply set it to 'RowData'. You can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer`, specify the result set bean, and implement deserialization. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and customize the deserialization method based on the SQL resultSet.
 - TDengineCdcParams.TMQ_BATCH_MODE: This parameter is used to batch push data to downstream operators. If set to True, when creating the `TDengineCdcSource` object, it is necessary to specify the data type as a template form of the `ConsumerRecords` type.
-- TDengineCdcParams.GROUP_ID: Consumer group ID, the same consumer group shares consumption progress。Maximum length: 192.
-- TDengineCdcParams.AUTO_OFFSET_RESET: Initial position of the consumer group subscription （ `earliest` subscribe from the beginning, `latest` subscribe from the latest data, default `latest`）。
-- TDengineCdcParams.ENABLE_AUTO_COMMIT: Whether to enable automatic consumption point submission，true: automatic submission；false：submit based on the `checkpoint` time, default to false.
+- TDengineCdcParams.GROUP_ID: Consumer group ID, the same consumer group shares consumption progress. Maximum length: 192.
+- TDengineCdcParams.AUTO_OFFSET_RESET: Initial position of the consumer group subscription ( `earliest` subscribe from the beginning, `latest` subscribe from the latest data, default `latest`）。
+- TDengineCdcParams.ENABLE_AUTO_COMMIT: Whether to enable automatic consumption point submission, true: automatic submission. false: submit based on the `checkpoint` time, default to false.
 > **Note**：The automatic submission mode of the reader automatically submits data after obtaining it, regardless of whether the downstream operator has processed the data correctly. There is a risk of data loss, and it is mainly used for efficient stateless operator scenarios or scenarios with low data consistency requirements.
 
 - TDengineCdcParams.AUTO_COMMIT_INTERVAL_MS: Time interval for automatically submitting consumption records, in milliseconds, default 5000. This parameter takes effect when `ENABLE_AUTO_COMMIT` is set to true.
@@ -144,7 +144,7 @@ Parameter Description
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. true:  Enable, false:  Not enabled. The default is false.
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Automatic reconnection retry interval, in milliseconds, default value 2000. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT: The default value for automatic reconnection retry is 3, which only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
-- TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS: Timeout after consumer heartbeat is lost, after which rebalance logic is triggered, and upon success, that consumer will be removed (supported from version 3.3.3.0)，Default is 12000, range [6000, 1800000].
+- TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS: Timeout after consumer heartbeat is lost, after which rebalance logic is triggered, and upon success, that consumer will be removed (supported from version 3.3.3.0), Default is 12000, range [6000, 1800000].
 - TDengineCdcParams.TMQ_MAX_POLL_INTERVAL_MS: The longest time interval for consumer poll data fetching, exceeding this time will be considered as the consumer being offline, triggering rebalance logic, and upon success, that consumer will be removed (supported from version 3.3.3.0) Default is 300000, range [1000, INT32_MAX].
 
 #### Use CDC connector

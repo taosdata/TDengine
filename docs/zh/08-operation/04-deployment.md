@@ -352,7 +352,7 @@ docker compose up
 docker compose exec td1 bash
 ```
 
-执行如下命令查看集群状态:
+执行如下命令查看集群状态：
 
 ```shell
 $ taos -s "show dnodes"
