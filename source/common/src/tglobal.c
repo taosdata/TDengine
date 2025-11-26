@@ -724,8 +724,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "maxSQLLength", tsMaxSQLLength, 1024, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
-                                CFG_CATEGORY_LOCAL) != 0);
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxSQLLength", tsMaxSQLLength, 1024 * 1024, 64 * 1024 * 1024, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
