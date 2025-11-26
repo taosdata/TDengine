@@ -234,6 +234,10 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       pNode->outputTsOrder = order;
       break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      if (((SWindowLogicNode*)pNode)->winType == WINDOW_TYPE_INTERVAL && pNode->groupAction != GROUP_ACTION_KEEP) {
+        order = TSDB_ORDER_NONE;
+        return;
+      }
       // Window output ts order default to be asc, and changed when doing sort by primary key optimization.
       // We stop propagate the original order to parents.
       // Use window output ts order instead.
@@ -2815,8 +2819,12 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
       // For interval window, we always apply sortPriKey optimization.
       // For session/event/state window, the output ts order will always be ASC.
       // If sort order is also asc, we apply optimization, otherwise we keep sort node to get correct output order.
-      if (pWindowLogicNode->winType == WINDOW_TYPE_INTERVAL || sortOrder == ORDER_ASC)
-        return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
+      if (pWindowLogicNode->node.groupAction == GROUP_ACTION_KEEP ||
+          (pWindowLogicNode->partType & WINDOW_PART_HAS) == 0) {
+        if (pWindowLogicNode->winType == WINDOW_TYPE_INTERVAL || sortOrder == ORDER_ASC) {
+          return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
+        }
+      }
     }
     case QUERY_NODE_LOGIC_PLAN_AGG:
     case QUERY_NODE_LOGIC_PLAN_PARTITION:

@@ -1725,7 +1725,7 @@ static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStm
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
-  pWindow->node.inputTsOrder = ORDER_ASC;
+  pWindow->node.inputTsOrder = pWindow->winType == WINDOW_TYPE_INTERVAL ? ORDER_UNKNOWN : ORDER_ASC;
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs);
@@ -1809,6 +1809,8 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
   pWindow->pStateExpr = NULL;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
   code = nodesCloneNode(pState->pExpr, &pWindow->pStateExpr);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pWindow);
@@ -1850,6 +1852,8 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
   pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
 
   pWindow->pTspk = NULL;
   code = nodesCloneNode((SNode*)pSession->pCol, &pWindow->pTspk);
@@ -1892,7 +1896,8 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
     nodesDestroyNode((SNode*)pWindow);
     return code;
   }
-  pWindow->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
   pWindow->timeRange = pInterval->timeRange;
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
@@ -1933,6 +1938,9 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
   if (pEvent->pTrueForLimit) {
     pWindow->trueForLimit = ((SValueNode*)pEvent->pTrueForLimit)->datum.i;
   }
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
+
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
@@ -1950,6 +1958,9 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
   pWindow->windowCount = pCount->windowCount;
   pWindow->windowSliding = pCount->windowSliding;
   pWindow->pTspk = NULL;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
+
   PLAN_ERR_JRET(nodesCloneNode(pCount->pCol, &pWindow->pTspk));
   if (pCount->pColList != NULL) {
     PLAN_ERR_JRET(nodesCloneList(pCount->pColList, &pWindow->pColList));
@@ -2017,7 +2028,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   pWindow->node.groupAction = GROUP_ACTION_NONE;
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-  pWindow->isPartTb = 0;
+  pWindow->partType = 0;
   pWindow->pTspk = NULL;
   if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
     SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
@@ -2493,6 +2504,15 @@ static bool isPrimaryKeySort(SNodeList* pOrderByList) {
   return isPrimaryKeyImpl(pExpr);
 }
 
+static void setFirstSortKeyTsCol(SOrderByExprNode* firstSortKey) {
+  SNode* pExpr = firstSortKey->pExpr;
+  if (QUERY_NODE_COLUMN != nodeType(pExpr) || (PRIMARYKEY_TIMESTAMP_COL_ID != ((SColumnNode*)pExpr)->colId)) {
+    return;
+  }
+
+  ((SColumnNode*)pExpr)->isPrimTs = true;
+}
+
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pOrderByList) {
     return TSDB_CODE_SUCCESS;
@@ -2534,7 +2554,9 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code) {
       SNode*            pNode = NULL;
       SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
-      if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
+      setFirstSortKeyTsCol(firstSortKey);
+
+      if (isPrimaryKeyImpl(firstSortKey->pExpr)) pSort->node.outputTsOrder = firstSortKey->order;
       if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
         SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
         int16_t      projIdx = 1;
