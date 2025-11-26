@@ -14,7 +14,6 @@
  */
 
 #include "parTranslater.h"
-#include <bits/stdint-intn.h>
 #include <stdint.h>
 #include "nodes.h"
 #include "parInt.h"
