@@ -1390,7 +1390,8 @@ static int32_t isTimeLineAlignedQuery(STranslateContext* pCxt, SNode* pStmt, boo
     if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
       SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
       SNode*            pOrder = pOrderExpr->pExpr;
-      if (isWindowPrimaryKey(pSelect->pWindow, pOrder)) {
+      // if (isWindowPrimaryKey(pSelect->pWindow, pOrder)) {
+      if (isPrimaryKeyImpl(pOrder)) {
         if (nodeType(pSelect->pWindow) == QUERY_NODE_EVENT_WINDOW && pOrderExpr->order == ORDER_DESC) {
           // event window input only supports asc order
           *pRes = false;
@@ -1424,7 +1425,8 @@ static int32_t isTimeLineAlignedQuery(STranslateContext* pCxt, SNode* pStmt, boo
       if (pSub->pOrderByList != NULL && pSub->pOrderByList->length > 0) {
         SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pSub->pOrderByList, 0);
         SNode*            pOrder = pOrderExpr->pExpr;
-        if (isWindowPrimaryKey(pSelect->pWindow, pOrder)) {
+        // if (isWindowPrimaryKey(pSelect->pWindow, pOrder)) {
+        if (isPrimaryKeyImpl(pOrder)) {
           if (nodeType(pSelect->pWindow) == QUERY_NODE_EVENT_WINDOW && pOrderExpr->order == ORDER_DESC) {
             // event window input only supports asc order
             *pRes = false;
