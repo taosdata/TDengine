@@ -269,6 +269,7 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
   mTrace("topic:%s perform delete action", pTopic->name);
   taosMemoryFreeClear(pTopic->sql);
   taosMemoryFreeClear(pTopic->physicalPlan);
+  if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
   return 0;
 }
 
@@ -360,6 +361,7 @@ static int32_t processAst(SMqTopicObj* topicObj, const char* ast) {
   code = nodesNodeToString(nodesListGetNode(pNodeListNode->pNodeList, 0), false, &topicObj->physicalPlan, NULL);
 
 END:
+  nodesDestroyNode(pAst);
   qDestroyQueryPlan(pPlan);
   PRINT_LOG_END(code);
   return code;
@@ -422,6 +424,9 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 END:
   taosMemoryFreeClear(topicObj.sql);
   taosMemoryFreeClear(topicObj.physicalPlan);
+  if (topicObj.schema.nCols) {
+    taosMemoryFreeClear(topicObj.schema.pSchema);
+  }
   mndTransDrop(pTrans);
   return code;
 }
