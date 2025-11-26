@@ -12,14 +12,16 @@ Apache Flink is an open-source distributed stream batch integrated processing fr
 
 With the help of TDengine's Flink connector, Apache Flink can seamlessly integrate with TDengine Database. It enables efficient and stable reading of massive volumes of data from TDengine Database, based on which comprehensive and in-depth data analysis and processing can be conducted. This fully taps into the potential value of data, providing robust data support and scientific basis for enterprise decision-making, significantly improving the efficiency and quality of data processing, and enhancing enterprises' competitiveness and innovation capabilities in the digital era.
 
-> **Note: This feature is only available in TDengine Enterprise Edition.**
+###### Note
+
+This feature is only available in TDengine Enterprise Edition.
 
 ## Prerequisites
 
 Prepare the following environment:
 
 - TDengine cluster has been deployed and is running normally (both enterprise and community versions are available)
-- TaosAdapter can run normally. 
+- TaosAdapter can run normally.
 - Apache Flink v1.19.0 or above is installed. Please refer to the installation of Apache Flink [Official documents](https://flink.apache.org/)
 
 ## Supported platforms
@@ -65,7 +67,6 @@ The configuration parameters in Properties are as follows:
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT: The default value for automatic reconnection retry is 3, which only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
 - TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: Turn off SSL certificate verification. true:  Enable, false:  Not enabled. The default is false.
 
-
 #### Split by time
 
 Users can split the SQL query into multiple subtasks based on time, entering: start time, end time, split interval, time field name. The system will split and obtain data in parallel according to the set interval (time left closed and right open).
@@ -108,7 +109,7 @@ Example of batch query results:
 ```java
 {{#include docs/examples/flink/source/Main.java:source_batch_test}}
 ```
-</details> 
+</details>
 
 Example of custom data type query result:
 
@@ -117,7 +118,7 @@ Example of custom data type query result:
 ```java
 {{#include docs/examples/flink/source/Main.java:source_custom_type_test}}
 ```
-</details> 
+</details>
 
 - ResultBean is a custom inner class used to define the data type of the Source query results.
 - ResultSourceDeserialization is a custom inner class that inherits `TDengine` RecordDesrialization and implements convert and getProducedType methods.
@@ -137,6 +138,7 @@ Parameter Description
 - TDengineCdcParams.GROUP_ID: Consumer group ID, the same consumer group shares consumption progress. Maximum length: 192.
 - TDengineCdcParams.AUTO_OFFSET_RESET: Initial position of the consumer group subscription ( `earliest` subscribe from the beginning, `latest` subscribe from the latest data, default `latest`）。
 - TDengineCdcParams.ENABLE_AUTO_COMMIT: Whether to enable automatic consumption point submission, true: automatic submission. false: submit based on the `checkpoint` time, default to false.
+
 > **Note**：The automatic submission mode of the reader automatically submits data after obtaining it, regardless of whether the downstream operator has processed the data correctly. There is a risk of data loss, and it is mainly used for efficient stateless operator scenarios or scenarios with low data consistency requirements.
 
 - TDengineCdcParams.AUTO_COMMIT_INTERVAL_MS: Time interval for automatically submitting consumption records, in milliseconds, default 5000. This parameter takes effect when `ENABLE_AUTO_COMMIT` is set to true.
@@ -157,7 +159,7 @@ The subscription result is RowData data type example:
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_source}}
 ```
-</details> 
+</details>
 
 Example of batch query results:
 
@@ -166,7 +168,7 @@ Example of batch query results:
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_batch_source}}
 ```
-</details> 
+</details>
 
 Example of custom data type query result:
 
@@ -175,7 +177,7 @@ Example of custom data type query result:
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_custom_type_test}}
 ```
-</details> 
+</details>
 
 - ResultBean is a custom inner class whose field names and data types correspond one-to-one with column names and data types. This allows the deserialization class corresponding to the value.ddeserializer property to deserialize objects of ResultBean type.
 

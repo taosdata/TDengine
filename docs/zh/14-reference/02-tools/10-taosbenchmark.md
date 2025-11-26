@@ -62,7 +62,7 @@ taosBenchmark -f <json file>
 | -j/--output-json-file \<file>| 结果输出的 JSON 文件的路径 |
 | -T/--thread \<threadNum>     | 插入数据的线程数量，默认为 8  |
 | -B/--interlace-rows \<rowNum>        |启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入 |
-| -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用 |意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
+| -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用，意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
 | -r/--rec-per-req \<rowNum>           | 每次向 TDengine TSDB 请求写入的数据行数，默认值为 30000  |
 | -t/--tables \<tableNum>              | 指定子表的数量，默认为 10000  |
 | -s/--start-timestamp \<NUMBER>      | 每个子表数据开始时间，默认值为 1500000000000 |
@@ -80,7 +80,7 @@ taosBenchmark -f <json file>
 | -N/--normal-table                | 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc、stmt、rest 模式下可以使用 |
 | -M/--random                      | 开关参数，插入数据为生成的随机值。默认值为 false。若配置此参数，则随机生成要插入的数据。对于数值类型的 标签列/数据列，其值为该类型取值范围内的随机值。对于 NCHAR 和 BINARY 类型的 标签列/数据列，其值为指定长度范围内的随机字符串 |
 | -x/--aggr-func                   | 开关参数，指示插入后查询聚合函数。默认值为 false |
-| -y/--answer-yes                  | 开关参数，要求用户在提示后确认才能继续 |默认值为 false。
+| -y/--answer-yes                  | 开关参数，要求用户在提示后确认才能继续，默认值为 false |
 | -O/--disorder \<Percentage>      | 指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据 |
 | -R/--disorder-range \<timeRange> | 指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效|
 | -F/--prepare_rand \<Num>         | 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 |
@@ -90,7 +90,7 @@ taosBenchmark -f <json file>
 | -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine TSDB v3.0+ 有效|
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
-| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。|
+| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式|
 
 ## 配置文件参数
 
@@ -388,27 +388,27 @@ taosBenchmark -f <json file>
 
 ### 数据类型对照表
 
-| #   |   **TDengine TSDB**     | **taosBenchmark**
-| --- | :----------------: | :---------------:
-| 1   |  TIMESTAMP         |    timestamp
-| 2   |  INT               |    int
-| 3   |  INT UNSIGNED      |    uint
-| 4   |  BIGINT            |    bigint
-| 5   |  BIGINT UNSIGNED   |    ubigint
-| 6   |  FLOAT             |    float
-| 7   |  DOUBLE            |    double
-| 8   |  BINARY            |    binary
-| 9   |  SMALLINT          |    smallint
-| 10  |  SMALLINT UNSIGNED |    usmallint
-| 11  |  TINYINT           |    tinyint
-| 12  |  TINYINT UNSIGNED  |    utinyint
-| 13  |  BOOL              |    bool
-| 14  |  NCHAR             |    nchar
-| 15  |  VARCHAR           |    varchar
-| 16  |  VARBINARY         |    varbinary
-| 17  |  GEOMETRY          |    geometry
-| 18  |  JSON              |    json
-| 19  |  DECIMAL           |    decimal
+| #   |   **TDengine TSDB**     | **taosBenchmark** |
+| --- | :----------------: | :---------------: |
+| 1   |  TIMESTAMP         |    timestamp |
+| 2   |  INT               |    int |
+| 3   |  INT UNSIGNED      |    uint |
+| 4   |  BIGINT            |    bigint |
+| 5   |  BIGINT UNSIGNED   |    ubigint |
+| 6   |  FLOAT             |    float |
+| 7   |  DOUBLE            |    double |
+| 8   |  BINARY            |    binary |
+| 9   |  SMALLINT          |    smallint |
+| 10  |  SMALLINT UNSIGNED |    usmallint |
+| 11  |  TINYINT           |    tinyint |
+| 12  |  TINYINT UNSIGNED  |    utinyint |
+| 13  |  BOOL              |    bool |
+| 14  |  NCHAR             |    nchar |
+| 15  |  VARCHAR           |    varchar |
+| 16  |  VARBINARY         |    varbinary |
+| 17  |  GEOMETRY          |    geometry |
+| 18  |  JSON              |    json |
+| 19  |  DECIMAL           |    decimal |
 
 注意：taosBenchmark 配置文件中数据类型必须小写方可识别。
 

@@ -324,11 +324,11 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 
 | #   |   **列名** | **数据类型** | **说明** |
 |:----|:-----------|:------------|:--------|
-| 1   | user_name    | VARCHAR(24)       | 用户名
-| 2   | privilege    | VARCHAR(10)       | 权限描述
-| 3   | db_name      | VARCHAR(65)       | 数据库名称
-| 4   | table_name   | VARCHAR(193)      | 表名称
-| 5   | condition    | VARCHAR(49152)    | 子表权限过滤条件
+| 1   | user_name    | VARCHAR(24)       | 用户名 |
+| 2   | privilege    | VARCHAR(10)       | 权限描述 |
+| 3   | db_name      | VARCHAR(65)       | 数据库名称 |
+| 4   | table_name   | VARCHAR(193)      | 表名称 |
+| 5   | condition    | VARCHAR(49152)    | 子表权限过滤条件 |
 
 ## INS_DISK_USAGE
 

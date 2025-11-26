@@ -112,30 +112,30 @@ root hard stack=65536
 
 在工具所在节点以 local 模式执行安装前预配置
 
-```
+```shell
 ./taospreset 
 ```
 
 以 SSH 模式在所有节点执行安装前预配置
 
-```
+```shell
 ./taospreset -m ssh
 ```
 
 指定配置文件并以 SSH 模式在所有节点执行安装前预配置
 
-```
+```shell
 ./taospreset -m ssh -f /path_to_file/preset.cfg
 ```
 
 以 SSH 模式在所有节点执行安装前预配置并关闭 Kylin Security 服务
 
-```
+```shell
 ./taospreset -m ssh -d
 ```
 
 以 SSH 模式在所有节点执行安装前预配置，开启日志 debug 级别
 
-```
+```shell
 ./taospreset -m ssh -l debug
 ```

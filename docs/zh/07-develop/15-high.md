@@ -18,7 +18,7 @@ import TabItem from "@theme/TabItem";
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
-### JDBC 高效写入特性概述
+##### JDBC 高效写入特性概述
 
 JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写入特性。JDBC 驱动高效写入特性有如下特点：
 
@@ -29,18 +29,18 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
   
 下面详细介绍其使用方法。本节内容假设用户已经熟悉 JDBC 标准参数绑定接口（可参考 [参数绑定](https://docs.oracle.com/javase/8/docs/api/java/sql/PreparedStatement.html)）。
 
-### 如何开启高效写入特性
+##### 如何开启高效写入特性
 
 对于 JDBC 连接器来说，有两种方式开启高效写入特性：  
 
 - 在连接属性上设置 PROPERTY_KEY_ASYNC_WRITE 为 `stmt` 或者 JDBC URL 中增加 `asyncWrite=stmt` 都可以在此连接上开启高效写入。在连接上开启高效写入特性后，后续所有创建的 `PreparedStatement` 都会使用高效写入模式。
 - 在参数绑定创建 `PreparedStatement` 所用的 SQL 中，使用 `ASYNC_INSERT INTO` 而不是 `INSERT INTO`，则可以在这个参数绑定对象上开启高效写入。
 
-### 如何检查写入是否成功
+##### 如何检查写入是否成功
 
 客户应用使用 JDBC 标准接口的 `addBatch` 添加一条记录，用 `executeBatch` 提交所有添加记录。高效写入模式下，可以使用 **executeUpdate** 方法来同步获取写入成功条数，如果有数据写入失败，此时调用 `executeUpdate` 会捕获到异常。
 
-### 高效写入重要配置参数
+##### 高效写入重要配置参数
 
 - TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM：高效写入模式下，后台写入线程数。仅在使用 WebSocket 连接时生效。默认值为 10。
 - TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW：高效写入模式下，写入数据的批大小，单位是行。仅在使用 WebSocket 连接时生效。默认值为 1000。
@@ -52,7 +52,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 其他配置参数请参考 [高效写入配置](../../reference/connector/java/#properties)。
 
-**五、JDBC 高效写入使用说明**
+##### JDBC 高效写入使用说明
 
 下面是一个简单的使用 JDBC 高效写入的例子，说明了高效写入相关的配置和接口。
 
@@ -85,7 +85,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
-#### 程序清单
+##### 程序清单
 
 | 类名               | 功能说明                                                                                  |
 | ------------------ | ----------------------------------------------------------------------------------------- |
@@ -233,16 +233,16 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 </details>
 
-**执行步骤**
+##### 执行步骤
 
 <details>
 <summary>执行 Java 示例程序</summary>
 
-**本地集成开发环境执行示例程序**
+##### 本地集成开发环境执行示例程序
 
 1. clone TDengine 仓库
 
-   ```
+   ```bash
    git clone git@github.com:taosdata/TDengine.git --depth 1
    ```
 
@@ -252,7 +252,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 5. 指定命令行参数，如 `-r 3 -w 3 -b 100 -c 1000 -s 1000 -R 100`
 6. 运行类 `com.taos.example.highvolume.FastWriteExample`。
 
-**远程服务器上执行示例程序**
+##### 远程服务器上执行示例程序
 
 若要在服务器上执行示例程序，可按照下面的步骤操作：
 

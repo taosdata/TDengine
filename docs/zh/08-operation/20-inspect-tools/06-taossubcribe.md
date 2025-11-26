@@ -100,12 +100,12 @@ t1 = test_topic1
 
 消费部署在 192.168.0.1 服务器上的订阅服务
 
-```
+```shell
 ./taossubscribe local -i 192.168.0.1 -p 6041 -s
 ```
 
 消费部署在 192.168.0.1 云服务上的订阅服务
 
-```
+```shell
 ./taossubscribe local -i 192.168.0.1 -t [token_character] -s
 ```

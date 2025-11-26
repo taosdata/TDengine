@@ -209,7 +209,7 @@ taosAdapter 通过参数 `httpCodeServerError` 来控制当底层 C 接口返回
 
 该配置只会影响 **RESTful 接口**。
 
-**参数说明**
+###### 参数说明
 
 - **`httpCodeServerError`**：
   - **设置为 `true` 时**：根据 C 接口返回的错误码映射为相应的 HTTP 状态码。
@@ -278,7 +278,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - node_exporter 数据写入
 - OpenMetrics 数据写入
 
-**参数说明**
+###### 参数说明
 
 - **`smlAutoCreateDB`**：
   - **设置为 `true` 时**：在 schemaless 协议写入时，如果目标数据库不存在，taosAdapter 会自动创建该数据库。
@@ -293,7 +293,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 - RESTful 接口
 - Prometheus remote_read 接口
 
-**参数说明**
+###### 参数说明
 
 - **`restfulRowLimit`**：
   - **设置为正整数时**：接口返回的结果条数将不超过该值。
@@ -699,7 +699,7 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **RESTful 接口**
 - **WebSocket SQL 执行接口**
 
-**参数说明**
+###### 参数说明
 
 - **`request.queryLimitEnable`**
   - **设置为 `true` 时**：启用查询请求并发限制功能。
@@ -715,7 +715,7 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **`request.excludeQueryLimitSqlRegex`**
   - 配置不受并发限制影响的 SQL 正则表达式列表。
 
-**针对每个用户可单独设置**
+###### 针对每个用户可单独设置
 
 仅支持配置文件进行设置：
 
@@ -726,7 +726,7 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **`request.users.<username>.queryMaxWait`**
   - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，优先级高于默认设置。
 
-**示例说明**
+###### 示例说明
 
 ```toml
 [request]

@@ -13,22 +13,22 @@ import TabItem from "@theme/TabItem";
 - 预编译：当使用参数绑定时，SQL 语句可以被预编译并缓存，后续使用不同的参数值执行时，可以直接使用预编译的版本，提高执行效率。  
 - 减少网络开销：参数绑定还可以减少发送到数据库的数据量，因为只需要发送参数值而不是完整的 SQL 语句，特别是在执行大量相似的插入或更新操作时，这种差异尤为明显。
 
- 参数绑定支持多种语言 API [连接器](../../reference/connector/)
+参数绑定支持多种语言 API [连接器](../../reference/connector/)，
 
-**Tips: 数据写入推荐使用参数绑定方式**
+数据写入推荐使用参数绑定方式,但是我们只推荐使用下面两种形式的 SQL 进行参数绑定写入：
 
-   :::note
-   我们只推荐使用下面两种形式的 SQL 进行参数绑定写入：
+一、确定子表存在，不带标签可以提升写入性能（如果子表不存在，该行为和 taos shell 不一致，taos shell 会以 tag 为 NULL 自动建表，stmt 会 报错，防止因错误设置表名而意外建表）
 
-    ```sql
-    一、确定子表存在，不带标签可以提升写入性能（如果子表不存在，该行为和 taos shell 不一致，taos shell 会以 tag 为 NULL 自动建表，stmt 会 报错，防止因错误设置表名而意外建表）
-       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)  
-    二、子表不存在，指定标签自动建表
-       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
-       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
-    ```
+```sql
+   1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
+```
 
-   :::
+二、子表不存在，指定标签自动建表
+
+```sql
+   1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+   2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+```
 
 下面我们继续以智能电表为例，展示各语言连接器使用参数绑定高效写入的功能：
 

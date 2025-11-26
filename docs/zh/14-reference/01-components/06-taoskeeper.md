@@ -158,13 +158,13 @@ systemctl status taoskeeper
 
 如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
 
-```
+```bash
 Active: active (running)
 ```
 
 如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
 
-```
+```bash
 Active: inactive (dead)
 ```
 
@@ -214,13 +214,13 @@ Active: inactive (dead)
 
 可以访问 taosKeeper 的 `check_health` 接口来判断服务是否存活，如果服务正常则会返回 HTTP 200 状态码：
 
-```
+```bash
 curl -i http://127.0.0.1:6043/check_health
 ```
 
 返回结果：
 
-```
+```bash
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
 Date: Wed, 07 Aug 2024 06:19:50 GMT
@@ -237,7 +237,7 @@ taosKeeper 作为 TDengine TSDB 监控指标的导出工具，可以将 TDengine
 
 可以查看 `log` 库下的超级表，每个超级表都对应一组监控指标，具体指标不再赘述。
 
-```shell
+```sql
 taos> use log;
 Database changed.
 
@@ -264,7 +264,7 @@ Query OK, 14 row(s) in set (0.006542s)
 
 可以查看一个超级表的最近一条上报记录，如：
 
-```shell
+```sql
 taos> select last_row(*) from taosd_dnodes_info;
       last_row(_ts)      |   last_row(disk_engine)   |  last_row(system_net_in)  |   last_row(vnodes_num)    | last_row(system_net_out)  |     last_row(uptime)      |    last_row(has_mnode)    |  last_row(io_read_disk)   | last_row(error_log_count) |     last_row(io_read)     |    last_row(cpu_cores)    |    last_row(has_qnode)    |    last_row(has_snode)    |   last_row(disk_total)    |   last_row(mem_engine)    | last_row(info_log_count)  |   last_row(cpu_engine)    |  last_row(io_write_disk)  | last_row(debug_log_count) |    last_row(disk_used)    |    last_row(mem_total)    |    last_row(io_write)     |     last_row(masters)     |   last_row(cpu_system)    | last_row(trace_log_count) |    last_row(mem_free)     |
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
@@ -284,13 +284,13 @@ taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数
 
 下面通过 `curl` 命令展示 `/metrics` 接口返回的数据格式：
 
-```shell
+```bash
 curl http://127.0.0.1:6043/metrics
 ```
 
 部分结果集：
 
-```shell
+```bash
 # HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="554014120921134497"} 8
@@ -540,7 +540,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
 
-```
+```json
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
 scrape_configs:

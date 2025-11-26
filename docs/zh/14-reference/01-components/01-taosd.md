@@ -620,7 +620,7 @@ taosd 命令行参数如下：
 
 在 Linux/macOS 中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
 
-```
+```bash
 timezone UTC-8
 timezone GMT-8
 timezone Asia/Shanghai
@@ -658,13 +658,13 @@ SELECT count(*) FROM table_name WHERE TS<1554984068000;
 
 在 Linux/macOS 中，locale 信息包含了字符编码信息，因此正确设置了 Linux/macOS 的 locale 以后可以不用再单独设置 charset。例如：
 
-```
+```bash
 locale zh_CN.UTF-8
 ```
 
 在 Windows 系统中，无法从 locale 获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos 默认设置为字符编码为 CP936。其等效在配置文件中添加如下配置：
 
-```
+```bash
 charset CP936
 ```
 
@@ -672,14 +672,14 @@ charset CP936
 
 在 Linux/macOS 中，如果用户同时设置了 locale 和字符集编码 charset，并且 locale 和 charset 的不一致，后设置的值将覆盖前面设置的值。
 
-```
+```bash
 locale zh_CN.UTF-8
 charset GBK
 ```
 
 则 charset 的有效值是 GBK。
 
-```
+```bash
 charset GBK
 locale zh_CN.UTF-8
 ```
