@@ -561,11 +561,11 @@ Query OK, 10 row(s) in set (0.062794s)
 | 今年 | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
 
 ### 说明
+
 1. 每个时间范围区间都是左闭右开。
 2. 写法不唯一，这里作为示例仅供参考使用。
 3. 这里以周一作为一周的开始，非周一开始的场景需调整。
 4. 这里 TDengine 示例的时间戳是以毫秒为时间单位。
-
 
 ## 时序数据特有函数
 
@@ -612,6 +612,7 @@ TDengine TSDB 的嵌套查询遵循以下规则：
 ## UNION 子句
 
 TDengine 支持 UNION [ALL] 操作符，用于合并多个 SELECT 子句的查询结果。使用该操作符时，多个 SELECT 子句需满足以下两个条件：
+
 1. 各 SELECT 子句返回结果的列数必须一致；
 2. 对应位置的列需保持相同的顺序，且数据类型必须相同或兼容。
 
