@@ -427,10 +427,10 @@ typedef struct {
 
   char    acct[TSDB_USER_LEN];
   char    totpsecret[TSDB_TOTP_SECRET_LEN];
-  int64_t createdTime;
-  int64_t updateTime;
-  int64_t lastLoginTime;
-  int64_t lastFailedLoginTime;
+  int64_t createdTime;          // in milliseconds
+  int64_t updateTime;           // in milliseconds
+  int64_t lastLoginTime;        // in seconds
+  int64_t lastFailedLoginTime;  // in seconds
   int32_t failedLoginCount;
   int8_t  superUser;
   int8_t  sysInfo;
@@ -445,17 +445,17 @@ typedef struct {
   };
 
   int32_t sessionPerUser;
-  int32_t connectTime;
-  int32_t connectIdleTime;
+  int32_t connectTime;      // unit is second
+  int32_t connectIdleTime;  // unit is second
   int32_t callPerSession;
   int32_t vnodePerCall;
   int32_t failedLoginAttempts;
-  int32_t passwordLifeTime;
-  int32_t passwordReuseTime;
+  int32_t passwordLifeTime;   // unit is second
+  int32_t passwordReuseTime;  // unit is second
   int32_t passwordReuseMax;
-  int32_t passwordLockTime;
-  int32_t passwordGraceTime;
-  int32_t inactiveAccountTime;
+  int32_t passwordLockTime;     // unit is second
+  int32_t passwordGraceTime;    // unit is second
+  int32_t inactiveAccountTime;  // unit is second
   int32_t allowTokenNum;
 
   int32_t       acctId;

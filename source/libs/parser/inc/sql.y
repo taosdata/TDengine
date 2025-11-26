@@ -135,7 +135,7 @@ user_option(A) ::= CONNECT_TIME option_value(B).                                
     } else if (B.type == TK_UNLIMITED) {
       A->connectTime = -1;
     } else {
-      A->connectTime = taosStr2Int32(B.z, NULL, 10);
+      A->connectTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
     }
     A->hasConnectTime = true;
   }
@@ -146,7 +146,7 @@ user_option(A) ::= CONNECT_IDLE_TIME option_value(B).                           
     } else if (B.type == TK_UNLIMITED) {
       A->connectIdleTime = -1;
     } else {
-      A->connectIdleTime = taosStr2Int32(B.z, NULL, 10);
+      A->connectIdleTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
     }
     A->hasConnectIdleTime = true;
   }
@@ -192,7 +192,7 @@ user_option(A) ::= PASSWORD_LIFE_TIME option_value(B).                          
     } else if (B.type == TK_UNLIMITED) {
       A->passwordLifeTime = -1;
     } else {
-      A->passwordLifeTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordLifeTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasPasswordLifeTime = true;
   }
@@ -203,7 +203,7 @@ user_option(A) ::= PASSWORD_REUSE_TIME option_value(B).                         
     } else if (B.type == TK_UNLIMITED) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_TIME");
     } else {
-      A->passwordReuseTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordReuseTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasPasswordReuseTime = true;
   }
@@ -225,7 +225,7 @@ user_option(A) ::= PASSWORD_LOCK_TIME option_value(B).                          
     } else if (B.type == TK_UNLIMITED) {
       A->passwordLockTime = -1;
     } else {
-      A->passwordLockTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordLockTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
     }
     A->hasPasswordLockTime = true;
   }
@@ -236,7 +236,7 @@ user_option(A) ::= PASSWORD_GRACE_TIME option_value(B).                         
     } else if (B.type == TK_UNLIMITED) {
       A->passwordGraceTime = -1;
     } else {
-      A->passwordGraceTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordGraceTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasPasswordGraceTime = true;
   }
@@ -247,7 +247,7 @@ user_option(A) ::= INACTIVE_ACCOUNT_TIME option_value(B).                       
     } else if (B.type == TK_UNLIMITED) {
       A->inactiveAccountTime = -1;
     } else {
-      A->inactiveAccountTime = taosStr2Int32(B.z, NULL, 10);
+      A->inactiveAccountTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasInactiveAccountTime = true;
   }

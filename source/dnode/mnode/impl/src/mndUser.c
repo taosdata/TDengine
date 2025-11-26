@@ -966,7 +966,7 @@ static void dropOldPasswords(SUserObj *pUser) {
   int32_t index = reuseMax;
   while(index < pUser->numOfPasswords) {
     SUserPassword *pPass = &pUser->passwords[index];
-    if (now - pPass->setTime >= (pUser->passwordReuseTime * 86400)) {
+    if (now - pPass->setTime >= pUser->passwordReuseTime) {
       break;
     }
     index++;
@@ -1002,7 +1002,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.lastLoginTime = userObj.createdTime;
+  userObj.lastLoginTime = userObj.createdTime / 1000;
   userObj.lastFailedLoginTime = 0;
   userObj.failedLoginCount = 0;
   userObj.sysInfo = 1;
@@ -2184,7 +2184,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.lastLoginTime = userObj.createdTime;
+  userObj.lastLoginTime = userObj.createdTime / 1000;
   userObj.lastFailedLoginTime = 0;
   userObj.failedLoginCount = 0;
   userObj.superUser = 0;  // pCreate->superUser;

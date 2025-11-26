@@ -329,7 +329,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   int64_t now = taosGetTimestampSec();
   if (pUser->passwordLifeTime > 0 && pUser->passwordGraceTime >= 0) {
     int64_t lifeTime = now - pUser->passwords[0].setTime;
-    int64_t maxLifeTime = (pUser->passwordLifeTime + pUser->passwordGraceTime) * 86400;
+    int64_t maxLifeTime = pUser->passwordLifeTime + pUser->passwordGraceTime;
     if (lifeTime >= maxLifeTime) {
       mGError("user:%s, failed to login from %s since password expired", pReq->info.conn.user, ip);
       code = TSDB_CODE_MND_USER_PASSWORD_EXPIRED;
@@ -343,14 +343,14 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (pUser->inactiveAccountTime >= 0 && (now - pUser->lastLoginTime >= pUser->inactiveAccountTime * 86400)) {
+  if (pUser->inactiveAccountTime >= 0 && (now - pUser->lastLoginTime >= pUser->inactiveAccountTime)) {
     mGError("user:%s, failed to login from %s since inactive account", pReq->info.conn.user, ip);
     code = TSDB_CODE_MND_USER_DISABLED;
     goto _OVER;
   }
 
   if (pUser->failedLoginAttempts >= 0 & pUser->failedLoginCount >= pUser->failedLoginAttempts) {
-    if((now - pUser->lastFailedLoginTime) < (pUser->passwordLockTime * 60)) {
+    if(now - pUser->lastFailedLoginTime < pUser->passwordLockTime) {
       mGError("user:%s, failed to login from %s since too many login failures", pReq->info.conn.user, ip);
       code = TSDB_CODE_MND_USER_DISABLED;
       goto _OVER;
