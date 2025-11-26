@@ -496,12 +496,6 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
     goto END;
   }
   (void)memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
-  pSubNew->qmsg = taosStrdup(pSub->qmsg);
-  if (pSubNew->qmsg == NULL) {
-    code = terrno;
-    goto END;
-  }
-
 END:
   return code;
 }
@@ -512,7 +506,6 @@ void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
   pSub->consumerHash = NULL;
   taosArrayDestroy(pSub->unassignedVgs);
   pSub->unassignedVgs = NULL;
-  taosMemoryFreeClear(pSub->qmsg);
   taosArrayDestroy(pSub->offsetRows);
   pSub->offsetRows = NULL;
 }
@@ -548,7 +541,6 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   tlen += taosEncodeString(buf, pSub->dbName);
 
   tlen += tEncodeOffRows(buf, pSub->offsetRows);
-  tlen += taosEncodeString(buf, pSub->qmsg);
   return tlen;
 }
 
@@ -594,9 +586,6 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 
   if (sver > 1) {
     buf = tDecodeOffRows(buf, &pSub->offsetRows, sver);
-    buf = taosDecodeString(buf, &pSub->qmsg);
-  } else {
-    pSub->qmsg = taosStrdup("");
   }
   return (void *)buf;
 }

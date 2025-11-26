@@ -109,7 +109,8 @@ static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode
       if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
         code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
         goto END;
-      } else if (pTopic->ntbUid == 0 && pTopic->ctbStbUid == 0) {
+      } 
+      if (pTopic->stbName[0] != 0) {
         SDbObj *pDb = mndAcquireDb(pMnode, pTopic->db);
         if (pDb == NULL) {
           code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -280,114 +281,75 @@ END:
   return code;
 }
 
+static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SMqSubscribeObj *pSub = NULL;
+  SMqSubTopicEp topicEp = {0};
+  char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
+  PRINT_LOG_START
+  (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", pConsumer->cgroup, TMQ_SEPARATOR, topic);
+  if(mndAcquireSubscribeByKey(pMnode, key, &pSub) != 0) {
+    mWarn("%s failed to acquire subscribe by key:%s", __func__, key);
+    return code;
+  }
+  taosRLockLatch(&pSub->lock);
+  tstrncpy(topicEp.topic, topic, TSDB_TOPIC_FNAME_LEN);
+
+  // 2.2 iterate all vg assigned to the consumer of that topic
+  SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
+  MND_TMQ_NULL_CHECK(pConsumerEp);
+  int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
+  topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
+  MND_TMQ_NULL_CHECK(topicEp.vgs);
+
+  for (int32_t j = 0; j < vgNum; j++) {
+    SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, j);
+    if (pVgEp == NULL) {
+      continue;
+    }
+    SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+    if (pVgroup != NULL) {
+      pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+      mndReleaseVgroup(pMnode, pVgroup);
+    }
+    SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
+    MND_TMQ_NULL_CHECK(taosArrayPush(topicEp.vgs, &vgEp));
+  }
+  MND_TMQ_NULL_CHECK(taosArrayPush(rsp->topics, &topicEp));
+  topicEp.vgs = NULL;
+
+END:
+  taosArrayDestroy(topicEp.vgs);
+  taosRUnLockLatch(&pSub->lock);
+  mndReleaseSubscribe(pMnode, pSub);
+  PRINT_LOG_END(code)
+  return code;
+}
+
 static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t epoch, SMqAskEpRsp *rsp){
   if (pMnode == NULL || pConsumer == NULL || rsp == NULL){
     return TSDB_CODE_INVALID_PARA;
   }
+  int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   taosRLockLatch(&pConsumer->lock);
 
   int32_t numOfTopics = taosArrayGetSize(pConsumer->currentTopics);
-
   rsp->topics = taosArrayInit(numOfTopics, sizeof(SMqSubTopicEp));
-  if (rsp->topics == NULL) {
-    taosRUnLockLatch(&pConsumer->lock);
-    return terrno;
-  }
+  MND_TMQ_NULL_CHECK(rsp->topics);
 
   // handle all topics subscribed by this consumer
   for (int32_t i = 0; i < numOfTopics; i++) {
     char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    SMqSubscribeObj *pSub = NULL;
-    char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
-    (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", pConsumer->cgroup, TMQ_SEPARATOR, topic);
-    int32_t code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
-    if (code != 0) {
-      continue;
-    }
-    taosRLockLatch(&pSub->lock);
-
-    SMqSubTopicEp topicEp = {0};
-    tstrncpy(topicEp.topic, topic, TSDB_TOPIC_FNAME_LEN);
-
-    // 2.1 fetch topic schema
-    SMqTopicObj *pTopic = NULL;
-    code = mndAcquireTopic(pMnode, topic, &pTopic);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      continue;
-    }
-    taosRLockLatch(&pTopic->lock);
-    tstrncpy(topicEp.db, pTopic->db, TSDB_DB_FNAME_LEN);
-    topicEp.schema.nCols = pTopic->schema.nCols;
-    if (topicEp.schema.nCols) {
-      topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));
-      if (topicEp.schema.pSchema == NULL) {
-        taosRUnLockLatch(&pTopic->lock);
-        taosRUnLockLatch(&pSub->lock);
-        mndReleaseSubscribe(pMnode, pSub);
-        mndReleaseTopic(pMnode, pTopic);
-        return terrno;
-      }
-      (void)memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
-    }
-    taosRUnLockLatch(&pTopic->lock);
-    mndReleaseTopic(pMnode, pTopic);
-
-    // 2.2 iterate all vg assigned to the consumer of that topic
-    SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
-    if (pConsumerEp == NULL) {
-      taosMemoryFreeClear(topicEp.schema.pSchema);
-      taosRUnLockLatch(&pConsumer->lock);
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
-    topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
-    if (topicEp.vgs == NULL) {
-      taosMemoryFreeClear(topicEp.schema.pSchema);
-      taosRUnLockLatch(&pConsumer->lock);
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      return terrno;
-    }
-
-    for (int32_t j = 0; j < vgNum; j++) {
-      SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, j);
-      if (pVgEp == NULL) {
-        continue;
-      }
-      if (epoch == -1) {
-        SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
-        if (pVgroup) {
-          pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
-          mndReleaseVgroup(pMnode, pVgroup);
-        }
-      }
-      SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
-      if (taosArrayPush(topicEp.vgs, &vgEp) == NULL) {
-        taosMemoryFreeClear(topicEp.schema.pSchema);
-        taosArrayDestroy(topicEp.vgs);
-        taosRUnLockLatch(&pConsumer->lock);
-        taosRUnLockLatch(&pSub->lock);
-        mndReleaseSubscribe(pMnode, pSub);
-        return terrno;
-      }
-    }
-    if (taosArrayPush(rsp->topics, &topicEp) == NULL) {
-      taosMemoryFreeClear(topicEp.schema.pSchema);
-      taosArrayDestroy(topicEp.vgs);
-      taosRUnLockLatch(&pConsumer->lock);
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      return terrno;
-    }
-    taosRUnLockLatch(&pSub->lock);
-    mndReleaseSubscribe(pMnode, pSub);
+    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp));
   }
+
+END:
   taosRUnLockLatch(&pConsumer->lock);
-  return 0;
+  PRINT_LOG_END(code)
+  return code;
 }
 
 static int32_t buildAskEpRsp(SRpcMsg *pMsg, SMqAskEpRsp *rsp, int32_t serverEpoch, int64_t consumerId){

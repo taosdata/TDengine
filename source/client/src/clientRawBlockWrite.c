@@ -2201,10 +2201,6 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) {
     RAW_RETURN_CHECK(smlInitHandle(&pQuery));
     uDebug(LOG_ID_TAG " write raw meta data block num:%d", LOG_ID_VALUE, rspObj.dataRsp.blockNum);
     while (++rspObj.resIter < rspObj.dataRsp.blockNum) {
-      if (!rspObj.dataRsp.withSchema) {
-        goto end;
-      }
-
       const char* tbName = (const char*)taosArrayGetP(rspObj.dataRsp.blockTbName, rspObj.resIter);
       RAW_NULL_CHECK(tbName);
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);
@@ -2284,10 +2280,6 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, uint32_t dataLen)
     RAW_RETURN_CHECK(smlInitHandle(&pQuery));
     uDebug(LOG_ID_TAG " write raw meta data block num:%d", LOG_ID_VALUE, rspObj.dataRsp.blockNum);
     while (++rspObj.resIter < rspObj.dataRsp.blockNum) {
-      if (!rspObj.dataRsp.withSchema) {
-        goto end;
-      }
-
       const char* tbName = (const char*)taosArrayGetP(rspObj.dataRsp.blockTbName, rspObj.resIter);
       RAW_NULL_CHECK(tbName);
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);

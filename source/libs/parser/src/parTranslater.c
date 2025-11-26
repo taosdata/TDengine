@@ -12853,12 +12853,18 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
     if (TSDB_CODE_SUCCESS == code) (void)tNameGetFullDbName(&name, pReq->subDbName);
   } else {
     pReq->subType = TOPIC_SUB_TYPE__COLUMN;
-    char* dbName = ((SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable))->table.dbName;
+    SRealTableNode* realTable = (SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable);
+    char* dbName = realTable->table.dbName;
     code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, dbName, strlen(dbName));
     if (TSDB_CODE_SUCCESS == code) {
       (void)tNameGetFullDbName(&name, pReq->subDbName);
       pCxt->pParseCxt->topicQuery = true;
       code = translateQuery(pCxt, pStmt->pQuery);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (realTable->pMeta->tableType == TSDB_SUPER_TABLE){
+        tstrncpy(pReq->subStbName, realTable->table.tableName, TSDB_TABLE_NAME_LEN);
+      }
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = checkTopicQuery(pCxt, (SSelectStmt*)pStmt->pQuery);

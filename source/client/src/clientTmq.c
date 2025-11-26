@@ -186,7 +186,6 @@ typedef struct {
   char           topicName[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   SArray*        vgs;  // SArray<SMqClientVg>
-  SSchemaWrapper schema;
   int8_t         noPrivilege;
 } SMqClientTopic;
 
@@ -1250,7 +1249,6 @@ static void freeClientTopic(void* param) {
     return;
   }
   SMqClientTopic* pTopic = param;
-  taosMemoryFreeClear(pTopic->schema.pSchema);
   taosArrayDestroyEx(pTopic->vgs, freeClientVg);
 }
 
@@ -1259,9 +1257,6 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
   if (pTopic == NULL || pTopicEp == NULL || pVgOffsetHashMap == NULL || tmq == NULL) {
     return;
   }
-  pTopic->schema = pTopicEp->schema;
-  pTopicEp->schema.nCols = 0;
-  pTopicEp->schema.pSchema = NULL;
 
   char    vgKey[TSDB_TOPIC_FNAME_LEN + 22] = {0};
   int32_t vgNumGet = taosArrayGetSize(pTopicEp->vgs);
@@ -2263,15 +2258,6 @@ static void tmqBuildRspFromWrapperInner(SMqPollRspWrapper* pWrapper, SMqClientVg
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
 
   SMqDataRsp* pDataRsp = &pRspObj->dataRsp;
-  bool needTransformSchema = !pDataRsp->withSchema;
-  if (!pDataRsp->withSchema) {  // withSchema is false if subscribe subquery, true if subscribe db or stable
-    pDataRsp->withSchema = true;
-    pDataRsp->blockSchema = taosArrayInit(pDataRsp->blockNum, sizeof(void*));
-    if (pDataRsp->blockSchema == NULL) {
-      tqErrorC("failed to allocate memory for blockSchema");
-      return;
-    }
-  }
   // extract the rows in this data packet
   for (int32_t i = 0; i < pDataRsp->blockNum; ++i) {
     void*   pRetrieve = taosArrayGetP(pDataRsp->blockData, i);
@@ -2283,15 +2269,6 @@ static void tmqBuildRspFromWrapperInner(SMqPollRspWrapper* pWrapper, SMqClientVg
     pVg->numOfRows += rows;
     (*numOfRows) += rows;
     changeByteEndian(rawData);
-    if (needTransformSchema) {  // withSchema is false if subscribe subquery, true if subscribe db or stable
-      SSchemaWrapper* schema = tCloneSSchemaWrapper(&pWrapper->topicHandle->schema);
-      if (schema) {
-        if (taosArrayPush(pDataRsp->blockSchema, &schema) == NULL) {
-          tqErrorC("failed to push schema into blockSchema");
-          continue;
-        }
-      }
-    }
   }
 }
 
@@ -3095,14 +3072,11 @@ int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pRes
 
   pRspObj->resIter++;
   if (pRspObj->resIter < data->blockNum) {
-    if (data->withSchema) {
-      doFreeReqResultInfo(&pRspObj->resInfo);
-      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(data->blockSchema, pRspObj->resIter);
-      if (pSW) {
-        TAOS_CHECK_RETURN(setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols, NULL, false));
-      }
+    doFreeReqResultInfo(&pRspObj->resInfo);
+    SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(data->blockSchema, pRspObj->resIter);
+    if (pSW) {
+      TAOS_CHECK_RETURN(setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols, NULL, false));
     }
-
     void*   pRetrieve = taosArrayGetP(data->blockData, pRspObj->resIter);
     void*   rawData = NULL;
     int64_t rows = 0;

@@ -36,6 +36,7 @@ void tqDestroyTqHandle(void* data) {
 
   if (pData->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     taosMemoryFreeClear(pData->execHandle.execCol.qmsg);
+    taosMemoryFreeClear(pData->execHandle.execCol.pSW.pSchema);
   } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     tqReaderClose(pData->execHandle.pTqReader);
     walCloseReader(pData->pWalReader);
@@ -104,12 +105,6 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
     return terrno;
   }
 
-  pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pTq->pCheckInfo == NULL) {
-    return terrno;
-  }
-  taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
-
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   if (pTq->pOffset == NULL) {
     return terrno;
@@ -152,7 +147,6 @@ void tqClose(STQ* pTq) {
 
   taosHashCleanup(pTq->pHandle);
   taosHashCleanup(pTq->pPushMgr);
-  taosHashCleanup(pTq->pCheckInfo);
   taosHashCleanup(pTq->pOffset);
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
@@ -309,39 +303,6 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
 end:
   rsp.code = code;
   tmsgSendRsp(&rsp);
-  return 0;
-}
-
-int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
-  if (pTq == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  void* pIter = NULL;
-
-  while (1) {
-    pIter = taosHashIterate(pTq->pCheckInfo, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    STqCheckInfo* pCheck = (STqCheckInfo*)pIter;
-
-    if (pCheck->ntbUid == tbUid) {
-      int32_t sz = taosArrayGetSize(pCheck->colIdList);
-      for (int32_t i = 0; i < sz; i++) {
-        int16_t* pForbidColId = taosArrayGet(pCheck->colIdList, i);
-        if (pForbidColId == NULL) {
-          continue;
-        }
-
-        if ((*pForbidColId) == colId) {
-          taosHashCancelIterate(pTq->pCheckInfo, pIter);
-          return -1;
-        }
-      }
-    }
-  }
-
   return 0;
 }
 
@@ -654,40 +615,6 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   return 0;
 }
 
-int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  if (pTq == NULL || msg == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  STqCheckInfo info = {0};
-  int32_t      code = tqMetaDecodeCheckInfo(&info, msg, msgLen >= 0 ? msgLen : 0);
-  if (code != 0) {
-    return code;
-  }
-
-  code = taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo));
-  if (code != 0) {
-    tDeleteSTqCheckInfo(&info);
-    return code;
-  }
-  taosWLockLatch(&pTq->lock);
-  code  = tqMetaSaveInfo(pTq, pTq->pCheckStore, info.topic, strlen(info.topic), msg, msgLen >= 0 ? msgLen : 0);
-  taosWUnLockLatch(&pTq->lock);
-  return code;
-}
-
-int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  if (pTq == NULL || msg == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (taosHashRemove(pTq->pCheckInfo, msg, strlen(msg)) < 0) {
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
-  taosWLockLatch(&pTq->lock);
-  int32_t code = tqMetaDeleteInfo(pTq, pTq->pCheckStore, msg, strlen(msg));
-  taosWUnLockLatch(&pTq->lock);
-  return code;
-}
-
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   if (pTq == NULL || msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -760,6 +687,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   }
 
 end:
+  if (req.schema.pSchema != NULL) {
+    taosMemoryFree(req.schema.pSchema);
+  }
   tDecoderClear(&dc);
   return ret;
 }

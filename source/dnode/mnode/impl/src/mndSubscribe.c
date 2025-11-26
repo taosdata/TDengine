@@ -89,52 +89,6 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   int32_t     code = 0;
   SSdb*       pSdb = pMnode->pSdb;
   SVgObj*     pVgroup = NULL;
-  SQueryPlan* pPlan = NULL;
-  SSubplan*   pSubplan = NULL;
-
-  if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
-    pPlan = qStringToQueryPlan(pTopic->physicalPlan);
-    if (pPlan == NULL) {
-      return TSDB_CODE_QRY_INVALID_INPUT;
-    }
-  } else if (pTopic->subType == TOPIC_SUB_TYPE__TABLE && pTopic->ast != NULL) {
-    SNode* pAst = NULL;
-    code = nodesStringToNode(pTopic->ast, &pAst);
-    if (code != 0) {
-      mError("topic:%s, failed to create since %s", pTopic->name, terrstr());
-      return code;
-    }
-
-    SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
-    code = qCreateQueryPlan(&cxt, &pPlan, NULL);
-    if (code != 0) {
-      mError("failed to create topic:%s since %s", pTopic->name, terrstr());
-      nodesDestroyNode(pAst);
-      return code;
-    }
-    nodesDestroyNode(pAst);
-  }
-
-  if (pPlan) {
-    int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
-    if (levelNum != 1) {
-      code = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
-      goto END;
-    }
-
-    SNodeListNode* pNodeListNode = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
-    if (pNodeListNode == NULL){
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto END;
-    }
-    int32_t opNum = LIST_LENGTH(pNodeListNode->pNodeList);
-    if (opNum != 1) {
-      code = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
-      goto END;
-    }
-
-    pSubplan = (SSubplan*)nodesListGetNode(pNodeListNode->pNodeList, 0);
-  }
 
   void* pIter = NULL;
   while (1) {
@@ -162,22 +116,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     sdbRelease(pSdb, pVgroup);
   }
 
-  if (pSubplan) {
-    int32_t msgLen = 0;
-    if (qSubPlanToString(pSubplan, &pSub->qmsg, &msgLen) < 0) {
-      code = TSDB_CODE_QRY_INVALID_INPUT;
-      goto END;
-    }
-  } else {
-    pSub->qmsg = taosStrdup("");
-    if (pSub->qmsg == NULL) {
-      code = terrno;
-      goto END;
-    }
-  }
-
 END:
-  qDestroyQueryPlan(pPlan);
   return code;
 }
 
@@ -199,27 +138,46 @@ END:
   return code;
 }
 
-static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj *pSub, const SMqRebOutputVg *pRebVg,
-                                    SSubplan *pPlan) {
+static void mndSplitSubscribeKey(const char *key, char *topic, char *cgroup, bool fullName) {
+  if (key == NULL || topic == NULL || cgroup == NULL) {
+    return;
+  }
+  int32_t i = 0;
+  while (key[i] != TMQ_SEPARATOR_CHAR) {
+    i++;
+  }
+  (void)memcpy(cgroup, key, i);
+  cgroup[i] = 0;
+  if (fullName) {
+    tstrncpy(topic, &key[i + 1], TSDB_TOPIC_FNAME_LEN);
+  } else {
+    while (key[i] != '.') {
+      i++;
+    }
+    tstrncpy(topic, &key[i + 1], TSDB_CGROUP_LEN);
+  }
+}
+
+static int32_t mndBuildSubChangeReq(SMnode *pMnode, void **pBuf, int32_t *pLen, SMqSubscribeObj *pSub, const SMqRebOutputVg *pRebVg) {
   if (pSub == NULL || pRebVg == NULL || pBuf == NULL || pLen == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   SMqRebVgReq req = {0};
   int32_t     code = 0;
   SEncoder encoder = {0};
+  SMqTopicObj *pTopic = NULL;
+
+  char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+  char cgroup[TSDB_CGROUP_LEN] = {0};
+  mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
+  MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, topic, &pTopic));
+  taosRLockLatch(&pTopic->lock);
 
   req.oldConsumerId = pRebVg->oldConsumerId;
   req.newConsumerId = pRebVg->newConsumerId;
   req.vgId = pRebVg->pVgEp.vgId;
-  if (pPlan) {
-    pPlan->execNode.epSet = pRebVg->pVgEp.epSet;
-    pPlan->execNode.nodeId = pRebVg->pVgEp.vgId;
-    int32_t msgLen = 0;
-    MND_TMQ_RETURN_CHECK(qSubPlanToString(pPlan, &req.qmsg, &msgLen));
-  } else {
-    req.qmsg = taosStrdup("");
-    MND_TMQ_NULL_CHECK(req.qmsg);
-  }
+  req.qmsg = pTopic->physicalPlan;
+  req.schema = pTopic->schema;
   req.subType = pSub->subType;
   req.withMeta = pSub->withMeta;
   req.suid = pSub->stbUid;
@@ -228,6 +186,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj 
   int32_t tlen = 0;
   tEncodeSize(tEncodeSMqRebVgReq, &req, tlen, code);
   if (code < 0) {
+    taosRUnLockLatch(&pTopic->lock);
     goto END;
   }
 
@@ -243,14 +202,16 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj 
   *pBuf = buf;
   *pLen = tlen;
 
+  taosRUnLockLatch(&pTopic->lock);
+
 END:
+  mndReleaseTopic(pMnode, pTopic);
   tEncoderClear(&encoder);
-  taosMemoryFree(req.qmsg);
   return code;
 }
 
 static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub,
-                                        const SMqRebOutputVg *pRebVg, SSubplan *pPlan) {
+                                        const SMqRebOutputVg *pRebVg) {
   if (pMnode == NULL || pTrans == NULL || pSub == NULL || pRebVg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -264,7 +225,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubsc
   }
 
   int32_t tlen = 0;
-  MND_TMQ_RETURN_CHECK(mndBuildSubChangeReq(&buf, &tlen, pSub, pRebVg, pPlan));
+  MND_TMQ_RETURN_CHECK(mndBuildSubChangeReq(pMnode, &buf, &tlen, pSub, pRebVg));
   int32_t vgId = pRebVg->pVgEp.vgId;
   SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
   if (pVgObj == NULL) {
@@ -285,26 +246,6 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubsc
 END:
   taosMemoryFree(buf);
   return code;
-}
-
-static void mndSplitSubscribeKey(const char *key, char *topic, char *cgroup, bool fullName) {
-  if (key == NULL || topic == NULL || cgroup == NULL) {
-    return;
-  }
-  int32_t i = 0;
-  while (key[i] != TMQ_SEPARATOR_CHAR) {
-    i++;
-  }
-  (void)memcpy(cgroup, key, i);
-  cgroup[i] = 0;
-  if (fullName) {
-    tstrncpy(topic, &key[i + 1], TSDB_TOPIC_FNAME_LEN);
-  } else {
-    while (key[i] != '.') {
-      i++;
-    }
-    tstrncpy(topic, &key[i + 1], TSDB_CGROUP_LEN);
-  }
 }
 
 static void freeRebalanceItem(void *param) {
@@ -796,13 +737,8 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   if (pMnode == NULL || pMsg == NULL || pOutput == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  struct SSubplan *pPlan = NULL;
   int32_t          code = 0;
   STrans          *pTrans = NULL;
-
-  if (strcmp(pOutput->pSub->qmsg, "") != 0) {
-    MND_TMQ_RETURN_CHECK(qStringToSubplan(pOutput->pSub->qmsg, &pPlan));
-  }
 
   char topic[TSDB_TOPIC_FNAME_LEN] = {0};
   char cgroup[TSDB_CGROUP_LEN] = {0};
@@ -824,7 +760,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   for (int32_t i = 0; i < vgNum; i++) {
     SMqRebOutputVg *pRebVg = taosArrayGet(rebVgs, i);
     MND_TMQ_NULL_CHECK(pRebVg);
-    MND_TMQ_RETURN_CHECK(mndPersistSubChangeVgReq(pMnode, pTrans, pOutput->pSub, pRebVg, pPlan));
+    MND_TMQ_RETURN_CHECK(mndPersistSubChangeVgReq(pMnode, pTrans, pOutput->pSub, pRebVg));
   }
 
   // 2. commit log: subscribe and vg assignment
@@ -840,7 +776,6 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
 
 END:
-  nodesDestroyNode((SNode *)pPlan);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }

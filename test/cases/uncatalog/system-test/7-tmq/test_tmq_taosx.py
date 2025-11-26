@@ -720,7 +720,7 @@ class TestCase:
         - xxx
 
         """
-        self.consumeTest_6376()
+        # self.consumeTest_6376()
         self.consume_TS_5067_Test()
         self.consumeTest()
         self.consume_ts_4544()

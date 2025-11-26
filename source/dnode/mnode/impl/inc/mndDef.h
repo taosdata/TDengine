@@ -741,17 +741,11 @@ typedef struct {
   int8_t         withMeta;  // TODO
   SRWLatch       lock;
   int32_t        sqlLen;
-  int32_t        astLen;
   char*          sql;
-  char*          ast;
   char*          physicalPlan;
   SSchemaWrapper schema;
   int64_t        stbUid;
   char           stbName[TSDB_TABLE_FNAME_LEN];
-  // forbid condition
-  int64_t ntbUid;
-  SArray* ntbColIds;
-  int64_t ctbStbUid;
 } SMqTopicObj;
 
 typedef struct {
@@ -826,7 +820,6 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<SMqVgEp>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
-  char*     qmsg;  // SubPlanToString
 } SMqSubscribeObj;
 
 int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
