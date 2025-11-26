@@ -57,19 +57,26 @@ jobs:
         uses: actions/checkout@v4
 
       - name: AutoCorrect
+        id: autocorrect
         uses: huacnlee/autocorrect-action@v2
         with:
           args: --lint docs/zh/* docs/en/*
         continue-on-error: true
         
       - name: Report ReviewDog
-        if: failure() && steps.autocorrect.conclusion == 'failure'
+        if: always() && steps.autocorrect.outcome == 'failure'
         uses: tomchon/autocorrect-action@fix/review-dog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           reviewdog: true
           args: ./docs/zh/*  ./docs/en/*  **/*.md
+      
+      - name: Fail if AutoCorrect found issues
+        if: steps.autocorrect.outcome == 'failure'
+        run: |
+          echo "❌ AutoCorrect found formatting issues"
+          exit 1
 
   check-with-markdownlint:
     runs-on: ubuntu-latest
