@@ -21,7 +21,7 @@ import VerifyMacOS from "../../14-reference/05-connector/_verify_macos.mdx";
 import VerifyWindows from "../../14-reference/05-connector/_verify_windows.mdx";
 import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
 
-<ConnectorType /> 
+<ConnectorType />
 
 ## 安装客户端驱动 taosc
 
@@ -424,26 +424,35 @@ SQLAlchemy 支持通过 `hosts` 参数配置多个服务器地址，实现负载
 ```python
 {{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
 ```
+
     </TabItem>
     <TabItem label="Go" value="go">
+
 ```go
 {{#include docs/examples/go/connect/wsexample/main.go}}
 ```
+
     </TabItem>
     <TabItem label="Rust" value="rust">
+
 ```rust
 {{#include docs/examples/rust/restexample/examples/connect.rs}}
 ```
+
     </TabItem>
     <TabItem label="Node.js" value="node">
+
 ```js
 {{#include docs/examples/node/websocketexample/sql_example.js:createConnect}}
 ```
+
     </TabItem>
     <TabItem label="C#" value="csharp">
+
 ```csharp
 {{#include docs/examples/csharp/wsConnect/Program.cs:main}}
 ```
+
     </TabItem>
 <TabItem label="C" value="c">
 ```c
@@ -545,8 +554,6 @@ SQLAlchemy 支持通过 `hosts` 参数配置多个服务器地址，实现负载
 ```
 
 </details>
-
-
 
     </TabItem>
     <TabItem label="Go" value="go">

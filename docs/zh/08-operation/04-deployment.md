@@ -315,6 +315,7 @@ taos -h tdengine -P 6030
 如果 TAOS_FQDN 被设置为与所在主机名相同，则效果与“在 host 网络模式下启动 TDengine TSDB”相同。
 
 ### 使用 docker compose 方式启动集群
+
 使用如下 docker compose 配置文件，可以启动一个 3 节点 TDengine TSDB 集群。
 docker-compose.yaml 内容如下：
 

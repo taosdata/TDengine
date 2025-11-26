@@ -85,7 +85,7 @@ dataDir /mnt/data6 2 0
 
 ### 存储设备的连接参数
 
-配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。 
+配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。
 
 #### S3 对象存储
 
@@ -117,9 +117,9 @@ ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protoc
 
 对 TDengine 来说，网络存储设备挂载到本地后等同于本地磁盘，当使用此类设备作为共享存储时，`ssAccessString` 的 `device-type` 必须是 `fs`，可以使用的选项如下：
 
-| 名称            |   含义 | 
-| ----------------|----------------------------------------------| 
-| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。| 
+| 名称            |   含义 |
+| ----------------|----------------------------------------------|
+| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。|
 
 例如：
 

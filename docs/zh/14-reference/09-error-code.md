@@ -29,10 +29,12 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 #### 示例说明
 
 以错误码 `0x80000216` 为例：
+
 - **前缀**: `0x8000` → TDengine 业务错误。
 - **具体错误码**: `0x0216` → 对应 TSC 模块的 "Syntax error in SQL"。
 
 以错误码 `0x80FF0002` 为例：
+
 - **前缀**: `0x80FF` → Linux 系统错误。
 - **具体错误码**: `0x0002` → 对应 Linux errno 2，即 "No such file or directory"。
 
@@ -639,7 +641,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少     | 增加输入数据规模（预测至少 10 行记录）       |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测      | 更换使用的预测模型                           |
 
-
 #### STREAM
 
 | 错误码     | 错误描述                              | 可能的出错场景或者可能的原因             | 建议用户采取的措施                                     |
@@ -652,12 +653,14 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
 
 ## 连接器
+
 下面是各语言连接器自身的错误码。连接器除了返回自身错误码外，也会返回上文中 TSDB 的错误码。
 
 ### C
 
 在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其他是代表失败原因的错误码，当返回值是指针时，_NULL_ 表示失败。  
 C 连接器的错误码分为两种：  
+
 - 通用错误码  
     所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
     详细的错误码说明参考：[TSDB 错误码](./#tsdb)
@@ -675,7 +678,7 @@ C 连接器的错误码分为两种：
     | 0xE006 | 认证失败   | 用户名密码错误或权限不足     | 检查用户名密码，确认用户权限            |
     | 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
     | 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
-        
+
 ### Java
 
 Java 连接器可能报错的错误码包括 4 种：
@@ -683,7 +686,7 @@ Java 连接器可能报错的错误码包括 4 种：
 - JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
 - 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
 - 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
-- TDengine TSDB 其他功能模块的报错，请参考本页面 TSDB 错误码。   
+- TDengine TSDB 其他功能模块的报错，请参考本页面 TSDB 错误码。
 
 具体的错误码请参考：
 
@@ -733,7 +736,6 @@ Java 连接器可能报错的错误码包括 4 种：
 
 - [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
-
 ### Rust
 
 | 错误码 | 错误描述   | 可能的出错场景或者可能的原因 | 建议用户采取的措施                      |
@@ -747,7 +749,6 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0xE006 | 认证失败   | 用户名密码错误或权限不足     | 检查用户名密码，确认用户权限            |
 | 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
 | 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
-
 
 ### Node.js
 
@@ -772,9 +773,10 @@ Java 连接器可能报错的错误码包括 4 种：
 | 110    | websocket connection has reached its maximum limit                      | 连接数达到上限                                 | WebSocket 连接达到上限，请上报 github issue                                                         |
 | 111    | topic partitions and positions are not equal in length                  | 获取给定分区当前的偏移量的数据与主题分区不匹配 |   重新订阅                                                                               |
 | 112    | version mismatch. The minimum required TDengine TSDB version is 3.3.2.0 | 版本不匹配                                     | TDengine TSDB 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。 |
+
 - [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
-### C#
+### `C#`
 
 | 错误码 | 错误描述                         | 可能的出错场景或者可能的原因              | 建议用户采取的措施                                           |
 | ------ | -------------------------------- | ----------------------------------------- | ------------------------------------------------------------ |

@@ -68,7 +68,7 @@ taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置�
 若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为：`/etc/taos/taoskeeper.toml` 。
 若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。
 
-**下面是配置文件的示例：**
+##### 配置文件示例
 
 ```toml
 # The ID of the currently running taoskeeper instance, default is 64.

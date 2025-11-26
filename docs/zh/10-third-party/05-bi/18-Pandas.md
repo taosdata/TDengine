@@ -39,7 +39,7 @@ taos://[username]:[password]@[<host1>:<port1>]/[database_name]
 
 TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 sqlalchemy.types 对应类型转换如下：
 
-|  Sqlalchemy Types       |  TDengine TSDB DataType |       
+|  Sqlalchemy Types       |  TDengine TSDB DataType |
 | ------------------------|-------------------------|
 | sqltypes.Boolean        | BOOL                    |
 | sqltypes.TIMESTAMP      | TIMESTAMP               |
@@ -88,4 +88,3 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 sqlal
 - [Sqlalchemy](https://docs.sqlalchemy.org/en/20/)
 - [Pandas Documentation](https://pandas.pydata.org/docs/)
 - [Connecting Pandas to a Database with SQLAlchemy](https://hackersandslackers.com/connecting-pandas-to-a-sql-database-with-sqlalchemy/)
-

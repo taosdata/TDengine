@@ -35,7 +35,7 @@ URL 规范格式为：`jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={
 - database_name: 数据库名称。
 - timezone: 时区设置。
 - httpConnectTimeout: 连接超时时间，单位 ms， 默认值为 60000。
-- messageWaitTimeout: 消息超时时间，单位 ms， 默认值为 60000。 
+- messageWaitTimeout: 消息超时时间，单位 ms， 默认值为 60000。
 - useSSL: 连接中是否使用 SSL。
 
 ### 数据准备
@@ -109,7 +109,7 @@ Properties 中配置参数如下：
 ```java
 {{#include docs/examples/flink/source/Main.java:source_batch_test}}
 ```
-</details> 
+</details>
 
 查询结果为自定义数据类型示例：
 
@@ -118,7 +118,7 @@ Properties 中配置参数如下：
 ```java
 {{#include docs/examples/flink/source/Main.java:source_custom_type_test}}
 ```
-</details> 
+</details>
 
 - ResultBean 自定义的一个内部类，用于定义 Source 查询结果的数据类型。
 - ResultSourceDeserialization 是自定义的一个内部类，通过继承 `TDengineRecordDeserialization` 并实现 `convert` 和 `getProducedType` 方法。
@@ -138,6 +138,7 @@ Properties 中配置参数如下：
 - TDengineCdcParams.GROUP_ID：消费组 ID，同一消费组共享消费进度。最大长度：192。
 - TDengineCdcParams.AUTO_OFFSET_RESET：消费组订阅的初始位置（ `earliest` 从头开始订阅, `latest` 仅从最新数据开始订阅, 默认 `latest`）。
 - TDengineCdcParams.ENABLE_AUTO_COMMIT：是否启用消费位点自动提交，true: 自动提交；false：依赖 `checkpoint` 时间来提交， 默认 false。
+
 > **注意**：自动提交模式reader获取完成数据后自动提交，不管下游算子是否正确的处理了数据，存在数据丢失的风险，主要用于为了追求高效的无状态算子场景或是数据一致性要求不高的场景。
 
 - TDengineCdcParams.AUTO_COMMIT_INTERVAL_MS：消费记录自动提交消费位点时间间隔，单位为毫秒。默认值为 5000, 此参数在 `ENABLE_AUTO_COMMIT` 为 true 生效。
@@ -159,7 +160,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_source}}
 ```
-</details> 
+</details>
 
 将订阅结果批量下发到算子的示例：
 
@@ -168,7 +169,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_batch_source}}
 ```
-</details> 
+</details>
 
 订阅结果为自定义数据类型示例：
 
@@ -177,7 +178,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_custom_type_test}}
 ```
-</details> 
+</details>
 
 - ResultBean 是自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `TDengineCdcParams.VALUE_DESERIALIZER` 属性对应的反序列化类可以反序列化出 ResultBean 类型的对象。
 
@@ -189,10 +190,10 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 
 参数配置说明：
 
-|         参数名称          |  类型   | 参数说明      | 
+|         参数名称          |  类型   | 参数说明      |
 | ----------------------- | :-----: | ------------ |
 | connector  | string | 连接器标识，设置 `tdengine-connector` 。|
-| td.jdbc.url| string | 连接的 url 。| 
+| td.jdbc.url| string | 连接的 url 。|
 | td.jdbc.mode | string | 连接器类型, 设置 `source`, `sink`。|
 | table.name| string| 原表或目标表名称。|
 | scan.query| string| 获取数据的 SQL 语句。|
@@ -200,7 +201,6 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 | sink.supertable.name|string |写入的超级表名称。|
 | sink.batch.size | integer | 写入的批大小。|
 | sink.table.name|string|写入的普通表或子表名称。|
-
 
 使用示例：
 
@@ -213,7 +213,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 ```
 </details>
 
-#### Table CDC 连接器 
+#### Table CDC 连接器
 
 参数配置说明：
 
@@ -221,11 +221,11 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 | ----------------------- | :-----: | ------------ |
 | connector  | string | 连接器标识，设置 `tdengine-connector`。|
 | user| string | 用户名， 默认 root。|
-| password | string | 密码， 默认taosdata。| 
-| bootstrap.servers| string | 服务器地址。| 
+| password | string | 密码， 默认taosdata。|
+| bootstrap.servers| string | 服务器地址。|
 | topic | string | 订阅主题。||
-| td.jdbc.mode | string | 连接器类型, cdc, sink。| 
-| group.id| string| 消费组 ID，同一消费组共享消费进度。| 
+| td.jdbc.mode | string | 连接器类型, cdc, sink。|
+| group.id| string| 消费组 ID，同一消费组共享消费进度。|
 | auto.offset.reset| string| 消费组订阅的初始位置。<br/>`earliest`: 从头开始订阅 <br/> `latest`: 仅从最新数据开始订阅。<br/> 默认 `latest`。|
 | poll.interval_ms| integer| 拉取数据间隔, 默认 500ms。|
 | sink.db.name|string| 目标数据库名称。|

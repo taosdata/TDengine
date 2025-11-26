@@ -263,7 +263,6 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 | 14  | keep_version      | INT  | 此 vgroup 大于等于 keep_version 的 wal 日志不会被自动删除                                      |
 | 15  | keep_version_time | INT  | 此 vgroup 在 keep_version 上次被修改的时间                                                   |
 
-
 ## INS_CONFIGS
 
 系统配置参数。
