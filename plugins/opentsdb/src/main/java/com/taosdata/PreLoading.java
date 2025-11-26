@@ -203,6 +203,10 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(valueFieldName)) {
                 this.taskConfig.setValueFieldName(valueFieldName);
             }
+            String tableNamePattern = tomlParseResult.getString("task.tableNamePattern", String::new);
+            if (StringUtils.isNotEmpty(tableNamePattern)) {
+                this.taskConfig.setTableNamePattern(tableNamePattern);
+            }
             ArrowUtils.setTimestampFieldName(this.taskConfig.getTimestampFieldName());
             ArrowUtils.setValueFieldName(this.taskConfig.getValueFieldName());
             String breakpoints = tomlParseResult.getString("task.breakpoints", String::new);

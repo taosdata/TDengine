@@ -65,6 +65,8 @@ pub async fn opentsdb_to_taos(
     task_id: Option<i64>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
+    tracing::info!("opentsdb_to_taos start");
+
     let ipc_port = port_pool
         .get()
         .await
@@ -73,6 +75,7 @@ pub async fn opentsdb_to_taos(
     let config = OpentsdbConfig::from(&from, ipc_port.get())?;
     // transform to toml
     let toml = toml::to_string(&config)?;
+    tracing::debug!("opentsdb config:\n{}", &toml);
     // write to a temporary file
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
