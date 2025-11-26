@@ -650,6 +650,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007014 | Stream output table name too long     | 输出表名超长                             | 检查建流语句中输出表名规则是否正确，是否结果超长       |
 | 0x80007016 | Stream output table name calc failed  | 输出表名计算失败                         | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在 |
 | 0x80007017 | Stream vtable calculate need redeploy | 流计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                           |
+| 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
 
 ## 连接器
 下面是各语言连接器自身的错误码。连接器除了返回自身错误码外，也会返回上文中 TSDB 的错误码。

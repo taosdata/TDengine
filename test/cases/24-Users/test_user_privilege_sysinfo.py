@@ -123,6 +123,7 @@ class TestUserPrivilegeSysinfo:
             tdSql.error(f"show users")
             tdSql.error(f"show user privileges")
             tdSql.error(f"show cluster")
+            tdSql.query(f"show cluster alive")
             tdSql.error(f"select * from information_schema.ins_dnodes")
             tdSql.error(f"select * from information_schema.ins_mnodes")
             tdSql.error(f"show snodes")
