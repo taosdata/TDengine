@@ -264,9 +264,18 @@ class TestBoundary:
         tdLog.success("%s successfully executed" % __file__)
     
     def test_sql_length_boundary(self):
-        """Test with large maxSQLLength (10MB)
-        
-        Test that very long SQL statements work with large limit.
+        """SQL length boundary
+
+        1. Test insert sql with 10MB length
+        2. Test create table sql with 10MB length
+        3. Test 10MB sql with 10MB length
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: TS-7325
+
         """
         tdLog.info("=============== Test with large maxSQLLength scenario")
         tdSql.execute("alter local 'maxSQLLength' '1048576'")
