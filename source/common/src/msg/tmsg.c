@@ -4445,13 +4445,13 @@ void DateTimeRangeToWhiteListItem(SDateTimeWhiteListItem* dst, const SDateTimeRa
 }
 
 
-bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* pInterval) {
-  if (!pInterval->absolute) {
+bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* item) {
+  if (!item->absolute) {
     return false;
   }
 
   int64_t now = taosGetTimestampMs() / 1000;
-  return now > (pInterval->start + pInterval->duration);
+  return now > (item->start + item->duration);
 }
 
 

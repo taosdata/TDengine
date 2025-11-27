@@ -101,7 +101,7 @@ else
     sleep 1
   done
   # check case successful
-  AsanFileSuccessLen=$(grep -w "successfully executed" $AsanFile | wc -l)
+  AsanFileSuccessLen=$(grep -a -w "successfully executed" $AsanFile | wc -l)
   echo "AsanFileSuccessLen:" $AsanFileSuccessLen
 
   if [[ "$AsanFileSuccessLen" -gt 0 ]]; then

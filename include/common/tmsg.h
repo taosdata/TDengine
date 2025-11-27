@@ -1389,7 +1389,7 @@ typedef struct {
 } SDateTimeWhiteListItem;
 
 void DateTimeRangeToWhiteListItem(SDateTimeWhiteListItem* dst, const SDateTimeRange* src);
-bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* pInterval);
+bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* item);
 
 typedef struct {
   int32_t num;
