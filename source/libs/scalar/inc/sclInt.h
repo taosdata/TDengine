@@ -48,6 +48,7 @@ typedef struct SScalarCtx {
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
   SOperatorValueType type;
   SScalarStreamCtx   stream;
+  STaskSubJobCtx*    pSubJobCtx;
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000

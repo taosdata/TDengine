@@ -1109,7 +1109,9 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
     } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
       continue;
     } else {
-      code = scalarCalculate(pNode, pBlockList, &output, NULL, NULL);
+      gTaskScalarExtra.pStreamInfo = NULL;
+      gTaskScalarExtra.pStreamRange = NULL;
+      code = scalarCalculate(pNode, pBlockList, &output, &gTaskScalarExtra);
     }
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -1285,7 +1287,9 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
       continue;
     } else {
-      code = scalarCalculate(pNode, pBlockList, &output, NULL, NULL);
+      gTaskScalarExtra.pStreamInfo = NULL;
+      gTaskScalarExtra.pStreamRange = NULL;
+      code = scalarCalculate(pNode, pBlockList, &output, &gTaskScalarExtra);
     }
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -1918,7 +1922,9 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  code = scalarCalculate(pTagCond, pBlockList, &output, pStreamInfo, NULL);
+  gTaskScalarExtra.pStreamInfo = pStreamInfo;
+  gTaskScalarExtra.pStreamRange = NULL;
+  code = scalarCalculate(pTagCond, pBlockList, &output, &gTaskScalarExtra);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to calculate scalar, reason:%s", tstrerror(code));
     terrno = code;

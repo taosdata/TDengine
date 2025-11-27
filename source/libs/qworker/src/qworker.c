@@ -123,6 +123,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
     if (taskHandle) {
       qwDbgSimulateSleep();
 
+      setTaskScalarExtraInfo(taskHandle);
       taosEnableMemPoolUsage(ctx->memPoolSession);
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch, processOneBlock);
       taosDisableMemPoolUsage();
@@ -852,7 +853,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
 
   taosEnableMemPoolUsage(ctx->memPoolSession);
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql,
-                         OPTR_EXEC_MODEL_BATCH);
+                         OPTR_EXEC_MODEL_BATCH, qwMsg.subEndPoints);
   taosDisableMemPoolUsage();
 
   if (code) {
@@ -1399,7 +1400,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
     QW_ERR_JRET(code);
   }
 
-  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH, qwMsg->subEndPoints);
   
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -1623,7 +1624,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   rHandle.pMsgCb->clientRpc = qwMsg->connInfo.handle;
   rHandle.localExec = true;
 
-  code = qCreateExecTask(&rHandle, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(&rHandle, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH, qwMsg->subEndPoints);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);

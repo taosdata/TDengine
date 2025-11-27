@@ -35,6 +35,11 @@ typedef void* DataSinkHandle;
 struct SRpcMsg;
 struct SSubplan;
 
+typedef struct STaskSubJobCtx {
+  SArray* subEndPoints;
+  SArray* subResValues;
+} STaskSubJobCtx;
+
 typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
 
 typedef struct {
@@ -181,7 +186,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model);
+                        EOPTR_EXEC_MODEL model, SArray* subEndPoints);
 
 /**
  *
@@ -309,7 +314,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
-
+void    setTaskScalarExtraInfo(qTaskInfo_t tinfo);
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 

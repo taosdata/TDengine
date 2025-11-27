@@ -2647,7 +2647,7 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
 
   int32_t      nrows = blockDataGetNumOfRows(pDataBlock);
   SScalarParam output = {.columnData = pResCol};
-  code = scalarCalculate(pExpr, pList, &output, NULL, NULL);
+  code = scalarCalculate(pExpr, pList, &output, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -9955,7 +9955,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       QUERY_CHECK_CODE(code, lino, _end);
       output.numOfRows = numOfRows;
 
-      code = scalarCalculate(pTask->pStateExpr, pList, &output, NULL, NULL);
+      code = scalarCalculate(pTask->pStateExpr, pList, &output, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
       pStateCol = output.columnData;
       QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);

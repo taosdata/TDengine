@@ -13,6 +13,8 @@
 #include "ttime.h"
 #include "tudf.h"
 
+threadlocal SScalarExtraInfo gTaskScalarExtra = {0};
+
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type ||
       OP_TYPE_IS_NOT_TRUE == type || OP_TYPE_IS_FALSE == type || OP_TYPE_IS_NOT_FALSE == type ||
@@ -1510,6 +1512,8 @@ _return:
   SCL_RET(code);
 }
 
+
+
 EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opType) {
   if (opType <= OP_TYPE_CALC_MAX) {
     SValueNode *res = NULL;
@@ -2155,6 +2159,29 @@ EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
   return DEAL_RES_CONTINUE;
 }
 
+int32_t sclExecRemoteValue(SRemoteValueNode *node, SScalarCtx *ctx, SScalarParam* pOutput) {
+
+}
+
+EDealRes sclWalkRemoteValue(SNode *pNode, SScalarCtx *ctx) {
+  SRemoteValueNode *node = (SRemoteValueNode *)pNode;
+  SScalarParam   output = {0};
+
+  ctx->code = sclExecRemoteValue(node, ctx, &output);
+  if (ctx->code) {
+    return DEAL_RES_ERROR;
+  }
+
+  if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
+    ctx->code = terrno;
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
+
 EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
@@ -2163,24 +2190,21 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   }
 
   SScalarCtx *ctx = (SScalarCtx *)pContext;
-  if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
-    return sclWalkOperator(pNode, ctx);
-  }
-
-  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
-    return sclWalkFunction(pNode, ctx);
-  }
-
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
-    return sclWalkLogic(pNode, ctx);
-  }
-
-  if (QUERY_NODE_TARGET == nodeType(pNode)) {
-    return sclWalkTarget(pNode, ctx);
-  }
-
-  if (QUERY_NODE_CASE_WHEN == nodeType(pNode)) {
-    return sclWalkCaseWhen(pNode, ctx);
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OPERATOR:
+      return sclWalkOperator(pNode, ctx);
+    case QUERY_NODE_FUNCTION:
+      return sclWalkFunction(pNode, ctx);
+    case QUERY_NODE_LOGIC_CONDITION:
+      return sclWalkLogic(pNode, ctx);
+    case QUERY_NODE_TARGET:
+      return sclWalkTarget(pNode, ctx);
+    case QUERY_NODE_CASE_WHEN:
+      return sclWalkCaseWhen(pNode, ctx);
+    case QUERY_NODE_REMOTE_VALUE:
+      return sclWalkRemoteValue(pNode, ctx);
+    default:
+      break;
   }
 
   sclError("invalid node type for scalar calculating, type:%d", nodeType(pNode));
@@ -2355,22 +2379,24 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcCon
 
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, pRes); }
 
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void *pExtraParam,
-                        void *streamTsRange) {
-  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtraParam, streamTsRange);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra) {
+  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtra);
 }
 
 int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,
-                               int32_t rowEndIdx, const void *pExtraParam, void *pTsRange) {
-  if (NULL == pNode || (NULL == pBlockList && pTsRange == NULL)) {
+                               int32_t rowEndIdx, SScalarExtraInfo* pExtra) {
+  if (NULL == pNode || (NULL == pBlockList && (NULL == pExtra || pExtra->pStreamRange == NULL))) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   int32_t    code = 0;
   SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
-  ctx.stream.pStreamRuntimeFuncInfo = pExtraParam;
-  ctx.stream.streamTsRange = pTsRange;
-
+  if (NULL != pExtra) {
+    ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
+    ctx.stream.streamTsRange = pExtra->pStreamRange;
+    ctx.pSubJobCtx = pExtra->pSubJobCtx;
+  }
+  
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {

@@ -40,6 +40,11 @@ static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
 SGlobalExecInfo     gExecInfo = {0};
 
+void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  gTaskScalarExtra.pSubJobCtx = &pTaskInfo->subJobCtx;
+}
+
 void gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode) {
   gExecInfo.dnode = pDnode;
   gExecInfo.getMnode = getMnode;
@@ -232,7 +237,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_QUEUE);
+  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_QUEUE, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(pTaskInfo);
     terrno = code;
@@ -699,9 +704,24 @@ int32_t qExecutorInit(void) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t initTaskSubJobCtx(SExecTaskInfo* pTask, SArray* subEndPoints) {
+  pTask->subJobCtx.subEndPoints = subEndPoints;
+
+  int32_t subJobNum = taosArrayGetSize(subEndPoints);
+  if (subJobNum > 0) {
+    pTask->subJobCtx.subResValues = taosArrayInit_s(POINTER_BYTES, subJobNum);
+    if (NULL == pTask->subJobCtx.subResValues) {
+      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTask), subJobNum, tstrerror(terrno));
+      return terrno;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model) {
+                        EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
@@ -714,6 +734,11 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     goto _error;
   }
 
+  code = initTaskSubJobCtx(*pTask, subEndPoints);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+    
   if (handle) {
     SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
     void*           pSinkManager = NULL;
@@ -1969,7 +1994,9 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
       code = terrno;
     }
     if (code == 0) {
-      code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
+      gTaskScalarExtra.pStreamInfo = pExtraParams;
+      gTaskScalarExtra.pStreamRange = NULL;
+      code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, &gTaskScalarExtra);
     }
     taosArrayDestroy(pBlockList);
   }

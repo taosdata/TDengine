@@ -23,7 +23,15 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
+extern threadlocal SScalarExtraInfo gTaskScalarExtra;
+
 typedef struct SFilterInfo SFilterInfo;
+
+typedef struct SScalarExtraInfo {
+  void*   pStreamInfo;
+  void*   pStreamRange;
+  STaskSubJobCtx* pSubJobCtx;
+} SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
 
@@ -38,8 +46,8 @@ int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 /*
 pDst need to freed in caller
 */
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam, void* streamTsRange);
-int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, const void* pExtraParam, void* streamTsRange);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra);
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, SScalarExtraInfo* pExtra);
 void    sclFreeParam(SScalarParam* param);
 int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams);
 int32_t scalarGetOperatorParamNum(EOperatorType type);

@@ -3037,7 +3037,7 @@ static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray*
   code = tagScanCreateResultData(&type, numOfTables, &output);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = scalarCalculate(pTagCond, pBlockList, &output, NULL, NULL);
+  code = scalarCalculate(pTagCond, pBlockList, &output, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   bool* result = (bool*)output.columnData->pData;

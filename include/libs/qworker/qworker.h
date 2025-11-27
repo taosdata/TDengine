@@ -72,6 +72,7 @@ typedef struct SQWMsg {
   int32_t        msgLen;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
+  SArray        *subEndPoints;
   void          *pWorkerCb;
 } SQWMsg;
 
