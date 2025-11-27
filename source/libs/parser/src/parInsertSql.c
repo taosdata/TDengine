@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "crypt.h"
 #include "decimal.h"
 #include "geosWrapper.h"
 #include "parInsertUtil.h"
@@ -874,6 +875,126 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(pKeyPaddingBuf, key, keyBytes);
 
       int32_t len = taosAesDecrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes, iv);
+      *nData = len;
+
+      taosMemoryFree(pKeyPaddingBuf);
+    } else if (0 == strncasecmp(pToken->z, "sm4_encrypt(", 12)) {
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_LP != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "( expected", pToken->z);
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      } else {
+        inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
+        input = tmpTokenBuf;
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_COMMA != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+      }
+
+      char*   key = NULL;
+      int32_t keyBytes = 0;
+      char    tmpKeyBuf[TSDB_MAX_BYTES_PER_ROW];
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "key expected", pToken->z);
+      } else {
+        keyBytes = trimString(pToken->z, pToken->n, tmpKeyBuf, TSDB_MAX_BYTES_PER_ROW);
+        key = tmpKeyBuf;
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_RP != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+      }
+
+      int32_t outputBytes = tsm4_encrypt_len(inputBytes);
+      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+
+      int32_t bufLen = outputBytes + VARSTR_HEADER_SIZE + 1;
+      *pData = taosMemoryMalloc(bufLen);
+      if (NULL == *pData) {
+        return terrno;
+      }
+
+      (void)memcpy(*pData, input, inputBytes);
+
+      int32_t keypaddedlen = tsm4_encrypt_len(keyBytes);
+      char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
+      if (!pKeyPaddingBuf) {
+        return terrno;
+      }
+      (void)memcpy(pKeyPaddingBuf, key, keyBytes);
+
+      int32_t len = taosSm4Encrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes);
+      *nData = len;
+
+      taosMemoryFree(pKeyPaddingBuf);
+    } else if (0 == strncasecmp(pToken->z, "sm4_decrypt(", 12)) {
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_LP != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "( expected", pToken->z);
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      } else {
+        inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
+        input = tmpTokenBuf;
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_COMMA != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+      }
+
+      char*   key = NULL;
+      int32_t keyBytes = 0;
+      char    tmpKeyBuf[TSDB_MAX_BYTES_PER_ROW];
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_STRING != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "key expected", pToken->z);
+      } else {
+        keyBytes = trimString(pToken->z, pToken->n, tmpKeyBuf, TSDB_MAX_BYTES_PER_ROW);
+        key = tmpKeyBuf;
+      }
+
+      NEXT_VALID_TOKEN(*ppSql, *pToken);
+      if (TK_NK_RP != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+      }
+
+      int32_t outputBytes = tsm4_encrypt_len(inputBytes);
+      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+
+      int32_t bufLen = outputBytes + VARSTR_HEADER_SIZE + 1;
+      *pData = taosMemoryMalloc(bufLen);
+      if (NULL == *pData) {
+        return terrno;
+      }
+
+      (void)memcpy(*pData, input, inputBytes);
+
+      int32_t keypaddedlen = tsm4_encrypt_len(keyBytes);
+      char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
+      if (!pKeyPaddingBuf) {
+        return terrno;
+      }
+      (void)memcpy(pKeyPaddingBuf, key, keyBytes);
+
+      int32_t len = taosSm4Decrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes);
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);
