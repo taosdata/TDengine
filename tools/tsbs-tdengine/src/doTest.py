@@ -23,14 +23,30 @@ from tdengine import *
 from cmdLine import cmd
 from scene import Scene
 from baseStep import BaseStep
-from outMetrics import metrics
+from outMetrics import metrics, Delay
 from outLog import log
 
 class DoTest(BaseStep):
     def __init__(self, scene):
         self.scene = scene
+        
+    def total_delay(self, cursor, delaySql, i):
+        try:
+            cursor.execute(delaySql)
+            results = cursor.fetchall()
+            row = results[0]
+            delay = Delay()
+            delay.cnt = row[0]
+            delay.avg = row[1]/1000
+            delay.p50 = row[2]/1000
+            delay.p90 = row[3]/1000
+            delay.p95 = row[4]/1000
+            delay.p99 = row[5]/1000
+            metrics.update_delay(self.scene.name, i, delay)
+        except Exception as e:
+            log.out(f"  {i} total_delay except: {e}")
 
-    def wait_stream_end(self, verifySql, expectRows, compare, timeout, max_test_time):
+    def wait_stream_end(self, verifySql, expectRows, compare, delaySql, timeout, max_test_time):
         log.out("Waiting for stream processing to complete...")
         log.out(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Max Test Time: {max_test_time} seconds, Timeout: {timeout} seconds")
         conn = taos_connect()
@@ -43,40 +59,44 @@ class DoTest(BaseStep):
             try:        
                 cursor.execute(verifySql)
                 results = cursor.fetchall()
-                rows = results[0][0]
-                if rows != last_rows:
+                nrows = results[0][0]
+                if nrows != last_rows:
                     # have new rows, reset cnt
-                    last_rows = rows
+                    last_rows = nrows
                     cnt = 0
-                    metrics.output_rows[self.scene.name] = rows                    
+                    metrics.output_rows[self.scene.name] = nrows
                 
                 # check passed
                 passed = False
                 if compare == ">=":
-                    if rows >= expectRows:
+                    if nrows >= expectRows:
                         passed = True
                 elif compare == ">":
-                    if rows > expectRows:
+                    if nrows > expectRows:
                         passed = True
                 else:
                     compare = "="
-                    if rows == expectRows:
+                    if nrows == expectRows:
                         passed = True
                                         
                 # set status passed
                 if passed:
-                    log.out(f"{i} rows real: {rows} {compare} expect: {expectRows} ==> Passed")
+                    log.out(f"  {i} rows real: {nrows} {compare} expect: {expectRows} ==> Passed")
                     conn.close()
                     metrics.set_status(self.scene.name, "Passed")
                     return
 
-                log.out(f"{i} rows real: {rows}, expect: {expectRows}")
+                # total delay
+                if cmd.get_check_delay():
+                    self.total_delay(cursor, delaySql, i)
+                else:
+                    log.out(f"  {i} rows real: {nrows}, expect: {expectRows}")
                 
                 # add step
                 i += 1
                 cnt += 1
             except Exception as e:
-                log.out(f"i={i} query stream result table except: {e}")
+                log.out(f"  {i} query stream result table except: {e}")
                 # add step
                 i += 1
                 cnt += 1
@@ -110,24 +130,25 @@ class DoTest(BaseStep):
                         verify_sql  = case.get('verifySql')
                         expect_rows = case.get('expectRows')
                         compare     = case.get('compare')
+                        delay_sql   = case.get('delaySql')
                         log.out(f"Found verify info for scenario '{scenario_id}':")
                         log.out(f"  Verify SQL: {verify_sql}")
                         log.out(f"  Expect Rows: {expect_rows}")
-                        return verify_sql, expect_rows, compare
+                        return verify_sql, expect_rows, compare, delay_sql
                 
                 # If no matching scenario found
                 log.out(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
-                return None, None
+                return None, None, None, None
                 
         except FileNotFoundError:
             log.out(f"YAML file not found: {yaml_file}")
-            return None, None, None
+            return None, None, None, None
         except yaml.YAMLError as e:
             log.out(f"Error parsing YAML file: {e}")
-            return None, None, None
+            return None, None, None, None
         except Exception as e:
             log.out(f"Error reading verify info: {e}")
-            return None, None, None
+            return None, None, None, None
 
     def run(self):
         log.out("DoTest step executed")
@@ -136,9 +157,14 @@ class DoTest(BaseStep):
         for table in self.scene.tables:
             yaml_file = self.scene.get_yaml_file(table)
             log.out(f"Processing YAML file: {yaml_file}")
-            verifySql, expectRows, compare = self.read_verify_info(self.scene.name, yaml_file)
+            verifySql, expectRows, compare, delaySql = self.read_verify_info(self.scene.name, yaml_file)
             if verifySql != None and expectRows != None:
-                self.wait_stream_end(verifySql, expectRows, compare, timeout = cmd.timeout, max_test_time = cmd.max_test_time)
+                self.wait_stream_end(verifySql, 
+                                     expectRows,
+                                     compare, 
+                                     delaySql, 
+                                     timeout = cmd.timeout, 
+                                     max_test_time = cmd.max_test_time)
             else:
                 log.out(f"verify sql is none, skipping  {yaml_file}")
         

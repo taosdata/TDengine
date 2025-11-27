@@ -18,7 +18,16 @@ import sys
 import time
 import json
 from outLog import log
+from cmdLine import cmd
 
+class Delay :
+    def __init__(self, cnt=0 ,avg=0, p50=0, p90=0, p95=0, p99=0):
+        self.cnt = cnt
+        self.avg = avg
+        self.p50 = p50
+        self.p90 = p90
+        self.p95 = p95
+        self.p99 = p99
 class OutMetrics:
     def __init__(self):
         self.time_start       = None
@@ -33,6 +42,8 @@ class OutMetrics:
         self.data_rows   = {}
         self.output_rows = {}
         self.status      = {}
+        self.delay       = {}
+        
     
     def init_metrics(self, metrics_file):
         log.out("Initializing metrics output")
@@ -72,44 +83,76 @@ class OutMetrics:
             self.data_rows[name] = rows
         else:
             self.data_rows[name] += rows
+            
+    def update_delay(self, name, i, delay):
+        log.out(f"  i={i:03d} delay cnt {delay.cnt} avg {delay.avg:.2f}s, p50 {delay.p50:.2f}s, p90 {delay.p90:.2f}s, p95 {delay.p95:.2f}s, p99 {delay.p99:.2f}s")
+        self.delay[name] = delay
     
     def write_log(self, msg):
         log.out(msg)
         with open(self.metrics_file, 'a') as f:
-            f.write(msg + '\n')        
+            f.write(msg + '\n') 
 
     def output_metrics(self):
-        log.out(f"Outputting metrics to {self.metrics_file}")
+        log.out(f"Outputting metrics to {self.metrics_file}")        
         
         # Column widths
         col_widths = {
-            'scenario_id': 15,
-            'classification': 16,
-            'out_records': 13,
-            'in_records': 12,
+            'scenario_id': 8,
+            'status': 8,
+            'classification': 10,
+            'out_records': 10,
+            'in_records': 10,
             'start_time': 19,
             'end_time': 19,
-            'duration': 14,
-            'throughput': 19,
-            'status': 8
+            'duration': 12,
+            'throughput': 18,
+            "delay_avg": 10,
+            "delay_p50": 10,
+            "delay_p90": 10,
+            "delay_p95": 10,
+            "delay_p99": 10
         }
+        
+        header_delay = ""
+        if cmd.get_check_delay():
+            header_delay = (
+                f"| {'Avg(s)':>{col_widths['delay_avg']}} "
+                f"| {'P50(s)':>{col_widths['delay_p50']}} "
+                f"| {'P90(s)':>{col_widths['delay_p90']}} "
+                f"| {'P95(s)':>{col_widths['delay_p95']}} "
+                f"| {'P99(s)':>{col_widths['delay_p99']}} "
+            )
         
         # Header
         header = (
-            f"| {'Scenario ID':<{col_widths['scenario_id']}} "
-            f"| {'Classification':<{col_widths['classification']}} "
-            f"| {'Out Records':>{col_widths['out_records']}} "
-            f"| {'In Records':>{col_widths['in_records']}} "
+            f"| {'Scenario':<{col_widths['scenario_id']}} "
+            f"| {'Status':<{col_widths['status']}} "
+            f"| {'Type':<{col_widths['classification']}} "
+            f"| {'Out Rec':>{col_widths['out_records']}} "
+            f"| {'In Rec':>{col_widths['in_records']}} "
             f"| {'Start Time':<{col_widths['start_time']}} "
             f"| {'End Time':<{col_widths['end_time']}} "
-            f"| {'Duration(ms)':>{col_widths['duration']}} "
+            f"| {'Duration(s)':>{col_widths['duration']}} "
             f"| {'Throughput(rec/s)':>{col_widths['throughput']}} "
-            f"| {'Status':<{col_widths['status']}} |"
+            f"{header_delay}"
+            f"|"
         )
+        
+        separator_delay = ""
+        if cmd.get_check_delay():
+            separator_delay = (
+                f"|{'-' * (col_widths['delay_avg'] + 2)}"
+                f"|{'-' * (col_widths['delay_p50'] + 2)}"
+                f"|{'-' * (col_widths['delay_p90'] + 2)}"
+                f"|{'-' * (col_widths['delay_p95'] + 2)}"
+                f"|{'-' * (col_widths['delay_p99'] + 2)}"
+            )
         
         # Separator line
         separator = (
             f"|{'-' * (col_widths['scenario_id'] + 2)}"
+            f"|{'-' * (col_widths['status'] + 2)}"
             f"|{'-' * (col_widths['classification'] + 2)}"
             f"|{'-' * (col_widths['out_records'] + 2)}"
             f"|{'-' * (col_widths['in_records'] + 2)}"
@@ -117,7 +160,8 @@ class OutMetrics:
             f"|{'-' * (col_widths['end_time'] + 2)}"
             f"|{'-' * (col_widths['duration'] + 2)}"
             f"|{'-' * (col_widths['throughput'] + 2)}"
-            f"|{'-' * (col_widths['status'] + 2)}|"
+            f"{separator_delay}"
+            f"|"
         )
         
         self.write_log(header)
@@ -135,10 +179,10 @@ class OutMetrics:
         for scenario in self.scenarioId:
             start_time = self.time_start_write.get(scenario, 0)
             end_time   = self.time_end_test.get(scenario, 0)
-            duration   = (end_time - start_time) * 1000  # ms
+            duration   = (end_time - start_time)  # s
             out_rows   = self.output_rows.get(scenario, 0)
             in_rows    = self.data_rows.get(scenario, 0)
-            throughput = (in_rows / duration * 1000) if duration > 0 else 0
+            throughput = (in_rows / duration) if duration > 0 else 0
             status     = self.status.get(scenario, "UNKNOWN")
             
             # Format time strings
@@ -154,33 +198,57 @@ class OutMetrics:
             else:
                 end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))
             
+            row_delay = ""
+            if cmd.get_check_delay():
+                delay = self.delay.get(scenario, Delay())
+                row_delay = (
+                    f"| {delay.avg:>{col_widths['delay_avg']}.2f} "
+                    f"| {delay.p50:>{col_widths['delay_p50']}.2f} "
+                    f"| {delay.p90:>{col_widths['delay_p90']}.2f} "
+                    f"| {delay.p95:>{col_widths['delay_p95']}.2f} "
+                    f"| {delay.p99:>{col_widths['delay_p99']}.2f} "
+                )
+            
             # Print row with fixed width
             row = (
                 f"| {self.scenarioId[scenario]:<{col_widths['scenario_id']}} "
+                f"| {status:<{col_widths['status']}} "
                 f"| {self.classification[scenario]:<{col_widths['classification']}} "
                 f"| {out_rows:>{col_widths['out_records']}} "
                 f"| {in_rows:>{col_widths['in_records']}} "
                 f"| {start_time_str:<{col_widths['start_time']}} "
                 f"| {end_time_str:<{col_widths['end_time']}} "
-                f"| {duration:>{col_widths['duration']}.0f} "
+                f"| {duration:>{col_widths['duration']}.2f} "
                 f"| {throughput:>{col_widths['throughput']}.2f} "
-                f"| {status:<{col_widths['status']}} |"
+                f"{row_delay}"
+                f"|"
             )
             self.write_log(row)
             
             # Add to JSON data
-            scenario_data = {
+            json_data = {
                 'scenario_id': self.scenarioId[scenario],
+                'status': status,
                 'classification': self.classification[scenario],
                 'out_records': out_rows,
                 'in_records': in_rows,
                 'start_time': start_time_str,
                 'end_time': end_time_str,
-                'duration_ms': round(duration, 0),
-                'throughput_rec_per_sec': round(throughput, 2),
-                'status': status
+                'duration_s': round(duration, 0),
+                'throughput_rec_per_sec': round(throughput, 2)                
             }
-            metrics_data['scenarios'].append(scenario_data)
+            if cmd.get_check_delay():
+                delay = self.delay.get(scenario, Delay())
+                json_delay = {
+                    'delay_avg': delay.avg,
+                    'delay_p50': delay.p50,
+                    'delay_p90': delay.p90,
+                    'delay_p95': delay.p95,
+                    'delay_p99': delay.p99
+                }                
+                json_data.update(json_delay)
+            
+            metrics_data['scenarios'].append(json_data)
         
         # End
         log.out("\nMetrics appand: %s" % self.metrics_file)

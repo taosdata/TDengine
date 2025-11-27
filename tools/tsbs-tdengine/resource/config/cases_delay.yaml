@@ -7,13 +7,12 @@ testCases:
             interval(1a) 
             sliding(1a)
             from db.stbd1 
-            partition by tbname
-            stream_options(ignore_nodata_trigger) 
+            stream_options(IGNORE_NODATA_TRIGGER|LOW_LATENCY_CALC) 
             into db.res_d1 
-            output_subtable(tbname)
             as 
-              select _twstart ts, 
-                      count(*)  cnt,
-                      last(ts)  lastts,
-                      first(ts) firstts
+              select  _twstart    ts, 
+                      cast(_tlocaltime/1000000 as timestamp) AS localtime,
+                      count(*)    cnt,
+                      last(ts)    lastts,
+                      first(ts)   firstts
                 from %%trows

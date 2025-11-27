@@ -2,7 +2,20 @@ testCases:
     # U1
     - scenarioId: "D1"
       querySql: select count(*) from db.stbd1;
-      dataRows: 10000000
-      verifySql: select count(*) from db.res_d1
-      expectRows: 100
+      dataRows: 10000
+      verifySql: select count(*) from db.res_d1;
+      expectRows: 10000
       compare: ">="
+      delaySql: select 
+                    count(ts)  cnt,
+                    avg(delay) avg_val,
+                    apercentile(delay, 50) p50,
+                    apercentile(delay, 90) p90,
+                    apercentile(delay, 95) p95,
+                    apercentile(delay, 99) p99 
+                  from ( 
+                         select ts,
+                                localtime,
+                                cast(localtime as bigint) - cast(ts as bigint) delay 
+                          from db.res_d1
+                       );
