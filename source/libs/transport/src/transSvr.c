@@ -2126,25 +2126,25 @@ void uvHandleUpdateIpTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
 
   if (req == NULL) {
     tDebug("ip-white-list disable on trans");
-    thrd->enableIpWhiteList = 0;
+    thrd->enableTimeIpWhiteList= 0;
     taosMemoryFree(msg);
     return;
   }
   int32_t code = 0;
   for (int i = 0; i < req->numOfUser; i++) {
-    SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
+    // SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
 
-    int32_t sz = pUser->numOfRange * sizeof(SIpRange);
+    // int32_t sz = pUser->numOfRange * sizeof(SIpRange);
 
-    SIpWhiteListDual* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteListDual));
-    if (pList == NULL) {
-      tError("failed to create ip-white-list since %s", tstrerror(code));
-      code = terrno;
-      break;
-    }
-    pList->num = pUser->numOfRange;
-    memcpy(pList->pIpRanges, pUser->pIpDualRanges, sz);
-    code = uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
+    // SIpWhiteListDual* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteListDual));
+    // if (pList == NULL) {
+    //   tError("failed to create ip-white-list since %s", tstrerror(code));
+    //   code = terrno;
+    //   break;
+    // }
+    // pList->num = pUser->numOfRange;
+    // memcpy(pList->pIpRanges, pUser->pIpDualRanges, sz);
+    // code = uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
     if (code != 0) {
       break;
     }
@@ -2156,7 +2156,7 @@ void uvHandleUpdateIpTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
   } else {
     tError("failed to update ip-white-list since %s", tstrerror(code));
   }
-  tFreeSUpdateIpWhiteReq(req);
+  tFreeSRetrieveDateTimeWhiteListRsp(req);
   taosMemoryFree(req);
   taosMemoryFree(msg);
 }

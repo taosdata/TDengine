@@ -4641,7 +4641,7 @@ _error:
     p = NULL;
   }
 
-  *dest = *p;
+  *dest = p;
   return code;
 }
 int32_t tDeserializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp) {
