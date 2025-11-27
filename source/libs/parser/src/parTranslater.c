@@ -7866,14 +7866,13 @@ static void resetOrderBySubqueryOrder(SSelectStmt* pSelect) {
   if (NULL == pSelect->pFromTable || QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable)) {
     return;
   }
+  SNode*     pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
   SNodeList* pOrderByList = NULL;
 
-  if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
-    SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
-    pOrderByList = pSub->pOrderByList;
-  } else if (QUERY_NODE_SET_OPERATOR == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
-    SSetOperator* pSub = (SSetOperator*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
-    pOrderByList = pSub->pOrderByList;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    pOrderByList = ((SSelectStmt*)pSubquery)->pOrderByList;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    pOrderByList = ((SSetOperator*)pSubquery)->pOrderByList;
   }
 
   if (pOrderByList != NULL && pOrderByList->length > 0) {

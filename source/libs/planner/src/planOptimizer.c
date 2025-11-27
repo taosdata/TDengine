@@ -5456,13 +5456,6 @@ static int32_t keepGroupAction(SOptimizeContext* pCxt, SNode* pNode) {
   return keepGroupAction(pCxt, pChild);
 }
 
-static bool subPlanNeedKeepGroupAction(SLogicNode* pNode) {
-  if (LIST_LENGTH(pNode->pChildren) < 1) {
-    return false;
-  }
-  return (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode));
-}
-
 static int32_t keepGroupActionOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pLogicSubplan->pNode) ||
       LIST_LENGTH(pLogicSubplan->pNode->pChildren) < 1) {

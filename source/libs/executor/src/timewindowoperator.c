@@ -374,7 +374,7 @@ static int32_t setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, 
   return code;
 }
 
-bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType) {
+bool inCalSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType) {
   if (pInterval->interval != pInterval->sliding &&
       ((pWin->ekey < calStart || pWin->skey > calEnd) || (blockType == STREAM_PULL_DATA && pWin->skey < calStart))) {
     return false;
@@ -383,7 +383,7 @@ bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart,
   return true;
 }
 
-bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo) {
+bool inSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, const SDataBlockInfo* pBlockInfo) {
   return inCalSlidingWindow(pInterval, pWin, pBlockInfo->calWin.skey, pBlockInfo->calWin.ekey, pBlockInfo->type);
 }
 
@@ -809,16 +809,17 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
   }
 
   doCloseWindow(pResultRowInfo, pInfo, pResult);
+  startPos += forwardRows;
 
   STimeWindow nextWin = win;
 
   while (startPos < pBlock->info.rows) {
-   int32_t prevEndPos = forwardRows - 1 + startPos;
-    startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos,
-                                      pInfo->binfo.inputTsOrder);
-    if (startPos < 0 || startPos >= pBlock->info.rows || filterWindowWithLimit(pInfo, &nextWin, tableGroupId, pTaskInfo)) {
+    if (filterWindowWithLimit(pInfo, &nextWin, tableGroupId, pTaskInfo)) {
       break;
     }
+    
+    getInitialStartTimeWindow(&pInfo->interval, tsCols[startPos], &nextWin, false);
+
     // null data, failed to allocate more memory buffer
     int32_t code = setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                           pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
@@ -840,6 +841,8 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
       T_LONG_JMP(pTaskInfo->env, ret);
     }
     doCloseWindow(pResultRowInfo, pInfo, pResult);
+
+    startPos += forwardRows;
   }
 
   if (pInfo->timeWindowInterpo) {
