@@ -301,7 +301,11 @@ static void vmUnRegisterClosedState(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     dInfo("vgId:%d, remove from closedHash", pVnode->vgId);
     r = taosHashRemove(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t));
     if (r != 0) {
-      dError("vgId:%d, failed to remove vnode from hash", pVnode->vgId);
+      if (r == TSDB_CODE_NOT_FOUND) {
+        dWarn("vgId:%d, vnode not found in closedHash when unregistering", pVnode->vgId);
+      } else {
+        dError("vgId:%d, failed to remove vnode from hash when unregistering since %s", pVnode->vgId, tstrerror(r));
+      }
     }
   }
 }

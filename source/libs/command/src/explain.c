@@ -30,7 +30,7 @@ char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 /*FULL*/   {"Full Join",          "Full Join",           NULL,                 NULL,                  NULL,                  NULL},
 };
 
-static int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
+static int32_t qExplainGenerateResNode(SSubplan *plan, SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode);
 static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
 
 char *qExplainGetDynQryCtrlType(EDynQueryType type) {
@@ -160,7 +160,7 @@ _return:
   QRY_RET(code);
 }
 
-static int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNodeList **pChildren) {
+static int32_t qExplainGenerateResChildren(SSubplan *plan, SPhysiNode *pNode, SExplainGroup *group, SNodeList **pChildren) {
   int32_t    tlen = 0;
   SNodeList *pPhysiChildren = pNode->pChildren;
 
@@ -175,7 +175,7 @@ static int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *gro
   SNode           *node = NULL;
   SExplainResNode *pResNode = NULL;
   FOREACH(node, pPhysiChildren) {
-    QRY_ERR_RET(qExplainGenerateResNode((SPhysiNode *)node, group, &pResNode));
+    QRY_ERR_RET(qExplainGenerateResNode(plan, (SPhysiNode *)node, group, &pResNode));
     QRY_ERR_RET(nodesListAppend(*pChildren, (SNode *)pResNode));
   }
 
@@ -219,7 +219,7 @@ static int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExec
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode) {
+static int32_t qExplainGenerateResNode(SSubplan *plan, SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode) {
   if (NULL == pNode) {
     *pResNode = NULL;
     qError("physical node is NULL");
@@ -234,12 +234,13 @@ static int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, 
 
   int32_t code = 0;
   resNode->pNode = pNode;
+  resNode->pPlan = plan;
 
   if (group->nodeExecInfo) {
     QRY_ERR_JRET(qExplainGenerateResNodeExecInfo(pNode, &resNode->pExecInfo, group));
   }
 
-  QRY_ERR_JRET(qExplainGenerateResChildren(pNode, group, &resNode->pChildren));
+  QRY_ERR_JRET(qExplainGenerateResChildren(plan, pNode, group, &resNode->pChildren));
 
   *pResNode = resNode;
 
@@ -364,6 +365,43 @@ static char* qExplainGetScanDataLoad(STableScanPhysiNode* pScan) {
   return "unknown";
 }
 
+static EDealRes qExplainVerifyIndex(SNode* pNode, void* pContext) {
+  if (NULL == pNode) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_NODE_LIST:
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pNode;
+      if ((pOp->opType >= OP_TYPE_GREATER_THAN && pOp->opType <= OP_TYPE_EQUAL) || (OP_TYPE_IN == pOp->opType)) {
+        break;
+      }
+      // fall through
+    }
+    default:
+      *(bool*)pContext = false;
+      return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static bool qExplainCouldApplyTagIndex(SSubplan* pPlan) {
+  if (NULL == pPlan->pTagIndexCond) {
+    return false;
+  }
+
+  bool couldApply = true;
+  nodesWalkExpr(pPlan->pTagIndexCond, qExplainVerifyIndex, &couldApply);
+
+  return couldApply;
+}
+
 static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
   int32_t     tlen = 0;
   bool        isVerboseLine = false;
@@ -415,6 +453,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         if (pTagScanNode->scan.node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
           QRY_ERR_RET(nodesNodeToSQL(pTagScanNode->scan.node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        if (qExplainCouldApplyTagIndex(pResNode->pPlan)) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TAG_INDEX_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pResNode->pPlan->pTagIndexCond, tbuf + VARSTR_HEADER_SIZE,
                                      TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
@@ -587,6 +633,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         if (pTblScanNode->scan.node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
           QRY_ERR_RET(nodesNodeToSQL(pTblScanNode->scan.node.pConditions, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
+        if (qExplainCouldApplyTagIndex(pResNode->pPlan)) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TAG_INDEX_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pResNode->pPlan->pTagIndexCond, tbuf + VARSTR_HEADER_SIZE,
                                      TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
@@ -1490,6 +1544,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
+
+        if (qExplainCouldApplyTagIndex(pResNode->pPlan)) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TAG_INDEX_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pResNode->pPlan->pTagIndexCond, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
       }
       break;
     }
@@ -2002,7 +2064,7 @@ static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t l
   group->singleChannel = singleChannel;
   group->physiPlanExecIdx = 0;
 
-  QRY_ERR_RET(qExplainGenerateResNode(group->plan->pNode, group, &node));
+  QRY_ERR_RET(qExplainGenerateResNode(group->plan, group->plan->pNode, group, &node));
 
   QRY_ERR_JRET(qExplainResNodeToRows(node, ctx, level));
 

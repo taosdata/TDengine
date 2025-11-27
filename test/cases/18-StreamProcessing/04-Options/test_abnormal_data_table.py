@@ -10,7 +10,7 @@ class TestStreamDisorderTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_disnorder_table(self):
-        """Abnormal Data: table
+        """Abnormal data: table
 
         test data disorder/update/delete change cases to stream
 

@@ -758,7 +758,7 @@ class TestCase:
             row_offset += len(expected_data)
 
     def test_rsma(self):
-        """ Test case for rsma.
+        """RSMAs basic
         
         1. Create two databases d0 and d1 with retention policy and stt_trigger.
         2. Create stable and table with various data types including decimal and composite key.

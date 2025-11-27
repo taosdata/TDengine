@@ -31,8 +31,8 @@
 #include "executorInt.h"
 #include "querytask.h"
 #include "storageapi.h"
-#include "tcompression.h"
 #include "tutil.h"
+#include "tjson.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -2074,11 +2074,12 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   QUERY_CHECK_NULL(pUidList, code, lino, _error, terrno);
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
-  bool    canCacheTagCondFilter = pTagCond != NULL;
-  bool    isStream = pStreamInfo != NULL;
   char*   pTagCondKey = NULL;
   int32_t tagCondKeyLen;
   SArray* pTagColIds = NULL;
+  qTrace("getTableList called, suid:%" PRIu64
+    ", tagCond:%p, tagIndexCond:%p, %d %d", pScanNode->suid, pTagCond,
+    pTagIndexCond, pScanNode->tableType, pScanNode->virtualStableScan);
   if (pScanNode->tableType != TSDB_SUPER_TABLE && !pScanNode->virtualStableScan) {
     pListInfo->idInfo.uid = pScanNode->uid;
     if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
@@ -2088,61 +2089,54 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
+    bool      isStream = (pStreamInfo != NULL);
+    bool      hasTagCond = (pTagCond != NULL);
+    bool      canCacheTagEqCondFilter = false;
     T_MD5_CTX context = {0};
-    T_MD5_CTX contextStable = {0};
 
-    if (tsStableTagFilterCache && isStream) {
+    qTrace("start to get table list by tag filter, suid:%" PRIu64
+      ",tsStableTagFilterCache:%d, tsTagFilterCache:%d", 
+      pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache);
+
+    bool acquired = false;
+    // first, check whether we can use stable tag filter cache
+    if (tsStableTagFilterCache && isStream && hasTagCond) {
+      canCacheTagEqCondFilter = true;
       nodesWalkExpr(pTagCond, canOptimizeTagCondFilter,
-        (void*)&canCacheTagCondFilter);
-      if (canCacheTagCondFilter) {
-        qDebug("stable tag filter condition can be optimized");
-        if (((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
-          SNode* tmp = NULL;
-          code = nodesCloneNode((SNode*)pTagCond, &tmp);
-          QUERY_CHECK_CODE(code, lino, _error);
-
-          PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
-          nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
-          if (TSDB_CODE_SUCCESS != ctx.code) {
-            nodesDestroyNode(tmp);
-            code = ctx.code;
-            goto _error;
-          }
-          code = genStableTagFilterDigest(tmp, &contextStable);
-          nodesDestroyNode(tmp);
-        } else {
-          code = genStableTagFilterDigest(pTagCond, &contextStable);
-        }
-        QUERY_CHECK_CODE(code, lino, _error);
-
-        bool acquired = false;
-        code = buildTagCondKey(
-          pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
-        QUERY_CHECK_CODE(code, lino, _error);
-        code = pStorageAPI->metaFn.getStableCachedTableList(
-          pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
-          contextStable.digest, tListLen(contextStable.digest),
-          pUidList, &acquired);
-        QUERY_CHECK_CODE(code, lino, _error);
-
-        if (acquired) {
-          taosArrayDestroy(pTagColIds);
-          pTagColIds = NULL;
-          
-          digest[0] = 1;
-          memcpy(
-            digest + 1, contextStable.digest, tListLen(contextStable.digest));
-          qDebug("suid:%" PRIu64 ", %s retrieve table uid list from stable cache,"
-            " numOfTables:%d", 
-            pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
-          goto _end;
-        } else {
-          qDebug("suid:%" PRIu64 
-            ", failed to get table uid list from stable cache", pScanNode->suid);
-        }
-      }
+        (void*)&canCacheTagEqCondFilter);
     }
-    if (tsTagFilterCache) {
+    if (canCacheTagEqCondFilter) {
+      qDebug("stable tag filter condition can be optimized");
+      if (((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
+        SNode* tmp = NULL;
+        code = nodesCloneNode((SNode*)pTagCond, &tmp);
+        QUERY_CHECK_CODE(code, lino, _error);
+
+        PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
+        nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
+        if (TSDB_CODE_SUCCESS != ctx.code) {
+          nodesDestroyNode(tmp);
+          code = ctx.code;
+          goto _error;
+        }
+        code = genStableTagFilterDigest(tmp, &context);
+        nodesDestroyNode(tmp);
+      } else {
+        code = genStableTagFilterDigest(pTagCond, &context);
+      }
+      QUERY_CHECK_CODE(code, lino, _error);
+
+      code = buildTagCondKey(
+        pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
+      QUERY_CHECK_CODE(code, lino, _error);
+      code = pStorageAPI->metaFn.getStableCachedTableList(
+        pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
+        context.digest, tListLen(context.digest),
+        pUidList, &acquired);
+      QUERY_CHECK_CODE(code, lino, _error);
+    } else if (tsTagFilterCache) {
+      // second, try to use normal tag filter cache
+      qDebug("using normal tag filter cache");
       if (pStreamInfo != NULL && ((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
         SNode* tmp = NULL;
         code = nodesCloneNode((SNode*)pTagCond, &tmp);
@@ -2162,23 +2156,31 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       }
       // try to retrieve the result from meta cache
       QUERY_CHECK_CODE(code, lino, _error);      
-      bool acquired = false;
       code = pStorageAPI->metaFn.getCachedTableList(
         pVnode, pScanNode->suid, context.digest,
         tListLen(context.digest), pUidList, &acquired);
       QUERY_CHECK_CODE(code, lino, _error);
-
-      if (acquired) {
-        digest[0] = 1;
-        memcpy(digest + 1, context.digest, tListLen(context.digest));
-        qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t)taosArrayGetSize(pUidList));
-        goto _end;
-      }
+    }
+    if (acquired) {
+      taosArrayDestroy(pTagColIds);
+      pTagColIds = NULL;
+      
+      digest[0] = 1;
+      memcpy(
+        digest + 1, context.digest, tListLen(context.digest));
+      qDebug("suid:%" PRIu64 ", %s retrieve table uid list from cache,"
+        " numOfTables:%d", 
+        pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
+      goto _end;
+    } else {
+      qDebug("suid:%" PRIu64 
+        ", failed to get table uid list from cache", pScanNode->suid);
     }
 
     if (!pTagCond) {  // no tag filter condition exists, let's fetch all tables of this super table
       code = pStorageAPI->metaFn.getChildTableList(pVnode, pScanNode->suid, pUidList);
       QUERY_CHECK_CODE(code, lino, _error);
+      qTrace("no tag filter, get all child tables, numOfTables:%d", (int32_t)taosArrayGetSize(pUidList));
     } else {
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
@@ -2198,7 +2200,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         }
       }
     }
-
+    qTrace("after index filter, pTagCond:%p uidListSize:%d", pTagCond, (int32_t)taosArrayGetSize(pUidList));
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status,
       pStorageAPI, tsTagFilterCache || tsStableTagFilterCache,
       &listAdded, pStreamInfo);
@@ -2207,7 +2209,23 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     // let's add the filter results into meta-cache
     numOfTables = taosArrayGetSize(pUidList);
 
-    if (tsTagFilterCache) {
+    if (canCacheTagEqCondFilter) {
+      qInfo("suid:%" PRIu64 ", %s add uid list to stable tag filter cache, "
+        "uidListSize:%d", pScanNode->suid, idstr,
+        (int32_t)taosArrayGetSize(pUidList));
+
+      code = pStorageAPI->metaFn.putStableCachedTableList(
+        pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
+        context.digest, tListLen(context.digest),
+        pUidList, &pTagColIds);
+      QUERY_CHECK_CODE(code, lino, _error);
+
+      digest[0] = 1;
+      memcpy(digest + 1, context.digest, tListLen(context.digest));
+    } else if (tsTagFilterCache) {
+      qInfo("suid:%" PRIu64 ", %s add uid list to normal tag filter cache, "
+        "uidListSize:%d", pScanNode->suid, idstr,
+        (int32_t)taosArrayGetSize(pUidList));
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       char*  pPayload = taosMemoryMalloc(size);
       QUERY_CHECK_NULL(pPayload, code, lino, _end, terrno);
@@ -2225,16 +2243,6 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
 
       digest[0] = 1;
       memcpy(digest + 1, context.digest, tListLen(context.digest));
-    }
-    if (tsStableTagFilterCache && isStream && canCacheTagCondFilter) {
-      qInfo("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, "
-        "uidListSize:%d", 
-        pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
-      code = pStorageAPI->metaFn.putStableCachedTableList(
-        pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
-        contextStable.digest, tListLen(contextStable.digest),
-        pUidList, &pTagColIds);
-      QUERY_CHECK_CODE(code, lino, _error);
     }
   }
 
@@ -3970,5 +3978,30 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  return code;
+}
+
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
+  int32_t code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+  if (pJson == NULL) {
+    return code;
+  }
+
+  char    pMsg[1024] = {0};
+  int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
+
+  if (ret == 0) {
+    qError("%s failed to exec imputation, msg:%s", pId, pMsg);
+    if (strstr(pMsg, "white noise") != NULL) {
+      code = TSDB_CODE_ANA_WN_DATA;
+    } else if (strstr(pMsg, "white-noise") != NULL) {
+      code = TSDB_CODE_ANA_WN_DATA;
+    } else if (strstr(pMsg, "[Errno 111] Connection refused") != NULL) {
+      code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
+    }
+  } else {
+    qError("%s failed to extract msg from server, unknown error", pId);
+  }
+
   return code;
 }

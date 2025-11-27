@@ -1078,7 +1078,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
     if (id == 0) {
       break;
     }
-
+    qTrace("vnodeGetCtbIdList: got ctb id %" PRId64 " for suid %" PRId64, id, suid);
     if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = terrno;

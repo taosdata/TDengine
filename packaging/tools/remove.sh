@@ -258,6 +258,8 @@ function batch_remove_paths_and_clean_dir() {
 }
 
 function remove_data_and_config() {
+  echo "Starting to remove configuration, data and log files..."
+
   data_dir=$(grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
   if [ -z "$data_dir" ]; then
     data_dir="/var/lib/${PREFIX}"
@@ -271,6 +273,7 @@ function remove_data_and_config() {
   
   if [ -d "${config_dir}" ]; then
     ${csudo}rm -rf ${config_dir}
+    echo "Configuration directory removed: ${config_dir}"
   fi
 
   if [ -d "${data_dir}" ]; then
@@ -285,6 +288,7 @@ function remove_data_and_config() {
       "${data_dir}/explorer"*
     )
     batch_remove_paths_and_clean_dir "${data_dir}" "${data_remove_list[@]}"
+    echo "Data directory removed: ${data_dir}"
   fi
   
   if [ -d "${log_dir}" ]; then
@@ -298,6 +302,7 @@ function remove_data_and_config() {
       "${log_dir}/.startSeq"
     )
     batch_remove_paths_and_clean_dir "${log_dir}" "${log_remove_list[@]}"
+    echo "Log directory removed: ${log_dir}"
   fi
 }
 

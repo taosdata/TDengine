@@ -9,15 +9,17 @@ class TestStreamRecalcWatermark:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_watermark(self):
-        """Stream Recalculation WATERMARK Option Test
+        """Recalc: super table watermark 
 
         Test WATERMARK option with out-of-order data:
-        1. Write out-of-order data within WATERMARK tolerance - should trigger recalculation
-        2. Write out-of-order data exceeding WATERMARK tolerance - should be handled by recalculation mechanism
-        3. Different trigger types behavior with WATERMARK
+        1. Create database and super table with WATERMARK option
+        2. Create trigger tables for different stream types
+        3. Create streams with various trigger types using the trigger tables
+        4. Write initial trigger data to set baseline
+        5. Write source data to test WATERMARK handling
+        6. Check stream status to ensure they are running
+        7. Check results to verify correct handling of out-of-order data
 
-        Catalog:
-            - Streams:Recalculation
 
         Since: v3.0.0.0
 

@@ -47,7 +47,7 @@ class TestStreamCompatibility:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_compatibility(self):
-        """Comp: Stream Cross-Version
+        """Comp: stream cross-version
 
         Test stream processing and TSMA compatibility across 4 base versions with actual stream/TSMA creation and verification:
 

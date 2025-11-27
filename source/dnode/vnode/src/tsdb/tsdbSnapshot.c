@@ -267,6 +267,15 @@ _exit:
 
 static int64_t tBlockDataSize(SBlockData* pBlockData) {
   int64_t nData = 0;
+
+  // Key part
+  if (pBlockData->uid == 0) {
+    nData += (sizeof(int64_t) * pBlockData->nRow);  // uid
+  }
+  nData += (sizeof(int64_t) * pBlockData->nRow);  // version
+  nData += (sizeof(TSKEY) * pBlockData->nRow);    // primary keys
+
+  // General column part
   for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
     SColData* pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
     if (pColData->flag == HAS_NONE || pColData->flag == HAS_NULL) {
@@ -336,11 +345,9 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
     code = tsdbIterMergerNext(reader->dataIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (!(reader->blockData->nRow % 16)) {
-      int64_t nData = tBlockDataSize(reader->blockData);
-      if (nData >= TSDB_SNAP_DATA_PAYLOAD_SIZE) {
-        break;
-      }
+    if (reader->blockData->nRow >= TSDB_SNAP_MAX_ROWS_PER_DATA ||
+        tBlockDataSize(reader->blockData) >= TSDB_SNAP_DATA_PAYLOAD_SIZE) {
+      break;
     }
   }
 

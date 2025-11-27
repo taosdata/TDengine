@@ -234,6 +234,7 @@ Below are the business error codes for each module.
 | 0x800003D5 | Unable to establish connection While execute transaction and will continue in the background | Network error                                                | Check if the network is normal                               |
 | 0x800003D6 | Last Transaction not finished                                | Internal error                                               | Report issue                                                 |
 | 0x800003D7 | Sync timeout While execute transaction and will continue in the background | Internal error                                               | Report issue                                                 |
+| 0x800003DA | The transaction is not able to be killed                                   | Internal error                                               | Report issue                                                 |
 | 0x800003DF | Unknown transaction error                                    | Internal error                                               | Report issue                                                 |
 | 0x800003E0 | Topic already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003E1 | Topic not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
@@ -650,6 +651,7 @@ Below are the business error codes for each module.
 | 0x80007014 | Stream output table name too long     | Output table name exceeds length limit       | Check if the output table name rules in the stream creation statement are correct and if the result is too long |
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
+| 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 
 ## Connectors
 Below are the error codes specific to connectors for various programming languages. In addition to returning their own error codes, connectors also return the TSDB error codes mentioned above.

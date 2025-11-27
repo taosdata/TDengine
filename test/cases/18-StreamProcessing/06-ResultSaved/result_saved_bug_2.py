@@ -8,7 +8,7 @@ class TestStreamResultSavedComprehensive:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_result_saved_comprehensive(self):
-        """Stream result saved comprehensive
+        """Result saved: comprehensive
 
         1. Test [INTO [db_name.]table_name]
             1.1 Test whether this option exists

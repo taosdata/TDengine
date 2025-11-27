@@ -537,16 +537,9 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
-    char pMsg[1024] = {0};
-    code = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (code != 0) {
-      qError("%s failed to get msg from rsp, unknown error", pId);
-    } else {
-      qError("%s failed to exec analysis, msg:%s", pId, pMsg);
-    }
-
+    code = parseErrorMsgFromAnalyticServer(pJson, pId);
     tjsonDelete(pJson);
-    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+    return code;
   }
 
   if (code < 0) {
@@ -1041,34 +1034,31 @@ void doInitDtwOptions(SCorrelationSupp* pSupp) {
 }
 
 int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
-  int32_t     code = 0;
-  char*       p = NULL;
-  int32_t     len = 0;
+  int32_t code = 0;
+  char*   p = NULL;
+  int32_t len = 0;
+  regex_t regex;
 
   char* pFreq = taosHashGet(pHashMap, FREQ_STR, strlen(FREQ_STR));
   if (pFreq != NULL) {
     len = taosHashGetValueSize(pFreq);
-    p = taosStrndupi(pSupp->freq, len);
+    p = taosStrndupi(pFreq, len);
     if (p == NULL) {
       qError("%s failed to clone the freq param, code:%s", id, strerror(terrno));
       return terrno;
     }
 
-    if (len >= tListLen(pSupp->freq)) {
+    if (regcomp(&regex, "^([1-9][0-9]*|[1-9]*)(ms|us|ns|[smhdw])$", REG_EXTENDED | REG_ICASE) != 0) {
+      qError("%s failed to compile regex for freq param", id);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    int32_t res = regexec(&regex, p, 0, NULL, 0);
+    regfree(&regex);
+    if (res != 0) {
       qError("%s invalid freq parameter: %s", id, p);
-      code = TSDB_CODE_INVALID_PARA;
-    } else {
-      if ((len == 1) && (strncmp(pFreq, "d", 1) != 0) && (strncmp(pFreq, "h", 1) != 0) &&
-          (strncmp(pFreq, "m", 1) != 0) && (strncmp(pFreq, "s", 1) != 0)) {
-        code = TSDB_CODE_INVALID_PARA;
-        qError("%s invalid freq parameter: %s", id, p);
-      } else if ((len == 2) && (strncmp(pFreq, "ms", 2) != 0) && (strncmp(pFreq, "us", 2) != 0)) {
-        code = TSDB_CODE_INVALID_PARA;
-        qError("%s invalid freq parameter: %s", id, p);
-      } else if (len > 2) {
-        code = TSDB_CODE_INVALID_PARA;
-        qError("%s invalid freq parameter: %s", id, p);
-      }
+      taosMemoryFreeClear(p);
+      return TSDB_CODE_INVALID_PARA;
     }
 
     if (code == TSDB_CODE_SUCCESS) {
@@ -1078,7 +1068,7 @@ int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
   } else {
     qDebug("%s not specify data freq, default: %s", id, pSupp->freq);
   }
-  
+
   taosMemoryFreeClear(p);
   return code;
 }
