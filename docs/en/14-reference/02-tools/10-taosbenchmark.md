@@ -435,7 +435,7 @@ If the execution time of the query exceeds the interval time, it will no longer 
 #### Supertables
 
 Configuration parameters for querying supertables are set in `super_table_query`.  
-The thread mode of the super table query is the same as the `Normal Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
+The thread mode of the super table query is the same as the `General Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
 
 - **stblname** : The name of the supertable to query, required.
 - **query_interval** : Query interval, in seconds, default is 0.
@@ -468,7 +468,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
    name: Specify the topic name.
    sql:  Specify the sql statement for creating topic, Ensure that the sql is correct, and the framework will automatically create topic.
 
-For the following parameters, see the description of [Subscription](../../../advanced-features/data-subscription/):
+For the following parameters, see the description of [Subscription](../../../advanced/subscription/):
 
 - **client.id**
 - **auto.offset.reset**

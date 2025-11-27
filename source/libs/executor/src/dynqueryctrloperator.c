@@ -1716,6 +1716,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           QUERY_CHECK_CODE(code, line, _return);
 
           if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
+            destroyColRefInfo(&info);
             continue;
           }
 

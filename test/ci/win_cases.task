@@ -1,0 +1,12 @@
+#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+
+
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py
+,,y,.,./ci/pytest.sh pytest cases/10-Operators/04-Set/test_union.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full.py
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_kill_restore_dnode.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3 --replica 3
+# ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb.py -N 3 --replica 3
+,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py

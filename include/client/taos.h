@@ -72,6 +72,7 @@ typedef enum {
   TSDB_OPTION_CONNECTION_TIMEZONE,       // timezone, Same as the scope supported by the system
   TSDB_OPTION_CONNECTION_USER_IP,        // user ip
   TSDB_OPTION_CONNECTION_USER_APP,       // user app, max lengthe is 23, truncated if longer than 23
+  TSDB_OPTION_CONNECTION_CONNECTOR_INFO, // connector info, max lengthe is 255, truncated if longer than 255
   TSDB_MAX_OPTIONS_CONNECTION
 } TSDB_OPTION_CONNECTION;
 

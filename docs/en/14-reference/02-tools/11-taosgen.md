@@ -161,8 +161,10 @@ Each column includes:
   - Integer: timestamp, bool, tinyint, tinyint unsigned, smallint, smallint unsigned, int, int unsigned, bigint, bigint unsigned.
   - Float: float, double, decimal.
   - String: nchar, varchar (binary).
+
+  Currently, the following data types are not supported: json, geometry, varbinary, decimal, blob.
 - count (int): Number of consecutive columns of this type (e.g., count: 4096 creates 4096 columns).
-- properties (string): Column property info for TDengine, may include:
+- props (string): Column property info for TDengine, may include:
   - encode: First-level encoding algorithm for two-level compression.
   - compress: Second-level encryption algorithm for two-level compression.
   - level: Compression rate for second-level encryption.
@@ -236,7 +238,6 @@ The `tdengine/create-child-table` action creates multiple child tables in the ta
 ### Format for Writing Data to TDengine Action
 The `tdengine/insert-data` action writes data to specified child tables. Supports obtaining child table names and normal column data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich write control strategies for optimization.
 
-- tdengine: Uses global tdengine configuration by default; can be overridden for this action.
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for writing data, options: sql, stmt, default: stmt.
 - concurrency (int): Number of threads for concurrent data writing, default: 8.
@@ -254,10 +255,10 @@ The `tdengine/insert-data` action writes data to specified child tables. Support
     - last_to_first: First row time of this batch - last row time of last batch.
     - literal: Send based on time value of first row, simulating real-time data.
   - fixed_interval: Effective only if interval_strategy = fixed:
-    - base_interval (int): Fixed interval value in ms.
+    - base_interval (int): Fixed interval value in milliseconds, default is 1000.
   - dynamic_interval: Effective only if interval_strategy = first_to_first / last_to_first:
-    - min_interval (int): Default: -1, minimum interval threshold.
-    - max_interval (int): Default: -1, maximum interval threshold.
+    - min_interval (int): Minimum interval threshold in milliseconds, default is -1 (inactive).
+    - max_interval (int): Maximum interval threshold in milliseconds, default is -1 (inactive).
   - wait_strategy (string): Wait strategy between requests when interval control is enabled, default: sleep. Options:
     - sleep: Sleep, yield thread to OS.
     - busy_wait: Busy wait, keep thread active.
@@ -268,7 +269,6 @@ The `tdengine/insert-data` action writes data to specified child tables. Support
 ### Format for Publishing MQTT Data Action
 The `mqtt/publish-data` action publishes data to the specified topic. Supports obtaining data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich publish control strategies for optimization.
 
-- mqtt: Uses global mqtt configuration by default; can be overridden for this action.
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for publishing data, currently only supports json, default: json.
 - concurrency (int): Number of threads for concurrent publishing, default: 8.
@@ -357,14 +357,13 @@ groupid,location,tbname
 - `ctb-data.csv` file format:
 
 ```csv
-tbname,current,voltage,phase
 tbname,ts,current,voltage,phase
 d1,1700000010000,5.23,221.5,146.2
-d3,1700000030000,8.76,219.8,148.7
-d2,1700000020000,12.45,223.1,147.3
-d3,1700000030001,9.12,220.3,149.1
-d2,1700000020001,11.87,222.7,145.8
-d1,1700000010001,4.98,220.9,147.9
+d3,1700000010000,8.76,219.8,148.7
+d2,1700000010000,12.45,223.1,147.3
+d3,1700000310000,9.12,220.3,149.1
+d2,1700000310000,11.87,222.7,145.8
+d1,1700000310000,4.98,220.9,147.9
 ```
 
 ### Generator-Based Data Generation and Publishing to MQTT Broker Example

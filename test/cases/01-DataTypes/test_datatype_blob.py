@@ -1,4 +1,5 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+import re
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestDatatypeBlob:
@@ -15,10 +16,8 @@ class TestDatatypeBlob:
         3. Auto-create table
         4. Alter tag value
         5. Handle illegal input
+        6. Check auto create table with blob cols
 
-        Catalog:
-            - DataTypes
-            - Tables:SubTables:Create
 
         Since: v3.0.0.0
 
@@ -28,6 +27,7 @@ class TestDatatypeBlob:
 
         History:
            - 2025-7-27 yhDeng create 
+           - 2025-11-24 Tony Zhang add check auto create table with blob cols
 
         """
         self.check_limit() 
@@ -36,6 +36,7 @@ class TestDatatypeBlob:
         self.auto_create_table()
         self.alter_tag_value()
         self.illegal_input()
+        self.check_auto_create_table()
         self.clearup_data()
         self.checkUnderedData()
 
@@ -427,8 +428,16 @@ class TestDatatypeBlob:
             tdSql.checkData(i, 1, None)
         tdSql.execute(f"drop database blob_ordered")
 
+    def check_auto_create_table(self):
+        tdLog.info(f"case 6: check auto create table with blob cols")
 
-         
+        tdSql.execute("""
+            create table auto_blob_t (ts timestamp, c1 blob) tags(t1 int)""")
+        tdSql.execute("""
+            insert into auto_blob_t (tbname, ts, c1, t1) values ('ctb1', now,
+            '\x48656c6c6f20576f726c64', 1)""")
         
-         
-    
+        tdSql.query(f"select c1 from ctb1")
+        tdSql.checkRows(1)
+        hex_str: str = tdSql.getData(0, 0).decode()  # 'H656c6c6f20576f726c64'
+        assert b'Hello World' == hex_str[0].encode() + bytes.fromhex(hex_str[1:])

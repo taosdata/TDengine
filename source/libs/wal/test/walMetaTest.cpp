@@ -2,8 +2,12 @@
 #include <cstring>
 #include <iostream>
 #include <queue>
+#include <thread>
+#include <vector>
+#include <atomic>
 
 #include "walInt.h"
+#include "tglobal.h"
 
 const char*  ranStr = "tvapq02tcp";
 const int    ranStrLen = strlen(ranStr);
@@ -354,7 +358,7 @@ TEST_F(WalCleanEnv, rollbackMultiFile) {
     ASSERT_EQ(pWal->vers.lastVer, i);
     if (i == 5) {
       walBeginSnapshot(pWal, i, 0);
-      walEndSnapshot(pWal);
+      walEndSnapshot(pWal, false);
     }
   }
   code = walRollback(pWal, 12);
@@ -392,7 +396,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
 
   walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
-  walEndSnapshot(pWal);
+  walEndSnapshot(pWal, false);
   ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
@@ -408,7 +412,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
 
   code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
-  code = walEndSnapshot(pWal);
+  code = walEndSnapshot(pWal, false);
   ASSERT_EQ(code, 0);
 }
 
@@ -799,7 +803,7 @@ TEST_F(WalSkipLevel, roll) {
     code = walCommit(pWal, i);
   }
   walBeginSnapshot(pWal, i - 1, 0);
-  walEndSnapshot(pWal);
+  walEndSnapshot(pWal, false);
   code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
   ASSERT_NE(code, 0);
   for (; i < 200; i++) {
@@ -809,7 +813,7 @@ TEST_F(WalSkipLevel, roll) {
   }
   code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
-  code = walEndSnapshot(pWal);
+  code = walEndSnapshot(pWal, false);
   ASSERT_EQ(code, 0);
 }
 
@@ -822,4 +826,374 @@ TEST_F(WalEncrypted, write) {
   }
   code = walSaveMeta(pWal);
   ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalKeepEnv, walSetKeepVersionBasic) {
+  walResetEnv();
+  int code;
+
+  // Test setting keep version
+  code = walSetKeepVersion(pWal, 50);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, 50);
+
+  // Test setting different keep version
+  code = walSetKeepVersion(pWal, 100);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, 100);
+
+  // Test invalid parameter (negative version)
+  code = walSetKeepVersion(pWal, -5);
+  ASSERT_NE(code, 0);
+
+  // Test NULL pointer
+  code = walSetKeepVersion(NULL, 50);
+  ASSERT_NE(code, 0);
+}
+
+TEST_F(WalCleanDeleteEnv, walSetKeepVersionWithDeletion) {
+  int code;
+  int i;
+  
+  // Write 200 logs
+  for (i = 0; i < 200; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(pWal->vers.lastVer, i);
+    code = walCommit(pWal, i);
+    ASSERT_EQ(pWal->vers.commitVer, i);
+  }
+
+  // Set keep version to 50, so versions >= 50 should not be deleted
+  code = walSetKeepVersion(pWal, 50);
+  ASSERT_EQ(code, 0);
+
+  // Trigger snapshot, this should not delete logs with version >= 50
+  walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
+  walEndSnapshot(pWal, false);
+  ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
+  ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
+
+  // The firstVer should be no greater than 50
+  ASSERT_LE(pWal->vers.firstVer, 50);
+
+  // Continue writing more logs
+  for (; i < 300; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+    ASSERT_EQ(pWal->vers.commitVer, i);
+  }
+
+  // Update keep version to 150
+  code = walSetKeepVersion(pWal, 150);
+  ASSERT_EQ(code, 0);
+
+  // Trigger another snapshot
+  code = walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(code, 0);
+  code = walEndSnapshot(pWal, false);
+  ASSERT_EQ(code, 0);
+
+  // The firstVer should be no greater than 150
+  ASSERT_LE(pWal->vers.firstVer, 150);
+}
+
+
+TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
+  walResetEnv();
+  int code;
+
+  // Write some logs first
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Test concurrent calls to walSetKeepVersion with multiple threads
+  const int numThreads = 10;
+  const int callsPerThread = 100;
+  std::vector<std::thread> threads;
+  std::atomic<int> successCount(0);
+  
+  for (int i = 0; i < numThreads; i++) {
+    threads.push_back(std::thread([this, i, &successCount, callsPerThread]() {
+      for (int j = 0; j < callsPerThread; j++) {
+        int64_t ver = i * callsPerThread + j;
+        int code = walSetKeepVersion(pWal, ver);
+        if (code == 0) {
+          successCount.fetch_add(1);
+        }
+      }
+    }));
+  }
+
+  // Wait for all threads to complete
+  for (auto& thread : threads) {
+    thread.join();
+  }
+
+  // All calls should succeed
+  ASSERT_EQ(successCount.load(), numThreads * callsPerThread);
+  
+  // The final keepVersion should be one of the values set by the threads
+  // We can't predict which one exactly due to race conditions, but it should be valid
+  int64_t finalVersion = pWal->keepVersion;
+  ASSERT_GE(finalVersion, 0);
+  ASSERT_LT(finalVersion, numThreads * callsPerThread);
+}
+
+// Test walRenameCorruptedDir: delete first wal log file
+TEST_F(WalRetentionEnv, corruptedDirDeleteFirstFile) {
+  walResetEnv();
+  int code;
+  
+  // Enable walDeleteOnCorruption
+  bool oldVal = tsWalDeleteOnCorruption;
+  tsWalDeleteOnCorruption = true;
+
+  // Write logs to create multiple wal files
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  // Roll to create second file
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  // Roll to create third file
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  TearDown();
+  
+  // List and find the first log file in the WAL directory
+  TdDirPtr pDir = taosOpenDir(pathName);
+  ASSERT_NE(pDir, nullptr);
+  
+  char firstLogFile[256] = {0};
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    if (strstr(name, ".log") != NULL) {
+      if (firstLogFile[0] == 0 || strcmp(name, firstLogFile) < 0) {
+        strncpy(firstLogFile, name, sizeof(firstLogFile) - 1);
+      }
+    }
+  }
+  taosCloseDir(&pDir);
+  
+  ASSERT_NE(firstLogFile[0], 0);
+  char logFile[256];
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, firstLogFile);
+  printf("Deleting first log file: %s\n", logFile);
+  taosRemoveFile(logFile);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
+  
+  // Re-open should trigger walRenameCorruptedDir
+  SetUp();
+  
+  // After rename, WAL should be recreated and empty
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.firstVer, 100);
+  ASSERT_EQ(pWal->vers.lastVer, 299);
+  
+  // Verify old directory was renamed
+  char corruptedPath[300];
+  sprintf(corruptedPath, "%s.corrupted", pathName);
+  // The actual path will have a timestamp, so we just verify new dir exists and is empty
+  
+  // Restore old value
+  tsWalDeleteOnCorruption = oldVal;
+}
+
+#ifndef WINDOWS
+// Test walRenameCorruptedDir: delete middle wal log file
+TEST_F(WalRetentionEnv, corruptedDirDeleteMiddleFile) {
+  walResetEnv();
+  int code;
+  
+  bool oldVal = tsWalDeleteOnCorruption;
+  tsWalDeleteOnCorruption = true;
+
+  // Write logs to create multiple wal files
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  TearDown();
+  
+  // List all log files and find the middle one
+  TdDirPtr pDir = taosOpenDir(pathName);
+  ASSERT_NE(pDir, nullptr);
+  
+  SArray* logFiles = taosArrayInit(10, sizeof(char[256]));
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    if (strstr(name, ".log") != NULL) {
+      char fileName[256];
+      strncpy(fileName, name, sizeof(fileName) - 1);
+      taosArrayPush(logFiles, fileName);
+    }
+  }
+  taosCloseDir(&pDir);
+  
+  int fileCount = taosArrayGetSize(logFiles);
+  ASSERT_GT(fileCount, 1);
+  
+  // Sort to ensure consistent ordering
+  taosArraySort(logFiles, (__compar_fn_t)strcmp);
+  
+  // Delete the middle log file
+  char* middleFile = (char*)taosArrayGet(logFiles, fileCount / 2);
+  char logFile[256];
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, middleFile);
+  printf("Deleting middle log file: %s\n", logFile);
+  taosRemoveFile(logFile);
+  
+  taosArrayDestroy(logFiles);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
+  
+  // Re-open should trigger walRenameCorruptedDir
+  SetUp();
+  
+  // After rename, WAL should be recreated and empty
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.firstVer, -1);
+  ASSERT_EQ(pWal->vers.lastVer, -1);
+  
+  tsWalDeleteOnCorruption = oldVal;
+}
+#endif
+
+// Test walRenameCorruptedDir: delete last wal log file
+TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
+  walResetEnv();
+  int code;
+  
+  bool oldVal = tsWalDeleteOnCorruption;
+  tsWalDeleteOnCorruption = true;
+
+  // Write logs to create multiple wal files
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  TearDown();
+  
+  // List all log files and find the last one
+  TdDirPtr pDir = taosOpenDir(pathName);
+  ASSERT_NE(pDir, nullptr);
+  
+  char lastLogFile[256] = {0};
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    if (strstr(name, ".log") != NULL) {
+      if (lastLogFile[0] == 0 || strcmp(name, lastLogFile) > 0) {
+        strncpy(lastLogFile, name, sizeof(lastLogFile) - 1);
+      }
+    }
+  }
+  taosCloseDir(&pDir);
+  
+  ASSERT_NE(lastLogFile[0], 0);
+  char logFile[256];
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, lastLogFile);
+  printf("Deleting last log file: %s\n", logFile);
+  taosRemoveFile(logFile);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
+  
+  // Re-open should trigger walRenameCorruptedDir
+  SetUp();
+  
+  // After rename, WAL should be recreated and empty
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.firstVer, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 199);
+  
+  tsWalDeleteOnCorruption = oldVal;
 }

@@ -43,7 +43,8 @@ class AnalyticsServiceLoader:
             "details": [
                 self.get_forecast_algo_list(),
                 self.get_anomaly_detection_algo_list(),
-                self.get_imputation_algo_list()
+                self.get_imputation_algo_list(),
+                self.get_corr_algo_list()
             ]
         }
 
@@ -68,6 +69,12 @@ class AnalyticsServiceLoader:
         return {
             "type": "forecast",
             "algo": self.get_typed_services("forecast")
+        }
+
+    def get_corr_algo_list(self):
+        return {
+            "type": "correlation",
+            "algo": self.get_typed_services("correlation")
         }
 
     def load_all_service(self) -> None:
@@ -125,6 +132,7 @@ class AnalyticsServiceLoader:
         do_load_service(current_directory, 'taosanalytics.algo.ad.', '/algo/ad/')
         do_load_service(current_directory, 'taosanalytics.algo.fc.', '/algo/fc/')
         do_load_service(current_directory, 'taosanalytics.algo.imputat.', '/algo/imputat/')
+        do_load_service(current_directory, 'taosanalytics.algo.correl.', '/algo/correl/')
 
 
 loader: AnalyticsServiceLoader = AnalyticsServiceLoader()

@@ -287,6 +287,7 @@ typedef struct SQueryTableDataCond {
   int64_t      startVersion;
   int64_t      endVersion;
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
+  bool         cacheSttStatis;
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);

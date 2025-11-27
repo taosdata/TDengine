@@ -5094,7 +5094,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   }
 
   int32_t code = 0;
-  int32_t numOfRows = infos[0].bind->num;
+  int32_t numOfRows = -1;
   SArray *colValArray, *bufArray;
   SColVal colVal;
   int32_t numOfFixedValue = 0;
@@ -5114,6 +5114,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
         continue;
       }
     }
+    if (numOfRows == -1) {
+      numOfRows = infos[i].bind->num;
+    }
+
     if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
       taosArrayDestroy(colValArray);
       taosArrayDestroy(bufArray);

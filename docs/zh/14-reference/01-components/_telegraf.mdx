@@ -1,7 +1,21 @@
+#### 配置 taosAdapter
+
+在 taosAdapter 配置文件（默认位置为 /etc/taos/taosadapter.toml）中使能配置项
+
+```toml
+# 写入 Schemaless 数据时自动创建数据库
+smlAutoCreateDB = true
+[influxdb]
+enable = true
+```
+
+`smlAutoCreateDB` 配置项用于使能自动创建数据库功能，设置为 true 时，taosAdapter 会在接收到数据时自动创建对应的数据库（如果不存在）。
+
+### 配置 Telegraf
 
 在 Telegraf 配置文件（默认位置 /etc/telegraf/telegraf.conf）增加 outputs.http 输出模块配置：
 
-```
+```conf
 [[outputs.http]]
   url = "http://<taosAdapter's host>:<REST service port>/influxdb/v1/write?db=<database name>"
   ...
@@ -14,7 +28,7 @@
 
 示例如下：
 
-```
+```conf
 [[outputs.http]]
   url = "http://127.0.0.1:6041/influxdb/v1/write?db=telegraf"
   method = "POST"
@@ -23,4 +37,3 @@
   password = "taosdata"
   data_format = "influx"
 ```
-

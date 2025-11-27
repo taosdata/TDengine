@@ -2467,7 +2467,7 @@ taos> select spread(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
 taos> select stddev(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
       stddev(int_col)      |
 ============================
-          146175.418363512 |
+          617825137.523304 |
 
 taos> select sum(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
      sum(int_col)      |
@@ -2477,7 +2477,7 @@ taos> select sum(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
 taos> select var_pop(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
      var_pop(int_col)      |
 ============================
-          21367252933.7476 |
+       3.8170790055569e+17 |
 
 taos> select hyperloglog(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
  hyperloglog(int_col)  |
@@ -2512,16 +2512,6 @@ taos> select top(int_col, 10) from test_vtable_select.vtb_virtual_stb order by 1
        1073727871 |
        1073727871 |
        1073727871 |
-
-taos> select first(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
- first(int_col) |
-=================
-     -650873068 |
-
-taos> select first(*) from test_vtable_select.vtb_virtual_stb limit 50;
-        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |  first(u_bigint_col)  | first(tinyint_col) | first(smallint_col) | first(int_col) |   first(bigint_col)   |   first(float_col)   |     first(double_col)     | first(bool_col) | first(binary_16_col) |      first(binary_32_col)      |      first(nchar_16_col)       |      first(nchar_32_col)       |
-=======================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:00.000 |                   29 |                 13238 |        432633471 |            1825145387 |                 80 |               32519 |     -650873068 |  -9223372036854775808 |              99528.7 |           73495720.958304 | true            | San Diego            | Shanghai - Los Angles          | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
 
 taos> select interp(u_smallint_col) from test_vtable_select.vtb_virtual_stb where u_tinyint_col > 0 and u_int_col > 0 RANGE('2020-10-01 00:00:00.000', '2020-10-01 00:01:00.000') EVERY (2a) FILL(linear) limit 50;
  interp(u_smallint_col) |
@@ -2576,26 +2566,6 @@ taos> select interp(u_smallint_col) from test_vtable_select.vtb_virtual_stb wher
  NULL                   |
  NULL                   |
  NULL                   |
-
-taos> select last(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
- last(int_col) |
-================
-    1003732609 |
-
-taos> select last(*) from test_vtable_select.vtb_virtual_stb limit 50;
-        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
-===============================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 |                  51 |                10486 |      1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
-
-taos> select last_row(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
- last_row(int_col) |
-====================
-        1003732609 |
-
-taos> select last_row(*) from test_vtable_select.vtb_virtual_stb limit 50;
-      last_row(ts)       | last_row(u_tinyint_col) | last_row(u_smallint_col) | last_row(u_int_col) | last_row(u_bigint_col) | last_row(tinyint_col) | last_row(smallint_col) | last_row(int_col) | last_row(bigint_col)  | last_row(float_col)  |   last_row(double_col)    | last_row(bool_col) | last_row(binary_16_col) |    last_row(binary_32_col)     |     last_row(nchar_16_col)     |     last_row(nchar_32_col)     |
-================================================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 | NULL                    | NULL                     |          1812337397 | NULL                   | NULL                  | NULL                   | NULL              | NULL                  |             -68902.9 | NULL                      | NULL               | NULL                    | NULL                           | NULL                           | 圣克拉拉 - Santa Clara         |
 
 taos> select max(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
  max(int_col) |
@@ -3138,13 +3108,6 @@ taos> select tan(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 lim
         -0.142546543074278 |
 
 taos> select PI() from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-           pi()            |
-============================
-          3.14159265358979 |
-          3.14159265358979 |
-          3.14159265358979 |
-          3.14159265358979 |
-          3.14159265358979 |
 
 taos> select PI(), u_tinyint_col from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
            pi()            | u_tinyint_col |
@@ -3450,11 +3413,6 @@ taos> select elapsed(ts) from test_vtable_select.vtb_virtual_stb order by 1 limi
 ============================
                      49995 |
 
-taos> select leastsquares(int_tag, 0, 1) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-  leastsquares(int_tag, 0, 1)   |
-=================================
- {slop:0.000038, intercept:0... |
-
 taos> select spread(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
       spread(int_tag)      |
 ============================
@@ -3463,17 +3421,12 @@ taos> select spread(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 
 taos> select stddev(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
       stddev(int_tag)      |
 ============================
-          1.24721912892465 |
+          1.24721912892464 |
 
 taos> select sum(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
      sum(int_tag)      |
 ========================
                  93332 |
-
-taos> select var_pop(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-     var_pop(int_tag)      |
-============================
-          1.55555555555556 |
 
 taos> select hyperloglog(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  hyperloglog(int_tag)  |
@@ -3498,45 +3451,6 @@ taos> select top(int_tag, 10) from test_vtable_select.vtb_virtual_stb order by 1
                 3 |
                 3 |
                 3 |
-
-taos> select first(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
- first(int_tag) |
-=================
-              1 |
-
-taos> select first(*) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |  first(u_bigint_col)  | first(tinyint_col) | first(smallint_col) | first(int_col) |   first(bigint_col)   |   first(float_col)   |     first(double_col)     | first(bool_col) | first(binary_16_col) |      first(binary_32_col)      |      first(nchar_16_col)       |      first(nchar_32_col)       |
-=======================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:00.000 |                   29 |                 13238 |        432633471 |            1825145387 |                 80 |               32519 |     -650873068 |  -9223372036854775808 |              99528.7 |           73495720.958304 | true            | San Diego            | Shanghai - Los Angles          | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
-
-taos> select interp(int_tag) from test_vtable_select.vtb_virtual_stb where u_tinyint_col > 0 and u_int_col > 0 RANGE('2020-10-01 00:00:00.000', '2020-10-01 00:01:00.000') EVERY (2a) FILL(linear) order by 1 limit 5;
- interp(int_tag) |
-==================
-               1 |
-               1 |
-               1 |
-               1 |
-               1 |
-
-taos> select last(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
- last(int_tag) |
-================
-             1 |
-
-taos> select last(*) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
-===============================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 |                  51 |                10486 |      1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
-
-taos> select last_row(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
- last_row(int_tag) |
-====================
-                 1 |
-
-taos> select last_row(*) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-      last_row(ts)       | last_row(u_tinyint_col) | last_row(u_smallint_col) | last_row(u_int_col) | last_row(u_bigint_col) | last_row(tinyint_col) | last_row(smallint_col) | last_row(int_col) | last_row(bigint_col)  | last_row(float_col)  |   last_row(double_col)    | last_row(bool_col) | last_row(binary_16_col) |    last_row(binary_32_col)     |     last_row(nchar_16_col)     |     last_row(nchar_32_col)     |
-================================================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 | NULL                    | NULL                     |          1812337397 | NULL                   | NULL                  | NULL                   | NULL              | NULL                  |             -68902.9 | NULL                      | NULL               | NULL                    | NULL                           | NULL                           | 圣克拉拉 - Santa Clara         |
 
 taos> select max(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  max(int_tag) |
@@ -3569,15 +3483,6 @@ taos> select unique(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 
                1 |
                3 |
 
-taos> select csum(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-     csum(int_tag)     |
-========================
-                     1 |
-                     2 |
-                     3 |
-                     4 |
-                     5 |
-
 taos> select derivative(int_tag, 5a, 1) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  derivative(int_tag, 5a, 1) |
 =============================
@@ -3587,25 +3492,7 @@ taos> select derivative(int_tag, 5a, 1) from test_vtable_select.vtb_virtual_stb 
                           0 |
                           0 |
 
-taos> select diff(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-     diff(int_tag)     |
-========================
-                    -1 |
-                     0 |
-                     0 |
-                     0 |
-                     0 |
-
 taos> select irate(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-taos> select mavg(int_tag, 100) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-    mavg(int_tag, 100)     |
-============================
-                         0 |
-                         0 |
-                         0 |
-                         0 |
-                         0 |
-
 taos> select statecount(int_tag, "GT", 20) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  statecount(int_tag, "GT", 20) |
 ================================
@@ -3624,8 +3511,13 @@ taos> select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_vi
                                    -1 |
                                    -1 |
 
-taos> select twa(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5
-       twa(int_tag)        |
-============================
-                         2 |
+taos> select count(tbname) from test_vtable_select.vtb_virtual_stb;
+     count(tbname)     |
+========================
+                 69999 |
+
+taos> select count(1) from test_vtable_select.vtb_virtual_stb
+       count(1)        |
+========================
+                 69999 |
 

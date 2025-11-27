@@ -24,8 +24,6 @@ extern "C" {
 
 int32_t    mndInitArbGroup(SMnode *pMnode);
 void       mndCleanupArbGroup(SMnode *pMnode);
-SArbGroup *mndAcquireArbGroup(SMnode *pMnode, int32_t vgId);
-void       mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pObj);
 SSdbRaw   *mndArbGroupActionEncode(SArbGroup *pGroup);
 SSdbRow   *mndArbGroupActionDecode(SSdbRaw *pRaw);
 

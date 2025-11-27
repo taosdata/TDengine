@@ -254,6 +254,19 @@ static void mndPullupGrant(SMnode *pMnode) {
   }
 }
 
+static void mndPullupAuth(SMnode *pMnode) {
+  mTrace("pullup auth msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_AUTH_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.notFreeAhandle = 1, .info.ahandle = 0};
+    // TODO check return value
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
 static void mndIncreaseUpTime(SMnode *pMnode) {
   mTrace("increate uptime");
   int32_t contLen = 0;
@@ -403,6 +416,13 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     }
     if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
       mndPullupSsMigrateDb(pMnode);
+    }
+  }
+#endif
+#ifdef TD_ENTERPRISE
+  if (tsAuthReq) {
+    if (sec % tsAuthReqHBInterval == 0) {
+      mndPullupAuth(pMnode);
     }
   }
 #endif
@@ -775,7 +795,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to open mnode since %s", terrstr());
+    mError("failed to open mnode in step 1, since %s", terrstr());
     return NULL;
   }
   (void)memset(pMnode, 0, sizeof(SMnode));
@@ -783,16 +803,18 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   int32_t code = taosThreadRwlockInit(&pMnode->lock, NULL);
   if (code != 0) {
     taosMemoryFree(pMnode);
-    mError("failed to open mnode lock since %s", tstrerror(code));
+    mError("failed to open mnode in step 2, add lock, since %s", tstrerror(code));
+    terrno = code;
     return NULL;
   }
 
   char timestr[24] = "1970-01-01 00:00:00.00";
   code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
   if (code < 0) {
-    mError("failed to parse time since %s", tstrerror(code));
+    mError("failed to open mnode in step 3, parse time, since %s", tstrerror(code));
     (void)taosThreadRwlockDestroy(&pMnode->lock);
     taosMemoryFree(pMnode);
+    terrno = code;
     return NULL;
   }
   mndSetOptions(pMnode, pOption);
@@ -802,14 +824,13 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   if (pMnode->pSteps == NULL) {
     taosMemoryFree(pMnode);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to open mnode since %s", terrstr());
+    mError("failed to open mnode in step 4, since %s", terrstr());
     return NULL;
   }
 
   code = mndCreateDir(pMnode, path);
   if (code != 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", tstrerror(code));
+    mError("failed to open mnode in step 5, since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -817,8 +838,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndInitSteps(pMnode);
   if (code != 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", tstrerror(code));
+    mError("failed to open mnode in step 6, since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -826,8 +846,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndExecSteps(pMnode);
   if (code != 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", tstrerror(code));
+    mError("failed to open mnode in step 7, since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -973,7 +992,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
       pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER ||
-      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER) {
+      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER || pMsg->msgType == TDMT_MND_AUTH_HB_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);

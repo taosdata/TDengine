@@ -16,7 +16,7 @@ on:
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
       - 'test/ci/tdgpt_cases.task'
-      - 'test/cases/41-TDgpt/**'
+      - 'test/cases/**/*-TDgpt/**'
       - '.github/workflows/new-tdgpt-test.yml'
 
 concurrency:

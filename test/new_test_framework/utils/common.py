@@ -517,6 +517,8 @@ class TDCom:
             projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
+            if ".git" in root:
+                continue
             if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):

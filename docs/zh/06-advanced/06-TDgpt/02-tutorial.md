@@ -31,7 +31,7 @@ docker pull tdengine/tdgpt:latest
 或者特定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdgpt:3.3.8.1
+docker pull tdengine/tdgpt:3.3.8.4
 ```
 
 执行下面的命令启动容器：
@@ -40,7 +40,7 @@ docker pull tdengine/tdgpt:3.3.8.1
 docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
-  tdengine/tdgpt:3.3.8.1
+  tdengine/tdgpt:3.3.8.4
 ```
 
 :::note
@@ -60,7 +60,7 @@ docker pull tdengine/tdgpt-full:latest
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdgpt-full:3.3.8.1
+docker pull tdengine/tdgpt-full:3.3.8.4
 ```
 
 执行下面的命令启动容器：
@@ -71,7 +71,7 @@ docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
   -p 6037:6037 \
-  tdengine/tdgpt-full:3.3.8.1
+  tdengine/tdgpt-full:3.3.8.4
 ```
 
 **注意**：TDgpt 服务端使用 6035 TCP 端口。6036 和 6037 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
@@ -101,7 +101,7 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 使用 TDgpt 的高级时序数据分析功能需要在 TDengine TSDB 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
 
-- Python: 3.10 或以上版本。
+- Python: 3.10 或 3.11 版本。由于部分依赖库与 Python 3.12 及以上版本存在冲突，因此暂不支持。
 - TDengine TSDB：需使用 3.3.6.0 或以上版本。
 - C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
@@ -145,21 +145,22 @@ sudo apt install build-essential
 
 1. 从列表中下载获得 tar.gz 安装包
 
-   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.3.8.1" platform="Linux-Generic" pkgType="Server"/>
+   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.3.8.4" platform="Linux-Generic" pkgType="Server"/>
 
    安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
 2. 进入到安装包所在目录，使用 tar 解压安装包；
 
 ```bash
-tar -zxvf tdengine-tdgpt-oss-3.3.8.1-linux-x64.tar.gz
+tar -zxvf tdengine-tdgpt-oss-3.3.8.4-linux-x64.tar.gz
 ```
 
 ### 执行安装脚本
 
 解压安装包后，进入目录执行其中的 `install.sh` 脚本进行安装。
+
 ```bash
-cd tdengine-tdgpt-oss-3.3.8.1
+cd tdengine-tdgpt-oss-3.3.8.4
 ./install.sh
 ```
 

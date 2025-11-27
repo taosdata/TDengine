@@ -176,7 +176,7 @@ When using the window clause, the following rules should be observed:
 
 ### Timestamp Pseudocolumns
 
-In the window aggregation query results, if the SQL does not specify the timestamp column in the output query results, the final results will not automatically include the time column information of the window. However, if you need to output the time window information corresponding to the aggregated query results in the results, you can use the timestamp-related pseudocolumns in the select clause, such as the start time of the time window (`_wstart`), the end time of the time window (`_wend`), the duration of the time window (`_wduration`), and the pseudocolumns related to the overall query window, such as the start time of the query window (`_qstart`) and the end time of the query window (`_qend`). Note that both the start and end times of the time window are closed intervals, and the duration of the time window is the value under the current time resolution of the data. For example, if the current database's time precision is milliseconds (ms), then 500 in the results represents the duration of the current time window is 500ms.
+In the window aggregation query results, if the SQL does not specify the timestamp column in the output query results, the final results will not automatically include the time column information of the window. However, if you need to output the time window information corresponding to the aggregated query results in the results, you can use the timestamp-related pseudocolumns in the select clause, such as the start time of the time window (`_wstart`), the end time of the time window (`_wend`), the duration of the time window (`_wduration`), and the pseudocolumns related to the overall query window, such as the start time of the query window (`_qstart`) and the end time of the query window (`_qend`). It should be noted that, except that the end time of the INTERVAL window is an open interval, the start time and end time of other time windows are both closed intervals, and the duration of the time window is the value under the current time resolution of the data. For example, if the current database's time precision is milliseconds (ms), then 500 in the results represents the duration of the current time window is 500ms.
 
 ### Time Windows
 
@@ -552,6 +552,30 @@ The above SQL query returns the data from the supertable meters where the timest
 Query OK, 10 row(s) in set (0.062794s)
 ```
 
+## Time Range Expression
+
+In queries of time series databases, it is often necessary to query based on the time range of the primary key column. TDengine provides a series of functions and expressions to facilitate users in expressing time ranges. Here, common time range expressions and their differences from MySQL and PostgreSQL are listed:
+
+| Time Range          |   MySQL Expression                                                    |  PostgreSQL Expression   |   TDengine Expression   |
+|:------------:|:--------------------------------------------------------------------:|:-----------------------------------:|:--------------------------------:|
+| Yesterday​ | CURDATE() - INTERVAL 1 DAY,<br/> CURDATE() | CURRENT_DATE - INTERVAL '1 day',<br/> CURRENT_DATE | TODAY() - 1d,<br/> TODAY() |
+| Today |​ CURDATE(),<br/> CURDATE() + INTERVAL 1 DAY | CURRENT_DATE,<br/> CURRENT_DATE + INTERVAL '1 day' | TODAY(),<br/> TODAY() + 1d |
+| Last Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1d) - (7 + WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000 |
+| This Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) + (7 - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000 |
+| Last Month | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) |TO_TIMESTAMP(TO_CHAR(NOW() -1n, 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM') |
+| This Month | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') |TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1n, 'YYYY-MM'), 'YYYY-MM') |
+| Last Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TO_TIMESTAMP(CASE WHEN TO_CHAR(NOW(), 'MM') < 4 THEN CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') - 1 AS VARCHAR(5)), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') + 8) / 3) &ast; 3 + 1 AS VARCHAR(3))) ELSE CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 4) / 3) &ast; 3 + 1 AS VARCHAR(3))) END, 'YYYY-MM'),<br/>TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM') |
+| This Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') + CASE WHEN TO_CHAR(NOW(), 'MM') > 9 THEN 1 ELSE 0 END AS VARCHAR), "-", CAST((FLOOR((TO_CHAR(NOW(), 'MM') + 2) / 3) &ast; 3 + 1) % 12 AS VARCHAR)), 'YYYY-MM') |
+| Last Year | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TO_TIMESTAMP(TO_CHAR(NOW() - 1y, 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY') |
+| This Year | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
+
+### Description
+
+1. Each time range interval is left-closed and right-open.
+2. The writing style is not unique, and this is provided here as an example for reference only.
+3. Here, Monday is used as the start of the week, and scenarios that do not start on Monday need to be adjusted.
+4. Here, the timestamp in the TDengine example uses milliseconds as the time unit.
+
 ## Time-Series Extensions
 
 Time-series extensions are a set of functions specially designed by TDengine for time-series data query scenarios. In general databases, similar functions usually require complex query statements and are less efficient. To reduce user costs and simplify the query process, TDengine provides these functions in the form of built-in functions, thus achieving efficient and easy-to-use time series data processing capabilities. The time series specific functions are as follows.
@@ -597,6 +621,7 @@ TDengine's nested queries follow these rules:
 ## UNION Clause
 
 In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+
 1. Each SELECT clause must return results with the same number of columns;
 2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
 

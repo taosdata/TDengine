@@ -34,6 +34,8 @@ class TestCase:
 
         paths = []
         for root, dirs, files in os.walk(projPath):
+            if ".git" in root:
+                continue
             if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):

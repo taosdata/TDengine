@@ -1665,9 +1665,6 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
       qError("buildNormalTableCreateReq, the first column must be timestamp.");
       goto _end;
     }
-    if (i == 0) {
-      tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags |= COL_IS_KEY;
-    }
     snprintf(tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].name, TSDB_COL_NAME_LEN, "%s", pField->name);
     if (IS_DECIMAL_TYPE(pField->type)) {
       if (!tbData->pCreateTbReq->pExtSchemas) {
@@ -1710,7 +1707,7 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
   }
   pTSchema->columns[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   pTSchema->columns[0].type = pField->type;
-  pTSchema->columns[0].flags = pField->flags | COL_IS_KEY;
+  pTSchema->columns[0].flags = pField->flags;
   pTSchema->columns[0].bytes = TYPE_BYTES[pField->type];
   pTSchema->columns[0].offset = -1;
 
@@ -1877,9 +1874,9 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  int32_t rows = pDataBlock->info.rows;
+  int32_t rows = pDataBlock ? pDataBlock->info.rows : 0;
   int32_t numOfCols = pInsertParam->pFields->size;
-  int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+  int32_t colNum = pDataBlock ? taosArrayGetSize(pDataBlock->pDataBlock) : 0;
 
   SArray* pVals = NULL;
   if (!(pVals = taosArrayInit(colNum, sizeof(SColVal)))) {
@@ -2011,8 +2008,8 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
   if (dataInsertInfo->isLastBlock) {
     int32_t nRows = taosArrayGetSize(tbData->aRowP);
     if (taosArrayGetSize(tbData->aRowP) == 0) {
-      stDebug("no valid data to insert, skip this block");
-      code = TSDB_CODE_STREAM_NO_DATA;
+      tbData->flags |= SUBMIT_REQ_ONLY_CREATE_TABLE;
+      stDebug("no valid data to insert, try to only create tabale:%s", pInsertParam->tbname);
     }
     stDebug("appendInsertData, isLastBlock:%d, needSortMerge:%d, totalRows:%d", dataInsertInfo->isLastBlock,
             dataInsertInfo->needSortMerge, nRows);
@@ -2045,6 +2042,8 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   SInsertTableInfo*     pTbInfo = NULL;
   STSchema*             pTSchema = NULL;
   SSubmitTbData*        tbData = &tbDataInfo->pTbData;
+  int32_t               colNum = 0;
+  int32_t               rows = 0;
 
   if (NULL == pReq) {
     if (!(pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
@@ -2059,8 +2058,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     }
   }
 
-  int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
-  int32_t rows = pDataBlock->info.rows;
+  if (pDataBlock) {
+    colNum = taosArrayGetSize(pDataBlock->pDataBlock);
+    rows = pDataBlock->info.rows;
+  }
 
   tbData->flags |= SUBMIT_REQ_SCHEMA_RES;
 
@@ -2134,7 +2135,8 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
   for (int32_t i = 0; i < sz; i++) {
     SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);
     if (NULL == pDataBlock) {
-      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      stDebug("data block is NULL, just create empty table");
+      continue;
     }
     rows += pDataBlock->info.rows;
   }
@@ -2151,7 +2153,7 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
     stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64
             " tbname:%s autoCreate:%d block: %d/%d rows:%" PRId64,
             pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
-            pInserterInfo->isAutoCreateTable, i + 1, sz, pDataBlock->info.rows);
+            pInserterInfo->isAutoCreateTable, i + 1, sz, pDataBlock ? pDataBlock->info.rows : 0);
     code = buildStreamSubmitReqFromBlock(pInserter, pInserterInfo, &pReq, pDataBlock, vgInfo, &tbDataInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   }

@@ -1520,7 +1520,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
         pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
       }
       if (pLastSlice != NULL && pLastSlice->endIdx == slice.startIdx &&
-          pTsData[pLastSlice->endIdx - 1] <= pTsData[slice.startIdx]) {
+          pTsData[pLastSlice->endIdx - 1] < pTsData[slice.startIdx]) {
         // merge with the last slice
         pLastSlice->endIdx = slice.endIdx;
       } else {
@@ -2105,6 +2105,10 @@ _retrieve:
   *pEndIdx = nrows;
 
 _end:
+  if (p != NULL) {
+    colDataDestroy(p);
+    taosMemoryFreeClear(p);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

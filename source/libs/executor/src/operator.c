@@ -15,7 +15,6 @@
 
 #include "filter.h"
 #include "function.h"
-#include "os.h"
 #include "tname.h"
 
 #include "tglobal.h"
@@ -377,7 +376,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return code;
       }
 
-      STableScanInfo* pScanInfo = pOperator->info;
+      STableMergeScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       code = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
@@ -410,7 +409,26 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
-      code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
+      if (pSysScanPhyNode->scan.virtualStableScan) {
+        STableListInfo*           pTableListInfo = tableListCreate();
+        if (!pTableListInfo) {
+          pTaskInfo->code = terrno;
+          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+          return terrno;
+        }
+
+        code = createScanTableListInfo((SScanPhysiNode*)pSysScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+                                       pTagIndexCond, pTaskInfo, NULL);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pTableListInfo, pUser, pTaskInfo, &pOperator);
+      } else {
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, NULL, pUser, pTaskInfo, &pOperator);
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type) {
       STableCountScanPhysiNode* pTblCountScanNode = (STableCountScanPhysiNode*)pPhyNode;
       code = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo, &pOperator);
@@ -683,6 +701,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
+    pOperator->info = NULL;
   }
 
   cleanupExprSupp(&pOperator->exprSupp);

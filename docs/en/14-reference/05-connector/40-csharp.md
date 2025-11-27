@@ -41,6 +41,8 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 `TDengine.Connector` will throw exceptions, and applications need to handle these exceptions. The taosc exception type `TDengineError` includes an error code and error message, which applications can use to handle the error.
 For error reporting in other TDengine modules, please refer to [Error Codes](../../error-codes/)
 
+For error code information please refer to [Error Codes](../../error-codes/)
+
 ## Data Type Mapping
 
 | TDengine DataType | C# Type  |

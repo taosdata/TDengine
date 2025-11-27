@@ -18,6 +18,7 @@
 
 #include "tarray.h"
 #include "tmsg.h"
+#include "tjson.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -282,6 +283,7 @@ typedef struct {
   int8_t   triggerTblType;
   uint64_t triggerTblUid;  // suid or uid
   uint64_t triggerTblSuid;
+  uint8_t  triggerPrec;
   int8_t   vtableCalc;     // virtual table calc exits
   int8_t   outTblType;
   int8_t   outStbExists;
@@ -509,6 +511,7 @@ typedef struct {
   int64_t triggerTblUid;  // suid or uid
   int64_t triggerTblSuid;
   int8_t  triggerTblType;
+  int8_t  isTriggerTblVirt;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
   void*   partitionCols;  // nodelist of SColumnNode
@@ -564,6 +567,7 @@ typedef struct {
   int8_t isTriggerTblVirt;
   int8_t triggerHasPF;
   int8_t isTriggerTblStb;
+  int8_t precision;
   void*  partitionCols;
 
   // notify options
@@ -601,6 +605,7 @@ typedef struct SStreamRunnerDeployMsg {
   char*  outDBFName;
   char*  outTblName;
   int8_t outTblType;
+  int8_t lowLatencyCalc;
   int8_t calcNotifyOnly;
   int8_t topPlan;
 
@@ -733,7 +738,13 @@ void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst);
 
 int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq* pReq);
+int32_t tDeserializeSCMCreateStreamReqImplOld(
+  SDecoder *pDecoder, SCMCreateStreamReq *pReq, int32_t leftBytes);
 int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder* pDecoder, SCMCreateStreamReq* pReq);
+
+int32_t scmCreateStreamReqToJson(
+  const SCMCreateStreamReq* pReq, bool format, char** ppStr, int32_t* pStrLen);
+int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pReq);
 
 typedef enum ESTriggerPullType {
   STRIGGER_PULL_SET_TABLE,
@@ -836,6 +847,8 @@ typedef struct SSTriggerWalMetaNewRequest {
 } SSTriggerWalMetaNewRequest;
 
 typedef struct SSTriggerWalNewRsp {
+  SSHashObj*           indexHash;
+  SSHashObj*           uidHash;
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
@@ -953,6 +966,8 @@ typedef struct SSTriggerCalcRequest {
   int64_t streamId;
   int64_t runnerTaskId;
   int64_t sessionId;
+  bool    isWindowTrigger;
+  int8_t  precision;
   int32_t triggerType;    // See also: EStreamTriggerType
   int64_t triggerTaskId;  // does not serialize
   
@@ -1012,9 +1027,12 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
   bool    withExternalWindow;
+  bool    isWindowTrigger;
+  int8_t  precision;
   int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
   int32_t triggerType;
   int32_t addOptions;
+  bool    hasPlaceHolder;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
@@ -1026,9 +1044,9 @@ typedef struct STsInfo {
 } STsInfo;
 
 typedef struct VTableInfo {
-  int64_t gId;        // group id
-  int64_t uid;        // table uid
-  SColRefWrapper cols;    
+  int64_t        gId;      // group id
+  int64_t        uid;      // table uid
+  SColRefWrapper cols;
 } VTableInfo;
 
 typedef struct SStreamMsgVTableInfo {
@@ -1061,7 +1079,7 @@ typedef struct SStreamWalDataResponse {
   SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
 } SStreamWalDataResponse;
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock, SSHashObj* indexHash);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock);
 int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices);
 
 typedef struct SStreamGroupValue {
@@ -1090,6 +1108,17 @@ typedef struct SStreamTSRangeParas { // used for stream
   EValueType         eType;   
   int64_t            timeValue;
 } SStreamTSRangeParas;
+
+typedef enum EWindowType {
+  WINDOW_TYPE_INTERVAL = 1,
+  WINDOW_TYPE_SESSION,
+  WINDOW_TYPE_STATE,
+  WINDOW_TYPE_EVENT,
+  WINDOW_TYPE_COUNT,
+  WINDOW_TYPE_ANOMALY,
+  WINDOW_TYPE_EXTERNAL,
+  WINDOW_TYPE_PERIOD
+} EWindowType;
 
 #ifdef __cplusplus
 }

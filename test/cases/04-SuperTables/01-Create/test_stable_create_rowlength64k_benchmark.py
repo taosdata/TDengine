@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import os
 import time
 
@@ -29,25 +29,9 @@ class TestRowlength64kBenchmark:
         cls.ts = int(round(now * 1000))
         cls.num = 100
     
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        buildPath = ""
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("test")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
 
     def test_rowlength64k_benchmark(self):
-        """Test Table Max Columns With Benchmark
+        """Stable max row length 64k Benchmark
 
         1. taosBenchmark create table with column 1023
         2. taosBenchmark create table with column 4095
@@ -69,7 +53,7 @@ class TestRowlength64kBenchmark:
         
         startTime_all = time.time()
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:

@@ -1049,8 +1049,8 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
       }
 
       SCH_LOCK_TASK(p);
-      
-      code = schChkUpdateRedirectCtx(pJob, p, NULL, rspCode);
+
+      code = schChkUpdateRedirectCtx(pJob, p, (p->taskId != pTask->taskId));
       if (TSDB_CODE_SUCCESS != code) {
         SCH_UNLOCK_TASK(p);
         SCH_RET(code);
@@ -1067,7 +1067,7 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
-  SCH_JOB_DLOG("update job sId to %" PRId64 ", levelIdx:%d", pJob->seriesId, pJob->levelIdx);
+  SCH_JOB_DLOG("update job sId:%" PRId64 ", levelIdx:%d", pJob->seriesId, pJob->levelIdx);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1080,10 +1080,11 @@ int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_
   taosMemoryFreeClear(pMsg->pEpSet);
 
   SCH_UNLOCK_TASK(pTask);
-  SCH_TASK_DLOG("start to redirect all job tasks cause of error:%s from task TID:0x%" PRIx64, tstrerror(rspCode),
-                pTask->taskId);
+  SCH_TASK_DLOG("start to restart all tasks by error:%s from TID:0x%" PRIx64, tstrerror(rspCode), pTask->taskId);
 
+  SCH_ERR_JRET(schFailedTaskNeedRetry(pTask, pJob, rspCode));
   SCH_ERR_JRET(schResetJobForRetry(pJob, pTask, rspCode, &inRetry));
+
   SCH_ERR_JRET(schLaunchJob(pJob));
 
   SCH_LOCK_TASK(pTask);
@@ -1098,6 +1099,7 @@ _return:
   if (inRetry) {
     atomic_store_8(&pJob->inRetry, 0);
   }
+  
   SCH_RET(code);
 }
 
@@ -1245,7 +1247,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
 
   (void)schAcquireJob(rId, &pJob);
   if (NULL == pJob) {
-    qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 "job no exist, may be dropped, jobId:0x%" PRIx64, qId, tId, rId);
+    qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 " job doesn't exist, may be dropped, jobId:0x%" PRIx64, qId, tId, rId);
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
   }
 

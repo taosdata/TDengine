@@ -361,16 +361,7 @@ The log can be configured with the following parameters:
   **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   SQL log rotation interval (Default: `24h`).
 
-1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
-2. Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
-
-The following is an example of setting the log level to debug through the curl command:
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 
 ### Third-party Data Source Configuration
 
@@ -684,6 +675,108 @@ taosAdapter reports metrics to taosKeeper with these parameters:
 
   Retry interval (Default: `5s`)
 
+### Query Request Concurrency Limit Configuration
+
+Starting from version **3.3.6.29**/**3.3.8.3**, taosAdapter supports configuring concurrency limits for query requests to prevent excessive concurrent queries from exhausting system resources.
+When this feature is enabled, taosAdapter controls the number of concurrent query requests being processed simultaneously based on the configured concurrency limit. Requests exceeding the limit will enter a waiting state until processing resources become available.
+
+If the waiting time exceeds the configured timeout or the number of waiting requests exceeds the configured maximum waiting requests, taosAdapter will directly return an error response, indicating that there are too many requests.
+RESTful requests will return HTTP status code `503`, and WebSocket requests will return error code `0xFFFE`.
+
+This configuration affects the following interfaces:
+
+- **RESTful Interface**
+- **WebSocket SQL Execution Interface**
+
+**Parameter Description**
+
+- **`request.queryLimitEnable`**
+  - **When set to `true`**: Enables the query request concurrency limit feature.
+  - **When set to `false`**: Disables the query request concurrency limit feature (default value).
+- **`request.default.queryLimit`**
+  - Sets the default concurrency limit for query requests (default value: `0`, meaning no limit).
+- **`request.default.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit. Requests that time out while waiting will return an error directly. Default value: `900`.
+- **`request.default.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded. Requests exceeding this number will return an error directly. Default value: `0`, meaning no limit.
+- **`request.excludeQueryLimitSql`**
+  - Configures a list of SQL statements that are not subject to concurrency limits. Must start with `select` (case-insensitive).
+- **`request.excludeQueryLimitSqlRegex`**
+  - Configures a list of regular expressions for SQL statements that are not subject to concurrency limits.
+
+**Customizable per User**
+
+Configurable only via the configuration file:
+
+- **`request.users.<username>.queryLimit`**
+  - Sets the query request concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
+
+**Example**
+
+```toml
+[request]
+queryLimitEnable = true
+excludeQueryLimitSql = ["select 1","select server_version()"]
+excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']
+
+[request.default]
+queryLimit = 200
+queryWaitTimeout = 900
+queryMaxWait = 0
+
+[request.users.root]
+queryLimit = 100
+queryWaitTimeout = 200
+queryMaxWait = 10
+```
+
+- `queryLimitEnable = true` enables the query request concurrency limit feature.
+- `excludeQueryLimitSql = ["select 1","select server_version()"]` excludes two commonly used SQL queries for ping.
+- `excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']` excludes all SQL queries that query the information_schema database.
+- `request.default` configures the default query request concurrency limit to 200, wait timeout to 900 seconds, and maximum wait requests to 0 (unlimited).
+- `request.users.root` configures the query request concurrency limit for user root to 100, wait timeout to 200 seconds, and maximum wait requests to 10.
+
+When user root initiates a query request, taosAdapter will perform concurrency limit processing based on the above configuration. 
+When the number of query requests exceeds 100, subsequent requests will enter a waiting state until resources are available. 
+If the wait time exceeds 200 seconds or the number of waiting requests exceeds 10, taosAdapter will directly return an error response.
+
+When other users initiate query requests, the default concurrency limit configuration will be used for processing. 
+Each user's configuration is independent and does not share the concurrency limit of `request.default`. 
+For example, when user user1 initiates 200 concurrent query requests, user user2 can also initiate 200 concurrent query requests simultaneously without blocking.
+
+### Reject Query SQL Configuration
+
+Starting from **version 3.3.6.34 / 3.4.0.0**, taosAdapter supports rejecting specific query SQL statements through configuration, preventing the execution of unsafe or highly resource-consuming queries.  
+When this feature is enabled, taosAdapter checks each SQL statement that does **not** start with `insert` (case-insensitive). If the SQL matches any of the configured reject patterns, an error response is returned indicating that the query is forbidden.
+
+When a rejected SQL query is matched, the RESTful API returns HTTP status code `403`, and the WebSocket interface returns error code `0xFFFD`.  
+Meanwhile, taosAdapter prints a warning log containing details such as the SQL source, for example:
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+This configuration affects the following interfaces:
+- **RESTful interface**
+- **WebSocket SQL execution interface**
+
+**Parameter Description**
+
+- **`rejectQuerySqlRegex`**
+  - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
+  - Default: an empty list, meaning no queries are rejected.
+
+**Example**
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+The configuration `rejectQuerySqlRegex = ['(?i)^drop\\s+database\\s+.*','(?i)^drop\\s+table\\s+.*','(?i)^alter\\s+table\\s+.*']` rejects all `drop database`, `drop table`, and `alter table` queries, ignoring case.
+
 ### Environment Variables
 
 Configuration Parameters and their corresponding environment variables:
@@ -781,6 +874,12 @@ Configuration Parameters and their corresponding environment variables:
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
+| `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
+| `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
+| `request.excludeQueryLimitSql`        | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL`        |
+| `request.excludeQueryLimitSqlRegex`   | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL_REGEX`  |
+| `request.queryLimitEnable`            | `TAOS_ADAPTER_REQUEST_QUERY_LIMIT_ENABLE`             |
 | `restfulRowLimit`                     | `TAOS_ADAPTER_RESTFUL_ROW_LIMIT`                      |
 | `smlAutoCreateDB`                     | `TAOS_ADAPTER_SML_AUTO_CREATE_DB`                     |
 | `statsd.allowPendingMessages`         | `TAOS_ADAPTER_STATSD_ALLOW_PENDING_MESSAGES`          |
@@ -823,6 +922,27 @@ taosAdapter deployed separately from taosd must be upgraded by upgrading the TDe
 ### Removing taosAdapter
 
 Use the command rmtaos to remove the TDengine server software, including taosAdapter.
+
+## Dynamic Configuration
+
+### Dynamically Modify Log Level
+
+Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
+
+The following is an example of setting the log level to debug through the curl command:
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+### Monitor Configuration File Changes
+
+Starting from version **3.3.6.34**/**3.4.0.0**, taosAdapter supports monitoring configuration file changes and automatically updates the following configurations:
+
+- `log.level` log level parameter
+- `rejectQuerySqlRegex` rejected query SQL list configuration parameter
 
 ## IPv6 Support
 
@@ -1349,6 +1469,25 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 | tmq_commit_offset_sync_total                        | DOUBLE    |         | Count of TMQ sync offset commits                         |
 | tmq_commit_offset_sync_success                      | DOUBLE    |         | Count of successful TMQ sync offset commits              |
 | endpoint                                            | NCHAR     | TAG     | Request endpoint                                         |
+
+</details>
+
+Starting from version **3.3.6.29**/**3.3.8.3**, the `adapter_request_limit` table has been added to record taosAdapter query request throttling metrics:
+
+<details>
+<summary>Details</summary>
+
+| field                 | type      | is\_tag | comment                                                                                                                            |
+|:----------------------|:----------|:--------|:-----------------------------------------------------------------------------------------------------------------------------------|
+| _ts                   | TIMESTAMP |         | Data collection timestamp                                                                                                          |
+| query_limit           | DOUBLE    |         | Maximum concurrency of query requests allowed to execute simultaneously                                                            |
+| query_max_wait        | DOUBLE    |         | Maximum number of queries allowed to wait in the queue for execution                                                               |
+| query_inflight        | DOUBLE    |         | Current number of queries being executed that are subject to concurrency limits                                                    |
+| query_wait_count      | DOUBLE    |         | Current number of queries waiting in the queue for execution                                                                       |
+| query_count           | DOUBLE    |         | Total number of query requests subject to concurrency limits received in this collection cycle                                     |
+| query_wait_fail_count | DOUBLE    |         | Number of query requests that failed due to waiting timeout or exceeding the maximum waiting queue length in this collection cycle |
+| endpoint              | NCHAR     | TAG     | Request endpoint                                                                                                                   |
+| user                  | NCHAR     | TAG     | Authenticated username that initiated the query request                                                                            |
 
 </details>
 

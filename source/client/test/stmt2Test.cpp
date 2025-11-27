@@ -3337,6 +3337,7 @@ TEST(stmt2Case, errcode) {
   do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_14");
   do_query(taos, "use stmt2_testdb_14");
   do_query(taos, "create table stmt2_testdb_14.tb (ts timestamp, b binary(10))");
+  do_query(taos, "CREATE STABLE `stmt2_testdb_14`.stb (ts TIMESTAMP, b INT) TAGS (tt TIMESTAMP, tb INT)");
 
   {
     TAOS_STMT2_OPTION option = {0};
@@ -3402,6 +3403,36 @@ TEST(stmt2Case, errcode) {
 
   //   taos_stmt2_close(stmt);
   // }
+  // TS-7502
+  {
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    char* sql = "insert into ? using stb tags(now(),1) values(now(),?)";
+    int   code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    // int             fieldNum = 0;
+    // TAOS_FIELD_ALL* pFields = NULL;
+    // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    // checkError(stmt, code, __FILE__, __LINE__);
+
+    int   values[2] = {100, 200};
+    int   val_len[2] = {sizeof(int32_t), sizeof(int32_t)};
+    char* tbname[2] = {"tb3", "tb4"};
+
+    TAOS_STMT2_BIND  param = {TSDB_DATA_TYPE_INT, &values[0], &val_len[0], NULL, 2};
+    TAOS_STMT2_BIND* params[2] = {&param, &param};
+    for (int i = 0; i < 3; i++) {
+      TAOS_STMT2_BINDV bindv = {2, &tbname[0], NULL, &params[0]};
+      code = taos_stmt2_bind_param(stmt, &bindv, -1);
+      checkError(stmt, code, __FILE__, __LINE__);
+
+      code = taos_stmt2_exec(stmt, NULL);
+      checkError(stmt, code, __FILE__, __LINE__);
+    }
+    taos_stmt2_close(stmt);
+  }
 
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
   taos_close(taos);
@@ -3892,6 +3923,8 @@ TEST(stmt2Case, exec_retry) {
     code = taos_stmt2_bind_param(stmt, &bindv1, -1);
     checkError(stmt, code, __FILE__, __LINE__);
 
+    // wait async bind finish
+    taosMsleep(2000);
     do_query(taos, "drop table if exists stmt2_testdb_21.tb1");
 
     code = taos_stmt2_exec(stmt, NULL);

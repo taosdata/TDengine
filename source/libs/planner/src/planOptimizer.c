@@ -433,13 +433,18 @@ static int32_t scanPathOptGetDataRequired(SNodeList* pFuncs) {
   return dataRequired;
 }
 
-static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
+static void scanPathOptSetScanWin(SOsdInfo* pInfo) {
+  SScanLogicNode* pScan = pInfo->pScan;
   SLogicNode* pParent = pScan->node.pParent;
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pParent) && pParent->pParent &&
       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent->pParent)) {
     pParent = pParent->pParent;
   }
   if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent)) {
+    if (pInfo->scanOrder == SCAN_ORDER_BOTH) {
+      // for window, only keep asc order when both first and last exist
+      pInfo->scanOrder = SCAN_ORDER_ASC;
+    }
     pScan->interval = ((SWindowLogicNode*)pParent)->interval;
     pScan->offset = ((SWindowLogicNode*)pParent)->offset;
     pScan->sliding = ((SWindowLogicNode*)pParent)->sliding;
@@ -493,7 +498,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
-    scanPathOptSetScanWin(info.pScan);
+    scanPathOptSetScanWin(&info);
     scanPathOptSetScanOrder(info.scanOrder, info.pScan);
     scanPathOptSetGroupOrderScan(info.pScan);
   }
@@ -537,14 +542,14 @@ static int32_t pushDownCondOptRebuildTbanme(SNode** pTagCond) {
   return code;
 }
 
-static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
+static int32_t rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (nodeType(*pCond) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* pCondNode = *(SLogicConditionNode**)pCond;
     if (pCondNode->condType == LOGIC_COND_TYPE_AND) {
       SNode* pNode = NULL;
       WHERE_EACH(pNode, pCondNode->pParameterList) {
-        rewriteDnodeConds(&cell->pNode, pDnodeConds);
+        PLAN_ERR_JRET(rewriteDnodeConds(&cell->pNode, pDnodeConds));
         if (cell->pNode == NULL) {
           ERASE_NODE(pCondNode->pParameterList);
           continue;
@@ -552,19 +557,12 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
         WHERE_NEXT;
       }
       if (pCondNode->pParameterList->length == 1) {
-        code = nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond);
-        if (TSDB_CODE_SUCCESS != code) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-          nodesDestroyNode(*pCond);
-          *pCond = NULL;
-        }
+        PLAN_ERR_JRET(nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond));
         nodesDestroyList(pCondNode->pParameterList);
       } else if (pCondNode->pParameterList->length == 0) {
         nodesDestroyNode(*pCond);
         *pCond = NULL;
       }
-    } else {
-      return;
     }
   } else if (nodeType(*pCond) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pOperNode = *(SOperatorNode**)pCond;
@@ -573,15 +571,17 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
       SNode* pRight = pOperNode->pRight;
       if ((QUERY_NODE_COLUMN == nodeType(pLeft) && strcmp(((SColumnNode*)pLeft)->node.aliasName, "dnode_id") == 0) ||
           (QUERY_NODE_COLUMN == nodeType(pRight) && strcmp(((SColumnNode*)pRight)->node.aliasName, "dnode_id") == 0)) {
-        code = nodesListAppend(pDnodeConds, (SNode*)pOperNode);
-        if (TSDB_CODE_SUCCESS != code) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        }
+        PLAN_ERR_JRET(nodesListAppend(pDnodeConds, (SNode*)pOperNode));
         *pCond = NULL;
       }
     }
   }
-  return;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNodeList** pDnodeConds) {
@@ -596,8 +596,8 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
-  return TSDB_CODE_SUCCESS;
+  code = rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
+  return code;
 }
 
 static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds) {
@@ -738,6 +738,69 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
     nodesDestroyNode(pOtherCond);
   }
 
+  return code;
+}
+
+static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtrlLogicNode* pScan) {
+  if (NULL == pScan->node.pConditions ||
+      OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode*  pTagIndexCond = NULL;
+  SNode*  pTagCond = NULL;
+  SNode*  pPrimaryKeyCond = NULL;
+  SNode*  pOtherCond = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pCxt->pPlanCxt->streamCalcQuery) {
+    SVirtualScanLogicNode *pVscan = (SVirtualScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 0);
+    if (NULL == pVscan || QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pVscan)) {
+      PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                        "pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node"));
+    }
+    TSWAP(pVscan->node.pConditions, pScan->node.pConditions);
+    return code;
+  }
+
+  PLAN_ERR_JRET(filterPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagIndexCond, &pTagCond, &pOtherCond));
+  if (NULL != pTagCond) {
+    PLAN_ERR_JRET(pushDownCondOptRebuildTbanme(&pTagCond));
+  }
+
+  SVirtualScanLogicNode *pVscan = (SVirtualScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 0);
+  if (NULL == pVscan || QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pVscan)) {
+    PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                      "pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node"));
+  }
+  SScanLogicNode* pOrgScan = (SScanLogicNode*)nodesListGetNode(pVscan->node.pChildren, LIST_LENGTH(pVscan->node.pChildren) - 1);
+  if (NULL == pOrgScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pOrgScan) || pOrgScan->tableType != TSDB_SUPER_TABLE) {
+    PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                      "pdcDealVirtualSuperTableScan get invalid org scan logic node from vtable scan node"));
+  }
+  SScanLogicNode* pSysScan = (SScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 1);
+  if (NULL == pSysScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSysScan) || pSysScan->tableType != TSDB_SYSTEM_TABLE) {
+    PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                      "pdcDealVirtualSuperTableScan get invalid sys scan logic node from vtable scan node"));
+  }
+
+  if (NULL != pPrimaryKeyCond) {
+    PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, pOrgScan, &pPrimaryKeyCond, &pOtherCond));
+  }
+
+  pVscan->node.pConditions = pOtherCond;
+  pSysScan->pTagCond = pTagCond;
+  pSysScan->pTagIndexCond = pTagIndexCond;
+
+  OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+  pCxt->optimized = true;
+
+  return code;
+_return:
+  nodesDestroyNode(pPrimaryKeyCond);
+  nodesDestroyNode(pOtherCond);
+  nodesDestroyNode(pTagIndexCond);
+  nodesDestroyNode(pTagCond);
   return code;
 }
 
@@ -2436,6 +2499,9 @@ static int32_t pdcOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
       break;
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
       code = pdcDealVirtualTable(pCxt, (SVirtualScanLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+      code = pdcDealVirtualSuperTableScan(pCxt, (SDynQueryCtrlLogicNode*)pLogicNode);
       break;
     default:
       break;
@@ -4576,21 +4642,25 @@ static bool lastRowScanOptCheckColNum(int32_t lastColNum, col_id_t lastColId, in
 
 static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan, SNodeList* pSplitAggFuncList) {
   int32_t funcType = pFunc->funcType;
-  // return true if all these conditions are matched
-  // 1. func is not last_row, or func is last_row bug cache model is last_value
-  // 2. func is not last, or func is last and cache model is last_row or param is not a normal column
-  // 3. func is not select_value or group_key
-  // TODO(tianyi): simplify the condition
-  if ((FUNCTION_TYPE_LAST_ROW != funcType || 
-        (FUNCTION_TYPE_LAST_ROW == funcType && TSDB_CACHE_MODEL_LAST_VALUE == pScan->cacheLastMode)) &&
-      (FUNCTION_TYPE_LAST != funcType || (FUNCTION_TYPE_LAST == funcType &&
-        (TSDB_CACHE_MODEL_LAST_ROW == pScan->cacheLastMode ||
-         QUERY_NODE_OPERATOR == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-         QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-         COLUMN_TYPE_COLUMN != ((SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0))->colType))) &&
-      FUNCTION_TYPE_SELECT_VALUE != funcType && FUNCTION_TYPE_GROUP_KEY != funcType) {
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (funcType == FUNCTION_TYPE_LAST_ROW) {
+    if (pScan->cacheLastMode == TSDB_CACHE_MODEL_LAST_VALUE) {
+      return true;
+    }
+  } else if (funcType == FUNCTION_TYPE_LAST) {
+    if (pScan->cacheLastMode == TSDB_CACHE_MODEL_LAST_ROW) {
+      return true;
+    }
+    if (pParam != NULL) {
+      if (nodeType(pParam) != QUERY_NODE_COLUMN || ((SColumnNode*)pParam)->colType != COLUMN_TYPE_COLUMN) {
+        return true;
+      }
+    }
+  } else if (funcType != FUNCTION_TYPE_SELECT_VALUE && funcType != FUNCTION_TYPE_GROUP_KEY &&
+             funcType != FUNCTION_TYPE_GROUP_CONST_VALUE) {
     return true;
   }
+
   // return true if this func is related to a split func
   if (pFunc->node.relatedTo > 0 && pSplitAggFuncList != NULL) {
     SNode* pNode = NULL;
@@ -4601,6 +4671,7 @@ static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan
       }
     }
   }
+
   return false;
 }
 
@@ -4649,7 +4720,10 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
     } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType) {
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode* pCol = (SColumnNode*)pParam;
-        if (COLUMN_TYPE_COLUMN == pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+        if (COLUMN_TYPE_COLUMN == pCol->colType &&
+            PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId &&
+            !pCol->isPk) {
+          // found a non-pk select column
           if (selectNonPKColId != pCol->colId) {
             selectNonPKColId = pCol->colId;
             selectNonPKColNum++;
@@ -5443,6 +5517,116 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
 
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
+}
+
+static bool vtableTagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL != nodeType(pNode)) {
+    return false;
+  }
+  SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)pNode;
+  SVirtualScanLogicNode*  pVtableScan = (SVirtualScanLogicNode*)nodesListGetNode(pDyn->node.pChildren, 0);
+  if (!pVtableScan || LIST_LENGTH(pVtableScan->node.pChildren) != 2 || !pDyn->vtbScan.useTagScan) {
+    return false;
+  }
+  SScanLogicNode*         pTagScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 0);
+  SScanLogicNode*         pScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 1);
+
+  if (NULL == pTagScan || nodeType((SLogicNode*)pTagScan) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      NULL == pScan || nodeType((SLogicNode*)pScan) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      pTagScan->scanType != SCAN_TYPE_TAG || pScan->hasNormalCols) {
+    return false;
+  }
+
+  if (NULL == pNode->pParent || QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) ||
+      1 != LIST_LENGTH(pNode->pParent->pChildren)) {
+    return false;
+  }
+
+  SAggLogicNode* pAgg = (SAggLogicNode*)(pNode->pParent);
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || keysHasCol(pAgg->pGroupKeys) ||
+      !planOptNodeListHasTbname(pAgg->pGroupKeys)) {
+    return false;
+  }
+
+  SNode* pGroupKey = NULL;
+  FOREACH(pGroupKey, pAgg->pGroupKeys) {
+    SNode* pGroup = NULL;
+    FOREACH(pGroup, ((SGroupingSetNode*)pGroupKey)->pParameterList) {
+      if (QUERY_NODE_COLUMN != nodeType(pGroup)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+static int32_t vtableTagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, vtableTagScanOptShouldBeOptimized, NULL);
+  if (NULL == pDyn) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SVirtualScanLogicNode*  pVtableScan = NULL;
+  SScanLogicNode*         pTagScan = NULL;
+  SScanLogicNode*         pScan = NULL;
+  SNodeList*              pScanTargets = NULL;
+  SNode*                  pNewTarget = NULL;
+  bool                    freeTargets = false;
+  bool                    freeTarget = false;
+
+  pVtableScan = (SVirtualScanLogicNode*)nodesListGetNode(pDyn->node.pChildren, 0);
+  QUERY_CHECK_NULL(pVtableScan, code, lino, _return, terrno);
+  pTagScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 0);
+  QUERY_CHECK_NULL(pTagScan, code, lino, _return, terrno);
+  pScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 1);
+  QUERY_CHECK_NULL(pScan, code, lino, _return, terrno);
+
+  SLogicNode* pAgg = pDyn->node.pParent;
+  if (NULL == pAgg->pParent) {
+    PLAN_ERR_JRET(nodesMakeList(&pScanTargets));
+    freeTargets = true;
+    SNode* pAggTarget = NULL;
+    FOREACH(pAggTarget, pAgg->pTargets) {
+      SNode* pScanTarget = NULL;
+      FOREACH(pScanTarget, pTagScan->node.pTargets) {
+        if (0 == strcmp(((SColumnNode*)pAggTarget)->colName, ((SColumnNode*)pScanTarget)->colName)) {
+          PLAN_ERR_JRET(nodesCloneNode(pScanTarget, &pNewTarget));
+          freeTarget = true;
+          PLAN_ERR_JRET(nodesListAppend(pScanTargets, pNewTarget));
+          freeTarget = false;
+          break;
+        }
+      }
+    }
+    nodesDestroyList(pTagScan->node.pTargets);
+    pTagScan->node.pTargets = pScanTargets;
+    freeTargets = false;
+  }
+
+  NODES_CLEAR_LIST(pVtableScan->node.pChildren);
+  nodesDestroyNode((SNode*)pScan);
+  nodesDestroyNode((SNode*)pDyn);
+  NODES_CLEAR_LIST(pAgg->pChildren);
+  PLAN_ERR_JRET(nodesListMakeAppend(&pAgg->pChildren, (SNode*)pTagScan));
+  pTagScan->node.pParent = pAgg;
+  pTagScan->onlyMetaCtbIdx = false;
+  pTagScan->node.dynamicOp = false;
+  pTagScan->virtualStableScan = false;
+
+  pCxt->optimized = true;
+_return:
+  if (code) {
+    planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+  }
+  if (freeTargets) {
+    nodesDestroyList(pScanTargets);
+  }
+  if (freeTarget) {
+    nodesDestroyNode(pNewTarget);
+  }
+  return code;
 }
 
 static bool pushDownLimitOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
@@ -8138,6 +8322,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
   {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
+  {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
 };
 // clang-format on
 
