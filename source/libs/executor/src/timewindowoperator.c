@@ -732,9 +732,108 @@ _end:
   return false;
 }
 
+int32_t getNumOfRowsInTimeWinUnsorted(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, STimeWindow* win,
+                                      int32_t startPos) {
+  int32_t rows = pDataBlockInfo->rows;
+  for (int32_t i = startPos; i < pDataBlockInfo->rows - 1; ++i) {
+    if (pPrimaryColumn[i] >= win->skey && pPrimaryColumn[i] < win->ekey) {
+      continue;
+    } else {
+      return i - startPos;
+    }
+  }
+  return rows - startPos;
+}
+
+static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
+                            int32_t scanFlag) {
+  SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
+
+  SExecTaskInfo* pTaskInfo = pOperatorInfo->pTaskInfo;
+  SExprSupp*     pSup = &pOperatorInfo->exprSupp;
+
+  int32_t     startPos = 0;
+  int32_t     numOfOutput = pSup->numOfExprs;
+  int64_t*    tsCols = extractTsCol(pBlock, pInfo, pTaskInfo);
+  uint64_t    tableGroupId = pBlock->info.id.groupId;
+
+  SResultRow* pResult = NULL;
+
+  if (tableGroupId != pInfo->curGroupId) {
+    pInfo->handledGroupNum += 1;
+    if (pInfo->slimited && pInfo->handledGroupNum > pInfo->slimit) {
+      return true;
+    } else {
+      pInfo->curGroupId = tableGroupId;
+      destroyBoundedQueue(pInfo->pBQ);
+      pInfo->pBQ = NULL;
+    }
+  }
+
+  STimeWindow win =
+      getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, tsCols[0], &pInfo->interval, pInfo->binfo.inputTsOrder);
+  if (filterWindowWithLimit(pInfo, &win, tableGroupId, pTaskInfo)) return false;
+
+  int32_t ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
+                                       pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+  if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
+
+  int32_t forwardRows = getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &win, startPos);
+
+
+  updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, 1);
+  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
+                                        pBlock->info.rows, numOfOutput);
+  if (ret != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
+
+  doCloseWindow(pResultRowInfo, pInfo, pResult);
+
+  startPos += forwardRows;
+
+  STimeWindow nextWin = win;
+  while (startPos < pBlock->info.rows) {
+    int32_t prevEndPos = forwardRows - 1 + startPos;
+
+    STimeWindow win =
+    getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, tsCols[startPos], &pInfo->interval, pInfo->binfo.inputTsOrder);
+
+    int32_t code = setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
+                                          pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    forwardRows = getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &win, startPos);
+
+
+    updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, 1);
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
+                                          pBlock->info.rows, numOfOutput);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
+
+    doCloseWindow(pResultRowInfo, pInfo, pResult);
+    startPos += forwardRows;
+  }
+
+  if (pInfo->timeWindowInterpo) {
+    saveDataBlockLastRow(pInfo->pPrevValues, pBlock, pInfo->pInterpCols);
+  }
+  return false;
+}
+
+
 static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
                             int32_t scanFlag) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
+  // if (pInfo->binfo.inputTsOrder == ORDER_OUT_OF_ORDER) {
+  //   return hashIntervalAggForUnsortedBlock(pOperatorInfo, pResultRowInfo, pBlock, scanFlag);
+  // }
 
   SExecTaskInfo* pTaskInfo = pOperatorInfo->pTaskInfo;
   SExprSupp*     pSup = &pOperatorInfo->exprSupp;
@@ -1005,9 +1104,9 @@ void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
         pRowSup->numNullRows : 0;
       resetNumNullRows(pRowSup);
   }
-  if (pRowSup->win.skey > pRowSup->win.ekey) {
-    TSWAP(pRowSup->win.skey, pRowSup->win.ekey);
-  }
+  // if (pRowSup->win.skey > pRowSup->win.ekey) {
+  //   TSWAP(pRowSup->win.skey, pRowSup->win.ekey);
+  // }
 }
 
 void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {

@@ -7860,6 +7860,9 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
 }
 
 static void resetOrderBySubqueryOrder(SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow) {
+    return;
+  }
   if (NULL == pSelect->pFromTable || QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable)) {
     return;
   }
@@ -7878,8 +7881,8 @@ static void resetOrderBySubqueryOrder(SSelectStmt* pSelect) {
     SNode*            pOrder = pOrderExpr->pExpr;
     if (isPrimaryKeyImpl(pOrder)) {
       pSelect->timeLineFromOrderBy = pOrderExpr->order;
-    } else {
-      pSelect->timeLineFromOrderBy = ORDER_UNKNOWN;
+    } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      pSelect->timeLineFromOrderBy = ORDER_OUT_OF_ORDER;
     }
   }
 }
