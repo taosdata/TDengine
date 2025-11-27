@@ -38,10 +38,13 @@ class DoTest(BaseStep):
             delay = Delay()
             delay.cnt = row[0]
             delay.avg = row[1]/1000
-            delay.p50 = row[2]/1000
-            delay.p90 = row[3]/1000
-            delay.p95 = row[4]/1000
-            delay.p99 = row[5]/1000
+            delay.min = row[2]/1000
+            delay.p10 = row[3]/1000
+            delay.p50 = row[4]/1000
+            delay.p90 = row[5]/1000
+            delay.p95 = row[6]/1000
+            delay.p99 = row[7]/1000
+            delay.max = row[8]/1000
             metrics.update_delay(self.scene.name, i, delay)
         except Exception as e:
             log.out(f"  {i} total_delay except: {e}")

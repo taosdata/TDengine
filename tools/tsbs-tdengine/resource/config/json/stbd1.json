@@ -18,7 +18,7 @@
                     "name": "stbd1",
                     "child_table_exists": "no",
                     "childtable_count": 1,
-                    "insert_rows": 10000,
+                    "insert_rows": 20000,
                     "childtable_prefix": "d",
                     "insert_mode": "stmt2",
                     "insert_interval": 0,

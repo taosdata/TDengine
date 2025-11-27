@@ -21,13 +21,16 @@ from outLog import log
 from cmdLine import cmd
 
 class Delay :
-    def __init__(self, cnt=0 ,avg=0, p50=0, p90=0, p95=0, p99=0):
+    def __init__(self, cnt=0 ,min=0, avg=0, p10=0, p50=0, p90=0, p95=0, p99=0, max=0):
         self.cnt = cnt
+        self.min = min
         self.avg = avg
+        self.p10 = p10
         self.p50 = p50
         self.p90 = p90
         self.p95 = p95
         self.p99 = p99
+        self.max = max
 class OutMetrics:
     def __init__(self):
         self.time_start       = None
@@ -85,7 +88,15 @@ class OutMetrics:
             self.data_rows[name] += rows
             
     def update_delay(self, name, i, delay):
-        log.out(f"  i={i:03d} delay cnt {delay.cnt} avg {delay.avg:.2f}s, p50 {delay.p50:.2f}s, p90 {delay.p90:.2f}s, p95 {delay.p95:.2f}s, p99 {delay.p99:.2f}s")
+        log.out(f"  i={i:03d} delay cnt {delay.cnt}, "
+                                  f"avg {delay.avg:.2f}s, "
+                                  f"min {delay.min:.2f}s, "
+                                  f"p10 {delay.p10:.2f}s, "
+                                  f"p50 {delay.p50:.2f}s, "
+                                  f"p90 {delay.p90:.2f}s, "
+                                  f"p95 {delay.p95:.2f}s, "
+                                  f"p99 {delay.p99:.2f}s, "
+                                  f"max {delay.max:.2f}s")
         self.delay[name] = delay
     
     def write_log(self, msg):
@@ -100,41 +111,47 @@ class OutMetrics:
         col_widths = {
             'scenario_id': 8,
             'status': 8,
-            'classification': 10,
+            'classification': 8,
             'out_records': 10,
             'in_records': 10,
             'start_time': 19,
             'end_time': 19,
-            'duration': 12,
-            'throughput': 18,
-            "delay_avg": 10,
-            "delay_p50": 10,
-            "delay_p90": 10,
-            "delay_p95": 10,
-            "delay_p99": 10
+            'duration': 10,
+            'throughput': 10,
+            "delay_avg": 6,
+            "delay_min": 6,
+            "delay_p10": 6,
+            "delay_p50": 6,
+            "delay_p90": 6,
+            "delay_p95": 6,
+            "delay_p99": 6,
+            "delay_max": 6
         }
         
         header_delay = ""
         if cmd.get_check_delay():
             header_delay = (
                 f"| {'Avg(s)':>{col_widths['delay_avg']}} "
+                f"| {'Min(s)':>{col_widths['delay_min']}} "
+                f"| {'P10(s)':>{col_widths['delay_p10']}} "
                 f"| {'P50(s)':>{col_widths['delay_p50']}} "
                 f"| {'P90(s)':>{col_widths['delay_p90']}} "
                 f"| {'P95(s)':>{col_widths['delay_p95']}} "
                 f"| {'P99(s)':>{col_widths['delay_p99']}} "
+                f"| {'Max(s)':>{col_widths['delay_max']}} "
             )
         
         # Header
         header = (
             f"| {'Scenario':<{col_widths['scenario_id']}} "
             f"| {'Status':<{col_widths['status']}} "
-            f"| {'Type':<{col_widths['classification']}} "
+            f"| {'Classif':<{col_widths['classification']}} "
             f"| {'Out Rec':>{col_widths['out_records']}} "
             f"| {'In Rec':>{col_widths['in_records']}} "
-            f"| {'Start Time':<{col_widths['start_time']}} "
-            f"| {'End Time':<{col_widths['end_time']}} "
-            f"| {'Duration(s)':>{col_widths['duration']}} "
-            f"| {'Throughput(rec/s)':>{col_widths['throughput']}} "
+            f"| {'Start Time':>{col_widths['start_time']}} "
+            f"| {'End Time':>{col_widths['end_time']}} "
+            f"| {'Dur(s)':>{col_widths['duration']}} "
+            f"| {'TP(rec/s)':>{col_widths['throughput']}} "
             f"{header_delay}"
             f"|"
         )
@@ -143,10 +160,13 @@ class OutMetrics:
         if cmd.get_check_delay():
             separator_delay = (
                 f"|{'-' * (col_widths['delay_avg'] + 2)}"
+                f"|{'-' * (col_widths['delay_min'] + 2)}"
+                f"|{'-' * (col_widths['delay_p10'] + 2)}"
                 f"|{'-' * (col_widths['delay_p50'] + 2)}"
                 f"|{'-' * (col_widths['delay_p90'] + 2)}"
                 f"|{'-' * (col_widths['delay_p95'] + 2)}"
                 f"|{'-' * (col_widths['delay_p99'] + 2)}"
+                f"|{'-' * (col_widths['delay_max'] + 2)}"
             )
         
         # Separator line
@@ -203,10 +223,13 @@ class OutMetrics:
                 delay = self.delay.get(scenario, Delay())
                 row_delay = (
                     f"| {delay.avg:>{col_widths['delay_avg']}.2f} "
+                    f"| {delay.min:>{col_widths['delay_min']}.2f} "
+                    f"| {delay.p10:>{col_widths['delay_p10']}.2f} "
                     f"| {delay.p50:>{col_widths['delay_p50']}.2f} "
                     f"| {delay.p90:>{col_widths['delay_p90']}.2f} "
                     f"| {delay.p95:>{col_widths['delay_p95']}.2f} "
                     f"| {delay.p99:>{col_widths['delay_p99']}.2f} "
+                    f"| {delay.max:>{col_widths['delay_max']}.2f} "
                 )
             
             # Print row with fixed width
@@ -219,7 +242,7 @@ class OutMetrics:
                 f"| {start_time_str:<{col_widths['start_time']}} "
                 f"| {end_time_str:<{col_widths['end_time']}} "
                 f"| {duration:>{col_widths['duration']}.2f} "
-                f"| {throughput:>{col_widths['throughput']}.2f} "
+                f"| {throughput:>{col_widths['throughput']}.0f} "
                 f"{row_delay}"
                 f"|"
             )
@@ -241,10 +264,13 @@ class OutMetrics:
                 delay = self.delay.get(scenario, Delay())
                 json_delay = {
                     'delay_avg': delay.avg,
+                    'delay_min': delay.min,
+                    'delay_p10': delay.p10,
                     'delay_p50': delay.p50,
                     'delay_p90': delay.p90,
                     'delay_p95': delay.p95,
-                    'delay_p99': delay.p99
+                    'delay_p99': delay.p99,
+                    'delay_max': delay.max
                 }                
                 json_data.update(json_delay)
             
