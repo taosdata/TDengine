@@ -297,7 +297,7 @@ properties 中的配置参数如下：
 
 ##### 六、节点后台探活和重平衡配置
 **配置描述**：控制驱动对故障节点的主动探活策略，以及连接重平衡触发条件等。仅在 WebSocket 连接有效，且需要开启自动重连。
-- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_INIT_INTERVAL [`healthCheckInitInterval`]：主动探活初始间隔（秒），达到初始间隔后按指数倍增。默认值为10。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_INIT_INTERVAL [`healthCheckInitInterval`]：主动探活初始间隔（秒），达到初始间隔后按指数倍增。默认值为 10。
 - TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_MAX_INTERVAL [`healthCheckMaxInterval`]：主动探活最大间隔（秒）。当指数倍增的间隔时间达到此最大值后，后续的探活将使用该最大间隔。默认值为300。
 - TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CON_TIMEOUT [`healthCheckConTimeout`]：探活连接超时时间（秒）。默认值为1。
 - TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CMD_TIMEOUT [`healthCheckCmdTimeout`]：探活命令超时时间（秒）。默认值为5。
