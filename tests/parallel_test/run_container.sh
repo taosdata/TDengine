@@ -122,6 +122,7 @@ fi
 MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/$exec_dir"
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
+cmd="mkdir -p /etc/taos && $cmd"
 
 docker run --privileged=true \
     -v $REP_MOUNT_PARAM \

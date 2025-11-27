@@ -130,6 +130,7 @@ MOUNT_TARGET="${CONTAINER_TESTDIR}/test"
 MOUNT_DIR="${MOUNT_SOURCE}:${MOUNT_TARGET}"
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
+cmd="mkdir -p /etc/taos && $cmd"
 
 docker run \
     -v $REP_MOUNT_PARAM \
