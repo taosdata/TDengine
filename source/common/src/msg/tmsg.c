@@ -8373,9 +8373,7 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->subDbName));
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else {
-    if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
-      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->subStbName));
-    }
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->subStbName));
     if (pReq->ast && strlen(pReq->ast) > 0) {
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, strlen(pReq->ast)));
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->ast));
@@ -8414,9 +8412,7 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->subDbName));
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else {
-    if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
-      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->subStbName));
-    }
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->subStbName));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &astLen));
     if (astLen > 0) {
       pReq->ast = taosMemoryCalloc(1, astLen + 1);

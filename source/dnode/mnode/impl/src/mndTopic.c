@@ -25,6 +25,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "osMemPool.h"
 #include "parser.h"
 #include "tname.h"
 #include "audit.h"
@@ -316,7 +317,10 @@ static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
 }
 
 static int32_t processAst(SMqTopicObj* topicObj, const char* ast) {
-  if (ast == NULL) return 0;
+  if (ast == NULL) {
+    topicObj->physicalPlan = taosStrdup("");
+    return 0;
+  }
   qDebugL("%s topic:%s ast %s", __func__, topicObj->name, ast);
 
   SNode  *pAst = NULL;
