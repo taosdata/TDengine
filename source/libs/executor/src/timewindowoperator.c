@@ -771,7 +771,7 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
   }
 
   STimeWindow win =
-      getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, tsCols[0], &pInfo->interval, pInfo->binfo.inputTsOrder);
+      getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, tsCols[startPos], &pInfo->interval, pInfo->binfo.inputTsOrder);
   if (filterWindowWithLimit(pInfo, &win, tableGroupId, pTaskInfo)) return false;
 
   int32_t ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
@@ -782,6 +782,24 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
 
   int32_t forwardRows = getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &win, startPos);
 
+  // prev time window not interpolation yet.
+  if (pInfo->timeWindowInterpo) {
+    SResultRowPosition pos = addToOpenWindowList(pResultRowInfo, pResult, tableGroupId, pTaskInfo);
+    doInterpUnclosedTimeWindow(pOperatorInfo, numOfOutput, pResultRowInfo, pBlock, scanFlag, tsCols, &pos);
+
+    // restore current time window
+    ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId, pSup->pCtx,
+                                 numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
+
+    // window start key interpolation
+    ret = doWindowBorderInterpolation(pInfo, pBlock, pResult, &win, startPos, forwardRows, pSup);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
+  }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, 1);
   ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
@@ -792,23 +810,28 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
 
   doCloseWindow(pResultRowInfo, pInfo, pResult);
 
-  startPos += forwardRows;
-
   STimeWindow nextWin = win;
+
   while (startPos < pBlock->info.rows) {
-    int32_t prevEndPos = forwardRows - 1 + startPos;
-
-    STimeWindow win =
-    getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, tsCols[startPos], &pInfo->interval, pInfo->binfo.inputTsOrder);
-
+   int32_t prevEndPos = forwardRows - 1 + startPos;
+    startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pBlock->info, tsCols, prevEndPos,
+                                      pInfo->binfo.inputTsOrder);
+    if (startPos < 0 || startPos >= pBlock->info.rows || filterWindowWithLimit(pInfo, &nextWin, tableGroupId, pTaskInfo)) {
+      break;
+    }
+    // null data, failed to allocate more memory buffer
     int32_t code = setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                           pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    forwardRows = getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &win, startPos);
-
+    forwardRows = getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &nextWin, startPos);
+    // window start(end) key interpolation
+    code = doWindowBorderInterpolation(pInfo, pBlock, pResult, &nextWin, startPos, forwardRows, pSup);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
 
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, 1);
     ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
@@ -816,9 +839,7 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, ret);
     }
-
     doCloseWindow(pResultRowInfo, pInfo, pResult);
-    startPos += forwardRows;
   }
 
   if (pInfo->timeWindowInterpo) {
@@ -831,9 +852,9 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
 static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
                             int32_t scanFlag) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
-  // if (pInfo->binfo.inputTsOrder == ORDER_OUT_OF_ORDER) {
-  //   return hashIntervalAggForUnsortedBlock(pOperatorInfo, pResultRowInfo, pBlock, scanFlag);
-  // }
+  if (pInfo->binfo.inputTsOrder == ORDER_OUT_OF_ORDER) {
+    return hashIntervalAggForUnsortedBlock(pOperatorInfo, pResultRowInfo, pBlock, scanFlag);
+  }
 
   SExecTaskInfo* pTaskInfo = pOperatorInfo->pTaskInfo;
   SExprSupp*     pSup = &pOperatorInfo->exprSupp;
