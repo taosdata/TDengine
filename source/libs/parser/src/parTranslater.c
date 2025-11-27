@@ -3839,13 +3839,12 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
         (*ppTable)->pSubquery = NULL;
         nodesDestroyNode((SNode*)*ppTable);
         *ppTable = NULL;
-        code = nodesMakeNode(QUERY_NODE_VALUE, pNode);
+        code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE, pNode);
       }
       if (TSDB_CODE_SUCCESS == code) {
-        SValueNode* pValue = (SValueNode*)*pNode;
-        pValue->isFromSubQ = true;
+        SRemoteValueNode* pValue = (SRemoteValueNode*)*pNode;
         pValue->subQIdx = pCxt->pSubQueries->length - 1;
-        getScalarSubQueryResType(pSubQuery, &pValue->node.resType);
+        getScalarSubQueryResType(pSubQuery, &pValue->val.node.resType);
       }
     }
     default:

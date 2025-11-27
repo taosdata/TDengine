@@ -131,7 +131,6 @@ typedef struct SValueNode {
   bool       translate;
   bool       notReserved;
   bool       isNull;
-  bool       isFromSubQ;
   int16_t    placeholderNo;
   union {
     bool     b;
@@ -143,9 +142,14 @@ typedef struct SValueNode {
   int64_t    typeData;
   int8_t     unit;
   timezone_t tz;
-  int32_t    subQIdx;
   void*      charsetCxt;
 } SValueNode;
+
+typedef struct SRemoteValueNode {
+  SValueNode val;
+  bool       valSet;
+  int32_t    subQIdx;
+} SRemoteValueNode;
 
 typedef struct SLeftValueNode {
   ENodeType type;

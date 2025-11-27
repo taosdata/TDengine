@@ -5228,6 +5228,7 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+
 static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
   SValueNode* pNode = (SValueNode*)pObj;
 
@@ -5391,6 +5392,42 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
 
   return code;
 }
+
+
+
+static const char* jkRemoteValueValSet = "valSet";
+static const char* jkRemoteValueSubQIdx = "subQIdx";
+
+static int32_t remoteValueToJson(const void* pObj, SJson* pJson) {
+  const SRemoteValueNode* pNode = (const SRemoteValueNode*)pObj;
+
+  int32_t code = valueNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRemoteValueValSet, pNode->valSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRemoteValueSubQIdx, pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
+static int32_t jsonToRemoteValue(const SJson* pJson, void* pObj) {
+  SRemoteValueNode* pNode = (SRemoteValueNode*)pObj;
+
+  int32_t code = jsonToValueNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRemoteValueValSet, &pNode->valSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkRemoteValueSubQIdx, &pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
 
 static const char* jkOperatorType = "OpType";
 static const char* jkOperatorLeft = "Left";
@@ -9626,6 +9663,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return anomalyWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
       return streamNotifyOptionsToJson(pObj, pJson);
+    case QUERY_NODE_REMOTE_VALUE:
+      return remoteValueToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_TIME_RANGE:
@@ -10057,6 +10096,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAnomalyWindowNode(pJson, pObj);
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
       return jsonToStreamNotifyOptions(pJson, pObj);
+    case QUERY_NODE_REMOTE_VALUE:
+      return jsonToRemoteValue(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_TIME_RANGE:

@@ -167,6 +167,7 @@ typedef struct SSchTaskCallbackParam {
   int64_t                 refId;
   uint64_t                clientId;
   uint64_t                taskId;
+  int32_t                 subJobId;
   int32_t                 execId;
   void                   *pTrans;
 } SSchTaskCallbackParam;
@@ -220,6 +221,7 @@ typedef struct SSchTimerParam {
   int64_t  rId;
   uint64_t queryId;
   uint64_t taskId;
+  int32_t  subJobId;
 } SSchTimerParam;
 
 typedef struct SSchTask {
@@ -285,7 +287,8 @@ typedef struct SSchJob {
   SSchJobAttr      attr;
   void*            parent;
   int32_t          subJobId;
-  int32_t          execSubJobId;
+  int32_t          subJobExecIdx;
+  int32_t          subJobDoneNum;
   int32_t          levelNum;
   int32_t          taskNum;
   SRequestConnInfo conn;
@@ -360,7 +363,7 @@ extern SSchedulerMgmt schMgmt;
 
 #define SCH_IS_PARENT_JOB(job) (NULL == (job)->parent) 
 #define SCH_JOB_GOT_SUB_JOBS(job) (NULL != (job)->subJobs)
-#define SCH_SUB_JOBS_EXEC_UNFINISHED(job) ((job)->execSubJobId < (job)->subJobs->size)
+#define SCH_SUB_JOBS_EXEC_FINISHED(job, dn) ((dn) == (job)->subJobs->size)
 
 #define SCH_UPDATE_REDIRECT_CODE(job, _code) (void)atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
 #define SCH_GET_REDIRECT_CODE(job, _code) \
@@ -654,7 +657,7 @@ int32_t  schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, 
 void     schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq, int32_t errCode);
 int32_t  schProcessOnOpBegin(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq);
 void     schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
-int32_t  schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_t rId, uint64_t tId);
+int32_t  schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_t rId, int32_t sjId, uint64_t tId);
 void     schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask);
 bool     schJobDone(SSchJob *pJob);
 int32_t  schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask);

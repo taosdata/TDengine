@@ -339,6 +339,7 @@ typedef enum ENodeType {
   QUERY_NODE_STREAM_CALC_RANGE,
   QUERY_NODE_COUNT_WINDOW_ARGS,
   QUERY_NODE_BNODE_OPTIONS,
+  QUERY_NODE_REMOTE_VALUE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -3353,6 +3354,7 @@ typedef struct SSubQueryMsg {
   char*    sql;
   uint32_t msgLen;
   char*    msg;
+  SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
@@ -3460,6 +3462,7 @@ typedef struct {
   uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  subJobId;
   int32_t  execId;
   int8_t   status;
 } STaskStatus;

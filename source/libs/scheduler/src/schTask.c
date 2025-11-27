@@ -258,6 +258,21 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   SCH_RET(errCode);
 }
 
+int32_t schProcessOnSubJobSuccess(SSchJob *pJob) {
+  SSchJob* pParent = pJob->parent;
+  int64_t doneNum = atomic_add_fetch_64(&pParent->subJobDoneNum, 1);
+
+  if (pParent->subJobExecIdx < pParent->subJobs->size) {
+    SCH_RET(schLaunchJobImpl(taosArrayGetP(pParent->subJobs, pParent->subJobExecIdx++)));
+  }
+  
+  if (SCH_SUB_JOBS_EXEC_FINISHED(pParent, doneNum)) {
+    return schLaunchJobImpl(pParent);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   bool    moved = false;
   int32_t code = 0;
@@ -299,7 +314,11 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     pJob->resNode = pTask->succeedAddr;
     pJob->fetchTask = pTask;
 
-    SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
+    if (SCH_IS_PARENT_JOB(pJob)) {
+      SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
+    } else {
+      SCH_RET(schProcessOnSubJobSuccess(pJob))
+    }
   }
 
   for (int32_t i = 0; i < parentNum; ++i) {
@@ -967,7 +986,7 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
     qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d task status in server: %s", pStatus->queryId,
            pStatus->clientId, pStatus->taskId, pStatus->execId, jobTaskStatusStr(pStatus->status));
 
-    if (schProcessOnCbBegin(&pJob, &pTask, pStatus->queryId, pStatus->refId, pStatus->taskId)) {
+    if (schProcessOnCbBegin(&pJob, &pTask, pStatus->queryId, pStatus->refId, pStatus->subJobId, pStatus->taskId)) {
       continue;
     }
 
@@ -1274,8 +1293,9 @@ void schHandleTimerEvent(void *param, void *tmrId) {
   int64_t  rId = pTimerParam->rId;
   uint64_t queryId = pTimerParam->queryId;
   uint64_t taskId = pTimerParam->taskId;
+  int32_t subJobId = pTimerParam->subJobId;
 
-  if (schProcessOnCbBegin(&pJob, &pTask, queryId, rId, taskId)) {
+  if (schProcessOnCbBegin(&pJob, &pTask, queryId, rId, subJobId, taskId)) {
     return;
   }
 
@@ -1293,6 +1313,7 @@ int32_t schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     pTask->delayLaunchPar.rId = pJob->refId;
     pTask->delayLaunchPar.queryId = pJob->queryId;
     pTask->delayLaunchPar.taskId = pTask->taskId;
+    pTask->delayLaunchPar.subJobId = pJob->subJobId;
 
     SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);

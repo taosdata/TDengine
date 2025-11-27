@@ -515,14 +515,16 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = makeNode(type, sizeof(SWindowOffsetNode), &pNode);
       break;
+    case QUERY_NODE_RANGE_AROUND:
+      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
+      break;
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
       code = makeNode(type, sizeof(SStreamNotifyOptions), &pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE:
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
-      break;
-    case QUERY_NODE_RANGE_AROUND:
-      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
@@ -1478,6 +1480,11 @@ void nodesDestroyNode(SNode* pNode) {
       SStreamNotifyOptions* pNotifyOptions = (SStreamNotifyOptions*)pNode;
       nodesDestroyList(pNotifyOptions->pAddrUrls);
       nodesDestroyNode(pNotifyOptions->pWhere);
+      break;
+    }
+    case QUERY_NODE_REMOTE_VALUE: {
+      SRemoteValueNode* pValue = (SRemoteValueNode*)pNode;
+      nodesDestroyNode((SNode *)&pValue->val);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
