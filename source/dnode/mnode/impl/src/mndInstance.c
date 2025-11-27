@@ -331,7 +331,14 @@ static int32_t mndProcessInstanceList(SRpcMsg *pReq) {
       if (newIds == NULL) {
         // If memory was moved, free newInstances; otherwise, keep instances unchanged
         if (newInstances != instances) {
+          // Release instance references in newInstances before freeing the memory
+          for (int32_t i = 0; i < count; i++) {
+            if (newInstances[i] != NULL) {
+              sdbRelease(pSdb, newInstances[i]);
+            }
+          }
           taosMemoryFree(newInstances);
+          instances = NULL;  // Avoid freeing invalid memory in _cleanup
         }
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _cleanup;
@@ -374,13 +381,17 @@ static int32_t mndProcessInstanceList(SRpcMsg *pReq) {
 
 _cleanup:
   // Release all instances
-  for (int32_t i = 0; i < count; i++) {
-    if (instances[i] != NULL) {
-      sdbRelease(pSdb, instances[i]);
+  if (instances != NULL) {
+    for (int32_t i = 0; i < count; i++) {
+      if (instances[i] != NULL) {
+        sdbRelease(pSdb, instances[i]);
+      }
     }
+    taosMemoryFree(instances);
   }
-  taosMemoryFree(instances);
-  taosMemoryFree(ids);
+  if (ids != NULL) {
+    taosMemoryFree(ids);
+  }
   if (pInstance != NULL) {
     sdbRelease(pSdb, pInstance);
   }
