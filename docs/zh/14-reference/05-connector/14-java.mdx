@@ -270,7 +270,7 @@ properties 中的配置参数如下：
 
 ##### 三、WebSocket 连接扩展配置
 **配置描述**：仅对 WebSocket 连接生效的扩展参数，提升易用性。
-- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]：BI模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
+- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]：BI 模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。
