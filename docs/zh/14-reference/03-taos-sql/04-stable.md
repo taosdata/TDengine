@@ -26,7 +26,7 @@ table_option: {
 }
 ```
 
-**使用说明**
+###### 使用说明
 
 1. 超级表中列的最大个数为 4096，需要注意，这里的 4096 是包含 TAG 列在内的，最小个数为 3，包含一个时间戳主键、一个 TAG 列和一个数据列。
 2. 除时间戳主键列之外，还可以通过 COMPOSITE KEY 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 COMPOSITE KEY 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。注意：被指定为主键列的第二列必须为整型或字符串类型（varchar）。
@@ -48,7 +48,7 @@ table_option: {
 
 ### 显示当前数据库下的所有超级表信息
 
-```
+```sql
 SHOW STABLES [LIKE tb_name_wildcard];
 ```
 
@@ -56,7 +56,7 @@ SHOW STABLES [LIKE tb_name_wildcard];
 
 ### 显示一个超级表的创建语句
 
-```
+```sql
 SHOW CREATE STABLE stb_name;
 ```
 
@@ -64,18 +64,18 @@ SHOW CREATE STABLE stb_name;
 
 ### 获取超级表的结构信息
 
-```
+```sql
 DESCRIBE [db_name.]stb_name;
 ```
 
 ### 获取超级表中所有子表的标签信息
 
-```
+```sql
 SHOW TABLE TAGS FROM table_name [FROM db_name];
 SHOW TABLE TAGS FROM [db_name.]table_name;
 ```
 
-```
+```sql
 taos> SHOW TABLE TAGS FROM st1;
              tbname             |     id      |         loc          |
 ======================================================================
@@ -89,7 +89,7 @@ Query OK, 3 rows in database (0.004455s)
 
 如果已经知道标签列的名称，可以使用下面的语句来获取指定标签列的值。
 
-```
+```sql
 taos> SELECT DISTINCT TBNAME, id FROM st1;
              tbname             |     id      |
 ===============================================
@@ -103,7 +103,7 @@ Query OK, 3 rows in database (0.002891s)
 
 ### 获取某个子表的标签信息
 
-```
+```sql
 taos> SHOW TAGS FROM st1s1;
    table_name    |     db_name     |   stable_name   |    tag_name     |    tag_type     |    tag_value    |
 ============================================================================================================
@@ -114,7 +114,7 @@ Query OK, 2 rows in database (0.003684s)
 
 同样的，也可以用 SELECT 语句来查询指定标签列的值。
 
-```
+```sql
 taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
      tbname      |     id      |       loc       |
 ==================================================
@@ -124,7 +124,7 @@ Query OK, 1 rows in database (0.001884s)
 
 ## 删除超级表
 
-```
+```sql
 DROP STABLE [IF EXISTS] [db_name.]stb_name
 ```
 
@@ -158,7 +158,7 @@ alter_table_option: {
 
 ```
 
-**使用说明**
+###### 使用说明
 
 修改超级表的结构会对其下的所有子表生效。无法针对某个特定子表修改表结构。标签结构的修改需要对超级表下发，TDengine TSDB 会自动作用于此超级表的所有子表。
 
@@ -173,19 +173,19 @@ alter_table_option: {
 
 ### 增加列
 
-```
+```sql
 ALTER STABLE stb_name ADD COLUMN col_name column_type;
 ```
 
 ### 删除列
 
-```
+```sql
 ALTER STABLE stb_name DROP COLUMN col_name;
 ```
 
 ### 修改列宽
 
-```
+```sql
 ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 ```
 
@@ -193,7 +193,7 @@ ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 
 ### 添加标签
 
-```
+```sql
 ALTER STABLE stb_name ADD TAG tag_name tag_type;
 ```
 
@@ -201,7 +201,7 @@ ALTER STABLE stb_name ADD TAG tag_name tag_type;
 
 ### 删除标签
 
-```
+```sql
 ALTER STABLE stb_name DROP TAG tag_name;
 ```
 
@@ -209,7 +209,7 @@ ALTER STABLE stb_name DROP TAG tag_name;
 
 ### 修改标签名
 
-```
+```sql
 ALTER STABLE stb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
@@ -217,7 +217,7 @@ ALTER STABLE stb_name RENAME TAG old_tag_name new_tag_name;
 
 ### 修改标签列宽度
 
-```
+```sql
 ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
 ```
 

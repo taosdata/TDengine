@@ -39,7 +39,7 @@ table_option: {
 
 ```
 
-**使用说明**
+###### 使用说明
 
 1. 表（列）名命名规则参见 [名称命名规则](../limit/#名称命名规则)。
 2. 表名最大长度为 192。
@@ -49,7 +49,7 @@ table_option: {
 6. 使用数据类型 VARCHAR/NCHAR/GEOMETRY，需指定其最长的字节数，如 VARCHAR(20)，表示 20 字节。
 7. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考[按列压缩](../compress)
 
-**参数说明**
+###### 参数说明
 
 1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
 2. SMA：Small Materialized Aggregates，提供基于数据块的自定义预计算功能。预计算类型包括 MAX、MIN 和 SUM。可用于超级表/普通表。
@@ -89,7 +89,7 @@ CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF 
 CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_name] ....) FILE csv_file_path;
 ```
 
-**参数说明**
+###### 参数说明
 
 1. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 table name 与 tag 值。如需插入数据，请参考'数据写入'章节。
 2. 为指定的 stb_name 创建子表，该超级表必须已经存在。
@@ -120,7 +120,8 @@ alter_table_option: {
 
 ```
 
-**使用说明**
+###### 使用说明
+
 对普通表可以进行如下修改操作
 
 1. ADD COLUMN：添加列。
@@ -129,7 +130,7 @@ alter_table_option: {
 4. RENAME COLUMN：修改列名称。
 5. 普通表的主键列不能被修改，也不能通过 ADD/DROP COLUMN 来添加/删除主键列。
 
-**参数说明**
+###### 参数说明
 
 1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
 2. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine TSDB 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
@@ -189,18 +190,18 @@ alter_table_option: {
 }
 ```
 
-**使用说明**
+###### 使用说明
 
 1. 对子表的列和标签的修改，除了更改标签值以外，都要通过超级表才能进行。
 
-**参数说明**
+###### 参数说明
 
 1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
 2. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine TSDB 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
 
 #### 修改标签值
 
-```
+```sql
 ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
@@ -238,7 +239,7 @@ SHOW TABLES [LIKE tb_name_wildcard];
 
 ### 显示表创建语句
 
-```
+```sql
 SHOW CREATE TABLE tb_name;
 ```
 
@@ -246,6 +247,6 @@ SHOW CREATE TABLE tb_name;
 
 ### 获取表结构信息
 
-```
+```sql
 DESCRIBE [db_name.]tb_name;
 ```

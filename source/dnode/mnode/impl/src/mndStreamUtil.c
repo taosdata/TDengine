@@ -1125,17 +1125,18 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
     }
   }
 
-
-  int32_t calcReaderNum = MST_LIST_SIZE(pStatus->calcReaders);
-  SListNode* pNode = listHead(pStatus->calcReaders);
-  for (int32_t i = 0; i < calcReaderNum; ++i) {
-    pTask = (SStmTaskStatus*)pNode->data;
-  
-    code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
-    if (code == TSDB_CODE_SUCCESS) {
-      (*numOfRows)++;
+  if (pStatus->calcReaders) {
+    int32_t calcReaderNum = MST_LIST_SIZE(pStatus->calcReaders);
+    SListNode* pNode = listHead(pStatus->calcReaders);
+    for (int32_t i = 0; i < calcReaderNum; ++i) {
+      pTask = (SStmTaskStatus*)pNode->data;
+    
+      code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
+      if (code == TSDB_CODE_SUCCESS) {
+        (*numOfRows)++;
+      }
+      pNode = TD_DLIST_NODE_NEXT(pNode);
     }
-    pNode = TD_DLIST_NODE_NEXT(pNode);
   }
 
   if (pStatus->triggerTask) {

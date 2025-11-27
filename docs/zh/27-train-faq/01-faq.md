@@ -38,10 +38,10 @@ description: 一些常见问题的解决方法汇总
 
 请看为此问题撰写的 [技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)。
 
-### 3. 遇到加载 “libtaosnative.so” 或 “libtaosws.so” 失败怎么办？
+### 3. 遇到加载`libtaosnative.so`或`libtaosws.so`失败怎么办？
 
 问题描述：
-在使用 TDengine TSDB 客户端应用（taos-CLI、taosBenchmark、taosdump 等）或客户端连接器（如 Java、Python、Go 等）时，可能会遇到加载动态链接库 “libtaosnative.so” 或 “libtaosws.so” 失败的错误。
+在使用 TDengine TSDB 客户端应用（taos-CLI、taosBenchmark、taosdump 等）或客户端连接器（如 Java、Python、Go 等）时，可能会遇到加载动态链接库`libtaosnative.so`或`libtaosws.so`失败的错误。
 如：failed to load libtaosws.so since No such file or directory [0x80FF0002]
 
 问题原因：
@@ -50,9 +50,9 @@ description: 一些常见问题的解决方法汇总
 问题解决：
 
 - **检查文件**：检查系统共享库目录下是否存在 `libtaosnative.so` 或 `libtaosws.so` 软链文件及相应实体文件也完整，如软链或实体文件已不存在，在 TDengine TSDB 客户端或服务器安装包中均包含这些文件，请重新安装。
-- **检查环境变量**：确保系统加载共享库目录环境变量`LD_LIBRARY_PATH` 包含 `libtaosnative.so` 或 `libtaosws.so` 文件所在目录， 若未包含，可通过 `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<new_path>` 添加。
+- **检查环境变量**：确保系统加载共享库目录环境变量`LD_LIBRARY_PATH` 包含 `libtaosnative.so` 或 `libtaosws.so` 文件所在目录，若未包含，可通过 `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<new_path>` 添加。
 - **检查权限**：确保当前用户对 `libtaosnative.so` 或 `libtaosws.so` 软链及其实体文件具有读取和执行权限。
-- **检查文件损坏**： 可以通过 `readelf -h 库文件` 检查库文件是否完整。
+- **检查文件损坏**：可以通过 `readelf -h 库文件` 检查库文件是否完整。
 - **检查文件依赖**：可以通过 `ldd 库文件` 查看库文件的依赖项是否完整，确保所有依赖项均已正确安装且可访问。
 
 ### 4. 如何让 TDengine TSDB crash 时生成 core 文件？
