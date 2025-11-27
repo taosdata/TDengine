@@ -35,7 +35,8 @@
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo);
 
-int32_t updateSessMgtMetric(TAOS* taos, SSessParam* pParam);
+int32_t connUpdateSessMgtMetric(int64_t connId, SSessParam* pParam);
+int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -1387,6 +1388,12 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
         if (!pRequest->validateOnly) {
           SArray* pNodeList = NULL;
           code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
+
+          if (TSDB_CODE_SUCCESS == code) {
+            SSessParam para = {.type = SESSION_MAX_CALL_VNODE_NUM, .value = taosArrayGetSize(pNodeList)};
+            code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
+          }
+
           if (TSDB_CODE_SUCCESS == code) {
             code = scheduleQuery(pRequest, pDag, pNodeList);
           }
@@ -3076,7 +3083,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   }
 
   SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = 1};
-  code = updateSessMgtMetric(&connId, &para);
+  code = connUpdateSessMgtMetric(connId, &para);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
@@ -3119,7 +3126,7 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   }
 
   SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = 1};
-  code = updateSessMgtMetric(&connId, &para);
+  code = connUpdateSessMgtMetric(connId, &para);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
@@ -3131,19 +3138,31 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   doAsyncQuery(pRequest, false);
 }
 
-// int32_t updateSessMgtMetric(TAOS* taos, SSessParam* pParam) {
-//   int32_t code = 0;
-//   if (NULL == taos) {
-//     return TSDB_CODE_TSC_DISCONNECTED;
-//   }
-//   int64_t connId = *(int64_t*)taos;
+int32_t connUpdateSessMgtMetric(int64_t connId, SSessParam* pParam) {
+  int32_t code = 0;
 
-//   STscObj* pTscObj = acquireTscObj(connId);
-//   code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
+  STscObj* pTscObj = acquireTscObj(connId);
+  if (pTscObj == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
+  code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
 
-//   releaseTscObj(connId);
-//   return code;
-// }
+  releaseTscObj(connId);
+  return code;
+}
+
+int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam) {
+  int32_t code = 0;
+
+  if (pTscObj == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
+  code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
+
+  return code;
+}
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
   if (NULL == taos) {
@@ -3326,7 +3345,7 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   }
 
   SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = -1};
-  code = updateSessMgtMetric(&this, &para);
+  code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
 
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {

@@ -477,6 +477,7 @@ static void taosLockList(int64_t *lockedBy) {
     if (++i % 100 == 0) {
       (void)sched_yield();
     }
+
   }
 }
 

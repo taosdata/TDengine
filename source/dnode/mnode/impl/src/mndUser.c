@@ -1071,11 +1071,13 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   mndTransDrop(pTrans);
   taosMemoryFree(userObj.pIpWhiteListDual);
   taosMemoryFree(userObj.pTimeWhiteList);
+  taosMemoryFreeClear(userObj.passwords);
   return 0;
 
 _ERROR:
   taosMemoryFree(userObj.pIpWhiteListDual);
   taosMemoryFree(userObj.pTimeWhiteList);
+  taosMemoryFreeClear(userObj.passwords);
   TAOS_RETURN(terrno ? terrno : TSDB_CODE_APP_ERROR);
 }
 
