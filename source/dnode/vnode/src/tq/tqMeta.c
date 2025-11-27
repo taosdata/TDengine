@@ -31,6 +31,7 @@ int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pHandle->execHandle.subType));
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pHandle->execHandle.execCol.qmsg));
+    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pEncoder, &pHandle->execHandle.execCol.pSW));
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     int32_t size = taosHashGetSize(pHandle->execHandle.execDb.pFilterOutTbUid);
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, size));
@@ -72,6 +73,9 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pHandle->execHandle.subType));
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execCol.qmsg));
+    if (!tDecodeIsEnd(pDecoder)) {
+      TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pDecoder, &pHandle->execHandle.execCol.pSW));
+    }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     pHandle->execHandle.execDb.pFilterOutTbUid =
         taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
