@@ -102,6 +102,8 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 int32_t maskNoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

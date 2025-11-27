@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "cJSON.h"
+#include "crypt.h"
 #include "decimal.h"
 #include "filter.h"
 #include "function.h"
@@ -2598,6 +2599,130 @@ int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosAesDecrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
+
+    varDataSetLen(output, len);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      SCL_ERR_RET(code);
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  taosMemoryFree(pOutputBuf);
+  taosMemoryFree(pKeyPaddingBuf);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  SColumnInfoData *pInputData[1];
+
+  pInputData[0] = pInput[0].columnData;
+
+  char   *keyVar = colDataGetData(pInput[1].columnData, 0);
+  int32_t keylen = varDataLen(keyVar);
+  int32_t keypaddedlen = tsm4_encrypt_len(keylen);
+  char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
+  if (!pKeyPaddingBuf) {
+    qError("sm4 function alloc memory failed");
+    return terrno;
+  }
+  (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
+
+  int32_t bufLen = pInputData[0]->info.bytes;
+  char   *pOutputBuf = taosMemoryMalloc(tsm4_encrypt_len(bufLen));
+  if (!pOutputBuf) {
+    qError("sm4 function alloc memory failed");
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData[0], i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char *input = colDataGetData(pInput[0].columnData, i);
+    if (bufLen < tsm4_encrypt_len(varDataLen(input)) + VARSTR_HEADER_SIZE) {
+      bufLen = tsm4_encrypt_len(varDataLen(input)) + VARSTR_HEADER_SIZE;
+      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!pOutputBuf) {
+        taosMemoryFree(pKeyPaddingBuf);
+        qError("sm4 function alloc memory failed");
+        return terrno;
+      }
+    }
+
+    char *output = pOutputBuf;
+    (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
+    int32_t len = taosSm4Encrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input));
+
+    varDataSetLen(output, len);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      SCL_ERR_RET(code);
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+  taosMemoryFree(pOutputBuf);
+  taosMemoryFree(pKeyPaddingBuf);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  SColumnInfoData *pInputData[1];
+
+  pInputData[0] = pInput[0].columnData;
+
+  char   *keyVar = colDataGetData(pInput[1].columnData, 0);
+  int32_t keylen = varDataLen(keyVar);
+  int32_t keypaddedlen = tsm4_encrypt_len(keylen);
+  char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
+  if (!pKeyPaddingBuf) {
+    qError("sm4 function alloc memory failed");
+    return terrno;
+  }
+  (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
+
+  int32_t bufLen = pInputData[0]->info.bytes;
+  char   *pOutputBuf = taosMemoryMalloc(bufLen);
+  if (!pOutputBuf) {
+    qError("sm4 function alloc memory failed");
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData[0], i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char *input = colDataGetData(pInput[0].columnData, i);
+    if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
+      bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
+      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!pOutputBuf) {
+        taosMemoryFree(pKeyPaddingBuf);
+        qError("sm4 function alloc memory failed");
+        return terrno;
+      }
+    }
+
+    char *output = pOutputBuf;
+    (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
+    int32_t len = taosSm4Decrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input));
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
