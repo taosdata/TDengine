@@ -7860,6 +7860,9 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
 }
 
 static void resetOrderBySubqueryOrder(SSelectStmt* pSelect) {
+  if (NULL == pSelect->pFromTable || QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable)) {
+    return;
+  }
   SNodeList* pOrderByList = NULL;
 
   if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
@@ -7902,7 +7905,6 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
         (TIME_LINE_GLOBAL != pSelect->timeLineCurMode && TIME_LINE_MULTI != pSelect->timeLineCurMode)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
     }
-    resetOrderBySubqueryOrder(pSelect);
   }
 
   if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
@@ -7917,8 +7919,8 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
         (TIME_LINE_NONE == pSelect->timeLineCurMode)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
     }
-    resetOrderBySubqueryOrder(pSelect);
   }
+  resetOrderBySubqueryOrder(pSelect);
 
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   code = translateExpr(pCxt, &pSelect->pWindow);
