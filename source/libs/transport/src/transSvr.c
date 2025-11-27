@@ -28,6 +28,11 @@ typedef struct {
   STransMsg msg;
 } SSvrRegArg;
 
+typedef enum {
+  IP_WHITE_LIST = 0,
+  IP_TIME_WHITE_LIST,
+} SIpListType;
+
 typedef struct SSvrConn {
   int32_t    ref;
   uv_tcp_t*  pTcp;
@@ -84,6 +89,7 @@ typedef struct SSvrRespMsg {
   void*         arg;
   FilteFunc     func;
   int8_t        sent;
+  SIpListType   ipListType;
 
 } SSvrRespMsg;
 
@@ -112,6 +118,10 @@ typedef struct SWorkThrd {
   SIpWhiteListTab* pWhiteList;
   int64_t          whiteListVer;
   int8_t           enableIpWhiteList;
+
+  SIpWhiteListTab* pTimeWhiteList;
+  int64_t          timeWhiteListVer;
+  int8_t           enableTimeIpWhiteList;
 
   int32_t connRefMgt;
 
@@ -2072,7 +2082,7 @@ void uvHandleRegister(SSvrRespMsg* msg, SWorkThrd* thrd) {
   taosMemoryFree(msg);
 }
 
-void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
+void uvHandleUpdateIpWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
   SUpdateIpWhite* req = msg->arg;
   if (req == NULL) {
     tDebug("ip-white-list disable on trans");
@@ -2109,6 +2119,52 @@ void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
   tFreeSUpdateIpWhiteReq(req);
   taosMemoryFree(req);
   taosMemoryFree(msg);
+}
+
+void uvHandleUpdateIpTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  SRetrieveDateTimeWhiteListRsp* req = msg->arg;
+
+  if (req == NULL) {
+    tDebug("ip-white-list disable on trans");
+    thrd->enableIpWhiteList = 0;
+    taosMemoryFree(msg);
+    return;
+  }
+  int32_t code = 0;
+  for (int i = 0; i < req->numOfUser; i++) {
+    SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
+
+    int32_t sz = pUser->numOfRange * sizeof(SIpRange);
+
+    SIpWhiteListDual* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteListDual));
+    if (pList == NULL) {
+      tError("failed to create ip-white-list since %s", tstrerror(code));
+      code = terrno;
+      break;
+    }
+    pList->num = pUser->numOfRange;
+    memcpy(pList->pIpRanges, pUser->pIpDualRanges, sz);
+    code = uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
+    if (code != 0) {
+      break;
+    }
+  }
+
+  if (code == 0) {
+    thrd->pWhiteList->ver = req->ver;
+    thrd->enableIpWhiteList = 1;
+  } else {
+    tError("failed to update ip-white-list since %s", tstrerror(code));
+  }
+  tFreeSUpdateIpWhiteReq(req);
+  taosMemoryFree(req);
+  taosMemoryFree(msg);
+}
+void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  if (msg->ipListType == IP_WHITE_LIST) {
+    uvHandleUpdateIpWhiteList(msg, thrd);
+  } else if (msg->ipListType == IP_TIME_WHITE_LIST) {
+  }
 }
 
 void destroyWorkThrdObj(SWorkThrd* pThrd) {
@@ -2382,10 +2438,57 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
 
     msg->type = Update;
     msg->arg = pReq;
+    msg->ipListType = IP_WHITE_LIST;
 
     if ((code = transAsyncSend(pThrd->asyncPool, &msg->q)) != 0) {
       code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
       tFreeSUpdateIpWhiteReq(pReq);
+      taosMemoryFree(pReq);
+      taosMemoryFree(msg);
+      break;
+    }
+  }
+  transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
+
+  if (code != 0) {
+    tError("ip-white-list update failed since %s", tstrerror(code));
+  }
+  return code;
+}
+
+int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
+  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+  if (pInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  int32_t code = 0;
+
+  tDebug("time-ip-white-list update on rpc");
+  SServerObj* svrObj = pInst->tcphandle;
+  for (int i = 0; i < svrObj->numOfThreads; i++) {
+    SWorkThrd* pThrd = svrObj->pThreadObj[i];
+
+    SSvrRespMsg* msg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
+    if (msg == NULL) {
+      code = terrno;
+      break;
+    }
+
+    SRetrieveDateTimeWhiteListRsp* pReq = NULL;
+    code = cloneDataTimeWhiteListRsp((SRetrieveDateTimeWhiteListRsp*)arg, &pReq);
+    if (code != 0) {
+      taosMemoryFree(msg);
+      break;
+    }
+
+    msg->type = Update;
+    msg->arg = pReq;
+    msg->ipListType = IP_TIME_WHITE_LIST;
+
+    if ((code = transAsyncSend(pThrd->asyncPool, &msg->q)) != 0) {
+      code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+      tFreeSRetrieveDateTimeWhiteListRsp(pReq);
       taosMemoryFree(pReq);
       taosMemoryFree(msg);
       break;

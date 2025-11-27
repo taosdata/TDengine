@@ -263,6 +263,7 @@ int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
 }
 // server only
 int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
+int32_t rpcSetTimeIpWhite(void* thandle, void* arg) { return transSetTimeIpWhiteList(thandle, arg, NULL); }
 
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 

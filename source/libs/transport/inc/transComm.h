@@ -391,6 +391,7 @@ int32_t transSendResponse(const STransMsg* msg);
 int32_t transRegisterMsg(const STransMsg* msg);
 int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
+int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func);
 void    transRefSrvHandle(void* handle);
 void    transUnrefSrvHandle(void* handle);
 

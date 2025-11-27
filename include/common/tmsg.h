@@ -1652,6 +1652,7 @@ typedef struct {
   SUserDateTimeWhiteList* pUsers;
 } SRetrieveDateTimeWhiteListRsp;
 
+int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp* src, SRetrieveDateTimeWhiteListRsp** dest);
 int32_t tSerializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp);
 int32_t tDeserializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp);
 void    tFreeSRetrieveDateTimeWhiteListRsp(SRetrieveDateTimeWhiteListRsp* pRsp);

@@ -4603,8 +4603,47 @@ _exit:
   return tlen;
 }
 
+int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp *src, SRetrieveDateTimeWhiteListRsp **dest) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
+  SRetrieveDateTimeWhiteListRsp *p = taosMemoryCalloc(1, sizeof(SRetrieveDateTimeWhiteListRsp));
+  if (p == NULL) {
+    return terrno;
+  }
 
+  p->ver = src->ver;
+  p->numOfUser = src->numOfUser;
+  p->pUsers = taosMemoryMalloc(src->numOfUser * sizeof(SUserDateTimeWhiteList));
+  if (p->pUsers == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _error);
+  }
+
+  for (int32_t i = 0; i < src->numOfUser; ++i) {
+    const SUserDateTimeWhiteList *srcUser = &src->pUsers[i];
+    SUserDateTimeWhiteList       *destUser = &p->pUsers[i];
+
+    destUser->ver = srcUser->ver;
+    strncpy(destUser->user, srcUser->user, strlen(srcUser->user));
+    destUser->numWhiteLists = srcUser->numWhiteLists;
+
+    destUser->pWhiteLists = taosMemoryMalloc(destUser->numWhiteLists * sizeof(SDateTimeWhiteListItem));
+    if (destUser->pWhiteLists == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _error);
+    }
+    memcpy(destUser->pWhiteLists, srcUser->pWhiteLists, destUser->numWhiteLists * sizeof(SDateTimeWhiteListItem));
+  }
+
+_error:
+  if (code != 0) {
+    tFreeSRetrieveDateTimeWhiteListRsp(p);
+    taosMemFree(p);
+    p = NULL;
+  }
+
+  *dest = *p;
+  return code;
+}
 int32_t tDeserializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp) {
   SDecoder decoder = {0};
   int32_t  code = 0;

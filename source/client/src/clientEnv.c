@@ -473,6 +473,10 @@ void destroyAppInst(void *info) {
   taosMemoryFree(pAppInfo);
 }
 
+//  tscObj 1--->conn1
+/// tscObj 2-->conn1
+//  tscObj 3-->conn1
+
 void destroyTscObj(void *pObj) {
   if (NULL == pObj) {
     return;
