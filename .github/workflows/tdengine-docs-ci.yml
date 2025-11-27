@@ -169,6 +169,7 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
           rm -rf docs/* && git restore docs/ 
           git checkout -f master && git pull origin master 
+          yarn install 
           yarn ass local
           yarn build
       - name: Build the english document
@@ -177,5 +178,6 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           rm -rf docs/* && git restore docs/
           git checkout -f main && git pull origin main 
+          yarn install 
           yarn ass local
           yarn build
