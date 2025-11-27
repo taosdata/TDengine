@@ -302,7 +302,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CON_TIMEOUT [`healthCheckConTimeout`]：探活连接超时时间（秒）。默认值为 1。
 - TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_CMD_TIMEOUT [`healthCheckCmdTimeout`]：探活命令超时时间（秒）。默认值为 5。
 - TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_RECOVERY_COUNT [`healthCheckRecoveryCount`]：确认节点恢复所需的连续成功探活命令次数。默认值为3。可选值为≥1。
-- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_RECOVERY_INTERVAL [`healthCheckRecoveryInterval`]：多次探活命令之间的间隔时间（秒）。默认值为60。可选值为≥0。
+- TSDBDriver.PROPERTY_KEY_HEALTH_CHECK_RECOVERY_INTERVAL [`healthCheckRecoveryInterval`]：多次探活命令之间的间隔时间（秒）。默认值为 60。可选值为≥0。
 - TSDBDriver.PROPERTY_KEY_REBALANCE_THRESHOLD [`rebalanceThreshold`]：重平衡触发阈值（“当前连接数比最小连接数多的部分” 占 “最小连接数” 的比例），达到或超过则触发重平衡。举例：若 rebalanceThreshold=20（20%），则当 current ≥ min × 1.2 时触发（比如最小 100 连接，当前≥120 时触发）。默认值为20。可选值为10-50。
 - TSDBDriver.PROPERTY_KEY_REBALANCE_CON_BASE_COUNT [`rebalanceConBaseCount`]：触发重平衡所需的最小连接总数。如果连接总数小于此值，则不进行重平衡。默认值为30。
 
