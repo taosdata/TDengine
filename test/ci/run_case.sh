@@ -76,7 +76,6 @@ fi
 mkdir -p /var/lib/taos/subscribe
 mkdir -p /var/log/taos
 mkdir -p /var/lib/taos
-mkdir -p /etc/taos
 
 cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/${target_dir}"; exit 1; }
 ulimit -c unlimited
