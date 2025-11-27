@@ -104,6 +104,16 @@ class TestIntervalBugFix:
         tdSql.checkData(2, 0, 1763617920000)
         tdSql.checkData(2, 1, 45)
         
+        # # select _wstart, sum(`status`) from (select `status`, _wstart, first(`event_time`), `event_time`, tbname from st partition by tbname interval(2s) order by 2) interval(3s);
+        
+        # # select _wstart, sum(`status`) from (select `status`, _wstart, first(`event_time`), `event_time`, tbname from st partition by tbname interval(2s) order by _wstart) interval(3s);
+        
+        # # select _wstart, sum(`status`) from (select `status`, _wstart as t1, first(`event_time`), `event_time`, tbname from st partition by tbname interval(2s) order by t1) interval(3s);
+        
+        # # select _wstart, sum(`status`) from (select `status`, first(`event_time`),  _wstart as t1, `event_time`, tbname from st partition by tbname interval(2s) order by t1) interval(3s);
+        
+        # # select _wstart, sum(`status`) from (select  first(`event_time`), `status`, tbname from st partition by tbname interval(2s) order by 1) interval(3s);
+        
         # interval window: subquery is interval window with order by
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) interval(3s);"
         tdSql.query(sql)
