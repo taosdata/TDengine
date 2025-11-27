@@ -76,6 +76,7 @@ fi
 mkdir -p /var/lib/taos/subscribe
 mkdir -p /var/log/taos
 mkdir -p /var/lib/taos
+mkdir -p /etc/taos
 
 cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/${target_dir}"; exit 1; }
 ulimit -c unlimited
@@ -83,18 +84,22 @@ ulimit -c unlimited
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
-#get python connector and update: taospy 2.8.2 taos-ws-py 0.5.3
-pip3 install taospy==2.8.2
-pip3 install taos-ws-py==0.5.3
+#get python connector and update: taospy 2.8.6 taos-ws-py 0.6.3
+pip3 install taospy==2.8.6
+pip3 install taos-ws-py==0.6.3
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
-cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
-cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+if [ -d "/var/log/taos" ]; then
+    cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
+fi
 
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
+    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+fi
 
 if [ $RET -ne 0 ]; then
     pwd
