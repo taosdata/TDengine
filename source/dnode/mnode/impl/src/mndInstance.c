@@ -323,10 +323,16 @@ static int32_t mndProcessInstanceList(SRpcMsg *pReq) {
     if (count >= capacity) {
       int32_t newCap = capacity * 2;
       SInstanceObj **newInstances = taosMemoryRealloc(instances, newCap * sizeof(SInstanceObj *));
+      if (newInstances == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _cleanup;
+      }
       const char   **newIds = taosMemoryRealloc(ids, newCap * sizeof(char *));
-      if (newInstances == NULL || newIds == NULL) {
-        taosMemoryFree(newInstances);
-        taosMemoryFree(newIds);
+      if (newIds == NULL) {
+        // If memory was moved, free newInstances; otherwise, keep instances unchanged
+        if (newInstances != instances) {
+          taosMemoryFree(newInstances);
+        }
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _cleanup;
       }

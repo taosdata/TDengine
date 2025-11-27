@@ -2787,9 +2787,10 @@ int32_t taos_register_instance(const char *id, const char *type, const char *des
   memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
   memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
-  if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
-    tscError("failed to convert taos version from str to int, errcode:%s", terrstr());
-    return terrno;
+  code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("failed to convert taos version from str to int, errcode:%s", terrstr(code));
+    return code;
   }
 
   clientRpc = rpcOpen(&rpcInit);
@@ -2934,9 +2935,9 @@ int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCo
   memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
   memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
-  if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
-    tscError("failed to convert taos version from str to int, errcode:%s", terrstr());
-    code = terrno;
+  code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("failed to convert taos version from str to int, errcode:%s", terrstr(code));
     return code;
   }
 
