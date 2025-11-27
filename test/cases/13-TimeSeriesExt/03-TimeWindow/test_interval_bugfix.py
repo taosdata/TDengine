@@ -1,4 +1,3 @@
-from numpy import select
 import taos
 import socket
 from new_test_framework.utils import tdLog, tdSql, TDSql, tdDnodes
@@ -194,8 +193,17 @@ class TestIntervalBugFix:
         tdSql.checkData(3, 1, 30)
         
         # interval window: subquery is state window with order by non-pk column
-        # sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 asc) interval(3s);"
-        # tdSql.error(sql)
+        sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 asc) interval(3s);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1763617914000)
+        tdSql.checkData(0, 1, 15)
+        tdSql.checkData(1, 0, 1763617917000)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(2, 0, 1763617920000)
+        tdSql.checkData(2, 1, 25)
+        tdSql.checkData(3, 0, 1763617923000)
+        tdSql.checkData(3, 1, 30)
 
         # interval window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) interval(3s);"
@@ -210,6 +218,7 @@ class TestIntervalBugFix:
         tdSql.checkData(3, 0, 1763617923000)
         tdSql.checkData(3, 1, 30)
         
+        # Open when merging with 3.0 branch
         # state window: subquery is state window with duplicate timestamp
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 asc) state_window(status);"
         tdSql.error(sql)
@@ -248,10 +257,12 @@ class TestIntervalBugFix:
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) session(t2, 500a);"
         tdSql.error(sql)
         
+        # Open when merging with 3.0 branch
         # count window: subquery is state window with duplicate timestamp
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) count_window(5);"
         tdSql.error(sql)
         
+        # Open when merging with 3.0 branch
         # event window: subquery is state window with duplicate timestamp
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) event_window start with status > 1 end with status > 4;"
         tdSql.error(sql)
@@ -421,4 +432,34 @@ class TestIntervalBugFix:
         # event window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) event_window start with status%3 == 1 end with status%3 == 0;"
         tdSql.error(sql)
-                
+        
+        # event window: subquery is state window with order by asc
+        sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 asc) event_window start with status%2 == 0 end with status%2 == 1;"
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1763617918000)
+        tdSql.checkData(0, 1, 13)
+        tdSql.checkData(0, 2, 1763617918000)
+        tdSql.checkData(0, 3, 1763617922000)
+        tdSql.checkData(0, 4, 6)
+        tdSql.checkData(1, 0, 1763617923001)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 1763617923001)
+        tdSql.checkData(1, 3, 1763617923004)
+        tdSql.checkData(1, 4, 3)
+        
+        # event window: subquery is state window with order by desc
+        sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 desc) event_window start with status%2 == 0 end with status%2 == 1;"
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1763617923003)
+        tdSql.checkData(0, 1, 7)
+        tdSql.checkData(0, 2, 1763617923000)
+        tdSql.checkData(0, 3, 1763617923003)
+        tdSql.checkData(0, 4, 3)
+        tdSql.checkData(1, 0, 1763617918004)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 1763617916004)
+        tdSql.checkData(1, 3, 1763617918004)
+        tdSql.checkData(1, 4, 6)
+        
