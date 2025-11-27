@@ -19,6 +19,8 @@ class TestVtableCreate:
         tdLog.info(f"prepare org tables.")
 
         tdSql.execute("create database test_vtable_create;")
+        tdSql.execute("create database test_vtable_create_us PRECISION 'us';")
+        tdSql.execute("create database test_vtable_create_ns PRECISION 'ns';")
         tdSql.execute("use test_vtable_create;")
 
         tdLog.info(f"prepare org super table.")
@@ -62,6 +64,13 @@ class TestVtableCreate:
 
         tdLog.info(f"prepare org normal table with compositive primary key.")
         tdSql.execute(f"CREATE TABLE `vtb_org_normal_pk` (ts timestamp, int_col int PRIMARY KEY, u_smallint_col int unsigned)")
+
+        tdSql.execute("use test_vtable_create_ns;")
+        tdSql.execute(f"CREATE TABLE `vtb_org_normal_ns` (ts timestamp, int_col int, u_smallint_col int unsigned)")
+
+        tdSql.execute("use test_vtable_create_us;")
+        tdSql.execute(f"CREATE TABLE `vtb_org_normal_us` (ts timestamp, int_col int, u_smallint_col int unsigned)")
+
 
     def test_create_virtual_super_table(self):
         """Create: virtual super table
@@ -851,4 +860,17 @@ class TestVtableCreate:
                     "u_tinyint_col tinyint unsigned from vtb_org_normal_0.u_tinyint_col, "
                     "u_smallint_col smallint unsigned from vtb_org_normal_1.u_smallint_col, "
                     "decimal_col decimal(38,38))")
+
+        # 12. create virtual table using origin table with different precision
+        # 12.1 vtable is ms, from ns
+        # 12.1.1 child table
+        tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb13`(int_col FROM test_vtable_create_ns.vtb_org_normal_ns.int_col) USING vtb_virtual_stb TAGS (13, false, 13, 13, 'vchild13', 'vchild13')")
+        # 12.1.2 normal table
+        tdSql.error("CREATE VTABLE `error_vtb_virtual_ntb9` (ts timestamp, int_col int from test_vtable_create_ns.vtb_org_normal_ns.int_col)")
+
+        # 12.2 vtable is ms, from us
+        # 12.2.1 child table
+        tdSql.error("CREATE VTABLE `error_vtb_virtual_ctb14`(int_col FROM test_vtable_create_us.vtb_org_normal_us.int_col) USING vtb_virtual_stb TAGS (14, false, 14, 14, 'vchild14', 'vchild14')")
+        # 12.2.2 normal table
+        tdSql.error("CREATE VTABLE `error_vtb_virtual_ntb10` (ts timestamp, int_col int from test_vtable_create_us.vtb_org_normal_us.int_col)")
 
