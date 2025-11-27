@@ -18,6 +18,10 @@ from frame.sql import *
 from frame.caseBase import *
 from frame.common import *
 import time
+
+from community.tests.army.frame.sql import tdSql
+
+
 class TDTestCase(TBase):
 
     def prepare_vtables(self):
