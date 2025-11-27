@@ -8,6 +8,7 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
 ## 概述
+
 本文档介绍如何将 TDengine TSDB 数据源与开源数据可视化系统 [Grafana](https://www.grafana.com/) 集成，以实现数据的可视化和监测报警系统的搭建。通过 TDengine TSDB 插件，您可以轻松地将 TDengine TSDB 数据表的数据展示在 Grafana 仪表盘上，且无需进行复杂的开发工作。
 
 ## 前置条件
@@ -48,6 +49,7 @@ bash -c "$(curl -fsSL \
 使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/)  进行插件安装，安装后需要重启 Grafana。
 
 对于 Linux/MacOs，请在终端执行下面命令：
+
 ```bash
 grafana-cli --pluginUrl \
       https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip \
@@ -59,11 +61,12 @@ sudo -u grafana grafana-cli --pluginUrl \
 ```
 
 对于 Windows，首先请确保插件安装目录存在（默认是 Grafana 安装目录下 data/plugins）, 然后在 Grafana 安装目录的 bin 目录下以管理员账号执行下面的命令：
+
 ```bash
 ./grafana-cli.exe --pluginUrl https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip plugins install tdengine-datasource
 ```
 
-之后，用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
+之后，用户可以直接通过 [http://localhost:3000](http://localhost:3000) 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
 
 点击 `Add data source` 可进入新增数据源页面，在查询框中输入 `TDengine`，然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
 
@@ -87,7 +90,7 @@ wget https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource
 sudo unzip tdengine-datasource.zip -d /var/lib/grafana/plugins/
 ```
 
-之后，用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
+之后，用户可以直接通过 [http://localhost:3000](http://localhost:3000) 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
 
 点击 `Add data source` 可进入新增数据源页面，在查询框中输入 `TDengine`，然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
 
@@ -183,6 +186,7 @@ docker run -d \
 ## Dashboard 使用指南
 
 本节内容按如下方式组织：  
+
 1. 介绍基础知识，包括 Grafana 的内置变量和自定义变量，TDengine TSDB 对与时序查询的特色语法支持。
 2. 介绍如何使用 TDengine TSDB 数据源在 Grafana 中创建 Dashboard，然后给出使用时序查询的特色语法和如何分组展示数据。
 3. 由于配置的 Dashboard 在页面显示时会定时查询 TDengine TSDB 来刷新显示，如果 SQL 编写不当会导致严重的性能问题，我们给出了性能优化建议。
@@ -205,6 +209,7 @@ Grafana 提供了内置变量和自定义变量，它们都可以可以在编写
 #### 内置变量
 
 Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 插件面板。其含义如下：
+
 - `from` 查询范围的起始时间
 - `to` 查询范围的结束时间
 - `interval` 窗口切分间隔
@@ -222,6 +227,7 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 ##### 添加查询类型变量
 
 在 Dashboard 的配置中，选择【Variables】，然后点击【New variable】：
+
 1. 在“Name”字段中，输入你的变量名，此处我们设置变量名为 `selected_groups`。
 2. 在【Select variable type】下拉菜单中，选择“Query”（查询）。
 根据选择的变量类型，配置相应的选项。例如，如果选择了“Query”类型，你需要指定数据源和用于获取变量值的查询语句。此处我们还以智能电表为例，设置查询类型，选择数据源后，配置 SQL 为 `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
@@ -235,6 +241,7 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 ##### 添加间隔类型变量
 
 我们可以自定义时间窗口间隔，可以更加贴合业务需求。
+
 1. 在“Name”字段中，输入变量名为 `interval`。
 2. 在【Select variable type】下拉菜单中，选择“Interval”（间隔）。
 3. 在【Interval options】选项中输入 `1s,2s,5s,10s,15s,30s,1m`。
@@ -251,6 +258,7 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 ### TDengine TSDB 时序查询支持
 
 TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
+
 - `partition by` 子句可以按一定的维度对数据进行切分，然后在切分出的数据空间内再进行一系列的计算。绝大多数情况可以替代 `group by`。
 - `interval` 子句用于产生相等时间周期的窗口
 - `fill` 语句指定某一窗口区间数据缺失的情况下的填充模式
@@ -270,6 +278,7 @@ TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足�
 #### 时间序列数据展示
 
 假设我们想查询一段时间内的平均电流大小，时间窗口按 `$interval` 切分，若某一时间窗口区间数据缺失，填充 null。
+
 - “INPUT SQL”：输入要查询的语句（该 SQL 语句的结果集应为两列多行），此处输入：`select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)` ，其中，from、to 和 interval 为 Grafana 内置变量，selected_groups 为自定义变量。
 - “ALIAS BY”：可设置当前查询别名。
 - “GENERATE SQL”：点击该按钮会自动替换相应变量，并生成最终执行的语句。
@@ -320,6 +329,7 @@ TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足�
 ## 告警配置
 
 TDengine TSDB Grafana 插件支持告警，如果要配置告警，需要以下几个步骤：
+
 1. 配置联络点（“Contact points”）：配置通知渠道，包括 DingDing、Email、Slack、WebHook、Prometheus Alertmanager 等
 2. 配置告警通知策略（“Notification policies”）：配置告警发送到哪个通道的路由，以及发送通知的时间和重复频率
 3. 配置告警规则（“Alert rules”）：配置详细的告警规则  
@@ -332,6 +342,7 @@ TDengine TSDB Grafana 插件支持告警，如果要配置告警，需要以下�
 ### 告警配置界面介绍
 
 在 Grafana 11 告警界面一共有 6 个 Tab，分别是“Alert rules”、“Contact points”、“Notification policies”、“Silences”、 “Groups”和“Settings”。
+
 - “Alert rules”告警规则列表，用于展示和配置告警规则
 - “Contact points”通知渠道，包括 DingDing、Email、Slack、WebHook、Prometheus Alertmanager 等
 - “Notification policies”配置告警发送到哪个通道的路由，以及发送通知的时间和重复频率
@@ -395,6 +406,7 @@ from_address = sender@foxmail.com
 ![TDengine TSDB Database Grafana plugin Notification](./alert-notification2.webp)
 
 然后配置下列参数：
+
 - “Group wait”：发送首次告警之前的等待时间。
 - “Group interval”：发送第一个告警后，为该组发送下一批新告警的等待时间。
 - “Repeat interval”：成功发送告警后再次重复发送告警的等待时间。
@@ -412,6 +424,7 @@ from_address = sender@foxmail.com
 #### 配置查询和告警触发条件
 
 在“Define query and alert condition” (定义查询和告警触发条件) 中配置告警规则。
+
 1. 选择数据源：`TDengine Datasource`  
 2. 查询语句：
 
@@ -428,6 +441,7 @@ from_address = sender@foxmail.com
 ![TDengine TSDB Database Grafana plugin Alert Rules](./alert-rules1.webp)
 
 Grafana 的“Expression”（表达式）支持对数据做各种操作和计算，其类型分为：
+
 1. “Reduce”：将所选时间范围内的时间序列值聚合为单个值  
     1.1“Function”用来设置聚合方法，支持 Min、Max、Last、Mean、Sum 和 Count。  
     1.2“Mode”支持下面三种：  
@@ -450,6 +464,7 @@ Grafana 的“Expression”（表达式）支持对数据做各种操作和计�
 ![TDengine TSDB Database Grafana plugin Alert Evaluation Behavior](./alert-evaluation.webp)
 
 完成下面配置：  
+
 - “Folder”：设置告警规则所属目录。
 - “Evaluation group”：设置告警规则评估组。“Evaluation group”可以选择已有组或者新建组，新建组可以设置组名和评估时间间隔。
 - “Pending period”：在告警规则的阈值被触发后，异常值持续多长时间可以触发告警，合理设置可以避免误报。
@@ -459,6 +474,7 @@ Grafana 的“Expression”（表达式）支持对数据做各种操作和计�
 ![TDengine TSDB Database Grafana plugin Alert Labels and Notifications](./alert-labels.webp)
 
 完成下面配置：  
+
 - “Labels”将标签添加到规则中，以便进行搜索、静默或路由到通知策略。
 - “Contact point”选择联络点，当告警发生时通过设置的联络点进行通知。
 

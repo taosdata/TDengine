@@ -125,7 +125,7 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
 - **原生连接**：无需额外配置，直接调用 API 即可，这是默认的连接方式。
 - **WebSocket 连接**：需要先调用 `taos_options(TSDB_OPTION_DRIVER, "websocket")` 设置驱动类型，然后再调用其他 API。
 
-**WebSocket 连接功能差异说明：**
+**WebSocket 连接功能差异说明**：
 
 | API                     | 支持状态 | 接口说明           | 使用限制                                |
 | ----------------------- | -------- | ------------------ | --------------------------------------- |
@@ -244,7 +244,7 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
   - **接口说明**：设置事件回调函数。
   - **参数说明**：
     - taos：[入参] 指向数据库连接的指针，数据库连接是通过 `taos_connect()` 函数建立。
-    - fp：[入参] 事件回调函数指针。函数声明：typedef void (*\_\_taos_notify_fn_t)(void *param, void \*ext, int type)；其中，param 为用户自定义参数，ext 为扩展参数 (依赖事件类型，针对 TAOS_NOTIFY_PASSVER 返回用户密码版本)，type 为事件类型。
+    - fp：[入参] 事件回调函数指针。函数声明：typedef void (*\_\_taos_notify_fn_t)(void*param, void \*ext, int type)；其中，param 为用户自定义参数，ext 为扩展参数 (依赖事件类型，针对 TAOS_NOTIFY_PASSVER 返回用户密码版本)，type 为事件类型。
     - param：[入参] 用户自定义参数。
     - type：[入参] 事件类型。取值范围：1）TAOS_NOTIFY_PASSVER：用户密码改变。
   - **返回值**：`0`：成功，`-1`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
@@ -759,7 +759,8 @@ stmt 升级到 stmt2 的改动：
     - key：[入参] 数配置项的键名。
     - value：[入参] 配置项的值。
   - **返回值**：返回一个 tmq_conf_res_t 枚举值，表示配置设置的结果。tmq_conf_res_t 定义如下：
-    ```
+
+    ```c
     typedef enum tmq_conf_res_t {
          TMQ_CONF_UNKNOWN = -2,  // 键名无效
          TMQ_CONF_INVALID = -1,  // 键值无效
@@ -952,7 +953,8 @@ stmt 升级到 stmt2 的改动：
     - res：[入参] 指向一个有效的 TAOS_RES 结构体指针，该结构体包含了从 TMQ 消费者轮询得到的消息。
   - **返回值**：返回一个 tmq_res_t 类型的枚举值，表示消息类型。
     - tmq_res_t 表示消费到的数据类型，定义如下：
-      ```
+
+      ```c
       typedef enum tmq_res_t {
         TMQ_RES_INVALID = -1,   // 无效
         TMQ_RES_DATA = 1,       // 数据类型
