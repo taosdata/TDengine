@@ -713,7 +713,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
       return terrno;
     }
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s", pJson);
+                      "\'%s\'", pJson);
     taosMemoryFree(pJson);
 
     return TSDB_CODE_SUCCESS;
