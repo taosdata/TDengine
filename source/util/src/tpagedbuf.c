@@ -421,6 +421,7 @@ _error:
 
 static char* doExtractPage(SDiskbasedBuf* pBuf) {
   char* availablePage = NULL;
+#if 0
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evictBufPage(pBuf);
     if (availablePage == NULL) {
@@ -428,9 +429,12 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
             terrstr(), pBuf->id)
     }
   } else {
+#endif
     availablePage =
         taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
+#if 0
   }
+#endif
 
   return availablePage;
 }
