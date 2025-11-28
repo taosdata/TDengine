@@ -20,6 +20,7 @@
 #define MyAppDLLName "\*.dll"
 ;#define MyAppVersion "3.0"
 ;#define MyAppInstallName "TDengine"
+#define MyProductFullName "TDengine TSDB"
 [Setup]
 VersionInfoVersion={#MyAppVersion}
 AppId={{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}
@@ -408,7 +409,7 @@ begin
   CustomFinishedLabel1.Width := WizardForm.FinishedHeadingLabel.Width div 2; 
   CustomFinishedLabel1.Height := ScaleY(120);
   CustomFinishedLabel1.Caption := #13#10 + ''
-  + #13#10 + 'To configure TDengine:'
+  + #13#10 + 'To configure {#MyProductFullName}:'
   + #13#10 + 'To configure taosadapter:'
   + #13#10 + 'To configure taos-explorer:   '
   + #13#10 + 'To start taosd:' 
@@ -439,7 +440,7 @@ begin
   CustomFinishedLabel3.Left := WizardForm.FinishedHeadingLabel.Left;
   CustomFinishedLabel3.Top := CustomFinishedLabel1.Top + CustomFinishedLabel1.Height + ScaleY(8);
   CustomFinishedLabel3.Width := WizardForm.FinishedHeadingLabel.Width; 
-  CustomFinishedLabel3.Caption := 'To use all TDengine services, please run start-all.bat under ' + InstallPath + ' directory';
+  CustomFinishedLabel3.Caption := 'To use all {#MyProductFullName} services, please run start-all.bat under ' + InstallPath + ' directory';
 
 end;
 
