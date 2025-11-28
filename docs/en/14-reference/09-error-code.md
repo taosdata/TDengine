@@ -11,7 +11,7 @@ This document provides a detailed list of error codes from both clients and the 
 
 ## TSDB
 
-TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained**. 
+TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained**.
 
 ### Error Code Structure
 
