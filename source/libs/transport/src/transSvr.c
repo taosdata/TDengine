@@ -2171,6 +2171,12 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
       goto End;
     }
 
+    thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
+    if (thrd->connRefMgt < 0) {
+      code = thrd->connRefMgt;
+      goto End;
+    }
+
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     if (srv->pipe[i] == NULL) {
       code = terrno;
