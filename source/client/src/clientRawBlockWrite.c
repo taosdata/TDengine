@@ -279,7 +279,7 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_ADD_COLUMN: {
       if (taosArrayGetSize(req.pFields) != 1) {
-        uError("invalid field num %d for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
+        uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
       }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
       RAW_NULL_CHECK(field);
@@ -352,7 +352,7 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES: {
       if (taosArrayGetSize(req.pFields) != 1) {
-        uError("invalid field num %d for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
+        uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
       }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
       RAW_NULL_CHECK(field);

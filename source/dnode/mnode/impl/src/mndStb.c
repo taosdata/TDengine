@@ -1328,9 +1328,9 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
     mError("failed to malloc alter stb req buf");
     goto END;
   }
-  code = tSerializeSMAlterStbReq(buf, contLen, &alterReq);
+  int32_t code = tSerializeSMAlterStbReq(buf, contLen, &alterReq);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed to serialize alter stb req");
+    mError("failed to serialize alter stb req %d", code);
     taosMemoryFreeClear(buf);
   }
   *pAlterBuf = buf;
