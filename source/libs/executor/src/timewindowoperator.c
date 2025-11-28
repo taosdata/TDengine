@@ -814,11 +814,11 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
   STimeWindow nextWin = win;
 
   while (startPos < pBlock->info.rows) {
+    getInitialStartTimeWindow(&pInfo->interval, tsCols[startPos], &nextWin, false);
+    
     if (filterWindowWithLimit(pInfo, &nextWin, tableGroupId, pTaskInfo)) {
       break;
     }
-    
-    getInitialStartTimeWindow(&pInfo->interval, tsCols[startPos], &nextWin, false);
 
     // null data, failed to allocate more memory buffer
     int32_t code = setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
