@@ -57,7 +57,8 @@ class OutMetrics:
             
     def start(self):
         self.time_start = time.time()
-        self.write_log(f"Test start time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.time_start))}")
+        self.write_metrics(f"Test start time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.time_start))}")
+        self.write_metrics("Note: " + cmd.get_note())
 
     def start_write(self, name):
         self.time_start_write[name] = time.time()
@@ -68,17 +69,17 @@ class OutMetrics:
     def end_write(self, name):
         self.time_end_write[name] = time.time()
         cost = self.time_end_write[name] - self.time_start_write[name]
-        self.write_log(f"Write step '{name}' took {cost:.3f} seconds")
+        self.write_metrics(f"Write step '{name}' took {cost:.3f} seconds")
 
     def end_test(self, name):
         self.time_end_test[name] = time.time()
         cost = self.time_end_test[name] - self.time_start_test[name]
-        self.write_log(f"Test step '{name}' took {cost:.3f} seconds")
+        self.write_metrics(f"Test  step '{name}' took {cost:.3f} seconds")
     
     def end(self):
         self.time_end = time.time()
         total_cost = self.time_end - self.time_start
-        self.write_log(f"Total execution time: {total_cost:.3f} seconds")
+        self.write_metrics(f"Total execution time: {total_cost:.3f} seconds")
         
     def add_data_rows(self, name, rows):
         log.out(f"Total data rows written for '{name}': {rows}")
@@ -99,7 +100,7 @@ class OutMetrics:
                                   f"max {delay.max:.2f}s")
         self.delay[name] = delay
     
-    def write_log(self, msg):
+    def write_metrics(self, msg):
         log.out(msg)
         with open(self.metrics_file, 'a') as f:
             f.write(msg + '\n') 
@@ -184,8 +185,8 @@ class OutMetrics:
             f"|"
         )
         
-        self.write_log(header)
-        self.write_log(separator)
+        self.write_metrics(header)
+        self.write_metrics(separator)
         
         # Collect metrics data for JSON output
         metrics_data = {
@@ -246,7 +247,7 @@ class OutMetrics:
                 f"{row_delay}"
                 f"|"
             )
-            self.write_log(row)
+            self.write_metrics(row)
             
             # Add to JSON data
             json_data = {

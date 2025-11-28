@@ -42,7 +42,7 @@ class CmdLine:
         self.max_test_time = 1800 # seconds
         self.use_previous = False
         self.user_canceled = False
-        self.check_delay = False  
+        self.check_delay = False
         
         # args
         self.parser = None
@@ -136,6 +136,15 @@ class CmdLine:
             action='store_true',
             help='Check delay metrics after test (default: False)'
         )
+        
+        # note
+        self.parser.add_argument(
+            '-n', '--note',
+            type=str,
+            default='',
+            metavar='TEXT',
+            help='Note text for this test'
+        )        
 
         # Version
         self.parser.add_argument(
@@ -179,6 +188,10 @@ class CmdLine:
     def get_check_delay(self):
         """Get check delay flag"""
         return self.check_delay
+    
+    #get note text
+    def get_note(self):
+        return self.args.note
 
     def show_config(self):
         """Print current configuration"""
@@ -190,6 +203,9 @@ class CmdLine:
         log.out(f"Scenario:       {self.args.scenario or 'All scenarios'}")
         log.out(f"Use Previous Cluster:    {self.use_previous}")
         log.out(f"Check Delay:    {self.check_delay}")
+        log.out(f"Timeout:        {self.timeout} seconds")
+        log.out(f"Max Test Time:  {self.max_test_time} seconds")
+        log.out(f"Note:           {self.args.note}")
         log.out("============================\n")
 
     def case_to_scene_obj(self, case):
