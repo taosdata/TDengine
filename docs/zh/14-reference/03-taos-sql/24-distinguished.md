@@ -223,12 +223,12 @@ select _wstart, _wduration, _wend, count(*) from state_window_test state_window(
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-Zeroth_state 指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置zeroth_extend数值时，extend值为强制输入项，不允许留空或省略。
+Zeroth_state 指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
 仍以相同数据为例
 
 当 `zeroth_state` 值为 `2` 时
 
-```
+```sql
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
