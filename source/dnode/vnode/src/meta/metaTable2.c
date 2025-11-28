@@ -812,16 +812,18 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     rowSize += pColumn->bytes;
   }
 
-  if (rowSize + pReq->bytes > TSDB_MAX_BYTES_PER_ROW) {
+  int32_t maxBytesPerRow = pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW;
+  if (rowSize + pReq->bytes > maxBytesPerRow) {
     metaError("vgId:%d, %s failed at %s:%d since row size %d + %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, rowSize, pReq->bytes, TSDB_MAX_BYTES_PER_ROW, version);
+              __func__, __FILE__, __LINE__, rowSize, pReq->bytes, maxBytesPerRow, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
   }
 
-  if (pSchema->nCols + 1 > TSDB_MAX_COLUMNS) {
+  int32_t maxCols = pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE ? TSDB_MAX_COLUMNS : TSDB_MAX_COLUMNS_NON_VIRTUAL;
+  if (pSchema->nCols + 1 > maxCols) {
     metaError("vgId:%d, %s failed at %s:%d since column count %d + 1 > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, pSchema->nCols, TSDB_MAX_COLUMNS, version);
+              __func__, __FILE__, __LINE__, pSchema->nCols, maxCols, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_PAR_TOO_MANY_COLUMNS);
   }
@@ -840,6 +842,13 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   pColumn->bytes = pReq->bytes;
   pColumn->type = pReq->type;
   pColumn->flags = pReq->flags;
+  if (pEntry->ntbEntry.ncid > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ntbEntry.ncid, INT16_MAX,
+              version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_EXCEED_MAX_COL_ID);
+  }
   pColumn->colId = pEntry->ntbEntry.ncid++;
   extSchema.typeMod = pReq->typeMod;
   tstrncpy(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN);
@@ -1229,9 +1238,10 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
 
-  if (rowSize + pReq->colModBytes - pColumn->bytes > TSDB_MAX_BYTES_PER_ROW) {
+  int32_t maxBytesPerRow = pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW;
+  if (rowSize + pReq->colModBytes - pColumn->bytes > maxBytesPerRow) {
     metaError("vgId:%d, %s failed at %s:%d since row size %d + %d - %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, rowSize, pReq->colModBytes, pColumn->bytes, TSDB_MAX_BYTES_PER_ROW,
+              __func__, __FILE__, __LINE__, rowSize, pReq->colModBytes, pColumn->bytes, maxBytesPerRow,
               version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
