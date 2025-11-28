@@ -30,7 +30,7 @@ extern "C" {
 #define TAOS_CONN_CLIENT 1
 #define IsReq(pMsg)      (pMsg->msgType & 1U)
 
-extern int32_t tsRpcHeadSize;
+typedef enum { IP_FORBIDDEN_WHITE_LIST = 1, IP_FORBIDDEN_DATA_TIME_WHITE_LIST = 2 } SForbiddenType;
 
 typedef struct {
   SIpAddr  cliAddr;

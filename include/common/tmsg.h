@@ -1642,6 +1642,7 @@ typedef struct {
   SDateTimeWhiteListItem* pWhiteLists;
 } SUserDateTimeWhiteList;
 
+int32_t cloneSUserDateTimeWhiteList(const SUserDateTimeWhiteList* src, SUserDateTimeWhiteList* dest);
 int32_t tSerializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTimeWhiteList* pRsp);
 int32_t tDeserializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTimeWhiteList* pRsp);
 void    tFreeSUserDateTimeWhiteList(SUserDateTimeWhiteList* pRsp);

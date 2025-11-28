@@ -115,7 +115,7 @@ static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *
 }
 static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
   if (forbidden) {
-    dError("User:%s host:%s not in ip white list", user, IP_ADDR_STR(clientIp));
+    dError("User:%s host:%s not in ip white list or in block white list", user, IP_ADDR_STR(clientIp));
     return true;
   } else {
     return false;

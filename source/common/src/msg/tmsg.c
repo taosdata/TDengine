@@ -4493,7 +4493,26 @@ bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* pInterval) {
   return now > (pInterval->start + pInterval->duration);
 }
 
+int32_t cloneSUserDateTimeWhiteList(const SUserDateTimeWhiteList *src, SUserDateTimeWhiteList *dest) {
+  if (src == NULL || dest == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SUserDateTimeWhiteList *pNew = dest;
+  pNew->ver = src->ver;
+  strncpy(pNew->user, src->user, TSDB_USER_LEN);
+  pNew->numWhiteLists = src->numWhiteLists;
 
+  if (src->numWhiteLists > 0) {
+    pNew->pWhiteLists = (SDateTimeWhiteListItem *)taosMemoryCalloc(src->numWhiteLists, sizeof(SDateTimeWhiteListItem));
+    if (pNew->pWhiteLists == NULL) {
+      return terrno;
+    }
+    memcpy(pNew->pWhiteLists, src->pWhiteLists, src->numWhiteLists * sizeof(SDateTimeWhiteListItem));
+  } else {
+    pNew->pWhiteLists = NULL;
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t tSerializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTimeWhiteList* pRsp) {
   SEncoder encoder = {0};
