@@ -80,6 +80,13 @@ jobs:
       - name: Unit Test
         run: |
           cargo make test
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/llvm-cov-merged.lcov
+          fail_ci_if_error: true
+          verbose: true
       - name: upload taosx-unit-test.xml
         uses: actions/upload-artifact@v4
         with:

@@ -1154,6 +1154,9 @@ dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
 args = [
   "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov-taosx.lcov",
   "nextest",
   "--workspace",
   "--no-fail-fast",
@@ -1168,11 +1171,13 @@ dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
 args = [
   "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov-explorer.lcov",
   "nextest",
   "-p",
   "taos-explorer",
   "--no-fail-fast",
-  "--html",
 ]
 [tasks.test-ci]
 command = "cargo"
@@ -1190,6 +1195,15 @@ args = [
 
 [tasks.test]
 dependencies = ["test-without-explorer", "test-explorer"]
+command = "lcov"
+args = [
+  "--add-tracefile",
+  "target/llvm-cov-taosx.lcov",
+  "--add-tracefile",
+  "target/llvm-cov-explorer.lcov",
+  "--output-file",
+  "target/llvm-cov-merged.lcov",
+]
 
 [tasks.install-locally]
 dependencies = ["install-plugins", "install-agent"]
