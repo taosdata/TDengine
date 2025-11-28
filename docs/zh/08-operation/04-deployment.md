@@ -85,7 +85,7 @@ show dnodes;
 
 在日志中，请确认输出的 dnode 的 fqdn 和端口是否与你刚刚尝试添加的 endpoint 一致。如果不一致，请修正为正确的 endpoint。遵循上述步骤，你可以持续地将新的 dnode 逐个加入集群，从而扩展集群规模并提高整体性能。确保在添加新节点时遵循正确的流程，这有助于维持集群的稳定性和可靠性。
 
-**Tips**
+###### Tips
 
 - 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine TSDB CLI 设置参数，则默认连接由 firstEp 指定的节点。
 - 两个没有配置 firstEp 参数的 dnode 在启动后会独立运行。这时无法将其中一个 dnode 加入另外一个 dnode，形成集群。
@@ -101,7 +101,7 @@ create mnode on dnode <dnodeId>
 
 请注意将上面示例中的 dnodeId 替换为刚创建 dnode 的序号（可以通过执行 `show dnodes` 命令获得）。最后执行如下 `show mnodes`，查看新创建的 mnode 是否成功加入集群。
 
-**Tips**
+###### Tips
 
 在搭建 TDengine TSDB 集群的过程中，如果在执行 create dnode 命令以添加新节点后，新节点始终显示为离线状态，请按照以下步骤进行排查。
 
@@ -315,6 +315,7 @@ taos -h tdengine -P 6030
 如果 TAOS_FQDN 被设置为与所在主机名相同，则效果与“在 host 网络模式下启动 TDengine TSDB”相同。
 
 ### 使用 docker compose 方式启动集群
+
 使用如下 docker compose 配置文件，可以启动一个 3 节点 TDengine TSDB 集群。
 docker-compose.yaml 内容如下：
 
@@ -351,7 +352,7 @@ docker compose up
 docker compose exec td1 bash
 ```
 
-执行如下命令查看集群状态:
+执行如下命令查看集群状态：
 
 ```shell
 $ taos -s "show dnodes"

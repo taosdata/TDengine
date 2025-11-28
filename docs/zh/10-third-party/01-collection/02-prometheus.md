@@ -30,7 +30,7 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 
 ### 使用 TDengine TSDB CLI 查询写入数据
 
-```
+```sql
 taos> show databases;
               name              |
 =================================
@@ -68,13 +68,13 @@ Query OK, 10 row(s) in set (0.011146s)
 
 安装 promql-cli
 
-```
+```bash
  go install github.com/nalbury/promql-cli@latest
 ```
 
 在 TDengine TSDB 和 taosAdapter 服务运行状态对 Prometheus 数据进行查询
 
-```
+```bash
 ubuntu@shuduo-1804 ~ $ promql-cli --host "http://127.0.0.1:9090" "sum(up) by (job)"
 JOB           VALUE    TIMESTAMP
 prometheus    1        2022-04-20T08:05:26Z
@@ -83,7 +83,7 @@ node          1        2022-04-20T08:05:26Z
 
 暂停 taosAdapter 服务后对 Prometheus 数据进行查询
 
-```
+```bash
 ubuntu@shuduo-1804 ~ $ sudo systemctl stop taosadapter.service
 ubuntu@shuduo-1804 ~ $ promql-cli --host "http://127.0.0.1:9090" "sum(up) by (job)"
 VALUE    TIMESTAMP

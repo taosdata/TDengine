@@ -119,32 +119,50 @@ cmd:
 
 工具运行后会生成测试报告 perf_report.md，其内容包含集群磁盘和网络配置基本信息和测试结果两部分
 
-```
+```markdown
 # 性能检查报告
-时间: 2025-05-30 17:21:02  
+
+时间：2025-05-30 17:21:02  
+
 ## 磁盘配置
-| FQDN   | 磁盘名称   | 磁盘型号             | 序列号              | 磁盘类型   | 磁盘空间   |
+
+| FQDN   | 磁盘名称 | 磁盘型号          | 序列号            | 磁盘类型 | 磁盘空间 |
 |--------|--------|------------------|------------------|--------|--------|
 | u1-11  | sda    | INTEL_SSDSC2BB48 | 55cd2e414d66c8cd | SSD    | 447.1G |
 | u1-11  | sdb    | INTEL_SSDSC2BB48 | 55cd2e414d72e38b | SSD    | 447.1G |
 | u1-11  | sdc    | SAMSUNG_MZ7L31T9 | 5002538f3431f2c9 | SSD    | 1.8T   |
 | u1-11  | sdd    | ST2000NX0273     | 5000c500f06b8e1f | HDD    | 1.8T   |
+
 #### 网络配置
+
 | FQDN   | 网卡名称   | 带宽       |
 |--------|--------|----------|
 | u1-11  | eno3   | 1000Mb/s |
+
 ## 磁盘性能
+
 ### 1. 写盘命令
-#### 1.1 dd命令
+
+#### 1.1 dd 命令
+
 dd if=/dev/zero of=[file] bs=400K count=50000 oflag=direct conv=fsync  
-#### 1.2 fio命令
+
+#### 1.2 fio 命令
+
 fio --name=db_write_test --filename=[file] --size=5G --bsrange=480k-500k --rw=randwrite --ioengine=libaio --direct=1 --numjobs=4 --iodepth=32 --group_reporting  
+
 ### 2. 读盘命令
-#### 2.1 dd命令
-dd if=[file] of=/dev/null bs=1M count=20000 iflag=direct  
-#### 2.2 fio命令
+
+#### 2.1 dd 命令
+
+dd if=[file] of=/dev/null bs=1M count=20000 iflag=direct 
+
+#### 2.2 fio 命令
+
 fio --name=db_read_test --filename=[file] --size=5G --bs=1M --rw=randread --ioengine=libaio --direct=1 --numjobs=4 --iodepth=32 --group_reporting  
+
 ### 3. 测试结果
+
 | FQDN   | 磁盘路径   | 测试工具   | 写入速度      | 读取速度     |
 |--------|--------|--------|-----------|----------|
 | u1-11  | /data1 | fio    | 493MiB/s  | 528MiB/s |
@@ -156,36 +174,36 @@ fio --name=db_read_test --filename=[file] --size=5G --bs=1M --rw=randread --ioen
 
 测试本机的磁盘读写性能和本机到其它节点的网络传输能力
 
-```
+```shell
 ./taosperf -m local
 ```
 
 测试本机的磁盘读写性能和本机到指定节点 ( 192.168.1.1 ) 的网络传输能力
 
-```
+```shell
 ./taosperf -m local -i 192.168.1.1
 ```
 
 测试集群所有节点的磁盘读写性能和相互间的网络传输能力
 
-```
+```shell
 ./taosperf -m ssh
 ```
 
 指定配置文件并测试磁盘读写和网传输能力
 
-```
+```shell
 ./taosperf -m ssh -f /path_to_file/perf.yaml
 ```
 
 测试集群所有节点间的网络传输能力
 
-```
+```shell
 ./taosperf -m ssh -ti network
 ```
 
 测试集群所有节点的磁盘读写性能
 
-```
+```shell
 ./taosperf -m ssh -ti disk
 ```

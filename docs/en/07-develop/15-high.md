@@ -383,7 +383,7 @@ From the factors affecting write performance discussed above, developing high-pe
 
 Below is a schematic diagram of the connector's efficient writing feature implementation:
 
-![](../assets/ingesting-data-efficiently-01.png)
+![ingesting-data](../assets/ingesting-data-efficiently-01.png)
 
 ### Design Principles  
 
