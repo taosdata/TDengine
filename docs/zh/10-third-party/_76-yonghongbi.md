@@ -25,7 +25,7 @@ description: 使用 TDengine 连接永洪 BI
 2. 点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“MyTDengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。
 3. 然后请复制下面的内容到“URL”字段：
 
-```
+```shell
 jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata
 ```
 

@@ -67,7 +67,7 @@ import RequestId from "./_request_id.mdx";
     }
 ```
 
-TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
+TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)
 
 ## 数据类型映射
 
@@ -167,10 +167,10 @@ taos, err := sql.Open("taosSql", taosUri)
 
 支持的 DSN 参数：
 
-* `cfg` 指定 taos.cfg 目录。
-* `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数。
-* `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000。
-* `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
+- `cfg` 指定 taos.cfg 目录。
+- `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数。
+- `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000。
+- `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
 
 ##### WebSocket 连接
 
@@ -192,10 +192,10 @@ taos, err := sql.Open("taosWS", taosUri)
 
 支持的 DSN 参数：
 
-* `enableCompression` 是否发送压缩数据，默认为 false 不发送压缩数据，如果传输数据使用压缩设置为 true。
-* `readTimeout` 读取数据的超时时间，默认为 5m。
-* `writeTimeout` 写入数据的超时时间，默认为 10s。
-* `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
+- `enableCompression` 是否发送压缩数据，默认为 false 不发送压缩数据，如果传输数据使用压缩设置为 true。
+- `readTimeout` 读取数据的超时时间，默认为 5m。
+- `writeTimeout` 写入数据的超时时间，默认为 10s。
+- `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
 
 ### 连接功能
 
@@ -206,66 +206,66 @@ Go 驱动支持创建连接，返回支持 `sql/driver` 标准的 `Connector` �
 `database/sql` 包中创建连接的接口
 
 - `func Open(driverName, dataSourceName string) (*DB, error)`
-    - **接口说明**：(`database/sql`) 连接数据库
-    - **参数说明**：
-        - `driverName`：驱动名称。
-        - `dataSourceName`：连接参数 DSN。
-    - **返回值**：连接对象，错误信息。
+  - **接口说明**：(`database/sql`) 连接数据库
+  - **参数说明**：
+    - `driverName`：驱动名称。
+    - `dataSourceName`：连接参数 DSN。
+  - **返回值**：连接对象，错误信息。
 
 #### 扩展接口
 
 `af` 包中创建连接的接口
 
 - `func Open(host, user, pass, db string, port int) (*Connector, error)`
-    - **接口说明**：连接数据库。
-    - **参数说明**：
-        - `host`：主机地址。
-        - `user`：用户名。
-        - `pass`：密码。
-        - `db`：数据库名称。
-        - `port`：端口号。
-    - **返回值**：连接对象，错误信息。
+  - **接口说明**：连接数据库。
+  - **参数说明**：
+    - `host`：主机地址。
+    - `user`：用户名。
+    - `pass`：密码。
+    - `db`：数据库名称。
+    - `port`：端口号。
+  - **返回值**：连接对象，错误信息。
 
 - `func (conn *Connector) SetTimezone(timezone string) error`
-    - **接口说明**：设置连接时区。
-    - **参数说明**：
-        - `timezone`：时区字符串，使用 IANA 时区格式，例如：`Asia/Shanghai`。
-    - **返回值**：错误信息。
+  - **接口说明**：设置连接时区。
+  - **参数说明**：
+    - `timezone`：时区字符串，使用 IANA 时区格式，例如：`Asia/Shanghai`。
+  - **返回值**：错误信息。
 
 #### 无模式写入
 
 `af` 包中使用原生连接进行无模式写入的接口。
 
 - `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
-    - **接口说明**：无模式写入 influxDB 格式数据。
-    - **参数说明**：
-        - `lines`：写入的数据。
-        - `precision`：时间精度。
-    - **返回值**：错误信息。
+  - **接口说明**：无模式写入 influxDB 格式数据。
+  - **参数说明**：
+    - `lines`：写入的数据。
+    - `precision`：时间精度。
+  - **返回值**：错误信息。
 
 - `func (conn *Connector) OpenTSDBInsertJsonPayload(payload string) error`
-    - **接口说明**：无模式写入 OpenTSDB JSON 格式数据。
-    - **参数说明**：
-        - `payload`：写入的数据。
-    - **返回值**：错误信息。
+  - **接口说明**：无模式写入 OpenTSDB JSON 格式数据。
+  - **参数说明**：
+    - `payload`：写入的数据。
+  - **返回值**：错误信息。
 
 - `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
-    - **接口说明**：无模式写入 OpenTSDB Telnet 格式数据。
-    - **参数说明**：
-        - `lines`：写入的数据。
-    - **返回值**：错误信息。
+  - **接口说明**：无模式写入 OpenTSDB Telnet 格式数据。
+  - **参数说明**：
+    - `lines`：写入的数据。
+  - **返回值**：错误信息。
 
 `ws/schemaless` 包中使用 WebSocket 无模式写入的接口
 
 - `func (s *Schemaless) Insert(lines string, protocol int, precision string, ttl int, reqID int64) error`
-    - **接口说明**：无模式写入数据。
-    - **参数说明**：
-        - `lines`：写入的数据。
-        - `protocol`：写入的数据协议支持的协议 `InfluxDBLineProtocol = 1` `OpenTSDBTelnetLineProtocol = 2` `OpenTSDBJsonFormatProtocol = 3`。
-        - `precision`：时间精度。
-        - `ttl`：数据过期时间，0 表示不过期。
-        - `reqID`：请求 ID。
-    - **返回值**：错误信息。
+  - **接口说明**：无模式写入数据。
+  - **参数说明**：
+    - `lines`：写入的数据。
+    - `protocol`：写入的数据协议支持的协议 `InfluxDBLineProtocol = 1` `OpenTSDBTelnetLineProtocol = 2` `OpenTSDBJsonFormatProtocol = 3`。
+    - `precision`：时间精度。
+    - `ttl`：数据过期时间，0 表示不过期。
+    - `reqID`：请求 ID。
+  - **返回值**：错误信息。
 
 ### 执行 SQL
 
@@ -278,58 +278,58 @@ Go 驱动提供了符合 `database/sql` 标准的接口，支持以下功能：
 5. **获取更新计数**：对于非查询 SQL 语句，可以获取执行后影响的行数。
 6. **关闭资源**：释放数据库资源。
 
-#### 标准接口 
+#### 标准接口
 
 - `func (db *DB) Close() error`
-    - **接口说明**：关闭连接。
-    - **返回值**：错误信息。
+  - **接口说明**：关闭连接。
+  - **返回值**：错误信息。
 
 - `func (db *DB) Exec(query string, args ...any) (Result, error)`
-    - **接口说明**：执行查询但不返回任何行。
-    - **参数说明**：
-        - `query`：要执行的命令。
-        - `args`：命令参数。
-    - **返回值**：Result 对象（只有影响行数），错误信息。
+  - **接口说明**：执行查询但不返回任何行。
+  - **参数说明**：
+    - `query`：要执行的命令。
+    - `args`：命令参数。
+  - **返回值**：Result 对象（只有影响行数），错误信息。
 
 - `func (db *DB) Query(query string, args ...any) (*Rows, error)`
-    - **接口说明**：执行查询并返回行的结果。
-    - **参数说明**：
-        - `query`：要执行的命令。
-        - `args`：命令参数。
-    - **返回值**：Rows 对象，错误信息。
+  - **接口说明**：执行查询并返回行的结果。
+  - **参数说明**：
+    - `query`：要执行的命令。
+    - `args`：命令参数。
+  - **返回值**：Rows 对象，错误信息。
 
 - `func (db *DB) QueryRow(query string, args ...any) *Row`
-    - **接口说明**：执行查询并返回一行结果。
-    - **参数说明**：
-        - `query`：要执行的命令。
-        - `args`：命令参数。
-    - **返回值**：Row 对象。
+  - **接口说明**：执行查询并返回一行结果。
+  - **参数说明**：
+    - `query`：要执行的命令。
+    - `args`：命令参数。
+  - **返回值**：Row 对象。
 
 #### 扩展接口
 
 - `func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (Result, error)`
-    - **接口说明**：执行查询但不返回任何行。
-    - **参数说明**：
-        - `ctx`：上下文，使用 Value 传递请求 id 进行链路追踪，key 为 `taos_req_id` value 为 int64 类型值。
-        - `query`：要执行的命令。
-        - `args`：命令参数。
-    - **返回值**：结果 Result 对象（只有影响行数），错误信息。
+  - **接口说明**：执行查询但不返回任何行。
+  - **参数说明**：
+    - `ctx`：上下文，使用 Value 传递请求 id 进行链路追踪，key 为 `taos_req_id` value 为 int64 类型值。
+    - `query`：要执行的命令。
+    - `args`：命令参数。
+  - **返回值**：结果 Result 对象（只有影响行数），错误信息。
 
 - `func (db *DB) QueryContext(ctx context.Context, query string, args ...any) (*Rows, error)`
-    - **接口说明**：执行查询并返回行结果。
-    - **参数说明**：
-        - `ctx`：上下文，使用 Value 传递请求 id 进行链路追踪，key 为 `taos_req_id` value 为 int64 类型值。
-        - `query`：要执行的命令。
-        - `args`：命令参数。
-    - **返回值**：结果集 Rows 对象，错误信息。
+  - **接口说明**：执行查询并返回行结果。
+  - **参数说明**：
+    - `ctx`：上下文，使用 Value 传递请求 id 进行链路追踪，key 为 `taos_req_id` value 为 int64 类型值。
+    - `query`：要执行的命令。
+    - `args`：命令参数。
+  - **返回值**：结果集 Rows 对象，错误信息。
 
 - `func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) *Row`
-    - **接口说明**：执行查询并返回一行结果，错误信息会在扫描 Row 时延迟返回。
-    - **参数说明**：
-        - `ctx`：上下文，使用 Value 传递请求 id 进行链路追踪，key 为 `taos_req_id` value 为 int64 类型值。
-        - `query`：要执行的命令。
-        - `args`：命令参数。
-    - **返回值**：单行结果 Row 对象。
+  - **接口说明**：执行查询并返回一行结果，错误信息会在扫描 Row 时延迟返回。
+  - **参数说明**：
+    - `ctx`：上下文，使用 Value 传递请求 id 进行链路追踪，key 为 `taos_req_id` value 为 int64 类型值。
+    - `query`：要执行的命令。
+    - `args`：命令参数。
+  - **返回值**：单行结果 Row 对象。
 
 ### 结果获取
 
@@ -340,58 +340,58 @@ Go 驱动支持获取查询结果集，以及对应的结果集元数据，提�
 通过 `Rows` 对象获取查询结果集，提供了以下方法：
 
 - `func (rs *Rows) Next() bool`
-    - **接口说明**：准备下一行数据。
-    - **返回值**：是否有下一行数据。
+  - **接口说明**：准备下一行数据。
+  - **返回值**：是否有下一行数据。
 
 - `func (rs *Rows) Columns() ([]string, error)`
-    - **接口说明**：返回列名。
-    - **返回值**：列名，错误信息。
+  - **接口说明**：返回列名。
+  - **返回值**：列名，错误信息。
 
 - `func (rs *Rows) Scan(dest ...any) error`
-    - **接口说明**：将当前行的列值复制到 dest 指向的值中。
-    - **参数说明**：
-        - `dest`：目标值。
-    - **返回值**：错误信息。
+  - **接口说明**：将当前行的列值复制到 dest 指向的值中。
+  - **参数说明**：
+    - `dest`：目标值。
+  - **返回值**：错误信息。
 
 - `func (rs *Rows) Close() error`
-    - **接口说明**：关闭行。
-    - **返回值**：错误信息。
+  - **接口说明**：关闭行。
+  - **返回值**：错误信息。
 
 - `func (r *Row) Scan(dest ...any) error`
-    - **接口说明**：将当前行的列值复制到 dest 指向的值中。
-    - **参数说明**：
-        - `dest`：目标值。
-    - **返回值**：错误信息。
+  - **接口说明**：将当前行的列值复制到 dest 指向的值中。
+  - **参数说明**：
+    - `dest`：目标值。
+  - **返回值**：错误信息。
 
 通过 `Result` 对象获取更新结果集，提供了以下方法：
 
 - `func (dr driverResult) RowsAffected() (int64, error)`
-    - **接口说明**：返回受影响的行数。
-    - **返回值**：受影响的行数，错误信息。
+  - **接口说明**：返回受影响的行数。
+  - **返回值**：受影响的行数，错误信息。
 
 #### 结果集元数据
 
 通过 `Rows` 对象获取查询结果集元数据，提供了以下方法：
 
 - `func (rs *Rows) ColumnTypes() ([]*ColumnType, error)`
-    - **接口说明**：返回列类型。
-    - **返回值**：列类型，错误信息。
+  - **接口说明**：返回列类型。
+  - **返回值**：列类型，错误信息。
 
 - `func (ci *ColumnType) Name() string`
-    - **接口说明**：返回列名。
-    - **返回值**：列名。
+  - **接口说明**：返回列名。
+  - **返回值**：列名。
 
 - `func (ci *ColumnType) Length() (length int64, ok bool)`
-    - **接口说明**：返回列长度。
-    - **返回值**：列长度，是否有长度。
+  - **接口说明**：返回列长度。
+  - **返回值**：列长度，是否有长度。
 
 - `func (ci *ColumnType) ScanType() reflect.Type`
-    - **接口说明**：返回列类型对应的 Go 类型。
-    - **返回值**：列类型。
+  - **接口说明**：返回列类型对应的 Go 类型。
+  - **返回值**：列类型。
 
 - `func (ci *ColumnType) DatabaseTypeName() string`
-    - **接口说明**：返回列类型数据库名称。
-    - **返回值**：列类型名称。
+  - **接口说明**：返回列类型数据库名称。
+  - **返回值**：列类型名称。
 
 ### 参数绑定
 
@@ -402,327 +402,326 @@ Prepare 允许使用预编译的 SQL 语句，可以提高性能并提供参数�
 使用 `sql/driver` 的 `Conn` 接口中的 `Prepare` 方法准备一个与此连接绑定的准备好的语句，返回 `Stmt` 对象，使用。
 
 - `Prepare(query string) (Stmt, error)`
-    - **接口说明**：准备返回一个与此连接绑定的准备好的语句 (statement)。
-    - **参数说明**：
-        - `query`：要进行参数绑定的语句。
-    - **返回值**：Stmt 对象，错误信息。
+  - **接口说明**：准备返回一个与此连接绑定的准备好的语句 (statement)。
+  - **参数说明**：
+    - `query`：要进行参数绑定的语句。
+  - **返回值**：Stmt 对象，错误信息。
 
 - `func (s *Stmt) Exec(args ...any) (Result, error)`
-    - **接口说明**：使用给定的参数执行准备好的语句并返回总结该语句效果的结果（只可以绑定列值，不支持绑定表名和 tag）。
-    - **参数说明**：
-        - `args`：命令参数，Go 原始类型会自动转换数据库类型，类型不匹配可能会丢精度，建议使用与数据库相同的类型，时间类型使用 int64 或 `RFC3339Nano` 格式化后的字符串。
-    - **返回值**：结果 Result 对象（只有影响行数），错误信息。
+  - **接口说明**：使用给定的参数执行准备好的语句并返回总结该语句效果的结果（只可以绑定列值，不支持绑定表名和 tag）。
+  - **参数说明**：
+    - `args`：命令参数，Go 原始类型会自动转换数据库类型，类型不匹配可能会丢精度，建议使用与数据库相同的类型，时间类型使用 int64 或 `RFC3339Nano` 格式化后的字符串。
+  - **返回值**：结果 Result 对象（只有影响行数），错误信息。
 
 - `func (s *Stmt) Query(args ...any) (*Rows, error)`
-    - **接口说明**：使用给定的参数执行准备好的语句并返回行的结果。
-    - **参数说明**：
-        - `args`：命令参数，Go 原始类型会自动转换数据库类型，类型不匹配可能会丢精度，建议使用与数据库相同的类型，时间类型使用 int64 或 `RFC3339Nano` 格式化后的字符串。
-    - **返回值**：结果集 Rows 对象，错误信息。
+  - **接口说明**：使用给定的参数执行准备好的语句并返回行的结果。
+  - **参数说明**：
+    - `args`：命令参数，Go 原始类型会自动转换数据库类型，类型不匹配可能会丢精度，建议使用与数据库相同的类型，时间类型使用 int64 或 `RFC3339Nano` 格式化后的字符串。
+  - **返回值**：结果集 Rows 对象，错误信息。
 
 - `func (s *Stmt) Close() error`
-    - **接口说明**：关闭语句。
-    - **返回值**：错误信息。
+  - **接口说明**：关闭语句。
+  - **返回值**：错误信息。
 
-#### 扩展接口 
+#### 扩展接口
 
 `af` 包中提供了使用原生连接进行参数绑定的更多接口
 
 - `func (conn *Connector) Stmt() *Stmt`
-    - **接口说明**：返回一个与此连接绑定的 Stmt 对象。
-    - **返回值**：Stmt 对象。
+  - **接口说明**：返回一个与此连接绑定的 Stmt 对象。
+  - **返回值**：Stmt 对象。
 
 - `func (s *Stmt) Prepare(sql string) error`
-    - **接口说明**：准备一个 sql。
-    - **参数说明**：
-        - `sql`：要进行参数绑定的语句。
-    - **返回值**：错误信息。
+  - **接口说明**：准备一个 sql。
+  - **参数说明**：
+    - `sql`：要进行参数绑定的语句。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) NumParams() (int, error)`
-    - **接口说明**：返回参数数量。
-    - **返回值**：参数数量，错误信息。
+  - **接口说明**：返回参数数量。
+  - **返回值**：参数数量，错误信息。
 
 - `func (s *Stmt) SetTableNameWithTags(tableName string, tags *param.Param)`
-    - **接口说明**：设置表名和 tag。
-    - **参数说明**：
-        - `tableName`：表名。
-        - `tags`：tag。
-    - **返回值**：错误信息。
+  - **接口说明**：设置表名和 tag。
+  - **参数说明**：
+    - `tableName`：表名。
+    - `tags`：tag。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) SetTableName(tableName string) error`
-    - **接口说明**：设置表名。
-    - **参数说明**：
-        - `tableName`：表名。
-    - **返回值**：错误信息。
+  - **接口说明**：设置表名。
+  - **参数说明**：
+    - `tableName`：表名。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) BindRow(row *param.Param) error`
-    - **接口说明**：绑定行。
-    - **参数说明**：
-        - `row`：行数据。
-    - **返回值**：错误信息。
+  - **接口说明**：绑定行。
+  - **参数说明**：
+    - `row`：行数据。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) GetAffectedRows() int`
-    - **接口说明**：获取受影响的行数。
-    - **返回值**：受影响的行数。
+  - **接口说明**：获取受影响的行数。
+  - **返回值**：受影响的行数。
 
 - `func (s *Stmt) AddBatch() error`
-    - **接口说明**：添加批处理。
-    - **返回值**：错误信息。
+  - **接口说明**：添加批处理。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) Execute() error`
-    - **接口说明**：执行批处理。
-    - **返回值**：错误信息。
+  - **接口说明**：执行批处理。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) UseResult() (driver.Rows, error)`
-    - **接口说明**：使用结果。
-    - **返回值**：结果集 Rows 对象，错误信息。
+  - **接口说明**：使用结果。
+  - **返回值**：结果集 Rows 对象，错误信息。
 
 - `func (s *Stmt) Close() error`
-    - **接口说明**：关闭语句。
-    - **返回值**：错误信息。
+  - **接口说明**：关闭语句。
+  - **返回值**：错误信息。
 
 从 3.6.0 版本开始，提供 stmt2 绑定参数的接口
 
 - `func (conn *Connector) Stmt2(reqID int64, singleTableBindOnce bool) *Stmt2`
-    - **接口说明**：从连接创建 stmt2。
-    - **参数说明**：
-        - `reqID`：请求 ID。
-        - `singleTableBindOnce`：单个子表在单次执行中只有一次数据绑定。
-    - **返回值**：stmt2 对象。
+  - **接口说明**：从连接创建 stmt2。
+  - **参数说明**：
+    - `reqID`：请求 ID。
+    - `singleTableBindOnce`：单个子表在单次执行中只有一次数据绑定。
+  - **返回值**：stmt2 对象。
 - `func (s *Stmt2) Prepare(sql string) error`
-    - **接口说明**：绑定 sql 语句。
-    - **参数说明**：
-        - `sql`：要绑定的 sql 语句。
-    - **返回值**：错误信息。
+  - **接口说明**：绑定 sql 语句。
+  - **参数说明**：
+    - `sql`：要绑定的 sql 语句。
+  - **返回值**：错误信息。
 - `func (s *Stmt2) Bind(params []*stmt.TaosStmt2BindData) error`
-    - **接口说明**：绑定数据。
-    - **参数说明**：
-        - params 要绑定的数据。
-    - **返回值**：错误信息。
+  - **接口说明**：绑定数据。
+  - **参数说明**：
+    - params 要绑定的数据。
+  - **返回值**：错误信息。
 - `func (s *Stmt2) Execute() error`
-    - **接口说明**：执行语句。
-    - **返回值**：错误信息。
+  - **接口说明**：执行语句。
+  - **返回值**：错误信息。
 - `func (s *Stmt2) GetAffectedRows() int`
-    - **接口说明**：获取受影响行数（只在插入语句有效）。
-    - **返回值**：受影响行数。
+  - **接口说明**：获取受影响行数（只在插入语句有效）。
+  - **返回值**：受影响行数。
 - `func (s *Stmt2) UseResult() (driver.Rows, error)`
-    - **接口说明**：获取结果集（只在查询语句有效）。
-    - **返回值**：结果集 Rows 对象，错误信息。
+  - **接口说明**：获取结果集（只在查询语句有效）。
+  - **返回值**：结果集 Rows 对象，错误信息。
 - `func (s *Stmt2) Close() error`
-    - **接口说明**：关闭 stmt2。
-    - **返回值**：错误信息。
+  - **接口说明**：关闭 stmt2。
+  - **返回值**：错误信息。
 
 `ws/stmt` 包提供了通过 WebSocket 进行参数绑定的接口
 
 - `func (c *Connector) Init() (*Stmt, error)`
-    - **接口说明**：初始化。
-    - **返回值**：Stmt 对象，错误信息。
+  - **接口说明**：初始化。
+  - **返回值**：Stmt 对象，错误信息。
 
 - `func (s *Stmt) Prepare(sql string) error`
-    - **接口说明**：准备一个 sql。
-    - **参数说明**：
-        - `sql`：要进行参数绑定的语句。
-    - **返回值**：错误信息。
+  - **接口说明**：准备一个 sql。
+  - **参数说明**：
+    - `sql`：要进行参数绑定的语句。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) SetTableName(name string) error`
-    - **接口说明**：设置表名。
-    - **参数说明**：
-        - `name`：表名。
-    - **返回值**：错误信息。
+  - **接口说明**：设置表名。
+  - **参数说明**：
+    - `name`：表名。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) SetTags(tags *param.Param, bindType *param.ColumnType)`
-    - **接口说明**：设置 tag。
-    - **参数说明**：
-        - `tags`：tag。
-        - `bindType`：类型信息。
-    - **返回值**：错误信息。
+  - **接口说明**：设置 tag。
+  - **参数说明**：
+    - `tags`：tag。
+    - `bindType`：类型信息。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
-    - **接口说明**：绑定参数。
-    - **参数说明**：
-        - `params`：参数。
-        - `bindType`：类型信息。
-    - **返回值**：错误信息。
+  - **接口说明**：绑定参数。
+  - **参数说明**：
+    - `params`：参数。
+    - `bindType`：类型信息。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) AddBatch() error`
-    - **接口说明**：添加批处理。
-    - **返回值**：错误信息。
+  - **接口说明**：添加批处理。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) Exec() error`
-    - **接口说明**：执行批处理。
-    - **返回值**：错误信息。
+  - **接口说明**：执行批处理。
+  - **返回值**：错误信息。
 
 - `func (s *Stmt) GetAffectedRows() int`
-    - **接口说明**：获取受影响的行数。
-    - **返回值**：受影响的行数。
+  - **接口说明**：获取受影响的行数。
+  - **返回值**：受影响的行数。
 
 - `func (s *Stmt) UseResult() (*Rows, error)`
-    - **接口说明**：使用结果。
-    - **返回值**：Rows 对象，错误信息。
+  - **接口说明**：使用结果。
+  - **返回值**：Rows 对象，错误信息。
 
 - `func (s *Stmt) Close() error`
-    - **接口说明**：关闭语句。
-    - **返回值**：错误信息。
+  - **接口说明**：关闭语句。
+  - **返回值**：错误信息。
 
 Rows 行结果参考 `sql/driver` 包中的 `Rows` 接口，提供以下接口
 
 - `func (rs *Rows) Columns() []string`
-    - **接口说明**：返回列名。
-    - **返回值**：列名。
+  - **接口说明**：返回列名。
+  - **返回值**：列名。
 
 - `func (rs *Rows) ColumnTypeDatabaseTypeName(i int) string`
-    - **接口说明**：返回列类型数据库名称。
-    - **参数说明**：
-        - `i`：列索引。
-    - **返回值**：列类型名称。
+  - **接口说明**：返回列类型数据库名称。
+  - **参数说明**：
+    - `i`：列索引。
+  - **返回值**：列类型名称。
 
 - `func (rs *Rows) ColumnTypeLength(i int) (length int64, ok bool)`
-    - **接口说明**：返回列长度。
-    - **参数说明**：
-        - `i`：列索引。
-    - **返回值**：列长度，是否有长度。
+  - **接口说明**：返回列长度。
+  - **参数说明**：
+    - `i`：列索引。
+  - **返回值**：列长度，是否有长度。
 
 - `func (rs *Rows) ColumnTypeScanType(i int) reflect.Type`
-    - **接口说明**：返回列类型对应的 Go 类型。
-    - **参数说明**：
-        - `i`：列索引。
-    - **返回值**：列类型。
+  - **接口说明**：返回列类型对应的 Go 类型。
+  - **参数说明**：
+    - `i`：列索引。
+  - **返回值**：列类型。
 
 - `func (rs *Rows) Next(dest []driver.Value) error`
-    - **接口说明**：准备下一行数据，并赋值给目标。
-    - **参数说明**：
-        - `dest`：目标值。
-    - **返回值**：错误信息。
+  - **接口说明**：准备下一行数据，并赋值给目标。
+  - **参数说明**：
+    - `dest`：目标值。
+  - **返回值**：错误信息。
 
 - `func (rs *Rows) Close() error`
-    - **接口说明**：关闭行。
-    - **返回值**：错误信息。
-
+  - **接口说明**：关闭行。
+  - **返回值**：错误信息。
 
 `common/param` 包中提供了参数绑定数据结构
 
 以下是按照偏移设置参数的接口：
 
 - `func NewParam(size int) *Param`
-    - **接口说明**：创建一个参数绑定数据结构。
-    - **参数说明**：
-        - `size`：参数数量。
-    - **返回值**：Param 对象。
+  - **接口说明**：创建一个参数绑定数据结构。
+  - **参数说明**：
+    - `size`：参数数量。
+  - **返回值**：Param 对象。
 
 - `func (p *Param) SetBool(offset int, value bool)`
-    - **接口说明**：设置布尔值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：布尔值。
-    
+  - **接口说明**：设置布尔值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：布尔值。
+
 - `func (p *Param) SetNull(offset int)`
-    - **接口说明**：设置空值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
+  - **接口说明**：设置空值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
 
 - `func (p *Param) SetTinyint(offset int, value int)`
-    - **接口说明**：设置 Tinyint 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Tinyint 值。
+  - **接口说明**：设置 Tinyint 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Tinyint 值。
 
 - `func (p *Param) SetSmallint(offset int, value int)`
-    - **接口说明**：设置 Smallint 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Smallint 值。
+  - **接口说明**：设置 Smallint 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Smallint 值。
 
 - `func (p *Param) SetInt(offset int, value int)`
-    - **接口说明**：设置 Int 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Int 值。
+  - **接口说明**：设置 Int 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Int 值。
 
 - `func (p *Param) SetBigint(offset int, value int)`
-    - **接口说明**：设置 Bigint 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Bigint 值。
+  - **接口说明**：设置 Bigint 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Bigint 值。
 
 - `func (p *Param) SetUTinyint(offset int, value uint)`
-    - **接口说明**：设置 UTinyint 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：UTinyint 值。
+  - **接口说明**：设置 UTinyint 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：UTinyint 值。
 
 - `func (p *Param) SetUSmallint(offset int, value uint)`
-    - **接口说明**：设置 USmallint 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：USmallint 值。
+  - **接口说明**：设置 USmallint 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：USmallint 值。
 
 - `func (p *Param) SetUInt(offset int, value uint)`
-    - **接口说明**：设置 UInt 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：UInt 值。
+  - **接口说明**：设置 UInt 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：UInt 值。
 
 - `func (p *Param) SetUBigint(offset int, value uint)`
-    - **接口说明**：设置 UBigint 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：UBigint 值。
+  - **接口说明**：设置 UBigint 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：UBigint 值。
 
 - `func (p *Param) SetFloat(offset int, value float32)`
-    - **接口说明**：设置 Float 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Float 值。
+  - **接口说明**：设置 Float 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Float 值。
 
 - `func (p *Param) SetDouble(offset int, value float64)`
-    - **接口说明**：设置 Double 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Double 值。
+  - **接口说明**：设置 Double 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Double 值。
 
 - `func (p *Param) SetBinary(offset int, value []byte)`
-    - **接口说明**：设置 Binary 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Binary 值。
+  - **接口说明**：设置 Binary 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Binary 值。
 
 - `func (p *Param) SetVarBinary(offset int, value []byte)`
-    - **接口说明**：设置 VarBinary 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：VarBinary 值。
+  - **接口说明**：设置 VarBinary 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：VarBinary 值。
 
 - `func (p *Param) SetNchar(offset int, value string)`
-    - **接口说明**：设置 Nchar 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Nchar 值。
+  - **接口说明**：设置 Nchar 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Nchar 值。
 
 - `func (p *Param) SetTimestamp(offset int, value time.Time, precision int)`
-    - **接口说明**：设置 Timestamp 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Timestamp 值。
-        - `precision`：时间精度。
+  - **接口说明**：设置 Timestamp 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Timestamp 值。
+    - `precision`：时间精度。
 
 - `func (p *Param) SetJson(offset int, value []byte)`
-    - **接口说明**：设置 Json 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Json 值。
+  - **接口说明**：设置 Json 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Json 值。
 
 - `func (p *Param) SetGeometry(offset int, value []byte)`
-    - **接口说明**：设置 Geometry 值。
-    - **参数说明**：
-        - `offset`：偏移量 (列或标签)。
-        - `value`：Geometry 值。
+  - **接口说明**：设置 Geometry 值。
+  - **参数说明**：
+    - `offset`：偏移量 (列或标签)。
+    - `value`：Geometry 值。
 
 以下是链式调用设置参数的接口：
 
 - `func (p *Param) AddBool(value bool) *Param`
-    - **接口说明**：添加布尔值。
-    - **参数说明**：
-        - `value`：布尔值。
-    - **返回值**：Param 对象。
+  - **接口说明**：添加布尔值。
+  - **参数说明**：
+    - `value`：布尔值。
+  - **返回值**：Param 对象。
 
 其他类型与布尔值类似，具体接口如下：
 
@@ -747,14 +746,14 @@ Rows 行结果参考 `sql/driver` 包中的 `Rows` 接口，提供以下接口
 以下是设置列类型信息的接口：
 
 - `func NewColumnType(size int) *ColumnType`
-    - **接口说明**：创建一个列类型信息数据结构。
-    - **参数说明**：
-        - `size`：列数量。
-    - **返回值**：ColumnType 对象。
+  - **接口说明**：创建一个列类型信息数据结构。
+  - **参数说明**：
+    - `size`：列数量。
+  - **返回值**：ColumnType 对象。
 
 - `func (c *ColumnType) AddBool() *ColumnType`
-    - **接口说明**：添加布尔类型。
-    - **返回值**：ColumnType 对象。
+  - **接口说明**：添加布尔类型。
+  - **返回值**：ColumnType 对象。
 
 其他类型与布尔类型类似，具体接口如下：
 
@@ -775,7 +774,6 @@ Rows 行结果参考 `sql/driver` 包中的 `Rows` 接口，提供以下接口
 - AddJson
 - AddGeometry
 
-
 ### 数据订阅
 
 Go 驱动支持数据订阅功能，提供了基于原生连接和 WebSocket 连接的数据订阅接口。原生实现在 `af/tmq` 包中，WebSocket 实现在 `ws/tmq` 包中。
@@ -783,10 +781,10 @@ Go 驱动支持数据订阅功能，提供了基于原生连接和 WebSocket 连
 #### 消费者
 
 - `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
-    - **接口说明**：创建一个消费者。
-    - **参数说明**：
-        - `conf`：配置信息。
-    - **返回值**：Consumer 对象，错误信息。
+  - **接口说明**：创建一个消费者。
+  - **参数说明**：
+    - `conf`：配置信息。
+  - **返回值**：Consumer 对象，错误信息。
 
 配置信息定义为：
 
@@ -794,6 +792,7 @@ Go 驱动支持数据订阅功能，提供了基于原生连接和 WebSocket 连
 type ConfigValue interface{}
 type ConfigMap map[string]ConfigValue
 ```
+
 创建消费者支持属性列表：
 
 - `ws.url`：WebSocket 连接地址。
@@ -809,93 +808,93 @@ type ConfigMap map[string]ConfigValue
 其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine TSDB 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
-    - **接口说明**：订阅主题。
-    - **参数说明**：
-        - `topic`：主题。
-        - `rebalanceCb`：平衡回调（未使用）。
-    - **返回值**：错误信息。
+  - **接口说明**：订阅主题。
+  - **参数说明**：
+    - `topic`：主题。
+    - `rebalanceCb`：平衡回调（未使用）。
+  - **返回值**：错误信息。
 
 - `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
-    - **接口说明**：订阅主题列表。
-    - **参数说明**：
-        - `topics`：主题列表。
-        - `rebalanceCb`：平衡回调（未使用）。
-    - **返回值**：错误信息。
+  - **接口说明**：订阅主题列表。
+  - **参数说明**：
+    - `topics`：主题列表。
+    - `rebalanceCb`：平衡回调（未使用）。
+  - **返回值**：错误信息。
 
 - `func (c *Consumer) Unsubscribe() error`
-    - **接口说明**：取消订阅。
-    - **返回值**：错误信息。
+  - **接口说明**：取消订阅。
+  - **返回值**：错误信息。
 
 - `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
-    - **接口说明**：轮询事件。
-    - **参数说明**：
-        - `timeoutMs`：超时时间。
-    - **返回值**：事件。
+  - **接口说明**：轮询事件。
+  - **参数说明**：
+    - `timeoutMs`：超时时间。
+  - **返回值**：事件。
 
 - `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
-    - **接口说明**：提交偏移量。
-    - **返回值**：TopicPartition 列表，错误信息。
+  - **接口说明**：提交偏移量。
+  - **返回值**：TopicPartition 列表，错误信息。
 
 - `func (c *Consumer) Assignment() (partitions []tmq.TopicPartition, err error)`
-    - **接口说明**：获取分配信息。
-    - **返回值**：TopicPartition 列表，错误信息。
+  - **接口说明**：获取分配信息。
+  - **返回值**：TopicPartition 列表，错误信息。
 
 - `func (c *Consumer) Seek(partition tmq.TopicPartition, ignoredTimeoutMs int) error`
-    - **接口说明**：跳转到偏移量。
-    - **参数说明**：
-        - `partition`：分区和偏移信息。
-        - `ignoredTimeoutMs`：超时时间（未使用）。
-    - **返回值**：错误信息。
+  - **接口说明**：跳转到偏移量。
+  - **参数说明**：
+    - `partition`：分区和偏移信息。
+    - `ignoredTimeoutMs`：超时时间（未使用）。
+  - **返回值**：错误信息。
 
 - `func (c *Consumer) Committed(partitions []tmq.TopicPartition, timeoutMs int) (offsets []tmq.TopicPartition, err error)`
-    - **接口说明**：获取提交的偏移量。
-    - **参数说明**：
-        - `partitions`：分区列表。
-        - `timeoutMs`：超时时间。
-    - **返回值**：TopicPartition 列表，错误信息。
+  - **接口说明**：获取提交的偏移量。
+  - **参数说明**：
+    - `partitions`：分区列表。
+    - `timeoutMs`：超时时间。
+  - **返回值**：TopicPartition 列表，错误信息。
 
-- `func (c *Consumer) CommitOffsets(offsets []tmq.TopicPartition) ([]tmq.TopicPartition, error) `
-    - **接口说明**：提交偏移量。
-    - **参数说明**：
-        - `offsets`：偏移量列表。
-    - **返回值**：TopicPartition 列表，错误信息。
+- `func (c *Consumer) CommitOffsets(offsets []tmq.TopicPartition) ([]tmq.TopicPartition, error)`
+  - **接口说明**：提交偏移量。
+  - **参数说明**：
+    - `offsets`：偏移量列表。
+  - **返回值**：TopicPartition 列表，错误信息。
 
 - `func (c *Consumer) Position(partitions []tmq.TopicPartition) (offsets []tmq.TopicPartition, err error)`
-    - **接口说明**：获取当前偏移量。
-    - **参数说明**：
-        - `partitions`：分区列表。
-    - **返回值**：TopicPartition 列表，错误信息。
+  - **接口说明**：获取当前偏移量。
+  - **参数说明**：
+    - `partitions`：分区列表。
+  - **返回值**：TopicPartition 列表，错误信息。
 
 - `func (c *Consumer) Close() error`
-    - **接口说明**：关闭消费者。
-    - **返回值**：错误信息。
+  - **接口说明**：关闭消费者。
+  - **返回值**：错误信息。
 
 #### 消费记录
 
 当 `Poll` 返回 `tmq.Event` 事件时，可以通过判断 `tmq.Event` 的类型获取消费记录或错误信息。当类型为 `*tmq.DataMessage` 时，可以获取消费记录。
 
 - `func (m *DataMessage) Topic() string`
-    - **接口说明**：获取主题。
-    - **返回值**：主题。
+  - **接口说明**：获取主题。
+  - **返回值**：主题。
 
 - `func (m *DataMessage) DBName() string`
-    - **接口说明**：获取数据库名称。
-    - **返回值**：数据库名称。
+  - **接口说明**：获取数据库名称。
+  - **返回值**：数据库名称。
 
 - `func (m *DataMessage) Offset() Offset`
-    - **接口说明**：获取偏移量。
-    - **返回值**：偏移量。
+  - **接口说明**：获取偏移量。
+  - **返回值**：偏移量。
 
 - `func (m *DataMessage) Value() interface{}`
-    - **接口说明**：获取值，具体值为 `[]*tmq.data`。
-    - **返回值**：消费到的值。
+  - **接口说明**：获取值，具体值为 `[]*tmq.data`。
+  - **返回值**：消费到的值。
 
 tmq.data 结构如下：
 
 ```go
 type Data struct {
-	TableName string
-	Data      [][]driver.Value
+ TableName string
+ Data      [][]driver.Value
 }
 ```
 
@@ -910,11 +909,11 @@ type Data struct {
 
 ```go
 type TopicPartition struct {
-	Topic     *string
-	Partition int32
-	Offset    Offset
-	Metadata  *string
-	Error     error
+ Topic     *string
+ Partition int32
+ Offset    Offset
+ Metadata  *string
+ Error     error
 }
 ```
 
@@ -936,5 +935,5 @@ type TopicPartition struct {
 
 ## 附录
 
-* [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v3)。
-* [视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
+- [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v3)。
+- [视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。

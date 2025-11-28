@@ -793,7 +793,8 @@ For specific connector error codes, refer to the table below:
 
 ### taosAdapter
 
-| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                         |
-|------------|------------------------------------------------|------------------------------------------------|--------------------------------------------------|
-| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message |
-| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests         |
+| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                                                   |
+|------------|------------------------------------------------|------------------------------------------------|----------------------------------------------------------------------------|
+| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message                           |
+| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests                                   |
+| 0xFFFD     | Query SQL has been rejected                    | Query SQL has been rejected                    | If you do not want to be intercepted, check the taosAdapter configuration. |

@@ -23,18 +23,18 @@ Ignition 通过其 SQL Bridge 模块支持多种 SQL 数据库，您可以通过
 
 ## 配置数据源
 
-1.  从 [Maven](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver) 下载 TDengine TSDB JDBC 连接器。
+1. 从 [Maven](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver) 下载 TDengine TSDB JDBC 连接器。
     - 在 **Versions** 标签页，点击最新版本旁的 Browse。
     - 在打开的页面下载 `taos-jdbcdriver-<version>-dist.jar` 文件到本地。
 
-2.  按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases/jdbc-drivers-and-translators#add-a-new-jdbc-driver) 添加新的 JDBC 驱动，并选择上一步下载的 JAR 文件。
+2. 按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases/jdbc-drivers-and-translators#add-a-new-jdbc-driver) 添加新的 JDBC 驱动，并选择上一步下载的 JAR 文件。
 
-3.  按如下方式配置驱动：
+3. 按如下方式配置驱动：
     - **Classname:** 输入 `com.taosdata.jdbc.rs.RestfulDriver`。
     - **URL Format:** 输入 `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`。
     - 其他选项保持默认，无需配置数据库翻译器。
-    
-4.  按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases#add-a-database-connection) 添加新的数据库连接：
+
+4. 按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases#add-a-database-connection) 添加新的数据库连接：
     - 选择上一步创建的 JDBC 驱动。
     - 在 **Connect URL** 字段输入 `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`。
 

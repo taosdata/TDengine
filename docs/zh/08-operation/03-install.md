@@ -21,7 +21,7 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 在 Linux 系统中，运行环境最低要求如下：
 
 1. Linux 内核版本：3.10.0-1160.83.1.el7.x86_64 或以上
-2. glibc 版本：2.17 或以上
+2. GLIBC 版本：2.17 及以上 (x64 架构)，2.27 及以上 (ARM 架构 )
 
 如果通过源码编译安装，还需要满足：
 
@@ -241,4 +241,4 @@ TDengine TSDB 的所有可执行文件默认存放在 `/usr/local/taos/bin` 目�
 - `set_core.sh`: 用于方便调试设置系统生成 core dump 文件的脚本
 - `taosd-dump-cfg.gdb`: 用于方便调试 taosd 的 gdb 执行脚本。
 
-TDengine 支持 IPv4 和 IPv6 两种通信方式, 其中 IPv6 内容参见 (../08-operation/13-network.md)
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 (../08-operation/13-network.md)

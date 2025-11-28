@@ -306,6 +306,7 @@ extern int64_t tsmaDataDeleteMark;
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
 extern bool    tsWalForceRepair;
+extern bool    tsWalDeleteOnCorruption;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;
