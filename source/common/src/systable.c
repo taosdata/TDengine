@@ -26,6 +26,10 @@
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_VIEW_NAME_LEN  ((TSDB_VIEW_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
+#define PERF_INSTANCE_ID_LEN   (255 + VARSTR_HEADER_SIZE)
+#define PERF_INSTANCE_TYPE_LEN (64 + VARSTR_HEADER_SIZE)
+#define PERF_INSTANCE_DESC_LEN (512 + VARSTR_HEADER_SIZE)
+
 // clang-format off
 static const SSysDbTableSchema dnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -346,6 +350,15 @@ static const SSysDbTableSchema transSchema[] = {
     {.name = "failed_times", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "last_exec_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "last_action_info", .bytes = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+};
+
+static const SSysDbTableSchema instanceSchema[] = {
+    {.name = "id", .bytes = PERF_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "type", .bytes = PERF_INSTANCE_TYPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "desc", .bytes = PERF_INSTANCE_DESC_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "first_reg_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "last_reg_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "expire", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema configSchema[] = {
@@ -728,6 +741,7 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema), false},
     // {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
     {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema), false},
+    {TSDB_PERFS_TABLE_INSTANCES, instanceSchema, tListLen(instanceSchema), false},
     // {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema), false},
     {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema), false}};
 // clang-format on
