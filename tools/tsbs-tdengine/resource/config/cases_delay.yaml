@@ -1,13 +1,13 @@
 testCases:
     - scenarioId: "D1"
-      classfication: "Delay"
+      classif: "Delay"
       description: ""
       sql: |
          create stream db.stm_d1 
             interval(1a) 
             sliding(1a)
             from db.stbd1 
-            stream_options(IGNORE_NODATA_TRIGGER|LOW_LATENCY_CALC) 
+            stream_options(IGNORE_NODATA_TRIGGER) 
             into db.res_d1 
             as 
               select  _twstart    ts, 
@@ -18,14 +18,14 @@ testCases:
                 from %%trows
 
     - scenarioId: "D2"
-      classfication: "Delay"
+      classif: "Delay"
       description: ""
       sql: |
          create stream db.stm_d2 
             interval(10a) 
             sliding(10a)
             from db.stbd2 
-            stream_options(IGNORE_NODATA_TRIGGER|LOW_LATENCY_CALC) 
+            stream_options(IGNORE_NODATA_TRIGGER) 
             into db.res_d2 
             as 
               select  _twstart    ts, 

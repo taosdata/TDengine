@@ -48,7 +48,7 @@ def db_get_rows(sql):
         return 0
     return len(results)
 
-def wait_transactions_zero(self, seconds = 300, interval = 1):
+def wait_transactions_zero(seconds = 300, interval = 1):
     # wait end
     for i in range(seconds):
         sql ="show transactions;"

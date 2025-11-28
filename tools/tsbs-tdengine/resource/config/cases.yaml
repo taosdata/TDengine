@@ -1,6 +1,6 @@
 testCases:
     - scenarioId: "A1"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db1.stm_a1 
@@ -13,7 +13,7 @@ testCases:
                         where _c0 >= _tprev_ts and _c0 < _tcurrent_ts;
 
     - scenarioId: "A2"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db1.stm_a2 
@@ -30,7 +30,7 @@ testCases:
                       where cur_grade > 70;
 
     - scenarioId: "A3"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db1.stm_a3 
@@ -49,7 +49,7 @@ testCases:
                   where last_elev > 1000;
 
     - scenarioId: "A4"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db1.stm_a4 
@@ -67,7 +67,7 @@ testCases:
                      )
 
     - scenarioId: "A5"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db1.stm_a5 
@@ -89,7 +89,7 @@ testCases:
                 partition by last_heading;
 
     - scenarioId: "A6"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db1.stm_a6 
@@ -113,7 +113,7 @@ testCases:
                   on a.ts = b.ts and a.load < 0.1 * a.load_capacity and a.name = b.name;
 
     - scenarioId: "A7"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db1.stm_a7
@@ -128,7 +128,7 @@ testCases:
                 where _c0 >= _twstart and _c0 < _twend;
 
     - scenarioId: "A8"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db2.stm_a8
@@ -148,7 +148,7 @@ testCases:
                       )
 
     - scenarioId: "A9"
-      classfication: "Summary"
+      classif: "Summary"
       description: ""
       sql: |
         create stream db2.stm_a9 
@@ -173,7 +173,7 @@ testCases:
                 where sduration > 12 * 3600000; 
 
     - scenarioId: "F1"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
         create stream db1.stm_f1 
@@ -191,7 +191,7 @@ testCases:
                 where last_velocity > 0;
 
     - scenarioId: "F2"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
         create stream db2.stm_f2 
@@ -209,7 +209,7 @@ testCases:
                 where last_status > 0;
 
     - scenarioId: "F3"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
         create stream db1.stm_f3 
@@ -224,7 +224,7 @@ testCases:
             where fleet = %%1 and _c0 >= _twstart and _c0 < _twend;
 
     - scenarioId: "F4"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
          create stream db1.stm_f4 
@@ -249,7 +249,7 @@ testCases:
 
 
     - scenarioId: "F5"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
         create stream db2.stm_f5 
@@ -270,7 +270,7 @@ testCases:
                )
 
     - scenarioId: "F6"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
         create stream db2.stm_f6 
@@ -288,7 +288,7 @@ testCases:
                       )
 
     - scenarioId: "F7"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
         create stream db2.stm_f7 
@@ -306,7 +306,7 @@ testCases:
                      )
 
     - scenarioId: "F8"
-      classfication: "Fleet"
+      classif: "Fleet"
       description: ""
       sql: |
         create stream db1.stm_f8 
@@ -324,7 +324,7 @@ testCases:
                  )
 
     - scenarioId: "T1"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db1.stm_t1 
@@ -339,7 +339,7 @@ testCases:
                 where _c0 >= _twstart and _c0 < _twend;
 
     - scenarioId: "T2"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db1.stm_t2 
@@ -358,7 +358,7 @@ testCases:
                      )
 
     - scenarioId: "T3"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db1.stm_t3 
@@ -375,7 +375,7 @@ testCases:
                 where _c0 >= _twstart and _c0 <= _twend;
 
     - scenarioId: "T4"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db1.stm_t4 
@@ -394,7 +394,7 @@ testCases:
                 where _c0 >= _twstart and _c0 <= _twend;
 
     - scenarioId: "T5"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db2.stm_t5 
@@ -411,7 +411,7 @@ testCases:
               where _c0 >= _twstart and _c0 <= _twend;
 
     - scenarioId: "T6"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db2.stm_t6 
@@ -428,7 +428,7 @@ testCases:
                   where _c0 >= _twstart and _c0 <= _twend;
 
     - scenarioId: "T7"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db1.stm_t7 
@@ -454,7 +454,7 @@ testCases:
                 on a.ts = b.ts;
 
     - scenarioId: "T8"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db1.stm_t8 
@@ -471,7 +471,7 @@ testCases:
                   where _c0 >= _twstart and _c0 <= _twend;
 
     - scenarioId: "T9"
-      classfication: "Vehicle"
+      classif: "Vehicle"
       description: ""
       sql: |
         create stream db2.stm_t9 
@@ -488,7 +488,7 @@ testCases:
                 where _c0 >= _twstart and _c0 <= _twend;
 
     - scenarioId: "U1"
-      classfication: "UserCase"
+      classif: "UserCase"
       description: ""
       sql: |
         create stream metron_dmp.alarm_stream 

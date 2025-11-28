@@ -50,7 +50,7 @@ def doScene(scene):
 
     # prepare env
     env = prepareEnv.PrepareEnv(scene)
-    if env.run() == False:
+    if not env.run():
         return False
 
     if cmd.user_canceled:

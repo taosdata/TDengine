@@ -19,6 +19,7 @@ import time
 import json
 from outLog import log
 from cmdLine import cmd
+from outDB import OutDB
 
 class Delay :
     def __init__(self, cnt=0 ,min=0, avg=0, p10=0, p50=0, p90=0, p95=0, p99=0, max=0):
@@ -110,15 +111,15 @@ class OutMetrics:
         
         # Column widths
         col_widths = {
-            'scenario_id': 8,
+            'scenario': 8,
             'status': 8,
-            'classification': 8,
-            'out_records': 10,
-            'in_records': 10,
+            'classif': 8,
+            'out_rec': 10,
+            'in_rec': 10,
             'start_time': 19,
             'end_time': 19,
-            'duration': 10,
-            'throughput': 10,
+            'dur': 10,
+            'tp': 10,
             "delay_avg": 6,
             "delay_min": 6,
             "delay_p10": 6,
@@ -144,15 +145,15 @@ class OutMetrics:
         
         # Header
         header = (
-            f"| {'Scenario':<{col_widths['scenario_id']}} "
+            f"| {'Scenario':<{col_widths['scenario']}} "
             f"| {'Status':<{col_widths['status']}} "
-            f"| {'Classif':<{col_widths['classification']}} "
-            f"| {'Out Rec':>{col_widths['out_records']}} "
-            f"| {'In Rec':>{col_widths['in_records']}} "
+            f"| {'Classif':<{col_widths['classif']}} "
+            f"| {'Out Rec':>{col_widths['out_rec']}} "
+            f"| {'In Rec':>{col_widths['in_rec']}} "
             f"| {'Start Time':>{col_widths['start_time']}} "
             f"| {'End Time':>{col_widths['end_time']}} "
-            f"| {'Dur(s)':>{col_widths['duration']}} "
-            f"| {'TP(rec/s)':>{col_widths['throughput']}} "
+            f"| {'Dur(s)':>{col_widths['dur']}} "
+            f"| {'TP(rec/s)':>{col_widths['tp']}} "
             f"{header_delay}"
             f"|"
         )
@@ -172,15 +173,15 @@ class OutMetrics:
         
         # Separator line
         separator = (
-            f"|{'-' * (col_widths['scenario_id'] + 2)}"
+            f"|{'-' * (col_widths['scenario'] + 2)}"
             f"|{'-' * (col_widths['status'] + 2)}"
-            f"|{'-' * (col_widths['classification'] + 2)}"
-            f"|{'-' * (col_widths['out_records'] + 2)}"
-            f"|{'-' * (col_widths['in_records'] + 2)}"
+            f"|{'-' * (col_widths['classif'] + 2)}"
+            f"|{'-' * (col_widths['out_rec'] + 2)}"
+            f"|{'-' * (col_widths['in_rec'] + 2)}"
             f"|{'-' * (col_widths['start_time'] + 2)}"
             f"|{'-' * (col_widths['end_time'] + 2)}"
-            f"|{'-' * (col_widths['duration'] + 2)}"
-            f"|{'-' * (col_widths['throughput'] + 2)}"
+            f"|{'-' * (col_widths['dur'] + 2)}"
+            f"|{'-' * (col_widths['tp'] + 2)}"
             f"{separator_delay}"
             f"|"
         )
@@ -200,10 +201,10 @@ class OutMetrics:
         for scenario in self.scenarioId:
             start_time = self.time_start_write.get(scenario, 0)
             end_time   = self.time_end_test.get(scenario, 0)
-            duration   = (end_time - start_time)  # s
+            duration   = round(end_time - start_time, 2)  # s
             out_rows   = self.output_rows.get(scenario, 0)
             in_rows    = self.data_rows.get(scenario, 0)
-            throughput = (in_rows / duration) if duration > 0 else 0
+            throughput = round((in_rows / duration) if duration > 0 else 0, 2)
             status     = self.status.get(scenario, "UNKNOWN")
             
             # Format time strings
@@ -235,15 +236,15 @@ class OutMetrics:
             
             # Print row with fixed width
             row = (
-                f"| {self.scenarioId[scenario]:<{col_widths['scenario_id']}} "
+                f"| {self.scenarioId[scenario]:<{col_widths['scenario']}} "
                 f"| {status:<{col_widths['status']}} "
-                f"| {self.classification[scenario]:<{col_widths['classification']}} "
-                f"| {out_rows:>{col_widths['out_records']}} "
-                f"| {in_rows:>{col_widths['in_records']}} "
+                f"| {self.classification[scenario]:<{col_widths['classif']}} "
+                f"| {out_rows:>{col_widths['out_rec']}} "
+                f"| {in_rows:>{col_widths['in_rec']}} "
                 f"| {start_time_str:<{col_widths['start_time']}} "
                 f"| {end_time_str:<{col_widths['end_time']}} "
-                f"| {duration:>{col_widths['duration']}.2f} "
-                f"| {throughput:>{col_widths['throughput']}.0f} "
+                f"| {duration:>{col_widths['dur']}.2f} "
+                f"| {throughput:>{col_widths['tp']}.0f} "
                 f"{row_delay}"
                 f"|"
             )
@@ -251,15 +252,15 @@ class OutMetrics:
             
             # Add to JSON data
             json_data = {
-                'scenario_id': self.scenarioId[scenario],
+                'scenario': self.scenarioId[scenario],
                 'status': status,
-                'classification': self.classification[scenario],
-                'out_records': out_rows,
-                'in_records': in_rows,
+                'classif': self.classification[scenario],
+                'out_rec': out_rows,
+                'in_rec': in_rows,
                 'start_time': start_time_str,
                 'end_time': end_time_str,
-                'duration_s': round(duration, 0),
-                'throughput_rec_per_sec': round(throughput, 2)                
+                'dur': duration,
+                'tp': throughput
             }
             if cmd.get_check_delay():
                 delay = self.delay.get(scenario, Delay())
@@ -291,14 +292,21 @@ class OutMetrics:
         json_filename = f'tsbs_{timestamp}.json'
         json_filepath = os.path.join(metrics_dir, json_filename)
         
-        # Write JSON file
+        # Write JSON to file
         try:
             with open(json_filepath, 'w', encoding='utf-8') as f:
                 json.dump(metrics_data, f, indent=2, ensure_ascii=False)
             log.out(f"Metrics json saved: {json_filepath}")
         except Exception as e:
             log.out(f"Failed to save metrics JSON: {e}")
-        
-        
+            
+        # Write JSON to database if configured
+        out_db = cmd.get_out_db()
+        if out_db:
+            try:
+                db = OutDB()
+                db.write_metrics_to_db(metrics_data, out_db)
+            except Exception as e:
+                log.out(f"Failed to write metrics to database: {e}")     
         
 metrics = OutMetrics()

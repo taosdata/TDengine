@@ -37,7 +37,7 @@ class PrepareEnv(BaseStep):
                     if len(command) == 0:
                         continue                    
                     if command.upper() == "WAIT TRANSACTIONS OVER":
-                        wait_transactions_zero(self, seconds=300, interval=1)
+                        wait_transactions_zero(seconds=300, interval=1)
                     else:
                         conn.execute(command)
                         log.out(f"exe success: {command}")
@@ -87,7 +87,7 @@ class PrepareEnv(BaseStep):
             
             # wait ok
             log.out("prepare wait transactions zero...")
-            wait_transactions_zero(self, seconds=300, interval=1)
+            wait_transactions_zero(seconds=300, interval=1)
             
             # create stream sql
             log.out("prepare execute main sql...")

@@ -146,6 +146,15 @@ class CmdLine:
             help='Note text for this test'
         )        
 
+        # note
+        self.parser.add_argument(
+            '-o', '--outdb',
+            type=str,
+            default=None,
+            metavar='TEXT',
+            help='Output database config like "host,port,user,password"'
+        )    
+
         # Version
         self.parser.add_argument(
             '-v', '--version',
@@ -188,8 +197,12 @@ class CmdLine:
     def get_check_delay(self):
         """Get check delay flag"""
         return self.check_delay
+
+    # outdb
+    def get_out_db(self):
+        return self.args.outdb    
     
-    #get note text
+    #note
     def get_note(self):
         return self.args.note
 
@@ -211,9 +224,9 @@ class CmdLine:
     def case_to_scene_obj(self, case):
         name = case["scenarioId"]
         sql  = case["sql"]
-        classification = case["classfication"]
+        classif = case["classif"]
         
-        return Scene(name, sql, classification, self.config_path, self.data_path)
+        return Scene(name, sql, classif, self.config_path, self.data_path)
 
     def load_cases_yaml(self, yaml_file):
         try:
@@ -228,7 +241,7 @@ class CmdLine:
                 for i, case in enumerate(data['testCases'], 1):
                     log.out(f"\n--- Test Case {i} ---")
                     log.out(f"Scenario ID:     {case.get('scenarioId', 'N/A')}")
-                    log.out(f"Classification:  {case.get('classfication', 'N/A')}")
+                    log.out(f"Classif:  {case.get('classif', 'N/A')}")
                     log.out(f"Description:     {case.get('description', 'N/A')}")
                     log.out(f"SQL:\n{case.get('sql', 'N/A')}")
                     log.out("-" * 50)
