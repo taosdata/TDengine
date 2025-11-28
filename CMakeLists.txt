@@ -56,6 +56,7 @@ add_subdirectory(docs/doxgen)
 include(cmake/install.cmake)
 include(CPack)
 
+
 message(STATUS "TAOSADAPTER_BUILD_OPTIONS:${TAOSADAPTER_BUILD_OPTIONS}")
 message(STATUS "TAOSADAPTER_GIT_TAG:${TAOSADAPTER_GIT_TAG}")
 message(STATUS "TAOSADAPTER_GIT_TAG_NAME:${TAOSADAPTER_GIT_TAG_NAME}")
