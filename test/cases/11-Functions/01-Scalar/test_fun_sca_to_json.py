@@ -744,5 +744,20 @@ class TestJsonTag:
         sql = f"select jtag, count(*) from {dbname}.jsons1 group by jtag->'tag1'"
         tdSql.error(sql)
         
+        sql = f"select jtag->'tag1', count(*) from {dbname}.jsons1 partition by jtag->'tag1'"
+        tdSql.query(sql)
+        tdSql.checkRows(7)
+
+        sql = f"select jtag, count(*) from {dbname}.jsons1 partition by jtag"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        
+        sql = f"select jtag->'tag1', count(*) from {dbname}.jsons1 partition by jtag"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        
+        sql = f"select jtag, count(*) from {dbname}.jsons1 partition by jtag->'tag1'"
+        tdSql.error(sql)
+        
         #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
