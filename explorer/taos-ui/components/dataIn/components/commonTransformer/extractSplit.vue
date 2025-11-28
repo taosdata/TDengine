@@ -463,10 +463,13 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
   if (props.datasourceType == 'mqtt' || props.datasourceType == 'kafka') {
     inputList = inputList.map((msg: any, index: string | number) => {
       let inputobj = { ...msg };
-      inputobj[props.itemData.columnname] =
-        props.msgForm.topicbody[index] && props.msgForm.topicbody[index][props.itemData.columnname];
+      const topicBody = props.msgForm.topicbody[index];
+      const colName = props.itemData.columnname;
+      if (topicBody && topicBody[colName]) {
+        inputobj[colName] = topicBody[colName];
+      }
       if (isall) {
-        inputobj = { ...props.msgForm.topicbody[index], ...inputobj };
+        inputobj = { ...topicBody, ...inputobj };
       }
       if (inputobj.payload === '{}') {
         delete inputobj.payload;
@@ -474,6 +477,7 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
       return inputobj;
     });
   }
+
   return inputList;
 }
 
@@ -600,13 +604,11 @@ function getParserParams(isall?: boolean): Recordable {
         : supportTransform.supportSQL
           ? isall
             ? topparse.input
-            : [
-                topparse.input.map((_item, index) => {
+            : topparse.input.map((_item, index) => {
                   return {
                     [`${props.itemData.columnname}`]: topparse.input[index][props.itemData.columnname]
                   };
                 })
-              ]
           : inputList
   };
 

@@ -873,9 +873,6 @@ async function getMsgBody() {
     const isSupportType = supportedTypes.includes(sourceForm.type);
     const params: Recordable = { dsn: sourceForm };
     params.dsn.sample_data_limit = transformerState.limitOffset;
-    // if (isSupportType) {
-    //   params.dsn.get_sample_timeout = 3;
-    // }
     const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
     if (result && Object.hasOwnProperty.call(result, 'code')) {
       ElMessage.error(result.message || result.desc);
@@ -904,12 +901,13 @@ async function getMsgBody() {
         ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip', [result.input.length]));
       }
       result.input.map((item: Recordable) => {
-        msgForm.msgbody += item.payload + '\n';
         if (sourceForm.type === 'kafka') {
+          msgForm.msgbody += item.value + '\n';
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { value, ...rest } = item;
           msgForm.topicbody.push(rest);
         } else {
+          msgForm.msgbody += item.payload + '\n';
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { payload, ...rest } = item;
           msgForm.topicbody.push(rest);
@@ -1519,7 +1517,7 @@ function echoExtractData(mutate: Recordable[]) {
           new_field_name: item[1].new_field_name
         };
       }
-      if (item[1].json) {
+      if (item[1].json || item[1].json === '') {
         obj['jsonParams'] = {
           depth: item[1].depth,
           keep: item[1].keep,
@@ -1925,7 +1923,7 @@ function changeColumnStatus(index: number, name: string) {
 provide('generateInput', generateInput);
 //输出input结果
 function generateInput() {
-  let demo_list;
+  let demo_list = [];
   try {
     if (parseruleForm.type == 'regex') {
       demo_list = msgForm.msgbody.split(/\n+/);
@@ -1971,6 +1969,12 @@ function generateInput() {
     const newItem = msgForm.topicbody[index];
     return { ...item, ...newItem };
   });
+
+  if (supportTransform.supportSQL) {
+    if (demo_list?.[0]) {
+      inputList = JSON.parse(demo_list[0])['input'];
+    }
+  }
 
   return inputList?.filter(v => JSON.stringify(v) !== '{}');
 }
