@@ -575,35 +575,6 @@ static bool uvDataTimeWhiteListIsDefaultAddr(SIpAddr* ip) {
   int32_t code = 0;
   int32_t lino = 0;
   return code;
-  //   SIpRange addr4 = {0};
-  //   SIpRange addr6 = {0};
-
-  //   SIpRange target = {0};
-  //   code = tIpStrToUint(ip, &target);
-  //   TAOS_CHECK_GOTO(code, &lino, _error);
-
-  //   if (target.type == 0) {
-  //     code = createDefaultIp4Range(&addr4);
-  //     TAOS_CHECK_GOTO(code, &lino, _error);
-
-  //     if (target.ipV4.ip == addr4.ipV4.ip) {
-  //       return true;
-  //     }
-
-  //   } else {
-  //     code = createDefaultIp6Range(&addr6);
-  //     TAOS_CHECK_GOTO(code, &lino, _error);
-
-  //     if (addr6.ipV6.addr[0] == target.ipV6.addr[0] && addr6.ipV6.addr[1] == target.ipV6.addr[1]) {
-  //       return true;
-  //     }
-  //   }
-
-  // _error:
-  //   if (code != 0) {
-  //     tError("failed to create default ip range since %s", tstrerror(code));
-  //   }
-  //   return false;
 }
 
 bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
@@ -801,6 +772,9 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
 
   if (pThrd->enableDataTimeWhiteList) {
     timeForbiddenIp = !uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn) ? 1 : 0;
+    if (timeForbiddenIp == 0) {
+      uvDataTimeWhiteListSetVer(pThrd->pDataTimeWhiteList, pConn);
+    }
   }
 
   if (forbiddenIp) {
