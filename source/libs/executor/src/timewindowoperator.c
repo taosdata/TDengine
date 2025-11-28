@@ -1079,6 +1079,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
           qError("%s:%d duplicated ts found in state window aggregation", __FILE__, __LINE__);
           pTaskInfo->code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
           T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP);
+        } else {
+          pInfo->winSup.lastTs = tsList[j];
         }
       }
     }

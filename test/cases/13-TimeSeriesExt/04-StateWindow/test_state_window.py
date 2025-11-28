@@ -199,9 +199,7 @@ class TestStateWindow:
             for num in range(10):
                 tdSql.execute(f"INSERT INTO ts6079.t{tableIndex} VALUES({ts + num}, {num * 1.0}, {215 + num}, 0.0)")
 
-        tdSql.query("select _wstart ,first(ts),last(ts),count(*),to_char(ts, 'yyyymmdd') as ts from ts6079.meters partition by to_char(ts, 'yyyymmdd') as ts state_window(cast(current as varchar(2)));")
-        tdSql.checkRows(10)
-        tdSql.checkData(0, 3, 10)
+        tdSql.error("select _wstart ,first(ts),last(ts),count(*),to_char(ts, 'yyyymmdd') as ts from ts6079.meters partition by to_char(ts, 'yyyymmdd') as ts state_window(cast(current as varchar(2)));")
 
     def test_state_window(self):
         """summary: xxx
@@ -218,8 +216,8 @@ class TestStateWindow:
             - xxx:xxx
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-28: Tony Zhang modified ts6079 case
+                because state window does not support duplicate timestamp
 
         """
 
