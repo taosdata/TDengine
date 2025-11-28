@@ -368,12 +368,7 @@ export default {
         }
       ],
       defaultValue: {
-        parse: {
-          payload: {
-            json: [],
-            keep: true
-          }
-        },
+        parse: {},
         model: {
           name: '',
           using: '',

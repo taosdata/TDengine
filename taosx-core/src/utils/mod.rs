@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::{io::BufRead, path::Path, thread::JoinHandle};
 use taos::*;
+use tokio_util::sync::CancellationToken;
 
 pub mod breakpoints;
 pub mod cert;
@@ -500,17 +501,26 @@ pub fn contains_uppercase(s: &str) -> bool {
 }
 
 /// 如果当前时间比 upcoming 早，等待到 upcoming
-pub async fn wait_for_upcoming(upcoming: Option<DateTime<Utc>>) -> anyhow::Result<()> {
+/// 如果等待期间收到取消信号则立刻返回错误
+pub async fn wait_for_upcoming(
+    upcoming: Option<DateTime<Utc>>,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     if let Some(upcoming) = upcoming {
         let now = Utc::now();
         if now < upcoming {
             let duration = upcoming - now;
             tracing::info!("wait for upcoming: {}", upcoming);
-            tokio::time::sleep(duration.to_std().map_err(|err| {
+            let dur = duration.to_std().map_err(|err| {
                 anyhow::Error::from(err)
                     .context(format!("failed to convert: {:?} to std duration", duration))
-            })?)
-            .await;
+            })?;
+            tokio::select! {
+                _ = tokio::time::sleep(dur) => {},
+                _ = cancel.cancelled() => {
+                    anyhow::bail!("cancelled while waiting for upcoming");
+                }
+            }
         }
     }
     Ok(())
@@ -723,24 +733,41 @@ mod tests {
 
     #[tokio::test]
     async fn test_wait_for_upcoming() {
+        let cancel = tokio_util::sync::CancellationToken::new();
+
         let now = Utc::now();
-        wait_for_upcoming(Some(now + chrono::Duration::seconds(2)))
+        wait_for_upcoming(Some(now + chrono::Duration::seconds(2)), cancel.clone())
             .await
             .unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 2);
 
         let now = Utc::now();
-        wait_for_upcoming(None).await.unwrap();
+        wait_for_upcoming(None, cancel.clone()).await.unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 0);
 
         let now = Utc::now();
-        wait_for_upcoming(Some(now - chrono::Duration::days(1)))
+        wait_for_upcoming(Some(now - chrono::Duration::days(1)), cancel.clone())
             .await
             .unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 0);
+
+        let now = Utc::now();
+        let cancel_clone = cancel.clone();
+        // 在 100ms 后触发取消
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            cancel_clone.cancel();
+        });
+        // 原计划等待 2s，但应在取消后尽快返回错误
+        let res = wait_for_upcoming(Some(now + chrono::Duration::seconds(2)), cancel).await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "cancelled while waiting for upcoming"
+        );
     }
 
     #[test]

@@ -1,9 +1,10 @@
 import { request } from '@/utils/request.ts';
+import pathDetector from '@/utils/pathDetector';
 
 //执行开始方法
 export function executeStart(id) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}/start`,
     method: 'post',
     headers: {
@@ -15,7 +16,7 @@ export function executeStart(id) {
 //执行停止方法
 export function executeStop(id) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}/stop`,
     method: 'post',
     headers: {
@@ -26,7 +27,7 @@ export function executeStop(id) {
 
 export function executeDel(id, yesDeleteFile) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}?after_delete=${yesDeleteFile ? 'clear' : ''}`,
     method: 'delete'
   });

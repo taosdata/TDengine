@@ -58,6 +58,10 @@ const filterFormRef = ref();
 
 const emit = defineEmits(['validate-msgbody', 'delete-filter', 'change-filter']);
 
+defineExpose({
+  submitFilter
+});
+
 watch(
   () => props.itemData,
   val => {

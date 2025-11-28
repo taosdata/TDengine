@@ -99,7 +99,7 @@ async fn get_sample_impl(
                         .process(p.to_vec())?
                         .try_into()
                         .context("payload not valid utf8 string")?;
-                    res.insert("payload", payload);
+                    res.insert("value", payload);
                 }
                 if let Some(key) = m.key() {
                     let key: String = key

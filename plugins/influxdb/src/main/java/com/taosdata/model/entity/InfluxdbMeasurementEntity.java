@@ -1,11 +1,9 @@
 package com.taosdata.model.entity;
-
 import com.alibaba.fastjson.JSONObject;
 import lombok.Getter;
 import lombok.Setter;
-
 import java.util.Map;
-import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * influxdb measurement实体类
@@ -20,7 +18,7 @@ public class InfluxdbMeasurementEntity {
 
     private String measurement;
     private Map<String, String> fieldMap;
-    private Set<String> tagSet;
+    private TreeSet<String> tagSet;
 
     @Override
     public String toString() {

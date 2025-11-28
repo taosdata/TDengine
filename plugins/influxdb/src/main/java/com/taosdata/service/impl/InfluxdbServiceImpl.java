@@ -233,7 +233,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                 influxdbMeasurementEntity.setBucket(bucket);
                 influxdbMeasurementEntity.setMeasurement(measurement);
                 influxdbMeasurementEntity.setFieldMap(new HashMap<>());
-                influxdbMeasurementEntity.setTagSet(new HashSet<>());
+                influxdbMeasurementEntity.setTagSet(new TreeSet<>());
                 influxdbMeasurementEntityList.add(influxdbMeasurementEntity);
             }
             // 遍历measurement列表
@@ -421,7 +421,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                         continue;
                     }
                     InfluxdbBucketDataEntity influxdbBucketDataEntity = new InfluxdbBucketDataEntity();
-                    influxdbBucketDataEntity.setTags(new HashMap<>());
+                    influxdbBucketDataEntity.setTags(new TreeMap<>());
                     // 获取字段及对应值
                     Map<String, Object> map = fluxRecord.getValues();
                     map.forEach((key, value) -> {
@@ -555,7 +555,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                 influxdbMeasurementEntity.setBucket(bucket);
                 influxdbMeasurementEntity.setMeasurement(measurement);
                 influxdbMeasurementEntity.setFieldMap(new HashMap<>());
-                influxdbMeasurementEntity.setTagSet(new HashSet<>());
+                influxdbMeasurementEntity.setTagSet(new TreeSet<>());
                 influxdbMeasurementEntityList.add(influxdbMeasurementEntity);
             }
             // 遍历measurement列表
@@ -731,7 +731,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                         continue;
                     }
                     InfluxdbBucketDataEntity influxdbBucketDataEntity = new InfluxdbBucketDataEntity();
-                    influxdbBucketDataEntity.setTags(new HashMap<>());
+                    influxdbBucketDataEntity.setTags(new TreeMap<>());
                     // 获取字段与对应的值
                     List<String> columns = series.getColumns() != null ? series.getColumns() : new ArrayList<>();
                     List<List<Object>> values = series.getValues() != null ? series.getValues() : new ArrayList<>();

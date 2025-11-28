@@ -15,7 +15,7 @@ pub const CACHE_DIR: &str = "cache";
 pub const ARCHIVE_DIR: &str = "archived";
 
 pub async fn get_rewrite_files(
-    archive_tx: flume::Sender<ArchiveType>,
+    archive_tx: &flume::Sender<ArchiveType>,
 ) -> Result<Vec<PathBuf>, ArchiveError> {
     let (resp_tx, rx) = oneshot::channel::<Result<Vec<PathBuf>, ArchiveError>>();
     archive_tx

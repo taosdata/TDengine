@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use taos::Dsn;
 
-use taosx_core::runners::config::PerformanceConfig;
+use taosx_core::{runners::config::PerformanceConfig, utils::parse_key_in_dsn};
 
 #[derive(Debug, serde::Serialize)]
 pub struct OpentsdbConfig {
@@ -84,10 +84,13 @@ pub struct TaskConfig {
     pub log_level: Option<String>,
     pub timestamp_field_name: Option<String>,
     pub value_field_name: Option<String>,
+    pub table_name_pattern: Option<String>,
 }
 
 impl TaskConfig {
     fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
+        let table_name_pattern = parse_key_in_dsn(dsn, "tableNamePattern")?;
+
         Ok(Self {
             mode: dsn
                 .params
@@ -126,6 +129,7 @@ impl TaskConfig {
                 .get("valueFieldName")
                 .or(dsn.params.get("value_field_name"))
                 .map(|s| s.to_string()),
+            table_name_pattern,
         })
     }
 }

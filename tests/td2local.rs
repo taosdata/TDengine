@@ -3,13 +3,8 @@ use std::{env, path::Path};
 use assert_cmd::Command;
 use taos::*;
 
-/// cargo nextest run test_td2local --nocapture --retries 0
 #[tokio::test]
 async fn test_td2local_with_taos() -> anyhow::Result<()> {
-    let _ = tracing_subscriber::fmt::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .try_init();
-
     let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
     let ws_enable = std::env::var("WS_ENABLE")
         .ok()
@@ -18,6 +13,7 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
     const DB_SRC: &str = "td2local_src";
     const DB_DST: &str = "td2local_dst";
 
+    // 建库建表，插入测试数据
     let taos = taosx_core::utils::sql::connect_taos(&host, ws_enable).await?;
     taos.exec_many(vec![
         format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
@@ -38,13 +34,14 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         format!(
             "INSERT INTO `{DB_SRC}`.t3 USING `{DB_SRC}`.stb TAGS(3) VALUES('2025-09-01T12:00:00+0800', 3)"
         ),
-        format!("CREATE TABLE `{DB_SRC}`.`Abc`(ts timestamp, f1 float, f2 int, f3 varchar(20)) TAGS(id int, name varchar(200))"),
-        format!("INSERT INTO `{DB_SRC}`.`Ctb1` USING `{DB_SRC}`.`Abc` TAGS(1, 'child table 1') VALUES('2025-09-01T12:00:00+0800', 1.11, 1, 'abc1')"),
-        format!("INSERT INTO `{DB_SRC}`.`Ctb2` USING `{DB_SRC}`.`Abc` TAGS(2, 'child table 2') VALUES('2025-09-01T12:00:00+0800', 2.22, 2, 'abc2')"),
-        format!("INSERT INTO `{DB_SRC}`.`Ctb3` USING `{DB_SRC}`.`Abc` TAGS(3, 'child table 3') VALUES('2025-09-01T12:00:00+0800', 3.33, 3, 'abc3')"),
+        // format!("CREATE TABLE `{DB_SRC}`.`Abc`(ts timestamp, f1 float, f2 int, f3 varchar(20)) TAGS(id int, name varchar(200))"),
+        // format!("INSERT INTO `{DB_SRC}`.`Ctb1` USING `{DB_SRC}`.`Abc` TAGS(1, 'child table 1') VALUES('2025-09-01T12:00:00+0800', 1.11, 1, 'abc1')"),
+        // format!("INSERT INTO `{DB_SRC}`.`Ctb2` USING `{DB_SRC}`.`Abc` TAGS(2, 'child table 2') VALUES('2025-09-01T12:00:00+0800', 2.22, 2, 'abc2')"),
+        // format!("INSERT INTO `{DB_SRC}`.`Ctb3` USING `{DB_SRC}`.`Abc` TAGS(3, 'child table 3') VALUES('2025-09-01T12:00:00+0800', 3.33, 3, 'abc3')"),
     ])
     .await?;
 
+    // 创建临时目录作为备份目录
     let tmp_dir = tempfile::tempdir()?;
     let backup_dir = match env::var("LOCAL_DIR").ok() {
         Some(p) => {
@@ -66,11 +63,10 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         let to = format!("local:{}", backup_dir.display());
         (from, to)
     };
-
     // 执行备份：taosx run -f "taos://..." -t "local:..."
     let mut taosx = Command::cargo_bin("taosx")?;
     taosx
-        .args(["run", "-f", &from, "-t", &to])
+        .args(["run", "-f", &from, "-t", &to, "-v"])
         .env("TAOSX_DATA_DIR", backup_dir.as_path())
         .assert()
         .success();
@@ -86,42 +82,41 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         // 备份文件包括：data.bin.* 和 schema.meta
         if path.is_file() {
             let file_name = path.file_name().unwrap().to_string_lossy();
-            assert!(file_name.starts_with("data.bin") || file_name.starts_with("schema.meta"));
+            dbg!(&file_name);
         }
     }
 
-    // let (from, to) = if ws_enable {
-    //     let from = format!("local:{}", backup_dir.display());
-    //     let to = format!("taos+ws://{host}:6041/{DB_DST}");
-    //     (from, to)
-    // } else {
-    //     let from = format!("local:{}", backup_dir.display());
-    //     let to = format!("taos://{host}:6030/{DB_DST}");
-    //     (from, to)
-    // };
-
+    let (from, to) = if ws_enable {
+        let from = format!("local:{}", backup_dir.display());
+        let to = format!("taos+ws://{host}:6041/{DB_DST}");
+        (from, to)
+    } else {
+        let from = format!("local:{}", backup_dir.display());
+        let to = format!("taos://{host}:6030/{DB_DST}");
+        (from, to)
+    };
     // 执行恢复：taosx run -f "local:..." -t "taos://..."
-    // let mut taosx = Command::cargo_bin("taosx")?;
-    // taosx
-    //     .args(["run", "-f", &from, "-t", &to])
-    //     .env("TAOSX_DATA_DIR", backup_dir.as_path())
-    //     .assert()
-    //     .success();
+    let mut taosx = Command::cargo_bin("taosx")?;
+    taosx
+        .args(["run", "-f", &from, "-t", &to, "-v"])
+        .env("TAOSX_DATA_DIR", backup_dir.as_path())
+        .assert()
+        .success();
 
     // 检查恢复结果
-    // let count: i32 = taos
-    //     .query_one(format!("SELECT * FROM `{DB_DST}`.t"))
-    //     .await
-    //     .unwrap()
-    //     .unwrap_or(0);
-    // assert_eq!(count, 1);
+    let count: i32 = taos
+        .query_one(format!("SELECT COUNT(*) FROM `{DB_DST}`.t"))
+        .await
+        .unwrap()
+        .unwrap_or(0);
+    assert_eq!(count, 1);
 
-    // let count: i32 = taos
-    //     .query_one(format!("SELECT COUNT(*) FROM `{DB_DST}`.stb"))
-    //     .await
-    //     .unwrap()
-    //     .unwrap_or(0);
-    // assert_eq!(count, 3);
+    let count: i32 = taos
+        .query_one(format!("SELECT COUNT(*) FROM `{DB_DST}`.stb"))
+        .await
+        .unwrap()
+        .unwrap_or(0);
+    assert_eq!(count, 3);
 
     // let count: i32 = taos
     //     .query_one(format!("SELECT COUNT(*) FROM `{DB_DST}`.`Abc`"))

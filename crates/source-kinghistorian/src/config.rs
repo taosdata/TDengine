@@ -1,5 +1,6 @@
 use anyhow::Ok;
 use chrono::{DateTime, Local};
+use faststr::FastStr;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, time::Duration};
 use taos::Dsn;
@@ -9,7 +10,7 @@ use taosx_core::utils::{parse_duration_in_dsn, parse_key_in_dsn, parse_local_dat
 pub struct KingHistConfig {
     pub connect: KingHistConnectConfig, // KingHistorian 连接配置
     pub csv_path: Option<PathBuf>,      // csv 配置文件路径
-    pub csv_content: String,            // csv 配置文件内容
+    pub csv_content: FastStr,           // csv 配置文件内容
     pub mode: KingHistMode,             // history or realtime
     #[serde(flatten)]
     pub query_criteria: Option<HistQueryCriteria>, // KingHistorian 查询条件，mode 为 History 时有效
