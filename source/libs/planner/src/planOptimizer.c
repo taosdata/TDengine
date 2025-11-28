@@ -5773,12 +5773,21 @@ static int32_t pushDownLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return TSDB_CODE_SUCCESS;
 }
 
+/*----------------------------------.
+|   Table Count Scan Optimization   |
+`----------------------------------*/
+
 typedef struct STbCntScanOptInfo {
   SAggLogicNode*  pAgg;
   SScanLogicNode* pScan;
   SName           table;
 } STbCntScanOptInfo;
 
+/**
+  Check whether the group keys are eligible 
+  for table count scan optimization.
+  The group keys should be db_name and/or stable_name only.
+*/
 static bool tbCntScanOptIsEligibleGroupKeys(SNodeList* pGroupKeys) {
   if (NULL == pGroupKeys) {
     return true;
@@ -5786,12 +5795,14 @@ static bool tbCntScanOptIsEligibleGroupKeys(SNodeList* pGroupKeys) {
 
   SNode* pGroupKey = NULL;
   FOREACH(pGroupKey, pGroupKeys) {
-    SNode* pKey = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+    SNode* pKey = nodesListGetNode(
+        ((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
     if (QUERY_NODE_COLUMN != nodeType(pKey)) {
       return false;
     }
     SColumnNode* pCol = (SColumnNode*)pKey;
-    if (0 != strcmp(pCol->colName, "db_name") && 0 != strcmp(pCol->colName, "stable_name")) {
+    if (0 != strcmp(pCol->colName, "db_name") &&
+        0 != strcmp(pCol->colName, "stable_name")) {
       return false;
     }
   }
@@ -5799,15 +5810,26 @@ static bool tbCntScanOptIsEligibleGroupKeys(SNodeList* pGroupKeys) {
   return true;
 }
 
+/**
+  Check whether the expression is on non-nullable columns.
+*/
 static bool tbCntScanOptNotNullableExpr(SNode* pNode) {
   if (QUERY_NODE_COLUMN != nodeType(pNode)) {
     return false;
   }
   const char* pColName = ((SColumnNode*)pNode)->colName;
-  return 0 == strcmp(pColName, "*") || 0 == strcmp(pColName, "db_name") || 0 == strcmp(pColName, "stable_name") ||
-         0 == strcmp(pColName, "table_name");
+  return 0 == strcmp(pColName, "*") ||
+         0 == strcmp(pColName, "table_name") ||
+         0 == strcmp(pColName, "db_name");
 }
 
+/**
+  Check whether all aggregation functions are eligible 
+  for table count scan optimization.
+  The aggregation functions should satisfy:
+    1. function type is COUNT
+    2. parameter is on non-nullable columns
+*/
 static bool tbCntScanOptIsEligibleAggFuncs(SNodeList* pAggFuncs) {
   SNode* pNode = NULL;
   FOREACH(pNode, pAggFuncs) {
@@ -5820,6 +5842,13 @@ static bool tbCntScanOptIsEligibleAggFuncs(SNodeList* pAggFuncs) {
   return LIST_LENGTH(pAggFuncs) > 0;
 }
 
+/**
+  Check whether the aggregation node is eligible 
+  for table count scan optimization.
+  The aggregation node should satisfy:
+    1. group keys are db_name and/or stable_name only
+    2. all aggregation functions are COUNT on non-nullable columns
+*/
 static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {
   return tbCntScanOptIsEligibleGroupKeys(pAgg->pGroupKeys) && tbCntScanOptIsEligibleAggFuncs(pAgg->pAggFuncs);
 }
@@ -5845,7 +5874,13 @@ static bool tbCntScanOptGetColValFromCond(SOperatorNode* pOper, SColumnNode** pC
   return NULL != *pCol && NULL != *pVal;
 }
 
-static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo, SLogicConditionNode* pCond) {
+/**
+  Check whether the logic condition is eligible for optimization.
+  The condition should be in the form of:
+    db_name = 'xxx' AND stable_name = 'yyy'
+*/
+static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo, 
+                                            SLogicConditionNode* pCond) {
   if (LOGIC_COND_TYPE_AND != pCond->condType) {
     return false;
   }
@@ -5856,7 +5891,8 @@ static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo, SLogicCond
   SValueNode*  pVal = NULL;
   SNode*       pNode = NULL;
   FOREACH(pNode, pCond->pParameterList) {
-    if (QUERY_NODE_OPERATOR != nodeType(pNode) || !tbCntScanOptGetColValFromCond((SOperatorNode*)pNode, &pCol, &pVal)) {
+    if (QUERY_NODE_OPERATOR != nodeType(pNode) ||
+        !tbCntScanOptGetColValFromCond((SOperatorNode*)pNode, &pCol, &pVal)) {
       return false;
     }
     if (!hasDbCond && 0 == strcmp(pCol->colName, "db_name")) {
@@ -5869,49 +5905,85 @@ static bool tbCntScanOptIsEligibleLogicCond(STbCntScanOptInfo* pInfo, SLogicCond
       return false;
     }
   }
-  return hasDbCond;
+  return hasDbCond && hasStbCond;
 }
 
-static bool tbCntScanOptIsEligibleOpCond(SOperatorNode* pCond) {
+/**
+  Check whether the operator condition is eligible
+  for table count scan optimization.
+  The condition should be in the form of:
+    db_name = 'xxx',
+  or
+    stable_name = 'yyy'
+*/
+static bool tbCntScanOptIsEligibleOpCond(STbCntScanOptInfo* pInfo,
+                                         SOperatorNode* pCond) {
   SColumnNode* pCol = NULL;
   SValueNode*  pVal = NULL;
   if (!tbCntScanOptGetColValFromCond(pCond, &pCol, &pVal)) {
     return false;
   }
-  return 0 == strcmp(pCol->colName, "db_name");
+  if (0 == strcmp(pCol->colName, "db_name")) {
+    tstrncpy(pInfo->table.dbname, pVal->literal, TSDB_DB_NAME_LEN);
+    return true;
+  }
+  if (0 == strcmp(pCol->colName, "stable_name")) {
+    tstrncpy(pInfo->table.tname, pVal->literal, TSDB_TABLE_NAME_LEN);
+    return true;
+  }
+  return false;
 }
 
-static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pConditions) {
+/**
+  Check whether the conditions are eligible
+  for table count scan optimization.
+  The conditions should be in the form of:
+    db_name = 'xxx' AND stable_name = 'yyy',
+  or
+    db_name = 'xxx',
+  or
+    stable_name = 'yyy'
+*/
+static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo,
+                                        SNode* pConditions) {
   if (NULL == pConditions) {
     return true;
   }
+
   if (LIST_LENGTH(pInfo->pAgg->pGroupKeys) != 0) {
     return false;
   }
+
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pConditions)) {
-    return tbCntScanOptIsEligibleLogicCond(pInfo, (SLogicConditionNode*)pConditions);
+    return tbCntScanOptIsEligibleLogicCond(pInfo,
+                                           (SLogicConditionNode*)pConditions);
   }
 
   if (QUERY_NODE_OPERATOR == nodeType(pConditions)) {
-    return tbCntScanOptIsEligibleOpCond((SOperatorNode*)pConditions);
+    return tbCntScanOptIsEligibleOpCond(pInfo, (SOperatorNode*)pConditions);
   }
 
   return false;
 }
 
+/**
+  Check whether the scan node is eligible 
+  for table count scan optimization.
+*/
 static bool tbCntScanOptIsEligibleScan(STbCntScanOptInfo* pInfo) {
-  if (0 != strcmp(pInfo->pScan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB) ||
-      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_TABLES) || NULL != pInfo->pScan->pGroupTags ||
-      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_DISK_USAGE) ||
-      0 != strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_FILESETS)) {
-    return false;
-  }
-  if (1 == pInfo->pScan->pVgroupList->numOfVgroups && MNODE_HANDLE == pInfo->pScan->pVgroupList->vgroups[0].vgId) {
+  // only support information_schema.ins_tables
+  // don't add any other system tables here
+  if (strcmp(pInfo->pScan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB) != 0 ||
+      strcmp(pInfo->pScan->tableName.tname, TSDB_INS_TABLE_TABLES) != 0 || 
+      pInfo->pScan->pGroupTags != NULL) {
     return false;
   }
   return tbCntScanOptIsEligibleConds(pInfo, pInfo->pScan->node.pConditions);
 }
 
+/**
+  Check whether the tb count scan optimization should be applied.
+*/
 static bool tbCntScanOptShouldBeOptimized(SLogicNode* pNode, STbCntScanOptInfo* pInfo) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
@@ -5923,6 +5995,9 @@ static bool tbCntScanOptShouldBeOptimized(SLogicNode* pNode, STbCntScanOptInfo* 
   return tbCntScanOptIsEligibleAgg(pInfo->pAgg) && tbCntScanOptIsEligibleScan(pInfo);
 }
 
+/**
+  Create the function node of _table_count.
+*/
 static int32_t tbCntScanOptCreateTableCountFunc(SNode** ppNode) {
   SFunctionNode* pFunc = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
@@ -5940,10 +6015,15 @@ static int32_t tbCntScanOptCreateTableCountFunc(SNode** ppNode) {
   return code;
 }
 
+/**
+  Rewrite the scan node to table count scan.
+*/
 static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo) {
   pInfo->pScan->scanType = SCAN_TYPE_TABLE_COUNT;
-  tstrncpy(pInfo->pScan->tableName.dbname, pInfo->table.dbname, TSDB_DB_NAME_LEN);
-  tstrncpy(pInfo->pScan->tableName.tname, pInfo->table.tname, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pInfo->pScan->tableName.dbname,
+           pInfo->table.dbname, TSDB_DB_NAME_LEN);
+  tstrncpy(pInfo->pScan->tableName.tname,
+           pInfo->table.tname, TSDB_TABLE_NAME_LEN);
   NODES_DESTORY_LIST(pInfo->pScan->node.pTargets);
   NODES_DESTORY_LIST(pInfo->pScan->pScanCols);
   NODES_DESTORY_NODE(pInfo->pScan->node.pConditions);
@@ -5954,12 +6034,15 @@ static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo) {
     code = nodesListMakeStrictAppend(&pInfo->pScan->pScanPseudoCols, pNew);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExpr(nodesListGetNode(pInfo->pScan->pScanPseudoCols, 0), &pInfo->pScan->node.pTargets);
+    code = createColumnByRewriteExpr(
+        nodesListGetNode(pInfo->pScan->pScanPseudoCols, 0),
+        &pInfo->pScan->node.pTargets);
   }
   SNode* pGroupKey = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     FOREACH(pGroupKey, pInfo->pAgg->pGroupKeys) {
-      SNode* pGroupCol = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+      SNode* pGroupCol = nodesListGetNode(
+          ((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
       SNode* pNew = NULL;
       code = nodesCloneNode(pGroupCol, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -5987,7 +6070,11 @@ static int32_t tbCntScanOptRewriteScan(STbCntScanOptInfo* pInfo) {
   return code;
 }
 
-static int32_t tbCntScanOptCreateSumFunc(SFunctionNode* pCntFunc, SNode* pParam, SNode** pOutput) {
+/**
+  Create the function node of sum for table count scan.
+*/
+static int32_t tbCntScanOptCreateSumFunc(SFunctionNode* pCntFunc,
+                                         SNode* pParam, SNode** pOutput) {
   SFunctionNode* pFunc = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
@@ -6007,6 +6094,9 @@ static int32_t tbCntScanOptCreateSumFunc(SFunctionNode* pCntFunc, SNode* pParam,
   return code;
 }
 
+/**
+  Rewrite the agg node to use sum function on table count scan.
+*/
 static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
   SNode*          pSum = NULL;
@@ -6023,9 +6113,15 @@ static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
   return code;
 }
 
-static int32_t tableCountScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+/**
+  Apply table count scan optimization on the logic subplan.
+*/
+static int32_t tableCountScanOptimize(SOptimizeContext* pCxt,
+                                      SLogicSubplan* pLogicSubplan) {
   STbCntScanOptInfo info = {0};
-  if (!optFindEligibleNode(pLogicSubplan->pNode, (FShouldBeOptimized)tbCntScanOptShouldBeOptimized, &info)) {
+  if (!optFindEligibleNode(pLogicSubplan->pNode,
+                           (FShouldBeOptimized)tbCntScanOptShouldBeOptimized,
+                           &info)) {
     return TSDB_CODE_SUCCESS;
   }
 
