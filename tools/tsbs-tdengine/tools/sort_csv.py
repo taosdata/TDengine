@@ -135,13 +135,13 @@ Examples:
 
 '''
 # Sort by single column
-python [pipline_csv.py](http://_vscodecontentref_/0) -i head.csv -o output.csv -c name
+# python sort_csv.py -i head.csv -o output.csv -c name
 
 # Sort by two columns (name first, then ts)
-python [pipline_csv.py](http://_vscodecontentref_/1) -i head.csv -o output.csv -c name ts
+# python sort_csv.py -i head.csv -o output.csv -c name ts
 
 # Sort by three columns (fleet, name, ts)
-python [pipline_csv.py](http://_vscodecontentref_/2) -i head.csv -o output.csv -c fleet name ts
+# python sort_csv.py -i head.csv -o output.csv -c fleet name ts
 '''
 if __name__ == "__main__":
     main()
