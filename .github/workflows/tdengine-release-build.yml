@@ -86,6 +86,7 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DWEBSOCKET=true \
+            -DBUILD_XNODED=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4

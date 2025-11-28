@@ -57,6 +57,7 @@ cmake -B debug -G "NMake Makefiles" ^
         -DBUILD_TEST=true ^
         -DWEBSOCKET=true ^
         -DBUILD_DEPENDENCY_TESTS=false ^
+        -DBUILD_XNODED=true ^
         %*
 exit /B
 
