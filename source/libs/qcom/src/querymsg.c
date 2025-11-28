@@ -865,8 +865,11 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     goto PROCESS_META_OVER;
   }
 
+  bool isVirtual = (metaRsp.tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                    metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                    metaRsp.virtualStb);
   if (!IS_SYS_DBNAME(metaRsp.dbFName) &&
-      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
+      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags, isVirtual)) {
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_META_OVER;
   }
@@ -933,8 +936,12 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
     goto PROCESS_NAME_OVER;
   }
 
+  bool isVirtual = (metaRsp.tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                    metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                    metaRsp.virtualStb);
+
   if (!IS_SYS_DBNAME(metaRsp.dbFName) &&
-      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
+      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags, isVirtual)) {
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_NAME_OVER;
   }

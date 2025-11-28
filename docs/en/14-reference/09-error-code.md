@@ -233,6 +233,7 @@ Below are the business error codes for each module.
 | 0x800003C6 | Invalid schema version while alter stb                       | Internal error                                               | Report issue                                                 |
 | 0x800003C7 | Invalid stable uid while alter stb                           | Internal error                                               | Report issue                                                 |
 | 0x800003C8 | Field used by tsma                                           | Being used                                                   | Confirm if the operation is correct                          |
+| 0x800003C9 | Exceed max column id                                         | ColumnId exceed max num of int16_t                                                                                                                                                              | Check and correct the SQL statement                                                                                                                                  |
 | 0x800003D1 | Transaction not exists                                       | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003D2 | Invalid stage to kill                                        | Transaction is at a stage that cannot be killed (e.g., during commit) | Wait for the transaction to end, if it does not end for a long time, report issue |
 | 0x800003D3 | Conflict transaction not completed                           | Transaction conflict, cannot perform this operation          | Use the show transactions command to view the conflicting transaction, wait for the conflicting transaction to end, if it does not end for a long time, report issue |
@@ -308,7 +309,7 @@ Below are the business error codes for each module.
 #### vnode
 
 | Error Code | Description                                        | Possible Error Scenarios or Reasons             | Recommended Actions |
-| ---------- | -------------------------------------------------- | ----------------------------------------------- | ------------------- |
+|------------| -------------------------------------------------- |-------------------------------------------------| ------------------- |
 | 0x80000503 | Invalid vgroup ID                                  | Old client did not update cache, internal error | Report issue        |
 | 0x80000512 | No writing privilege                               | No write permission                             | Seek authorization  |
 | 0x80000520 | Vnode does not exist                               | Internal error                                  | Report issue        |
@@ -322,6 +323,7 @@ Below are the business error codes for each module.
 | 0x80000530 | Duplicate write request                            | Duplicate write request, internal error         | Report issue        |
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
 | 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
+| 0x80000542 | Exceed max column id                               | ColumnId exceed max num of int16_t              | Check and correct the SQL statement                    |
 
 #### tsdb
 

@@ -256,8 +256,9 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_ID_LEN   11
 #define TSDB_VGROUP_ID_LEN 11
 
-#define TSDB_MAX_COLUMNS 4096
-#define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
+#define TSDB_MAX_COLUMNS             32767
+#define TSDB_MAX_COLUMNS_NON_VIRTUAL 4096
+#define TSDB_MIN_COLUMNS             2  // PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
@@ -322,9 +323,10 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
 
-#define TSDB_MAX_BYTES_PER_ROW 65531  // 49151:65531
-#define TSDB_MAX_TAGS_LEN      16384
-#define TSDB_MAX_TAGS          128
+#define TSDB_MAX_BYTES_PER_ROW         65531  // 49151:65531
+#define TSDB_MAX_BYTES_PER_ROW_VIRTUAL 524283
+#define TSDB_MAX_TAGS_LEN              16384
+#define TSDB_MAX_TAGS                  128
 
 #define TSDB_MAX_COL_TAG_NUM  (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)
 #define TSDB_MAX_JSON_TAG_LEN 16384

@@ -161,7 +161,7 @@ extern "C" {
 #define TSDB_TIME_PRECISION_MICRO       1
 #define TSDB_TIME_PRECISION_NANO        2
 
-#define TSDB_MAX_COLUMNS                4096
+#define TSDB_MAX_COLUMNS                32767
 #define TSDB_MIN_COLUMNS                2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_TABLE_NAME_LEN             193     // it is a null-terminated string
