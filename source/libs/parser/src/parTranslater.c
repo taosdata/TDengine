@@ -16016,6 +16016,32 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
   SPrivSetRowCols* pPrivSetRowCols = &pStmt->privileges;
   SPrivSetArgs*    pPrivSetArgs = &pStmt->privileges;
 
+  if (pPrivSetArgs->rowSpans) {
+    if (LIST_LENGTH(pPrivSetArgs->rowSpans) != 2) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Row-level privileges require both start and end row spans");
+    }
+
+    SValueNode* pStart = (SValueNode*)nodesListGetNode(pPrivSetArgs->rowSpans, 0);
+    SValueNode* pEnd = (SValueNode*)nodesListGetNode(pPrivSetArgs->rowSpans, 1);
+
+    if (DEAL_RES_ERROR == translateValue(pCxt, pStart) || DEAL_RES_ERROR == translateValue(pCxt, pEnd)) {
+      return pCxt->errCode;
+    }
+
+    int64_t start = getBigintFromValueNode(pStart);
+    int64_t end = getBigintFromValueNode(pEnd);
+
+    if (start >= end) {
+      return generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+          "Invalid row range: start TS  should be less than end TS for row-level privileges");
+    }
+
+    pPrivSetRowCols->rowSpan[0] = start;
+    pPrivSetRowCols->rowSpan[1] = end;
+  }
+
   if (pPrivSetRowCols->selectCols || pPrivSetRowCols->insertCols || pPrivSetRowCols->updateCols) {
     if (pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -16042,7 +16068,7 @@ _exit:
 }
 
 static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, bool grant) {
-  int32_t       code = 0;
+  int32_t       code = 0, lino = 0;
   SAlterRoleReq req = {0};
   req.alterType = pStmt->optrType;
   req.add = grant ? 1 : 0;
@@ -16067,19 +16093,16 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                        "Object privileges of different types cannot be mixed");
       }
-      req.privileges = pStmt->privileges;
+      TAOS_CHECK_EXIT(translateGrantFillPrivileges(pCxt, pStmt, &req));
       if (category == PRIV_CATEGORY_SYSTEM) {
         req.sysPriv = 1;
         if (pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                         "System privileges should not have target");
+          TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                  "System privileges should not have target"));
         }
       } else {
         req.targetType = objType;
-        code = translateGrantCheckObject(pCxt, pStmt, category, objType, &req);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
+        TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, objType, &req));
       }
       break;
     }
@@ -16094,6 +16117,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_ROLE, (FSerializeFunc)tSerializeSAlterRoleReq, &req);
   }
+_exit:
   tFreeSAlterRoleReq(&req);
   return code;
 }

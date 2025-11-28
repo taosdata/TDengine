@@ -2603,7 +2603,7 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
     }
     TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->privileges.rowSpan[0]));  
     TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->privileges.rowSpan[1]));
-    int32_t nSelectCols = LIST_LENGTH(pReq->privileges.selectCols);
+    // int32_t nSelectCols = LIST_LENGTH(pReq->privileges.selectCols);
   }
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->principal));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objName));

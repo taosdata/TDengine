@@ -5306,7 +5306,7 @@ _err:
 }
 
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, int8_t optrType) {
+                       SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkRoleName(pCxt, pPrincipal, false));
   SGrantStmt* pStmt = NULL;
@@ -5321,6 +5321,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
       CHECK_NAME(checkObjName(pCxt, &pPrivLevel->first, false));
       CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
       pStmt->privileges = *(SPrivSetArgs*)resouces;
+      pStmt->privileges.rowSpans = pRows;
       if (TK_NK_NIL != pPrivLevel->first.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
       }
@@ -5347,7 +5348,7 @@ _err:
 }
 
 SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, int8_t optrType) {
+                        SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pPrincipal));
   SRevokeStmt* pStmt = NULL;

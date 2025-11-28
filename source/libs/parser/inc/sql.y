@@ -148,27 +148,27 @@ cmd ::= UNLOCK ROLE role_name(A).                                               
                                                                                     SToken t = {.n = 1, .z = "0", .type = TK_STRING };
                                                                                     pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t); 
                                                                                   }
-cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
-cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
+cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
+cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
 cmd ::= GRANT ALL priv_level_opt(B) with_clause_opt(D) TO user_name(C).           {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= REVOKE ALL  priv_level_opt(B) with_clause_opt(D)  FROM user_name(C).      {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= GRANT ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) TO user_name(C). {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= REVOKE ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) FROM user_name(C). {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
-                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
-cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
-cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
+cmd ::= GRANT privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
+cmd ::= REVOKE privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
 
 %type privileges                                                                  { SPrivSetArgs }
 %destructor privileges                                                            { }
@@ -223,6 +223,16 @@ priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                 
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
+
+%type between_clause_opt                                                          { SNodeList* }
+%destructor between_clause_opt                                                    { nodesDestroyList($$); }
+between_clause_opt(A) ::= .                                                       { A = NULL; }
+between_clause_opt(A) ::= BETWEEN signed_integer(B) AND signed_integer(C).        { A = createNodeList(pCxt, B);
+                                                                                    A = addNodeToList(pCxt, A, C);
+                                                                                  }
+between_clause_opt(A) ::= BETWEEN NK_STRING(B) AND NK_STRING(C).                  { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B));
+                                                                                    A = addNodeToList(pCxt, A, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &C));
+                                                                                  }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }

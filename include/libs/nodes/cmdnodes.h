@@ -817,7 +817,7 @@ typedef struct SDropViewStmt {
 typedef struct {
   int32_t    nPrivArgs;
   SPrivSet   privSet;
-  TSKEY      rowSpan[2];
+  SNodeList* rowSpans;
   SNodeList* selectCols;
   SNodeList* insertCols;
   SNodeList* updateCols;

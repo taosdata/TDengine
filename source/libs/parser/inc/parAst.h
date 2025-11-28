@@ -418,9 +418,9 @@ SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force);
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, int8_t optrType);
+                       SNode* pTagCond, SNodeList* pRows, int8_t optrType);
 SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, int8_t optrType);
+                        SNode* pTagCond, SNodeList* pRows, int8_t optrType);
 SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere);
 SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery);
 SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery);
