@@ -1273,7 +1273,6 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
 
 // used for tmq_get_json_meta to build alter msg
 static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_t* len){
-  int32_t code = 0;
   SMAlterStbReq alterReq = {0};
   alterReq.pFields = taosArrayInit(2, sizeof(SField));
   if (NULL == alterReq.pFields) {
@@ -1288,8 +1287,7 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
     }
     if (cIndex < 0) {
       alterReq.alterType = TSDB_ALTER_TABLE_ADD_COLUMN;
-    }
-    if (pSchema->bytes > pStb->pColumns[cIndex].bytes){
+    } else if (pSchema->bytes > pStb->pColumns[cIndex].bytes){
       alterReq.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
     }
     SField *pAlterField = taosArrayReserve(alterReq.pFields, 1);
@@ -1306,8 +1304,7 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
     }
     if (cIndex < 0) {
       alterReq.alterType = TSDB_ALTER_TABLE_ADD_TAG;
-    }
-    if (pSchema->bytes > pStb->pColumns[cIndex].bytes){
+    } else if (pSchema->bytes > pStb->pTags[cIndex].bytes){
       alterReq.alterType = TSDB_ALTER_TABLE_UPDATE_TAG_BYTES;
     }
     SField *pAlterField = taosArrayReserve(alterReq.pFields, 1);
