@@ -1271,6 +1271,77 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   return TSDB_CODE_SUCCESS;
 }
 
+// used for tmq_get_json_meta to build alter msg
+static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_t* len){
+  int32_t code = 0;
+  SMAlterStbReq alterReq = {0};
+  alterReq.pFields = taosArrayInit(2, sizeof(SField));
+  if (NULL == alterReq.pFields) {
+    mError("failed to init alter fields array");
+    goto END;
+  }
+  for (int32_t i = 0; i < pDst->numOfColumns && taosArrayGetSize(alterReq.pFields) == 0; ++i) {
+    SSchema           *pSchema = &pDst->pColumns[i];
+    int32_t cIndex = mndFindSuperTableColumnIndex(pStb, pSchema->name);
+    if (cIndex >= 0 && pSchema->bytes == pStb->pColumns[cIndex].bytes) {
+      continue;
+    }
+    if (cIndex < 0) {
+      alterReq.alterType = TSDB_ALTER_TABLE_ADD_COLUMN;
+    }
+    if (pSchema->bytes > pStb->pColumns[cIndex].bytes){
+      alterReq.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
+    }
+    SField *pAlterField = taosArrayReserve(alterReq.pFields, 1);
+    pAlterField->type = pSchema->type;
+    pAlterField->bytes = pSchema->bytes;
+    tstrncpy(pAlterField->name, pSchema->name, TSDB_COL_NAME_LEN);
+  }
+
+  for (int32_t i = 0; i < pDst->numOfTags && taosArrayGetSize(alterReq.pFields) == 0; ++i) {
+    SSchema *pSchema = &pDst->pTags[i];
+    int32_t cIndex = mndFindSuperTableTagIndex(pStb, pSchema->name);
+    if (cIndex >= 0 && pSchema->bytes == pStb->pTags[cIndex].bytes) {
+      continue;
+    }
+    if (cIndex < 0) {
+      alterReq.alterType = TSDB_ALTER_TABLE_ADD_TAG;
+    }
+    if (pSchema->bytes > pStb->pColumns[cIndex].bytes){
+      alterReq.alterType = TSDB_ALTER_TABLE_UPDATE_TAG_BYTES;
+    }
+    SField *pAlterField = taosArrayReserve(alterReq.pFields, 1);
+    pAlterField->type = pSchema->type;
+    pAlterField->bytes = pSchema->bytes;
+    tstrncpy(pAlterField->name, pSchema->name, TSDB_COL_NAME_LEN);
+  }
+  alterReq.numOfFields = taosArrayGetSize(alterReq.pFields);
+  if (alterReq.numOfFields == 0) {
+    mError("no valid alter field found");
+    goto END;
+  }
+
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &alterReq);
+  if (contLen <= 0) {
+    mError("failed to get alter stb req len");
+    goto END;
+  }
+  void*   buf = taosMemoryMalloc(contLen);
+  if (buf == NULL) {
+    mError("failed to malloc alter stb req buf");
+    goto END;
+  }
+  code = tSerializeSMAlterStbReq(buf, contLen, &alterReq);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed to serialize alter stb req");
+    taosMemoryFreeClear(buf);
+  }
+  *pAlterBuf = buf;
+  *len = contLen;
+END:
+  taosMemoryFree(alterReq.pFields);
+}
+
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -1404,8 +1475,11 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
       taosMemoryFreeClear(pDst.pExtSchemas);
       goto _OVER;
     }
-
-    code = mndAlterStbImp(pMnode, pReq, pDb, &pDst, needRsp, NULL, 0);
+    void* buf = NULL;
+    int32_t contLen = 0;
+    buildAlterMsg(pStb, &pDst, &buf, &contLen);
+    code = mndAlterStbImp(pMnode, pReq, pDb, &pDst, needRsp, buf, contLen);
+    taosMemoryFree(buf);
     taosMemoryFreeClear(pDst.pTags);
     taosMemoryFreeClear(pDst.pColumns);
     taosMemoryFreeClear(pDst.pCmpr);
