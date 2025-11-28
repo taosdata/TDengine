@@ -798,7 +798,6 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     code = sslRead(conn->pTls, pBuf, nread, 0);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
-
     conn->saslConn->isAuthed = 1;
     if (sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
       code = saslConnHandleAuth(conn->saslConn, (const char*)pBuf->buf, pBuf->len);
@@ -831,8 +830,8 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   } else if (nread == 0) {
     return;
   } else {
-    tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,uv_err_name(nread),
-           conn->dst, conn->src);
+    tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,
+           uv_err_name(nread), conn->dst, conn->src);
     transUnrefSrvHandle(conn);
     return;
   }
@@ -2144,7 +2143,7 @@ void uvHandleUpdateIpTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
 
   if (req == NULL) {
     tDebug("ip-white-list disable on trans");
-    thrd->enableTimeIpWhiteList= 0;
+    thrd->enableTimeIpWhiteList = 0;
     taosMemoryFree(msg);
     return;
   }
@@ -2550,7 +2549,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-   // impl later
+  // impl later
   return;
 }
 
