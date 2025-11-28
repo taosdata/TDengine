@@ -529,6 +529,13 @@ _err:
 SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs arg1, SPrivSetArgs arg2) {
   CHECK_PARSER_STATUS(pCxt);
   SPrivSetArgs merged = arg1;
+  merged.nPrivArgs += arg2.nPrivArgs;
+  if (merged.nPrivArgs > TSDB_PRIV_MAX_INPUT_ARGS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege types: exceed max privilege number:%d", TSDB_PRIV_MAX_INPUT_ARGS);
+    CHECK_PARSER_STATUS(pCxt);
+  }
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     if (arg2.privSet.set[i]) {
       merged.privSet.set[i] |= arg2.privSet.set[i];
@@ -539,24 +546,42 @@ SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs arg1, SPrivSetArg
       pCxt->errCode = nodesListAppendList(merged.selectCols, arg2.selectCols);
       CHECK_PARSER_STATUS(pCxt);
     }
-  } else {
+  } else if (arg2.selectCols) {
     merged.selectCols = arg2.selectCols;
+  }
+  if (LIST_LENGTH(merged.selectCols) > TSDB_MAX_COLUMNS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege columns: SELECT exceed max columns number:%d", TSDB_MAX_COLUMNS);
+    CHECK_PARSER_STATUS(pCxt);
   }
   if (merged.insertCols) {
     if (arg2.insertCols) {
       pCxt->errCode = nodesListAppendList(merged.insertCols, arg2.insertCols);
       CHECK_PARSER_STATUS(pCxt);
     }
-  } else {
+  } else if (arg2.insertCols) {
     merged.insertCols = arg2.insertCols;
+  }
+  if (LIST_LENGTH(merged.insertCols) > TSDB_MAX_COLUMNS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege columns: INSERT exceed max columns number:%d", TSDB_MAX_COLUMNS);
+    CHECK_PARSER_STATUS(pCxt);
   }
   if (merged.updateCols) {
     if (arg2.updateCols) {
       pCxt->errCode = nodesListAppendList(merged.updateCols, arg2.updateCols);
       CHECK_PARSER_STATUS(pCxt);
     }
-  } else {
+  } else if (arg2.updateCols) {
     merged.updateCols = arg2.updateCols;
+  }
+  if (LIST_LENGTH(merged.updateCols) > TSDB_MAX_COLUMNS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege columns: UPDATE exceed max columns number:%d", TSDB_MAX_COLUMNS);
+    CHECK_PARSER_STATUS(pCxt);
   }
 _err:
   return merged;
@@ -5281,7 +5306,7 @@ _err:
 }
 
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
+                       SNode* pTagCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkRoleName(pCxt, pPrincipal, false));
   SGrantStmt* pStmt = NULL;
@@ -5302,7 +5327,6 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
       if (TK_NK_NIL != pPrivLevel->second.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
       }
-      pStmt->pRows = pRows;
       pStmt->pTagCond = pTagCond;
       break;
     }
@@ -5323,7 +5347,7 @@ _err:
 }
 
 SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
+                        SNode* pTagCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pPrincipal));
   SRevokeStmt* pStmt = NULL;
@@ -5339,7 +5363,6 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs*
     if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }
-    pStmt->pRows = pRows;
     pStmt->pTagCond = pTagCond;
   } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
     SToken* pRole = (SToken*)resouces;

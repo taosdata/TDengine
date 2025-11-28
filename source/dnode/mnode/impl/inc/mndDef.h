@@ -429,43 +429,30 @@ typedef struct {
       uint8_t reserve : 7;
     };
   };
-  int32_t       acctId;
-  int32_t       authVersion;
-  int32_t       passVersion;
-  int64_t       lastRoleRetrieve; // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to persist.
-  int64_t       ipWhiteListVer;
+  int32_t acctId;
+  int32_t authVersion;
+  int32_t passVersion;
+  int64_t lastRoleRetrieve;  // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to
+                             // persist.
+  int64_t           ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 
   SHashObj* roles;
 
   SPrivSet  sysPrivs;
   SHashObj* objPrivs;  // key: EObjType + "." + objName, value: SPrivSet
-
-  SHashObj* readRows;   // key: tbFName, value: startTs + "," + endTs[;startTs + "," + endTs]
-  SHashObj* writeRows;  // key: tbFName, value: startTs + "." + endTs,
-  SHashObj* readCols;   // key: tbFName + "." + colName, value: t or tagCondition
-  SHashObj* writeCols;  // key: tbFName + "." + colName, value: t or tagCondition
-
-  // key : tbFName;
-  // value:
-
-  // 超级表
-  // 子表
-  // 普通表
-  // 虚拟超级表
-  // 虚拟子表
-  // 虚拟普通表
-  // 视图
-  // 不具体区分：read table, write table, delete table
-  // 行：查询时，增加 ts 时间范围，只返回该时间范围内的数据
-  // 列：查询时，增加列名过滤条件，只返回指定列的数据
   
-  SHashObj* readDbs;  //      db.*, *.*
+  SHashObj* readRows;    // key: tbFName, value: SArray of SPrivTblArgs
+  SHashObj* writeRows;   // key: tbFName, value: SArray of SPrivTblArgs
+  SHashObj* deleteRows;  // key: tbFName, value: SArray of SPrivTblArgs
+
+  SHashObj* readDbs;  //      db.*, *.* => migrate to readTbs and writeTbs when update from 3.3.x.y
   SHashObj* writeDbs;
   SHashObj* topics;
-  SHashObj* readTbs;  // key: tbFName, value: t or tagCondition
-  SHashObj* writeTbs; // key: tbFName, value: t or tagCondition
-  SHashObj* alterTbs;
+  SHashObj* readTbs;    // key: tbFName, value: SPrivArgs    => 1.db(means all tbl in the db) or 1.db.tbName
+  SHashObj* writeTbs;   // key: tbFName, value: SPrivArgs
+  SHashObj* deleteTbs;  // key: tbFName, value: SPrivArgs
+  SHashObj* alterTbs;   // key: tbFname, value: empty
   SHashObj* readViews;
   SHashObj* writeViews;
   SHashObj* alterViews;

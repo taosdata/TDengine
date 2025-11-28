@@ -16001,6 +16001,46 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
   TAOS_RETURN(code);
 }
 
+static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SPrivSetRowCols* pPrivSetRowCols, STableMeta* pTableMeta,
+                                  SNodeList* pCols) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  return code;
+}
+
+static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterRoleReq* pReq) {
+  SName            name = {0};
+  STableMeta*      pTableMeta = NULL;
+  SRealTableNode*  pTable = NULL;
+  int32_t          code = 0, lino = 0;
+  SPrivSetRowCols* pPrivSetRowCols = &pStmt->privileges;
+  SPrivSetArgs*    pPrivSetArgs = &pStmt->privileges;
+
+  if (pPrivSetRowCols->selectCols || pPrivSetRowCols->insertCols || pPrivSetRowCols->updateCols) {
+    if (pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Column-level privileges require a specific table name");
+    }
+
+    SRealTableNode* pTable = NULL;
+    TAOS_CHECK_EXIT(createRealTableForGrantTable(pStmt, &pTable));
+
+    toName(pCxt->pParseCxt->acctId, pTable->table.dbName, pTable->table.tableName, &name);
+    code = getTargetMeta(pCxt, &name, &pTableMeta, true);
+    if (TSDB_CODE_SUCCESS != code) {
+      TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code)));
+    }
+
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pPrivSetRowCols, pTableMeta, pStmt->privileges.selectCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pPrivSetRowCols, pTableMeta, pStmt->privileges.insertCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pPrivSetRowCols, pTableMeta, pStmt->privileges.updateCols));
+  }
+_exit:
+  if (pTable) nodesDestroyNode((SNode*)pTable);
+  taosMemoryFree(pTableMeta);
+  TAOS_RETURN(code);
+}
+
 static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, bool grant) {
   int32_t       code = 0;
   SAlterRoleReq req = {0};
@@ -16011,17 +16051,28 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EObjType      objType = OBJ_TYPE_UNKNOWN;
-      int32_t conflict = checkPrivConflicts(&pStmt->privileges, &category, &objType);
-      if(conflict == 1) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "System privileges and object privileges cannot be mixed");
-      } else if(conflict == 2) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Object privileges of different types cannot be mixed");
+      SPrivSet      privSet = pStmt->privileges.privSet;
+      // The SQL "grant select, select(c0,c1) on d0.t1 to u1" is legal , and table-level and column-level privileges are
+      // granted simultaneously. It is equivalent to "grant select on d0.t1 to u1" combined with "grant select(c0,c1) on
+      // d0.t1 to u1". And "revoke select on d0.t1 from u1" will revoked the table-level and column-level privileges
+      // simultaneously, but "revoke select(c0,c1) on d0.t1 from u1" only revokes the column-level privileges.
+      if (pStmt->privileges.selectCols) privAddType(&privSet, PRIV_TBL_SELECT);
+      if (pStmt->privileges.insertCols) privAddType(&privSet, PRIV_TBL_INSERT);
+      if (pStmt->privileges.updateCols) privAddType(&privSet, PRIV_TBL_UPDATE);
+      int32_t conflict = checkPrivConflicts(&privSet, &category, &objType);
+      if (conflict == 1) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                       "System privileges and object privileges cannot be mixed");
+      } else if (conflict == 2) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                       "Object privileges of different types cannot be mixed");
       }
       req.privileges = pStmt->privileges;
       if (category == PRIV_CATEGORY_SYSTEM) {
         req.sysPriv = 1;
-        if(pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "System privileges should not have target");
+        if (pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "System privileges should not have target");
         }
       } else {
         req.targetType = objType;

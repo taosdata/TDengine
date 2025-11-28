@@ -814,6 +814,15 @@ typedef struct SDropViewStmt {
   bool      ignoreNotExists;
 } SDropViewStmt;
 
+typedef struct {
+  int32_t    nPrivArgs;
+  SPrivSet   privSet;
+  TSKEY      rowSpan[2];
+  SNodeList* selectCols;
+  SNodeList* insertCols;
+  SNodeList* updateCols;
+} SPrivSetArgs;
+
 typedef struct SGrantStmt {
   ENodeType type;
   int8_t    optrType;                    // privilege/role/...
@@ -824,10 +833,6 @@ typedef struct SGrantStmt {
     SPrivSetArgs privileges;
     char         roleName[TSDB_ROLE_LEN];
   };
-
-  SNodeList* pRows;  // for row-level privilege
-  SNodeList* pCols;  // for col-level privilege
-
   SNode* pTagCond;
 } SGrantStmt;
 

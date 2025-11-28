@@ -1372,6 +1372,14 @@ int32_t tDeserializeSDropRoleReq(void* buf, int32_t bufLen, SDropRoleReq* pReq);
 void    tFreeSDropRoleReq(SDropRoleReq* pReq);
 
 typedef struct {
+  SPrivSet privSet;
+  TSKEY    rowSpan[2];
+  SArray*  selectCols;
+  SArray*  insertCols;
+  SArray*  updateCols;
+} SPrivSetRowCols;
+
+typedef struct {
   uint8_t alterType;
   uint8_t targetType;  // db, table, view, rsma, etc.
   union {
@@ -1384,14 +1392,12 @@ typedef struct {
     };
   };
   union {
-    SPrivSet privileges;
-    char     roleName[TSDB_ROLE_LEN];
+    SPrivSetRowCols privileges;
+    char            roleName[TSDB_ROLE_LEN];
   };
   char    principal[TSDB_ROLE_LEN];     // role or user name
   char    objName[TSDB_OBJ_FNAME_LEN];  // db or topic
   char    tblName[TSDB_TABLE_NAME_LEN];
-  SArray* pCols;       // col level privilege
-  TSKEY   rowSpan[2];  // row level privilege
   char*   tagCond;
   int32_t tagCondLen;
   int32_t sqlLen;

@@ -2589,10 +2589,21 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
   if (pReq->alterType == TSDB_ALTER_ROLE_ROLE) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->roleName));
   } else if (pReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
+// typedef struct {
+//   int32_t    nPrivArgs;
+//   SPrivSet   privSet;
+//   TSKEY      rowSpan[2];
+//   SNodeList* selectCols;
+//   SNodeList* insertCols;
+//   SNodeList* updateCols;
+// } SPrivSetArgs;
     TAOS_CHECK_EXIT(tEncodeU8(&encoder, PRIV_GROUP_CNT));
     for (int32_t i = 0; i < PRIV_GROUP_CNT; i++) {
-      TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pReq->privileges.set[i]));
+      TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pReq->privileges.privSet.set[i]));
     }
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->privileges.rowSpan[0]));  
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->privileges.rowSpan[1]));
+    int32_t nSelectCols = LIST_LENGTH(pReq->privileges.selectCols);
   }
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->principal));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objName));

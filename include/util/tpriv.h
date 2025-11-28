@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "taosdef.h"
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -253,20 +254,38 @@ typedef struct {
   const char*   name;
 } SPrivInfo;
 
+/*
+ * The SPrivTblPolicy only applies to tables, such as READ/WRITE/DELETE TABLE.
+ * It defines the row-level or table-level privileges for a table, maybe combined with columns and tag conditions.
+ * The max number of row-level or table-level privileges is TSDB_PRIV_MAX_TBL_POLICY, and it's recommended to decrease
+ * the number of SPrivPolicy considering the performance.
+ */
+typedef struct {
+  int64_t policyId;  // used for revoke by policyId directly
+  TSKEY   span[2];   // startTs, endTs, if span[0] == 0 && span[1] == 0, means all rows
+  SArray* cols;      // SColIdNameKV, NULL means all columns, sorted by colId. No need to include and check primary key
+                 // column since any user should have privilege to operate primary key column although not specified.
+  char*    tagCond;  // NULL if no tag condition
+  uint32_t hash;     // MurmurHash3_32 of span + cols + tagCond, used for deduplication
+} SPrivTblPolicy;
+
 typedef struct {
   SPrivSet* privSet;
   uint64_t  curPriv;
   int32_t   groupIndex;
 } SPrivIter;
 
-static FORCE_INLINE SPrivSet privAdd(SPrivSet privSet1, SPrivSet privSet2) {
-  SPrivSet merged = privSet1;
+static FORCE_INLINE void privAddSet(SPrivSet* privSet1, SPrivSet* privSet2) {
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-    if (privSet2.set[i]) {
-      merged.set[i] |= privSet2.set[i];
+    if (privSet2->set[i]) {
+      privSet1->set[i] |= privSet2->set[i];
     }
   }
-  return merged;
+}
+
+static FORCE_INLINE void privAddType(SPrivSet* privSet, EPrivType type) {
+  if (type < 0 || type > MAX_PRIV_TYPE) return;
+  privSet->set[PRIV_GROUP(type)] |= 1ULL << PRIV_OFFSET(type);
 }
 
 int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EObjType* pObjType);
