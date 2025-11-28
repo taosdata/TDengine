@@ -775,35 +775,31 @@ class TestStateWindowExtend:
         streams: list[StreamItem] = []
         stream = StreamItem (
             id=6,
-            stream='''create stream stn0 state_window(s, 0) from ntb into res_stn0 as
+            stream='''create stream stn0 state_window(s, 0) from ntb stream_options(fill_history) into res_stn0 as
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s,
                         count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn0''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb
-                        where ts >= "2025-09-03 08:00:00.000" and ts <= "2025-09-03 08:00:10.000" state_window(s) limit 5''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s) limit 15''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=7,
-            stream='''create stream stn1 state_window(s, 1) from ntb into res_stn1 as
+            stream='''create stream stn1 state_window(s, 1) from ntb stream_options(fill_history) into res_stn1 as
                 select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s,
                 count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn1''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*),
-                count(s), count(v), avg(v) from ntb where ts >= '2025-09-03 08:00:00.000' 
-                and ts <= '2025-09-03 08:00:10.000' state_window(s, 1) limit 5''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s, 1) limit 15''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=8,
-            stream='''create stream stn2 state_window(s, 2) from ntb into res_stn2 as 
+            stream='''create stream stn2 state_window(s, 2) from ntb stream_options(fill_history) into res_stn2 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn2''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb 
-                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s, 2) limit 5''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s, 2) limit 15''',
         )
         streams.append(stream)
 
@@ -838,34 +834,31 @@ class TestStateWindowExtend:
         streams: list[StreamItem] = []
         stream = StreamItem (
             id=9,
-            stream='''create stream sts0 state_window(s, 0) from stb partition by tbname into res_sts0 as 
+            stream='''create stream sts0 state_window(s, 0) from stb partition by tbname stream_options(fill_history) into res_sts0 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend''',
-            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts0''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 
-                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s) limit 5''',
+            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts0 where tag_tbname = "ctb1"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s) limit 15''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=10,
-            stream='''create stream sts1 state_window(s, 1) from stb partition by tbname into res_sts1 as 
+            stream='''create stream sts1 state_window(s, 1) from stb partition by tbname stream_options(fill_history) into res_sts1 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend''',
-            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts1''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 
-                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s, 1) limit 5''',
+            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts1 where tag_tbname = "ctb1"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s, 1) limit 15''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=11,
-            stream='''create stream sts2 state_window(s, 2) from stb partition by tbname into res_sts2 as 
+            stream='''create stream sts2 state_window(s, 2) from stb partition by tbname stream_options(fill_history) into res_sts2 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend''',
-            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts2''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 
-                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s, 2) limit 5''',
+            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts2 where tag_tbname = "ctb1"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s, 2) limit 15''',
         )
         streams.append(stream)
 

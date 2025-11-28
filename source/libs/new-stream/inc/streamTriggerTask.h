@@ -99,6 +99,8 @@ typedef struct SSTriggerHistoryGroup {
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;
   SValue           stateVal;
+  int64_t          pendingNullStart;
+  int64_t          numPendingNull;
 
   SObjList pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
   HeapNode heapNode;
