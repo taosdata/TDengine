@@ -3048,8 +3048,8 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   }
 
   size_t sqlLen = strlen(sql);
-  if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    tscError("conn:0x%" PRIx64 ", sql string exceeds max length:%d", connId, TSDB_MAX_ALLOWED_SQL_LEN);
+  if (sqlLen > (size_t)tsMaxSQLLength) {
+    tscError("conn:0x%" PRIx64 ", sql string exceeds max length:%d", connId, tsMaxSQLLength);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     fp(param, NULL, terrno);
     return;
@@ -3082,9 +3082,8 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   }
 
   size_t sqlLen = strlen(sql);
-  if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    tscError("conn:0x%" PRIx64 ", QID:0x%" PRIx64 ", sql string exceeds max length:%d", connId, reqid,
-             TSDB_MAX_ALLOWED_SQL_LEN);
+  if (sqlLen > (size_t)tsMaxSQLLength) {
+    tscError("conn:0x%" PRIx64 ", QID:0x%" PRIx64 ", sql string exceeds max length:%d", connId, reqid, tsMaxSQLLength);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     fp(param, NULL, terrno);
     return;
