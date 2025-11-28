@@ -704,8 +704,8 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   if (index) {
     if (colField[*index].type != kv->type) {
       snprintf(info->msgBuf.buf, info->msgBuf.len,
-               "SML:0x%" PRIx64 ", %s point type and db type mismatch, db type:%s, point type:%s, key:%s", info->id,
-               __FUNCTION__, tDataTypes[colField[*index].type].name, tDataTypes[kv->type].name, kv->key);
+               "SML:0x%" PRIx64 ", %s point type and db type mismatch, index:%d, db type:%s, point type:%s, key:%s", info->id,
+               __FUNCTION__, *index, tDataTypes[colField[*index].type].name, tDataTypes[kv->type].name, kv->key);
       uError("%s", info->msgBuf.buf);
       return TSDB_CODE_SML_INVALID_DATA;
     }
@@ -955,7 +955,7 @@ END:
   return code;
 }
 
-static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols,
+static int32_t smlProcessSchemaAction(SSmlHandle *info, SHashObj *schemaHash, SArray *cols,
                                       SHashObj *schemaHashCheck, bool isTag, SRequestConnInfo *conn, STableMeta **tableMeta, SName *pName) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -968,7 +968,7 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SH
       SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
     ESchemaAction action = SCHEMA_ACTION_NULL;
-    SML_CHECK_CODE(smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, &action, info));
+    SML_CHECK_CODE(smlGenerateSchemaAction((*tableMeta)->schema, schemaHash, kv, isTag, &action, info));
     if (action == SCHEMA_ACTION_NULL) {
       continue;
     }
@@ -1083,7 +1083,7 @@ static int32_t smlModifyTag(SSmlHandle *info, SHashObj *hashTmpCheck, SHashObj *
   int32_t       code = 0;
   int32_t       lino = 0;
   SML_CHECK_CODE(
-      smlProcessSchemaAction(info, (*pTableMeta)->schema, hashTmp, sTableData->tags, hashTmpCheck, true, conn, pTableMeta, pName));
+      smlProcessSchemaAction(info, hashTmp, sTableData->tags, hashTmpCheck, true, conn, pTableMeta, pName));
 END:
   RETURN
 }
@@ -1093,7 +1093,7 @@ static int32_t smlModifyCols(SSmlHandle *info, SHashObj *hashTmpCheck, SHashObj 
   int32_t       code = 0;
   int32_t       lino = 0;
   SML_CHECK_CODE(
-      smlProcessSchemaAction(info, (*pTableMeta)->schema, hashTmp, sTableData->cols, hashTmpCheck, false, conn, pTableMeta, pName));
+      smlProcessSchemaAction(info, hashTmp, sTableData->cols, hashTmpCheck, false, conn, pTableMeta, pName));
 END:
   RETURN
 }

@@ -1329,9 +1329,10 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
     goto END;
   }
   int32_t code = tSerializeSMAlterStbReq(buf, contLen, &alterReq);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code <= TSDB_CODE_SUCCESS) {
     mError("failed to serialize alter stb req %d", code);
     taosMemoryFreeClear(buf);
+    goto END;
   }
   *pAlterBuf = buf;
   *len = contLen;
