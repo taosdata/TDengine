@@ -228,7 +228,7 @@ Zeroth_state 指定“零状态”，状态列为此状态的窗口将不会被�
 
 当 `zeroth_state` 值为 `2` 时
 
-```
+```sql
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================

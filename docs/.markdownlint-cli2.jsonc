@@ -11,6 +11,7 @@
 	"MD025": false, // single-title 同一文档只能有一个一级标题
 	"MD033": false, // no-inline-html 禁止行内HTML
 	"MD037": true,
+	"MD060": false, // ul-style 列表前缀不强制使用统一样式
 	"MD041": false, // first-line-heading 禁止第一行必须是标题
 	"MD046": {"style": "fenced"}, // code-fence-style 代码块使用围栏样式
 	"MD048": {"style": "backtick"}, // Code fence style 只允许用反引号 ``` 作为围栏
