@@ -341,7 +341,9 @@ typedef struct SGroupingSetNode {
   SNodeList*       pParameterList;
 } SGroupingSetNode;
 
-typedef enum EOrder { ORDER_ASC = 1, ORDER_DESC } EOrder;
+// ORDER_UNKNOWN is the initialization state, with the sorting status unknown; by default, it may be treated as asc.
+// ORDER_OUT_ORDER indicates definite disorder and is currently used to handle out-of-order scenarios in interval windows.
+typedef enum EOrder { ORDER_UNKNOWN = 0, ORDER_ASC = 1, ORDER_DESC, ORDER_OUT_OF_ORDER } EOrder;
 
 typedef enum ENullOrder { NULL_ORDER_DEFAULT = 1, NULL_ORDER_FIRST, NULL_ORDER_LAST } ENullOrder;
 
@@ -597,7 +599,7 @@ typedef struct SSelectStmt {
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
   int32_t         lastProcessByRowFuncId;
-  bool            timeLineFromOrderBy;
+  int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
   bool            hasAggFuncs;
