@@ -1,9 +1,10 @@
 import { request } from "@/utils/request.ts";
+import pathDetector from '@/utils/pathDetector';
 
 //激活 licence
 export function activeLicence(data: Recordable) {
   return request({
-      baseURL: import.meta.env.VITE_APP_EXPLORER_API,
+      baseURL: pathDetector.getApiBasePath(),
       headers:{
         "Content-Type":"application/json"
       },

@@ -1,15 +1,16 @@
 import { request } from "@/utils/request.ts";
+import pathDetector from '@/utils/pathDetector';
 
 export function getAgentsData() {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents?cluster_id=${localStorage.getItem("local_clusterID")}&user_id=${localStorage.getItem("username")}`,
     method: "get",
   });
 }
 export function addNewAgent(name) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents`,
     method: "post",
     data: {
@@ -23,7 +24,7 @@ export function addNewAgent(name) {
 
 export function deleteAgent(id) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents/${id}`,
     method: "delete",
   });
@@ -31,7 +32,7 @@ export function deleteAgent(id) {
 
 export function editAgent(name,id) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents/${id}`,
     method: "patch",
     data:{

@@ -1,5 +1,6 @@
 import { request } from "@/utils/request.ts";
-import { getLocalLang } from "@/utils"
+import { getLocalLang } from "@/utils";
+import pathDetector from '@/utils/pathDetector';
 
 export function getTaskList(appId: string) {
     return request({
@@ -11,7 +12,7 @@ export function getTaskList(appId: string) {
 export function getReplicationList(id: string | number) {
     const language = getLocalLang()
     return request({
-        baseURL: import.meta.env.VITE_APP_X_API,
+        baseURL: pathDetector.getXApiBasePath(),
         url: `/tasks?lang=${language}&detail=true&labels=type::replication,cluster-id::${id}`,
         method: "get"
     });
@@ -20,7 +21,7 @@ export function getReplicationList(id: string | number) {
 export function addReplicationData(id: string | number, data: Recordable) {
     const language = getLocalLang()
     return request({
-        baseURL: import.meta.env.VITE_APP_X_API,
+        baseURL: pathDetector.getXApiBasePath(),
         url: `/tasks?lang=${language}&detail=true&labels=type::replication,cluster-id::${id}`,
         method: "post",
         headers: {
