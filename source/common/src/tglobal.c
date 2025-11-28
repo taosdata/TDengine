@@ -2830,6 +2830,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
                                          {"asynclog", &tsAsyncLog},
+                                         {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"disableStream", &tsDisableStream},
                                          {"enableWhiteList", &tsEnableWhiteList},
                                          {"statusInterval", &tsStatusInterval},
