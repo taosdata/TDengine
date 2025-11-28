@@ -266,8 +266,6 @@ class TestIntervalBugFix:
         # event window: subquery is state window with duplicate timestamp
         # sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) event_window start with status > 1 end with status > 4;"
         # tdSql.error(sql)
-        
-        sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1) partition by tbname interval(3s);"
  
     def ts_7676_test_uni_ts(self):
         tdLog.info("prepare data for TS-7676 test2")

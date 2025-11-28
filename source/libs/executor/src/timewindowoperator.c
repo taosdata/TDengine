@@ -735,7 +735,7 @@ _end:
 int32_t getNumOfRowsInTimeWinUnsorted(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, STimeWindow* win,
                                       int32_t startPos) {
   int32_t rows = pDataBlockInfo->rows;
-  for (int32_t i = startPos; i < pDataBlockInfo->rows - 1; ++i) {
+  for (int32_t i = startPos; i < pDataBlockInfo->rows; ++i) {
     if (pPrimaryColumn[i] >= win->skey && pPrimaryColumn[i] < win->ekey) {
       continue;
     } else {
@@ -1128,9 +1128,6 @@ void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
         pRowSup->numNullRows : 0;
       resetNumNullRows(pRowSup);
   }
-  // if (pRowSup->win.skey > pRowSup->win.ekey) {
-  //   TSWAP(pRowSup->win.skey, pRowSup->win.ekey);
-  // }
 }
 
 void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {
