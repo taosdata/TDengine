@@ -424,14 +424,32 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t
   SWhiteUserList* pUserList = *ppList;
   if (pUserList->ver == ver) return true;
 
+  int8_t inBlackList = 0;
+  int8_t inWhiteList = 0;
+
   SIpWhiteListDual* pIpWhiteList = pUserList->pList;
   for (int i = 0; i < pIpWhiteList->num; i++) {
     SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (uvCheckIp(pRange, pIp)) {
-      valid = true;
+    if (pRange->neg == 0 && uvCheckIp(pRange, pIp)) {
+      inWhiteList = 1;
       break;
     }
   }
+
+  for (int i = 0; i < pIpWhiteList->num; i++) {
+    SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
+    if (pRange->neg == 1 && uvCheckIp(pRange, pIp)) {
+      inBlackList = 1;
+      break;
+    }
+  }
+
+  if (inBlackList == 0 && inWhiteList == 1) {
+    valid = true;
+  } else {
+    valid = false;
+  }
+
   return valid;
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
