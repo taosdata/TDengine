@@ -197,9 +197,11 @@ class TestStateWindow:
         for tableIndex in range(10):
             tdSql.execute(f"CREATE TABLE ts6079.t{tableIndex} USING ts6079.meters TAGS ({tableIndex}, 'tb{tableIndex}')")
             for num in range(10):
-                tdSql.execute(f"INSERT INTO ts6079.t{tableIndex} VALUES({ts + num}, {num * 1.0}, {215 + num}, 0.0)")
+                tdSql.execute(f"INSERT INTO ts6079.t{tableIndex} VALUES({ts + tableIndex * 10 + num}, {num * 1.0}, {215 + num}, 0.0)")
 
-        tdSql.error("select _wstart ,first(ts),last(ts),count(*),to_char(ts, 'yyyymmdd') as ts from ts6079.meters partition by to_char(ts, 'yyyymmdd') as ts state_window(cast(current as varchar(2)));")
+        tdSql.query("select _wstart ,first(ts),last(ts),count(*),to_char(ts, 'yyyymmdd') as ts from ts6079.meters partition by to_char(ts, 'yyyymmdd') as ts state_window(cast(current as varchar(2)));")
+        tdSql.checkRows(100)
+        tdSql.checkData(0, 3, 1)
 
     def test_state_window(self):
         """summary: xxx
