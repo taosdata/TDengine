@@ -609,47 +609,30 @@ static bool uvDataTimeWhiteListIsDefaultAddr(SIpAddr* ip) {
 bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
   // impl check
   SHashObj* pWhiteList = pWhite->pList;
-  bool      valid = false;
+  bool      valid = true;
 
   // if (uvDataTimeWhiteListIsDefaultAddr(pIp)) return true;
 
-  SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
-  // if (ppList == NULL || *ppList == NULL) {
-  //   return false;
-  // }
-  // SWhiteUserList* pUserList = *ppList;
-  // if (pUserList->ver == ver) return true;
+  SUserDateTimeWhiteList* pList = taosHashGet(pWhiteList, user, strlen(user));
+  if (pList == NULL) {
+    return true;
+  }
 
-  // int8_t inBlackList = 0;
-  // int8_t inWhiteList = 0;
+  SDateTimeWhiteList* p = (SDateTimeWhiteList*)&pList->numWhiteLists;
+  int64_t             now = taosGetTimestampSec();
 
-  // SIpWhiteListDual* pIpWhiteList = pUserList->pList;
-  // for (int i = 0; i < pIpWhiteList->num; i++) {
-  //   SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-  //   if (pRange->neg == 0 && uvCheckIp(pRange, pIp)) {
-  //     inWhiteList = 1;
-  //     break;
-  //   }
-  // }
-
-  // for (int i = 0; i < pIpWhiteList->num; i++) {
-  //   SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-  //   if (pRange->neg == 1 && uvCheckIp(pRange, pIp)) {
-  //     inBlackList = 1;
-  //     break;
-  //   }
-  // }
-
-  // if (inBlackList == 0 && inWhiteList == 1) {
-  //   valid = true;
-  // } else {
-  //   tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), inBlackList,
-  //   inWhiteList); valid = false;
-  // }
+  if (isTimeInDateTimeWhiteList(p, now)) {
+    valid = true;
+  } else {
+    valid = false;
+  }
 
   return valid;
 }
 bool uvDataTimeWhiteListCheckConn(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
+  if (pWhite == NULL) {
+    return true;
+  }
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST ||
       pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL || taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
       pWhite->ver == pConn->dataTimeWhiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
@@ -802,6 +785,34 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   }
   return false;
 }
+
+static int8_t uvCheckConn(SSvrConn* pConn) {
+  SWorkThrd* pThrd = pConn->hostThrd;
+  int8_t     status;
+  int8_t     forbiddenIp = 0;
+
+  int8_t timeForbiddenIp = 0;
+  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
+    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
+    if (forbiddenIp == 0) {
+      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
+    }
+  }
+
+  if (pThrd->enableDataTimeWhiteList) {
+    timeForbiddenIp = !uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn) ? 1 : 0;
+  }
+
+  if (forbiddenIp) {
+    IP_FORBIDDEN_SET_VAL(timeForbiddenIp, IP_FORBIDDEN_WHITE_LIST);
+  }
+  if (timeForbiddenIp) {
+    IP_FORBIDDEN_SET_VAL(forbiddenIp, IP_FORBIDDEN_DATA_TIME_WHITE_LIST);
+  }
+
+  return status;
+}
+
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
@@ -841,14 +852,17 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   pConn->inType = pHead->msgType;
 
-  int8_t forbiddenIp = 0;
-  int8_t timeForbiddenIp = 0;
-  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
-    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-    if (forbiddenIp == 0) {
-      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-    }
-  }
+  int8_t forbiddenIp = uvCheckConn(pConn);
+  // int8_t forbiddenIp = 0;
+  // int8_t timeForbiddenIp = 0;
+  // if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
+  //   forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
+  //   if (forbiddenIp == 0) {
+  //     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
+  //   }
+  // }
+
+  // timeForbiddenIp = uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn);
 
   if (uvMayHandleReleaseReq(pConn, pHead)) {
     return true;

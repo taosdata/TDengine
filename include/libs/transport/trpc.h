@@ -32,6 +32,10 @@ extern "C" {
 
 typedef enum { IP_FORBIDDEN_WHITE_LIST = 1, IP_FORBIDDEN_DATA_TIME_WHITE_LIST = 2 } SForbiddenType;
 
+#define IP_FORBIDDEN_SET_VAL(type, val)     ((type) |= (val))
+#define IP_FORBIDDEN_CHECK_WHITE_LIST(type) ((type)&IP_FORBIDDEN_WHITE_LIST)
+#define IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(type) ((type)&IP_FORBIDDEN_DATA_TIME_WHITE_LIST)
+
 typedef struct {
   SIpAddr  cliAddr;
   int64_t  applyIndex;

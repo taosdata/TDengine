@@ -113,12 +113,16 @@ static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *
   pRpc->pCont = NULL;
   return;
 }
-static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
-  if (forbidden) {
+static int32_t dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
+  if (IP_FORBIDDEN_CHECK_WHITE_LIST(forbidden)) {
     dError("User:%s host:%s not in ip white list or in block white list", user, IP_ADDR_STR(clientIp));
-    return true;
+    return TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+
+  } else if (IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(forbidden)) {
+    dError("User:%s host:%s alread expired", user, IP_ADDR_STR(clientIp));
+    return TSDB_CODE_MND_USER_DISABLED;
   } else {
-    return false;
+    return 0;
   }
 }
 
@@ -172,9 +176,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
-  if (isForbidden) {
-    code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
+  if (code != 0) {
     goto _OVER;
   }
 
