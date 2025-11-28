@@ -256,7 +256,7 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_ID_LEN   11
 #define TSDB_VGROUP_ID_LEN 11
 
-#define TSDB_MAX_COLUMNS 4096
+#define TSDB_MAX_COLUMNS 32767
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN            64

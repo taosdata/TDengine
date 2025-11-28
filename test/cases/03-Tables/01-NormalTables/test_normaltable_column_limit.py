@@ -13,7 +13,7 @@ class TestNormalTableColumnNumLimit:
 
         1. Create normal table
         2. Add or delete columns
-        3. Check column count, the count should not exceed 4096
+        3. Check column count, the count should not exceed 32767
 
         Since: v3.0.0.0
 
@@ -29,36 +29,41 @@ class TestNormalTableColumnNumLimit:
         db = "column_limit_db"
         tb = "column_limit_tb"
 
-        totalColumnsCount = 2
+        totalColumnsCount = 32000
 
         tdLog.info(f"=============== step1")
         tdSql.execute(f"create database {db}")
         tdSql.execute(f"use {db}")
-        tdSql.execute(f"create table {tb}(ts timestamp, a1 int)")
+        createsql = f"create table {tb}(ts timestamp"
+        for i in range(totalColumnsCount - 1):
+            createsql += f", a{i} bool"
+        createsql += ")"
+
+        tdSql.execute(createsql)
 
         tdSql.query(f"show tables")
         tdSql.checkRows(1)
 
         tdLog.info(f"=============== step2")
         tdSql.query(f"desc {tb}")
-        tdSql.checkRows(2)
+        tdSql.checkRows(totalColumnsCount)
 
 
         tdLog.info(f"=============== step3")
 
-        while totalColumnsCount < 4096:
-            tdSql.execute(f"alter table {tb} add column a{totalColumnsCount} int")
+        while totalColumnsCount < 32767:
+            tdSql.execute(f"alter table {tb} add column a{totalColumnsCount} bool")
             totalColumnsCount += 1
 
         tdSql.query(f"desc {tb}")
-        tdSql.checkRows(4096)
+        tdSql.checkRows(32767)
 
-        tdSql.error(f"alter table {tb} add column a{totalColumnsCount} int")
+        tdSql.error(f"alter table {tb} add column a{totalColumnsCount} bool")
 
         tdLog.info(f"=============== step4")
 
-        random.seed(datatime.now())
         dropCount = random.randint(1, 30)
+        finalCount = totalColumnsCount - dropCount
         tdLog.info(f"dropCount: {dropCount}")
         while dropCount > 0:
             dropColumn = random.randint(1, totalColumnsCount - 1)
@@ -70,13 +75,8 @@ class TestNormalTableColumnNumLimit:
         tdSql.checkRows(totalColumnsCount)
 
         tdLog.info(f"=============== step5")
-        i = 0
-        while totalColumnsCount < 4096:
-            tdSql.execute(f"alter table {tb} add column a{4096+i} int")
-            totalColumnsCount += 1
-            i += 1
 
         tdSql.query(f"desc {tb}")
-        tdSql.checkRows(4096)
+        tdSql.checkRows(finalCount)
 
-        tdSql.error(f"alter table {tb} add column a{4096+i} int")
+        tdSql.error(f"alter table {tb} add column a{32767+i} bool")

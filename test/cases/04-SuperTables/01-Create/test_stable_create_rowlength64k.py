@@ -294,18 +294,18 @@ class TestRowlength64k:
     def run_1(self):  
  
 
-        print("==============step1, regular table, 1 ts + 4094 cols + 1 binary==============")
+        print("==============step1, regular table, 1 ts + 32765 cols + 1 binary==============")
         startTime = time.time() 
         sql = "create table db.regular_table_1(ts timestamp, "
-        for i in range(4094):
-            sql += "col%d int, " % (i + 1)
-        sql += "col4095 binary(22))"  
+        for i in range(32765):
+            sql += "col%d bool, " % (i + 1)
+        sql += "col32766 binary(22))"
         tdLog.info(len(sql))      
         tdSql.execute(sql)
 
         for i in range(self.num):
             sql = "insert into db.regular_table_1 values(%d, "
-            for j in range(4094):
+            for j in range(32765):
                 str = "'%s', " % random.randint(0,1000)                
                 sql += str
             sql += "'%s')" % self.get_random_string(22)
@@ -315,7 +315,7 @@ class TestRowlength64k:
         tdSql.checkData(0, 0, self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(self.num)
-        tdSql.checkCols(4096)
+        tdSql.checkCols(32767)
 
         self.ins_query()
 
@@ -325,9 +325,9 @@ class TestRowlength64k:
         #insert in order
         tdLog.info('test insert in order') 
         for i in range(self.num):
-            sql = "insert into db.regular_table_1 (ts,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col4095) values(%d, "
-            for j in range(10):
-                str = "'%s', " % random.randint(0,1000)                
+            sql = "insert into db.regular_table_1 (ts,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col4095,col32766) values(%d, "
+            for j in range(11):
+                str = "'%s', " % random.randint(0,1)
                 sql += str
             sql += "'%s')" % self.get_random_string(22)
             tdSql.execute(sql % (self.ts + i + 1000))
@@ -336,14 +336,14 @@ class TestRowlength64k:
         tdSql.checkData(0, 0, 2*self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(2*self.num)
-        tdSql.checkCols(4096)
+        tdSql.checkCols(32767)
 
         #insert out of order
         tdLog.info('test insert out of order') 
         for i in range(self.num):
-            sql = "insert into db.regular_table_1 (ts,col123,col2213,col331,col41,col523,col236,col71,col813,col912,col1320,col4095) values(%d, "
-            for j in range(10):
-                str = "'%s', " % random.randint(0,1000)                
+            sql = "insert into db.regular_table_1 (ts,col123,col2213,col331,col41,col523,col236,col71,col813,col912,col1320,col4095,col32766) values(%d, "
+            for j in range(11):
+                str = "'%s', " % random.randint(0,1)
                 sql += str
             sql += "'%s')" % self.get_random_string(22)
             tdSql.execute(sql % (self.ts + i + 2000))
@@ -352,7 +352,7 @@ class TestRowlength64k:
         tdSql.checkData(0, 0, 3*self.num)
         tdSql.query("select * from db.regular_table_1")
         tdSql.checkRows(3*self.num)
-        tdSql.checkCols(4096)
+        tdSql.checkCols(32767)
 
         self.ins_query()
         
@@ -360,33 +360,33 @@ class TestRowlength64k:
 
         print("==============step2,regular table error col or value==============")
         tdLog.info('test regular table exceeds row num') 
-        # column > 4096
+        # column > 32767
         sql = "create table db.regular_table_2(ts timestamp, "
-        for i in range(4095):
-            sql += "col%d int, " % (i + 1)
-        sql += "col4096 binary(22))"  
+        for i in range(32766):
+            sql += "col%d bool, " % (i + 1)
+        sql += "col32767 binary(22))"
         tdLog.info(len(sql))      
         tdSql.error(sql)
 
         self.ins_query()
         
-        # column > 4096
+        # column > 32767
         sql = "insert into db.regular_table_1 values(%d, "
-        for j in range(4095):
+        for j in range(32766):
             str = "'%s', " % random.randint(0,1000)                
             sql += str
         sql += "'%s')" % self.get_random_string(22)
         tdSql.error(sql)
 
-        # insert column < 4096
+        # insert column < 32767
         sql = "insert into db.regular_table_1 values(%d, "
-        for j in range(4092):
-            str = "'%s', " % random.randint(0,1000)                
+        for j in range(32763):
+            str = "'%s', " % random.randint(0,1)
             sql += str
         sql += "'%s')" % self.get_random_string(22)
         tdSql.error(sql)
 
-        # alter column > 4096
+        # alter column > 32767
         sql = "alter table db.regular_table_1 add column max int; "
         tdSql.error(sql)
 
@@ -1220,34 +1220,34 @@ class TestRowlength64k:
 
         print("==============step7, super table error col ==============")
         tdLog.info('test exceeds row num') 
-        # column + tag > 4096 
+        # column + tag > 32767
         sql = "create stable db.stable_2(ts timestamp, "
-        for i in range(4091):
-            sql += "col%d int, " % (i + 1)
-        sql += "col4092 binary(22))"  
+        for i in range(32762):
+            sql += "col%d bool, " % (i + 1)
+        sql += "col32763 binary(22))"
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int) " 
         tdLog.info(len(sql))      
         tdSql.error(sql)
 
         self.ins_query()
         
-        # column + tag > 4096
+        # column + tag > 32767
         sql = "create stable db.stable_2(ts timestamp, "
-        for i in range(4090):
-            sql += "col%d int, " % (i + 1)
-        sql += "col4091 binary(22))"  
+        for i in range(32761):
+            sql += "col%d bool, " % (i + 1)
+        sql += "col32762 binary(22))"
         sql += " tags (loc nchar(10),tag_1 int,tag_2 int,tag_3 int,tag_4 int) " 
         tdLog.info(len(sql))  
         tdSql.error(sql)
 
-        # alter column + tag > 4096
+        # alter column + tag > 32767
         sql = "alter table db.stable_1 add column max int; "
         tdSql.error(sql)
         
         sql = "alter table db.stable_1 add tag max int; "
         tdSql.error(sql)
         
-        sql = "alter table db.stable_4 modify column col4091 binary(102); "
+        sql = "alter table db.stable_4 modify column col32762 binary(102); "
         tdSql.error(sql)
         sql = "alter table db.stable_4 modify tag loc nchar(20); "
         tdSql.query("select * from db.table_70")

@@ -840,6 +840,13 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   pColumn->bytes = pReq->bytes;
   pColumn->type = pReq->type;
   pColumn->flags = pReq->flags;
+  if (pEntry->ntbEntry.ncid > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ntbEntry.ncid, TSDB_MAX_COLUMNS,
+              version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_EXCEED_MAX_COL_ID);
+  }
   pColumn->colId = pEntry->ntbEntry.ncid++;
   extSchema.typeMod = pReq->typeMod;
   tstrncpy(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN);
