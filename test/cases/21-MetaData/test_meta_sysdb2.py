@@ -14,10 +14,12 @@
 
 from new_test_framework.utils import tdLog, tdSql
 
-class TestDdlInSysdb:
+NUM_INFO_DB_TABLES = 47  # number of system tables in information_schema
+NUM_PERF_DB_TABLES = 5  # number of system tables in performance_schema
+NUM_USER_DB_TABLES = 1  # number of user tables in test_meta_sysdb
+class TestMetaSysDb2:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-
 
     def test_meta_sysdb(self):
         """Meta system database
@@ -73,7 +75,7 @@ class TestDdlInSysdb:
         ## 1.1 check count result
         tdSql.query("select count(*) cnt from information_schema.ins_tables", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 43) # 42 sys tables + 1 user table
+        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + NUM_USER_DB_TABLES) # 47 sys tables + 5 perf tables + 1 user table
 
         ## 2. check plan with group by
         ### 2.1 check plan with group by db_name
@@ -87,9 +89,9 @@ class TestDdlInSysdb:
         tdSql.query("select db_name, count(*) cnt from information_schema.ins_tables \
                     group by db_name order by cnt desc", show=1)
         tdSql.checkRows(4)
-        tdSql.checkData(0, 1, 37) # 37 tables in information_schema
-        tdSql.checkData(1, 1, 5)  # 5  tables in sys
-        tdSql.checkData(2, 1, 1)  # 1  table in test_meta_sysdb
+        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES) # 47 tables in information_schema
+        tdSql.checkData(1, 1, NUM_PERF_DB_TABLES)  # 5  tables in sys
+        tdSql.checkData(2, 1, NUM_USER_DB_TABLES)  # 1  table in test_meta_sysdb
         tdSql.checkData(3, 1, 0)  # 0  table in empty_db_for_count_test
 
         ### 2.3 check plan with group by stable_name
@@ -104,9 +106,9 @@ class TestDdlInSysdb:
                     group by stable_name order by cnt desc", show=1)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, 42) # 42 normal tables in system databases
+        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES) # 47+5 normal tables in system databases
         tdSql.checkData(1, 0, "stb")
-        tdSql.checkData(1, 1, 1)  # 1  table in test_meta_sysdb.stb
+        tdSql.checkData(1, 1, NUM_USER_DB_TABLES)  # 1  table in test_meta_sysdb.stb
         tdSql.checkData(2, 0, "stb_empty")
         tdSql.checkData(2, 1, 0)  # 0  table in empty_db_for_count_test.stb_empty
 
@@ -123,8 +125,7 @@ class TestDdlInSysdb:
         tdSql.query("select count(*) cnt from information_schema.ins_tables \
                     where db_name='information_schema'", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 37) # 37 tables in information_schema
-
+        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES) # 47 tables in information_schema
         ### 3.3 check plan with where stable_name
         tdSql.query("explain select count(*) cnt from information_schema.ins_tables \
                     where stable_name='stb'", show=1)
@@ -137,7 +138,7 @@ class TestDdlInSysdb:
         tdSql.query("select count(*) cnt from information_schema.ins_tables \
                     where stable_name='stb'", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1) # 1 table in test_meta_sysdb.stb
+        tdSql.checkData(0, 0, NUM_USER_DB_TABLES) # 1 table in test_meta_sysdb.stb
 
         ### 3.5 check plan with where db_name and stable_name
         tdSql.query("explain select count(*) cnt from information_schema.ins_tables \
@@ -151,7 +152,7 @@ class TestDdlInSysdb:
         tdSql.query("select count(*) cnt from information_schema.ins_tables \
                     where db_name='test_meta_sysdb' and stable_name='stb'", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1) # 1 table in test_meta_sysdb.stb
+        tdSql.checkData(0, 0, NUM_USER_DB_TABLES) # 1 table in test_meta_sysdb.stb
 
         ### 3.7 check non-existing db_name and stable_name
         tdSql.query("select count(*) cnt from information_schema.ins_tables \
