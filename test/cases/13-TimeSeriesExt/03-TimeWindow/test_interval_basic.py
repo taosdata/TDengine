@@ -49,6 +49,8 @@ class TestInterval:
         tdStream.dropAllStreamsAndDbs()
         self.ComputeInterval1()
         tdStream.dropAllStreamsAndDbs()
+        self.WithoutAggInterval()
+        tdStream.dropAllStreamsAndDbs()
 
     def QueryInterval(self):
         dbPrefix = "m_in_db"
@@ -1535,3 +1537,83 @@ class TestInterval:
 
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
+
+    def WithoutAggInterval(self):
+        dbPrefix = "m_in_db"
+        tbPrefix = "m_in_tb"
+        mtPrefix = "m_in_mt"
+        tbNum = 10
+        rowNum = 20
+        totalNum = 200
+
+        tdLog.info(f"=============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt = mtPrefix + str(i)
+
+        tdSql.prepare(db, drop=True)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
+
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
+
+            x = 0
+            while x < rowNum:
+                cc = x * 60000
+                ms = 1601481600000 + cc
+
+                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
+                x = x + 1
+
+            i = i + 1
+
+        tdLog.info(f"=============== step2")
+        i = 1
+        tb = tbPrefix + str(i)
+
+        sql = "select _wstart, 1, count(tbcol) from m_in_tb1 interval(1m)"
+        tdSql.query(sql)
+        tdSql.checkRows(20)
+        
+        sql = "select _wstart, 1 from m_in_tb1 interval(1m)"
+        tdSql.query(sql)
+        tdSql.checkRows(20)
+        
+        sql = "select _wstart, 1, count(tbcol) from m_in_tb1 interval(5m)"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = "select _wstart, 1 from m_in_tb1 interval(5m)"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = "select _wstart, 1, tgcol, count(tbcol) from m_in_tb1 interval(5m)"
+        tdSql.error(sql)
+        
+        sql = "select _wstart, 1, tgcol from m_in_tb1 interval(5m)"
+        tdSql.error(sql)
+        
+        sql = "select _wstart, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)"
+        tdSql.query(sql)
+        tdSql.checkRows(40)
+
+        sql = "select _wstart, 1, tgcol from m_in_mt0 partition by tbname interval(5m)"
+        tdSql.query(sql)
+        tdSql.checkRows(40)
+        
+        sql = "select _wstart, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        tdSql.query(sql)
+        tdSql.checkRows(40)
+        
+        sql = "select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        tdSql.query(sql)
+        tdSql.checkRows(40)
+        
+        sql = "select _wstart, tbcol, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        tdSql.error(sql)
+
+        sql = "select _wstart, ts, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        tdSql.error(sql)

@@ -149,7 +149,96 @@ class TestSession:
         tdSql.error(
             f"select count(*) from dev_001 session(ts,1d) where ts <'2020-05-20 0:0:0'"
         )
-
+        
+        sql = "select _wstart, _wend, 1,  count(*)  from dev_001 session(ts,1d)"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(0, 1, "2020-05-14 13:00:00.001")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 13)
+        tdSql.checkData(1, 0, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 1, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(2, 0, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 1, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(3, 0, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 1, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 2, 1)
+        
+        
+        sql = "select _wstart, _wend, 1 from dev_001 session(ts,1d)"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(0, 1, "2020-05-14 13:00:00.001")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 0, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 1, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(2, 0, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 1, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(3, 0, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 1, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 2, 1)
+        
+        sql = "select _wstart, _wend, 1, ts from dev_001 session(ts,1d);"
+        tdSql.error(sql)
+        
+        sql = "select _wstart, _wend, 1, dev from dev_001 session(ts,1d)"
+        tdSql.error(sql)
+        
+        sql = "select _wstart, _wend, 1, tbname,  count(*)  from st partition by tbname session(ts,1d) order by tbname;"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(0, 1, "2020-05-14 13:00:00.001")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, "dev_001")
+        tdSql.checkData(1, 0, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 1, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, "dev_001")
+        tdSql.checkData(2, 0, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 1, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, "dev_001")
+        tdSql.checkData(3, 0, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 1, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, "dev_001")
+        tdSql.checkData(4, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(4, 1, "2020-05-13 10:00:00.510")
+        tdSql.checkData(4, 2, 1)
+        tdSql.checkData(4, 3, "dev_002")
+        
+        
+        sql = "select _wstart, _wend, 1, tbname from st partition by tbname session(ts,1d) order by tbname;"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(0, 1, "2020-05-14 13:00:00.001")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, "dev_001")
+        tdSql.checkData(1, 0, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 1, "2020-05-15 14:00:00.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, "dev_001")
+        tdSql.checkData(2, 0, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 1, "2020-05-20 10:00:00.000")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, "dev_001")
+        tdSql.checkData(3, 0, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 1, "2020-05-27 10:00:00.001")
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, "dev_001")
+        tdSql.checkData(4, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(4, 1, "2020-05-13 10:00:00.510")
+        tdSql.checkData(4, 2, 1)
+        tdSql.checkData(4, 3, "dev_002")
+        
         # print ====> select count(*) from dev_001 session(ts,1u)
         # sql select _wstart, count(*) from dev_001 session(ts,1u)
         # print rows: $rows
