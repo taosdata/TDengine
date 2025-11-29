@@ -16012,7 +16012,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
   }
 
   int32_t        columnNum = pTableMeta->tableInfo.numOfColumns;
-  const SSchema* pSchemaCols = &pTableMeta->schema;
+  const SSchema* pSchemaCols = pTableMeta->schema;
   SNode*         pNode = NULL;
   SColumnNode*   pCol = NULL;
   const SSchema* pSchema = NULL;
@@ -16038,7 +16038,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
 
     if (!pSchema) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-                                     "Invalid param since column not exist: %s(%s)", pCol->colName);
+                                     "Invalid privilege param since column not exist: %s", pCol->colName);
     }
     pCol->colId = pSchema->colId;
     pCol->node.resType.type = pSchema->type;
@@ -16049,7 +16049,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     return terrno;
   }
 
-  nodesSortList(pCols, comparePrivColWithColId);
+  nodesSortList(&pCols, comparePrivColWithColId);
   col_id_t lastColId = -1;
   FOREACH(pNode, pCols) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
