@@ -478,6 +478,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
 // clang-format on
 
 static int32_t  translateSubquery(STranslateContext* pCxt, SNode* pNode);
+static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal);
 static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc);
 static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* pTable, SNodeList* pProjectionList,
