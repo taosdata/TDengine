@@ -7235,7 +7235,8 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
   STsdbReader*        pReader = NULL;
   SHashObj*           pIgnoreMap = NULL;
   SQueryTableDataCond cond = {0};
-
+  STableFirstLastTsIter* pTsIter = NULL;
+  
   TSDB_CHECK_NULL(pVnode, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pWindow, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pVerRange, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -7244,7 +7245,7 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
   code = initQueryTableCond(&cond, suid, pWindow, pVerRange, order, idstr);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  STableFirstLastTsIter* pTsIter = taosMemoryCalloc(1, sizeof(STableFirstLastTsIter));
+  pTsIter = taosMemoryCalloc(1, sizeof(STableFirstLastTsIter));
   TSDB_CHECK_NULL(pTsIter, code, lino, _end, terrno);
 
   pIgnoreMap = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -7274,7 +7275,7 @@ _end:
   return code;
 }
 
-int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
+int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes, bool* hasNext) {
   int32_t          code = 0;
   int32_t          lino = 0;
   const char*      idstr = NULL;
@@ -7287,18 +7288,21 @@ int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
 
   STableFirstLastTsIter* pTsIter = pIter;
   idstr = pTsIter->pReader->idStr;
-
+  *hasNext = true;
   // no data now, return directly.
   if (!pTsIter->hasNext) {
+    *hasNext = false;
     return TSDB_CODE_SUCCESS;
   }
 
+  int64_t numOfRows = 0;
   while (1) {
     code = tsdbNextDataBlock2(pTsIter->pReader, &pTsIter->hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
 
     // no more data, jump out
     if (!pTsIter->hasNext) {
+      *hasNext = false;
       break;
     }
 
@@ -7330,7 +7334,7 @@ int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
     pTsIter->pReader->status.fBlockDumpInfo.allDumped = true;
 
     // enough result already, return now
-    if (pRes->info.rows >= 4096) {
+    if (numOfRows++ >= 4096) {
       break;
     }
   }

@@ -7,11 +7,11 @@ description: 详细介绍各种语言的连接器及 REST API
 import ConnectorType from "./_connector_type.mdx";
 import PlatformSupported from "./_platform_supported.mdx";
 
-<ConnectorType /> 
+<ConnectorType />
 
 ## 支持的平台
 
-<PlatformSupported /> 
+<PlatformSupported />
 
 ## 版本支持
 
@@ -30,7 +30,6 @@ TDengine TSDB 版本更新往往会增加新的功能特性，列表中的连接
 
 连接器对 TDengine TSDB 功能特性的支持对照如下：
 
-
 ### WebSocket/原生 连接
 
 | **功能特性**        | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** | **C/C++** |
@@ -47,7 +46,6 @@ TDengine TSDB 版本更新往往会增加新的功能特性，列表中的连接
 由于不同编程语言数据库框架规范不同，并不意味着所有 C/C++ 接口都需要对应封装支持。
 :::
 
-
 :::warning
 
 - 无论选用何种编程语言的连接器，2.0 及以上版本的 TDengine TSDB 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池，以避免连接内的“USE statement”状态量在线程之间相互干扰（但连接的查询和写入操作都是线程安全的）。
@@ -57,8 +55,6 @@ TDengine TSDB 版本更新往往会增加新的功能特性，列表中的连接
 ### REST API
 
 支持 **执行 SQL**
-
-
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";

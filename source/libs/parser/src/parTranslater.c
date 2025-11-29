@@ -454,6 +454,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
+    .showType = QUERY_NODE_SHOW_INSTANCES_STMT,
+    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
+    .pTableName = TSDB_PERFS_TABLE_INSTANCES,
+    .numOfShowCols = 1,
+    .pShowCols = {"id"}
+  },
+  {
     .showType = QUERY_NODE_SHOW_ROLES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_ROLES,
@@ -472,7 +479,6 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
 
 static int32_t  translateSubquery(STranslateContext* pCxt, SNode* pNode);
 static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
-static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal);
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc);
 static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* pTable, SNodeList* pProjectionList,
                                                    SSelectStmt** pStmt);
@@ -18420,6 +18426,9 @@ static const char* getTbNameColName(ENodeType type) {
     case QUERY_NODE_SHOW_STABLES_STMT:
       colName = "stable_name";
       break;
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
+      colName = "id";
+      break;
     default:
       colName = "table_name";
       break;
@@ -18893,6 +18902,31 @@ static int32_t rewriteShowDnodeVariables(STranslateContext* pCxt, SQuery* pQuery
     pQuery->showRewrite = true;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pSelect;
+  }
+  return code;
+}
+
+static int32_t rewriteShowInstances(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowStmt*   pShow = (SShowStmt*)(pQuery->pRoot);
+  SSelectStmt* pStmt = NULL;
+  SNode*       pLikeCond = NULL;
+  int32_t      code = createSelectStmtForShow(QUERY_NODE_SHOW_INSTANCES_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code && NULL != pShow->pTbName) {
+    code = createOperatorNode(OP_TYPE_LIKE, "id", pShow->pTbName, &pLikeCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pLikeCond) {
+      pStmt->pWhere = pLikeCond;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  } else {
+    nodesDestroyNode((SNode*)pStmt);
+    nodesDestroyNode(pLikeCond);
   }
   return code;
 }
@@ -22203,6 +22237,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_STREAMS_STMT:
       code = rewriteShowStreams(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
+      code = rewriteShowInstances(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VTABLES_STMT:
       code = rewriteShowVtables(pCxt, pQuery);

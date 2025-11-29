@@ -59,14 +59,12 @@ class TestInsertBasic:
             #print(f"timestamp {timestamp}, data {sqlCol}")
             #print(f"check data {i} {tdSql.getData(i, 0)}, expect {expectColSet[i]}")
             result = expectColSet[i]   
-            if result != None:
+            tdLog.debug((f"check data {i} {tdSql.getData(i, 0)}"))
+            if result is not None:
                 encResult = result.encode()
-                tdLog.error((f"check data {i} {tdSql.getData(i, 0)}"))
-                tdSql.checkData(i, 1, encResult, 1)
+                tdSql.checkData(i, 1, encResult)
             else:
-                #print("get null data")
-                tdLog.error((f"check data {i} {tdSql.getData(i, 0)}"))
-                tdSql.checkData(i, 1, result, 1)
+                tdSql.checkData(i, 1, result)
 
     def insertBatchData(self, tb, count, colSet, startTs, ordered):
         x = 0

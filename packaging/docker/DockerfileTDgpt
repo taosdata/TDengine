@@ -1,23 +1,29 @@
 FROM tdgpt_env:1.1 AS tdgpt
-WORKDIR /root
-ENV DEBIAN_FRONTEND=noninteractive
+
 ARG pkgFile
-ARG dirName
 ARG modelDlUrl
 
 COPY ${modelDlUrl}/tdtsfm/taos.pth /var/lib/taos/taosanode/model/tdtsfm/
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-ADD ${pkgFile} /root/
+
 ENV INSTALL_VENV=False
-RUN cd ${dirName}/ && \
-    /bin/bash install.sh -e no && \
-    cd .. && \
-    rm -rf ${dirName}
-EXPOSE 6035 8387 6036 6037 6038 6039 6061
+COPY ${pkgFile} /tmp/
+RUN set -eux; \
+    TDGPT_INSTALL_DIR=/tmp/tdgpt-installer; \
+    mkdir -p "${TDGPT_INSTALL_DIR}"; \
+    tar -zxf /tmp/"${pkgFile}" --strip-components=1 --directory="${TDGPT_INSTALL_DIR}"; \
+    cd "${TDGPT_INSTALL_DIR}"; \
+    /bin/bash install.sh -e no; \
+    rm -rf /tmp/*
+
+WORKDIR /root
+EXPOSE 6035 6036 6037 6038 6039 6061 6062 8387
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-
 FROM tdgpt AS tdgpt_full
+
 COPY ${modelDlUrl}/timemoe/* \
     /var/lib/taos/taosanode/model/timemoe/
+COPY --link ${modelDlUrl}/moment/* \
+    /var/lib/taos/taosanode/model/moment/

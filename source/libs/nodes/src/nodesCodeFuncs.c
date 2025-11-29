@@ -381,6 +381,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowRsmasStmt";
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
       return "ShowRetentionsStmt";
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
+      return "ShowInstancesStmt";
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return "ShowRetentionDetailsStmt";
     case QUERY_NODE_DELETE_STMT:
@@ -9973,6 +9975,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showRsmasStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
       return showRsmasStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
+      return showRsmasStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return showRsmasStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
@@ -10399,6 +10403,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return jsonToShowRsmasStmt(pJson, pObj);
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
+      return jsonToShowRsmasStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
       return jsonToShowRsmasStmt(pJson, pObj);
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return jsonToShowRsmasStmt(pJson, pObj);
