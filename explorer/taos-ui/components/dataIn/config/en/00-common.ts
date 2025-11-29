@@ -450,6 +450,23 @@ export default {
         "defaultValue": "30s"
       },
       {
+        "field": "cache.keep_days",
+        "label": "Cache Keep Days",
+        "type": "composeAppend",
+        "options": [
+          {
+            "value": "d",
+            "label": "Days"
+          }
+        ],
+        "min": 0,
+        "max": 65535,
+        "description": "When the above operation is set to Cache, this configures the maximum duration for which cache files are retained. Default is 30 days. Configuring 0 means using the default value.",
+        "required": false,
+        "placeholder": "Enter an integer between [0,65535]",
+        "defaultValue": "30d"
+      },
+      {
         "field": "cache.max_size",
         "label": "Cache Max Size",
         "type": "composeAppend",
@@ -466,10 +483,20 @@ export default {
         "min": 0,
         "max": 65535,
         "description":
-          "When enabled, configure the allowable disk space to be used. The minimum is 1GB, the maximum is 65535GB, and a value of 0 means no limit. Default is unlimited. Default path: $DATA_DIR/tasks/:id/cache",
+          "Maximum size for each cache file. Default is 1GB, max is 65535GB, setting to 0 means using the default value. Default path: $DATA_DIR/tasks/:id/cache",
         "required": false,
-        "placeholder": "Enter an integer in the range [1, 65535]",
+        "placeholder": "Enter an integer in the range [0, 65535]",
         "defaultValue": "1GB"
+      },
+      {
+        "field": "cache.rotate_count",
+        "label": "Cache File Count",
+        "type": "number",
+        "min": 0,
+        "max": 65535,
+        "description": "Number of cache storage files. Default is 100. Setting to 0 means using the default value.",
+        "required": false,
+        "defaultValue": 100
       },
       {
         "field": "cache.location",
@@ -517,7 +544,7 @@ export default {
       },
       {
         "field": "archive.max_size",
-        "label": "Archive Max Size",
+        "label": "Archive max file size",
         "type": "composeAppend",
         "options": [
           {
@@ -532,10 +559,20 @@ export default {
         "min": 0,
         "max": 65535,
         "description":
-          "Maximum available disk space for archived files. Minimum is 1GB, maximum is 65535GB. Setting it to 0 means no limit. Default is unlimited. Default path: $DATA_DIR/tasks/:id/archived",
+          "Archive max file size, default is 1G, max is 65535G, setting to 0 means using the default value. Default path: $DATA_DIR/tasks/:id/archived",
         "required": false,
-        "placeholder": "Enter an integer in the range [1, 65535]",
+        "placeholder": "Enter an integer in the range [0, 65535]",
         "defaultValue": "1GB"
+      },
+      {
+        "field": "archive.rotate_count",
+        "label": "Archive Rotate Count",
+        "type": "number",
+        "min": 0,
+        "max": 65535,
+        "description": "Number of archived files to keep. Default is 100. Setting to 0 means using the default value.",
+        "required": false,
+        "defaultValue": 100
       },
       {
         "field": "archive.location",
