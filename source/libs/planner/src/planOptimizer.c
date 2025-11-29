@@ -6129,6 +6129,9 @@ static int32_t tableCountScanOptimize(SOptimizeContext* pCxt,
   if (TSDB_CODE_SUCCESS == code) {
     code = tbCntScanOptRewriteAgg(info.pAgg);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->optimized = true;
+  }
   return code;
 }
 
