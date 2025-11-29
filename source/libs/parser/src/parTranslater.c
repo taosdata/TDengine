@@ -479,6 +479,7 @@ static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* 
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
 
+static int32_t compareTsmaColWithColId(SNode* pNode1, SNode* pNode2);
 static int32_t createTsOperatorNode(EOperatorType opType, const SNode* pRight, SNode** pOp);
 static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp);
 static int32_t createOperatorNodeByNode(EOperatorType opType, const SNode* pLeft, const SNode* pRight, SNode** pOp);
@@ -16001,10 +16002,68 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
   TAOS_RETURN(code);
 }
 
-static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SPrivSetReqArgs* pReqArgs, STableMeta* pTableMeta,
-                                  SNodeList* pCols) {
+static int32_t comparePrivColWithColId(SNode* pNode1, SNode* pNode2) { return compareTsmaColWithColId(pNode1, pNode2); }
+static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, STableMeta* pTableMeta, SNodeList* pCols) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t nCols = LIST_LENGTH(pCols);
 
+  if (nCols <= 0) {
+    return code;
+  }
+
+  int32_t        columnNum = pTableMeta->tableInfo.numOfColumns;
+  const SSchema* pSchemaCols = &pTableMeta->schema;
+  SNode*         pNode = NULL;
+  SColumnNode*   pCol = NULL;
+  const SSchema* pSchema = NULL;
+  int32_t        i = 0, j = 0, k = 0;
+  FOREACH(pNode, pCols) {
+    pCol = (SColumnNode*)pNode;
+    j = i;
+    pSchema = NULL;
+    for (; i < columnNum; ++i) {
+      if (strcmp(pSchemaCols[i].name, pCol->colName) == 0) {
+        pSchema = pSchemaCols + i;
+        break;
+      }
+    }
+    if (!pSchema) {
+      for (k = 0; k < j; ++k) {
+        if (strcmp(pSchemaCols[k].name, pCol->colName) == 0) {
+          pSchema = pSchemaCols + k;
+          break;
+        }
+      }
+    }
+
+    if (!pSchema) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                     "Invalid param since column not exist: %s(%s)", pCol->colName);
+    }
+    pCol->colId = pSchema->colId;
+    pCol->node.resType.type = pSchema->type;
+    pCol->node.resType.bytes = pSchema->bytes;
+  }
+
+  if (!(*ppReqCols = taosArrayInit(nCols, sizeof(SColIdNameKV)))) {
+    return terrno;
+  }
+
+  nodesSortList(pCols, comparePrivColWithColId);
+  col_id_t lastColId = -1;
+  FOREACH(pNode, pCols) {
+    SColumnNode* pColNode = (SColumnNode*)pNode;
+    if (pColNode->colId == lastColId) {
+      continue;
+    }
+    SColIdNameKV colIdNameKv = {.colId = pColNode->colId};
+    (void)snprintf(colIdNameKv.colName, sizeof(colIdNameKv.colName), "%s", pColNode->colName);
+    if (!taosArrayPush(*ppReqCols, &colIdNameKv)) {
+      return terrno;
+    }
+    lastColId = pColNode->colId;
+  }
+_return:
   return code;
 }
 
@@ -16017,13 +16076,13 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
   SPrivSetReqArgs* pReqArgs = &pReq->privileges;
 
   if (pPrivSetArgs->rowSpans) {
-    if (LIST_LENGTH(pPrivSetArgs->rowSpans) != 2) {
+    if (LIST_LENGTH((SNodeList*)pPrivSetArgs->rowSpans) != 2) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Row-level privileges require both start and end row spans");
     }
 
-    SValueNode* pStart = (SValueNode*)nodesListGetNode(pPrivSetArgs->rowSpans, 0);
-    SValueNode* pEnd = (SValueNode*)nodesListGetNode(pPrivSetArgs->rowSpans, 1);
+    SValueNode* pStart = (SValueNode*)nodesListGetNode((SNodeList*)pPrivSetArgs->rowSpans, 0);
+    SValueNode* pEnd = (SValueNode*)nodesListGetNode((SNodeList*)pPrivSetArgs->rowSpans, 1);
 
     if (DEAL_RES_ERROR == translateValue(pCxt, pStart) || DEAL_RES_ERROR == translateValue(pCxt, pEnd)) {
       return pCxt->errCode;
@@ -16042,7 +16101,7 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
     pReqArgs->rowSpan[1] = end;
   }
 
-  if (pReqArgs->selectCols || pReqArgs->insertCols || pReqArgs->updateCols) {
+  if (pPrivSetArgs->selectCols || pPrivSetArgs->insertCols || pPrivSetArgs->updateCols) {
     if (pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Column-level privileges require a specific table name");
@@ -16057,9 +16116,9 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
       TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code)));
     }
 
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pReqArgs, pTableMeta, pStmt->privileges.selectCols));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pReqArgs, pTableMeta, pStmt->privileges.insertCols));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pReqArgs, pTableMeta, pStmt->privileges.updateCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->selectCols, pTableMeta, (SNodeList*)pPrivSetArgs->selectCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->insertCols, pTableMeta, (SNodeList*)pPrivSetArgs->insertCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->updateCols, pTableMeta, (SNodeList*)pPrivSetArgs->updateCols));
   }
 _exit:
   if (pTable) nodesDestroyNode((SNode*)pTable);

@@ -213,10 +213,36 @@ typedef struct {
 
 #define PRIV_GROUP(type)  ((type) / 64)
 #define PRIV_OFFSET(type) ((type) & 63)
-#define PRIV_TYPE(type) \
-  (SPrivSet) { .set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type) }
+#define PRIV_TYPE(type)   ((SPrivSet){.set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type)})
 
 #define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
+
+typedef struct {
+  int32_t  nPrivArgs;
+  SPrivSet privSet;
+  void*    rowSpans;    // SNodeList*
+  void*    selectCols;  // SNodeList*
+  void*    insertCols;  // SNodeList*
+  void*    updateCols;  // SNodeList*
+} SPrivSetArgs;
+
+#define PRIV_SET_TYPE(type)                                                   \
+  ((SPrivSetArgs){.nPrivArgs = 1,                                             \
+                  .privSet.set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type), \
+                  .rowSpans = NULL,                                           \
+                  .selectCols = NULL,                                         \
+                  .insertCols = NULL,                                         \
+                  .updateCols = NULL})
+
+#define PRIV_SET_COLS(type, select, insert, update)                                                \
+  ((SPrivSetArgs){.nPrivArgs = 1,                                                                  \
+                  .privSet = ((select) == NULL && (insert) == NULL && (update) == NULL             \
+                                  ? (SPrivSet){.set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type)} \
+                                  : (SPrivSet){0}),                                                \
+                  .rowSpans = NULL,                                                                \
+                  .selectCols = (void*)(select),                                                   \
+                  .insertCols = (void*)(insert),                                                   \
+                  .updateCols = (void*)(update)})
 
 typedef enum {
   PRIV_CATEGORY_UNKNOWN = -1,

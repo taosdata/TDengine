@@ -198,8 +198,8 @@ priv_type(A) ::= priv_type_tbl_dml(B).                                          
                                                                                       nodesDestroyList($$.updateCols);
                                                                                     }
                                                                                   }
-priv_type_tbl_dml(A) ::= SELECT TABLE.                                            { A.privSet = PRIV_TYPE(PRIV_TBL_SELECT); }
-priv_type_tbl_dml(A) ::= SELECT specific_cols_opt(B).                             { A.selectCols = B; }
+priv_type_tbl_dml(A) ::= SELECT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_SELECT); }
+priv_type_tbl_dml(A) ::= SELECT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
 
 
 

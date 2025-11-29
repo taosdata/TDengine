@@ -814,15 +814,6 @@ typedef struct SDropViewStmt {
   bool      ignoreNotExists;
 } SDropViewStmt;
 
-typedef struct {
-  int32_t    nPrivArgs;
-  SPrivSet   privSet;
-  SNodeList* rowSpans;
-  SNodeList* selectCols;
-  SNodeList* insertCols;
-  SNodeList* updateCols;
-} SPrivSetArgs;
-
 typedef struct SGrantStmt {
   ENodeType type;
   int8_t    optrType;                    // privilege/role/...
