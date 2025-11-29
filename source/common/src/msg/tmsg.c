@@ -2589,21 +2589,41 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
   if (pReq->alterType == TSDB_ALTER_ROLE_ROLE) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->roleName));
   } else if (pReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
-// typedef struct {
-//   int32_t    nPrivArgs;
-//   SPrivSet   privSet;
-//   TSKEY      rowSpan[2];
-//   SNodeList* selectCols;
-//   SNodeList* insertCols;
-//   SNodeList* updateCols;
-// } SPrivSetArgs;
+    // typedef struct {
+    //   int32_t    nPrivArgs;
+    //   SPrivSet   privSet;
+    //   TSKEY      rowSpan[2];
+    //   SNodeList* selectCols;
+    //   SNodeList* insertCols;
+    //   SNodeList* updateCols;
+    // } SPrivSetArgs;
     TAOS_CHECK_EXIT(tEncodeU8(&encoder, PRIV_GROUP_CNT));
     for (int32_t i = 0; i < PRIV_GROUP_CNT; i++) {
       TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pReq->privileges.privSet.set[i]));
     }
-    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->privileges.rowSpan[0]));  
+    TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->privileges.rowSpan[0]));
     TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->privileges.rowSpan[1]));
-    // int32_t nSelectCols = LIST_LENGTH(pReq->privileges.selectCols);
+    int32_t nSelectCols = taosArrayGetSize(pReq->privileges.selectCols);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nSelectCols));
+    for (int32_t i = 0; i < nSelectCols; i++) {
+      SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.selectCols, i);
+      TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pCol->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pCol->colName));
+    }
+    int32_t nInsertCols = taosArrayGetSize(pReq->privileges.insertCols);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nInsertCols));
+    for (int32_t i = 0; i < nInsertCols; i++) {
+      SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.insertCols, i);
+      TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pCol->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pCol->colName));
+    }
+    int32_t nUpdateCols = taosArrayGetSize(pReq->privileges.updateCols);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nUpdateCols));
+    for (int32_t i = 0; i < nUpdateCols; i++) {
+      SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.updateCols, i);
+      TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pCol->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pCol->colName));
+    }
   }
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->principal));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objName));
@@ -2638,13 +2658,54 @@ int32_t tDeserializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq
     TAOS_CHECK_EXIT(tDecodeU8(&decoder, (int8_t *)&groupCnt));
     for (int32_t i = 0; i < groupCnt; i++) {
       if (i < PRIV_GROUP_CNT) {
-        TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pReq->privileges.set[i]));
+        TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pReq->privileges.privSet.set[i]));
       } else {
         uint64_t unused;
         TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &unused));
       }
     }
-  } else if(pReq->alterType >= TSDB_ALTER_ROLE_MAX) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->privileges.rowSpan[0]));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->privileges.rowSpan[1]));
+    int32_t nSelectCols = 0;
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nSelectCols));
+    if (nSelectCols > 0) {
+      pReq->privileges.selectCols = taosArrayInit_s(sizeof(SColIdNameKV), nSelectCols);
+      if (pReq->privileges.selectCols == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nSelectCols; i++) {
+        SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.selectCols, i);
+        TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pCol->colId));
+        TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pCol->colName));
+      }
+    }
+    int32_t nInsertCols = 0;
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nInsertCols));
+    if (nInsertCols > 0) {
+      pReq->privileges.insertCols = taosArrayInit_s(sizeof(SColIdNameKV), nInsertCols);
+      if (pReq->privileges.insertCols == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nInsertCols; i++) {
+        SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.insertCols, i);
+        TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pCol->colId));
+        TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pCol->colName));
+      }
+    }
+    int32_t nUpdateCols = 0;
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nUpdateCols));
+    if (nUpdateCols > 0) {
+      pReq->privileges.updateCols = taosArrayInit_s(sizeof(SColIdNameKV), nUpdateCols);
+      if (pReq->privileges.updateCols == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nUpdateCols; i++) {
+        SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.updateCols, i);
+        TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pCol->colId));
+        TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pCol->colName));
+      }
+    }
+  } else if (pReq->alterType >= TSDB_ALTER_ROLE_MAX) {
     TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
   }
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->principal));
@@ -2662,6 +2723,11 @@ _exit:
 }
 
 void tFreeSAlterRoleReq(SAlterRoleReq *pReq) {
+  if (pReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
+    taosArrayDestroy(pReq->privileges.selectCols);
+    taosArrayDestroy(pReq->privileges.insertCols);
+    taosArrayDestroy(pReq->privileges.updateCols);
+  }
   taosMemoryFreeClear(pReq->tagCond);
   FREESQL();
 }

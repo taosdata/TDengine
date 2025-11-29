@@ -1374,9 +1374,9 @@ void    tFreeSDropRoleReq(SDropRoleReq* pReq);
 typedef struct {
   SPrivSet privSet;
   TSKEY    rowSpan[2];
-  SArray*  selectCols;
-  SArray*  insertCols;
-  SArray*  updateCols;
+  SArray*  selectCols;  // SColIdNameKV
+  SArray*  insertCols;  // SColIdNameKV
+  SArray*  updateCols;  // SColIdNameKV
 } SPrivSetRowCols;
 
 typedef struct {
