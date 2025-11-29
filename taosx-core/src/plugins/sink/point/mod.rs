@@ -11,6 +11,7 @@ use model::PointModelConfig;
 use model::TableConfig;
 use model::TagConfig;
 use rhai::{Dynamic, Scope, AST};
+use std::borrow::Borrow;
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -42,7 +43,6 @@ pub async fn handle_transform(
         ColumnConfig::RECEIVED_TS,
     ];
     let transform_config = config.transform_map(&transform_columns).await?;
-
     // id
     let id_col = message.clone_column_by_name("id")?;
 
@@ -137,18 +137,21 @@ pub async fn handle_transform(
 
 /// convert ColumnConfig map to RecordTransform map
 /// return (point_id, RecordTransform) pairs
-fn to_record_transform_map(
-    config_map: &HashMap<String, ColumnConfig>,
-) -> HashMap<String, RecordTransform> {
+fn to_record_transform_map<T>(config_map: &HashMap<String, T>) -> HashMap<String, RecordTransform>
+where
+    T: Borrow<ColumnConfig>,
+{
     config_map
         .iter()
-        .filter(|(_, ts_config)| ts_config.transform.is_some())
-        .map(|(point_id, ts_config)| {
-            let transform = RecordTransform {
-                column_name: ts_config.alias.clone(),
-                transform_expression: ts_config.transform.clone(),
-            };
-            (point_id.clone(), transform)
+        .filter_map(|(point_id, cfg)| {
+            let ts_config = cfg.borrow();
+            ts_config.transform.as_ref().map(|_| {
+                let transform = RecordTransform {
+                    column_name: ts_config.alias.clone(),
+                    transform_expression: ts_config.transform.clone(),
+                };
+                (point_id.clone(), transform)
+            })
         })
         .collect()
 }
@@ -549,15 +552,16 @@ fn get_transform_expression_by_id(
 
 /// Point 类型的 RecordMessage 转为 SQL 插入语句
 pub async fn point_records_to_sql(
-    message: RecordMessage,
+    message: &RecordMessage,
     config: &PointModelConfig,
     target_precision: taos::Precision,
 ) -> anyhow::Result<(
     HashMap<String, Vec<SqlInsertion>>,
     HashMap<String, HashMap<String, String>>,
 )> {
-    let mut point_config_map = config.point_config_map.clone();
-    let mut table_config_map = config.table_config_map.clone();
+    // Avoid cloning entire config maps; cache only generated mappings locally when needed
+    let mut generated_point_configs: HashMap<String, model::PointConfig> = HashMap::new();
+    let mut generated_table_configs: HashMap<String, model::TableConfig> = HashMap::new();
 
     let cv_vec = record_batch_to_column_view(message.record(), target_precision);
 
@@ -641,13 +645,21 @@ pub async fn point_records_to_sql(
                         p,
                         t
                     );
-                    point_config_map.insert(point_id.clone(), p);
-                    table_config_map.insert(point_id.clone(), t);
+                    generated_point_configs.insert(point_id.clone(), p);
+                    generated_table_configs.insert(point_id.clone(), t);
                 }
             }
         }
-        let point_config = point_config_map.get(&point_id).unwrap();
-        let table_config = table_config_map.get(&point_id).unwrap();
+        let point_config = config
+            .point_config_map
+            .get(&point_id)
+            .or_else(|| generated_point_configs.get(&point_id))
+            .unwrap();
+        let table_config = config
+            .table_config_map
+            .get(&point_id)
+            .or_else(|| generated_table_configs.get(&point_id))
+            .unwrap();
 
         // stable_name
         let stable_name = stable_name(
@@ -901,7 +913,7 @@ pub async fn point_records_to_sql(
                     } else {
                         // 不同点位入同一张表的情况，需要合并column_configs
                         let exist_column_configs =
-                            &mut sql_insertion.point_insertion.column_configs;
+                            Arc::make_mut(&mut sql_insertion.point_insertion.column_configs);
                         let column_configs = &table_config.column_configs;
                         for column_config in column_configs {
                             if !exist_column_configs.contains(column_config) {
@@ -1014,8 +1026,8 @@ fn stable_name(
 
 #[derive(Clone, Debug)]
 pub struct PointInsertion {
-    pub column_configs: Vec<ColumnConfig>,
-    pub tag_configs: Option<Vec<TagConfig>>,
+    pub column_configs: Arc<Vec<ColumnConfig>>, // COW via Arc
+    pub tag_configs: Option<Arc<Vec<TagConfig>>>,
     pub columns: Vec<(String, String)>, // column_name(original_ts/received_ts/value/quality), column_alias
     pub value_column_config: ColumnConfig,
     pub other_columns: String,
@@ -1080,7 +1092,7 @@ impl PointInsertion {
                 "`point_id` VARCHAR(256), `point_name` VARCHAR(256)".to_string()
             }
         } else {
-            let tag_configs = table_config.tag_configs.clone().unwrap();
+            let tag_configs = table_config.tag_configs.as_ref().unwrap();
             tag_configs
                 .iter()
                 .map(|tag| format!("`{}` {}", tag.name, tag.r#type.sql_repr()))
@@ -1089,8 +1101,11 @@ impl PointInsertion {
         };
 
         Self {
-            column_configs: table_config.column_configs.clone(),
-            tag_configs: table_config.tag_configs.clone(),
+            column_configs: Arc::new(table_config.column_configs.clone()),
+            tag_configs: table_config
+                .tag_configs
+                .as_ref()
+                .map(|v| Arc::new(v.clone())),
             columns,
             value_column_config,
             other_columns,
@@ -1143,7 +1158,7 @@ mod tests {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let config = parser.parse().await.unwrap();
-        let (s, _t) = point_records_to_sql(message, &config, taos::Precision::Millisecond)
+        let (s, _t) = point_records_to_sql(&message, &config, taos::Precision::Millisecond)
             .await
             .unwrap();
         assert_eq!(s.len(), 1);
@@ -1160,7 +1175,7 @@ mod tests {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-3.3.6.0.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let config = parser.parse().await.unwrap();
-        let (s, _t) = point_records_to_sql(message, &config, taos::Precision::Millisecond)
+        let (s, _t) = point_records_to_sql(&message, &config, taos::Precision::Millisecond)
             .await
             .unwrap();
         assert_eq!(s.len(), 1);
@@ -1177,7 +1192,7 @@ mod tests {
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-3.3.6.0.csv").unwrap();
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let config = parser.parse().await.unwrap();
-        let (s, _t) = point_records_to_sql(message, &config, taos::Precision::Millisecond)
+        let (s, _t) = point_records_to_sql(&message, &config, taos::Precision::Millisecond)
             .await
             .unwrap();
         assert_eq!(s.len(), 1);
@@ -1191,7 +1206,7 @@ mod tests {
 
         // ns=3;s="数据块_1"."Tag1"
         let message = mock_point_message_3();
-        let (s, _t) = point_records_to_sql(message, &config, taos::Precision::Millisecond)
+        let (s, _t) = point_records_to_sql(&message, &config, taos::Precision::Millisecond)
             .await
             .unwrap();
         assert_eq!(s.len(), 1);
@@ -1213,7 +1228,7 @@ mod tests {
         let parser = CsvParser::from_dsn(&dsn).unwrap();
         let config = parser.parse().await.unwrap();
 
-        let (s, _t) = point_records_to_sql(message, &config, taos::Precision::Millisecond)
+        let (s, _t) = point_records_to_sql(&message, &config, taos::Precision::Millisecond)
             .await
             .unwrap();
         // Merge all SQL fragments for inspection

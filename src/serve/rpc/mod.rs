@@ -409,7 +409,11 @@ impl FlightServiceImpl {
                 match receiver.recv().await {
                     Ok((id, action)) => {
                         if id == agent_id {
-                            tracing::debug!("receive action: {:?}, agent id: {}", action, id);
+                            tracing::debug!(
+                                "receive action: {}, agent id: {}",
+                                std::any::type_name_of_val(&action),
+                                id
+                            );
                             if let Some(batch) = action_to_arrow(
                                 &req_id,
                                 &senders,
@@ -1159,7 +1163,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
 #[instrument(skip(dsn))]
 async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
     let mut dsn = json_to_dsn(&serde_json::Value::String(dsn.to_string()))?;
-    tracing::debug!("dsn before modify: {}", &dsn);
+    tracing::trace!("dsn before modify: {}", &dsn);
 
     if let Some(v) = dsn.params.get("csv_config_file") {
         let csv_path = &v[1..];
@@ -1182,7 +1186,7 @@ async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
         }
     }
 
-    tracing::debug!("dsn after modify: {}", &dsn);
+    tracing::trace!("dsn after modify: {}", &dsn);
     Ok(dsn)
 }
 

@@ -196,6 +196,7 @@ impl PointModelConfig {
             let _ = seen.insert(stable.to_string());
         }
 
+        tracing::info!("generate {} stable create sqls", sqls.len());
         sqls
     }
 
@@ -214,6 +215,10 @@ impl PointModelConfig {
         let mut result: Vec<String> = Vec::new();
         let mut current: String = String::new();
         let mut has_segment_in_current = false;
+        // 统计成功生成的子表段（即有效点位）的数量
+        let mut point_count: usize = 0;
+        // 统计被跳过的点位数量
+        let mut skipped_count: usize = 0;
 
         for (pid, pcfg) in self.point_config_map.iter() {
             let tbname = pcfg.code.as_str();
@@ -221,11 +226,13 @@ impl PointModelConfig {
             // Preconditions: stable must exist and not be an expression; tag values must exist; table config must exist with tag configs.
             let stable = match pcfg.stable.as_deref() {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} stable is None, skipping", pid);
                     continue;
                 }
                 Some(stable) => {
                     if PointConfig::is_expr(self.source_type, "stable", stable) {
+                        skipped_count += 1;
                         tracing::warn!("point_id: {} stable is expression, skipping", pid);
                         continue;
                     }
@@ -235,6 +242,7 @@ impl PointModelConfig {
 
             let tag_values = match pcfg.tag_values.as_ref() {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} tag_values is None, skipping", pid);
                     continue;
                 }
@@ -242,6 +250,7 @@ impl PointModelConfig {
             };
             let tcfg = match self.table_config_map.get(pid) {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} not found in table_config_map, skipping", pid);
                     continue;
                 }
@@ -249,6 +258,7 @@ impl PointModelConfig {
             };
             let tags = match tcfg.tag_configs.as_ref() {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} tag_configs is None, skipping", pid);
                     continue;
                 }
@@ -279,6 +289,9 @@ impl PointModelConfig {
                 tbname, stable, tag_names, tag_vals
             );
 
+            // 记录一次有效点位
+            point_count += 1;
+
             if !has_segment_in_current {
                 current = format!("CREATE TABLE {}", segment);
                 has_segment_in_current = true;
@@ -299,6 +312,13 @@ impl PointModelConfig {
             result.push(current);
         }
 
+        // 在最后打印统计信息：点位计数、被跳过的点位数量和 SQL 条数
+        tracing::info!(
+            "generate {} child table create sqls, total points: {}, skipped points: {}",
+            result.len(),
+            point_count,
+            skipped_count
+        );
         result
     }
 
@@ -796,6 +816,13 @@ impl PointModelConfig {
         }
     }
 
+    pub fn need_transform(&self) -> bool {
+        match &self.generate_rule {
+            None | Some(GeneratePointMappingBy::Rule(_)) => false,
+            Some(GeneratePointMappingBy::Csv((_csv, _csv_origin))) => true,
+        }
+    }
+
     pub async fn transform_map(
         &self,
         columns: &[&str],
@@ -821,13 +848,16 @@ impl PointModelConfig {
         }
     }
 
-    pub fn get_column_config_map_by_name(&self, col_name: &str) -> HashMap<String, ColumnConfig> {
-        let mut column_config_map = HashMap::new();
+    pub fn get_column_config_map_by_name<'a>(
+        &'a self,
+        col_name: &str,
+    ) -> HashMap<String, &'a ColumnConfig> {
+        let mut column_config_map: HashMap<String, &ColumnConfig> = HashMap::new();
 
         for (point_id, table_config) in &self.table_config_map {
-            let column_config = table_config.column_config(col_name);
-            if let Some(column_config) = column_config {
-                column_config_map.insert(point_id.clone(), column_config.clone());
+            if let Some(column_config) = table_config.column_config(col_name) {
+                // 仅保存引用，避免在热路径上克隆整个 ColumnConfig
+                column_config_map.insert(point_id.clone(), column_config);
             }
         }
 

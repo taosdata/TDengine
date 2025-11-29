@@ -8,7 +8,7 @@ use arrow_schema::ArrowError;
 use async_backtrace::framed;
 use chrono::{TimeDelta, Utc};
 use dashmap::DashMap;
-use deadpool::managed::{PoolError, TimeoutType};
+use deadpool::managed::{Object, PoolError, TimeoutType};
 use faststr::FastStr;
 use flume::Sender;
 use futures::future::Either;
@@ -1073,8 +1073,8 @@ pub async fn handle_point_message_init(
     }
 
     let sqls = config.to_create_table_sqls();
-    for sql in sqls {
-        match taos.exec(&sql).await {
+    for sql in &sqls {
+        match taos.exec(sql).await {
             Ok(_) => {}
             Err(err) => {
                 tracing::warn!(
@@ -1083,6 +1083,7 @@ pub async fn handle_point_message_init(
             }
         }
     }
+    tracing::info!("point message init done");
 
     Ok(())
 }
@@ -1106,13 +1107,17 @@ async fn consume_point_record(
 
     let mut points = 0;
     let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+
+    let need_transform = config.need_transform();
+
     for message in record.records() {
-        let message = handle_transform(message, config).await?;
-
         let message_rows = message.record().num_rows() as u64;
-
-        let (stable_insert_map, child_table_create_sql_map) =
-            point_records_to_sql(message, config, target_precision).await?;
+        let (stable_insert_map, child_table_create_sql_map) = if need_transform {
+            let transformed_msg = handle_transform(message, config).await?;
+            point_records_to_sql(&transformed_msg, config, target_precision).await?
+        } else {
+            point_records_to_sql(message, config, target_precision).await?
+        };
 
         for (stable_name, sql_vec) in stable_insert_map {
             for sql_insertion in sql_vec {
@@ -1152,14 +1157,15 @@ async fn consume_point_record(
                             break 'outer;
                         }
                         Err(err) => {
-                            let errstr = format!("{err:#}");
+                            let code: i32 = err.code().into();
                             tracing::warn!(
                                 sql = sql_insertion.sql,
-                                error = errstr,
+                                code,
+                                error = ?err,
                                 "Insert point record error",
                             );
 
-                            if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
+                            if code == 0x2603 || code == 0x0200 {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2603: the table does not exist
                                 // 0x0200: stmt bind param does not support normal value in sql
@@ -1293,11 +1299,13 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
-                            } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
+                            } else if code == 0x2602 || code == 0x263F {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2602: invalid column
                                 // 0x263F: invalid columns number
-                                for column_config in &sql_insertion.point_insertion.column_configs {
+                                for column_config in
+                                    sql_insertion.point_insertion.column_configs.as_ref().iter()
+                                {
                                     // alter stable column not supported by taosd
                                     let desc = taos.as_ref().unwrap().describe(&stable_name).await;
                                     let desc = match desc {
@@ -1391,6 +1399,7 @@ async fn consume_point_record(
                                     let desc =
                                         taos.as_ref().unwrap().describe(&stable_name).await?;
                                     let fields = tag_configs
+                                        .as_ref()
                                         .iter()
                                         .map(|config| (config.name.clone(), config.r#type.clone()))
                                         .collect_vec();
@@ -1440,7 +1449,7 @@ async fn consume_point_record(
                                 }
                                 retry += 1;
                                 continue 'outer;
-                            } else if errstr.contains("[0x2653]") {
+                            } else if code == 0x2653 {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2653: value too long for column/tag
                                 let desc = taos
@@ -1472,7 +1481,7 @@ async fn consume_point_record(
                                 if let Some(tag_configs) =
                                     &sql_insertion.point_insertion.tag_configs
                                 {
-                                    for tag_conf in tag_configs {
+                                    for tag_conf in tag_configs.as_ref().iter() {
                                         tags_for_diff
                                             .push((tag_conf.name.clone(), tag_conf.r#type.clone()));
                                     }
@@ -1520,13 +1529,7 @@ async fn consume_point_record(
                                 }
                                 retry += 1;
                                 continue 'outer;
-                            } else if errstr.contains("[0xE000]")
-                                || errstr.contains("[0xE001]")
-                                || errstr.contains("[0xE002]")
-                                || errstr.contains("[0xE003]")
-                                || errstr.contains("[0xE004]")
-                                || errstr.contains("[0x000B]")
-                            {
+                            } else if (0xE000..=0xE004).contains(&code) || code == 0x000B {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0xE000: dsn error
                                 // 0xE001: internal error
@@ -2985,10 +2988,11 @@ impl IpcStreamWorker {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .unwrap();
-                let mut taos = Some(self.pool.get().await?);
+                let taos = get_taos_with_retry(&self.pool, 5, Duration::from_secs(2)).await?;
+                // let mut taos = Some(self.pool.get().await?);
                 let _n = consume_point_record(
                     &self.pool,
-                    &mut taos,
+                    &mut Some(taos),
                     &record,
                     &mut count,
                     self.opc_table_config
@@ -3008,6 +3012,37 @@ impl IpcStreamWorker {
 
     pub fn opc_model_config(&self) -> Option<&PointModelConfig> {
         self.opc_table_config.get()
+    }
+}
+
+async fn get_taos_with_retry(
+    pool: &TaosPool,
+    max_retries: usize,
+    retry_delay: Duration,
+) -> anyhow::Result<Object<Manager<TaosBuilder>>> {
+    let mut attempts = 0;
+    loop {
+        match pool.get().await {
+            Ok(taos) => return Ok(taos),
+            Err(e) => {
+                attempts += 1;
+                if attempts >= max_retries {
+                    return Err(anyhow::anyhow!(
+                        "Failed to get taos connection after {} attempts: {}",
+                        max_retries,
+                        e
+                    ));
+                }
+                tracing::warn!(
+                    "Failed to get taos connection (attempt {}/{}): {}. Retrying in {:?}",
+                    attempts,
+                    max_retries,
+                    e,
+                    retry_delay
+                );
+                tokio::time::sleep(retry_delay).await;
+            }
+        }
     }
 }
 

@@ -148,7 +148,23 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
             let json_value: serde_json::Value = match serde_json::from_str(&str) {
                 Ok(value) => value,
                 Err(_) => {
-                    tracing::info!("parse by json failed, use default dsn: {}", str);
+                    // 只截断 csv_config_file 参数
+                    let mut log_str = str.clone();
+                    if let Some(idx) = log_str.find("csv_config_file=") {
+                        let start = idx + "csv_config_file=".len();
+                        let end = log_str[start..]
+                            .find('&')
+                            .map(|e| start + e)
+                            .unwrap_or(log_str.len());
+                        let value = &log_str[start..end];
+                        const MAX_CSV_LEN: usize = 64;
+                        if value.len() > MAX_CSV_LEN {
+                            let mut truncated = value[..MAX_CSV_LEN].to_string();
+                            truncated.push_str("...<truncated>");
+                            log_str.replace_range(start..end, &truncated);
+                        }
+                    }
+                    tracing::info!("parse by json failed, use default dsn: {}", log_str);
                     return str
                         .parse()
                         .with_context(|| format!("Invalid data source: {}", json));

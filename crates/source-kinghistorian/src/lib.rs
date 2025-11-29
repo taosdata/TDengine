@@ -95,11 +95,13 @@ pub async fn kinghist_to_taos(
     let config = Arc::new(KingHistConfig::try_from_dsn(&from)?);
     tracing::info!("kinghist_to_taos job config: {:#?}", &config);
 
+    let csv_content = config.csv_content.clone().ok_or(anyhow::anyhow!(
+        "kinghist_to_taos missing csv_content in config"
+    ))?;
     // 解析 csv 中的点位映射，直接解析 csv_content
-    let parser = CsvParser::try_from_content(SourceType::KingHistorian, &config.csv_content)?;
+    let parser = CsvParser::try_from_content(SourceType::KingHistorian, &csv_content)?;
     let model_config = parser.parse().await?;
     context.task_config = Some(config);
-    // TODO: KingHistorian 目前需要在 CSV 中指定 Tag 类型，后续改为从 KingHistorian 读取元数据
     check_csv_type(&model_config)?;
     tracing::info!(
         "kinghist_to_taos csv config file parsed with {} points",
@@ -265,13 +267,23 @@ async fn kinghist_collect(
 
         let schema = build_point_schema(value_dtype);
         let (tx, rx) = flume::bounded::<RecordBatch>(0);
+        //
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(100));
+
         // 启动 writer（创建即发送 schema header，避免对端读不到头部）
         let writer_stream = ipc_stream.try_clone()?;
         let schema_for_writer = schema.clone();
-        let writer = tokio::task::spawn_blocking(move || {
+        let writer_semaphore = semaphore.clone();
+        let datetype = key.clone();
+        let writer = tokio::task::spawn(async move {
             let mut writer = StreamWriter::try_new(writer_stream, &schema_for_writer)?;
+            let mut batch_cnt = 0usize;
             while let Ok(batch) = rx.recv() {
+                // 限流，避免内存占用过高，每发送一个 batch 就获取 2 个许可
+                writer_semaphore.acquire_many(2).await.unwrap().forget();
                 writer.write(&batch)?;
+                batch_cnt += 1;
+                tracing::debug!(datetype, "kinghist_to_taos wrote batch: {batch_cnt}");
             }
             writer.finish()?;
             Ok(())
@@ -281,11 +293,13 @@ async fn kinghist_collect(
         let ack_reader_stream = ack_stream
             .try_clone()
             .context("kinghist_to_taos failed to clone ack stream for reader")?;
+        let ack_semaphore = semaphore.clone();
         let datetype = key.clone();
         let ack = tokio::task::spawn_blocking(move || {
             let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush)
                 .open(&ack_reader_stream)
                 .context("kinghist_to_taos failed to open ack stream")?;
+            let mut ack_cnt = 0usize;
             for ack in ack_reader {
                 if !ack.success() {
                     tracing::error!("kinghist_to_taos failed to handle message error: {ack:?}");
@@ -293,6 +307,10 @@ async fn kinghist_collect(
                         anyhow::bail!("kinghist_to_taos IPC writer error: {message}");
                     }
                 }
+                ack_cnt += 1;
+                tracing::debug!(datetype, "kinghist_to_taos received ACK: {ack_cnt}");
+                // release semaphore permit
+                ack_semaphore.add_permits(1);
             }
             tracing::info!("kinghist_to_taos ACK reader finished for [{datetype}]");
             Ok(())
@@ -350,9 +368,11 @@ struct KingHistContext {
 impl std::fmt::Debug for KingHistContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("KingHistContext");
-        d.field("task_id", &self.task_id)
-            .field("from", &self.from)
-            .field("to", &self.to);
+        d.field("task_id", &self.task_id);
+        if std::env::var("TAOSX_DEBUG_DSN").is_ok() {
+            d.field("from", &self.from);
+            d.field("to", &self.to);
+        }
 
         if let Some(ref config) = self.task_config {
             d.field("task_config", config);
@@ -1202,11 +1222,7 @@ mod tests {
         let context = KingHistContext::new(Some(1), &from, &to);
         let display = format!("{:?}", context);
 
-        dbg!(&display);
-
         assert!(display.contains("task_id: Some(1)"));
-        assert!(display.contains("from: \"kinghist://sa:sa@127.0.0.1:5678\""));
-        assert!(display.contains("to: \"taos://\""));
     }
 
     /// TAOS_DSN="taos+ws://192.168.2.139:6041/test" cargo nextest run -p source-kinghistorian test_kinghist_to_taos --retries 0 --nocapture
