@@ -1279,6 +1279,7 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
     mError("failed to init alter fields array");
     goto END;
   }
+  tstrncpy(alterReq.name, pStb->name, TSDB_TABLE_FNAME_LEN);
   for (int32_t i = 0; i < pDst->numOfColumns && taosArrayGetSize(alterReq.pFields) == 0; ++i) {
     SSchema           *pSchema = &pDst->pColumns[i];
     int32_t cIndex = mndFindSuperTableColumnIndex(pStb, pSchema->name);
@@ -1294,6 +1295,7 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
     pAlterField->type = pSchema->type;
     pAlterField->bytes = pSchema->bytes;
     tstrncpy(pAlterField->name, pSchema->name, TSDB_COL_NAME_LEN);
+    mDebug("alter column name:%s, type:%d, bytes:%d", pAlterField->name, pAlterField->type, pAlterField->bytes);
   }
 
   for (int32_t i = 0; i < pDst->numOfTags && taosArrayGetSize(alterReq.pFields) == 0; ++i) {
@@ -1311,6 +1313,7 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
     pAlterField->type = pSchema->type;
     pAlterField->bytes = pSchema->bytes;
     tstrncpy(pAlterField->name, pSchema->name, TSDB_COL_NAME_LEN);
+    mDebug("alter tag name:%s, type:%d, bytes:%d", pAlterField->name, pAlterField->type, pAlterField->bytes);
   }
   alterReq.numOfFields = taosArrayGetSize(alterReq.pFields);
   if (alterReq.numOfFields == 0) {
@@ -1337,7 +1340,7 @@ static void buildAlterMsg(SStbObj *pStb, SStbObj *pDst, void** pAlterBuf, int32_
   *pAlterBuf = buf;
   *len = contLen;
 END:
-  taosMemoryFree(alterReq.pFields);
+  taosArrayDestroy(alterReq.pFields);
 }
 
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
@@ -2642,7 +2645,7 @@ static int32_t mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbOb
     goto _OVER;
   }
 
-  mInfo("trans:%d, used to alter stb:%s", pTrans->id, pStb->name);
+  mInfo("trans:%d, used to alter stb:%s, alterOriDataLen:%d", pTrans->id, pStb->name, alterOriDataLen);
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
