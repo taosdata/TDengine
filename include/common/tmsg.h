@@ -1377,7 +1377,7 @@ typedef struct {
   SArray*  selectCols;  // SColIdNameKV
   SArray*  insertCols;  // SColIdNameKV
   SArray*  updateCols;  // SColIdNameKV
-} SPrivSetRowCols;
+} SPrivSetReqArgs;
 
 typedef struct {
   uint8_t alterType;
@@ -1392,7 +1392,7 @@ typedef struct {
     };
   };
   union {
-    SPrivSetRowCols privileges;
+    SPrivSetReqArgs privileges;
     char            roleName[TSDB_ROLE_LEN];
   };
   char    principal[TSDB_ROLE_LEN];     // role or user name

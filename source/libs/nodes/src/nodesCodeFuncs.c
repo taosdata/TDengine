@@ -9064,7 +9064,7 @@ static int32_t grantStmtToJson(const void* pObj, SJson* pJson) {
     char    privSet[256] = {0};
     int32_t len = 0;
     for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-      len += snprintf(privSet + len, sizeof(privSet) - len, "%" PRIu64 ",", pNode->privileges.set[i]);
+      len += snprintf(privSet + len, sizeof(privSet) - len, "%" PRIu64 ",", pNode->privileges.privSet.set[i]);
       if (len >= sizeof(privSet)) {
         code = TSDB_CODE_OUT_OF_RANGE;
         break;
@@ -9107,7 +9107,7 @@ static int32_t jsonToGrantStmt(const SJson* pJson, void* pObj) {
           break;
         }
 
-        pNode->privileges.set[i] = value;
+        pNode->privileges.privSet.set[i] = value;
         i++;
         token = strtok(NULL, ",");
       }

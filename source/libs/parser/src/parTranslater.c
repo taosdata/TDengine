@@ -16001,7 +16001,7 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
   TAOS_RETURN(code);
 }
 
-static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SPrivSetRowCols* pPrivSetRowCols, STableMeta* pTableMeta,
+static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SPrivSetReqArgs* pReqArgs, STableMeta* pTableMeta,
                                   SNodeList* pCols) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -16013,8 +16013,8 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
   STableMeta*      pTableMeta = NULL;
   SRealTableNode*  pTable = NULL;
   int32_t          code = 0, lino = 0;
-  SPrivSetRowCols* pPrivSetRowCols = &pStmt->privileges;
   SPrivSetArgs*    pPrivSetArgs = &pStmt->privileges;
+  SPrivSetReqArgs* pReqArgs = &pReq->privileges;
 
   if (pPrivSetArgs->rowSpans) {
     if (LIST_LENGTH(pPrivSetArgs->rowSpans) != 2) {
@@ -16038,11 +16038,11 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
           "Invalid row range: start TS  should be less than end TS for row-level privileges");
     }
 
-    pPrivSetRowCols->rowSpan[0] = start;
-    pPrivSetRowCols->rowSpan[1] = end;
+    pReqArgs->rowSpan[0] = start;
+    pReqArgs->rowSpan[1] = end;
   }
 
-  if (pPrivSetRowCols->selectCols || pPrivSetRowCols->insertCols || pPrivSetRowCols->updateCols) {
+  if (pReqArgs->selectCols || pReqArgs->insertCols || pReqArgs->updateCols) {
     if (pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Column-level privileges require a specific table name");
@@ -16057,9 +16057,9 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
       TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code)));
     }
 
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pPrivSetRowCols, pTableMeta, pStmt->privileges.selectCols));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pPrivSetRowCols, pTableMeta, pStmt->privileges.insertCols));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pPrivSetRowCols, pTableMeta, pStmt->privileges.updateCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pReqArgs, pTableMeta, pStmt->privileges.selectCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pReqArgs, pTableMeta, pStmt->privileges.insertCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, pReqArgs, pTableMeta, pStmt->privileges.updateCols));
   }
 _exit:
   if (pTable) nodesDestroyNode((SNode*)pTable);
