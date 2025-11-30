@@ -454,8 +454,14 @@ typedef struct {
   SHashObj* topics;
 
   // table level privileges
-  SHashObj* selectTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* insertTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+  union {
+    SHashObj* selectTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+    SHashObj* readTbs;
+  };
+  union {
+    SHashObj* insertTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+    SHashObj* writeTbs;
+  };
   SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* deleteTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* alterTbs;   // k:tbFName, v: empty

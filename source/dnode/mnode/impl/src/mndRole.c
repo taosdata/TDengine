@@ -598,8 +598,14 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   pOld->version = pNew->version;
   pOld->flag = pNew->flag;
   TSWAP(pOld->objPrivs, pNew->objPrivs);
-  TSWAP(pOld->rowPrivs, pNew->rowPrivs);
-  TSWAP(pOld->colPrivs, pNew->colPrivs);
+  TSWAP(pOld->selectRows, pNew->selectRows);
+  TSWAP(pOld->insertRows, pNew->insertRows);
+  TSWAP(pOld->updateRows, pNew->updateRows);
+  TSWAP(pOld->deleteRows, pNew->deleteRows);
+  TSWAP(pOld->selectTbs, pNew->selectTbs);
+  TSWAP(pOld->insertTbs, pNew->insertTbs);
+  TSWAP(pOld->updateTbs, pNew->updateTbs);
+  TSWAP(pOld->deleteTbs, pNew->deleteTbs);
   TSWAP(pOld->parentUsers, pNew->parentUsers);
   TSWAP(pOld->parentRoles, pNew->parentRoles);
   TSWAP(pOld->subRoles, pNew->subRoles);
