@@ -1779,7 +1779,7 @@ int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
-int32_t mndDupPrivilegeHash(SHashObj *pOld, SHashObj **ppNew) {
+int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
   int32_t code = 0;
   *ppNew =
       taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -1787,13 +1787,47 @@ int32_t mndDupPrivilegeHash(SHashObj *pOld, SHashObj **ppNew) {
     TAOS_RETURN(terrno);
   }
 
-  SPrivSet *privSet = NULL;
-  while ((privSet = taosHashIterate(pOld, privSet))) {
+  SPrivObjPolicies *policies = NULL;
+  while ((policies = taosHashIterate(pOld, policies))) {
     size_t keyLen = 0;
-    char  *key = taosHashGetKey(privSet, &keyLen);
+    char  *key = taosHashGetKey(policies, &keyLen);
 
-    if ((code = taosHashPut(*ppNew, key, keyLen, privSet, sizeof(*privSet))) != 0) {
-      taosHashCancelIterate(pOld, privSet);
+    if ((code = taosHashPut(*ppNew, key, keyLen, policies, sizeof(*policies))) != 0) {
+      taosHashCancelIterate(pOld, policies);
+      taosHashCleanup(*ppNew);
+      TAOS_RETURN(code);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
+  int32_t code = 0;
+  *ppNew =
+      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (*ppNew == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  SPrivTblPolicies *policies = NULL;
+  while ((policies = taosHashIterate(pOld, policies))) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(policies, &keyLen);
+
+    SPrivTblPolicies tmpPolicies = {.nPolicies = policies->nPolicies};
+
+    for (int32_t i = 0; i < policies->nPolicies; ++i) {
+      if (policies->policy[i]) {
+        if(!(tmpPolicies.policy[i] = taosArrayDup(policies->policy[i], NULL))){
+          code = terrno;
+          for
+        }
+      }
+    }
+
+    if ((code = taosHashPut(*ppNew, key, keyLen, &tmpPolicies, sizeof(*policies))) != 0) {
+      taosHashCancelIterate(pOld, policies);
       taosHashCleanup(*ppNew);
       TAOS_RETURN(code);
     }
