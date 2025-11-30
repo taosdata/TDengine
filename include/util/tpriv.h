@@ -290,11 +290,23 @@ typedef struct {
   int64_t policyId;  // used for revoke by policyId directly
   TSKEY   span[2];   // startTs, endTs, if span[0] == 0 && span[1] == 0, means all rows
   SArray* cols;      // SColIdNameKV, NULL means all columns, sorted by colId. No need to include and check primary key
-                 // column since any user should have privilege to operate primary key column although not specified.
-  char*    tagCond;     // NULL if no tag condition
-  uint32_t taghash;     // MurmurHash3_32 of tagCond, used for quick compare
-  uint32_t policyHash;  // MurmurHash3_32 of span + colIds + tagCond, used for deduplication
+                     // column since primary key column is always included implicitly if any other columns specified.
+  char*    tagCond;  // NULL if no tag condition
+  uint32_t taghash;  // MurmurHash3_32 of tagCond, 0 means no tag condition
+  uint32_t colHash;  // MurmurHash3_32 of cols, 0 means all columns
 } SPrivTblPolicy;
+
+typedef enum {
+  PRIV_TBL_POLICY_TBL = 0,       // no tag, all columns
+  PRIV_TBL_POLICY_TBL_COLS = 1,  // no tag, specific columns
+  PRIV_TBL_POLICY_TAG = 2,       // tag condition, all columns
+  PRIV_TBL_POLICY_TAG_COLS = 3,  // tag condition, specific columns
+  PRIV_TBL_POLICY_MAX
+} SPrivTblPolicyType;
+
+typedef struct {
+  SArray* policy[PRIV_TBL_POLICY_MAX];  // element of SArray: SPrivTblPolicy
+} SPrivTblPolicies;
 
 typedef struct {
   SPrivSet* privSet;

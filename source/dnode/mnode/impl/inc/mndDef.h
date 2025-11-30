@@ -442,20 +442,20 @@ typedef struct {
   SHashObj* roles;
 
   SPrivSet  sysPrivs;
-  SHashObj* objPrivs;  // key: EPrivObjType + "." + objName, value: SPrivSet
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivSet
   // row level privileges
-  SHashObj* readRows;    // key: tbFName, value: SArray of SPrivTblPolicy
-  SHashObj* writeRows;   // key: tbFName, value: SArray of SPrivTblPolicy
-  SHashObj* deleteRows;  // key: tbFName, value: SArray of SPrivTblPolicy
+  SHashObj* readRows;    // k:tbFName, v: SArray of SPrivTblPolicy
+  SHashObj* writeRows;   // k:tbFName, v: SArray of SPrivTblPolicy
+  SHashObj* deleteRows;  // k:tbFName, v: SArray of SPrivTblPolicy
 
   SHashObj* readDbs;  //      db.*, *.* => migrate to readTbs and writeTbs when update from 3.3.x.y
   SHashObj* writeDbs;
   SHashObj* topics;
   // table level privileges
-  SHashObj* readTbs;    // key: tbFName, value: SPrivArgs    => 1.db(means all tbl in the db) or 1.db.tbName
-  SHashObj* writeTbs;   // key: tbFName, value: SPrivArgs
-  SHashObj* deleteTbs;  // key: tbFName, value: SPrivArgs
-  SHashObj* alterTbs;   // key: tbFname, value: empty
+  SHashObj* readTbs;    // k:tbFName, v: SPrivArgs    => 1.db(means all tbl in the db) or 1.db.tbName
+  SHashObj* writeTbs;   // k:tbFName, v: SPrivArgs
+  SHashObj* deleteTbs;  // k:tbFName, v: SPrivArgs
+  SHashObj* alterTbs;   // k:tbFname, v: empty
   SHashObj* readViews;
   SHashObj* writeViews;
   SHashObj* alterViews;
@@ -480,16 +480,18 @@ typedef struct {
   };
 
   SPrivSet  sysPrivs;
-  SHashObj* objPrivs;  // key: EPrivObjType + "." + objName, value: SPrivSet
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivSet
   // row level privileges
-  SHashObj* readRows;    // key: tbFName, value: SArray of SPrivTblPolicy
-  SHashObj* writeRows;   // key: tbFName, value: SArray of SPrivTblPolicy
-  SHashObj* deleteRows;  // key: tbFName, value: SArray of SPrivTblPolicy
+  SHashObj* readRows;    // k:tbFName, v: SArray of SPrivTblPolicy
+  SHashObj* writeRows;   // k:tbFName, v: SArray of SPrivTblPolicy
+  SHashObj* updateRows;  // k:tbFName, v: SArray of SPrivTblPolicy
+  SHashObj* deleteRows;  // k:tbFName, v: SArray of SPrivTblPolicy
   // table level privileges
-  SHashObj* readTbs;    // key: tbFName, value: SPrivTblPolicy    => 1.db(means all tbl in the db) or 1.db.tbName
-  SHashObj* writeTbs;   // key: tbFName, value: SPrivTblPolicy
-  SHashObj* deleteTbs;  // key: tbFName, value: SPrivTblPolicy
-  SHashObj* alterTbs;   // key: tbFName, value: empty
+  SHashObj* readTbs;    // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+  SHashObj* writeTbs;   // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+  SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+  SHashObj* deleteTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+  // SHashObj* alterTbs;   // k:tbFName, v: empty
   SHashObj* useDbs;
 
   SHashObj* parentUsers;
@@ -497,6 +499,8 @@ typedef struct {
   SHashObj* subRoles;     // not supported yet
   SRWLatch  lock;
 } SRoleObj;
+
+
 
 typedef struct {
   int32_t numOfVgroups;
