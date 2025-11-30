@@ -458,7 +458,7 @@ typedef struct {
   SHashObj* insertTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* deleteTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  // SHashObj* alterTbs;   // k:tbFName, v: empty
+  SHashObj* alterTbs;   // k:tbFName, v: empty
 
   SHashObj* readViews;
   SHashObj* writeViews;

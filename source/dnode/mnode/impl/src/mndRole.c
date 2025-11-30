@@ -163,7 +163,7 @@ static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
   return 0;
 }
 
-static int32_t tSerializePrivTblPolicy(SEncoder *pEncoder, const SHashObj *pHash) {
+static int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, const SHashObj *pHash) {
   int32_t code = 0, lino = 0;
   size_t  klen = 0;
   int32_t nPolicies = taosHashGetSize((SHashObj *)pHash);
@@ -239,14 +239,14 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pOb
     }
   }
 
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->selectRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->insertRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->updateRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->deleteRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->selectTbs));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->insertTbs));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->updateTbs));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicy(&encoder, pObj->deleteTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteTbs));
 
   int32_t nParentUsers = taosHashGetSize(pObj->parentUsers);
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentUsers));
@@ -288,7 +288,7 @@ _exit:
   return tlen;
 }
 
-static int32_t tDeserializePrivTblPolicy(SDecoder *pDecoder, SHashObj **pHash) {
+static int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash) {
   int32_t code = 0, lino = 0;
   size_t  klen = 0;
   int32_t nPolicies = 0;
@@ -324,14 +324,16 @@ static int32_t tDeserializePrivTblPolicy(SDecoder *pDecoder, SHashObj **pHash) {
         int32_t tagLen = 0;
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tagLen));
         if (tagLen > 0) {
-          TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, policy.tagCond));
+          TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &policy.tagCond));
         }
         int32_t policyIndex = privTblGetIndex(&policy);
         if (!tblPolicies.policy[policyIndex] &&
             !(tblPolicies.policy[policyIndex] = taosArrayInit(1, sizeof(SPrivTblPolicy)))) {
           TAOS_CHECK_EXIT(terrno);
         }
-        TAOS_CHECK_EXIT(taosArrayPush(tblPolicies.policy[policyIndex], &policy));
+        if(!taosArrayPush(tblPolicies.policy[policyIndex], &policy)){
+          TAOS_CHECK_EXIT(terrno);
+        }
       }
 
       TAOS_CHECK_EXIT(taosHashPut(*pHash, tbKey, strlen(tbKey) + 1, &tblPolicies, sizeof(SPrivTblPolicies)));
@@ -339,6 +341,29 @@ static int32_t tDeserializePrivTblPolicy(SDecoder *pDecoder, SHashObj **pHash) {
   }
 _exit:
   return code;
+}
+
+static void tFreePrivTblPolicies(SHashObj **ppHash) {
+  if (*ppHash) {
+    void *pIter = NULL;
+    while (pIter = taosHashIterate(*ppHash, pIter)) {
+      SPrivTblPolicies *pTblPolicies = (SPrivTblPolicies *)pIter;
+      for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
+        SArray *pPolicies = pTblPolicies->policy[i];
+        if (pPolicies) {
+          int32_t nTblPolicies = taosArrayGetSize(pPolicies);
+          for (int32_t j = 0; j < nTblPolicies; ++j) {
+            SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(pPolicies, j);
+            taosMemoryFree(pPolicy->tagCond);
+            taosArrayDestroy(pPolicy->cols);
+          }
+          taosArrayDestroy(pPolicies);
+        }
+      }
+    }
+    taosHashCleanup(*ppHash);
+    *ppHash = NULL;
+  }
 }
 
 static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
@@ -388,14 +413,14 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
     }
   }
 
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->selectRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->insertRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->updateRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->deleteRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->selectTbs));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->insertTbs));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->updateTbs));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicy(&decoder, &pObj->deleteTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteTbs));
 
   char    userName[TSDB_USER_LEN] = {0};
   int32_t nParentUsers = 0;
@@ -531,14 +556,14 @@ void mndRoleFreeObj(SRoleObj *pObj) {
       taosHashCleanup(pObj->objPrivs);
       pObj->objPrivs = NULL;
     }
-    if (pObj->rowPrivs) {
-      taosHashCleanup(pObj->rowPrivs);
-      pObj->rowPrivs = NULL;
-    }
-    if (pObj->colPrivs) {
-      taosHashCleanup(pObj->colPrivs);
-      pObj->colPrivs = NULL;
-    }
+    tFreePrivTblPolicies(&pObj->selectRows);
+    tFreePrivTblPolicies(&pObj->insertRows);
+    tFreePrivTblPolicies(&pObj->updateRows);
+    tFreePrivTblPolicies(&pObj->deleteRows);
+    tFreePrivTblPolicies(&pObj->selectTbs);
+    tFreePrivTblPolicies(&pObj->insertTbs);
+    tFreePrivTblPolicies(&pObj->updateTbs);
+    tFreePrivTblPolicies(&pObj->deleteTbs);
     if (pObj->parentUsers) {
       taosHashCleanup(pObj->parentUsers);
       pObj->parentUsers = NULL;
