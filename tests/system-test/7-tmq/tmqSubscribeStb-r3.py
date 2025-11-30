@@ -5,7 +5,6 @@ import subprocess
 import sys
 import threading
 import time
-from distutils.log import error
 
 import taos
 from util.cases import *

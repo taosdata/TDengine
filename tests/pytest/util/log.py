@@ -16,7 +16,8 @@ import os
 import time
 import datetime
 
-from distutils.log import warn as printf
+import warnings
+printf = warnings.warn
 
 
 class TDLog:
