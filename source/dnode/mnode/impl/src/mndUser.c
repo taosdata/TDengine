@@ -1818,11 +1818,12 @@ int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
     SPrivTblPolicies tmpPolicies = {.nPolicies = policies->nPolicies};
 
     for (int32_t i = 0; i < policies->nPolicies; ++i) {
-      if (policies->policy[i]) {
-        if(!(tmpPolicies.policy[i] = taosArrayDup(policies->policy[i], NULL))){
-          code = terrno;
-          for
-        }
+      if (policies->policy[i] && !(tmpPolicies.policy[i] = taosArrayDup(policies->policy[i], NULL))) {
+        code = terrno;
+        privTblPoliciesFree(&tmpPolicies);
+        taosHashCancelIterate(pOld, policies);
+        taosHashCleanup(*ppNew);
+        TAOS_RETURN(code);
       }
     }
 

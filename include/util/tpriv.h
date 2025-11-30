@@ -332,10 +332,24 @@ static FORCE_INLINE void privAddType(SPrivSet* privSet, EPrivType type) {
   privSet->set[PRIV_GROUP(type)] |= 1ULL << PRIV_OFFSET(type);
 }
 
-static FORCE_INLINE int32_t privTblGetIndex(SPrivTblPolicy* policy) {
+static FORCE_INLINE int32_t privTblPolicyGetIndex(SPrivTblPolicy* policy) {
   int32_t nCols = taosArrayGetSize(policy->cols);
   return policy->tagCond ? (nCols > 0 ? PRIV_TBL_POLICY_TAG_COLS : PRIV_TBL_POLICY_TAG)
                          : (nCols > 0 ? PRIV_TBL_POLICY_TBL_COLS : PRIV_TBL_POLICY_TBL);
+}
+
+static FORCE_INLINE void privTblPolicyFree(void* policy) {
+  taosMemoryFree(((SPrivTblPolicy*)policy)->tagCond);
+  taosArrayDestroy(((SPrivTblPolicy*)policy)->cols);
+}
+
+static FORCE_INLINE void privTblPoliciesFree(SPrivTblPolicies* pTblPolicies) {
+  for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
+    if (pTblPolicies->policy[i]) {
+      taosArrayDestroyEx(pTblPolicies->policy[i], privTblPolicyFree);
+      pTblPolicies->policy[i] = NULL;
+    }
+  }
 }
 
 int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType);

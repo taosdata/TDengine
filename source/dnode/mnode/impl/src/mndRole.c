@@ -326,7 +326,7 @@ static int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash)
         if (tagLen > 0) {
           TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &policy.tagCond));
         }
-        int32_t policyIndex = privTblGetIndex(&policy);
+        int32_t policyIndex = privTblPolicyGetIndex(&policy);
         if (!tblPolicies.policy[policyIndex] &&
             !(tblPolicies.policy[policyIndex] = taosArrayInit(1, sizeof(SPrivTblPolicy)))) {
           TAOS_CHECK_EXIT(terrno);
@@ -347,19 +347,7 @@ static void tFreePrivTblPolicies(SHashObj **ppHash) {
   if (*ppHash) {
     void *pIter = NULL;
     while (pIter = taosHashIterate(*ppHash, pIter)) {
-      SPrivTblPolicies *pTblPolicies = (SPrivTblPolicies *)pIter;
-      for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
-        SArray *pPolicies = pTblPolicies->policy[i];
-        if (pPolicies) {
-          int32_t nTblPolicies = taosArrayGetSize(pPolicies);
-          for (int32_t j = 0; j < nTblPolicies; ++j) {
-            SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(pPolicies, j);
-            taosMemoryFree(pPolicy->tagCond);
-            taosArrayDestroy(pPolicy->cols);
-          }
-          taosArrayDestroy(pPolicies);
-        }
-      }
+      privTblPoliciesFree((SPrivTblPolicies *)pIter);
     }
     taosHashCleanup(*ppHash);
     *ppHash = NULL;
