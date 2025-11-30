@@ -305,8 +305,13 @@ typedef enum {
 } SPrivTblPolicyType;
 
 typedef struct {
+  int32_t nPolicies;
   SArray* policy[PRIV_TBL_POLICY_MAX];  // element of SArray: SPrivTblPolicy
 } SPrivTblPolicies;
+
+typedef struct {
+  SPrivSet policy;
+} SPrivObjPolicies;
 
 typedef struct {
   SPrivSet* privSet;
@@ -325,6 +330,12 @@ static FORCE_INLINE void privAddSet(SPrivSet* privSet1, SPrivSet* privSet2) {
 static FORCE_INLINE void privAddType(SPrivSet* privSet, EPrivType type) {
   if (type < 0 || type > MAX_PRIV_TYPE) return;
   privSet->set[PRIV_GROUP(type)] |= 1ULL << PRIV_OFFSET(type);
+}
+
+static FORCE_INLINE int32_t privTblGetIndex(SPrivTblPolicy* policy) {
+  int32_t nCols = taosArrayGetSize(policy->cols);
+  return policy->tagCond ? (nCols > 0 ? PRIV_TBL_POLICY_TAG_COLS : PRIV_TBL_POLICY_TAG)
+                         : (nCols > 0 ? PRIV_TBL_POLICY_TBL_COLS : PRIV_TBL_POLICY_TBL);
 }
 
 int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType);
