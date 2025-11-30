@@ -253,30 +253,30 @@ typedef enum {
 } EPrivCategory;
 
 typedef enum {
-  OBJ_TYPE_UNKNOWN = -1,
-  OBJ_TYPE_CLUSTER,
-  OBJ_TYPE_NODE,
-  OBJ_TYPE_DB,
-  OBJ_TYPE_TABLE,
-  OBJ_TYPE_FUNCTION,
-  OBJ_TYPE_INDEX,
-  OBJ_TYPE_VIEW,
-  OBJ_TYPE_USER,
-  OBJ_TYPE_ROLE,
-  OBJ_TYPE_RSMA,
-  OBJ_TYPE_TSMA,
-  OBJ_TYPE_TOPIC,
-  OBJ_TYPE_STREAM,
-  OBJ_TYPE_MOUNT,
-  OBJ_TYPE_AUDIT,
-  OBJ_TYPE_TOKEN,
-  OBJ_TYPE_MAX,
-} EObjType;
+  PRIV_OBJ_UNKNOWN = -1,
+  PRIV_OBJ_CLUSTER,
+  PRIV_OBJ_NODE,
+  PRIV_OBJ_DB,
+  PRIV_OBJ_TABLE,
+  PRIV_OBJ_FUNCTION,
+  PRIV_OBJ_INDEX,
+  PRIV_OBJ_VIEW,
+  PRIV_OBJ_USER,
+  PRIV_OBJ_ROLE,
+  PRIV_OBJ_RSMA,
+  PRIV_OBJ_TSMA,
+  PRIV_OBJ_TOPIC,
+  PRIV_OBJ_STREAM,
+  PRIV_OBJ_MOUNT,
+  PRIV_OBJ_AUDIT,
+  PRIV_OBJ_TOKEN,
+  PRIV_OBJ_MAX,
+} EPrivObjType;
 
 typedef struct {
   EPrivType     privType;
   EPrivCategory category;
-  EObjType      objType;
+  EPrivObjType  objType;
   const char*   name;
 } SPrivInfo;
 
@@ -291,8 +291,9 @@ typedef struct {
   TSKEY   span[2];   // startTs, endTs, if span[0] == 0 && span[1] == 0, means all rows
   SArray* cols;      // SColIdNameKV, NULL means all columns, sorted by colId. No need to include and check primary key
                  // column since any user should have privilege to operate primary key column although not specified.
-  char*    tagCond;  // NULL if no tag condition
-  uint32_t hash;     // MurmurHash3_32 of span + cols + tagCond, used for deduplication
+  char*    tagCond;     // NULL if no tag condition
+  uint32_t taghash;     // MurmurHash3_32 of tagCond, used for quick compare
+  uint32_t policyHash;  // MurmurHash3_32 of span + colIds + tagCond, used for deduplication
 } SPrivTblPolicy;
 
 typedef struct {
@@ -314,11 +315,11 @@ static FORCE_INLINE void privAddType(SPrivSet* privSet, EPrivType type) {
   privSet->set[PRIV_GROUP(type)] |= 1ULL << PRIV_OFFSET(type);
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EObjType* pObjType);
+int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 
-int32_t privObjKey(EObjType objType, const char* db, const char* tb, char* buf, size_t bufLen);
+int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, size_t bufLen);
 int32_t privRowKey(ETableType tbType, const char* db, const char* tb, int64_t tsStart, int64_t tsEnd, char* buf,
                    size_t bufLen);
 int32_t privColKey(ETableType tbType, const char* db, const char* tb, const char* col, char* buf, size_t bufLen);

@@ -795,6 +795,23 @@ _exit:
   TAOS_RETURN(0);
 }
 
+// SPrivSet  sysPrivs;
+// SHashObj* objPrivs;  // key: EPrivObjType + "." + objName, value: SPrivSet
+// // row level privileges
+// SHashObj* readRows;    // key: tbFName, value: SArray of SPrivTblPolicy
+// SHashObj* writeRows;   // key: tbFName, value: SArray of SPrivTblPolicy
+// SHashObj* deleteRows;  // key: tbFName, value: SArray of SPrivTblPolicy
+// // table level privileges
+// SHashObj* readTbs;    // key: tbFName, value: SPrivArgs    => 1.db(means all tbl in the db) or 1.db.tbName
+// SHashObj* writeTbs;   // key: tbFName, value: SPrivArgs
+// SHashObj* deleteTbs;  // key: tbFName, value: SPrivArgs
+// SHashObj* alterTbs;   // key: tbFname, value: empty
+// SHashObj* useDbs;
+
+// SHashObj* parentUsers;
+// SHashObj* parentRoles;  // not supported yet
+// SHashObj* subRoles;     // not supported yet
+
 int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
   int32_t code = 0, lino = 0;
   (void)memcpy(pNew, pOld, sizeof(SRoleObj));
@@ -803,8 +820,8 @@ int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
 
   taosRLockLatch(&pOld->lock);
   TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->objPrivs, &pNew->objPrivs));
-  TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->rowPrivs, &pNew->rowPrivs));
-  TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->colPrivs, &pNew->colPrivs));
+  // TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->rowPrivs, &pNew->rowPrivs));
+  // TAOS_CHECK_EXIT(mndDupPrivilegeHash(pOld->colPrivs, &pNew->colPrivs));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentUsers, &pNew->parentUsers));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentRoles, &pNew->parentRoles));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->subRoles, &pNew->subRoles));

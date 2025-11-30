@@ -2622,11 +2622,16 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
       TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pCol->colId));
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pCol->colName));
     }
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->privileges.tagCond, pReq->privileges.tagCondLen));
+    TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pReq->privileges.selectHash));
+    TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pReq->privileges.insertHash));
+    TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pReq->privileges.updateHash));
+    TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pReq->privileges.tagHash));
   }
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->principal));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objFName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tblName));
-  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->tagCond, pReq->tagCondLen));
+
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -2703,15 +2708,20 @@ int32_t tDeserializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq
         TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pCol->colName));
       }
     }
+    uint64_t tagCondLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->privileges.tagCond, &tagCondLen));
+    pReq->privileges.tagCondLen = tagCondLen;
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pReq->privileges.selectHash));
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pReq->privileges.insertHash));
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pReq->privileges.updateHash));
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pReq->privileges.tagHash));
   } else if (pReq->alterType >= TSDB_ALTER_ROLE_MAX) {
     TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
   }
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->principal));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objFName));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tblName));
-  uint64_t tagCondLen = 0;
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->tagCond, &tagCondLen));
-  pReq->tagCondLen = tagCondLen;
+
   DECODESQL();
   tEndDecode(&decoder);
 
@@ -2725,8 +2735,8 @@ void tFreeSAlterRoleReq(SAlterRoleReq *pReq) {
     taosArrayDestroy(pReq->privileges.selectCols);
     taosArrayDestroy(pReq->privileges.insertCols);
     taosArrayDestroy(pReq->privileges.updateCols);
+    taosMemoryFreeClear(pReq->privileges.tagCond);
   }
-  taosMemoryFreeClear(pReq->tagCond);
   FREESQL();
 }
 

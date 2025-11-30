@@ -442,15 +442,16 @@ typedef struct {
   SHashObj* roles;
 
   SPrivSet  sysPrivs;
-  SHashObj* objPrivs;  // key: EObjType + "." + objName, value: SPrivSet
-  
-  SHashObj* readRows;    // key: tbFName, value: SArray of SPrivTblArgs
-  SHashObj* writeRows;   // key: tbFName, value: SArray of SPrivTblArgs
-  SHashObj* deleteRows;  // key: tbFName, value: SArray of SPrivTblArgs
+  SHashObj* objPrivs;  // key: EPrivObjType + "." + objName, value: SPrivSet
+  // row level privileges
+  SHashObj* readRows;    // key: tbFName, value: SArray of SPrivTblPolicy
+  SHashObj* writeRows;   // key: tbFName, value: SArray of SPrivTblPolicy
+  SHashObj* deleteRows;  // key: tbFName, value: SArray of SPrivTblPolicy
 
   SHashObj* readDbs;  //      db.*, *.* => migrate to readTbs and writeTbs when update from 3.3.x.y
   SHashObj* writeDbs;
   SHashObj* topics;
+  // table level privileges
   SHashObj* readTbs;    // key: tbFName, value: SPrivArgs    => 1.db(means all tbl in the db) or 1.db.tbName
   SHashObj* writeTbs;   // key: tbFName, value: SPrivArgs
   SHashObj* deleteTbs;  // key: tbFName, value: SPrivArgs
@@ -479,9 +480,17 @@ typedef struct {
   };
 
   SPrivSet  sysPrivs;
-  SHashObj* objPrivs;  // key: EObjType + "." + objName, value: SPrivSet
-  SHashObj* rowPrivs;  // key: ETableType + "." + g`objName + "." + startTs + "." + endTs, value: SPrivSet
-  SHashObj* colPrivs;  // key: ETableType + "." + objName + "." + colName, value: SPrivSet
+  SHashObj* objPrivs;  // key: EPrivObjType + "." + objName, value: SPrivSet
+  // row level privileges
+  SHashObj* readRows;    // key: tbFName, value: SArray of SPrivTblPolicy
+  SHashObj* writeRows;   // key: tbFName, value: SArray of SPrivTblPolicy
+  SHashObj* deleteRows;  // key: tbFName, value: SArray of SPrivTblPolicy
+  // table level privileges
+  SHashObj* readTbs;    // key: tbFName, value: SPrivTblPolicy    => 1.db(means all tbl in the db) or 1.db.tbName
+  SHashObj* writeTbs;   // key: tbFName, value: SPrivTblPolicy
+  SHashObj* deleteTbs;  // key: tbFName, value: SPrivTblPolicy
+  SHashObj* alterTbs;   // key: tbFName, value: empty
+  SHashObj* useDbs;
 
   SHashObj* parentUsers;
   SHashObj* parentRoles;  // not supported yet
