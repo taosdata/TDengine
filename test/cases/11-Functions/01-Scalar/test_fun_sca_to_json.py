@@ -759,5 +759,11 @@ class TestJsonTag:
         sql = f"select jtag, count(*) from {dbname}.jsons1 partition by jtag->'tag1'"
         tdSql.error(sql)
         
+        createSql = r'''CREATE TABLE `jsons1_t4` USING `jsons1` (`jtag`) TAGS ('{"tag1":false,"tag2":"xi''an"}')'''
+        tdSql.execute(createSql)
+        tdSql.query(f"show create table {dbname}.jsons1_t4")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, createSql)
+        
         #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
