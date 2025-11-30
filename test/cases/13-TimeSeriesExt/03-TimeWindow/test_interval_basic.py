@@ -1544,7 +1544,6 @@ class TestInterval:
         mtPrefix = "m_in_mt"
         tbNum = 10
         rowNum = 20
-        totalNum = 200
 
         tdLog.info(f"=============== step1")
         i = 0
@@ -1555,20 +1554,13 @@ class TestInterval:
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
 
-        i = 0
-        while i < tbNum:
+        for i in range(tbNum):
             tb = tbPrefix + str(i)
             tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
-
-            x = 0
-            while x < rowNum:
+            for x in range(rowNum):
                 cc = x * 60000
                 ms = 1601481600000 + cc
-
                 tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
-                x = x + 1
-
-            i = i + 1
 
         tdLog.info(f"=============== step2")
         i = 1
@@ -1604,16 +1596,16 @@ class TestInterval:
         tdSql.query(sql)
         tdSql.checkRows(40)
         
-        sql = "select _wstart, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        sql = "select _wstart, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)"
         tdSql.query(sql)
         tdSql.checkRows(40)
         
-        sql = "select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        sql = "select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)"
         tdSql.query(sql)
         tdSql.checkRows(40)
         
-        sql = "select _wstart, tbcol, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        sql = "select _wstart, tbcol, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)"
         tdSql.error(sql)
 
-        sql = "select _wstart, ts, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m);"
+        sql = "select _wstart, ts, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)"
         tdSql.error(sql)

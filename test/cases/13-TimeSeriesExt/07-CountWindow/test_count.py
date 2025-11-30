@@ -638,28 +638,28 @@ class TestCount:
         tdSql.execute(f"insert into t3 values(1648791253004,5,2,3,4.1);")
 
         tdSql.query(
-            f"select  _wstart, count(*) c1, tbname from st partition by tbname count_window(2)  slimit 2 limit 2;"
+            f"select  _wstart, count(*) c1, tbname from st partition by tbname count_window(2)  slimit 2 limit 2"
         )
         tdSql.checkRows(4)
 
-        sql = f"select  _wstart, 1, ta, tb, tc, tbname from st partition by tbname count_window(2)  slimit 2 limit 2;"
+        sql = f"select  _wstart, 1, ta, tb, tc, tbname from st partition by tbname count_window(2)  slimit 2 limit 2"
         tdSql.query(sql)
         tdSql.checkRows(4)
         
-        sql = f"select  _wstart, 1, ta, tb, tc, tbname from t1 partition by tbname count_window(2)  slimit 2 limit 2;"
+        sql = f"select  _wstart, 1, ta, tb, tc, tbname from t1 partition by tbname count_window(2)  slimit 2 limit 2"
         tdSql.query(sql)
         tdSql.checkRows(2)
  
-        sql = f"select  _wstart, 1, ta, tb, tc, tbname from t1 count_window(2)  slimit 2 limit 2;"
+        sql = f"select  _wstart, 1, ta, tb, tc, tbname from t1 count_window(2)  slimit 2 limit 2"
         tdSql.error(sql)
-        sql = f"select  _wstart, 1, ta, tb, tc, count(*), tbname from t1 count_window(2)  slimit 2 limit 2;"
+        sql = f"select  _wstart, 1, ta, tb, tc, count(*), tbname from t1 count_window(2)  slimit 2 limit 2"
         tdSql.error(sql)
                 
-        sql = f"select  _wstart, 1 from t1 count_window(2);"
+        sql = f"select  _wstart, 1 from t1 count_window(2)"
         tdSql.query(sql)
         tdSql.checkRows(3)
         
-        sql = f"select  _wstart, 1, count(*) from t1 count_window(2);"
+        sql = f"select  _wstart, 1, count(*) from t1 count_window(2)"
         tdSql.query(sql)
         tdSql.checkRows(3)
         

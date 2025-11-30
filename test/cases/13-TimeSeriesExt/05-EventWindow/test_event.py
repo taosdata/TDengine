@@ -274,19 +274,19 @@ class TestEvent:
 
         for i in range(4):
             tdSql.query(
-                f"select  _wstart, count(*) c1, tbname from st partition by tbname event_window start with a > 0 end with b = 2  slimit 2 limit 2;"
+                f"select  _wstart, count(*) c1, tbname from st partition by tbname event_window start with a > 0 end with b = 2  slimit 2 limit 2"
             )
             tdSql.checkRows(4)
             tdLog.info(f"======rows={tdSql.getRows()})")
 
-        sql = "select  _wstart, tbname from st partition by tbname event_window start with a > 0 end with b = 2  slimit 2 limit 2;"
+        sql = "select  _wstart, tbname from st partition by tbname event_window start with a > 0 end with b = 2  slimit 2 limit 2"
         tdSql.query(sql)
         tdSql.checkRows(4)
         
-        sql = "select  _wstart, _wend, tbname, 'xx' from st partition by tbname event_window start with a > 0 end with b = 2 slimit 2 limit 2;"
+        sql = "select  _wstart, _wend, tbname, 'xx' from st partition by tbname event_window start with a > 0 end with b = 2 slimit 2 limit 2"
         tdSql.query(sql)
         tdSql.checkRows(4)
         tdSql.checkData(0, 3, 'xx')
         
         tdLog.info(f"======== test_event successfully executed")
-        
+

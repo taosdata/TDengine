@@ -351,7 +351,7 @@ class TestStateWindow:
         tdSql.checkData(3, 0, "2025-09-01 10:00:10.001")
         tdSql.checkData(3, 1, 2999)
         tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
-        tdSql.checkData(3, 3, "b") 
+        tdSql.checkData(3, 3, "b")
         
         sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
         tdSql.error(sql, show=True)
