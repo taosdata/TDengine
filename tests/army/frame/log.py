@@ -12,11 +12,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import os
 import time
 import datetime
-import warnings
-printf = warnings.warn
 
 class TDLog:
     def __init__(self):
@@ -33,7 +30,7 @@ class TDLog:
         print("\033[1;36m%s %s\033[0m" % (datetime.datetime.now(), err))
 
     def success(self, info):
-        printf("\033[1;32m%s %s\033[0m" % (datetime.datetime.now(), info))
+        print("\033[1;32m%s %s\033[0m" % (datetime.datetime.now(), info))
 
     def notice(self, err):
         print("\033[1;33m%s %s\033[0m" % (datetime.datetime.now(), err))

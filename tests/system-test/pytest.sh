@@ -92,7 +92,7 @@ else
   export ASAN_OPTIONS=detect_odr_violation=0
   echo "forbid check ODR violation."
 
-  $* -a 2> $AsanFile 
+  $* -a > $AsanFile 2>&1
   cat $AsanFile
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
