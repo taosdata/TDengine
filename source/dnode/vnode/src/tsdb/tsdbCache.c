@@ -1921,6 +1921,9 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     }
 
     if (!extraTS || i > 0) {
+      tsdbDebug("vgId:%d, %s qid:%s uid:%" PRId64 " from tsdb, col_id:%d col_flag:%d ts:%" PRId64,
+                TD_VID(pTsdb->pVnode), __func__, pr && pr->idstr ? pr->idstr : "null", uid, pLastCol->colVal.cid,
+                pLastCol->colVal.flag, pLastCol->rowKey.ts);
       taosArraySet(pLastArray, idxKey->idx, pLastCol);
     }
     // taosArrayRemove(remainCols, i);
@@ -2031,6 +2034,10 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
         TAOS_CHECK_EXIT(code);
       }
 
+      tsdbDebug("vgId:%d, %s qid:%s uid:%" PRId64 " from rocksdb, col_id:%d col_flag:%d ts:%" PRId64,
+                TD_VID(pTsdb->pVnode), __func__, pr && pr->idstr ? pr->idstr : "null", uid, lastCol.colVal.cid,
+                lastCol.colVal.flag, lastCol.rowKey.ts);
+
       taosArraySet(pLastArray, idxKey->idx, &lastCol);
       taosArrayRemove(remainCols, j);
       taosArrayRemove(ignoreFromRocks, j);
@@ -2099,6 +2106,10 @@ static int32_t tsdbCacheGetBatchFromLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
         TAOS_CHECK_GOTO(code, NULL, _exit);
       }
 
+      tsdbDebug("vgId:%d, %s qid:%s uid:%" PRId64 " from lru, col_id:%d col_flag:%d ts:%" PRId64, TD_VID(pTsdb->pVnode),
+                __func__, pr && pr->idstr ? pr->idstr : "null", uid, lastCol.colVal.cid, lastCol.colVal.flag,
+                lastCol.rowKey.ts);
+
       if (taosArrayPush(pLastArray, &lastCol) == NULL) {
         code = terrno;
         tsdbLRUCacheRelease(pCache, h, false);
@@ -2162,6 +2173,10 @@ static int32_t tsdbCacheGetBatchFromLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
           (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
           TAOS_RETURN(code);
         }
+
+        tsdbDebug("vgId:%d, %s qid:%s uid:%" PRId64 " from lru(2nd lookup), col_id:%d col_flag:%d ts:%" PRId64,
+                  TD_VID(pTsdb->pVnode), __func__, pr && pr->idstr ? pr->idstr : "null", uid, lastCol.colVal.cid,
+                  lastCol.colVal.flag, lastCol.rowKey.ts);
 
         taosArraySet(pLastArray, idxKey->idx, &lastCol);
 
@@ -2556,6 +2571,10 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
         SLastCol lastCol = {.rowKey = rowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
         TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
 
+        tsdbDebug("vgId:%d, %s qid:%s uid:%" PRId64 " from memtable, col_id:%d col_flag:%d ts:%" PRId64,
+                  TD_VID(pTsdb->pVnode), __func__, pr && pr->idstr ? pr->idstr : "null", uid, lastCol.colVal.cid,
+                  lastCol.colVal.flag, rowKey.key.ts);
+
         tsdbCacheFreeSLastColItem(pTargetCol);
         taosArraySet(pLastArray, jCol, &lastCol);
       }
@@ -2565,6 +2584,11 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
           SLastCol lastCol = {
               .rowKey = rowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
           TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
+
+          tsdbDebug("vgId:%d, %s qid:%s uid:%" PRId64
+                    " from memtable(last) and memtable(newer), col_id:%d col_flag:%d ts:%" PRId64,
+                    TD_VID(pTsdb->pVnode), __func__, pr && pr->idstr ? pr->idstr : "null", uid, lastCol.colVal.cid,
+                    lastCol.colVal.flag, rowKey.key.ts);
 
           tsdbCacheFreeSLastColItem(pTargetCol);
           taosArraySet(pLastArray, jCol, &lastCol);
@@ -2624,6 +2648,10 @@ static int32_t tsdbCacheGetBatchFromMem(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
                 .rowKey = tsdbRowKey.key, .colVal = *pColVal, .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
             TAOS_CHECK_EXIT(tsdbCacheReallocSLastCol(&lastCol, NULL));
 
+            tsdbDebug("vgId:%d, %s qid:%s uid:%" PRId64 " from memtable(hash), col_id:%d col_flag:%d ts:%" PRId64,
+                      TD_VID(pTsdb->pVnode), __func__, pr && pr->idstr ? pr->idstr : "null", uid, lastCol.colVal.cid,
+                      lastCol.colVal.flag, tsdbRowKey.key.ts);
+
             tsdbCacheFreeSLastColItem(pTargetCol);
             taosArraySet(pLastArray, *pjCol, &lastCol);
           }
@@ -2654,6 +2682,9 @@ _exit:
 int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  tsdbDebug("vgId:%d, %s start, qid:%s uid:%" PRId64 " ltype:%d", TD_VID(pTsdb->pVnode), __func__,
+            pr && pr->idstr ? pr->idstr : "null", uid, ltype);
 
   SArray *keyArray = taosArrayInit(16, sizeof(SLastKey));
   if (!keyArray) {
