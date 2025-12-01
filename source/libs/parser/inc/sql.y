@@ -870,6 +870,7 @@ cmd ::= SHOW USERS FULL.                                                        
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
 cmd ::= SHOW ROLES.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLES_STMT); }
 cmd ::= SHOW ROLE PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT); }
+cmd ::= SHOW ROLE COLUMN PRIVILEGES.                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT); }
 cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
                                                                                     (void)setShowKind(pCxt, pCxt->pRootNode, A);

@@ -335,6 +335,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowUserPrivilegesStmt";
     case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
       return "ShowRolePrivilegesStmt";
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
+      return "ShowRoleColPrivilegesStmt";
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return "ShowCreateDatabasesStmt";
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
@@ -9952,6 +9954,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showUserPrivilegesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
       return showRolePrivilegesStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
+      return showRolePrivilegesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return showCreateDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
@@ -10380,6 +10384,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
       return jsonToShowUserPrivilegesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+      return jsonToShowRolePrivilegesStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
       return jsonToShowRolePrivilegesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return jsonToShowCreateDatabaseStmt(pJson, pObj);

@@ -419,6 +419,10 @@ static const SSysDbTableSchema userUserPrivilegesSchema[] = {
     {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "notes", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "row_span", .bytes = 48 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "columns", .bytes = TSDB_PRIVILEDGE_COLS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_scope", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "target_type", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userViewsSchema[] = {
@@ -615,6 +619,17 @@ static const SSysDbTableSchema userRolesSchema[] = {
     {.name = "subroles", .bytes = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema userRoleColumnPrivilegesSchema[] = {
+    {.name = "role_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "privilege", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "db_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "column_name", .bytes = TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "row_span", .bytes = 48 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "notes", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
 static const SSysDbTableSchema userRolePrivilegesSchema[] = {
     {.name = "role_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "privilege", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
@@ -622,6 +637,10 @@ static const SSysDbTableSchema userRolePrivilegesSchema[] = {
     {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "notes", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "row_span", .bytes = 48 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "columns", .bytes = TSDB_PRIVILEDGE_COLS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_scope", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "target_type", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysTableMeta infosMeta[] = {
@@ -677,6 +696,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false},
     {TSDB_INS_TABLE_ROLES, userRolesSchema, tListLen(userRolesSchema), true},
     {TSDB_INS_TABLE_ROLE_PRIVILEGES, userRolePrivilegesSchema, tListLen(userRolePrivilegesSchema), true},
+    {TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, userRoleColumnPrivilegesSchema, tListLen(userRoleColumnPrivilegesSchema), true},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

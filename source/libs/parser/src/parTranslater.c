@@ -473,6 +473,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_ROLE_PRIVILEGES,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ROLE_COL_PRIVILEGES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
   }
 };
 // clang-format on
@@ -16099,8 +16106,6 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
   SPrivSetArgs*    pPrivSetArgs = &pStmt->privileges;
   SPrivSetReqArgs* pReqArgs = &pReq->privileges;
 
-  pReqArgs->privSet = pPrivSetArgs->privSet;
-
   if (pReq->targetType != PRIV_OBJ_TABLE) return TSDB_CODE_SUCCESS;
 
   if (pPrivSetArgs->rowSpans) {
@@ -16186,6 +16191,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                        "Object privileges of different types cannot be mixed");
       }
+      req.privileges.privSet = pStmt->privileges.privSet;
       if (category == PRIV_CATEGORY_SYSTEM) {
         req.sysPriv = 1;
         if (pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
@@ -22250,6 +22256,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:

@@ -75,6 +75,8 @@ int32_t mndInitRole(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndCancelGetNextRole);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndRetrievePrivileges);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndCancelGetNextPrivileges);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndRetrievePrivileges);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndCancelGetNextPrivileges);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -875,6 +877,7 @@ int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->insertTbs, &pNew->insertTbs));
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->updateTbs, &pNew->updateTbs));
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->deleteTbs, &pNew->deleteTbs));
+  // TODO: alterTbs?
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentUsers, &pNew->parentUsers));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentRoles, &pNew->parentRoles));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->subRoles, &pNew->subRoles));
@@ -1077,22 +1080,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
-
-      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
-        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-      }
-
-      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
-        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-      }
-
-      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
-        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-      }
-
+      cols += 3; // skip object db, table, condition
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
