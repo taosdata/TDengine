@@ -124,7 +124,7 @@ void transCacheReleaseByRefId(int64_t refId) {
 
 void transCacheDestroy() {
   taosArrayDestroyP(transInstCache.pArray, NULL);
-  taosThreadRwlockDestroy(&transInstCache.lock);
+  (void)taosThreadRwlockDestroy(&transInstCache.lock);
 }
 
 int32_t transCompressMsg(char* msg, int32_t len) {
