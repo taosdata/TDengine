@@ -757,6 +757,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     pTrigger->triggerTblUid = pInfo->pCreate->triggerTblUid;
     pTrigger->triggerTblSuid = pInfo->pCreate->triggerTblSuid;
     pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
+    pTrigger->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pInfo->pCreate->triggerTblType, pInfo->pCreate->flags);
     pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
     pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
     pTrigger->partitionCols = pInfo->pCreate->partitionCols;
@@ -3375,8 +3376,15 @@ void msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg, SStm
       break;
     case STREAM_STATUS_FAILED:
       //STREAMTODO ADD ERRCODE HANDLE
-      msttInfo("task failed with error:%s, try to undeploy current task, idx:%d", tstrerror(pMsg->errorCode), pMsg->taskIdx);
-      TAOS_CHECK_EXIT(msmGrpAddActionUndeploy(pCtx, streamId, pTask));
+      if (STREAM_RUNNER_TASK == pTask->type || STREAM_TRIGGER_TASK == pTask->type) {
+        msttWarn("task failed with error:%s, try to undeploy whole stream, idx:%d", tstrerror(pMsg->errorCode),
+                 pMsg->taskIdx);
+        msmStopStreamByError(streamId, pStatus, code, pCtx->currTs);
+      } else {
+        msttInfo("task failed with error:%s, try to undeploy current task, idx:%d", tstrerror(pMsg->errorCode),
+                 pMsg->taskIdx);
+        TAOS_CHECK_EXIT(msmGrpAddActionUndeploy(pCtx, streamId, pTask));
+      }
       break;
     default:
       break;

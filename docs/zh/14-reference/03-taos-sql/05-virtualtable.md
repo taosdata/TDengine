@@ -42,7 +42,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
      const_value
 ```
 
-**使用说明**
+###### 使用说明
 
 1. 虚拟表（列）名命名规则参见 [名称命名规则](./91-limit.md#名称命名规则)。
 2. 表名最大长度为 192。
@@ -67,7 +67,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 3. 虚拟表的时间戳的值是查询中包含的所有列所在的原始表的时间戳的并集，因此当不同查询选择列不同时可能出现结果集行数不一样的情况。
 4. 用户可以从多个表中选择任意列进行组合，未选择的列不会出现在虚拟表中。
 
-**示例**
+###### 示例
 
 假设有表 t1、t2、t3 结构和数据如下：
 
@@ -256,7 +256,8 @@ alter_table_clause: {
 }
 ```
 
-**使用说明**
+###### 使用说明
+
 对虚拟普通表可以进行如下修改操作
 
 1. ADD COLUMN：添加列。
@@ -306,7 +307,7 @@ alter_table_clause: {
 }
 ```
 
-**使用说明**
+###### 使用说明
 
 1. 对虚拟子表的列和标签的修改，除了更改标签值以外，都要通过虚拟超级表才能进行。
 
@@ -338,7 +339,7 @@ DROP VTABLE [IF EXISTS] [dbname].vtb_name;
 SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
 ```
 
-**使用说明**
+###### 使用说明
 
 1. 如果没有指定 db_name，显示当前数据库下的所有虚拟普通表和虚拟子表的信息。若没有使用数据库并且没有指定 db_name, 则会报错 database not specified。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示虚拟普通表信息，CHILD 指定只显示虚拟子表信息。
 

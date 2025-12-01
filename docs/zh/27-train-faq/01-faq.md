@@ -38,22 +38,22 @@ description: 一些常见问题的解决方法汇总
 
 请看为此问题撰写的 [技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)。
 
-### 3. 遇到加载 “libtaosnative.so” 或 “libtaosws.so” 失败怎么办？
+### 3. 遇到加载`libtaosnative.so`或`libtaosws.so`失败怎么办？
 
 问题描述：
-在使用 TDengine TSDB 客户端应用（taos-CLI、taosBenchmark、taosdump 等）或客户端连接器（如 Java、Python、Go 等）时，可能会遇到加载动态链接库 “libtaosnative.so” 或 “libtaosws.so” 失败的错误。 
+在使用 TDengine TSDB 客户端应用（taos-CLI、taosBenchmark、taosdump 等）或客户端连接器（如 Java、Python、Go 等）时，可能会遇到加载动态链接库`libtaosnative.so`或`libtaosws.so`失败的错误。
 如：failed to load libtaosws.so since No such file or directory [0x80FF0002]
 
 问题原因：
 这是由于客户端无法找到所需的动态链接库文件，可能是因为文件未正确安装，或系统的库路径未正确配置等原因。
 
 问题解决：
-- **检查文件**：检查系统共享库目录下是否存在 `libtaosnative.so` 或 `libtaosws.so` 软链文件及相应实体文件也完整，如软链或实体文件已不存在，在 TDengine TSDB 客户端或服务器安装包中均包含这些文件，请重新安装。
-- **检查环境变量**：确保系统加载共享库目录环境变量`LD_LIBRARY_PATH` 包含 `libtaosnative.so` 或 `libtaosws.so` 文件所在目录， 若未包含，可通过 `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<new_path>` 添加。
-- **检查权限**：确保当前用户对 `libtaosnative.so` 或 `libtaosws.so` 软链及其实体文件具有读取和执行权限。
-- **检查文件损坏**： 可以通过 `readelf -h 库文件` 检查库文件是否完整。
-- **检查文件依赖**：可以通过 `ldd 库文件` 查看库文件的依赖项是否完整，确保所有依赖项均已正确安装且可访问。
 
+- **检查文件**：检查系统共享库目录下是否存在 `libtaosnative.so` 或 `libtaosws.so` 软链文件及相应实体文件也完整，如软链或实体文件已不存在，在 TDengine TSDB 客户端或服务器安装包中均包含这些文件，请重新安装。
+- **检查环境变量**：确保系统加载共享库目录环境变量`LD_LIBRARY_PATH` 包含 `libtaosnative.so` 或 `libtaosws.so` 文件所在目录，若未包含，可通过 `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<new_path>` 添加。
+- **检查权限**：确保当前用户对 `libtaosnative.so` 或 `libtaosws.so` 软链及其实体文件具有读取和执行权限。
+- **检查文件损坏**：可以通过 `readelf -h 库文件` 检查库文件是否完整。
+- **检查文件依赖**：可以通过 `ldd 库文件` 查看库文件的依赖项是否完整，确保所有依赖项均已正确安装且可访问。
 
 ### 4. 如何让 TDengine TSDB crash 时生成 core 文件？
 
@@ -84,7 +84,6 @@ description: 一些常见问题的解决方法汇总
 8. 对于 macOS 上的 JDBC（ODBC、Python、Go 等接口类似）连接，确保 *libtaos.dylib* 在目录 */usr/local/lib* 里，并且 */usr/local/lib* 在系统库函数搜索路径 *LD_LIBRARY_PATH* 里
 
 9. 对于 Windows 上的 JDBC、ODBC、Python、Go 等连接，确保 *C:\TDengine\driver\taos.dll* 在你的系统库函数搜索目录里 (建议 *taos.dll* 放在目录 *C:\Windows\System32*)
-
 
 10. 如果仍不能排除连接故障
 
@@ -358,7 +357,7 @@ TDinsight 插件中展示的数据是通过 taosKeeper 和 taosAdapter 服务收
 
 TDengine TSDB 3.3.5.0 之前的版本，只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 TDengine TSDB CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/show/#show-table-distributed)
 
-TDengine TSDB 3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/database/#%E6%9F%A5%E7%9C%8B-db-%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
+TDengine TSDB 3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/database/#%E6%9F%A5%E7%9C%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
 
 ### 37 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit
 

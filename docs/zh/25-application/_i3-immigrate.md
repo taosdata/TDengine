@@ -131,30 +131,30 @@ TDengine 支持标准的 JDBC 3.0 接口操纵数据库，你也可以使用其�
 
 1. 下载源码
 
-~~~
+```bash
 git clone https://github.com/taosdata/DataX.git
-~~~
+```
 
 2. 编译打包
 
-~~~
+```bash
 cd DataX
 mvn -U clean package assembly:assembly -Dmaven.test.skip=true
-~~~
+```
 
 3. 安装
 
-~~~
+```bash
 cp target/datax.tar.gz your_install_dir
 cd your_install_dir
 tar -zxvf dataX.tar.gz
-~~~
+```
 
 ### 数据迁移 Job 的配置
 
 以一个从 OpenTSDB 到 TDengine 3.0 版本的数据迁移任务为例，配置文件 opentsdb2tdengine.json 如下：
 
-~~~
+```json
 {
    "job":{
      "content":[{
@@ -192,7 +192,7 @@ tar -zxvf dataX.tar.gz
      }
    }
  } 
-~~~
+```
 
 配置说明：
 
@@ -203,9 +203,9 @@ tar -zxvf dataX.tar.gz
 
 ### 执行迁移任务
 
-~~~
+```bash
 python bin/datax.py job/opentsdb2tdengine.json
-~~~
+```
 
 ### 限制条件
 

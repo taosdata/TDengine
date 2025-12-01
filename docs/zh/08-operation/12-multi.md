@@ -46,7 +46,7 @@ dataDir /mnt/data5 2 0
 dataDir /mnt/data6 2 0
 ```
 
-**注意**
+###### 注意
 
 1. 多级存储不允许跨级配置，合法的配置方案有：仅 0 级、仅 0 级 + 1 级、以及 0 级 + 1 级 + 2 级。而不允许只配置 level=0 和 level=2，而不配置 level=1。
 2. 禁止手动移除使用中的挂载盘，挂载盘目前不支持非本地的网络盘。
@@ -85,7 +85,7 @@ dataDir /mnt/data6 2 0
 
 ### 存储设备的连接参数
 
-配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。 
+配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。
 
 #### S3 对象存储
 
@@ -109,7 +109,7 @@ dataDir /mnt/data6 2 0
 
 例如：
 
-```
+```shell
 ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3
 ```
 
@@ -117,13 +117,13 @@ ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protoc
 
 对 TDengine 来说，网络存储设备挂载到本地后等同于本地磁盘，当使用此类设备作为共享存储时，`ssAccessString` 的 `device-type` 必须是 `fs`，可以使用的选项如下：
 
-| 名称            |   含义 | 
-| ----------------|----------------------------------------------| 
-| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。| 
+| 名称            |   含义 |
+| ----------------|----------------------------------------------|
+| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。|
 
 例如：
 
-```
+```shell
 ssAccessString fs:baseDir=/var/taos/ss
 ```
 
@@ -131,7 +131,7 @@ ssAccessString fs:baseDir=/var/taos/ss
 
 在 taos.cfg 中完成对共享存储的配置后，通过 taosd 命令的 checkss 参数可以检查所配置的共享存储服务是否可用：
 
-```
+```shell
 taosd --checkss
 ```
 

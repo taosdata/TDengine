@@ -15,7 +15,7 @@ enable = true
 
 在 Telegraf 配置文件（默认位置 /etc/telegraf/telegraf.conf）增加 outputs.http 输出模块配置：
 
-```
+```conf
 [[outputs.http]]
   url = "http://<taosAdapter's host>:<REST service port>/influxdb/v1/write?db=<database name>"
   ...
@@ -28,7 +28,7 @@ enable = true
 
 示例如下：
 
-```
+```conf
 [[outputs.http]]
   url = "http://127.0.0.1:6041/influxdb/v1/write?db=telegraf"
   method = "POST"
@@ -37,4 +37,3 @@ enable = true
   password = "taosdata"
   data_format = "influx"
 ```
-

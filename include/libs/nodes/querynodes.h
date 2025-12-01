@@ -164,6 +164,8 @@ typedef enum EHintOption {
   HINT_SMALLDATA_TS_SORT,
   HINT_HASH_JOIN,
   HINT_SKIP_TSMA,
+  HINT_WIN_OPTIMIZE_BATCH,
+  HINT_WIN_OPTIMIZE_SINGLE,
 } EHintOption;
 
 typedef struct SHintNode {
@@ -319,6 +321,7 @@ typedef enum EJoinAlgorithm {
 typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
   DYN_QTYPE_VTB_SCAN,
+  DYN_QTYPE_VTB_WINDOW,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
