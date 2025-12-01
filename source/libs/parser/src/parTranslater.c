@@ -1747,7 +1747,7 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SExprNode*      pFoundExpr = NULL;
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
+    if (0 == strcmp(pCol->colName, pExpr->userAlias)) {
       if (*pFound) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
       }
@@ -4079,7 +4079,7 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   }
 
   tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.aliasName, p->userAlias, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, p->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, p->userAlias, TSDB_COL_NAME_LEN);
 
   // "_select_value" is an parameter of function, not in the projectionList, and user does not assign an alias name
