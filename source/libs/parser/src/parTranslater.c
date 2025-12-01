@@ -4079,7 +4079,7 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   }
 
   tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.aliasName, p->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, p->userAlias, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, p->userAlias, TSDB_COL_NAME_LEN);
 
   // "_select_value" is an parameter of function, not in the projectionList, and user does not assign an alias name
