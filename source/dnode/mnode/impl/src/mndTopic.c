@@ -751,17 +751,6 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     taosMemoryFreeClear(sql);
 
-    char mete[4 + VARSTR_HEADER_SIZE] = {0};
-    if (pTopic->withMeta) {
-      STR_TO_VARSTR(mete, "yes");
-    } else {
-      STR_TO_VARSTR(mete, "no");
-    }
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)mete, false));
-
     numOfRows++;
     sdbRelease(pSdb, pTopic);
     pTopic = NULL;
