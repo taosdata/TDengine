@@ -675,12 +675,15 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;
+  TSKEY       prevTs;  // previous timestamp
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
   uint32_t    numNullRows;  // number of continuous rows with null state col
-  TSKEY       lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
+  // lastTs is used to record the last timestamp,
+  // so that we can know whether current ts is duplicated
+  // TODO(tony zhang): combine prevTs and lastTs
+  TSKEY       lastTs; 
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col

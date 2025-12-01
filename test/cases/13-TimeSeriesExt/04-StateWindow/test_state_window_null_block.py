@@ -31,6 +31,7 @@ class TestStateWindowNullBlock:
             4. test state_window with nulls at the border of all data block
             5. test state_window with mixed null and non-null data block
             6. test state_window with all null data block, and nulls at border
+            7. test state_window with partition and data block containing nulls
 
         Since: v3.3.8.5
 
@@ -43,6 +44,7 @@ class TestStateWindowNullBlock:
 
         History:
             - 2025-11-03 Tony Zhang: Created this test
+            - 2025-12-01 Tony Zhang: add check_partition_and_null
 
         """
         self.prepare_data()
@@ -53,6 +55,7 @@ class TestStateWindowNullBlock:
         self.check_border_null1()
         self.check_all_null_block1()
         self.check_all_null_block2()
+        self.check_partition_and_null()
 
     def prepare_data(self):
         tdSql.execute("drop database if exists test_state_window_null_block")
@@ -575,3 +578,105 @@ class TestStateWindowNullBlock:
         tdSql.checkData(0, 1, "2025-10-01 01:00:00.000")
         tdSql.checkData(0, 2, 3601)
         tdSql.checkData(0, 3, 1)
+
+    def check_partition_and_null(self):
+        tdLog.info(">>>>>>>>>>>>> check_partition_and_null >>>>>>>>>>>>>>>")
+        tdSql.execute("create database if not exists test_state_window_null_block_partition", show=1)
+        tdSql.execute("use test_state_window_null_block_partition")
+        tdSql.execute("drop table if exists tt")
+        tdSql.execute("create table tt (ts timestamp, v int, s varchar(10))", show=1)
+        tdSql.execute('''
+            insert into tt values 
+              ("2025-12-01 12:00:00", 1, 'a')
+              ("2025-12-01 12:00:01", 2, 'b')
+              ("2025-12-01 12:00:02", 3, 'a')
+              ("2025-12-01 12:00:03", 1, 'b')
+              ("2025-12-01 12:00:04", 2, 'a')
+              ("2025-12-01 12:00:05", 3, 'a')
+              ("2025-12-01 12:00:06", 1, null)
+              ("2025-12-01 12:00:07", 2, null)
+        ''', show=1)
+
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s) order by _wstart", show=1)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2025-12-01 12:00:00.000")
+        tdSql.checkData(0, 1, "2025-12-01 12:00:00.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, "a")
+        tdSql.checkData(1, 0, "2025-12-01 12:00:01.000")
+        tdSql.checkData(1, 1, "2025-12-01 12:00:01.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, "b")
+        tdSql.checkData(2, 0, "2025-12-01 12:00:02.000")
+        tdSql.checkData(2, 1, "2025-12-01 12:00:05.000")
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 3)
+        tdSql.checkData(2, 4, "a")
+        tdSql.checkData(3, 0, "2025-12-01 12:00:03.000")
+        tdSql.checkData(3, 1, "2025-12-01 12:00:03.000")
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 1)
+        tdSql.checkData(3, 4, "b")
+        tdSql.checkData(4, 0, "2025-12-01 12:00:04.000")
+        tdSql.checkData(4, 1, "2025-12-01 12:00:04.000")
+        tdSql.checkData(4, 2, 1)
+        tdSql.checkData(4, 3, 2)
+        tdSql.checkData(4, 4, "a")
+
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s, 1) order by _wstart", show=1)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2025-12-01 12:00:00.000")
+        tdSql.checkData(0, 1, "2025-12-01 12:00:02.999")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, "a")
+        tdSql.checkData(1, 0, "2025-12-01 12:00:01.000")
+        tdSql.checkData(1, 1, "2025-12-01 12:00:03.999")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, "b")
+        tdSql.checkData(2, 0, "2025-12-01 12:00:02.000")
+        tdSql.checkData(2, 1, "2025-12-01 12:00:05.000")
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 3)
+        tdSql.checkData(2, 4, "a")
+        tdSql.checkData(3, 0, "2025-12-01 12:00:03.000")
+        tdSql.checkData(3, 1, "2025-12-01 12:00:06.000")
+        tdSql.checkData(3, 2, 2)
+        tdSql.checkData(3, 3, 1)
+        tdSql.checkData(3, 4, "b")
+        tdSql.checkData(4, 0, "2025-12-01 12:00:04.000")
+        tdSql.checkData(4, 1, "2025-12-01 12:00:07.000")
+        tdSql.checkData(4, 2, 2)
+        tdSql.checkData(4, 3, 2)
+        tdSql.checkData(4, 4, "a")
+
+        tdSql.query("select _wstart, _wend, count(*), v, s from tt partition by v state_window(s, 2) order by _wstart", show=1)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2025-12-01 12:00:00.000")
+        tdSql.checkData(0, 1, "2025-12-01 12:00:00.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, "a")
+        tdSql.checkData(1, 0, "2025-12-01 12:00:00.001")
+        tdSql.checkData(1, 1, "2025-12-01 12:00:03.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(1, 4, "b")
+        tdSql.checkData(2, 0, "2025-12-01 12:00:01.000")
+        tdSql.checkData(2, 1, "2025-12-01 12:00:01.000")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, "b")
+        tdSql.checkData(3, 0, "2025-12-01 12:00:01.001")
+        tdSql.checkData(3, 1, "2025-12-01 12:00:04.000")
+        tdSql.checkData(3, 2, 1)
+        tdSql.checkData(3, 3, 2)
+        tdSql.checkData(3, 4, "a")
+        tdSql.checkData(4, 0, "2025-12-01 12:00:02.000")
+        tdSql.checkData(4, 1, "2025-12-01 12:00:05.000")
+        tdSql.checkData(4, 2, 2)
+        tdSql.checkData(4, 3, 3)
+        tdSql.checkData(4, 4, "a")

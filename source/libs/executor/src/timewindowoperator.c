@@ -983,11 +983,12 @@ void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsLis
       *extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
     pRowSup->win.skey = tsList[rowIndex];
     pRowSup->startRowIndex = rowIndex;
-    pRowSup->numOfRows = 0;
+    pRowSup->numOfRows = 0;  // does not include the current row yet
   } else {
-    pRowSup->win.skey = hasPrevWin ? pRowSup->win.ekey + 1 : tsList[0];
     pRowSup->startRowIndex = hasContinuousNullRows(pRowSup) ?
       rowIndex - pRowSup->numNullRows : rowIndex;
+    pRowSup->win.skey = hasPrevWin ?
+                        pRowSup->win.ekey + 1 : tsList[pRowSup->startRowIndex];
     pRowSup->numOfRows = rowIndex - pRowSup->startRowIndex;
   }
   resetNumNullRows(pRowSup);
@@ -997,9 +998,12 @@ void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsLis
 // this functions is called when a new state row appears
 // @param rowIndex the index of the first row of next window
 void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, 
-  int32_t rowIndex, const EStateWinExtendOption* extendOption, bool hasNextWin) {
+                                 int32_t rowIndex,
+                                 const EStateWinExtendOption* extendOption,
+                                 bool hasNextWin) {
   if (*extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-      pRowSup->win.ekey = hasNextWin? tsList[rowIndex] - 1 : tsList[rowIndex - 1];
+      pRowSup->win.ekey = hasNextWin?
+                          tsList[rowIndex] - 1 : pRowSup->prevTs;
       // continuous rows having null state col should be included in this window
       pRowSup->numOfRows += hasContinuousNullRows(pRowSup) ?
         pRowSup->numNullRows : 0;
@@ -1007,8 +1011,9 @@ void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
   }
 }
 
-void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {
+void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, TSKEY nullRowTs) {
   pRowSup->numNullRows += 1;
+  pRowSup->prevTs = nullRowTs;
 }
 
 // process a closed state window
@@ -1020,6 +1025,10 @@ static int32_t processClosedStateWindow(SStateWindowOperatorInfo* pInfo,
   int32_t     code = 0;
   int32_t     lino = 0;
   SResultRow* pResult = NULL;
+  if (pRowSup->numOfRows == 0) {
+    // no valid rows within the window
+    return TSDB_CODE_SUCCESS;
+  }
   code = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win,
     true, &pResult, pRowSup->groupId, pSup->pCtx, numOfOutput,
     pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
@@ -1047,6 +1056,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   int32_t* endIndex, int32_t* numPartialCalcRows) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
+  printDataBlock(pBlock, "State Window Agg Input Block", "tooony", 10010);
 
   SColumnInfoData* pStateColInfoData = 
     taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
@@ -1071,12 +1081,13 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   SWindowRowsSup*        pRowSup = &pInfo->winSup;
   for (int32_t j = *startIndex; j < *endIndex; ++j) {
     if (pBlock->info.scanFlag != PRE_SCAN) {
-      if (pInfo->winSup.lastTs == INT64_MIN || gid != pRowSup->groupId || !pInfo->hasKey) {
+      if (pInfo->winSup.lastTs == INT64_MIN || gid != pRowSup->groupId) {
         pInfo->winSup.lastTs = tsList[j];
       } else {
         if (tsList[j] == pInfo->winSup.lastTs) {
           // forbid duplicated ts rows
-          qError("%s:%d duplicated ts found in state window aggregation", __FILE__, __LINE__);
+          qError("%s:%d duplicated ts found in state window aggregation",
+            __FILE__, __LINE__);
           pTaskInfo->code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
           T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP);
         } else {
@@ -1087,7 +1098,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
     pAgg = (pBlock->pBlockAgg != NULL) ?
       &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
-      doKeepStateWindowNullInfo(pRowSup, j);
+      doKeepStateWindowNullInfo(pRowSup, tsList[j]);
       continue;
     }
     if (pStateColInfoData->pData == NULL) {
@@ -1098,31 +1109,39 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
 
     char* val = colDataGetData(pStateColInfoData, j);
 
-    if (gid != pRowSup->groupId || !pInfo->hasKey) {
+    if (!pInfo->hasKey) {
       assignVal(pInfo->stateKey.pData, val, bytes, pInfo->stateKey.type);
       pInfo->hasKey = true;
 
       doKeepNewStateWindowStartInfo(
         pRowSup, tsList, j, gid, &extendOption, false);
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else if (compareVal(val, &pInfo->stateKey)) {
-      doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else {
-      // close and process current state window
-      doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
+    } else if (gid != pRowSup->groupId || !compareVal(val, &pInfo->stateKey)) {
+      // group changed or new state key appears
+      bool isGroupChanged = (gid != pRowSup->groupId);
+      doKeepCurStateWindowEndInfo(pRowSup, tsList, j,
+                                  &extendOption, !isGroupChanged);
       int32_t code = processClosedStateWindow(
         pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
       if (TSDB_CODE_SUCCESS != code) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
       *numPartialCalcRows = pRowSup->startRowIndex + pRowSup->numOfRows;
-      
-      // start a new state window
+      if (isGroupChanged) {
+        // unhandled null rows with previous group id should be ignored,
+        // since they belong to previous group
+        *numPartialCalcRows += pRowSup->numNullRows;
+        resetNumNullRows(pRowSup);
+      }
+
+      // start a new state window with current group id
       doKeepNewStateWindowStartInfo(
-        pRowSup, tsList, j, gid, &extendOption, true);
+        pRowSup, tsList, j, gid, &extendOption, !isGroupChanged);
       doKeepTuple(pRowSup, tsList[j], j, gid);
 
       assignVal(pInfo->stateKey.pData, val, bytes, pInfo->stateKey.type);
+    } else {
+      doKeepTuple(pRowSup, tsList[j], j, gid);
     }
   }
 
@@ -1185,6 +1204,8 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
       startIndex = pUnfinishedBlock->info.rows;
       // merge unfinished block with current block
       code = blockDataMerge(pUnfinishedBlock, pBlock);
+      // reset id to current block id
+      pUnfinishedBlock->info.id = pBlock->info.id;
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       pUnfinishedBlock = pBlock;
