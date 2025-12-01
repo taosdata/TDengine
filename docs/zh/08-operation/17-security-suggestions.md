@@ -6,11 +6,11 @@ toc_max_heading_level: 4
 
 ## 背景
 
-TDengine 的分布式、多组件特性导致 TDengine 的安全配置是生产系统中比较关注的问题。本文档旨在对 TDengine 各组件及在不同部署方式下的安全问题进行说明，并提供部署和配置建议，为用户的数据安全提供支持。
+TDengine TSDB 的分布式、多组件特性导致 TDengine TSDB 的安全配置是生产系统中比较关注的问题。本文档旨在对 TDengine TSDB 各组件及在不同部署方式下的安全问题进行说明，并提供部署和配置建议，为用户的数据安全提供支持。
 
 ## 安全配置涉及组件
 
-TDengine 包含多个组件，有：
+TDengine TSDB 包含多个组件，有：
 
 - `taosd`：内核组件。
 - `taosc`：客户端库。
@@ -20,18 +20,18 @@ TDengine 包含多个组件，有：
 - `taosxAgent`：外部数据源数据接入辅助组件。
 - `taosExplorer`：Web 可视化管理界面。
 
-与 TDengine 部署和应用相关，还会存在以下组件：
+与 TDengine TSDB 部署和应用相关，还会存在以下组件：
 
-- 通过各种连接器接入并使用 TDengine 数据库的应用。
-- 外部数据源：指接入 TDengine 的其他数据源，如 MQTT、OPC、Kafka 等。
+- 通过各种连接器接入并使用 TDengine TSDB 数据库的应用。
+- 外部数据源：指接入 TDengine TSDB 的其他数据源，如 MQTT、OPC、Kafka 等。
 
 各组件关系如下：
 
-![TDengine 产品生态拓扑架构](./tdengine-topology.png)
+![TDengine TSDB 产品生态拓扑架构](./tdengine-topology.png)
 
 关于各组件的详细介绍，请参考 [组件介绍](../intro)。
 
-## TDengine 安全设置
+## TDengine TSDB 安全设置
 
 ### `taosd`
 
@@ -92,7 +92,7 @@ listen = "127.0.0.1:6050"
 grpc = "127.0.0.1:6055"
 ```
 
-从 TDengine 3.3.6.0 开始，taosX 支持 HTTPS 连接，在 `/etc/taos/taosx.toml` 文件中添加如下配置：
+从 TDengine TSDB 3.3.6.0 开始，taosX 支持 HTTPS 连接，在 `/etc/taos/taosx.toml` 文件中添加如下配置：
 
 ```toml
 [serve]
@@ -133,7 +133,7 @@ taosX 启用 HTTPS 后，Agent 组件与 taosx 之间使用 HTTP 2 加密连接�
 
 ### `taosKeeper`
 
-taosKeeper 使用 WebSocket 连接与 taosadpater 通信，将其他组件上报的监控信息写入 TDengine。
+taosKeeper 使用 WebSocket 连接与 taosadpater 通信，将其他组件上报的监控信息写入 TDengine TSDB。
 
 `taosKeeper` 当前版本存在安全风险：
 
@@ -151,7 +151,7 @@ usessl = false
 
 ## 安全增强
 
-我们建议使用在局域网内部使用 TDengine。
+我们建议使用在局域网内部使用 TDengine TSDB。
 
 如果必须在局域网外部提供访问，请考虑添加以下配置：
 
@@ -271,4 +271,4 @@ labels:
 
 ## 总结
 
-数据安全是 TDengine 产品的一项关键指标，这些措施旨在保护 TDengine 部署免受未经授权的访问和数据泄露，同时保持性能和功能。但 TDengine 自身的安全配置不是生产中的唯一保障，结合用户业务系统制定更加匹配客户需求的解决方案更加重要。
+数据安全是 TDengine TSDB 产品的一项关键指标，这些措施旨在保护 TDengine TSDB 部署免受未经授权的访问和数据泄露，同时保持性能和功能。但 TDengine TSDB 自身的安全配置不是生产中的唯一保障，结合用户业务系统制定更加匹配客户需求的解决方案更加重要。

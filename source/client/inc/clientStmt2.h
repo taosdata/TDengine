@@ -172,7 +172,7 @@ typedef struct {
   tsem_t         asyncExecSem;
   bool           execSemWaited;
   AsyncBindParam asyncBindParam;
-  bool           asyncExecCb;
+  bool           asyncResultAvailable;
   SStmtStatInfo  stat;
 } STscStmt2;
 /*
@@ -241,6 +241,15 @@ do {                               \
 #define STMT2_ILOG_E(param)  qInfo("stmt2:%p, " param, pStmt)
 #define STMT2_TLOG_E(param)  qTrace("stmt2:%p, " param, pStmt)
 
+extern char *gStmt2StatusStr[];
+
+#define STMT2_LOG_SEQ(n)                                                                            \
+  do {                                                                                              \
+    (pStmt)->seqId++;                                                                               \
+    (pStmt)->seqIds[n]++;                                                                           \
+    STMT2_DLOG("switch status %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmt2StatusStr[n]); \
+  } while (0)
+
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
 int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
@@ -251,11 +260,14 @@ int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
 int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
 int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
-int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);
+bool        stmt2IsInsert(TAOS_STMT2 *stmt);
+bool        stmt2IsSelect(TAOS_STMT2 *stmt);
 TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
 const char *stmtErrstr2(TAOS_STMT2 *stmt);
 int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
 int         stmtAsyncBindThreadFunc(void *args);
+void        stmtBuildErrorMsg(STscStmt2 *pStmt, const char *msg);
+int32_t     stmtBuildErrorMsgWithCode(STscStmt2 *pStmt, const char *msg, int32_t errorCode);
 
 #ifdef __cplusplus
 }

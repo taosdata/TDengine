@@ -112,7 +112,13 @@ while true; do
 done
 
 function prepare_cases() {
-    cat "$t_file" >>"$task_file"
+    {
+        # 1. 有数字的行按数字逆序排序
+        grep "^[0-9]" "$t_file" | sort -nr
+        # 2. 无数字且非注释且非空的行保持原顺序
+        grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$"
+    } > "$task_file"
+    echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do
         echo "%%FINISHED%%" >>"$task_file"
@@ -131,6 +137,15 @@ function is_local_host() {
     return 1
 }
 
+function get_remote_ssh_command() {
+    local index=$1
+    if [ -z "${passwords[index]}" ]; then
+        echo "ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    else
+        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    fi
+}
+
 function get_remote_scp_command() {
     local index=$1
     if [ -z "${passwords[index]}" ]; then
@@ -140,16 +155,57 @@ function get_remote_scp_command() {
     fi
 }
 
-function get_remote_ssh_command() {
-    # $1: index
-    local index=$1
-    if [ -z "${passwords[index]}" ]; then
-        echo "ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-    else
-        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+function transfer_debug_dirs() {
+    # Skip when only local host
+    if [ ${#hosts[@]} -le 1 ]; then
+        return 0
     fi
-}
 
+    local i=0
+    for i in "${!hosts[@]}"; do
+        if is_local_host "${hosts[i]}"; then
+            local_work_dir="${workdirs[i]}"
+            break
+        fi
+    done
+
+    ( 
+    cd "$local_work_dir" || exit 1
+    rm -rf debug.tar.gz
+    tar -czf debug.tar.gz \
+        debug{San,NoSan}/build/bin/taos* \
+        debug{San,NoSan}/build/bin/tmq_* \
+        debug{San,NoSan}/build/bin/sml_test \
+        debug{San,NoSan}/build/bin/get_db_name_test \
+        debug{San,NoSan}/build/bin/replay_test \
+        debug{San,NoSan}/build/bin/varbinary_test \
+        debug{San,NoSan}/build/bin/write_raw_block_test \
+        debug{San,NoSan}/build/lib/*.so \
+        debug{San,NoSan}/build/share \
+        debug{San,NoSan}/build/include
+
+    local index=0
+    while [ $index -lt ${#hosts[*]} ]; do
+        if ! is_local_host "${hosts[index]}"; then
+            # remove remote debug dir if exists
+            remote_cmd=$(get_remote_ssh_command "$index")
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugSan'"
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugNoSan'"
+            # transfer debug.tar.gz to remote
+            if [ -n "${passwords[index]}" ]; then
+                sshpass -p "${passwords[index]}" scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            else
+                scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            fi
+            # untar debug.tar.gz to remote
+            bash -c "${remote_cmd} \"tar -xzf '${workdirs[index]}/debug.tar.gz' -C '${workdirs[index]}' && rm -rf '${workdirs[index]}/debug.tar.gz'\""
+        fi
+        index=$((index + 1))
+    done
+
+    rm -rf debug.tar.gz
+    )
+}
 function clean_tmp() {
     local index=$1
     local cmd=""
@@ -366,19 +422,22 @@ function run_thread() {
                     cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 else
                     cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 fi
             fi
-
             # get remote sim dir
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
@@ -393,13 +452,17 @@ function run_thread() {
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
                 bash -c "$cmd"
-                cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
                 bash -c "$cmd"
-                cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             fi
 
             # # backup source code (disabled)
@@ -449,6 +512,11 @@ while [ $i -lt ${#hosts[*]} ]; do
     i=$((i + 1))
 done
 prepare_cases $j
+
+# transfer debug dirs
+echo "Transfer debug dirs...($(date))"
+transfer_debug_dirs
+echo "Transfer debug dirs done...($(date))"
 
 i=0
 while [ $i -lt ${#hosts[*]} ]; do
@@ -509,7 +577,6 @@ if [ -f "${failed_case_file}" ]; then
 fi
 
 echo "${log_dir}" >&2
-
 date
 
 exit $RET

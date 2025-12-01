@@ -1,6 +1,8 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 
 import os
+import platform
+import subprocess
 
 
 class TestSml:
@@ -13,13 +15,13 @@ class TestSml:
         #tdSql.init(conn.cursor(), logSql)
 
     def checkContent(self, dbname="sml_db"):
-        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
-        buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/sml_test %s'%(buildPath, simClientCfg)
-        print("cmdStr:", cmdStr)
+        simClientCfg = os.path.join(tdDnodes.getSimCfgPath(), "taos.cfg")
+        exe_file = "sml_test" if platform.system() != "Windows" else "sml_test.exe"
+        cmdStr = os.path.join(tdCom.getBuildPath(), "build", "bin", exe_file) + " " + simClientCfg
         tdLog.info(cmdStr)
-        ret = os.system(cmdStr)
-        if ret != 0:
+        ret =subprocess.run(cmdStr, shell=True, capture_output=True)
+        tdLog.info(f"{cmdStr} output: {ret.stdout.decode()}")
+        if ret.returncode != 0:
             tdLog.exit("sml_test ret != 0")
 
         tdSql.query(f"select * from ts3303.stb2")

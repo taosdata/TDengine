@@ -268,6 +268,8 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
   SDnodeObj       *pDnode = NULL;
   SMCreateBnodeReq createReq = {0};
 
+  #ifdef LINUX
+
   TAOS_CHECK_GOTO(tDeserializeSMCreateBnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("bnode:%d, start to create", createReq.dnodeId);
@@ -300,6 +302,13 @@ _OVER:
   //  mndReleaseBnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
   tFreeSMCreateBnodeReq(&createReq);
+
+  #else
+
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+
+  #endif
+
   TAOS_RETURN(code);
 }
 

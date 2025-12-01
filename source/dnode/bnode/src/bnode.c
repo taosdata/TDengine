@@ -33,14 +33,14 @@ int32_t bndOpen(const SBnodeOpt *pOption, SBnode **pBnode) {
   if (TSDB_BNODE_OPT_PROTO_MQTT == (*pBnode)->protocol) {
     if ((code = mqttMgmtStartMqttd((*pBnode)->dnodeId)) != 0) {
       bndError("failed to start taosudf since %s", tstrerror(code));
-
       taosMemoryFree(*pBnode);
+      *pBnode = NULL;
       TAOS_RETURN(code);
     }
   } else {
     bndError("Unknown bnode proto: %hhd.", (*pBnode)->protocol);
-
     taosMemoryFree(*pBnode);
+    *pBnode = NULL;
     TAOS_RETURN(code);
   }
 

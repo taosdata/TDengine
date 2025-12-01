@@ -36,6 +36,9 @@ database_option: {
   | WAL_FSYNC_PERIOD value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
+  | SS_KEEPLOCAL value
+  | SS_CHUNKPAGES value
+  | SS_COMPACT value
 }
 ```
 
@@ -44,7 +47,6 @@ database_option: {
 - VGROUPS: The number of initial vgroups in the database.
 - PRECISION: The timestamp precision of the database. ms for milliseconds, us for microseconds, ns for nanoseconds, default is ms.
 - REPLICA: Indicates the number of database replicas, which can be 1, 2, or 3, default is 1; 2 is only available in the enterprise version 3.3.0.0 and later. In a cluster, the number of replicas must be less than or equal to the number of DNODEs. The following restrictions apply:
-  - Operations such as SPLIT VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
   - A single-replica database can be changed to a double-replica database, but changing from double replicas to other numbers of replicas, or from three replicas to double replicas is not supported.
 - BUFFER: The size of the memory pool for writing into a VNODE, in MB, default is 256, minimum is 3, maximum is 16384.
 - PAGES: The number of cache pages in a VNODE's metadata storage engine, default is 256, minimum 64. A VNODE's metadata storage occupies PAGESIZE * PAGES, which by default is 1MB of memory.
@@ -79,6 +81,9 @@ database_option: {
 - WAL_FSYNC_PERIOD: When the WAL_LEVEL parameter is set to 2, it is used to set the disk writing period. Default is 3000, in milliseconds. Minimum is 0, meaning immediate disk writing upon each write; maximum is 180000, i.e., three minutes.
 - WAL_RETENTION_PERIOD: For data subscription consumption, the maximum duration strategy for additional retention of WAL log files. WAL log cleaning is not affected by the consumption status of subscription clients. In seconds. Default is 3600, meaning WAL retains the most recent 3600 seconds of data, please modify this parameter to an appropriate value according to the needs of data subscription.
 - WAL_RETENTION_SIZE: For data subscription consumption, the maximum cumulative size strategy for additional retention of WAL log files. In KB. Default is 0, meaning there is no upper limit on cumulative size.
+- SS_KEEPLOCAL: When shared storage is enabled, data will be kept local at least this duration before being migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 1 day, maximum is 36500 days, default is 365 days.
+- SS_CHUNKPAGES: When shared storage is enabled, data files larger than this size will be migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 131072, maximum is 1048576, default is 131072. The unit is TSDB page, which is typically 4KB.
+- SS_COMPACT: When shared storage is enabled, if set to 1, file will be compacted before its first migration; if set to 0, compact is skipped. Only available in the enterprise version 3.3.7.0 and later.
 
 ### Database Creation Example
 
@@ -180,6 +185,13 @@ TRIM DATABASE db_name;
 ```
 
 Deletes expired data and reorganizes data according to the multi-level storage configuration.
+
+## Delete Expired WAL
+
+```sql
+TRIM DATABASE db_name WAL;
+```
+Delete expired WAL logs. Using `trim wal` ignores the vgroup `keep_version` restriction.
 
 ## Flush Memory Data to Disk
 

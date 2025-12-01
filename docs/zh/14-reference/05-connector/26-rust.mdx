@@ -1,7 +1,7 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: Rust
-title: TDengine Rust Connector
+title: TDengine TSDB Rust Connector
 ---
 
 import Tabs from "@theme/Tabs";
@@ -14,7 +14,7 @@ import RequestId from "./_request_id.mdx";
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 </figure>
 
-`taos` 是 TDengine 的官方 Rust 语言连接器，Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
+`taos` 是 TDengine TSDB 的官方 Rust 语言连接器，Rust 开发人员可以通过它开发存取 TDengine TSDB 数据库的应用软件。
 
 该 Rust 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-rust)。
 
@@ -24,12 +24,12 @@ import RequestId from "./_request_id.mdx";
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
 - WebSocket 连接支持所有能运行 Rust 的平台。
 
 ## 版本历史
 
-| Rust 连接器版本 | 主要变化                                                                      | TDengine 版本      |
+| Rust 连接器版本 | 主要变化                                                                      | TDengine TSDB 版本      |
 | --------------- | ----------------------------------------------------------------------------- | ------------------ |
 | v0.12.3         | 1. 优化了 WebSocket 查询和插入性能 <br/> 2. 支持了 VARBINARY 和 GEOMETRY 类型 | 3.3.0.0 及更高版本 |
 | v0.12.0         | WebSocket 支持压缩                                                            | 3.2.3.0 及更高版本 |
@@ -57,13 +57,13 @@ match conn.exec(sql) {
 }
 ```
 
-错误信息的错误码可以参考：[错误码](../../../reference/error-code)
+错误码信息请参考：[错误码](../../../reference/error-code)
 
 ## 数据类型映射
 
-TDengine 目前支持时间戳、数字、字符、布尔类型，与 Rust 对应类型转换如下：
+TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Rust 对应类型转换如下：
 
-| TDengine DataType | Rust DataType     |
+| TDengine TSDB DataType | Rust DataType     |
 | ----------------- | ----------------- |
 | TIMESTAMP         | Timestamp         |
 | INT               | i32               |
@@ -110,7 +110,7 @@ DSN 描述字符串基本结构如下：
 各部分意义见下表：
 
 - **driver**：必须指定驱动名以便连接器选择何种方式创建连接，支持如下驱动名：
-  - **taos**：使用 TDengine 连接器驱动，默认是使用 taos 驱动。
+  - **taos**：使用 TDengine TSDB 连接器驱动，默认是使用 taos 驱动。
   - **tmq**：使用 TMQ 订阅数据。
 - **protocol**：显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 WebSocket 方式建立连接。
   - **http/ws**：使用 WebSocket 创建连接。
@@ -122,7 +122,13 @@ DSN 描述字符串基本结构如下：
   - WebSocket 连接：支持多个地址，多个地址间用英文逗号分隔。当不指定地址时，默认为 `localhost:6041`。
     - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：指定默认连接的数据库名，可选参数。
-- **params**：其他可选参数。
+- **params**：
+  - `token`：用于 TDengine TSDB 云服务的身份验证。
+  - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。
+  - `compression`：是否启用数据压缩，默认为 `false`。
+  - `conn_retries`：连接失败时的最大重试次数，默认为 5 次。
+  - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
+  - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
 
 一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`，表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 
@@ -599,7 +605,7 @@ Offset 结构体提供了获取当前消息所属的数据库，主题和分区�
 
 ## 附录
 
-- Rust 连接器文档：https://docs.rs/taos
-- Rust 连接器项目地址：https://github.com/taosdata/taos-connector-rust
-- deadpool 连接池：https://crates.io/crates/deadpool
-- r2d2 连接池：https://crates.io/crates/r2d2
+- [Rust 连接器文档](https://docs.rs/taos)
+- [Rust 连接器项目地址](https://github.com/taosdata/taos-connector-rust)
+- [deadpool 连接池](https://crates.io/crates/deadpool)
+- [r2d2 连接池](https://crates.io/crates/r2d2)

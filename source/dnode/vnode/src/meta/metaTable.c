@@ -171,7 +171,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   return 0;
 }
 
-int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
+int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
                              STableMetaRsp *pMetaRsp, int8_t tableType) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pRef) {
@@ -201,7 +201,13 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   }
   memcpy(pMetaRsp->pColRefs, pRef->pColRef, pRef->nCols * sizeof(SColRef));
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
-  pMetaRsp->tuid = uid;
+  if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+    pMetaRsp->tuid = pEntry->uid;
+  } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    pMetaRsp->tuid = pEntry->uid;
+    pMetaRsp->suid = pEntry->ctbEntry.suid;
+  }
+
   pMetaRsp->tableType = tableType;
   pMetaRsp->virtualStb = false; // super table will never be processed here
   pMetaRsp->numOfColRefs = pRef->nCols;
@@ -633,6 +639,14 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
         }
 
         if (pSysTbl) *pSysTbl = metaTbInFilterCache(pMeta, stbEntry.name, 1) ? 1 : 0;
+        
+        ret = metaStableTagFilterCacheUpdateUid(
+          pMeta, &e, &stbEntry, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
+        if (ret < 0) {
+          metaError("vgId:%d, failed to update stable tag filter cache:%s "
+            "uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
+            e.ctbEntry.suid, tstrerror(ret));
+        }
 
         SSchema        *pTagColumn = NULL;
         SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
@@ -760,6 +774,11 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
     if (ret < 0) {
       metaError("vgId:%d, failed to clear uid cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name, e.uid,
                 tstrerror(ret));
+    }
+    ret = metaStableTagFilterCacheDropSTable(pMeta, uid);
+    if (ret < 0) {
+      metaError("vgId:%d, failed to clear stable tag filter cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
+                e.uid, tstrerror(ret));
     }
     ret = metaTbGroupCacheClear(pMeta, uid);
     if (ret < 0) {

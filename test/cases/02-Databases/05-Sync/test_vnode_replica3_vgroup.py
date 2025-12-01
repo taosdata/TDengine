@@ -8,9 +8,13 @@ class TestVnodeReplica3Vgroup:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_vnode_replica3_vgroup(self):
-        """vnode replica3 vgroup
+        """Write: repica-3 vgroup-2
 
-        1. -
+        1. Start a 4-node cluster.
+        2. Create a 3-replica database with 2 vgroups and create a super table.
+        3. Create 300 child tables and insert one record into each.
+        4. Insert one earlier-timestamp record into each child table.
+        5. Verify the query results are correct.
 
         Catalog:
             - DataBase:Sync

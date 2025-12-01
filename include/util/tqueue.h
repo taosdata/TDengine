@@ -50,6 +50,7 @@ typedef struct {
   int32_t threadNum;
   int64_t timestamp;
   void   *workerCb;
+  bool    exit;
 } SQueueInfo;
 
 typedef enum {

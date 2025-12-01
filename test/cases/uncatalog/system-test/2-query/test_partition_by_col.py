@@ -2,9 +2,9 @@ import time
 import socket
 import os
 import threading
+from typing import List
 from datetime import datetime
 from new_test_framework.utils import tdLog, tdSql, tdCom
-# from tmqCommon import *
 
 COMPARE_DATA = 0
 COMPARE_LEN = 1
@@ -204,7 +204,7 @@ class TestPartitionByCol:
                     tdLog.exit("compare failed for row: [%d], sqls: [%s] res1: [%s], sql2 : [%s] res2: [%s]" % (i, sql1, res1[i], sql2, res2[i]))
         tdLog.debug("sql: [%s] and sql: [%s] have same results, rows: [%d]" % (sql1, sql2, len(res1)))
 
-    def prepare_and_query_and_compare(self, sqls: list[str], order_by: str, select_list: str = "*", compare_what: int = 0):
+    def prepare_and_query_and_compare(self, sqls: List[str], order_by: str, select_list: str = "*", compare_what: int = 0):
         for sql in sqls:
             sql_hint = self.add_order_by(self.add_hint(sql), order_by, select_list)
             sql = self.add_order_by(sql, order_by, select_list)

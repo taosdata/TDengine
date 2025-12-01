@@ -19,9 +19,9 @@ It is recommended to use parameter binding for data insertion.
    We only recommend using the following two forms of SQL for parameter binding data insertion:
 
     ```sql
-    a. Subtables already exists:
+    a. Ensure that the subtable exists. Not adding a tag can improve write performance. (If the subtable does not exist, this behavior is inconsistent with Taos Shell. Taos Shell automatically creates a table with a tag of NULL, and stmt reports an error to prevent accidental table creation due to incorrect table name setting)
        1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
-    b. Automatic table creation on insert:
+    b. The subtable does not exist, specify the tag to automatically create the subtable:
        1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
        2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
     ```

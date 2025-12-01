@@ -1359,3 +1359,758 @@ _end:
   }
   return code;
 }
+
+typedef struct SNewTimestampSorterSlice {
+  int32_t startIdx;
+  int32_t endIdx;
+  TD_DLIST_NODE(SNewTimestampSorterSlice);
+} SNewTimestampSorterSlice;
+
+typedef TD_DLIST(SNewTimestampSorterSlice) SNewTimestampSorterSliceList;
+
+static int32_t stNewTimestampSorterSliceListCompare(const void *pLeft, const void *pRight, void *param) {
+  int32_t                      left = *(const int32_t *)pLeft;
+  int32_t                      right = *(const int32_t *)pRight;
+  SSTriggerNewTimestampSorter *pSorter = (SSTriggerNewTimestampSorter *)param;
+  SArray                      *pSliceLists = pSorter->pSliceLists;
+
+  if (left < TARRAY_SIZE(pSorter->pSliceLists) && right < TARRAY_SIZE(pSorter->pSliceLists)) {
+    SNewTimestampSorterSliceList *pLeftList = TARRAY_GET_ELEM(pSorter->pSliceLists, left);
+    SNewTimestampSorterSliceList *pRightList = TARRAY_GET_ELEM(pSorter->pSliceLists, right);
+
+    SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pSorter->pDataBlock->pDataBlock, pSorter->tsSlotId);
+    int64_t         *pTsData = (int64_t *)pTsCol->pData;
+    int32_t          leftIdx = (TD_DLIST_HEAD(pLeftList) != NULL) ? TD_DLIST_HEAD(pLeftList)->startIdx : -1;
+    int64_t          leftTs = (leftIdx >= 0) ? pTsData[leftIdx] : INT64_MAX;
+    int32_t          rightIdx = (TD_DLIST_HEAD(pRightList) != NULL) ? TD_DLIST_HEAD(pRightList)->startIdx : -1;
+    int64_t          rightTs = (rightIdx >= 0) ? pTsData[rightIdx] : INT64_MAX;
+
+    // compare by start timestamp first, then by start index
+    if (leftTs < rightTs) {
+      return -1;
+    } else if (leftTs > rightTs) {
+      return 1;
+    } else if (leftIdx < rightIdx) {
+      return 1;
+    } else if (leftIdx > rightIdx) {
+      return -1;
+    }
+  }
+_end:
+  // fallback to index comparison
+  if (left < right) {
+    return -1;
+  } else if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask,
+                                 int32_t verColBias) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  pSorter->pTask = pTask;
+  pSorter->verColBias = verColBias;
+
+  pSorter->pSliceBuf = taosArrayInit(0, sizeof(SNewTimestampSorterSlice));
+  QUERY_CHECK_NULL(pSorter->pSliceBuf, code, lino, _end, terrno);
+  pSorter->pSliceLists = taosArrayInit(0, sizeof(SNewTimestampSorterSliceList));
+  QUERY_CHECK_NULL(pSorter->pSliceLists, code, lino, _end, terrno);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+void stNewTimestampSorterDestroy(void *ptr) {
+  SSTriggerNewTimestampSorter **ppSorter = ptr;
+  if (ppSorter == NULL || *ppSorter == NULL) {
+    return;
+  }
+
+  SSTriggerNewTimestampSorter *pSorter = *ppSorter;
+  if (pSorter->pSliceBuf != NULL) {
+    taosArrayDestroy(pSorter->pSliceBuf);
+    pSorter->pSliceBuf = NULL;
+  }
+  if (pSorter->pSliceLists != NULL) {
+    taosArrayDestroy(pSorter->pSliceLists);
+    pSorter->pSliceLists = NULL;
+  }
+  if (pSorter->pDataMerger != NULL) {
+    tMergeTreeDestroy(&pSorter->pDataMerger);
+  }
+
+  taosMemoryFreeClear(*ppSorter);
+}
+
+void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
+  if (pSorter == NULL) {
+    return;
+  }
+
+  pSorter->inUse = false;
+  pSorter->pDataBlock = NULL;
+
+  if (pSorter->pSliceBuf != NULL) {
+    taosArrayClear(pSorter->pSliceBuf);
+  }
+  if (pSorter->pSliceLists != NULL) {
+    taosArrayClear(pSorter->pSliceLists);
+  }
+}
+
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
+                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pSorter->pTask;
+  SSDataBlock        *pDataBlock = pSlice->pDataBlock;
+
+  QUERY_CHECK_CONDITION(!pSorter->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  pSorter->inUse = true;
+  pSorter->pDataBlock = pDataBlock;
+  pSorter->tsSlotId = tsSlotId;
+  pDataBlock->info.id.uid = tbUid;
+
+  // collect all data slices; data in each slice is in ascending order
+  SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, tsSlotId);
+  QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
+  int64_t         *pTsData = (int64_t *)pTsCol->pData;
+  SColumnInfoData *pVerCol = taosArrayGetLast(pDataBlock->pDataBlock);
+  QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+  pVerCol -= pSorter->verColBias;
+  int64_t *pVerData = (int64_t *)pVerCol->pData;
+
+  int32_t            i = pSlice->startIdx;
+  int64_t            lastTs = INT64_MIN;
+  SSTriggerMetaData *pMeta = NULL;
+  SObjListIter       iter;
+  taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
+  while ((i < pSlice->endIdx) && (pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
+    while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
+      lastTs = TMAX(lastTs, pTsData[i]);
+      i++;
+    }
+    if (i < pSlice->endIdx && pVerData[i] > pMeta->ver) {
+      continue;
+    }
+    while (pTask->ignoreDisorder && i < pSlice->endIdx && lastTs != INT64_MIN &&
+           pTsData[i] <= lastTs - pTask->watermark) {
+      i++;
+    }
+    int64_t skey = TMAX(pMeta->skey, pReadRange->skey);
+    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] < skey) {
+      i++;
+    }
+    SNewTimestampSorterSlice slice = {.startIdx = i};
+    int64_t                  ekey = TMIN(pMeta->ekey, pReadRange->ekey);
+    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] <= ekey) {
+      i++;
+    }
+    slice.endIdx = i;
+    if (slice.startIdx < slice.endIdx) {
+      SNewTimestampSorterSlice *pLastSlice = NULL;
+      if (TARRAY_SIZE(pSorter->pSliceBuf) > 0) {
+        pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
+      }
+      if (pLastSlice != NULL && pLastSlice->endIdx == slice.startIdx &&
+          pTsData[pLastSlice->endIdx - 1] < pTsData[slice.startIdx]) {
+        // merge with the last slice
+        pLastSlice->endIdx = slice.endIdx;
+      } else {
+        void *px = taosArrayPush(pSorter->pSliceBuf, &slice);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+    }
+    if (i > 0) {
+      lastTs = TMAX(lastTs, pTsData[i - 1]);
+    }
+  }
+
+  // combine slices into lists; data in each list is in ascending order
+  for (int32_t i = 0; i < TARRAY_SIZE(pSorter->pSliceBuf); i++) {
+    SNewTimestampSorterSlice     *pSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, i);
+    SNewTimestampSorterSliceList *pList = NULL;
+    int64_t                       firstTs = pTsData[pSlice->startIdx];
+    for (int32_t j = 0; j < TARRAY_SIZE(pSorter->pSliceLists); j++) {
+      SNewTimestampSorterSliceList *pTempList = TARRAY_GET_ELEM(pSorter->pSliceLists, j);
+      if (pTsData[TD_DLIST_TAIL(pTempList)->endIdx - 1] < firstTs) {
+        pList = pTempList;
+        break;
+      }
+    }
+    if (pList == NULL) {
+      pList = taosArrayReserve(pSorter->pSliceLists, 1);
+      QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
+    }
+    TD_DLIST_APPEND(pList, pSlice);
+  }
+
+  if (stDebugFlag & DEBUG_DEBUG) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pSorter->pSliceLists); i++) {
+      SNewTimestampSorterSliceList *pList = TARRAY_GET_ELEM(pSorter->pSliceLists, i);
+      SNewTimestampSorterSlice     *pSlice = TD_DLIST_HEAD(pList);
+      while (pSlice != NULL) {
+        ST_TASK_DLOG("Slice List %d: add [%d, %d)", i, pSlice->startIdx, pSlice->endIdx);
+        pSlice = TD_DLIST_NODE_NEXT(pSlice);
+      }
+    }
+  }
+
+  if (TARRAY_SIZE(pSorter->pSliceLists) == 0) {
+    goto _end;
+  }
+
+  // merge data from all lists
+  if (pSorter->pDataMerger != NULL && pSorter->pDataMerger->numOfSources < TARRAY_SIZE(pSorter->pSliceLists)) {
+    tMergeTreeDestroy(&pSorter->pDataMerger);
+  }
+  if (pSorter->pDataMerger == NULL) {
+    // round up to the nearest multiple of 8
+    int32_t capacity = (TARRAY_SIZE(pSorter->pSliceLists) + 7) / 8 * 8;
+    code = tMergeTreeCreate(&pSorter->pDataMerger, capacity, pSorter, stNewTimestampSorterSliceListCompare);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    code = tMergeTreeRebuild(pSorter->pDataMerger);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, SSDataBlock **ppDataBlock,
+                                          int32_t *pStartIdx, int32_t *pEndIdx) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pSorter->pTask;
+  bool                needRebuild = false;
+
+  QUERY_CHECK_CONDITION(pSorter->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  if (ppDataBlock != NULL) {
+    *ppDataBlock = NULL;
+  }
+  *pStartIdx = 0;
+  *pEndIdx = 0;
+
+  if (TARRAY_SIZE(pSorter->pSliceLists) == 0) {
+    goto _end;
+  }
+
+  int32_t                       idx = tMergeTreeGetChosenIndex(pSorter->pDataMerger);
+  SNewTimestampSorterSliceList *pList = TARRAY_GET_ELEM(pSorter->pSliceLists, idx);
+  SNewTimestampSorterSlice     *pSlice = TD_DLIST_HEAD(pList);
+  if (pSlice == NULL) {
+    goto _end;
+  }
+
+  if (ppDataBlock != NULL) {
+    *ppDataBlock = pSorter->pDataBlock;
+  }
+  *pStartIdx = pSlice->startIdx;
+
+  if (TARRAY_SIZE(pSorter->pSliceLists) == 1) {
+    *pEndIdx = pSlice->endIdx;
+    TD_DLIST_POP(pList, pSlice);
+    goto _end;
+  }
+
+  SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pSorter->pDataBlock->pDataBlock, pSorter->tsSlotId);
+  int64_t         *pTsData = (int64_t *)pTsCol->pData;
+  int64_t          startTs = pTsData[pSlice->startIdx];
+  int64_t          endTs = INT64_MAX;
+  for (int32_t i = 0; i < TARRAY_SIZE(pSorter->pSliceLists); i++) {
+    SNewTimestampSorterSliceList *pTempList = TARRAY_GET_ELEM(pSorter->pSliceLists, i);
+    SNewTimestampSorterSlice     *pTempSlice = TD_DLIST_HEAD(pTempList);
+    if (i == idx || pTempSlice == NULL) {
+      continue;
+    }
+    if (pTsData[pTempSlice->startIdx] == startTs) {
+      // skip the current row
+      ST_TASK_DLOG("Slice List %d: pop [%d, %d)", i, pTempSlice->startIdx, pTempSlice->startIdx + 1);
+      needRebuild = true;
+      pTempSlice->startIdx++;
+      if (pTempSlice->startIdx == pTempSlice->endIdx) {
+        TD_DLIST_POP(pTempList, pTempSlice);
+        pTempSlice = TD_DLIST_HEAD(pTempList);
+        if (pTempSlice == NULL) {
+          continue;
+        }
+      }
+    }
+    endTs = TMIN(endTs, pTsData[pTempSlice->startIdx]);
+  }
+  QUERY_CHECK_CONDITION(endTs > startTs, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+  if (pTsData[pSlice->endIdx - 1] < endTs) {
+    *pEndIdx = pSlice->endIdx;
+    TD_DLIST_POP(pList, pSlice);
+    pSlice = TD_DLIST_HEAD(pList);
+  } else {
+    void *px = taosbsearch(&endTs, pTsData + pSlice->startIdx, pSlice->endIdx - pSlice->startIdx, sizeof(int64_t),
+                           compareInt64Val, TD_GE);
+    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    *pEndIdx = POINTER_DISTANCE(px, pTsData) / sizeof(int64_t);
+    pSlice->startIdx = *pEndIdx;
+  }
+
+  ST_TASK_DLOG("Slice List %d: pop [%d, %d)", idx, *pStartIdx, *pEndIdx);
+
+  if (needRebuild) {
+    code = tMergeTreeRebuild(pSorter->pDataMerger);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pSlice == NULL || pTsData[pSlice->startIdx] >= endTs) {
+    code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+typedef struct SNewVtableMergerReaderInfo {
+  SSTriggerNewTimestampSorter *pReader;
+  SSTriggerTableColRef        *pColRef;
+  int32_t                      startIdx;
+  int32_t                      endIdx;
+} SNewVtableMergerReaderInfo;
+
+static int32_t stNewVtableMergerReaderInfoCompare(const void *pLeft, const void *pRight, void *param) {
+  int32_t left = *(const int32_t *)pLeft;
+  int32_t right = *(const int32_t *)pRight;
+  SArray *pReaderInfos = (SArray *)param;
+
+  if (left < TARRAY_SIZE(pReaderInfos) && right < TARRAY_SIZE(pReaderInfos)) {
+    SNewVtableMergerReaderInfo *pLeftReaderInfo = TARRAY_GET_ELEM(pReaderInfos, left);
+    SNewVtableMergerReaderInfo *pRightReaderInfo = TARRAY_GET_ELEM(pReaderInfos, right);
+
+    int64_t leftTs = INT64_MAX;
+    if (pLeftReaderInfo->startIdx < pLeftReaderInfo->endIdx) {
+      SColumnInfoData *pTsCol =
+          TARRAY_GET_ELEM(pLeftReaderInfo->pReader->pDataBlock->pDataBlock, pLeftReaderInfo->pReader->tsSlotId);
+      int64_t *pTsData = (int64_t *)pTsCol->pData;
+      leftTs = pTsData[pLeftReaderInfo->startIdx];
+    }
+    int64_t rightTs = INT64_MAX;
+    if (pRightReaderInfo->startIdx < pRightReaderInfo->endIdx) {
+      SColumnInfoData *pTsCol =
+          TARRAY_GET_ELEM(pRightReaderInfo->pReader->pDataBlock->pDataBlock, pRightReaderInfo->pReader->tsSlotId);
+      int64_t *pTsData = (int64_t *)pTsCol->pData;
+      rightTs = pTsData[pRightReaderInfo->startIdx];
+    }
+
+    if (leftTs < rightTs) {
+      return -1;
+    } else if (leftTs > rightTs) {
+      return 1;
+    }
+  }
+  // fallback to index comparison
+  if (left < right) {
+    return -1;
+  } else if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+#define VTABLE_MERGER_NROWS_PER_BLOCK 4096
+
+static void stNewVtableMergerDestoryReaderInfo(void *ptr) {
+  SNewVtableMergerReaderInfo *pInfo = ptr;
+  if (pInfo && pInfo->pReader != NULL) {
+    stNewTimestampSorterDestroy(&pInfo->pReader);
+  }
+}
+
+int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamTriggerTask *pTask,
+                              SSDataBlock *pDataBlock, bool *pIsPseudoCol, SNode *pFilter) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  pMerger->pTask = pTask;
+  code = createOneDataBlock(pDataBlock, false, &pMerger->pDataBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+  bool hasPseudo = false;
+  for (int32_t i = 0; i < TARRAY_SIZE(pMerger->pDataBlock->pDataBlock); i++) {
+    if (pIsPseudoCol[i]) {
+      hasPseudo = true;
+      break;
+    }
+  }
+  pMerger->pIsPseudoCol = hasPseudo ? pIsPseudoCol : NULL;
+  code = filterInitFromNode(pFilter, &pMerger->pFilter, 0, NULL);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = blockDataEnsureCapacity(pMerger->pDataBlock, VTABLE_MERGER_NROWS_PER_BLOCK);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pMerger->pIsPseudoCol != NULL) {
+    pMerger->pPseudoColValues = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    QUERY_CHECK_NULL(pMerger->pPseudoColValues, code, lino, _end, terrno);
+  }
+
+  pMerger->pReaderInfos = taosArrayInit(0, sizeof(SNewVtableMergerReaderInfo));
+  QUERY_CHECK_NULL(pMerger->pReaderInfos, code, lino, _end, terrno);
+
+  if (pMerger->pFilter != NULL) {
+    SFilterColumnParam param = {.numOfCols = taosArrayGetSize(pMerger->pDataBlock->pDataBlock),
+                                .pDataBlock = pMerger->pDataBlock->pDataBlock};
+    code = filterSetDataFromSlotId(pMerger->pFilter, &param);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+bool stNewVtableMergerNeedPseudoCols(SSTriggerNewVtableMerger *pMerger) {
+  return (pMerger->pIsPseudoCol != NULL) && (blockDataGetNumOfRows(pMerger->pPseudoColValues) == 0);
+}
+
+void stNewVtableMergerDestroy(void *ptr) {
+  SSTriggerNewVtableMerger **ppMerger = ptr;
+  if (ppMerger == NULL || *ppMerger == NULL) {
+    return;
+  }
+
+  SSTriggerNewVtableMerger *pMerger = *ppMerger;
+  if (pMerger->pDataBlock != NULL) {
+    blockDataDestroy(pMerger->pDataBlock);
+    pMerger->pDataBlock = NULL;
+  }
+  if (pMerger->pFilter != NULL) {
+    filterFreeInfo(pMerger->pFilter);
+    pMerger->pFilter = NULL;
+  }
+
+  if (pMerger->pPseudoColValues != NULL) {
+    blockDataDestroy(pMerger->pPseudoColValues);
+    pMerger->pPseudoColValues = NULL;
+  }
+
+  if (pMerger->pReaderInfos != NULL) {
+    taosArrayDestroyEx(pMerger->pReaderInfos, stNewVtableMergerDestoryReaderInfo);
+    pMerger->pReaderInfos = NULL;
+  }
+  if (pMerger->pDataMerger != NULL) {
+    tMergeTreeDestroy(&pMerger->pDataMerger);
+    pMerger->pDataMerger = NULL;
+  }
+  taosMemFreeClear(*ppMerger);
+}
+
+void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
+  if (pMerger == NULL) {
+    return;
+  }
+
+  pMerger->inUse = false;
+  blockDataEmpty(pMerger->pDataBlock);
+
+  if (pMerger->pPseudoColValues != NULL) {
+    blockDataEmpty(pMerger->pPseudoColValues);
+  }
+
+  if (pMerger->pReaderInfos != NULL) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pMerger->pReaderInfos); i++) {
+      SNewVtableMergerReaderInfo *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, i);
+      stNewTimestampSorterReset(pReaderInfo->pReader);
+      pReaderInfo->startIdx = 0;
+      pReaderInfo->endIdx = 0;
+    }
+    pMerger->nReaders = 0;
+  }
+}
+
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+                                 STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
+                                 SSHashObj *pMetas, SSHashObj *pSlices) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pMerger->pTask;
+
+  QUERY_CHECK_CONDITION(!pMerger->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(!stNewVtableMergerNeedPseudoCols(pMerger), code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  pMerger->inUse = true;
+  pMerger->nReaders = 0;
+  pMerger->pDataBlock->info.id.uid = vtbUid;
+  pMerger->tsSlotId = tsSlotId;
+
+  int32_t      nTables = taosArrayGetSize(pTableColRefs);
+  int64_t     *ar = NULL;
+  SObjListIter iter = {0};
+  taosObjListInitIter(pTableUids, &iter, TOBJLIST_ITER_FORWARD);
+  while ((ar = taosObjListIterNext(&iter)) != NULL) {
+    if (ar[0] != vtbUid) {
+      continue;
+    }
+    int64_t               otbUid = ar[1];
+    SSTriggerTableColRef *pColRef = NULL;
+    for (int32_t i = 0; i < nTables; i++) {
+      SSTriggerTableColRef *pTmpColRef = TARRAY_GET_ELEM(pTableColRefs, i);
+      if (pTmpColRef->otbUid == otbUid) {
+        pColRef = pTmpColRef;
+        break;
+      }
+    }
+    SSTriggerDataSlice *pSlice = tSimpleHashGet(pSlices, &otbUid, sizeof(int64_t));
+    QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SNewVtableMergerReaderInfo *pReaderInfo = NULL;
+    if (pMerger->nReaders < TARRAY_SIZE(pMerger->pReaderInfos)) {
+      pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, pMerger->nReaders);
+    } else {
+      pReaderInfo = taosArrayReserve(pMerger->pReaderInfos, 1);
+      QUERY_CHECK_NULL(pReaderInfo, code, lino, _end, terrno);
+    }
+    pMerger->nReaders++;
+    if (pReaderInfo->pReader == NULL) {
+      pReaderInfo->pReader = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
+      QUERY_CHECK_NULL(pReaderInfo->pReader, code, lino, _end, terrno);
+      code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask, 0);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    SObjList *pMeta = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));
+    QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pReadRange, pMeta, pSlice);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pReaderInfo->pColRef = pColRef;
+    code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (pMerger->nReaders == 0) {
+    goto _end;
+  }
+
+  if (pMerger->pDataMerger != NULL && pMerger->pDataMerger->numOfSources < pMerger->nReaders) {
+    tMergeTreeDestroy(&pMerger->pDataMerger);
+  }
+  if (pMerger->pDataMerger == NULL) {
+    // round up to the nearest multiple of 8
+    int32_t capacity = (pMerger->nReaders + 7) / 8 * 8;
+    code = tMergeTreeCreate(&pMerger->pDataMerger, capacity, pMerger->pReaderInfos, stNewVtableMergerReaderInfoCompare);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    code = tMergeTreeRebuild(pMerger->pDataMerger);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bool *filled) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pMerger->pTask;
+
+  QUERY_CHECK_CONDITION(pMerger->nReaders > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  *filled = false;
+
+  int32_t                     idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
+  SNewVtableMergerReaderInfo *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
+  if (pReaderInfo->startIdx >= pReaderInfo->endIdx) {
+    goto _end;
+  }
+
+  SSDataBlock     *pVirDataBlock = pMerger->pDataBlock;
+  SColumnInfoData *pVirTsCol = taosArrayGet(pVirDataBlock->pDataBlock, pMerger->tsSlotId);
+  QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
+  int64_t *pVirTsData = (int64_t *)pVirTsCol->pData;
+
+  SSDataBlock     *pOrigDataBlock = pReaderInfo->pReader->pDataBlock;
+  SColumnInfoData *pOrigTsCol = taosArrayGet(pOrigDataBlock->pDataBlock, pMerger->tsSlotId);
+  QUERY_CHECK_NULL(pOrigTsCol, code, lino, _end, terrno);
+  int64_t *pOrigTsData = (int64_t *)pOrigTsCol->pData;
+
+  int32_t virStartIdx = blockDataGetNumOfRows(pVirDataBlock);
+  if (virStartIdx > 0 && pVirTsData[virStartIdx - 1] == pOrigTsData[pReaderInfo->startIdx]) {
+    // merge to the last row
+    --virStartIdx;
+  }
+
+  if (virStartIdx >= VTABLE_MERGER_NROWS_PER_BLOCK) {
+    // current virtual data block is full
+    goto _end;
+  }
+
+  *filled = true;
+  int32_t nCols = taosArrayGetSize(pReaderInfo->pColRef->pNewColMatches);
+  if (pMerger->nReaders == 1) {
+    // copy whole data block from the single original table
+    int32_t nRowsToCopy =
+        TMIN(VTABLE_MERGER_NROWS_PER_BLOCK - virStartIdx, pReaderInfo->endIdx - pReaderInfo->startIdx);
+    code = colDataAssignNRows(pVirTsCol, virStartIdx, pOrigTsCol, pReaderInfo->startIdx, nRowsToCopy);
+    QUERY_CHECK_CODE(code, lino, _end);
+    for (int32_t i = 0; i < nCols; i++) {
+      SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pReaderInfo->pColRef->pNewColMatches, i);
+      SColumnInfoData   *pVirCol = taosArrayGet(pVirDataBlock->pDataBlock, pColMatch->vtbSlotId);
+      QUERY_CHECK_NULL(pVirCol, code, lino, _end, terrno);
+      SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, pColMatch->otbSlotId);
+      QUERY_CHECK_NULL(pOrigCol, code, lino, _end, terrno);
+      code = colDataAssignNRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    pReaderInfo->startIdx += nRowsToCopy;
+    pVirDataBlock->info.rows = virStartIdx + nRowsToCopy;
+    if (pReaderInfo->startIdx >= pReaderInfo->endIdx) {
+      // this original data block is fully processed
+      code =
+          stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  } else {
+    // copy single row from the selected original table
+    QUERY_CHECK_CONDITION(!colDataIsNull_s(pOrigTsCol, pReaderInfo->startIdx), code, lino, _end,
+                          TSDB_CODE_INVALID_PARA);
+    char *pData = colDataGetData(pOrigTsCol, pReaderInfo->startIdx);
+    code = colDataSetVal(pVirTsCol, virStartIdx, pData, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    for (int32_t i = 0; i < nCols; i++) {
+      SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pReaderInfo->pColRef->pNewColMatches, i);
+      SColumnInfoData   *pVirCol = taosArrayGet(pVirDataBlock->pDataBlock, pColMatch->vtbSlotId);
+      QUERY_CHECK_NULL(pVirCol, code, lino, _end, terrno);
+      SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, pColMatch->otbSlotId);
+      QUERY_CHECK_NULL(pOrigCol, code, lino, _end, terrno);
+      if (colDataIsNull_s(pOrigCol, pReaderInfo->startIdx)) {
+        colDataSetNULL(pVirCol, virStartIdx);
+      } else {
+        pData = colDataGetData(pOrigCol, pReaderInfo->startIdx);
+        code = colDataSetVal(pVirCol, virStartIdx, pData, false);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
+    pVirDataBlock->info.rows = virStartIdx + 1;
+    pReaderInfo->startIdx++;
+    if (pReaderInfo->startIdx >= pReaderInfo->endIdx) {
+      // this original data block is fully processed
+      code =
+          stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    code = tMergeTreeAdjust(pMerger->pDataMerger, tMergeTreeGetAdjustIndex(pMerger->pDataMerger));
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t stNewVtableMergerNextDataBlock(SSTriggerNewVtableMerger *pMerger, SSDataBlock **ppDataBlock, int32_t *pStartIdx,
+                                       int32_t *pEndIdx) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pMerger->pTask;
+  SColumnInfoData    *p = NULL;
+
+  QUERY_CHECK_CONDITION(pMerger->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  if (ppDataBlock != NULL) {
+    *ppDataBlock = NULL;
+  }
+  *pStartIdx = 0;
+  *pEndIdx = 0;
+
+  if (pMerger->nReaders == 0) {
+    goto _end;
+  }
+
+_retrieve:
+  blockDataReset(pMerger->pDataBlock);
+  // set all columns to NULL by default
+  int32_t ncols = blockDataGetNumOfCols(pMerger->pDataBlock);
+  for (int32_t i = 0; i < ncols; i++) {
+    SColumnInfoData *pCol = TARRAY_GET_ELEM(pMerger->pDataBlock->pDataBlock, i);
+    colDataSetNNULL(pCol, 0, VTABLE_MERGER_NROWS_PER_BLOCK);
+  }
+  bool filled = true;
+  while (filled) {
+    code = stNewVtableMergerDoRetrieve(pMerger, &filled);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  int32_t nrows = blockDataGetNumOfRows(pMerger->pDataBlock);
+  if (nrows > 0) {
+    if (pMerger->pIsPseudoCol != NULL) {
+      int32_t j = 0;
+      for (int32_t i = 0; i < ncols; i++) {
+        if (!pMerger->pIsPseudoCol[i]) {
+          continue;
+        }
+        SColumnInfoData *pSrc = taosArrayGet(pMerger->pPseudoColValues->pDataBlock, j);
+        QUERY_CHECK_NULL(pSrc, code, lino, _end, terrno);
+        j++;
+        SColumnInfoData *pDst = TARRAY_GET_ELEM(pMerger->pDataBlock->pDataBlock, i);
+        if (!colDataIsNull_s(pSrc, 0)) {
+          if (!IS_VAR_DATA_TYPE(pDst->info.type) && pDst->nullbitmap != NULL) {
+            int32_t bmLen = BitmapLen(nrows);
+            memset(pDst->nullbitmap, 0, bmLen);
+          }
+          code = colDataCopyNItems(pDst, 0, colDataGetData(pSrc, 0), nrows, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+    if (pMerger->pFilter != NULL) {
+      int32_t status = 0;
+      code = filterExecute(pMerger->pFilter, pMerger->pDataBlock, &p, NULL, ncols, &status);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
+      QUERY_CHECK_CODE(code, lino, _end);
+      int32_t nrowsAfterFilter = blockDataGetNumOfRows(pMerger->pDataBlock);
+      ST_TASK_DLOG("vtable merger filter applied, before: %d, after: %d", nrows, nrowsAfterFilter);
+      if (nrowsAfterFilter == 0 && nrows == VTABLE_MERGER_NROWS_PER_BLOCK) {
+        // need to continue retrieve data until at least one row passes the filter
+        goto _retrieve;
+      }
+      nrows = nrowsAfterFilter;
+    }
+  }
+
+  if (nrows == 0) {
+    goto _end;
+  }
+
+  printDataBlock(pMerger->pDataBlock, __func__, "stream_vtable_data", pTask->task.streamId);
+
+  if (ppDataBlock != NULL) {
+    *ppDataBlock = pMerger->pDataBlock;
+  }
+  *pStartIdx = 0;
+  *pEndIdx = nrows;
+
+_end:
+  if (p != NULL) {
+    colDataDestroy(p);
+    taosMemoryFreeClear(p);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}

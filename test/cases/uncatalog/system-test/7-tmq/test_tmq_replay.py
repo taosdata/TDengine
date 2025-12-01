@@ -1,5 +1,5 @@
 import os
-
+import platform
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
 class TestCase:
@@ -27,8 +27,8 @@ class TestCase:
         """
         tdSql.prepare()
         buildPath = tdCom.getBuildPath()
-
-        cmdStr1 = '%s/build/bin/replay_test'%(buildPath)
+        exe_file = 'replay_test' if platform.system().lower() != 'windows' else 'replay_test.exe'
+        cmdStr1 = os.path.join(buildPath, 'build', 'bin', exe_file)
         tdLog.info(cmdStr1)
         result = os.system(cmdStr1)
 

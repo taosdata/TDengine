@@ -62,6 +62,9 @@ extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
+extern int32_t       tsStatusIntervalMs;
+extern int32_t       tsStatusSRTimeoutMs;
+extern int32_t       tsStatusTimeoutMs;
 extern int32_t       tsNumOfSupportVnodes;
 extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
@@ -74,12 +77,20 @@ extern int8_t tsEnableStrongPassword;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
+extern char tsTLSCaPath[];
+extern char tsTLSSvrCertPath[];
+extern char tsTLSSvrKeyPath[];
+extern char tsTLSCliCertPath[];
+extern char tsTLSCliKeyPath[];
+extern int8_t tsEnableTLS;
+
 // common
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;
 extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
+extern int64_t tsSecTimes[3];
 extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
@@ -131,16 +142,25 @@ extern int32_t tsNumOfRetentionThreads;
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
+extern int32_t tsVnodeElectIntervalMs;
+extern int32_t tsVnodeHeartbeatIntervalMs;
+extern int32_t tsMnodeElectIntervalMs;
+extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
+extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
+extern int32_t tsSyncTimeout;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
 extern int32_t tsArbCheckSyncIntervalSec;
 extern int32_t tsArbSetAssignedTimeoutSec;
+extern int32_t tsArbHeartBeatIntervalMs;
+extern int32_t tsArbCheckSyncIntervalMs;
+extern int32_t tsArbSetAssignedTimeoutMs;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
@@ -241,6 +261,7 @@ extern bool    tsMultiResultFunctionStarReturnTags;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxInsertBatchRows;
+extern int32_t tsMaxSQLLength;
 
 // build info
 extern char td_version[];
@@ -285,28 +306,34 @@ extern int64_t tsmaDataDeleteMark;
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
 extern bool    tsWalForceRepair;
+extern bool    tsWalDeleteOnCorruption;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
+extern int32_t tsScanPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
+extern int32_t tsQueryTrimIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int32_t tsStreamBufferSize;
 extern int64_t tsStreamBufferSizeBytes;
+extern bool    tsStreamPerfLogEnabled;
 extern bool    tsFilterScalarMode;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
+extern int32_t tsStreamBatchRequestWaitMs;
 extern bool    tsCompareAsStrInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
+extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 
 // shared storage
 extern int32_t tsSsEnabled;
@@ -322,6 +349,13 @@ extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+
+// auth
+extern bool    tsAuthServer;
+extern bool    tsAuthReq;
+extern int32_t tsAuthReqInterval;
+extern int32_t tsAuthReqHBInterval;
+extern char    tsAuthReqUrl[];
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

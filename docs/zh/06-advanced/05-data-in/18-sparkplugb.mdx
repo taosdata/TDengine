@@ -3,13 +3,13 @@ title: "SparkplugB"
 sidebar_label: "SparkplugB"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据写入任务，从 SparkplugB 读取数据写入到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据写入任务，从 SparkplugB 读取数据写入到当前 TDengine TSDB 集群。
 
 ## 功能概述
 
 SparkplugB 是一种开放消息规范，专为工业物联网 (IIoT) 应用设计，基于 MQTT 协议。
 
-TDengine 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其写入 TDengine，以实现实时数据流入库。
+TDengine TSDB 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其写入 TDengine TSDB，以实现实时数据流入库。
 
 ## 创建任务
 
@@ -94,7 +94,7 @@ json 数据支持 JSONObject 或者 JSONArray，可以用于解析 SparkplugB �
 
 #### 5.2 字段拆分
 
-在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 `datatype_str` 字段的值转换为 TDengine 类型，在 **rule** 输入框中填写如下 json 值，在 **name** 中填写 `td_datatype`
+在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 `datatype_str` 字段的值转换为 TDengine TSDB 类型，在 **rule** 输入框中填写如下 json 值，在 **name** 中填写 `td_datatype`
 
 ```json
 {
@@ -128,7 +128,7 @@ json 数据支持 JSONObject 或者 JSONArray，可以用于解析 SparkplugB �
 
 #### 5.3 数据过滤
 
-在 **过滤** 中，填写过滤条件，例如：填写`datatype_str != "Int8"`，则只有 datatype_str 不为 `Int8` 的数据才会被写入 TDengine。
+在 **过滤** 中，填写过滤条件，例如：填写`datatype_str != "Int8"`，则只有 datatype_str 不为 `Int8` 的数据才会被写入 TDengine TSDB。
 
 ![spb-9.png](./spb-09.png)
 
@@ -172,4 +172,4 @@ import Contributing from './_03-exception-handling-strategy.mdx'
 
 ### 8. 创建完成
 
-点击 **提交** 按钮，完成创建 MQTT 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 MQTT 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

@@ -1,12 +1,50 @@
 ---
+toc_max_heading_level: 4
 sidebar_label: Error Codes
-title: Error Code Reference
+title: TDengine Error Codes
+description: A comprehensive list of error codes from TDengine TSDB clients and the server, along with detailed explanations
 slug: /tdengine-reference/error-codes
+
 ---
 
-This document details the server error codes that may be encountered when using the TDengine client and the corresponding actions to be taken. All language connectors will also return these error codes to the caller when using the native connection method.
+This document provides a detailed list of error codes from both clients and the server that may be encountered when using TDengine TSDB, as well as the corresponding actions to take.
 
-## rpc
+## TSDB
+
+TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained**.
+
+### Error Code Structure
+
+Error codes are represented as 8-digit hexadecimal numbers starting with 0x, following this format:
+
+Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digits)
+
+#### Prefix Categories
+
+| Error Type                    | Prefix  | Description                                                                 |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------- |
+| TDengine TSDB Business Error  | 0x8000  | Custom business logic error codes defined by the TDengine TSDB engine; see the error code descriptions for each module below for details. |
+| Linux System Call Error       | 0x80FF  | The last 4 digits correspond to the `errno` returned by Linux system APIs; refer to [Linux Error Codes](https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/errnos/). |
+| Windows API System Error      | 0x81FF  | The last 4 digits correspond to error codes returned by Windows APIs; refer to [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes). |
+| Windows Socket System Error   | 0x82FF  | The last 4 digits correspond to error codes returned by Windows Socket APIs; refer to [Windows Sockets Error Codes](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2). |
+
+#### Example Explanation
+
+Take the error code `0x80000216` as an example:
+
+- **Prefix**: `0x8000` → TDengine business error.
+- **Specific Error Code**: `0x0216` → Corresponds to the TSC module's "Syntax error in SQL".
+
+Take the error code `0x80FF0002` as an example:
+
+- **Prefix**: `0x80FF` → Linux system error.
+- **Specific Error Code**: `0x0002` → Corresponds to Linux `errno` 2, which means "No such file or directory".
+
+### Business Error
+
+Below are the business error codes for each module.  
+
+#### rpc
 
 | Error Code | Error Description                            | Possible Error Scenarios or Reasons                          | Recommended User Actions                                     |
 | ---------- | -------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -29,7 +67,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000002A  | RPC state already dropped                   | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002B  | RPC msg exceed limit                        | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 
-## common  
+#### common  
 
 | Error Code | Error Description                 | Possible Error Scenarios or Reasons                          | Recommended User Actions                                     |
 | ---------- | --------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -77,7 +115,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
 
-## tsc
+#### tsc
 
 | Error Code | Error Description                 | Possible Error Scenarios or Reasons             | Recommended Actions for Users                                                     |
 | ---------- | --------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -102,7 +140,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 internal cache error                 | Preserve the scene and logs, report issue on GitHub                               |
 | 0x80000231 | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
-## mnode
+#### mnode
 
 | Error Code | Description                                                  | Possible Error Scenarios or Reasons                          | Suggested Actions for Users                                  |
 | ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -198,6 +236,7 @@ This document details the server error codes that may be encountered when using 
 | 0x800003D5 | Unable to establish connection While execute transaction and will continue in the background | Network error                                                | Check if the network is normal                               |
 | 0x800003D6 | Last Transaction not finished                                | Internal error                                               | Report issue                                                 |
 | 0x800003D7 | Sync timeout While execute transaction and will continue in the background | Internal error                                               | Report issue                                                 |
+| 0x800003DA | The transaction is not able to be killed                                   | Internal error                                               | Report issue                                                 |
 | 0x800003DF | Unknown transaction error                                    | Internal error                                               | Report issue                                                 |
 | 0x800003E0 | Topic already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x800003E1 | Topic not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
@@ -227,7 +266,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 
-## Bnode
+#### Bnode
 
 | Error Code | Description                | Possible Error Scenarios or Reasons | Recommended Actions                       |
 | ---------- | -------------------------- | ----------------------------------- | ----------------------------------------- |
@@ -239,7 +278,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000455 | Bnode exec launch failed   | Internal error                      | Report issue                              |
 | 0x8000261C | Invalid Bnode option       | Illegal Bnode option value          | Check and correct the Bnode option values |
 
-## dnode
+#### dnode
 
 | Error Code | Description            | Possible Error Scenarios or Reasons | Recommended Actions |
 | ---------- | ---------------------- | ----------------------------------- | ------------------- |
@@ -253,8 +292,9 @@ This document details the server error codes that may be encountered when using 
 | 0x8000040F | Snode already deployed | Already deployed                    | Confirm if correct  |
 | 0x80000410 | Snode not found        | Internal error                      | Report issue        |
 | 0x80000411 | Snode not deployed     | Already deployed                    | Confirm if correct  |
+| 0x8000042D | Request is not matched with local dnode | FQDN or port in taos.cfg is changed. | Change it back  |
 
-## vnode
+#### vnode
 
 | Error Code | Description                                        | Possible Error Scenarios or Reasons             | Recommended Actions |
 | ---------- | -------------------------------------------------- | ----------------------------------------------- | ------------------- |
@@ -272,7 +312,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
 | 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
 
-## tsdb
+#### tsdb
 
 | Error Code | Error Description                        | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                        |
 | ---------- | ---------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------- |
@@ -289,7 +329,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000061B | Invalid table schema version             | Same as TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION                  | Report the issue                                     |
 | 0x8000061D | Table already exists in other supertable | Table exists, but belongs to another supertable              | Check write application logic                        |
 
-## query
+#### query
 
 | Error Code | Error Description                    | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                                |
 | ---------- | ------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -309,7 +349,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                         | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G |
 
-## grant
+#### grant
 
 | Error Code | Description                         | Possible Error Scenarios or Reasons                    | Recommended Actions for Users                                |
 | ---------- | ----------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------ |
@@ -328,7 +368,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000080C | STable creation limited by license  | Number of supertables exceeds license limit            | Check license information, contact delivery for updated license code |
 | 0x8000080D | Table creation limited by license   | Number of subtables/basic tables exceeds license limit | Check license information, contact delivery for updated license code |
 
-## sync
+#### sync
 
 | Error Code | Description                  | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                                |
 | ---------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -343,14 +383,14 @@ This document details the server error codes that may be encountered when using 
 | 0x80000918 | Sync negotiation win is full | Scenario 1: High concurrency of client requests, exceeding server's processing capacity, or due to severe lack of network and CPU resources, or network connection issues. | Check cluster status, system resource usage (e.g., disk IO, CPU, network), and network connections between nodes. |
 | 0x800009FF | Sync internal error          | Other internal errors                                        | Check cluster status, e.g., `show vgroups`                   |
 
-## tq
+#### tq
 
 | Error Code | Description               | Possible Scenarios or Reasons                                | Recommended Actions for Users          |
 | ---------- | ------------------------- | ------------------------------------------------------------ | -------------------------------------- |
 | 0x80000A0C | TQ table schema not found | The table does not exist when consuming data                 | Internal error, not passed to users    |
 | 0x80000A0D | TQ no committed offset    | Consuming with offset reset = none, and no previous offset on server | Set offset reset to earliest or latest |
 
-## wal
+#### wal
 
 | Error Code | Description           | Possible Scenarios or Reasons                   | Recommended Actions for Users |
 | ---------- | --------------------- | ----------------------------------------------- | ----------------------------- |
@@ -360,10 +400,10 @@ This document details the server error codes that may be encountered when using 
 | 0x80001006 | WAL checksum mismatch | Scenario: WAL file damaged                      | Internal server error         |
 | 0x80001007 | WAL log incomplete    | Log file has been lost or damaged               | Internal server error         |
 
-## tfs
+#### tfs
 
 | Error Code | Description                      | Possible Scenarios or Reasons                        | Recommended Actions for Users                                |
-| ---------- | -------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------ |
+| --------- | -------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------ |
 | 0x80002201 | TFS invalid configuration        | Incorrect multi-tier storage configuration           | Check if the configuration is correct                        |
 | 0x80002202 | TFS too many disks on one level  | Incorrect multi-tier storage configuration           | Check if the number of disks on one level exceeds the maximum limit |
 | 0x80002203 | TFS duplicate primary mount disk | Incorrect multi-tier storage configuration           | Check if the configuration is correct                        |
@@ -371,7 +411,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002205 | TFS no disk mount on tire        | Incorrect multi-tier storage configuration           | Check if the configuration is correct                        |
 | 0x80002208 | No disk available on a tier.     | TFS internal error, often occurs when disks are full | Add more disks to expand capacity                            |
 
-## catalog
+#### catalog
 
 | Error Code | Description                      | Possible Error Scenarios or Reasons   | Suggested Actions for Users                                  |
 | ---------- | -------------------------------- | ------------------------------------- | ------------------------------------------------------------ |
@@ -387,115 +427,118 @@ This document details the server error codes that may be encountered when using 
 | 0x80002504 | Task timeout                     | Subtask timeout                       | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002505 | Job is dropping                  | Task being or already canceled        | Check if there was a manual or application interruption of the current task |
 
-## parser
+#### parser
 
-| Error Code | Description                                                  | Possible Error Scenarios or Reasons                                        | Suggested Actions for Users                                  |
-|------------| ------------------------------------------------------------ |----------------------------------------------------------------------------| ------------------------------------------------------------ |
-| 0x80002600 | syntax error near                                            | SQL syntax error                                                           | Check and correct the SQL statement                          |
-| 0x80002601 | Incomplete SQL statement                                     | Incomplete SQL statement                                                   | Check and correct the SQL statement                          |
-| 0x80002602 | Invalid column name                                          | Illegal or non-existent column name                                        | Check and correct the SQL statement                          |
-| 0x80002603 | Table does not exist                                         | Table does not exist                                                       | Check and confirm the existence of the table in the SQL statement |
-| 0x80002604 | Column ambiguously defined                                   | Column (alias) redefined                                                   | Check and correct the SQL statement                          |
-| 0x80002605 | Invalid value type                                           | Illegal constant value                                                     | Check and correct the SQL statement                          |
-| 0x80002608 | There mustn't be aggregation                                 | Aggregation function used in illegal clause                                | Check and correct the SQL statement                          |
-| 0x80002609 | ORDER BY item must be the number of a SELECT-list expression | Illegal position specified in Order by                                     | Check and correct the SQL statement                          |
-| 0x8000260A | Not a GROUP BY expression                                    | Illegal group by statement                                                 | Check and correct the SQL statement                          |
-| 0x8000260B | Not SELECTed expression                                      | Illegal expression                                                         | Check and correct the SQL statement                          |
-| 0x8000260C | Not a single-group group function                            | Illegal use of column and function                                         | Check and correct the SQL statement                          |
-| 0x8000260D | Tags number not matched                                      | Mismatched number of tag columns                                           | Check and correct the SQL statement                          |
-| 0x8000260E | Invalid tag name                                             | Invalid or non-existent tag name                                           | Check and correct the SQL statement                          |
-| 0x80002610 | Value is too long                                            | Value length exceeds limit                                                 | Check and correct the SQL statement or API parameters        |
-| 0x80002611 | Password too short or empty                                  | Password is empty or less than 8 chars                                     | Use a valid password                                         |
-| 0x80002612 | Port should be an integer that is less than 65535 and greater than 0 | Illegal port number                                                        | Check and correct the port number                            |
-| 0x80002613 | Endpoint should be in the format of 'fqdn:port'              | Incorrect address format                                                   | Check and correct the address information                    |
-| 0x80002614 | This statement is no longer supported                        | Feature has been deprecated                                                | Refer to the feature documentation                           |
-| 0x80002615 | Interval too small                                           | Interval value exceeds the allowed minimum                                 | Change the INTERVAL value                                    |
-| 0x80002616 | Database not specified                                       | Database not specified                                                     | Specify the database for the current operation               |
-| 0x80002617 | Invalid identifier name                                      | Illegal or invalid length ID                                               | Check the names of related libraries, tables, columns, TAGs, etc. in the statement |
-| 0x80002618 | Corresponding supertable not in this db                      | Supertable does not exist                                                  | Check if the corresponding supertable exists in the database |
-| 0x80002619 | Invalid database option                                      | Illegal database option value                                              | Check and correct the database option values                 |
-| 0x8000261A | Invalid table option                                         | Illegal table option value                                                 | Check and correct the table option values                    |
-| 0x80002624 | GROUP BY and WINDOW-clause can't be used together            | Group by and window cannot be used together                                | Check and correct the SQL statement                          |
-| 0x80002627 | Aggregate functions do not support nesting                   | Functions do not support nested use                                        | Check and correct the SQL statement                          |
-| 0x80002628 | Only support STATE_WINDOW on integer/bool/varchar column     | Unsupported STATE_WINDOW data type                                         | Check and correct the SQL statement                          |
-| 0x80002629 | Not support STATE_WINDOW on tag column                       | STATE_WINDOW not supported on tag column                                   | Check and correct the SQL statement                          |
-| 0x8000262A | STATE_WINDOW not support for supertable query                | STATE_WINDOW not supported for supertable                                  | Check and correct the SQL statement                          |
-| 0x8000262B | SESSION gap should be fixed time window, and greater than 0  | Illegal SESSION window value                                               | Check and correct the SQL statement                          |
-| 0x8000262C | Only support SESSION on primary timestamp column             | Illegal SESSION window column                                              | Check and correct the SQL statement                          |
-| 0x8000262D | Interval offset cannot be negative                           | Illegal INTERVAL offset value                                              | Check and correct the SQL statement                          |
-| 0x8000262E | Cannot use 'year' as offset when interval is 'month'         | Illegal INTERVAL offset unit                                               | Check and correct the SQL statement                          |
-| 0x8000262F | Interval offset should be shorter than interval              | Illegal INTERVAL offset value                                              | Check and correct the SQL statement                          |
-| 0x80002630 | Does not support sliding when interval is natural month/year | Illegal sliding unit                                                       | Check and correct the SQL statement                          |
-| 0x80002631 | sliding value no larger than the interval value              | Illegal sliding value                                                      | Check and correct the SQL statement                          |
-| 0x80002632 | sliding value can not less than 1%% of interval value        | Illegal sliding value                                                      | Check and correct the SQL statement                          |
-| 0x80002633 | Only one tag if there is a json tag                          | Only single JSON tag column supported                                      | Check and correct the SQL statement                          |
-| 0x80002634 | Query block has incorrect number of result columns           | Mismatched number of columns                                               | Check and correct the SQL statement                          |
-| 0x80002635 | Incorrect TIMESTAMP value                                    | Illegal primary timestamp column value                                     | Check and correct the SQL statement                          |
-| 0x80002637 | soffset/offset can not be less than 0                        | Illegal soffset/offset value                                               | Check and correct the SQL statement                          |
-| 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query   | slimit/soffset only supported for PARTITION BY/GROUP BY statements         | Check and correct the SQL statement                          |
-| 0x80002639 | Invalid topic query                                          | Unsupported TOPIC query                                                    |                                                              |
-| 0x8000263A | Cannot drop supertable in batch                              | Batch deletion of supertables not supported                                | Check and correct the SQL statement                          |
-| 0x8000263B | Start(end) time of query range required or time range too large | Window count exceeds limit                                                 | Check and correct the SQL statement                          |
-| 0x8000263C | Duplicated column names                                      | Duplicate column names                                                     | Check and correct the SQL statement                          |
-| 0x8000263D | Tags length exceeds max length                               | tag value length exceeds maximum supported range                           | Check and correct the SQL statement                          |
-| 0x8000263E | Row length exceeds max length                                | Row length check and correct SQL statement                                 | Check and correct the SQL statement                          |
-| 0x8000263F | Illegal number of columns                                    | Incorrect number of columns                                                | Check and correct the SQL statement                          |
-| 0x80002640 | Too many columns                                             | Number of columns exceeds limit                                            | Check and correct the SQL statement                          |
-| 0x80002641 | First column must be timestamp                               | The first column must be the primary timestamp column                      | Check and correct the SQL statement                          |
-| 0x80002642 | Invalid binary/nchar column/tag length                       | Incorrect length for binary/nchar                                          | Check and correct the SQL statement                          |
-| 0x80002643 | Invalid number of tag columns                                | Incorrect number of tag columns                                            | Check and correct the SQL statement                          |
-| 0x80002644 | Permission denied                                            | Permission error                                                           | Check and confirm user permissions                           |
-| 0x80002645 | Invalid stream query                                         | Illegal stream statement                                                   | Check and correct the SQL statement                          |
-| 0x80002646 | Invalid _c0 or_rowts expression                              | Illegal use of _c0 or_rowts                                                | Check and correct the SQL statement                          |
-| 0x80002647 | Invalid timeline function                                    | Function depends on non-existent primary timestamp                         | Check and correct the SQL statement                          |
-| 0x80002648 | Invalid password                                             | Password does not meet standards                                           | Check and change the password                                |
-| 0x80002649 | Invalid alter table statement                                | Illegal modify table statement                                             | Check and correct the SQL statement                          |
-| 0x8000264A | Primary timestamp column cannot be dropped                   | Primary timestamp column cannot be deleted                                 | Check and correct the SQL statement                          |
+| Error Code | Description                                                                                            | Possible Error Scenarios or Reasons                                        | Suggested Actions for Users                                  |
+|------------|--------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------| ------------------------------------------------------------ |
+| 0x80002600 | syntax error near                                                                                      | SQL syntax error                                                           | Check and correct the SQL statement                          |
+| 0x80002601 | Incomplete SQL statement                                                                               | Incomplete SQL statement                                                   | Check and correct the SQL statement                          |
+| 0x80002602 | Invalid column name                                                                                    | Illegal or non-existent column name                                        | Check and correct the SQL statement                          |
+| 0x80002603 | Table does not exist                                                                                   | Table does not exist                                                       | Check and confirm the existence of the table in the SQL statement |
+| 0x80002604 | Column ambiguously defined                                                                             | Column (alias) redefined                                                   | Check and correct the SQL statement                          |
+| 0x80002605 | Invalid value type                                                                                     | Illegal constant value                                                     | Check and correct the SQL statement                          |
+| 0x80002608 | There mustn't be aggregation                                                                           | Aggregation function used in illegal clause                                | Check and correct the SQL statement                          |
+| 0x80002609 | ORDER BY item must be the number of a SELECT-list expression                                           | Illegal position specified in Order by                                     | Check and correct the SQL statement                          |
+| 0x8000260A | Not a GROUP BY expression                                                                              | Illegal group by statement                                                 | Check and correct the SQL statement                          |
+| 0x8000260B | Not SELECTed expression                                                                                | Illegal expression                                                         | Check and correct the SQL statement                          |
+| 0x8000260C | Not a single-group group function                                                                      | Illegal use of column and function                                         | Check and correct the SQL statement                          |
+| 0x8000260D | Tags number not matched                                                                                | Mismatched number of tag columns                                           | Check and correct the SQL statement                          |
+| 0x8000260E | Invalid tag name                                                                                       | Invalid or non-existent tag name                                           | Check and correct the SQL statement                          |
+| 0x80002610 | Value is too long                                                                                      | Value length exceeds limit                                                 | Check and correct the SQL statement or API parameters        |
+| 0x80002611 | Password too short or empty                                                                            | Password is empty or less than 8 chars                                     | Use a valid password                                         |
+| 0x80002612 | Port should be an integer that is less than 65535 and greater than 0                                   | Illegal port number                                                        | Check and correct the port number                            |
+| 0x80002613 | Endpoint should be in the format of 'fqdn:port'                                                        | Incorrect address format                                                   | Check and correct the address information                    |
+| 0x80002614 | This statement is no longer supported                                                                  | Feature has been deprecated                                                | Refer to the feature documentation                           |
+| 0x80002615 | Interval too small                                                                                     | Interval value exceeds the allowed minimum                                 | Change the INTERVAL value                                    |
+| 0x80002616 | Database not specified                                                                                 | Database not specified                                                     | Specify the database for the current operation               |
+| 0x80002617 | Invalid identifier name                                                                                | Illegal or invalid length ID                                               | Check the names of related libraries, tables, columns, TAGs, etc. in the statement |
+| 0x80002618 | Corresponding supertable not in this db                                                                | Supertable does not exist                                                  | Check if the corresponding supertable exists in the database |
+| 0x80002619 | Invalid database option                                                                                | Illegal database option value                                              | Check and correct the database option values                 |
+| 0x8000261A | Invalid table option                                                                                   | Illegal table option value                                                 | Check and correct the table option values                    |
+| 0x80002624 | GROUP BY and WINDOW-clause can't be used together                                                      | Group by and window cannot be used together                                | Check and correct the SQL statement                          |
+| 0x80002627 | Aggregate functions do not support nesting                                                             | Functions do not support nested use                                        | Check and correct the SQL statement                          |
+| 0x80002628 | Only support STATE_WINDOW on integer/bool/varchar column                                               | Unsupported STATE_WINDOW data type                                         | Check and correct the SQL statement                          |
+| 0x80002629 | Not support STATE_WINDOW on tag column                                                                 | STATE_WINDOW not supported on tag column                                   | Check and correct the SQL statement                          |
+| 0x8000262A | STATE_WINDOW not support for supertable query                                                          | STATE_WINDOW not supported for supertable                                  | Check and correct the SQL statement                          |
+| 0x8000262B | SESSION gap should be fixed time window, and greater than 0                                            | Illegal SESSION window value                                               | Check and correct the SQL statement                          |
+| 0x8000262C | Only support SESSION on primary timestamp column                                                       | Illegal SESSION window column                                              | Check and correct the SQL statement                          |
+| 0x8000262D | Interval offset cannot be negative                                                                     | Illegal INTERVAL offset value                                              | Check and correct the SQL statement                          |
+| 0x8000262E | Cannot use 'year' as offset when interval is 'month'                                                   | Illegal INTERVAL offset unit                                               | Check and correct the SQL statement                          |
+| 0x8000262F | Interval offset should be shorter than interval                                                        | Illegal INTERVAL offset value                                              | Check and correct the SQL statement                          |
+| 0x80002630 | Does not support sliding when interval is natural month/year                                           | Illegal sliding unit                                                       | Check and correct the SQL statement                          |
+| 0x80002631 | sliding value no larger than the interval value                                                        | Illegal sliding value                                                      | Check and correct the SQL statement                          |
+| 0x80002632 | sliding value can not less than 1%% of interval value                                                  | Illegal sliding value                                                      | Check and correct the SQL statement                          |
+| 0x80002633 | Only one tag if there is a json tag                                                                    | Only single JSON tag column supported                                      | Check and correct the SQL statement                          |
+| 0x80002634 | Query block has incorrect number of result columns                                                     | Mismatched number of columns                                               | Check and correct the SQL statement                          |
+| 0x80002635 | Incorrect TIMESTAMP value                                                                              | Illegal primary timestamp column value                                     | Check and correct the SQL statement                          |
+| 0x80002637 | soffset/offset can not be less than 0                                                                  | Illegal soffset/offset value                                               | Check and correct the SQL statement                          |
+| 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query                                             | slimit/soffset only supported for PARTITION BY/GROUP BY statements         | Check and correct the SQL statement                          |
+| 0x80002639 | Invalid topic query                                                                                    | Unsupported TOPIC query                                                    |                                                              |
+| 0x8000263A | Cannot drop supertable in batch                                                                        | Batch deletion of supertables not supported                                | Check and correct the SQL statement                          |
+| 0x8000263B | Start(end) time of query range required or time range too large                                        | Window count exceeds limit                                                 | Check and correct the SQL statement                          |
+| 0x8000263C | Duplicated column names                                                                                | Duplicate column names                                                     | Check and correct the SQL statement                          |
+| 0x8000263D | Tags length exceeds max length                                                                         | tag value length exceeds maximum supported range                           | Check and correct the SQL statement                          |
+| 0x8000263E | Row length exceeds max length                                                                          | Row length check and correct SQL statement                                 | Check and correct the SQL statement                          |
+| 0x8000263F | Illegal number of columns                                                                              | Incorrect number of columns                                                | Check and correct the SQL statement                          |
+| 0x80002640 | Too many columns                                                                                       | Number of columns exceeds limit                                            | Check and correct the SQL statement                          |
+| 0x80002641 | First column must be timestamp                                                                         | The first column must be the primary timestamp column                      | Check and correct the SQL statement                          |
+| 0x80002642 | Invalid binary/nchar column/tag length                                                                 | Incorrect length for binary/nchar                                          | Check and correct the SQL statement                          |
+| 0x80002643 | Invalid number of tag columns                                                                          | Incorrect number of tag columns                                            | Check and correct the SQL statement                          |
+| 0x80002644 | Permission denied                                                                                      | Permission error                                                           | Check and confirm user permissions                           |
+| 0x80002645 | Invalid stream query                                                                                   | Illegal stream statement                                                   | Check and correct the SQL statement                          |
+| 0x80002646 | Invalid _c0 or_rowts expression                                                                        | Illegal use of _c0 or_rowts                                                | Check and correct the SQL statement                          |
+| 0x80002647 | Invalid timeline function                                                                              | Function depends on non-existent primary timestamp                         | Check and correct the SQL statement                          |
+| 0x80002648 | Invalid password                                                                                       | Password does not meet standards                                           | Check and change the password                                |
+| 0x80002649 | Invalid alter table statement                                                                          | Illegal modify table statement                                             | Check and correct the SQL statement                          |
+| 0x8000264A | Primary timestamp column cannot be dropped                                                             | Primary timestamp column cannot be deleted                                 | Check and correct the SQL statement                          |
 | 0x8000264B | Only binary/nchar column length could be modified, and the length can only be increased, not decreased | Illegal column modification                                                | Check and correct the SQL statement                          |
-| 0x8000264C | Invalid tbname pseudocolumn                                 | Illegal use of tbname column                                               | Check and correct the SQL statement                          |
-| 0x8000264D | Invalid function name                                        | Illegal function name                                                      | Check and correct the function name                          |
-| 0x8000264E | Comment too long                                             | Comment length exceeds limit                                               | Check and correct the SQL statement                          |
-| 0x8000264F | Function(s) only allowed in SELECT list, cannot mixed with non scalar functions or columns | Illegal mixing of functions                                                | Check and correct the SQL statement                          |
-| 0x80002650 | Window query not supported, since no valid timestamp column included in the result of subquery | Window query depends on non-existent primary timestamp column              | Check and correct the SQL statement                          |
-| 0x80002651 | No columns can be dropped                                    | Essential columns cannot be deleted                                        | Check and correct the SQL statement                          |
-| 0x80002652 | Only tag can be json type                                    | Normal columns do not support JSON type                                    | Check and correct the SQL statement                          |
-| 0x80002655 | The DELETE statement must have a definite time window range  | Illegal WHERE condition in DELETE statement                                | Check and correct the SQL statement                          |
-| 0x80002656 | The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes | Illegal number of DNODEs specified in REDISTRIBUTE VGROUP                  | Check and correct the SQL statement                          |
-| 0x80002657 | Fill now allowed                                             | Function does not allow FILL feature                                       | Check and correct the SQL statement                          |
-| 0x80002658 | Invalid windows pc                                           | Illegal use of window pseudocolumn                                         | Check and correct the SQL statement                          |
-| 0x80002659 | Window not allowed                                           | Function cannot be used in window                                          | Check and correct the SQL statement                          |
-| 0x8000265A | Stream not allowed                                           | Function cannot be used in stream computation                              | Check and correct the SQL statement                          |
-| 0x8000265B | Group by not allowed                                          | Function cannot be used in grouping                                        | Check and correct the SQL statement                          |
-| 0x8000265D | Invalid interp clause                                        | Illegal INTERP or related statement                                        | Check and correct the SQL statement                          |
-| 0x8000265E | Not valid function ion window                                | Illegal window statement                                                   | Check and correct the SQL statement                          |
-| 0x8000265F | Only support single table                                    | Function only supported in single table queries                            | Check and correct the SQL statement                          |
-| 0x80002660 | Invalid sma index                                            | Illegal creation of SMA statement                                          | Check and correct the SQL statement                          |
-| 0x80002661 | Invalid SELECTed expression                                  | Invalid query statement                                                    | Check and correct the SQL statement                          |
-| 0x80002662 | Fail to get table info                                       | Failed to retrieve table metadata information                              | Preserve the scene and logs, report issue on GitHub          |
-| 0x80002663 | Not unique table/alias                                       | Table name (alias) conflict                                                | Check and correct the SQL statement                          |
-| 0x80002664 | Join requires valid time-series input                        | Unsupported JOIN query without primary timestamp column output in subquery | Check and correct the SQL statement                          |
-| 0x80002665 | The _TAGS pseudocolumn can only be used for subtable and supertable queries | Illegal tag column query                                     | Check and correct the SQL statement                          |
-| 0x80002666 | Subquery does not output primary timestamp column            | Check and correct the SQL statement                          |                                                              |
-| 0x80002667 | Invalid usage of expr: %s                                    | Illegal expression                                           | Check and correct the SQL statement                          |
-| 0x80002687 | True_for duration cannot be negative                         | Use negative value as true_for duration                      | Check and correct the SQL statement                          |
-| 0x80002688 | Cannot use 'year' or 'month' as true_for duration            | Use year or month as true_for_duration                       | Check and correct the SQL statement                          |
-| 0x80002689 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
-| 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
-| 0x8000268B | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
-| 0x8000268C | Join primary key col must be timestamp type                  | Join primary key data type error                             | Check and correct the SQL statement                          |
+| 0x8000264C | Invalid tbname pseudocolumn                                                                            | Illegal use of tbname column                                               | Check and correct the SQL statement                          |
+| 0x8000264D | Invalid function name                                                                                  | Illegal function name                                                      | Check and correct the function name                          |
+| 0x8000264E | Comment too long                                                                                       | Comment length exceeds limit                                               | Check and correct the SQL statement                          |
+| 0x8000264F | Function(s) only allowed in SELECT list, cannot mixed with non scalar functions or columns             | Illegal mixing of functions                                                | Check and correct the SQL statement                          |
+| 0x80002650 | Window query not supported, since no valid timestamp column included in the result of subquery         | Window query depends on non-existent primary timestamp column              | Check and correct the SQL statement                          |
+| 0x80002651 | No columns can be dropped                                                                              | Essential columns cannot be deleted                                        | Check and correct the SQL statement                          |
+| 0x80002652 | Only tag can be json type                                                                              | Normal columns do not support JSON type                                    | Check and correct the SQL statement                          |
+| 0x80002655 | The DELETE statement must have a definite time window range                                            | Illegal WHERE condition in DELETE statement                                | Check and correct the SQL statement                          |
+| 0x80002656 | The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes                                           | Illegal number of DNODEs specified in REDISTRIBUTE VGROUP                  | Check and correct the SQL statement                          |
+| 0x80002657 | Fill now allowed                                                                                       | Function does not allow FILL feature                                       | Check and correct the SQL statement                          |
+| 0x80002658 | Invalid windows pc                                                                                     | Illegal use of window pseudocolumn                                         | Check and correct the SQL statement                          |
+| 0x80002659 | Window not allowed                                                                                     | Function cannot be used in window                                          | Check and correct the SQL statement                          |
+| 0x8000265A | Stream not allowed                                                                                     | Function cannot be used in stream computation                              | Check and correct the SQL statement                          |
+| 0x8000265B | Group by not allowed                                                                                   | Function cannot be used in grouping                                        | Check and correct the SQL statement                          |
+| 0x8000265D | Invalid interp clause                                                                                  | Illegal INTERP or related statement                                        | Check and correct the SQL statement                          |
+| 0x8000265E | Not valid function ion window                                                                          | Illegal window statement                                                   | Check and correct the SQL statement                          |
+| 0x8000265F | Only support single table                                                                              | Function only supported in single table queries                            | Check and correct the SQL statement                          |
+| 0x80002660 | Invalid sma index                                                                                      | Illegal creation of SMA statement                                          | Check and correct the SQL statement                          |
+| 0x80002661 | Invalid SELECTed expression                                                                            | Invalid query statement                                                    | Check and correct the SQL statement                          |
+| 0x80002662 | Fail to get table info                                                                                 | Failed to retrieve table metadata information                              | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002663 | Not unique table/alias                                                                                 | Table name (alias) conflict                                                | Check and correct the SQL statement                          |
+| 0x80002664 | Join requires valid time-series input                                                                  | Unsupported JOIN query without primary timestamp column output in subquery | Check and correct the SQL statement                          |
+| 0x80002665 | The _TAGS pseudocolumn can only be used for subtable and supertable queries                            | Illegal tag column query                                                   | Check and correct the SQL statement                          |
+| 0x80002666 | Subquery does not output primary timestamp column                                                      | Check and correct the SQL statement                                        |                                                              |
+| 0x80002667 | Invalid usage of expr: %s                                                                              | Illegal expression                                                         | Check and correct the SQL statement                          |
+| 0x80002687 | True_for duration cannot be negative                                                                   | Use negative value as true_for duration                                    | Check and correct the SQL statement                          |
+| 0x80002688 | Cannot use 'year' or 'month' as true_for duration                                                      | Use year or month as true_for_duration                                     | Check and correct the SQL statement                          |
+| 0x80002689 | Invalid using cols function                                                                            | Illegal using cols function                                                | Check and correct the SQL statement                          |
+| 0x8000268A | Cols function's first param must be a select function that output a single row                         | The first parameter of the cols function should be a selection function    | Check and correct the SQL statement                          |
+| 0x8000268B | Invalid using alias for cols function                                                                  | Illegal cols function alias                                                | Check and correct the SQL statement                          |
+| 0x8000268C | Join primary key col must be timestamp type                                                            | Join primary key data type error                                           | Check and correct the SQL statement                          |
 | 0x8000268D | Invalid virtual table's ref column                                                                     | Create/Update Virtual table using incorrect data source column             | Check and correct the SQL statement           |
 | 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement           |
 | 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement           |
 | 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement           |
-| 0x800026FF | Parser internal error                                        | Internal error in parser                                     | Preserve the scene and logs, report issue on GitHub          |
-| 0x80002700 | Planner internal error                                       | Internal error in planner                                    | Preserve the scene and logs, report issue on GitHub          |
-| 0x80002701 | Expect ts equal                                              | JOIN condition validation failed                             | Preserve the scene and logs, report issue on GitHub          |
-| 0x80002702 | Cross join not support                                       | CROSS JOIN not supported                                     | Check and correct the SQL statement                          |
-| 0x80002704 | Planner slot key not found                                   | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub                        |
-| 0x80002705 | Planner invalid table type                                   | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
-| 0x80002706 | Planner invalid query control plan type                      | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
+| 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement           |
+| 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement           |
+| 0x80002698 | Invalid extend value | Invalid extend value | Check and correct the SQL statement           |
+| 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002702 | Cross join not support                                                                                 | CROSS JOIN not supported                                                   | Check and correct the SQL statement                          |
+| 0x80002704 | Planner slot key not found                                                                             | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub                        |
+| 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
+| 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
 
-## function
+#### function
 
 | Error Code | Error Description                            | Possible Error Scenarios or Reasons                          | Suggested User Actions                                       |
 | ---------- | -------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -506,7 +549,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002804 | Not a built-in function                      | The function is not a built-in function. Errors will occur if the built-in function is not in the hash table. Users should rarely encounter this problem, otherwise, it indicates an error during the initialization of the internal built-in function hash or corruption. | Customers should not encounter this; if they do, it indicates a bug in the program, consult the developers. |
 | 0x80002805 | Duplicate timestamps not allowed in function | Duplicate timestamps in the function's input primary key column. When querying supertables with certain time-order dependent functions, all subtable data will be sorted by timestamp and merged into one timeline for calculation, which may result in duplicate timestamps, causing errors in some calculations. Functions involved include: CSUM, DERIVATIVE, DIFF, IRATE, MAVG, STATECOUNT, STATEDURATION, TWA | Ensure there are no duplicate timestamp data in subtables when querying supertables using these time-order dependent functions. |
 
-## udf
+#### udf
 
 | Error Code | Description                        | Possible Scenarios or Reasons                                | Recommended Actions                                          |
 | ---------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -521,7 +564,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002909 | udf program language not supported | udf programming language not supported                       | Use supported languages, currently supports C, Python        |
 | 0x8000290A | udf function execution failure     | udf function execution error, e.g., returning incorrect number of rows | Refer to specific error logs                                 |
 
-## sml
+#### sml
 
 | Error Code | Description                      | Possible Scenarios or Reasons                                | Recommended Actions                                          |
 | ---------- | -------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -531,7 +574,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80003004 | Not the same type as before      | Inconsistent column types within the same batch of schemaless data | Ensure the data type of the same column in each row is consistent |
 | 0x80003005 | Internal error                   | General internal logic error in schemaless, typically should not occur | Refer to client-side error log hints                         |
 
-## sma
+#### sma
 
 | Error Code | Description                   | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                      |
 | ---------- | ----------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
@@ -552,14 +595,14 @@ This document details the server error codes that may be encountered when using 
 | 0x80003157 | Rsma fs sync error            | Operator file synchronization failed                         | Check error logs, contact development for handling |
 | 0x80003158 | Rsma fs update error          | Operator file update failed                                  | Check error logs, contact development for handling |
 
-## index
+#### index
 
 | Error Code | Description         | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                      |
 | ---------- | ------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
 | 0x80003200 | INDEX being rebuilt | 1. Writing too fast, causing the index merge thread to lag 2. Index file is damaged, being rebuilt | Check error logs, contact development for handling |
 | 0x80003201 | Index file damaged  | File damaged                                                 | Check error logs, contact development for handling |
 
-## tmq
+#### tmq
 
 | Error Code | Description           | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                |
 | ---------- | --------------------- | ------------------------------------------------------------ | -------------------------------------------- |
@@ -571,7 +614,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
 
-## TDgpt
+#### TDgpt
 
 | Error Code | Description                                         | Possible Error Scenarios or Reasons                           | Recommended Actions for Users                                          |
 |------------|-----------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
@@ -587,7 +630,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
-## virtual table
+#### virtual table
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
@@ -599,3 +642,161 @@ This document details the server error codes that may be encountered when using 
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
 | 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |
+
+#### stream
+
+| Error Code | Description                           | Possible Error Scenarios or Reasons   | Recommended Actions for Users                                                                                   |
+|------------|---------------------------------------|----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| 0x80007007 | Snode still in use with streams       | SNode is in use and cannot be deleted       | Check the stream usage of SNode and confirm whether to proceed with deletion                                    |
+| 0x8000700E | Db used by stream                     | SNode is in use and cannot be deleted       | Check the stream's usage of the database                                                                        |
+| 0x80007014 | Stream output table name too long     | Output table name exceeds length limit       | Check if the output table name rules in the stream creation statement are correct and if the result is too long |
+| 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
+| 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
+| 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
+
+## Connectors
+
+Below are the error codes specific to connectors for various programming languages. In addition to returning their own error codes, connectors also return the TSDB error codes mentioned above.
+
+### C
+
+In the design of the C interface, error codes are represented as integers, and each error code corresponds to a specific error state. Unless otherwise specified:
+
+- When an API returns an integer, **0** indicates success, and other values are error codes representing the cause of failure.
+- When an API returns a pointer, **NULL** indicates failure.
+
+The C connector has two types of error codes:
+
+- General Error Codes  
+  All error codes and their corresponding descriptions are in the `taoserror.h` file.  
+  For detailed error code explanations, refer to: [TSDB Error Codes](./#tsdb)
+- WebSocket Connection Error Codes  
+  In addition to general error codes, WebSocket connections use the following error codes:
+
+| Error Code | Error Description       | Possible Error Scenarios or Reasons       | Recommended User Actions                          |
+| ---------- | ----------------------- | ----------------------------------------- | ------------------------------------------------- |
+| 0xE000     | DSN Error               | DSN does not meet specifications          | Check if the DSN string complies with specifications. |
+| 0xE001     | Internal Error          | Uncertain                                 | Preserve the scene and logs, then report an issue on GitHub. |
+| 0xE002     | Connection Closed       | Network disconnection                     | Check network status and review `taosadapter` logs. |
+| 0xE003     | Send Timeout            | Network disconnection                     | Check network status.                             |
+| 0xE004     | Receive Timeout         | Slow query or network disconnection       | Investigate `taosadapter` logs.                   |
+| 0xE005     | I/O Error               | Network I/O exception or disk error       | Check network connection and disk status.         |
+| 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
+| 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
+| 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
+
+### Java
+
+The Java connector may report four types of error codes:
+
+- Errors from the JDBC driver itself (error codes ranging from 0x2301 to 0x2350)
+- Errors from native connection methods (error codes ranging from 0x2351 to 0x2360)
+- Errors from data subscription (error codes ranging from 0x2371 to 0x2380)
+- Errors from other TDengine TSDB functional modules; refer to the TSDB Error Codes section on this page.
+
+For specific error codes, refer to the table below:
+
+| Error Code | Error Description                                                        | Possible Error Scenarios or Reasons                   | Recommended User Actions                                                                       |
+| ---------- | ------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 0x2301     | Connection already closed                                                 | The connection has been closed                        | Check connection status or recreate the connection to execute related commands.                |
+| 0x2302     | This operation is NOT supported currently!                                | Called an unsupported interface                       | The currently used interface is not supported; switch to another connection method.            |
+| 0x2303     | Invalid variables                                                         | Illegal parameters                                    | Check the corresponding interface specifications and adjust parameter types and sizes.          |
+| 0x2304     | Statement is closed                                                       | The statement has been closed                        | Check if the statement is used after being closed, or verify connection status.                |
+| 0x2305     | ResultSet is closed                                                       | The ResultSet has been released                      | Check if the ResultSet is used after being released.                                          |
+| 0x2306     | Batch is empty!                                                           | No parameters bound to prepareStatement              | Add parameters to prepareStatement before executing `executeBatch`.                            |
+| 0x2307     | Can not issue data manipulation statements with executeQuery()            | Incorrect API call                                   | Use `executeUpdate()` (not `executeQuery()`) for update operations.                            |
+| 0x2308     | Can not issue SELECT via executeUpdate()                                  | Incorrect API call                                   | Use `executeQuery()` (not `executeUpdate()`) for query operations.                             |
+| 0x230D     | Parameter index out of range                                              | Parameter out of bounds                              | Check the valid range of parameters.                                                           |
+| 0x230E     | Connection already closed                                                 | The connection has been closed                        | Check if the Connection is used after being closed, or verify connection status.               |
+| 0x230F     | Unknown SQL type in TDengine                                              | Unsupported data type                                | Check the data types supported by TDengine TSDB.                                               |
+| 0x2310     | Can't register JDBC-JNI driver                                            | Failed to register the JNI driver                    | Check if the URL is filled in correctly.                                                       |
+| 0x2314     | Numeric value out of range                                                | Numeric type exceeds the allowable range             | Check if the correct interface is used for numeric types in the ResultSet.                     |
+| 0x2315     | Unknown Taos type in TDengine                                             | Incorrect parameter passing                          | Verify that the correct TDengine TSDB data type is specified when converting between TDengine TSDB and JDBC data types. |
+| 0x2319     | User is required                                                          | Missing username parameter                           | Add username information when creating the connection.                                        |
+| 0x231A     | Password is required                                                      | Missing password parameter                           | Add password information when creating the connection.                                        |
+| 0x231D     | Can't create connection with server within                                | Connection failure                                   | Check the connection to taosAdapter.                                                           |
+| 0x231E     | Failed to complete the task within the specified time                     | Request processing timeout                           | Extend execution time by increasing the `messageWaitTimeout` parameter, or check the connection to taosAdapter. |
+| 0x2320     | Type convert exception                                                    | Type conversion error                                | Verify that the correct data type is used.                                                    |
+| 0x2321     | TDengine TSDB version incompatible                                        | Native connection used, and client driver version does not match the server | TDengine TSDB versions are incompatible; upgrade to the corresponding version or use a WebSocket connection. |
+| 0x2322     | Resource has been freed                                                   | Resource has been released                           | Confirm the operation is correct.                                                              |
+| 0x2323     | BLOB is unsupported on the server                                           | Outdated server version                              | The server does not support BLOB type; an upgrade is required.                                |
+| 0x2324     | Line bind mode is unsupported on the server                                 | Outdated server version                              | The server does not support line binding mode; an upgrade is required.                          |
+| 0x2350     | Unknown error                                                             | Unknown exception                                    | Report the issue to developers on GitHub.                                                      |
+| 0x2352     | Unsupported encoding                                                      | Unsupported character set                             | An unsupported character encoding set was specified for the local connection.                  |
+| 0x2353     | Internal error of database, please see taoslog for more details            | Error occurred while executing prepareStatement in local connection | Check taos logs for troubleshooting.                                                           |
+| 0x2354     | JNI connection is NULL                                                    | The connection has been closed                        | When executing commands via local connection, the Connection is already closed; check the connection to TDengine TSDB. |
+| 0x2355     | JNI result set is NULL                                                    | The ResultSet has been closed                        | When retrieving ResultSet via local connection, the ResultSet is abnormal; check connection status and retry. |
+| 0x2356     | Invalid num of fields                                                     | Mismatched ResultSet columns                         | Mismatched meta information for the ResultSet retrieved via local connection.                  |
+| 0x2357     | Empty SQL string                                                          | Empty SQL statement                                  | Fill in a valid SQL statement for execution.                                                  |
+| 0x2359     | JNI alloc memory failed, please see taoslog for more details              | Insufficient memory                                  | Memory allocation error in local connection; check taos logs for troubleshooting.              |
+| 0x2371     | Consumer properties must not be null!                                     | Empty subscription parameters                        | Parameters are empty when creating a subscription; fill in valid parameters.                  |
+| 0x2372     | Configs contain empty key, failed to set consumer property                | Empty value in parameter key                         | The parameter key contains empty values; fill in valid parameters.                             |
+| 0x2373     | Failed to set consumer property,                                          | Empty value in parameter value                       | The parameter value contains empty values; fill in valid parameters.                           |
+| 0x2375     | Topic reference has been destroyed                                        | Invalid topic reference                              | During data subscription creation, the topic reference was released; check the connection to TDengine TSDB. |
+| 0x2376     | Failed to set consumer topic, topic name is empty                         | Empty topic name                                     | During data subscription creation, the subscribed topic name is empty; verify the specified topic name is correct. |
+| 0x2377     | Consumer reference has been destroyed                                     | Invalid consumer reference                           | The data transmission channel for the subscription is closed; check the connection to TDengine TSDB. |
+| 0x2378     | Consumer create error                                                     | Failed to create data subscription                   | Troubleshoot using error information and taos logs.                                           |
+| 0x2379     | Seek offset must not be a negative number                                 | Incorrect parameter                                  | The parameter for the seek interface cannot be negative; use valid parameters.                 |
+| 0x237A     | VGroup not found in result set                                            | VGroup not assigned to the current consumer          | The Rebalance mechanism causes the consumer and VGroup to be unbound.                          |
+| 0x2390     | Background thread write error in Efficient Writing                        | Write error in efficient write background thread     | Stop writing and rebuild the connection.                                                      |
+
+- [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+
+### Rust
+
+| Error Code | Error Description       | Possible Error Scenarios or Reasons       | Recommended User Actions                          |
+| ---------- | ----------------------- | ----------------------------------------- | ------------------------------------------------- |
+| 0xE000     | DSN Error               | DSN does not meet specifications          | Check if the DSN string complies with specifications. |
+| 0xE001     | Internal Error          | Uncertain                                 | Preserve the scene and logs, then report an issue on GitHub. |
+| 0xE002     | Connection Closed       | Network disconnection                     | Check network status and review `taosadapter` logs. |
+| 0xE003     | Send Timeout            | Network disconnection                     | Check network status.                             |
+| 0xE004     | Receive Timeout         | Slow query or network disconnection       | Investigate `taosadapter` logs.                   |
+| 0xE005     | I/O Error               | Network I/O exception or disk error       | Check network connection and disk status.         |
+| 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
+| 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
+| 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
+
+### Node.js
+
+When an error occurs while calling the connector API, error information and error codes can be obtained using try-catch.
+
+Error Note: Node.js connector error codes range from 100 to 120. Errors outside this range are from other functional modules of TDengine TSDB.
+
+For specific connector error codes, refer to the table below:
+
+| Error Code | Error Description                                                                | Possible Error Scenarios or Reasons                   | Recommended User Actions                                                               |
+| ---------- | ------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 100        | Invalid variables                                                               | Illegal parameters                                    | Check the corresponding interface specifications and adjust parameter types and sizes.  |
+| 101        | Invalid URL                                                                     | Incorrect URL                                         | Verify the URL is filled in correctly.                                                  |
+| 102        | Received server data but did not find a callback for processing                 | Server data received but no upper-layer callback found | Check the network environment.                                                          |
+| 103        | Invalid message type                                                            | Unrecognizable received message type                  | Verify the server is functioning properly.                                              |
+| 104        | Connection creation failed                                                      | Failed to create connection                           | Check network status.                                                                  |
+| 105        | WebSocket request timeout                                                       | Request timeout                                       | Check network status and verify the taosAdapter service is running.                     |
+| 106        | Authentication fail                                                             | Incorrect authentication parameters                   | Verify the username and password are correct.                                           |
+| 107        | Unknown SQL type in TDengine                                                    | Unsupported data type                                | Check the data types supported by TDengine TSDB.                                       |
+| 108        | Connection has been closed                                                      | The connection has been closed                        | Check if the Connection is used after being closed, or verify connection status.       |
+| 109        | Fetch block data parse fail                                                     | Data parsing exception                               | Parsing of fetched query data failed; confirm the connector version matches the TDengine server version. |
+| 110        | WebSocket connection has reached its maximum limit                              | Maximum number of WebSocket connections reached       | Report an issue on GitHub.                                                              |
+| 111        | Topic partitions and positions are not equal in length                          | Mismatch between offset data for given partitions and topic partitions | Re-subscribe.                                                                           |
+| 112        | Version mismatch. The minimum required TDengine TSDB version is 3.3.2.0         | Version mismatch                                      | TDengine TSDB versions lower than 3.3.2.0 are not supported; upgrade to version 3.3.2.0 or higher. |
+
+- [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
+
+### C\#
+
+| Error Code | Error Description                         | Possible Error Scenarios or Reasons              | Recommended User Actions                                           |
+| ---------- | ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ |
+| 0xF001     | WebSocket Reconnection Failed             | Reconnection failed due to the exit of the connected taosAdapter | Check the status of taosAdapter and retry after a period of time.  |
+| 0xF002     | WebSocket Message Mismatch                | Duplicate request IDs generated                  | Close the current connection, wait for a period, then reconnect; do not pass duplicate request IDs. |
+| 0xF003     | WebSocket Connection Closed               | Using a closed WebSocket connection              | Close the current connection and retry with a new connection.      |
+| 0xF004     | WebSocket Write Timeout                   | WebSocket write request timeout                  | Check for network issues, increase the write timeout parameter, then close the current connection and retry with a new one. |
+| 0xF005     | WebSocket Connection Failed               | The connected taosAdapter exited                 | Check the status of taosAdapter and retry after a period of time.  |
+| 0xF006     | WebSocket Close Message Received          | taosAdapter closed the connection due to heartbeat timeout caused by network issues | Check for network issues and retry after a period of time.         |
+
+### taosAdapter
+
+| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                                                   |
+|------------|------------------------------------------------|------------------------------------------------|----------------------------------------------------------------------------|
+| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message                           |
+| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests                                   |
+| 0xFFFD     | Query SQL has been rejected                    | Query SQL has been rejected                    | If you do not want to be intercepted, check the taosAdapter configuration. |

@@ -208,6 +208,22 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_STREAM_TRIGGER: {
+      SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pNode;
+      res = walkExpr(pTrigger->pTriggerWindow, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pTrigger->pPartitionList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrigger->pOptions, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
+      SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
+      res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
+      break;
+    }
     default:
       break;
   }
@@ -248,6 +264,31 @@ void nodesWalkExprPostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
 void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext) {
   EDealRes res;
   res = walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
+}
+
+static void markOpLeftAndRightAsParam(SOperatorNode* pOp) {
+  if (NULL != pOp->pLeft) {
+    if (nodeType(pOp->pLeft) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pOp->pLeft)->node.asParam = true;
+    }
+    if (nodeType(pOp->pLeft) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pOp->pLeft)->node.asParam = true;
+    }
+    if (nodeType(pOp->pLeft) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pOp->pLeft)->node.asParam = true;
+    }
+  }
+  if (NULL != pOp->pRight) {
+    if (nodeType(pOp->pRight) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pOp->pRight)->node.asParam = true;
+    }
+    if (nodeType(pOp->pRight) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pOp->pRight)->node.asParam = true;
+    }
+    if (nodeType(pOp->pRight) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pOp->pRight)->node.asParam = true;
+    }
+  }
 }
 
 static void checkParamIsFunc(SFunctionNode* pFunc) {
@@ -291,6 +332,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+      markOpLeftAndRightAsParam(pOpNode);
       res = rewriteExpr(&(pOpNode->pLeft), order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pOpNode->pRight), order, rewriter, pContext);
@@ -335,6 +377,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pState->pTrueForLimit, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pState->pExtend, order, rewriter, pContext);
       }
       break;
     }

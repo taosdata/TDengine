@@ -6,11 +6,10 @@ import threading
 from enum import Enum
 import platform
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tmqCom, tdCom
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from tmqCommon import tmqCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -30,21 +29,6 @@ class TestCase:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("test")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def newcur(self,cfg,host,port):
         user = "root"
@@ -333,7 +317,7 @@ class TestCase:
         """
         tdSql.prepare()
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:

@@ -128,14 +128,16 @@ typedef struct SGcNotifyOperatorParam {
   int64_t tbUid;
 } SGcNotifyOperatorParam;
 
-typedef struct SExprSupp {
+struct SExprSupp {
   SExprInfo*      pExprInfo;
   int32_t         numOfExprs;  // the number of scalar expression in group operator
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
-  bool            hasWindowOrGroup;
-} SExprSupp;
+  bool            hasWindowOrGroup;    // denote that the function is used with time window or group
+  bool            hasWindow;           // denote that the function is used with time window
+  bool            hasIndefRowsFunc;
+};
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
@@ -168,14 +170,16 @@ typedef struct SSortMergeJoinOperatorParam {
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorBasicParam {
-  int32_t        vgId;
-  int32_t        srcOpType;
-  bool           tableSeq;
-  SArray*        uidList;
-  bool           isVtbRefScan;
-  bool           isVtbTagScan;
-  SOrgTbInfo*    colMap;
-  STimeWindow    window;
+  int32_t               vgId;
+  int32_t               srcOpType;
+  bool                  tableSeq;
+  SArray*               uidList;
+  bool                  isVtbRefScan;
+  bool                  isVtbTagScan;
+  bool                  isNewDeployed; // used with newDeployedSrc
+  SOrgTbInfo*           colMap;
+  STimeWindow           window;
+  SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -211,7 +215,7 @@ typedef struct SExchangeInfo {
   bool         dynTbname;         // %%tbname for stream    
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
-  uint64_t            self;
+  int64_t             self;
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
@@ -240,13 +244,13 @@ typedef enum ETableCountState {
   TABLE_COUNT_STATE_END = 3,        // finish or noneed to process
 } ETableCountState;
 
-typedef struct SAggSupporter {
+struct SAggSupporter {
   SSHashObj*     pResultRowHashTable;  // quick locate the window object for each result
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
   int32_t        currentPageId;  // current write page id
-} SAggSupporter;
+};
 
 typedef struct {
   // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if
@@ -300,6 +304,8 @@ typedef struct STableScanInfo {
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
   bool            virtualStableScan;
+  SHashObj*       readerCache;
+  bool            newReader;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -676,7 +682,30 @@ typedef struct SWindowRowsSup {
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
+  uint32_t    numNullRows;  // number of continuous rows with null state col
 } SWindowRowsSup;
+
+// return true if there are continuous rows with null state col
+// state window operator needs to handle these rows specially
+static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
+  return pRowSup->numNullRows > 0;
+}
+
+// reset on initialization or found of a row with non-null state col
+static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
+  pRowSup->numNullRows = 0;
+}
+
+static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
+  if (NULL == pRowSup) {
+    return;
+  }
+
+  pRowSup->win.skey = pRowSup->win.ekey = 0;
+  pRowSup->prevTs = pRowSup->startRowIndex = 0;
+  pRowSup->numOfRows = pRowSup->groupId = 0;
+  resetNumNullRows(pRowSup);
+}
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
@@ -700,7 +729,7 @@ typedef struct SStateWindowOperatorInfo {
   SExprSupp             scalarSup;
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
-  SColumn               stateCol;  // start row index
+  SColumn               stateCol;
   bool                  hasKey;
   SStateKeys            stateKey;
   int32_t               tsSlotId;  // primary timestamp column slot id
@@ -708,6 +737,7 @@ typedef struct SStateWindowOperatorInfo {
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
   int64_t               trueForLimit;
+  EStateWinExtendOption extendOption;
 } SStateWindowOperatorInfo;
 
 
@@ -742,6 +772,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
+void checkIndefRowsFuncs(SExprSupp* pSup);
 void    cleanupExprSupp(SExprSupp* pSup);
 void    cleanupExprSuppWithoutFilter(SExprSupp* pSupp);
 
@@ -768,6 +799,8 @@ void doBuildResultDatablock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbI
  */
 void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                               SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t threshold, bool ignoreGroup);
+void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, int64_t minWindowSize);
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo);
@@ -790,7 +823,7 @@ int32_t     getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* def
 
 extern void doDestroyExchangeOperatorInfo(void* param);
 
-int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
@@ -807,7 +840,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
                               int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams);
 int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
                                         SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc);
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc);
 
 int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                           bool createDummyCol);
@@ -938,6 +971,8 @@ int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
 void    destroyTmqScanOperatorInfo(void* param);
 int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
 void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
+
+int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
 #ifdef __cplusplus
 }

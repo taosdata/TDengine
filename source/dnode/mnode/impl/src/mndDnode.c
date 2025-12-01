@@ -394,7 +394,7 @@ int32_t mndGetDbSize(SMnode *pMnode) {
 
 bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
-  if (interval > 5000 * (int64_t)tsStatusInterval) {
+  if (interval > (int64_t)tsStatusTimeoutMs) {
     if (pDnode->rebootTime > 0 && pDnode->offlineReason == DND_REASON_ONLINE) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
@@ -484,12 +484,14 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
     return DND_REASON_STATUS_MONITOR_NOT_MATCH;
   }
 
-  if (pCfg->statusInterval != tsStatusInterval) {
-    mError("dnode:%d, statusInterval:%d inconsistent with cluster:%d", pDnode->id, pCfg->statusInterval,
-           tsStatusInterval);
+  /*
+  if (pCfg->statusIntervalMs != tsStatusIntervalMs) {
+    mError("dnode:%d, statusInterval:%d inconsistent with cluster:%d", pDnode->id, pCfg->statusIntervalMs,
+           tsStatusIntervalMs);
     terrno = TSDB_CODE_DNODE_INVALID_STATUS_INTERVAL;
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
+  */
 
   if ((0 != taosStrcasecmp(pCfg->timezone, tsTimezoneStr)) && (pMnode->checkTime != pCfg->checkTime)) {
     mError("dnode:%d, timezone:%s checkTime:%" PRId64 " inconsistent with cluster %s %" PRId64, pDnode->id,
@@ -1379,6 +1381,13 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (!isonline && !force) {
+    code = TSDB_CODE_DNODE_OFFLINE;
+    mError("dnode:%d, failed to drop since dnode is offline, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id,
+           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+    goto _OVER;
+  }
+
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, pBObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -1545,8 +1554,8 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   int32_t code = 0;
   int32_t lino = 0;
 
-  cfgOpts[totalRows] = "statusInterval";
-  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  cfgOpts[totalRows] = "statusIntervalMs";
+  (void)snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsStatusIntervalMs);
   totalRows++;
 
   cfgOpts[totalRows] = "timezone";

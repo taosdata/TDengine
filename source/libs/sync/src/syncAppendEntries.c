@@ -133,7 +133,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   if(ths->raftCfg.cfg.nodeInfo[ths->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER){
-    syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
+    syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "appendEntry");
     resetElect = true;
   }
 

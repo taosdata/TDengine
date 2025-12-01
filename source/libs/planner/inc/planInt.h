@@ -31,8 +31,6 @@ typedef struct SPhysiPlanContext {
   int16_t       nextDataBlockId;
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
-  bool          hasScan;
-  bool          hasSysScan;
 } SPhysiPlanContext;
 
 #define planFatal(param, ...)  qFatal ("plan " param, ##__VA_ARGS__)

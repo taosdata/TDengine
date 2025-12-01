@@ -5,8 +5,6 @@ slug: /developer-guide/connecting-to-tdengine
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Image from '@theme/IdealImage';
-import imgConnect from '../assets/connecting-to-tdengine-01.png';
 import ConnJava from "../assets/resources/_connect_java.mdx";
 import ConnGo from "../assets/resources/_connect_go.mdx";
 import ConnRust from "../assets/resources/_connect_rust.mdx";
@@ -20,37 +18,9 @@ import InstallOnMacOS from "../assets/resources/_macos_install.mdx";
 import VerifyLinux from "../assets/resources/_verify_linux.mdx";
 import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
 import VerifyWindows from "../assets/resources/_verify_windows.mdx";
+import ConnectorType from "../assets/resources/_connector_type.mdx";
 
-TDengine provides a rich set of application development interfaces. To facilitate users in quickly developing their applications, TDengine supports connectors for multiple programming languages. The official connectors include support for C/C++, Java, Python, Go, Node.js, C#, Rust, Lua (community contribution), and PHP (community contribution). These connectors support connecting to the TDengine cluster using the native interface (taosc) and REST interface (not supported in some languages yet). Community developers have also contributed several unofficial connectors, such as ADO.NET connector, Lua connector, and PHP connector. Additionally, TDengine can directly call the REST API provided by taosadapter for data writing and querying operations.
-
-## Connection Methods
-
-TDengine provides three methods for establishing connections:
-
-1. Direct connection between the client driver taosc and the server program taosd, referred to as "native connection" in the text below.
-2. Connection to taosd through the REST API provided by the taosAdapter component, referred to as "REST connection" in the text below.
-3. Connection to taosd through the WebSocket API provided by the taosAdapter component, referred to as "WebSocket connection" in the text below.
-
-<figure>
-<Image img={imgConnect} alt="Connecting to TDengine"/>
-<figcaption>Figure 1. Connecting to TDengine</figcaption>
-</figure>
-
-Regardless of the method used to establish the connection, the connectors provide the same or similar API to operate the database and can execute SQL statements. The initialization of the connection slightly differs, but users will not feel any difference in usage.
-For various connection methods and language connector support, please refer to: [Connector Features](../../tdengine-reference/client-libraries/)
-
-Key differences include:
-
-1. Using native connection requires ensuring that the client driver taosc and the server's TDengine version are compatible.
-2. Using REST connection does not require installing the client driver taosc, offering the advantage of cross-platform ease of use, but it lacks features like data subscription and binary data types. Additionally, compared to native and WebSocket connections, the performance of REST connections is the lowest. REST interfaces are stateless. When using REST connections, it is necessary to specify the database names of tables and supertables in SQL.
-3. Using WebSocket connection also does not require installing the client driver taosc.
-4. Connecting to cloud service instances must use REST connection or WebSocket connection.
-
-:::note
-
-WebSocket connection is recommended
-
-:::
+<ConnectorType /> 
 
 ## Installing the Client Driver taosc
 
@@ -145,7 +115,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.3
+    pip3 install taospy==2.8.6
     ```
 
     - Install from GitHub
@@ -375,9 +345,10 @@ Supported DSN parameters are as follows:
 
 Native connection:
 
-- `cfg` specifies the taos.cfg directory
-- `cgoThread` specifies the number of cgo operations that can be executed concurrently, default is the number of system cores
-- `cgoAsyncHandlerPoolSize` specifies the size of the async function handler, default is 10000
+- `cfg` specifies the taos.cfg directory.
+- `cgoThread` specifies the number of cgo operations that can be executed concurrently, default is the number of system cores.
+- `cgoAsyncHandlerPoolSize` specifies the size of the async function handler, default is 10000.
+- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
 
 REST connection:
 
@@ -385,12 +356,14 @@ REST connection:
 - `readBufferSize` the size of the buffer for reading data, default is 4K (4096), this value can be increased appropriately when the query result data volume is large.
 - `token` the token used when connecting to cloud services.
 - `skipVerify` whether to skip certificate verification, default is false which means not skipping certificate verification, set to true if connecting to an insecure service.
+- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
 
 WebSocket connection:
 
 - `enableCompression` whether to send compressed data, default is false which means not sending compressed data, set to true if data transmission uses compression.
 - `readTimeout` the timeout for reading data, default is 5m.
 - `writeTimeout` the timeout for writing data, default is 10s.
+- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
 
 </TabItem>
 
@@ -514,6 +487,11 @@ Below are code examples for establishing WebSocket connections in various langua
 {{#include docs/examples/python/connect_websocket_examples.py:connect}}
 ```
 
+SQLAlchemy supports configuring multiple server addresses through the `hosts` parameter to achieve load balancing and failover. Multiple addresses are separated by English commas, in the format: `hosts=<host1>:<port1>,<host2>:<port2>,...`
+
+```python
+{{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
+```
 </TabItem>
 
 <TabItem label="Go" value="go">
@@ -723,7 +701,23 @@ Example usage is as follows:
 
 <TabItem label="Python" value="python">
 
-<ConnPythonNative />
+<details>
+<summary>SQLAlchemy connection pool example (recommended)</summary>
+
+```python
+{{#include docs/examples/python/sqlalchemy_demo.py}}
+```
+
+</details>
+
+<details>
+<summary>DBUtils Connection Pool Example</summary>
+
+```python
+{{#include docs/examples/python/dbutils_demo.py}}
+```
+
+</details>
 
 </TabItem>
 

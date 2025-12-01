@@ -8,12 +8,15 @@ class TestRedistributeVgroupReplica1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_redistribute_vgroup_replica1(self):
-        """redistribute vgroup replica 1
+        """RDST: replica-1
 
-        1. -
-
-        Catalog:
-            - Database:Sync
+        1. Start a 2-dnode cluster with supportVnodes=0 on dnode1
+        2. Create database d1 (1 vgroup, replica 1) and insert data
+        3. Add dnode3 and dnode4 to the cluster
+        4. Execute REDISTRIBUTE VGROUP to move the vnode to dnode3; verify distribution & data integrity
+        5. Execute REDISTRIBUTE VGROUP to move the vnode to dnode4; verify
+        6. Execute REDISTRIBUTE VGROUP to move the vnode to dnode2; verify
+        7. Repeat steps 4-6 three more times, cycling the vnode among dnode3 → dnode4 → dnode2 → dnode3 → dnode2 → dnode3 → dnode2, verifying distribution & data integrity after each move
 
         Since: v3.0.0.0
 

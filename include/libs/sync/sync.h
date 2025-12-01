@@ -287,7 +287,7 @@ int64_t   syncGetTerm(int64_t rid);
 int32_t   syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t   syncReconfig(int64_t rid, SSyncCfg* pCfg);
 int32_t   syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
-int32_t   syncEndSnapshot(int64_t rid);
+int32_t   syncEndSnapshot(int64_t rid, bool forceTrim);
 int32_t   syncLeaderTransfer(int64_t rid);
 int32_t   syncStepDown(int64_t rid, SyncTerm newTerm);
 void      syncResetMetrics(int64_t rid, const SSyncMetrics* pOldMetrics);
@@ -300,13 +300,15 @@ int32_t   syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg);
 
 int32_t syncUpdateArbTerm(int64_t rid, SyncTerm arbTerm);
 
-SSyncState   syncGetState(int64_t rid);
+SSyncState  syncGetState(int64_t rid);
+int32_t     syncResetTimer(int64_t rid, int32_t electInterval, int32_t heartbeatInterval);
 SSyncMetrics syncGetMetrics(int64_t rid);
-void         syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex);
-int32_t      syncGetArbToken(int64_t rid, char* outToken);
-int32_t      syncCheckSynced(int64_t rid);
-void         syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
-const char*  syncStr(ESyncState state);
+void        syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex);
+int32_t     syncSetElectBaseline(int64_t rid, int32_t ms);
+int32_t     syncGetArbToken(int64_t rid, char* outToken);
+int32_t     syncCheckSynced(int64_t rid);
+void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
+const char* syncStr(ESyncState state);
 
 int32_t syncNodeGetConfig(int64_t rid, SSyncCfg* cfg);
 

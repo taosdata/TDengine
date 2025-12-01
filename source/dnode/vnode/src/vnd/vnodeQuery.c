@@ -282,7 +282,8 @@ _exit4:
   }
 
   if (code) {
-    qError("get table %s meta with %" PRIu8 " failed cause of %s", infoReq.tbName, infoReq.option, tstrerror(code));
+    qError("vgId:%d, get table %s meta with %" PRIu8 " failed cause of %s", pVnode->config.vgId, infoReq.tbName,
+           infoReq.option, tstrerror(code));
   }
 
   if (direct) {
@@ -1017,11 +1018,13 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
   }
 
   if (numOfTables) {
-    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables;
+    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables +
+                   pConf->vndStats.numOfVTables + pConf->vndStats.numOfVCTables;
   }
 
   if (numOfNormalTables) {
-    *numOfNormalTables = pConf->vndStats.numOfNTables;
+    *numOfNormalTables = pConf->vndStats.numOfNTables +
+                         pConf->vndStats.numOfVTables;
   }
 }
 
@@ -1077,7 +1080,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
     if (id == 0) {
       break;
     }
-
+    qTrace("vnodeGetCtbIdList: got ctb id %" PRId64 " for suid %" PRId64, id, suid);
     if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = terrno;
@@ -1166,7 +1169,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0, NULL);
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0, NULL, 0);
   if (pSW) {
     *num = pSW->nCols;
     tDeleteSchemaWrapper(pSW);
@@ -1369,7 +1372,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
     (void)snprintf(path + offset, TSDB_FILENAME_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
     code = taosGetDirSize(path, &size);
     if (code != 0) {
-      return code;
+      uWarn("vnode %d get dir %s %s size failed since %s", TD_VID(pVnode), path, dirName[i], tstrerror(code));
     }
     path[offset] = 0;
     dirSize[i] = size;

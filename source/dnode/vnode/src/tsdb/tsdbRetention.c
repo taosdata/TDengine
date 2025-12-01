@@ -20,7 +20,11 @@
 #include "vnd.h"
 #include "tsdbInt.h"
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type);
+
+// tsdbRetentionMonitor.c
+extern int32_t tsdbAddRetentionMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t fileSize);
+extern void    tsdbRemoveRetentionMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 
 static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
   STFileOp op = {
@@ -198,21 +202,12 @@ _exit:
   return code;
 }
 
-typedef struct {
-  STsdb  *tsdb;
-  int64_t now;
-  TSKEY   lastCommit;
-  int32_t nodeId; // node id of leader vnode in ss migration
-  int32_t fid;
-  bool    ssMigrate;
-} SRtnArg;
 
-static int32_t tsdbDoRetentionEnd(SRTNer *rtner, bool ssMigrate) {
+static int32_t tsdbDoRetentionEnd(SRTNer *rtner, EFEditT etype) {
   int32_t code = 0;
   int32_t lino = 0;
 
   if (TARRAY2_SIZE(&rtner->fopArr) > 0) {
-    EFEditT etype = ssMigrate ? TSDB_FEDIT_SSMIGRATE : TSDB_FEDIT_RETENTION;
     TAOS_CHECK_GOTO(tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, etype), &lino, _exit);
 
     (void)taosThreadMutexLock(&rtner->tsdb->mutex);
@@ -290,7 +285,7 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
   STFileSet *fset = rtner->fset;
 
   // handle data file sets
-  int32_t expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
+  int32_t expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->tw.ekey);
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
     code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fset->farr[ftype]);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -313,9 +308,56 @@ _exit:
   return code;
 }
 
-static void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
+void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbRetention(void *arg) {
+static bool tsdbFSetNeedRetention(STFileSet *fset, int32_t expLevel) {
+  if (expLevel < 0) {
+    return false;
+  }
+
+  STFileObj *fobj = NULL;
+  for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    fobj = fset->farr[ftype];
+    if (fobj && (expLevel > fset->farr[ftype]->f->did.level)) {
+      return true;
+    }
+  }
+
+  // handle stt file
+  SSttLvl *lvl = NULL;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      if (fobj && (expLevel > fobj->f->did.level)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+#ifdef TD_ENTERPRISE
+static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner, SRtnArg *rtnArg) {
+  SVnode    *pVnode = tsdb->pVnode;
+  STFileSet *fset = rtner->fset;
+
+  if (!VND_IS_RSMA(pVnode)) {
+    return false;
+  }
+
+  int32_t expLevel = tsdbFidLevel(fset->fid, &tsdb->keepCfg, rtner->tw.ekey);
+  if (expLevel <= 0) {
+    return false;
+  }
+
+  if (rtnArg->optrType == TSDB_OPTR_ROLLUP) {
+    return true;
+  } else if (rtnArg->optrType == TSDB_OPTR_NORMAL) {
+    return tsdbFSetNeedRetention(fset, expLevel);
+  }
+  return false;
+}
+#endif
+int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -326,7 +368,7 @@ static int32_t tsdbRetention(void *arg) {
   SRTNer     rtner = {
           .tsdb = pTsdb,
           .szPage = pVnode->config.tsdbPageSize,
-          .now = rtnArg->now,
+          .tw = rtnArg->tw,
           .lastCommit = rtnArg->lastCommit,
           .cid = tsdbFSAllocEid(pTsdb->pFS),
           .nodeId = rtnArg->nodeId,
@@ -353,13 +395,22 @@ static int32_t tsdbRetention(void *arg) {
 
   // do retention
   if (rtner.fset) {
-    if (rtnArg->ssMigrate) {
+    EFEditT etype = TSDB_FEDIT_RETENTION;
+    if (rtnArg->optrType == TSDB_OPTR_SSMIGRATE) {
+      etype = TSDB_FEDIT_SSMIGRATE;
       TAOS_CHECK_GOTO(tsdbDoSsMigrate(&rtner), &lino, _exit);
-    } else {
+#ifdef TD_ENTERPRISE
+    } else if (tsdbShouldRollup(pTsdb, &rtner, rtnArg)) {
+      etype = TSDB_FEDIT_ROLLUP;
+      TAOS_CHECK_GOTO(tsdbDoRollup(&rtner), &lino, _exit);
+#endif
+    } else if (rtnArg->optrType == TSDB_OPTR_NORMAL) {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
+    } else {
+      goto _exit;
     }
 
-    TAOS_CHECK_GOTO(tsdbDoRetentionEnd(&rtner, rtnArg->ssMigrate), &lino, _exit);
+    TAOS_CHECK_GOTO(tsdbDoRetentionEnd(&rtner, etype), &lino, _exit);
   }
 
 _exit:
@@ -372,6 +423,7 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&rtner.fset);
   TARRAY2_DESTROY(&rtner.fopArr, NULL);
+  (void)tsdbRemoveRetentionMonitorTask(pTsdb, &rtnArg->taskid);
   taosMemoryFree(arg);
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
@@ -379,58 +431,66 @@ _exit:
   return code;
 }
 
-static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, int32_t nodeId) {
-  int32_t tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid);
+static bool tsdbInRetentionTimeRange(STsdb *tsdb, int32_t fid, STimeWindow tw, int8_t optrType) {
+  if (optrType == TSDB_OPTR_ROLLUP) {
+    TSKEY  minKey, maxKey;
+    int8_t precision = tsdb->keepCfg.precision;
+    if (precision < TSDB_TIME_PRECISION_MILLI || precision > TSDB_TIME_PRECISION_NANO) {
+      tsdbError("vgId:%d, failed to check retention time range since invalid precision %" PRIi8, TD_VID(tsdb->pVnode), precision);
+      return false;
+    }
+    tsdbFidKeyRange(fid, tsdb->keepCfg.days, precision, &minKey, &maxKey);
 
+    if ((tw.ekey != INT64_MAX) && ((double)tw.ekey * (double)tsSecTimes[precision] < (double)minKey)) {
+      return false;
+    }
+    if ((tw.skey != INT64_MIN) && ((double)tw.skey * (double)tsSecTimes[precision] > (double)maxKey)) {
+      return false;
+    }
+    return true;
+  }
+  return true;
+}
+
+static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType) {
   int32_t code = 0;
   int32_t lino = 0;
 
   // check if background task is disabled
   if (tsdb->bgTaskDisabled) {
-    if (ssMigrate) {
-      tsdbInfo("vgId:%d, background task is disabled, skip ss migration", TD_VID(tsdb->pVnode));
-    } else {
-      tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
-    }
+    tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(tsdb->pVnode));
     return 0;
   }
 
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    // TODO: when migrating to S3, skip fset that should not be migrated
-    
-    if (ssMigrate && fset->lastMigrate/1000 >= now) {
-      tsdbInfo("vgId:%d, fid:%d, skip migration as start time < last migration time", TD_VID(tsdb->pVnode), fset->fid);
+    if (!tsdbInRetentionTimeRange(tsdb, fset->fid, tw, optrType)) {
       continue;
     }
-
     SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
     if (arg == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
 
     arg->tsdb = tsdb;
-    arg->now = now;
+    arg->tw = tw;
     arg->fid = fset->fid;
-    arg->nodeId = nodeId;
-    arg->ssMigrate = ssMigrate;
+    arg->nodeId = 0;
+    arg->optrType = optrType;
+    arg->triggerType = triggerType;
     arg->lastCommit = fset->lastCommit;
 
-    if (ssMigrate) {
-      code = tsdbSsMigrateMonitorAddFileSet(tsdb, fset->fid);
-      if (code) {
-        taosMemoryFree(arg);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
     code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
                       &fset->retentionTask);
     if (code) {
       taosMemoryFree(arg);
       TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+      arg->taskid = fset->retentionTask;
+      int64_t fileSize = tsdbTFileSetGetDataSize(fset);
+      TAOS_UNUSED(tsdbAddRetentionMonitorTask(tsdb, fset->fid, &arg->taskid, fileSize));
     }
   }
-
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
@@ -438,35 +498,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
+int32_t tsdbAsyncRetention(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType) {
   int32_t code = 0;
   (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbAsyncRetentionImpl(tsdb, now, false, 0);
+  code = tsdbAsyncRetentionImpl(tsdb, tw, optrType, triggerType);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
-
-#ifdef USE_SHARED_STORAGE
-
-int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq) {
-  int32_t code = 0;
-
-  bool tsdbResetSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId);
-
-  (void)taosThreadMutexLock(&tsdb->mutex);
-  if (!tsdbResetSsMigrateMonitor(tsdb, pReq->ssMigrateId)) {
-    (void)taosThreadMutexUnlock(&tsdb->mutex);
-    tsdbInfo("vgId:%d, skip ss migration as there's an in progress one", TD_VID(tsdb->pVnode));
-    return 0;
-  }
-  code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp, true, pReq->nodeId);
-  (void)taosThreadMutexUnlock(&tsdb->mutex);
-
-  if (code) {
-    tsdbError("vgId:%d, %s failed, reason:%s", TD_VID(tsdb->pVnode), __func__, tstrerror(code));
-  }
-  return code;
-}
-
-#endif
-

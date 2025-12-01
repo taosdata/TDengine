@@ -8,12 +8,17 @@ class TestDatabaseShowCreateTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_show_create_table(self):
-        """show create table
+        """Show create table
 
-        1. -
+        1. Create a normal table
+        2. Create a super table
+        3. Create child tables
+        4. Execute SHOW CREATE TABLE and verify the output
+        5. Change the showFullCreateTableColumn parameter
+        6. Execute SHOW CREATE TABLE again and verify the new output
 
         Catalog:
-            - Database:Create
+            - Database:Query
 
         Since: v3.0.0.0
 
@@ -92,3 +97,38 @@ class TestDatabaseShowCreateTable:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP, `zone` VARCHAR(8))")
         tdSql.execute(f"drop database db")
+
+    def test_empty_nchar_tag(self):
+        """show create table with empty nchar tag
+
+        1. when nchar-type tag is empty, show create table should output an empty string
+
+        Catalog:
+            - Database:Create
+
+        Since: v3.3.6.14
+
+        Labels: common,ci,nchar,tag
+
+        Jira: TS-7526
+
+        History:
+            - 2025-10-24 Tony Zhang created
+
+        """
+
+        tdLog.info(f"===============create table with empty nchar tag")
+        tdSql.execute(f"create database if not exists db")
+        tdSql.execute(f"use db")
+        tdSql.execute(f"create table stb (ts timestamp, v int) tags(t1 nchar(10), gid int)", show=True)
+        tdSql.execute(f"create table ctb1 using stb tags('', 1)", show=True)
+        tdSql.query(f"show create table ctb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ctb1")
+        tdSql.checkData(0, 1, 'CREATE TABLE `ctb1` USING `stb` (`t1`, `gid`) TAGS ("", 1)')
+
+        tdSql.execute("alter table ctb1 set tag t1 = '测试'", show=True)
+        tdSql.query(f"show create table ctb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ctb1")
+        tdSql.checkData(0, 1, 'CREATE TABLE `ctb1` USING `stb` (`t1`, `gid`) TAGS ("测试", 1)')

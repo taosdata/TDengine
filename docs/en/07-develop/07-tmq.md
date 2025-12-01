@@ -6,7 +6,7 @@ slug: /developer-guide/manage-consumers
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced-features/data-subscription/)
+TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced/subscription/)
 
 ## Creating Topics
 
@@ -71,6 +71,7 @@ Supported properties list for creating consumers:
 - `ws.autoReconnect`: Whether WebSocket should automatically reconnect, default false.
 - `ws.reconnectIntervalMs`: WebSocket reconnect interval in milliseconds, default 2000.
 - `ws.reconnectRetryCount`: WebSocket reconnect retry count, default 3.
+- `timezone`: The timezone used for parsing time-type data in subscription results, using the IANA timezone format, e.g., `Asia/Shanghai`(supported in v3.7.4 and above).
 
 See the table above for other parameters.
 

@@ -101,7 +101,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
-
+int32_t mndResetTimer(SMnode *pMnode);
 int64_t mndGetRoleTimeMs(SMnode *pMnode);
 
 /**
@@ -112,7 +112,7 @@ int64_t mndGetRoleTimeMs(SMnode *pMnode);
  */
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
-int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg);
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg, int32_t* qType);
 void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
 
 /**
@@ -123,6 +123,8 @@ void mndGenerateMachineCode();
 int32_t mndDumpSdb();
 
 int32_t mndDeleteTrans();
+
+int32_t mndModifySdb(char *path);
 
 #ifdef __cplusplus
 }

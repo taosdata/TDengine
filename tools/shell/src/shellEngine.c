@@ -284,7 +284,7 @@ void shellRunSingleCommandImp(char *command) {
     if (error_no == 0) {
       printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %" PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(NULL), numOfRows,
+      printf("Query interrupted (%s), %" PRId64 " row(s) in set (%.6fs)\r\n", tstrerror(error_no), numOfRows,
              (et - st) / 1E6);
     }
     taos_free_result(pSql);
@@ -1033,7 +1033,7 @@ void shellDumpResultCallback(void *param, TAOS_RES *tres, int num_of_rows) {
     }
   } else {
     if (num_of_rows < 0) {
-      printf("\033[31masync retrieve failed, code: %d\033, %s[0m\n", num_of_rows, tstrerror(num_of_rows));
+      printf("\033[31masync retrieve failed, code: %d, %s\033[0m\n", num_of_rows, tstrerror(num_of_rows));
     }
     tsem_post(&dump_info->sem);
   }
@@ -1062,9 +1062,9 @@ void shellReadHistory() {
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
-  char   *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  char   *line = taosMemoryMalloc(tsMaxSQLLength + 1);
   int32_t read_size = 0;
-  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
+  while ((read_size = taosGetsFile(pFile, tsMaxSQLLength, line)) > 0) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = taosStrdup(line);
@@ -1139,7 +1139,7 @@ bool shellIsCommentLine(char *line) {
 
 void shellSourceFile(const char *file) {
   int32_t read_len = 0;
-  char   *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  char   *cmd = taosMemoryCalloc(1, tsMaxSQLLength + 1);
   size_t  cmd_len = 0;
   char    fullname[PATH_MAX] = {0};
   char    sourceFileCommand[PATH_MAX + 8] = {0};
@@ -1158,13 +1158,13 @@ void shellSourceFile(const char *file) {
     return;
   }
 
-  char *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
-  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
-    if (cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
+  char *line = taosMemoryMalloc(tsMaxSQLLength + 1);
+  while ((read_len = taosGetsFile(pFile, tsMaxSQLLength, line)) > 0) {
+    if (cmd_len + read_len >= tsMaxSQLLength) {
       printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len,
              read_len);
       cmd_len = 0;
-      memset(line, 0, TSDB_MAX_ALLOWED_SQL_LEN + 1);
+      memset(line, 0, tsMaxSQLLength + 1);
       continue;
     }
     line[--read_len] = '\0';
@@ -1187,7 +1187,7 @@ void shellSourceFile(const char *file) {
     memcpy(cmd + cmd_len, line, read_len);
     printf("%s%s\r\n", shell.info.promptHeader, cmd);
     shellRunCommand(cmd, false);
-    memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+    memset(cmd, 0, tsMaxSQLLength);
     cmd_len = 0;
   }
 
@@ -1240,15 +1240,17 @@ int32_t shellGetGrantInfo(char *buf) {
     tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
-
+    
+    trimStr(serverVersion, "trial");
+    
     if (strcmp(serverVersion, "community") == 0) {
       verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       verType = TSDB_VERSION_ENTERPRISE;
-      sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
+      sprintf(buf, "Server is %s %s. License will never expire.\r\n", serverVersion, sinfo);
     } else {
       verType = TSDB_VERSION_ENTERPRISE;
-      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo, expiretime);
+      sprintf(buf, "Server is %s %s. License will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
     taos_free_result(tres);
@@ -1257,7 +1259,7 @@ int32_t shellGetGrantInfo(char *buf) {
   fprintf(stdout, "\r\n");
 #else
   verType = TSDB_VERSION_ENTERPRISE;
-  sprintf(buf, "Server is %s, %s and will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
+  sprintf(buf, "Server is %s %s. License will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
 #endif
   return verType;
 }

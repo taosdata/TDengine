@@ -3,9 +3,6 @@ title: Time-Series Forecasting
 description: Time-Series Forecasting
 ---
 
-import Image from '@theme/IdealImage';
-import fcResult from '../../../assets/tdgpt-04.png';
-
 Time-series forecasting takes a continuous period of time-series data as its input and forecasts how the data will trend in the next continuous period. The number of data points in the forecast results is not fixed, but can be specified by the user. TDgpt uses the `FORECAST` function to provide forecasting. The input for this function is the historical time-series data used as a basis for forecasting, and the output is forecast data. You can use the `FORECAST` function to invoke a forecasting algorithm on an anode to provide service. Forecasting is typically performed on a subtable or on the same time series across tables.
 
 In this section, the table `foo` is used as an example to describe how to perform forecasting and anomaly detection in TDgpt. This table is described as follows:
@@ -148,56 +145,54 @@ To use the tool, run `analytics_compare` in TDgpt's `misc` directory. Ensure tha
 
 1. Configure your TDengine cluster information in the `analytics.ini` file:
 
-```ini
-[taosd]
-# taosd hostname
-host = 127.0.0.1
+   ```ini
+   [taosd]
+   # taosd hostname
+   host = 127.0.0.1
 
-# username
-user = root
+   # username
+   user = root
 
-# password
-password = taosdata
+   # password
+   password = taosdata
 
-# tdengine configuration file
-conf = /etc/taos/taos.cfg
+   # tdengine configuration file
+   conf = /etc/taos/taos.cfg
 
-[input_data]
-# database for testing forecasting algorithms
-db_name = test
+   [input_data]
+   # database for testing forecasting algorithms
+   db_name = test
 
-# table with test data
-table_name = passengers
+   # table with test data
+   table_name = passengers
 
-# columns with test data
-column_name = val, _c0   
-```
+   # columns with test data
+   column_name = val, _c0   
+   ```
 
 1. Prepare your data.
 
-A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
+   A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
 
-```shell
-taos -f sample-fc.sql
-```
+   ```shell
+   taos -f sample-fc.sql
+   ```
 
-You can now begin the evaluation.
+   You can now begin the evaluation.
 
 1. Ensure that the Python environment on the local machine is operational. Then run the following command:
 
-```shell
-python3.10 ./analytics_compare.py forecast
-```
+   ```shell
+   python3.10 ./analytics_compare.py forecast
+   ```
 
 1. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
 
-| algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
-| ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
-| holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
-| arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
+   | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
+   | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
+   | holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
+   | arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
 
 If you set `gen_figure` to `true`, a chart is also generated, as displayed in the following figure.
 
-<figure>
-<Image img={fcResult} alt="Forecasting comparison"/>
-</figure>
+![Forecasting comparison](../../../assets/tdgpt-04.png)

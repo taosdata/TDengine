@@ -36,6 +36,8 @@ typedef struct {
     // max retry times when encounter retryable errors, default is 3, negative
     // value means unlimited retry until success.
     int32_t         maxRetry;
+    // whether to verify the peer(server) certificate, only valid when protocol is HTTPS.
+    bool            verifyPeer;
     S3BucketContext bucketContext;
     S3PutProperties putProperties;
 
@@ -60,6 +62,7 @@ static void printConfig(SSharedStorage* pss) {
     printf("chunkSize      : %uMB\n", ss->defaultChunkSizeInMB);
     printf("maxChunks      : %u\n", ss->maxChunks);
     printf("maxRetry       : %d\n", ss->maxRetry);
+    printf("verifyPeer     : %s\n", ss->verifyPeer ? "true" : "false");
 }
 
 
@@ -72,6 +75,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
     ss->defaultChunkSizeInMB = 64;
     ss->maxChunks = 10000;
     ss->maxRetry = 3;
+    ss->verifyPeer = false;
 
     ss->bucketContext.uriStyle = S3UriStyleVirtualHost;
     ss->bucketContext.protocol = S3ProtocolHTTPS;
@@ -145,6 +149,8 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
             ss->maxChunks = (uint32_t)atoll(val);
         } else if (taosStrcasecmp(key, "maxRetry") == 0 && val != NULL) {
             ss->maxRetry = (int32_t)atol(val);
+        } else if (taosStrcasecmp(key, "verifyPeer") == 0 && val != NULL) {
+            ss->verifyPeer = taosStrcasecmp(val, "true") == 0;
         } else {
             tssError("unknown key '%s' in access string: %s", key, as);
             return false;
@@ -186,30 +192,33 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
 
 // createInstance implements SSharedStorageType::createInstance.
 // access string format:
-//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKIA26SHLXUZKC56MEOY;secretAccessKey=xxxxxxx;region=us-east-2;chunkSize=64;maxChunks=10000
+//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKIA26SHLXUZKC56MEOY;secretAccessKey=xxxxxxx;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3;verifyPeer=false
 static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
     size_t asLen = strlen(accessString) + 1;
-    S3Status status = S3_initialize("tdengine", S3_INIT_ALL, NULL);
+    SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);
+    if (!ss) {
+        tssError("failed to allocate memory for SSharedStorageS3");
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    if (!initInstance(ss, accessString)) {
+        taosMemFree(ss);
+        TAOS_RETURN(TSDB_CODE_FAILED);
+    }
+
+    int flags = S3_INIT_ALL;
+    if (ss->bucketContext.protocol == S3ProtocolHTTPS && ss->verifyPeer) {
+        flags |= S3_INIT_VERIFY_PEER;
+    }
+    S3Status status = S3_initialize("tdengine", flags, NULL);
     if (status != S3StatusOK) {
+        taosMemFree(ss);
         tssError("Failed to initialize libs3: %s", S3_get_status_name(status));
         TAOS_RETURN(TSDB_CODE_FAILED);
     }
 
-    SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);
-    if (!ss) {
-        tssError("failed to allocate memory for SSharedStorageS3");
-        S3_deinitialize();
-        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-    }
-
-    if (initInstance(ss, accessString)) {
-        *ppSS = ss;
-        TAOS_RETURN(TSDB_CODE_SUCCESS);
-    }
-
-    taosMemFree(ss);
-    S3_deinitialize();
-    TAOS_RETURN(TSDB_CODE_FAILED);
+    *ppSS = ss;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 

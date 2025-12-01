@@ -3182,3 +3182,108 @@ taos> select count(*) from (select int_tag, bool_tag, u_tinyint_col, u_smallint_
 ========================
                  69999 |
 
+taos> select distinct tbname from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |
+=================================
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_half_full      |
+ vtb_virtual_ctb_mix            |
+
+taos> select distinct tbname, int_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   |
+===============================================
+ vtb_virtual_ctb_full           |           0 |
+ vtb_virtual_ctb_half_full      |           1 |
+ vtb_virtual_ctb_mix            |           3 |
+
+taos> select distinct tbname, int_tag, bool_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |
+==========================================================
+ vtb_virtual_ctb_full           |           0 | false    |
+ vtb_virtual_ctb_half_full      |           1 | false    |
+ vtb_virtual_ctb_mix            |           3 | false    |
+
+taos> select distinct tbname, int_tag, bool_tag, float_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |
+=================================================================================
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |
+
+taos> select distinct tbname, int_tag, bool_tag, float_tag, double_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |        double_tag         |
+=============================================================================================================
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |                         0 |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |                         1 |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |                         3 |
+
+taos> select distinct tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |        double_tag         |          nchar_32_tag          |
+==============================================================================================================================================
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |                         0 | child0                         |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |                         1 | child1                         |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |                         3 | child3                         |
+
+taos> select distinct tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag , binary_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |        double_tag         |          nchar_32_tag          |         binary_32_tag          |
+===============================================================================================================================================================================
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |                         0 | child0                         | child0                         |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |                         1 | child1                         | child1                         |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |                         3 | child3                         | child3                         |
+
+taos> select distinct tags tbname from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |
+=================================
+ vtb_virtual_ctb_empty          |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_half_full      |
+ vtb_virtual_ctb_mix            |
+
+taos> select distinct tags tbname, int_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   |
+===============================================
+ vtb_virtual_ctb_empty          |           2 |
+ vtb_virtual_ctb_full           |           0 |
+ vtb_virtual_ctb_half_full      |           1 |
+ vtb_virtual_ctb_mix            |           3 |
+
+taos> select distinct tags tbname, int_tag, bool_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |
+==========================================================
+ vtb_virtual_ctb_empty          |           2 | false    |
+ vtb_virtual_ctb_full           |           0 | false    |
+ vtb_virtual_ctb_half_full      |           1 | false    |
+ vtb_virtual_ctb_mix            |           3 | false    |
+
+taos> select distinct tags tbname, int_tag, bool_tag, float_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |
+=================================================================================
+ vtb_virtual_ctb_empty          |           2 | false    |                    2 |
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |
+
+taos> select distinct tags tbname, int_tag, bool_tag, float_tag, double_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |        double_tag         |
+=============================================================================================================
+ vtb_virtual_ctb_empty          |           2 | false    |                    2 |                         2 |
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |                         0 |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |                         1 |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |                         3 |
+
+taos> select distinct tags tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |        double_tag         |          nchar_32_tag          |
+==============================================================================================================================================
+ vtb_virtual_ctb_empty          |           2 | false    |                    2 |                         2 | child2                         |
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |                         0 | child0                         |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |                         1 | child1                         |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |                         3 | child3                         |
+
+taos> select distinct tags tbname, int_tag, bool_tag, float_tag, double_tag, nchar_32_tag , binary_32_tag from test_vtable_select.vtb_virtual_stb order by tbname;
+             tbname             |   int_tag   | bool_tag |      float_tag       |        double_tag         |          nchar_32_tag          |         binary_32_tag          |
+===============================================================================================================================================================================
+ vtb_virtual_ctb_empty          |           2 | false    |                    2 |                         2 | child2                         | child2                         |
+ vtb_virtual_ctb_full           |           0 | false    |                    0 |                         0 | child0                         | child0                         |
+ vtb_virtual_ctb_half_full      |           1 | false    |                    1 |                         1 | child1                         | child1                         |
+ vtb_virtual_ctb_mix            |           3 | false    |                    3 |                         3 | child3                         | child3                         |
+

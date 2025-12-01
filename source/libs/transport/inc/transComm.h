@@ -331,6 +331,7 @@ void    transDestroyBuffer(SConnBuffer* buf);
 int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len);
 int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
@@ -622,8 +623,17 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
 void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
 
 int32_t transSetReadOption(uv_handle_t* handle);
-#endif
 
+int32_t transCachePut(int64_t refId, STrans* pTrans);
+int32_t transCacheGet(int64_t refId, STrans** pTrans);
+void    transCacheRemoveByRefId(int64_t refId);
+void    transCacheDestroy();
+
+STrans* transGetInst(int64_t mgtId, int64_t instId);
+
+STrans* transInstAcquire(int64_t mgtId, int64_t instId);
+void    transInstRelease(int64_t instId);
+#endif
 #ifdef __cplusplus
 }
 #endif

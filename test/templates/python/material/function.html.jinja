@@ -37,17 +37,34 @@
       {#- Brief or full function name depending on configuration. -#}
       {% set symbol_type = "method" if function.parent.is_class else "function" %}
       {#- Symbol type: method when parent is a class, function otherwise. -#}
+
+      {# Check if docstring contains "skip" in Labels line #}
+      {% set has_skip_label = namespace(value=false) %}
+      {% if function.docstring and function.docstring.value %}
+        {% for line in function.docstring.value.split("\n") %}
+          {% if line.strip().startswith("Labels:") %}
+            {# Extract labels and check if "skip" is one of them #}
+            {% set labels_text = line.replace("Labels:", "").strip() %}
+            {% set labels = labels_text.split(",") %}
+            {% for label in labels %}
+              {% if label.strip().lower() == "skip" %}
+                {% set has_skip_label.value = true %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
   
       {% if "cases/" in function.relative_filepath|string %}
-        {# Only generate docstring for methods starting with "test_" or "Test" in the "cases" directory #}
-        {% if function.name.startswith("test_") or function.name.startswith("Test") %}
+        {# Only generate docstring for methods starting with "test_" or "Test" in the "cases" directory, and not labeled as skip #}
+        {% if (function.name.startswith("test_") or function.name.startswith("Test")) and not has_skip_label.value %}
           {% set should_render = true %}
         {% else %}
           {% set should_render = false %}
         {% endif %}
       {% else %}
-        {# For other directories, generate docstring for all methods #}
-        {% set should_render = true %}
+        {# For other directories, generate docstring for all methods unless labeled as skip #}
+        {% set should_render = not has_skip_label.value %}
       {% endif %}
   
       {% if should_render %}
@@ -108,11 +125,10 @@
                   {% endwith %}
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> {{ summary|safe }}
+                    <strong>{{ summary|safe }}</strong> 
                   </div>
                   {% if details %}
                     <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                         {% for line in details %}
                           {% set indent = (line|length - line.lstrip()|length) %}
@@ -122,7 +138,7 @@
                     </div>
                   {% endif %}
                   <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
+                    {{ "path:" }}
                     <a href="https://github.com/taosdata/TDengine/blob/{{ config.github_branch }}/test/{{ function.relative_filepath }}" target="_blank">
                       {{ function.relative_filepath|safe }}
                     </a>

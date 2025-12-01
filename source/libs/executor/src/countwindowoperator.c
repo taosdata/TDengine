@@ -176,7 +176,7 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     i += step;
   }
 
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -214,7 +214,7 @@ static void buildCountResult(SExprSupp* pExprSup, SCountWindowSupp* pCountSup, S
     clearWinStateBuff(pBuff);
     clearResultRowInitFlag(pExprSup->pCtx, pExprSup->numOfExprs);
   }
-  code = doFilter(pBlock, pFilterInfo, NULL);
+  code = doFilter(pBlock, pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -339,6 +339,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
+  pOperator->exprSupp.hasWindow = true;
 
   SCountWindowPhysiNode* pCountWindowNode = (SCountWindowPhysiNode*)physiNode;
 

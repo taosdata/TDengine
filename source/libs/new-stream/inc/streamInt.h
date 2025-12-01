@@ -42,16 +42,17 @@ typedef struct SStreamHbInfo {
 typedef struct SStreamInfo {
   SRWLatch            lock;
   int32_t             taskNum;
+  int8_t              destroyed;
   
   SList*              readerList;        // SStreamReaderTask
   int64_t             triggerTaskId;
-  SStreamTriggerTask* triggerTask;
-  SList*              runnerList;        // SArray<SStreamRunnerTask>
+  SList*              triggerList;       // SStreamTriggerTask
+  SList*              runnerList;        // SStreamRunnerTask
 
   SRWLatch            undeployLock;
 
   SArray*             undeployReaders;        // SArray<taskId+seriousId>
-  int64_t             undeployTriggerId;
+  SArray*             undeployTriggers;       // SArray<taskId+seriousId>
   SArray*             undeployRunners;        // SArray<taskId+seriousId>
 } SStreamInfo;
 
@@ -111,18 +112,18 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
-void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader);
+void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, EStreamTaskType type, SArray* pUndeployList, SList* pTaskList);
 void smUndeployVgTasks(int32_t vgId, bool cleanup);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamInfo(void* param);
-void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
                                       const char* pToState, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
                                       char** ppContent);
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields, const int32_t startRow, const int32_t endRow);
+int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
+                                            const SArray* pFields, const int32_t startRow, const int32_t endRow);
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam);
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
@@ -131,6 +132,7 @@ void streamTimerCleanUp();
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
 void streamTmrStop(tmr_h tmrId);
 void smEnableVgDeploy(int32_t vgId);
+void smUndeployStreamTriggerTasks(SStreamInfo* pStream, int64_t streamId);
 
 #ifdef __cplusplus
 }

@@ -204,8 +204,10 @@ int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex
 int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pVarData, int32_t varDataLen,
                          bool isNull);
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
-int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows,
+int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows, uint32_t capacity,
                          bool trimValue);
+int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
+                            int32_t itemLen, int32_t numOfRows, bool trimValue);                         
 void    colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows);
 int32_t colDataCopyNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows,
                           bool isNull);
@@ -270,6 +272,7 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 int32_t createDataBlock(SSDataBlock** pResBlock);
 void    blockDataDestroy(SSDataBlock* pBlock);
 void    blockDataFreeRes(SSDataBlock* pBlock);
+void    blockDataFreeCols(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock,
@@ -287,7 +290,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 
 // for debug
-int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr);
+int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr, int64_t qId);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema,
                                     int64_t uid, int32_t vgId, tb_uid_t suid);
@@ -301,7 +304,6 @@ int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_
                                char** dstTableName);
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
-
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 int32_t calcStrBytesByType(int8_t type, char* data);

@@ -459,8 +459,9 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
         }
         taosWUnLockLatch(&p->latch);
         TAOS_UNUSED(taosReleaseRef(httpRecvRefMgt, cli->recvBufRid));
+        cli->recvBufRid = 0;
       } else {
-        tWarn("http-report failed to acquire recv buf since %s", tstrerror(terrno));
+        tDebug("http-report failed to acquire recv buf since %s", tstrerror(terrno));
       }
     }
   }
@@ -939,7 +940,9 @@ int64_t taosInitHttpChan() {
 
 void taosDestroyHttpChan(int64_t chanId) {
   tDebug("http-report send quit, chanId:%" PRId64, chanId);
-
+  if (chanId < 0) {
+    return;
+  }
   int          ret = 0;
   SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
   if (load == NULL) {

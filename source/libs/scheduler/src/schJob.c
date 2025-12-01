@@ -15,6 +15,7 @@
 
 #include "catalog.h"
 #include "command.h"
+#include "plannodes.h"
 #include "query.h"
 #include "schInt.h"
 #include "tmsg.h"
@@ -346,8 +347,8 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   pJob->levelNum = levelNum;
   SCH_RESET_JOB_LEVEL_IDX(pJob);
 
-  (void)atomic_add_fetch_64(&pJob->seriousId, 1);
-  qDebug("QID:0x%" PRIx64 ", job seriousId set to SID:%" PRId64 ", levelIdx:%d", pJob->queryId, pJob->seriousId,
+  (void)atomic_add_fetch_64(&pJob->seriesId, 1);
+  qDebug("QID:0x%" PRIx64 ", job seriesId set to SID:%" PRId64 ", levelIdx:%d", pJob->queryId, pJob->seriesId,
          pJob->levelIdx);
 
   SSchLevel      level = {0};
@@ -407,8 +408,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
 
       SCH_ERR_JRET(schValidateSubplan(pJob, plan, pLevel->level, n, taskNum));
-      
-      SCH_SET_JOB_TYPE(pJob, plan->subplanType);
+      schSetJobType(pJob, plan->subplanType);
 
       SSchTask  task = {0};
       SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
@@ -992,8 +992,8 @@ int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
       SCH_JOB_ELOG("already fetched while got error %s", tstrerror(rspCode));
       SCH_ERR_RET(rspCode);
     }
-    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
+    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
     SCH_ERR_RET(schUpdateJobStatus(pJob, JOB_TASK_STATUS_EXEC));
   }
 
@@ -1001,9 +1001,12 @@ int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
 }
 
 int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, bool *inRetry) {
+  int32_t code = 0;
+  int32_t numOfLevels = taosArrayGetSize(pJob->levels);
+
   while (true) {
-    if (pTask->seriousId < atomic_load_64(&pJob->seriousId)) {
-      SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriousId, pJob->seriousId);
+    if (pTask->seriesId < atomic_load_64(&pJob->seriesId)) {
+      SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriesId, pJob->seriesId);
       return TSDB_CODE_SCH_IGNORE_ERROR;
     }
 
@@ -1014,8 +1017,8 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
       continue;
     }
 
-    if (pTask->seriousId < atomic_load_64(&pJob->seriousId)) {
-      SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriousId, pJob->seriousId);
+    if (pTask->seriesId < atomic_load_64(&pJob->seriesId)) {
+      SCH_TASK_DLOG("task sId:%" PRId64 " is smaller than current job sId:%" PRId64, pTask->seriesId, pJob->seriesId);
       return TSDB_CODE_SCH_IGNORE_ERROR;
     }
 
@@ -1023,13 +1026,10 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
   }
 
   *inRetry = true;
-
   SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
 
-  (void)atomic_add_fetch_64(&pJob->seriousId, 1);
+  (void)atomic_add_fetch_64(&pJob->seriesId, 1);
 
-  int32_t code = 0;
-  int32_t numOfLevels = taosArrayGetSize(pJob->levels);
   for (int32_t i = 0; i < numOfLevels; ++i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
@@ -1042,31 +1042,32 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
 
     int32_t numOfTasks = taosArrayGetSize(pLevel->subTasks);
     for (int32_t j = 0; j < numOfTasks; ++j) {
-      SSchTask *pTask = taosArrayGet(pLevel->subTasks, j);
-      if (NULL == pTask) {
+      SSchTask *p = taosArrayGet(pLevel->subTasks, j);
+      if (NULL == p) {
         SCH_JOB_ELOG("fail to get the %dth task in level %d, taskNum:%d", j, i, numOfTasks);
         SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
 
-      SCH_LOCK_TASK(pTask);
-      code = schChkUpdateRedirectCtx(pJob, pTask, NULL, rspCode);
+      SCH_LOCK_TASK(p);
+
+      code = schChkUpdateRedirectCtx(pJob, p, (p->taskId != pTask->taskId));
       if (TSDB_CODE_SUCCESS != code) {
-        SCH_UNLOCK_TASK(pTask);
+        SCH_UNLOCK_TASK(p);
         SCH_RET(code);
       }
-      schResetTaskForRetry(pJob, pTask);
 
-      SCH_LOCK(SCH_WRITE, &pTask->planLock);
-      qClearSubplanExecutionNode(pTask->plan);
-      SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
+      schResetTaskForRetry(pJob, p);
 
-      SCH_UNLOCK_TASK(pTask);
+      SCH_LOCK(SCH_WRITE, &p->planLock);
+      qClearSubplanExecutionNode(p->plan);
+      SCH_UNLOCK(SCH_WRITE, &p->planLock);
+
+      SCH_UNLOCK_TASK(p);
     }
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
-  
-  SCH_JOB_DLOG("update job sId to %" PRId64 ", levelIdx:%d", pJob->seriousId, pJob->levelIdx);
+  SCH_JOB_DLOG("update job sId:%" PRId64 ", levelIdx:%d", pJob->seriesId, pJob->levelIdx);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1079,29 +1080,26 @@ int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_
   taosMemoryFreeClear(pMsg->pEpSet);
 
   SCH_UNLOCK_TASK(pTask);
+  SCH_TASK_DLOG("start to restart all tasks by error:%s from TID:0x%" PRIx64, tstrerror(rspCode), pTask->taskId);
 
-  SCH_TASK_DLOG("start to redirect all job tasks cause of error: %s", tstrerror(rspCode));
-
+  SCH_ERR_JRET(schFailedTaskNeedRetry(pTask, pJob, rspCode));
   SCH_ERR_JRET(schResetJobForRetry(pJob, pTask, rspCode, &inRetry));
 
   SCH_ERR_JRET(schLaunchJob(pJob));
 
   SCH_LOCK_TASK(pTask);
-
   atomic_store_8(&pJob->inRetry, 0);
 
   SCH_RET(code);
 
 _return:
-
   SCH_LOCK_TASK(pTask);
-
   code = schProcessOnTaskFailure(pJob, pTask, code);
 
   if (inRetry) {
     atomic_store_8(&pJob->inRetry, 0);
   }
-
+  
   SCH_RET(code);
 }
 
@@ -1249,7 +1247,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
 
   (void)schAcquireJob(rId, &pJob);
   if (NULL == pJob) {
-    qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 "job no exist, may be dropped, jobId:0x%" PRIx64, qId, tId, rId);
+    qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 " job doesn't exist, may be dropped, jobId:0x%" PRIx64, qId, tId, rId);
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
   }
 
@@ -1277,4 +1275,16 @@ _return:
   }
 
   SCH_RET(code);
+}
+
+void schSetJobType(SSchJob *pJob, ESubplanType type) {
+  if (type == SUBPLAN_TYPE_MODIFY) {
+    pJob->attr.type |= JOB_TYPE_INSERT;
+  } else {
+    if (type == SUBPLAN_TYPE_HSYSSCAN) {
+      pJob->attr.type |= JOB_TYPE_HQUERY;
+    } else {
+      pJob->attr.type |= JOB_TYPE_QUERY;
+    }
+  }
 }

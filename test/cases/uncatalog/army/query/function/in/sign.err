@@ -1,3 +1,0 @@
-select sign();
-select sign('abc');
-select sign(10, 1);

@@ -18,14 +18,16 @@
 #include "osMemPool.h"
 #include "streamInt.h"
 #include "tdatablock.h"
+#include "tcurl.h"
 #include "tstrbuild.h"
 #include "decimal.h"
+#include "cmdnodes.h"
 
 #ifndef WINDOWS
 #include "curl/curl.h"
 #endif
 
-int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return streamGId % threadNum; }
+int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return threadNum ? (streamGId % threadNum) : 0; }
 
 int32_t stmAddFetchStreamGid(void) {
   if (++gStreamMgmt.stmGrpIdx >= STREAM_MAX_GROUP_NUM) {
@@ -63,7 +65,7 @@ int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTa
   }
 
   SSTriggerRuntimeStatus status = {0};
-  stTriggerTaskGetStatus((SStreamTask*)triggerTask, &status);
+  TAOS_CHECK_EXIT(stTriggerTaskGetStatus((SStreamTask*)triggerTask, &status));
 
   TSDB_CHECK_NULL(taosArrayPush(*ppReport, &status), code, lino, _exit, terrno);
 
@@ -71,49 +73,24 @@ int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTa
 
 _exit:
 
+  if (code) {
+    stsError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  }
+
   return code;
 }
 
 void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t gid) {
-  bool isLastTask = false;
-
   if (taosArrayGetSize(pStream->undeployReaders) > 0) {
-    smHandleRemovedTask(pStream, streamId, gid, true);
+    smHandleRemovedTask(pStream, streamId, gid, STREAM_READER_TASK, pStream->undeployReaders, pStream->readerList);
   }
 
+  if (taosArrayGetSize(pStream->undeployTriggers) > 0) {
+    smHandleRemovedTask(pStream, streamId, gid, STREAM_TRIGGER_TASK, pStream->undeployTriggers, pStream->triggerList);
+  }
+  
   if (taosArrayGetSize(pStream->undeployRunners) > 0) {
-    smHandleRemovedTask(pStream, streamId, gid, false);
-  }
-
-  taosWLockLatch(&pStream->undeployLock);
-  if (0 == pStream->undeployTriggerId) {
-    taosWUnLockLatch(&pStream->undeployLock);
-    return;
-  }
-
-  if (pStream->triggerTask->task.taskId != pStream->undeployTriggerId) {
-    stsWarn("undeploy trigger task %" PRIx64 " mismatch with current trigger taskId:%" PRIx64,
-            pStream->undeployTriggerId, pStream->triggerTask->task.taskId);
-    pStream->undeployTriggerId = 0;
-    taosWUnLockLatch(&pStream->undeployLock);
-    return;
-  }
-
-  pStream->undeployTriggerId = 0;
-  taosMemoryFreeClear(pStream->triggerTask);
-  smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
-  taosWUnLockLatch(&pStream->undeployLock);
-
-  if (!isLastTask) {
-    return;
-  }
-
-  int32_t code = taosHashRemove(gStreamMgmt.stmGrp[gid], &streamId, sizeof(streamId));
-  if (TSDB_CODE_SUCCESS == code) {
-    stsInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]));
-  } else {
-    stsWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", gid,
-            taosHashGetSize(gStreamMgmt.stmGrp[gid]), tstrerror(code));
+    smHandleRemovedTask(pStream, streamId, gid, STREAM_RUNNER_TASK, pStream->undeployRunners, pStream->runnerList);
   }
 }
 
@@ -181,18 +158,19 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     stsDebug("%d reader tasks status added to hb", TD_DLIST_NELES(pStream->readerList));
   }
 
-  if (pStream->triggerTask) {
-    pTask = (SStreamTask*)pStream->triggerTask;
+  if (pStream->triggerList && (TD_DLIST_NELES(pStream->triggerList) > 0)) {
+    listNode = TD_DLIST_HEAD(pStream->triggerList);
+    pTask = (SStreamTask*)listNode->data;
     if (reportPeriod) {
-      TAOS_CHECK_EXIT(stmAddPeriodReport(streamId, &pMsg->pTriggerStatus, pStream->triggerTask));
-      pStream->triggerTask->task.detailStatus = taosArrayGetSize(pMsg->pTriggerStatus) - 1;
+      TAOS_CHECK_EXIT(stmAddPeriodReport(streamId, &pMsg->pTriggerStatus, (SStreamTriggerTask*)pTask));
+      pTask->detailStatus = taosArrayGetSize(pMsg->pTriggerStatus) - 1;
     } else {
-      pStream->triggerTask->task.detailStatus = -1;
+      pTask->detailStatus = -1;
     }
     
-    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, &pStream->triggerTask->task));
+    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
     
-    ST_TASK_DLOG("task status added to hb %s mgmtReq", pStream->triggerTask->task.pMgmtReq ? "with" : "without");
+    ST_TASK_DLOG("task status added to hb %s mgmtReq", pTask->pMgmtReq ? "with" : "without");
     stsDebug("%d trigger tasks status added to hb", 1);
   }
 
@@ -203,10 +181,12 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
       pTask = (SStreamTask*)pRunner;
-      TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
-      //if (pRunner->task.pMgmtReq) {
-      //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-      //}
+      if (atomic_val_compare_exchange_8(&pRunner->vtableDeployGot, 1, 0)) {
+        TAOS_CHECK_EXIT(stRunnerBuildTaskMgmtReq(pRunner));
+        TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
+      } else {
+        TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
+      }
       ST_TASK_DLOG("task status added to hb %s mgmtReq", pRunner->task.pMgmtReq ? "with" : "without");
     }
 
@@ -251,7 +231,7 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
     SStreamInfo* pStream = (SStreamInfo*)pIter;
     int64_t*     streamId = taosHashGetKey(pIter, NULL);
 
-    stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod);
+    (void)stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod);
   }
 
   return code;
@@ -275,10 +255,17 @@ void stmDestroySStreamInfo(void* param) {
     ST_TASK_DLOG("task removed from stream readerList, remain:%d, listNode:%p", TD_DLIST_NELES(p->readerList), tmp);
     taosMemoryFreeClear(tmp);
   }
-  tdListFree(p->readerList);
-  p->readerList = NULL;
+  p->readerList = tdListFree(p->readerList);
 
-  taosMemoryFreeClear(p->triggerTask);
+  memset(&iter, 0, sizeof(iter));
+  tdListInitIter(p->triggerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->triggerList, listNode);
+    ST_TASK_DLOG("task removed from stream triggerList, remain:%d", TD_DLIST_NELES(p->triggerList));
+    taosMemoryFreeClear(tmp);
+  }
+  p->triggerList = tdListFree(p->triggerList);
 
   memset(&iter, 0, sizeof(iter));
   tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
@@ -288,21 +275,14 @@ void stmDestroySStreamInfo(void* param) {
     ST_TASK_DLOG("task removed from stream runnerList, remain:%d", TD_DLIST_NELES(p->runnerList));
     taosMemoryFreeClear(tmp);
   }
-  tdListFree(p->runnerList);
-  p->runnerList = NULL;
+  p->runnerList = tdListFree(p->runnerList);
 
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;
+  taosArrayDestroy(p->undeployTriggers);
+  p->undeployTriggers = NULL;
   taosArrayDestroy(p->undeployRunners);
   p->undeployRunners = NULL;
-}
-
-void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq) {
-  if (NULL == pReq) {
-    return;
-  }
-
-  taosArrayDestroy(pReq->cont.fullTableNames);
 }
 
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \
@@ -535,7 +515,7 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
+int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
                                             const int32_t startRow, const int32_t endRow) {
   int32_t code = 0, lino = 0;
   cJSON*  pContent = NULL;
@@ -566,28 +546,52 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
     goto _end;
   }
 
-  for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
-    pRow = cJSON_CreateObject();
-    QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  bool hasData = false;
 
-    for (int32_t colIdx = 0; colIdx < taosArrayGetSize(pBlock->pDataBlock); ++colIdx) {
-      const SColumnInfoData*   pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
-      const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
-      const char*              colName = "unknown";
-      if (!pField) {
-        stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
-                (int64_t)taosArrayGetSize(pFields));
-        continue;
+  if (pBlock && pBlock->info.rows > 0) {
+    int32_t          realCols = taosArrayGetSize(pBlock->pDataBlock);
+    SColumnInfoData* pFilterCol = NULL;
+    if (pTask->addOptions & NOTIFY_HAS_FILTER) {
+      realCols -= 1;
+      pFilterCol = taosArrayGet(pBlock->pDataBlock, realCols);
+      if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
+        stError("invalid filter column type: %d", pFilterCol->info.type);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _end;
       }
-      colName = pField->name;
-      bool isNull = colDataIsNull_s(pCol, rowIdx);
-      code = jsonAddColumnField(colName, &pCol->info, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
-      QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-    pRow = NULL;
+    for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
+      if (pFilterCol && !colDataIsNull_s(pFilterCol, rowIdx)) {
+        bool filter = *(bool*)colDataGetData(pFilterCol, rowIdx);
+        if (!filter) {
+          continue;
+        }
+      }
+      pRow = cJSON_CreateObject();
+      QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+
+      for (int32_t colIdx = 0; colIdx < realCols; ++colIdx) {
+        const SColumnInfoData*   pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+        const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
+        const char*              colName = "unknown";
+        if (!pField) {
+          stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
+                  (int64_t)taosArrayGetSize(pFields));
+          continue;
+        }
+        colName = pField->name;
+        bool isNull = colDataIsNull_s(pCol, rowIdx);
+        code = jsonAddColumnField(colName, &pCol->info, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      hasData = true;
+      pRow = NULL;
+    }
   }
+
   pContent = cJSON_CreateObject();
   QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
@@ -676,7 +680,7 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   uint64_t ar[] = {groupId, pParam->wstart};
   uint64_t hash = MurmurHash3_64((const char*)ar, sizeof(ar));
   char     triggerId[32];
-  u64toaFastLut(hash, triggerId);
+  (void)u64toaFastLut(hash, triggerId);
 
   const char* triggerTypeStr = NULL;
   switch (triggerType) {
@@ -713,6 +717,10 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   if (tableName != NULL) {
     JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));
   }
+
+  char gidBuf[32];
+  snprintf(gidBuf, sizeof(gidBuf), "%" PRId64, groupId);
+  JSON_CHECK_ADD_ITEM(obj, "groupId", cJSON_CreateString(gidBuf));
 
   if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
@@ -753,67 +761,18 @@ _end:
 }
 
 #ifndef WINDOWS
-static int32_t streamNotifyConnect(const char* url, CURL** pConn) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  CURL*    conn = NULL;
-  CURLcode res = CURLE_OK;
-
-  conn = curl_easy_init();
-  TSDB_CHECK_NULL(conn, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_URL, url);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, 0L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_SSL_VERIFYHOST, 0L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_TIMEOUT, 3L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_setopt(conn, CURLOPT_CONNECT_ONLY, 2L);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-  res = curl_easy_perform(conn);
-  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
-
-  *pConn = conn;
-  conn = NULL;
-
-_end:
-  if (conn != NULL) {
-    curl_easy_cleanup(conn);
-  }
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static void streamNotifyClose(CURL** pConn, const char* url) {
-  if (pConn == NULL || *pConn == NULL) {
-    return;
-  }
-
-  // status code 1000 means normal closure
-  size_t   len = 0;
-  uint16_t status = htons(1000);
-  CURLcode res = curl_ws_send(*pConn, &status, sizeof(status), &len, 0, CURLWS_CLOSE);
-  if (res != CURLE_OK) {
-    stWarn("failed to send ws-close msg to %s for %d", url ? url : "", res);
-  }
-  curl_easy_cleanup(*pConn);
-  *pConn = NULL;
-}
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SStringBuilder sb = {0};
   const char*    msgTail = "]}]}";
   char*          msg = NULL;
-  CURL*          conn = NULL;
+  SCURL*         conn = NULL;
   bool           shouldNotify = false;
 
   // Remove prefix 1. 
@@ -841,6 +800,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   code = streamAppendNotifyHeader(streamName, &sb);
   QUERY_CHECK_CODE(code, lino, _end);
   sb.pos -= msgTailLen;
+  int32_t nSentParams = 0;
   for (int32_t i = 0; i < nParam; ++i) {
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
@@ -848,6 +808,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
+    nSentParams++;
   }
   sb.pos -= 1;
   taosStringBuilderAppendStringLen(&sb, msgTail, msgTailLen);
@@ -861,10 +822,10 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
 
     // todo(kjq): check if task should stop
 
-    code = streamNotifyConnect(*pUrl, &conn);
+    code = tcurlGetConnection(*pUrl, &conn);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to get stream notify handle of %s", *pUrl);
-      if (errorHandle > 0) {
+      if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
         // retry for event message sending in PAUSE error handling mode
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
         --i;
@@ -882,9 +843,9 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     while (sentLen < totalLen) {
       size_t nbytes = 0;
       if (sentLen == 0) {
-        res = curl_ws_send(conn, msg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(conn, msg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
       } else {
-        res = curl_ws_send(conn, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(conn, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
       }
       if (res != CURLE_OK) {
         break;
@@ -893,7 +854,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     }
     if (res != CURLE_OK) {
       ST_TASK_ELOG("failed to send stream notify msg to %s for %d", *pUrl, res);
-      if (errorHandle > 0) {
+      if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
         // retry for event message sending in PAUSE error handling mode
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
         --i;
@@ -901,14 +862,13 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
         // simply ignore the failure in DROP error handling mode
         code = TSDB_CODE_SUCCESS;
       }
+    } else {
+      ST_TASK_DLOG("notify %d events to %s successfully", nSentParams, *pUrl);
     }
-    streamNotifyClose(&conn, *pUrl);
   }
 
 _end:
-  if (conn != NULL) {
-    streamNotifyClose(&conn, NULL);
-  }
+
   taosStringBuilderDestroy(&sb);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -938,8 +898,15 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 
   QUERY_CHECK_CONDITION(pTask->task.type == STREAM_TRIGGER_TASK, code, lino, _end, TSDB_CODE_STREAM_TASK_NOT_EXIST);
 
-  if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
-    end = end - 1;
+  if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_PERIOD) {
+    start = INT64_MIN;
+    end = INT64_MAX;
+  } else if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
+    if (((SStreamTriggerTask*)pTask)->interval.interval > 0) {
+      end--;
+    } else {
+      start++;
+    }
   }
   SHashObj* pCalcDataCacheIters = NULL;
   void*     pCalcDataCache = NULL;

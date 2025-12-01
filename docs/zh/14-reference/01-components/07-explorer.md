@@ -4,11 +4,11 @@ sidebar_label: taosExplorer
 toc_max_heading_level: 4
 ---
 
-taosExplorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 web 服务，虽然它没有开源，但随开源版安装包免费提供。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以参考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
+taosExplorer 是一个为用户提供 TDengine TSDB 实例的可视化管理交互工具的 web 服务，虽然它没有开源，但随开源版安装包免费提供。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以参考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
 
 ## 安装
 
-taosExplorer 无需单独安装，从 TDengine 3.3.0.0 版本开始，它随着 TDengine 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。如果按照 GitHub 里步骤自己编译 TDengine 源代码生成的安装包不包含 taosExplorer。
+taosExplorer 无需单独安装，从 TDengine TSDB 3.3.0.0 版本开始，它随着 TDengine TSDB 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。如果按照 GitHub 里步骤自己编译 TDengine TSDB 源代码生成的安装包不包含 taosExplorer。
 
 ## 配置
 
@@ -120,6 +120,15 @@ cors = true
 # The number of days log files are retained
 #
 # keepDays = 30
+# Configuration for monitoring with taosKeeper service
+
+[monitor]
+# FQDN of taosKeeper service
+#fqdn = "localhost"
+# Port of taosKeeper service
+#port = 6043
+# Monitor interval in seconds, minimum is 1, maximum is 10
+#interval = 10
 ```
 
 说明：
@@ -129,8 +138,8 @@ cors = true
 - `ipv6`：taosExplorer 服务绑定的 IPv6 地址，默认不绑定 IPv6 地址。
 - `instanceId`：当前 explorer 服务的实例 ID，如果同一台机器上启动了多个 explorer 实例，必须保证各个实例的实例 ID 互不相同。
 - `log_level`：日志级别，可选值为 "error"、"warn"、"info"、"debug"、"trace"。此参数已弃用，请使用 `log.level` 代替。
-- `cluster`：TDengine 集群的 taosAdapter 地址。
-- `cluster_native`：TDengine 集群的原生连接地址，默认关闭。
+- `cluster`：TDengine TSDB 集群的 taosAdapter 地址。
+- `cluster_native`：TDengine TSDB 集群的原生连接地址，默认关闭。
 - `x_api`：taosX 的 gRPC 地址。
 - `grpc`：taosX 代理向 taosX 建立连接的 gRPC 地址。
 - `cors`：CORS 配置开关，默认为 `false`。当为 `true` 时，允许跨域访问。
@@ -143,7 +152,9 @@ cors = true
 - `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
 - `log.reservedDiskSize`：日志所在磁盘停止写入日志的阈值（单位为字节），当磁盘剩余空间达到此大小后停止写入日志。
 - `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除。
-
+- `monitor.fqdn`：上报指标的 taosKeeper 服务地址。
+- `monitor.port`：上报指标的 taosKeeper 服务端口，类型为整数。默认为：`6043`。
+- `monitor.interval`：上报指标的时间间隔，类型为整数，单位为秒（s）。默认为：`10`。
 
 ## 启动停止
 
@@ -155,6 +166,7 @@ sc.exe start taos-explorer # Windows
 ```
 
 相应地，用如下命令停止
+
 ```shell
 systemctl stop taos-explorer  # Linux
 sc.exe stop taos-explorer # Windows
@@ -227,3 +239,13 @@ sc.exe stop taos-explorer # Windows
 其他功能页面，如 `数据写入-数据源` 等页面，为企业版特有功能，您可以点击查看和简单体验，并不能实际使用。
 
 如果由于网络原因无法完成注册环节，则需要在有外网的环境注册完毕，然后把注册好的 `/etc/taos/explorer-register.cfg` 替换到内网环境。
+
+3.3.7.1 版本后，可以使用环境变量 `EXPLORER_SKIP_REGISTER=true` 跳过注册环节，直接使用用户名登录。
+
+在采用 systemd 的 Linux 系统中，您可以通过环境变量文件 `/etc/default/taos-explorer` 添加如下环境变量：
+
+```shell
+EXPLORER_SKIP_REGISTER=true
+```
+
+在 Windows 系统中，您可以通过系统环境变量设置界面添加该环境变量。

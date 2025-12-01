@@ -23,7 +23,7 @@ Prepare the following environment components:
 
 Component interaction diagram:  
 
-![td-frame](img/td-frame.webp)
+![](../../assets/node-red-01.webp)
 
 ## Configuring Data Source
 Plugin data sources are configured in the node properties using the [Node.js connector](../../../tdengine-reference/client-libraries/node):
@@ -126,7 +126,7 @@ After adding all nodes, connect them in sequence to form a pipeline. Click "Depl
 - 'td-writer' turns green.
 - 'debug1' shows data count.
 
-![td-writer](img/td-writer.webp)
+![](../../assets/node-red-02.webp)
 
 Successful write output:
 ```json
@@ -155,7 +155,7 @@ Steps:
    from ( select tbname,current,voltage,current*voltage/60 as p from test.meters 
           where  ts > now-60s partition by tbname)
    group by tbname;
-   ``` 
+   ```
 2. Drag tdengine-operator node to canvas:
    - Database: Select existing 'db-server' connection.
    - Save and return.
@@ -171,7 +171,8 @@ Steps:
 When the flow is successfully started:
 - 'td-reader' node turns green.
 - Debug node shows result count.  
-![td-reader](img/td-reader.webp)  
+
+![](../../assets/node-red-03.webp)
 
 Output from 'td-reader' (exceptions thrown on failure):  
 
@@ -213,7 +214,7 @@ Steps:
    create topic topic_overload as 
         select tbname,* from test.meters 
         where current > 25 or voltage > 230;
-   ``` 
+   ```
 
 2. Drag tdengine-consumer node to canvas:
    - Name: td-consumer.
@@ -234,7 +235,8 @@ Steps:
 When operational:
 - 'td-consumer' node turns green.
 - Debug node shows consumption count.
-![td-consumer](img/td-consumer.webp)
+
+![](../../assets/node-red-04.webp)
 
 Alert output from 'td-consumer':
 
@@ -272,12 +274,14 @@ Errors in data collection, querying, and subscription workflows are routed to ca
 
 When errors occur:  
 - Debug node shows error count.
-- View details in Node-RED logs.  
-![td-catch](img/td-catch.webp)  
+- View details in Node-RED logs.
+
+![](../../assets/node-red-05.webp)
 
 ### Runtime View
-Complete workflow overview after deployment:  
-![td-all](img/td-all.webp)  
+Complete workflow overview after deployment:
+
+![](../../assets/node-red-06.webp)
 
 ## Summary
 

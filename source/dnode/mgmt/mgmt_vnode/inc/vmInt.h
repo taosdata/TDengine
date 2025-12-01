@@ -31,6 +31,7 @@ typedef struct SVnodeMgmt {
   const char           *path;
   const char           *name;
   SQueryAutoQWorkerPool queryPool;
+  SQueryAutoQWorkerPool streamReaderPool;
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
@@ -45,8 +46,6 @@ typedef struct SVnodeMgmt {
   TdThread              thread;
   bool                  stop;
   TdThreadMutex         fileLock;
-  SWWorkerPool          streamReaderPool;
-  SSingleWorker         streamRunnerWorker;
 } SVnodeMgmt;
 
 typedef struct {
@@ -126,12 +125,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessSetKeepVersionReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessAlterVnodeElectBaselineReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // vmFile.c
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);

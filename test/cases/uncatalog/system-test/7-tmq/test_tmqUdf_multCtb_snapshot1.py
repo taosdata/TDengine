@@ -4,11 +4,10 @@ import threading
 import subprocess
 import platform
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from tmqCommon import tmqCom
 
 class TestCase:
     def setup_class(cls):

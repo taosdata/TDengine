@@ -493,8 +493,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
-  if (!VND_IS_RSMA(pVnode) &&
-      (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
+  if ((terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -541,12 +540,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     goto _err;
   }
 
-  // open sma
-  vInfo("vgId:%d, start to open vnode sma", TD_VID(pVnode));
-  if (smaOpen(pVnode, rollback, force)) {
-    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
-  }
   // open blob store engine
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
@@ -595,7 +588,6 @@ _err:
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-  if (pVnode->pSma) smaClose(pVnode->pSma);
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
@@ -622,7 +614,6 @@ void vnodeClose(SVnode *pVnode) {
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-    smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
 
@@ -655,6 +646,13 @@ ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
 
 int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm) { return syncUpdateArbTerm(pVnode->sync, arbTerm); }
 int32_t vnodeGetArbToken(SVnode *pVnode, char *outToken) { return syncGetArbToken(pVnode->sync, outToken); }
+
+int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion) {
+  if (pVnode == NULL || pVnode->pWal == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return walSetKeepVersion(pVnode->pWal, keepVersion);
+}
 
 void vnodeStop(SVnode *pVnode) {}
 

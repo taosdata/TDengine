@@ -70,7 +70,7 @@ void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
   if (code != 0) {
     dError("failed to get proc memory since %s", tstrerror(code));
   }
-  code = taosGetSysMemory(&pInfo->mem_system);
+  code = taosGetSysMemory(&pInfo->mem_system, &pInfo->mem_free, &pInfo->mem_cacheBuffer);
   if (code != 0) {
     dError("failed to get sys memory since %s", tstrerror(code));
   }

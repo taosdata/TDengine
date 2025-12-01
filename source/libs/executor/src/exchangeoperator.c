@@ -26,7 +26,7 @@
 #include "trpc.h"
 
 typedef struct SFetchRspHandleWrapper {
-  uint32_t exchangeId;
+  int64_t  exchangeId;
   int32_t  sourceIndex;
   int64_t  seqId;
 } SFetchRspHandleWrapper;
@@ -189,9 +189,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     }
 
     code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
+    TAOS_CHECK_EXIT(code);
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
     if (pRsp->completed == 1) {
@@ -330,7 +328,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       taosMemoryFreeClear(pDataInfo->pRsp);
 
-      if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !pDataInfo->isVtbRefScan) {
+      if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !pDataInfo->isVtbRefScan && !pDataInfo->isVtbTagScan) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
@@ -454,7 +452,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       return code;
     }
 
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockDataGetNumOfRows(pBlock) == 0) {
@@ -600,7 +598,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
 
   qDebug("%s reset exchange op:%p info:%p", pOper->pTaskInfo->id.str, pOper, pInfo);
 
-  atomic_add_fetch_64(&pInfo->seqId, 1);
+  (void)atomic_add_fetch_64(&pInfo->seqId, 1);
   pOper->status = OP_NOT_OPENED;
   pInfo->current = 0;
   pInfo->loadInfo.totalElapsed = 0;
@@ -962,6 +960,36 @@ _return:
   return code;
 }
 
+static int32_t getCurrentWinCalcTimeRange(SStreamRuntimeFuncInfo* pRuntimeInfo, STimeWindow* pTimeRange) {
+  if (!pRuntimeInfo || !pTimeRange) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SSTriggerCalcParam* pParam = taosArrayGet(pRuntimeInfo->pStreamPesudoFuncVals, pRuntimeInfo->curIdx);
+  if (!pParam) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  switch (pRuntimeInfo->triggerType) {
+    case STREAM_TRIGGER_SLIDING:
+      // Unable to distinguish whether there is an interval, all use wstart/wend
+      // and the results are equal to those of prevTs/currentTs, using the same address of union.
+      pTimeRange->skey = pParam->wstart;  // is equal to wstart
+      pTimeRange->ekey = pParam->wend;    // is equal to wend
+      break;
+    case STREAM_TRIGGER_PERIOD:
+      pTimeRange->skey = pParam->prevLocalTime;
+      pTimeRange->ekey = pParam->triggerTime;
+      break;
+    default:
+      pTimeRange->skey = pParam->wstart;
+      pTimeRange->ekey = pParam->wend;
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -998,6 +1026,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
+    bool needStreamPesudoFuncVals = true;
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
     req.sId = pSource->sId;
@@ -1008,9 +1037,18 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (pTaskInfo->pStreamRuntimeInfo) {
       req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
-      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER)
-        qDebug("doSendFetchDataRequest to execId:%d, %p", req.execId, pTaskInfo->pStreamRuntimeInfo);
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
+        qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
+      } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
+        code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);
+        QUERY_CHECK_CODE(code, lino, _end);
+        needStreamPesudoFuncVals = false;
+        qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
+               GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
+               req.pStRtFuncInfo->curWindow.ekey);
+      }
       if (!pDataInfo->fetchSent) {
         req.reset = pDataInfo->fetchSent = true;
       }
@@ -1048,7 +1086,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
     }
 
-    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
+    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
@@ -1064,7 +1102,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       return pTaskInfo->code;
     }
 
-    msgSize = tSerializeSResFetchReq(msg, msgSize, &req);
+    msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
@@ -1469,8 +1507,41 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
   SExchangeInfo*     pExchangeInfo = pOperator->info;
   SExchangeSrcIndex* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
   if (NULL == pIdx) {
-    qError("No exchange source for vgId: %d", pBasicParam->vgId);
-    return TSDB_CODE_INVALID_PARA;
+    if (pBasicParam->isNewDeployed) {
+      SDownstreamSourceNode *pNode = NULL;
+      int32_t code = nodesCloneNode((SNode*)&pBasicParam->newDeployedSrc, (SNode**)&pNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
+
+      SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pOperator->pPhyNode;
+      code = nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, (SNode*)pNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
+      void* tmp = taosArrayPush(pExchangeInfo->pSources, pNode);
+      if (!tmp) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
+      SExchangeSrcIndex idx = {.srcIdx = taosArrayGetSize(pExchangeInfo->pSources) - 1, .inUseIdx = -1};
+      code =
+          tSimpleHashPut(pExchangeInfo->pHashSources, &pNode->addr.nodeId, sizeof(pNode->addr.nodeId), &idx, sizeof(idx));
+      if (pExchangeInfo->pHashSources && code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
+      pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
+      if (pIdx == NULL) {
+        qError("No exchange source for vgId: %d", pBasicParam->vgId);
+        return TSDB_CODE_INVALID_PARA;
+      }
+    } else {
+      qError("No exchange source for vgId: %d", pBasicParam->vgId);
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   qDebug("start to add single exchange source");

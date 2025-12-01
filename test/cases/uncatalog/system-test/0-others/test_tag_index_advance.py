@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import os
 import random
 import socket
@@ -79,21 +79,6 @@ class TagCluster:
             self.master_dnode.cfgDict["fqdn"], config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def depoly_cluster(self, dnodes_nums):
 
@@ -136,7 +121,7 @@ class TagCluster:
                 dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
             sql += f"create dnode '{dnode_id}'; "
 
-        cmd = f"{self.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s "
+        cmd = f"{tdCom.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s "
         cmd += f'"{sql}"'
         print(cmd)
         os.system(cmd)

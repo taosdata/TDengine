@@ -60,7 +60,9 @@ static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStr
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 
 void mndCleanupStream(SMnode *pMnode) {
-  msmDestroyRuntimeInfo(pMnode);
+  mDebug("try to clean up stream");
+  
+  msmHandleBecomeNotLeader(pMnode);
   
   mDebug("mnd stream runtime info cleanup");
 }
@@ -78,7 +80,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   code = sdbGetRawSoftVer(pRaw, &sver);
   TSDB_CHECK_CODE(code, lino, _over);
 
-  if (sver != MND_STREAM_VER_NUMBER) {
+  if (sver != MND_STREAM_VER_NUMBER && sver != MND_STREAM_COMPATIBLE_VER_NUMBER) {
     mError("stream read invalid ver, data ver: %d, curr ver: %d", sver, MND_STREAM_VER_NUMBER);
     goto _over;
   }
@@ -231,7 +233,7 @@ static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCr
     SFieldWithOptions *pSrc = taosArrayGet(pStream->outCols, i);
 
     tstrncpy(pField->name, pSrc->name, TSDB_COL_NAME_LEN);
-    pField->flags = 0;
+    pField->flags = pSrc->flags;
     pField->type = pSrc->type;
     pField->bytes = pSrc->bytes;
     pField->compress = createDefaultColCmprByType(pField->type);

@@ -7,14 +7,14 @@ class TestNullTag:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_null_tag(self):
-        """NULL tag
+        """NULL: tag
 
-        1. create table with NULL tags
-        2. select tags
-        3. alter tags
-
-        Catalog:
-            - DataTypes
+        1. Create table with NULL tags
+        2. Select tags
+        3. Alter tags with NULL
+        4. Insert data with NULL tags
+        5. Query data with NULL tags
+        
 
         Since: v3.0.0.0
 

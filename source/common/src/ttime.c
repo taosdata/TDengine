@@ -1383,9 +1383,6 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         s += 4;
         break;
       case TSFKW_DDD:
-#ifdef WINDOWS
-        return TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED;
-#endif
         (void)sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;

@@ -118,6 +118,7 @@ typedef struct SMnode {
   int32_t        selfDnodeId;
   int64_t        clusterId;
   TdThread       thread;
+  TdThread       arbThread;
   TdThreadRwlock lock;
   int32_t        rpcRef;
   int32_t        syncRef;

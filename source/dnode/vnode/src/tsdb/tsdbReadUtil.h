@@ -69,6 +69,7 @@ typedef struct STsdbReaderInfo {
   STimeWindow   window;
   SVersionRange verRange;
   int16_t       order;
+  bool          cacheSttStatis;
 } STsdbReaderInfo;
 
 typedef struct SBlockInfoBuf {
@@ -126,8 +127,7 @@ typedef struct STableBlockScanInfo {
   bool         sttBlockReturned;  // result block returned alreay
   int64_t      numOfRowsInStt;
   SSttKeyRange sttRange;
-  //  STimeWindow sttWindow;         // timestamp window for current stt files
-  STimeWindow filesetWindow;  // timestamp window for current file set
+  STimeWindow  filesetWindow;  // timestamp window for current file set
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {
@@ -314,6 +314,13 @@ typedef struct SBrinRecordIter {
   SBrinRecord      record;
 } SBrinRecordIter;
 
+typedef struct STableFirstLastTsIter {
+  STsdbReader* pReader;
+  SHashObj*    pIgnoreTables;
+  SSDataBlock* pBlock;
+  bool         hasNext;
+} STableFirstLastTsIter;
+
 int32_t uidComparFunc(const void* p1, const void* p2);
 int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id);
 
@@ -322,6 +329,7 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
 int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
                                STsdbReader* pReader);
 void    clearBlockScanInfo(STableBlockScanInfo* p);
+void    clearBlockScanInfoLoadInfo(STableBlockScanInfo* p);
 void    destroyAllBlockScanInfo(SSHashObj** pTableMap);
 void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
 void    cleanupInfoForNextFileset(SSHashObj* pTableMap);

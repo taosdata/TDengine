@@ -1,6 +1,7 @@
 name: Deploy Case Docs
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - 'main'
@@ -8,11 +9,12 @@ on:
     types: [closed]  # trigger on PR close
     paths:
       - 'test/cases/**/test_*.py'
+      - 'test/cases/**/test_*.sh'
       - 'test/new_test_framework/utils/*.py'
 
 jobs:
   generate_and_deploy:
-    if: github.event.pull_request.merged == true || ${{ github.event_name }} == "push"  # Only run on PR close or push to branch(for testing)
+    if: github.event.pull_request.merged == true || ${{ github.event_name }} == "push" || github.event_name == 'workflow_dispatch' # Only run on PR close or push to branch(for testing)
     runs-on: ubuntu-latest
 
     permissions:
@@ -67,6 +69,7 @@ jobs:
         run: |
           mkdir -p test/docs/case_list_docs
           python .github/scripts/generate_case_md.py "test/mkdocs.yml" "test/docs/case_list_docs" ""
+          python .github/scripts/generate_shell_case_md.py --branch $BRANCH_NAME
         shell: bash
 
       - name: Generate Markdown files for utils

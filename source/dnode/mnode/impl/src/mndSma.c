@@ -1394,6 +1394,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 _OVER:
 
+  tFreeSMDropSmaReq(&dropReq);
   mndReleaseStb(pMnode, pStb);
   mndReleaseSma(pMnode, pSma);
   mndReleaseDb(pMnode, pDb);

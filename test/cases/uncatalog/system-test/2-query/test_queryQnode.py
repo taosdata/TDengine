@@ -15,7 +15,9 @@ import os
 import threading as thd
 import multiprocessing as mp
 import taos
-from new_test_framework.utils import tdLog, tdSql,tdDnodes, etool
+import re
+import shutil
+from new_test_framework.utils import tdLog, tdSql,tdDnodes, etool, tdCom
 import time
 # constant define
 WAITS = 5 # wait seconds
@@ -39,23 +41,6 @@ class TestQueryqnode:
         '''
         return
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        buildPath=""
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
-
     # init
     def setup_class(cls):
         cls.replicaVar = 1
@@ -73,7 +58,7 @@ class TestQueryqnode:
 
     # --------------- case  -------------------
 
-    def newcur(self,host,cfg):
+    def newcur(self, host, cfg):
         user = "root"
         password = "taosdata"
         port =6030
@@ -84,8 +69,8 @@ class TestQueryqnode:
 
     # create tables
     def create_tables(self,host,dbname,stbname,count):
-        buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        buildPath = tdCom.getBuildPath()
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
 
         tsql=self.newcur(host,config)
         tsql.execute("use %s" %dbname)
@@ -116,8 +101,8 @@ class TestQueryqnode:
         return
 
     def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,childcount):
-        buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        buildPath = tdCom.getBuildPath()
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
 
         tsql=self.newcur(host,config)
         tdLog.debug("create database %s"%dbname)
@@ -146,8 +131,8 @@ class TestQueryqnode:
 
     # insert data
     def insert_data(self, host, dbname, stbname, chilCount, ts_start, rowCount):
-        buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        buildPath = tdCom.getBuildPath()
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
         tsql=self.newcur(host,config)
         tdLog.debug("ready to inser data")
         tsql.execute("use %s" %dbname)
@@ -178,7 +163,7 @@ class TestQueryqnode:
         return
 
     def mutiThread_insert_data(self, host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
 
         tsql=self.newcur(host,config)
@@ -213,7 +198,7 @@ class TestQueryqnode:
 
 
     def taosBench(self,jsonFile):
-        # buildPath = self.getBuildPath()
+        # buildPath = tdCom.getBuildPath()
         # if (buildPath == ""):
         #     tdLog.exit("taosd not found!")
         # else:
@@ -226,8 +211,8 @@ class TestQueryqnode:
     def taosBenchCreate(self,host,dropdb,dbname,stbname,vgroups,processNumbers,count):
 
         # count=50000
-        buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
+        buildPath = tdCom.getBuildPath()
+        config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
         tsql=self.newcur(host,config)
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
@@ -244,13 +229,24 @@ class TestQueryqnode:
             current_dir = os.path.dirname(__file__)
             sourcejsonfile = os.path.join(os.path.dirname(__file__), "manyVgroups.json")
             jsonfile = os.path.join(current_dir, "Vgroups%d%d.json" % (vgroups, i))
-            os.system("cp -f %s %s"%(sourcejsonfile, jsonfile))
-            os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
-            os.system("sed -i 's/\"drop\": \"no\",/\"drop\": \"%s\",/g' %s"%(dropdb,jsonfile))
-            os.system("sed -i 's/\"host\": \"127.0.0.1\",/\"host\": \"%s\",/g' %s"%(host,jsonfile))
-            os.system("sed -i 's/\"childtable_count\": 10000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
-            os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
-            os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
+            shutil.copy2(sourcejsonfile, jsonfile)
+            with open(jsonfile, 'r', encoding='utf-8') as f:
+                content = f.read()
+            content = re.sub(r'"name": "db",', f'"name": "{dbname}",', content)
+            content = re.sub(r'"drop": "no",', f'"drop": "{dropdb}",', content)
+            content = re.sub(r'"host": "127.0.0.1",', f'"host": "{host}",', content)
+            content = re.sub(r'"childtable_count": 10000,', f'"childtable_count": {count},', content)
+            content = re.sub(r'"name": "stb1",', f'"name": "{stbname}{i}",', content)
+            content = re.sub(r'"childtable_prefix": "stb1_",', f'"childtable_prefix": "{stbname}{i}_",', content)
+            with open(jsonfile, 'w', encoding='utf-8') as f:
+                f.write(content)
+            # os.system("cp -f %s %s"%(sourcejsonfile, jsonfile))
+            # os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
+            # os.system("sed -i 's/\"drop\": \"no\",/\"drop\": \"%s\",/g' %s"%(dropdb,jsonfile))
+            # os.system("sed -i 's/\"host\": \"127.0.0.1\",/\"host\": \"%s\",/g' %s"%(host,jsonfile))
+            # os.system("sed -i 's/\"childtable_count\": 10000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
+            # os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
+            # os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
             threads.append(mp.Process(target=self.taosBench, args=("%s"%jsonfile,)))
         start_time = time.time()
         for tr in threads:

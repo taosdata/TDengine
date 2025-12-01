@@ -102,6 +102,7 @@ static void doScan(SMeta *pMeta) {
     tDecoderInit(&dc, (uint8_t *)pVal, vLen);
 
     if (metaDecodeEntry(&dc, &me) < 0) {
+      metaError("Failed to decode entry, uid:%" PRId64 ", reason:%s", me.uid, tstrerror(terrno));
       tDecoderClear(&dc);
       break;
     }
@@ -283,6 +284,7 @@ static void metaResetStatisInfo(SMeta *pMeta) {
   pMeta->pVnode->config.vndStats.numOfVCTables = 0;
   pMeta->pVnode->config.vndStats.numOfNTimeSeries = 0;
   pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
+  pMeta->pVnode->config.vndStats.numOfRSMAs = 0;
 }
 
 static int32_t metaGenerateNewMeta(SMeta **ppMeta) {

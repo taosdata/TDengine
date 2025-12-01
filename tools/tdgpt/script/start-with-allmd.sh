@@ -7,4 +7,4 @@ start_service() {
 
 start_service "systemctl start taosanoded"
 start_service "start-tdtsfm"
-start_service "start-timer-moe"
+start_service "start-time-moe"

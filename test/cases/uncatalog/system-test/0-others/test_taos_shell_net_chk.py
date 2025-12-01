@@ -1,5 +1,5 @@
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 import taos
 import sys
 import time
@@ -112,22 +112,6 @@ class TestTaosShellNetChk:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
-
     def test_taos_shell_net_chk(self):
         """summary: xxx
 
@@ -149,12 +133,16 @@ class TestTaosShellNetChk:
         tdSql.prepare()
         tdSql.query("create user testpy pass 'testpy243#@'")
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        if platform.system().lower() == 'windows':
+            cfgPath = buildPath + "\..\sim\psim\cfg"
+            cfgPath = cfgPath.replace('\\','\\\\')
+        else:
+            cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']

@@ -51,6 +51,8 @@ extern "C" {
 
 #define CTG_BATCH_FETCH 1
 
+#define CATLOG_TIMEOUT 60000
+
 typedef enum {
   CTG_CI_CLUSTER = 0,
   CTG_CI_DNODE,
@@ -136,6 +138,7 @@ typedef enum {
   CTG_TASK_GET_TSMA,
   CTG_TASK_GET_TB_NAME,
   CTG_TASK_GET_V_STBREFDBS,
+  CTG_TASK_GET_RSMA,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -1115,6 +1118,8 @@ int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const
                                   STableMetaOutput* out, SCtgTaskReq* tReq);
 int32_t ctgGetTbMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableMetaOutput* out,
                               SCtgTaskReq* tReq);
+int32_t ctgGetRsmaMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaMetaOutput* out,
+                                SCtgTaskReq* tReq);
 int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* vgroupInfo,
                               STableMetaOutput* out, SCtgTaskReq* tReq);
 int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,

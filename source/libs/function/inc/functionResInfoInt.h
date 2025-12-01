@@ -1,17 +1,17 @@
 /*
-* Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-*
-* This program is free software: you can use, redistribute, and/or modify
-* it under the terms of the GNU Affero General Public License, version 3
-* or later ("AGPL"), as published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.
-*
-* You should have received a copy of the GNU Affero General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef TDENGINE_FUNCTIONRESINFOINT_H
 #define TDENGINE_FUNCTIONRESINFOINT_H
@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "thistogram.h"
-#include "tdigest.h"
-#include "functionResInfo.h"
-#include "tpercentile.h"
 #include "decimal.h"
+#include "functionResInfo.h"
+#include "os.h"
+#include "tdigest.h"
+#include "thistogram.h"
+#include "tpercentile.h"
 
 #define USE_ARRAYLIST
 
@@ -53,10 +53,10 @@ typedef struct SDecimalSumRes {
   int64_t    prevTs;
   bool       isPrevTsSet;
   bool       overflow;
-  uint32_t   flag; // currently not used
+  uint32_t   flag;  // currently not used
 } SDecimalSumRes;
 
-#define SUM_RES_GET_RES(pSumRes) ((SSumRes*)pSumRes)
+#define SUM_RES_GET_RES(pSumRes)         ((SSumRes*)pSumRes)
 #define SUM_RES_GET_DECIMAL_RES(pSumRes) ((SDecimalSumRes*)pSumRes)
 
 #define SUM_RES_GET_SIZE(type) IS_DECIMAL_TYPE(type) ? sizeof(SDecimalSumRes) : sizeof(SSumRes)
@@ -77,9 +77,9 @@ typedef struct SDecimalSumRes {
   (checkInputType && IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->overflow \
                                                 : SUM_RES_GET_RES(pSumRes)->overflow)
 
-#define SUM_RES_GET_ISUM(pSumRes) (((SSumRes*)(pSumRes))->isum)
-#define SUM_RES_GET_USUM(pSumRes) (((SSumRes*)(pSumRes))->usum)
-#define SUM_RES_GET_DSUM(pSumRes) (((SSumRes*)(pSumRes))->dsum)
+#define SUM_RES_GET_ISUM(pSumRes)      (((SSumRes*)(pSumRes))->isum)
+#define SUM_RES_GET_USUM(pSumRes)      (((SSumRes*)(pSumRes))->usum)
+#define SUM_RES_GET_DSUM(pSumRes)      (((SSumRes*)(pSumRes))->dsum)
 #define SUM_RES_INC_ISUM(pSumRes, val) ((SSumRes*)(pSumRes))->isum += val
 #define SUM_RES_INC_USUM(pSumRes, val) ((SSumRes*)(pSumRes))->usum += val
 #define SUM_RES_INC_DSUM(pSumRes, val) ((SSumRes*)(pSumRes))->dsum += val
@@ -90,10 +90,10 @@ typedef struct SDecimalSumRes {
     const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                           \
     int32_t            wordNum = 0;                                                            \
     if (type == TSDB_DATA_TYPE_DECIMAL64) {                                                    \
-      wordNum = DECIMAL_WORD_NUM(Decimal64);                                                           \
+      wordNum = DECIMAL_WORD_NUM(Decimal64);                                                   \
       overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
     } else {                                                                                   \
-      wordNum = DECIMAL_WORD_NUM(Decimal);                                                             \
+      wordNum = DECIMAL_WORD_NUM(Decimal);                                                     \
       overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
     }                                                                                          \
     pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum);                               \
@@ -101,13 +101,13 @@ typedef struct SDecimalSumRes {
   } while (0)
 
 typedef struct SMinmaxResInfo {
-  bool      assign;  // assign the first value or not
+  bool assign;  // assign the first value or not
   union {
     struct {
       int64_t v;
       char*   str;
     };
-    int64_t dec[2]; // for decimal types
+    int64_t dec[2];  // for decimal types
   };
   STuplePos tuplePos;
 
@@ -142,6 +142,23 @@ typedef struct SStdRes {
   };
   int16_t type;
 } SStdRes;
+
+typedef struct SGconcatRes {
+  char*    result;
+  char*    separator;
+  uint32_t type;
+  bool     nchar;
+} SGconcatRes;
+
+typedef struct SCorrRes {
+  double  result;
+  double  sumLeft;
+  double  sumRight;
+  double  quadLeft;
+  double  quadRight;
+  double  productVal;
+  int64_t count;
+} SCorrRes;
 
 typedef struct SHistBin {
   double  val;
@@ -207,18 +224,18 @@ typedef struct SDecimalAvgRes {
   Decimal128     avg;
   SDecimalSumRes sum;
   int64_t        count;
-  int16_t        type; // store the original input type and scale, used in merge function
+  int16_t        type;  // store the original input type and scale, used in merge function
   uint8_t        scale;
 } SDecimalAvgRes;
 
-#define AVG_RES_GET_RES(pAvgRes) ((SAvgRes*)pAvgRes)
+#define AVG_RES_GET_RES(pAvgRes)         ((SAvgRes*)pAvgRes)
 #define AVG_RES_GET_DECIMAL_RES(pAvgRes) ((SDecimalAvgRes*)pAvgRes)
 #define AVG_RES_SET_TYPE(pAvgRes, inputType, _type)   \
   do {                                                \
     if (IS_DECIMAL_TYPE(inputType))                   \
       AVG_RES_GET_DECIMAL_RES(pAvgRes)->type = _type; \
     else                                              \
-      AVG_RES_GET_RES(pAvgRes)->type = _type;          \
+      AVG_RES_GET_RES(pAvgRes)->type = _type;         \
   } while (0)
 
 #define AVG_RES_SET_INPUT_SCALE(pAvgRes, _scale)      \
@@ -233,8 +250,8 @@ typedef struct SDecimalAvgRes {
 
 #define AVG_RES_GET_SIZE(inputType) (IS_DECIMAL_TYPE(inputType) ? sizeof(SDecimalAvgRes) : sizeof(SAvgRes))
 #define AVG_RES_GET_AVG(pAvgRes)    (AVG_RES_GET_RES(pAvgRes)->result)
-#define AVG_RES_GET_SUM(pAvgRes) (AVG_RES_GET_RES(pAvgRes)->sum)
-#define AVG_RES_GET_COUNT(pAvgRes, checkInputType, inputType)                              \
+#define AVG_RES_GET_SUM(pAvgRes)    (AVG_RES_GET_RES(pAvgRes)->sum)
+#define AVG_RES_GET_COUNT(pAvgRes, checkInputType, inputType)                             \
   (checkInputType && IS_DECIMAL_TYPE(inputType) ? AVG_RES_GET_DECIMAL_RES(pAvgRes)->count \
                                                 : AVG_RES_GET_RES(pAvgRes)->count)
 #define AVG_RES_INC_COUNT(pAvgRes, inputType, val)    \
@@ -299,7 +316,7 @@ typedef struct MinMaxEntry {
 typedef struct {
   int32_t    size;
   int32_t    pageId;
-  SFilePage *data;
+  SFilePage* data;
 } SSlotInfo;
 
 typedef struct tMemBucketSlot {
@@ -308,7 +325,7 @@ typedef struct tMemBucketSlot {
 } tMemBucketSlot;
 
 struct tMemBucket;
-typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value, int32_t *index);
+typedef int32_t (*__perc_hash_func_t)(struct tMemBucket* pBucket, const void* value, int32_t* index);
 
 typedef struct tMemBucket {
   int16_t            numOfSlots;
@@ -322,10 +339,10 @@ typedef struct tMemBucket {
   MinMaxEntry        range;        // value range
   int32_t            times;        // count that has been checked for deciding the correct data value buckets.
   __compar_fn_t      comparFn;
-  tMemBucketSlot    *pSlots;
-  SDiskbasedBuf     *pBuffer;
+  tMemBucketSlot*    pSlots;
+  SDiskbasedBuf*     pBuffer;
   __perc_hash_func_t hashFunc;
-  SHashObj          *groupPagesMap;  // disk page map for different groups;
+  SHashObj*          groupPagesMap;  // disk page map for different groups;
 } tMemBucket;
 
 typedef struct SPercentileInfo {
@@ -473,11 +490,11 @@ typedef struct SRateInfo {
   TSKEY  lastKey;
   int8_t hasResult;  // flag to denote has value
 
-  char* firstPk;
-  char* lastPk;
-  int8_t pkType;
+  char*   firstPk;
+  char*   lastPk;
+  int8_t  pkType;
   int32_t pkBytes;
-  char pkData[];
+  char    pkData[];
 } SRateInfo;
 
 #ifdef __cplusplus

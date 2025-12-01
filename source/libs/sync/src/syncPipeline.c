@@ -66,7 +66,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   }
 
   SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
-  if (pNode->restoreFinish && pBuf->commitIndex - appliedIndex >= TSDB_SYNC_APPLYQ_SIZE_LIMIT) {
+  if (pNode->restoreFinish && pBuf->commitIndex - appliedIndex >= tsSyncApplyQueueSize) {
     code = TSDB_CODE_SYN_WRITE_STALL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64 ", applied-index:%" PRId64,
            pNode->vgId, tstrerror(code), index, pBuf->commitIndex, appliedIndex);
@@ -825,9 +825,10 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   if (commitIndex <= pBuf->commitIndex) {
     sGDebug(trace, "vgId:%d, stale commit index:%" PRId64 ", notified:%" PRId64, vgId, commitIndex, pBuf->commitIndex);
     if (!pNode->restoreFinish && commitIndex > 0 && commitIndex == pBuf->commitIndex) {
+      sInfo("vgId:%d, try to get entry for restore check at index:%" PRId64, vgId, commitIndex);
       int32_t ret = syncLogBufferGetOneEntry(pBuf, pNode, commitIndex, &inBuf, &pEntry);
       if (ret != 0) {
-        sError("vgId:%d, failed to get entry at index:%" PRId64, vgId, commitIndex);
+        sWarn("vgId:%d, failed to get entry for restore check at index:%" PRId64, vgId, commitIndex);
       }
     }
     goto _out;
@@ -948,13 +949,26 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   code = 0;
 _out:
   // mark as restored if needed
-  if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex && pEntry != NULL &&
-      currentTerm <= pEntry->term) {
-    pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
-    pNode->restoreFinish = true;
-    restoreFinishAtThisCommit = true;
-    sInfo("vgId:%d, restore finished, term:%" PRId64 ", log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-          pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+  if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex) {
+    if (pEntry != NULL) {
+      if (currentTerm <= pEntry->term) {
+        pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
+        pNode->restoreFinish = true;
+        restoreFinishAtThisCommit = true;
+        sInfo("vgId:%d, restore finished, term:%" PRId64 ", log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
+              ")",
+              pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+      }
+    } else {
+      if (pNode->state == TAOS_SYNC_STATE_FOLLOWER) {
+        pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
+        pNode->restoreFinish = true;
+        restoreFinishAtThisCommit = true;
+        sWarn("vgId:%d, restore finished, but wal not exist, role is follower, term:%" PRId64 ", log buffer: [%" PRId64
+              " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+              pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+      }
+    }
   }
 
   if (!inBuf) {

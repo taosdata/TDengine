@@ -5,13 +5,13 @@ import os.path
 import unittest
 import sys
 
-import numpy as np
-from matplotlib import pyplot as plt
+from taosanalytics.algo.imputation import check_freq_param
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.servicemgmt import loader
-from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary
+from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
+    parse_time_delta_string
 
 
 class UtilTest(unittest.TestCase):
@@ -19,18 +19,26 @@ class UtilTest(unittest.TestCase):
 
     def test_generate_anomaly_window(self):
         # Test case 1: Normal input
-        wins = convert_results_to_windows([1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, -1],
+        wins, mask = convert_results_to_windows([1, -1, -2, 1, 1, 1, -1, -1, -1, 1, 1, -1],
                                           [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
         print(f"The result window is:{wins}")
 
         # Assert the number of windows
-        self.assertEqual(len(wins), 2)
+        self.assertEqual(len(wins), 4)
 
         # Assert the first window
-        self.assertListEqual(wins[0], [7, 9])
+        self.assertListEqual(wins[0], [2, 2])
+        self.assertListEqual(wins[1], [3, 3])
+
+        self.assertListEqual(wins[2], [7, 9])
 
         # Assert the second window
-        self.assertListEqual(wins[1], [12, 12])
+        self.assertListEqual(wins[3], [12, 12])
+
+        self.assertEqual(mask[0], -1)
+        self.assertEqual(mask[1], -2)
+        self.assertEqual(mask[2], -1)
+        self.assertEqual(mask[3], -1)
 
         # Test case 2: Anomaly input list is empty
         wins = convert_results_to_windows([], [1, 2], 1)
@@ -106,6 +114,44 @@ class UtilTest(unittest.TestCase):
             if val[0] == "val":
                 return index
 
+    def test_download_tsfmmodel(self):
+        # from huggingface_hub import snapshot_download
+        # from tqdm import tqdm
+
+        # export HF_ENDPOINT=https://hf-mirror.com
+        # model_list = ['Salesforce/moirai-1.0-R-small']
+        # for item in tqdm(model_list):
+        #     snapshot_download(
+        #         repo_id=item,
+        #         local_dir="/var/lib/taos/taosanode/model/moirai",  # storage directory
+        #         local_dir_use_symlinks=False,   # disable the link
+        #         resume_download=True,
+        #         endpoint='https://hf-mirror.com'
+        #     )
+        #
+        print("download moirai-moe-1.0-small success")
+
+    def test_parse_freq(self):
+        val, unit = parse_time_delta_string('12s')
+        self.assertEqual(val, 12)
+        self.assertEqual(unit, 's')
+
+        val, unit = parse_time_delta_string('m')
+        self.assertEqual(val, 1)
+        self.assertEqual(unit, 'm')
+
+    def test_list_delta(self):
+        with self.assertRaises(ValueError):
+            check_freq_param([100, 200, 300, 400, 500, 600], '1s', 'ms')
+
+        with self.assertRaises(ValueError):
+            check_freq_param([123, 456, 789], '1m', 'ms')
+
+        check_freq_param([100, 200, 300, 400, 500, 600], '20s', 's')
+        check_freq_param([20, 30, 40, 50, 60, 90], '10s', 's')
+        check_freq_param([1, 2, 3, 4, 5, 6],'10s', 'm')
+        check_freq_param([123, 419, 533, 918], '20ms', 'ms')
+
 
 class ServiceTest(unittest.TestCase):
     def setUp(self):
@@ -114,14 +160,17 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 2)
+        self.assertEqual(len(service_list["details"]), 4)
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 self.assertEqual(len(item["algo"]), 6)
+            elif item["type"] == "forecast":
+                self.assertEqual(len(item["algo"]), 8)
+            elif item["type"] == 'correlation':
+                self.assertEqual(len(item['algo']), 2)
             else:
-                self.assertEqual(len(item["algo"]), 7)
-
+                self.assertEqual(len(item["algo"]), 1)
 
 if __name__ == '__main__':
     unittest.main()

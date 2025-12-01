@@ -10,6 +10,7 @@
 #include "tdef.h"
 #include "tjson.h"
 #include "ttime.h"
+#include "tcompare.h"
 
 typedef float (*_float_fn)(float);
 typedef float (*_float_fn_2)(float, float);
@@ -1296,6 +1297,428 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   pOutput->numOfRows = numOfRows;
 _return:
   taosMemoryFree(outputBuf);
+
+  return code;
+}
+
+
+static int32_t matchInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, bool (*compare)(const char*, int32_t, const char*, int32_t)) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+
+  SColumnInfoData *pats = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
+  char  *patstr = NULL, *setstr = NULL, *sepstr = ","; // "," is the default seperator
+  int32_t patLen = 0, setLen = 0, sepLen = 1;
+  int32_t patNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
+  bool needFreePat = false, needFreeSep = false;
+
+  if (inputNum == 3) {
+    sepNum = pInput[2].numOfRows;
+    seps = pInput[2].columnData;
+  }
+  int32_t numOfRows = TMAX(TMAX(patNum, setNum), sepNum);
+
+  int32_t setType = GET_PARAM_TYPE(&pInput[1]);
+
+  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))
+    || IS_NULL_TYPE(setType))
+    || (patNum == 1 && colDataIsNull_s(pats, 0))
+    || (setNum == 1 && colDataIsNull_s(sets, 0))) {
+    colDataSetNNULL(pOutput->columnData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return code;
+  }
+
+  // if there's only one pat/set/sep, get it now to improve performance
+  if (patNum == 1) {
+    patLen = varDataLen(colDataGetData(pats, 0));
+    patstr = varDataVal(colDataGetData(pats, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) != setType) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(patstr, &patstr, patLen, &patLen, setType, pInput[0].charsetCxt)); 
+      needFreePat = true;
+    }
+  }
+
+  if (setNum == 1) {
+    setLen = varDataLen(colDataGetData(sets, 0));
+    setstr = varDataVal(colDataGetData(sets, 0));
+  }
+
+  if (sepNum == 0) {
+    // use default seperator if was not provided, but we may need to convert it to nchar.
+    if (setType == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, NULL));
+        needFreeSep = true;
+    }
+  } else if (sepNum > 1) {
+    // do nothing in this case
+  } else if (colDataIsNull_s(seps, 0)) {
+    // treat null seperator as empty
+    sepstr = NULL;
+    sepLen = 0;
+  } else {
+    sepLen = varDataLen(colDataGetData(seps, 0));
+    sepstr = varDataVal(colDataGetData(seps, 0));
+    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != setType) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, setType, pInput[2].charsetCxt));
+      needFreeSep = true;
+    }
+  }
+
+  bool utf8 = strcasecmp(pInput[1].charsetCxt ? pInput[1].charsetCxt : tsCharset, "UTF-8") == 0;
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int64_t offset = 0;
+
+    // get set first is better for performance because some alloc/free of pat & sep can be avoided.
+    if (setNum > 1) {
+      if (colDataIsNull_s(sets, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      setstr = varDataVal(colDataGetData(sets, i));
+      setLen = varDataLen(colDataGetData(sets, i));
+    }
+
+    if (patNum > 1) {
+      if (colDataIsNull_s(pats, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (needFreePat) {
+        taosMemoryFree(patstr);
+        needFreePat = false;
+      }
+      patstr = varDataVal(colDataGetData(pats, i));
+      patLen = varDataLen(colDataGetData(pats, i));
+      if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) != setType) {
+        SCL_ERR_JRET(convBetweenNcharAndVarchar(patstr, &patstr, patLen, &patLen, setType, pInput[0].charsetCxt)); 
+        needFreePat = true;
+      }
+    }
+
+    if (sepNum > 1) {
+      if (needFreeSep) {
+        taosMemoryFree(sepstr);
+        needFreeSep = false;
+      }
+      if (colDataIsNull_s(seps, i)) {
+        sepstr = NULL;
+        sepLen = 0;
+      } else {
+        sepLen = varDataLen(colDataGetData(seps, i));
+        sepstr = varDataVal(colDataGetData(seps, i));
+        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != setType) {
+          SCL_ERR_JRET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, setType, pInput[2].charsetCxt));
+          needFreeSep = true;
+        }
+      }
+    }
+
+    // compare pat & set directly when seperator is empty
+    if (sepLen == 0) {
+      if (compare(patstr, patLen, setstr, setLen)) {
+        offset = 1;
+      }
+      colDataSetInt64(pOutput->columnData, i, &offset);
+      continue;
+    }
+
+    char *start = setstr;
+    for (int32_t j = 0; start < setstr + setLen; j++) {
+      char* end = start;
+
+      while (true) {
+        // set [end] to the end of [setstr] if not enough characters for a seperator
+        if (end + sepLen > setstr + setLen) {
+          end = setstr + setLen;
+          break;
+        }
+        // a seperator is found
+        if (memcmp(end, sepstr, sepLen) == 0) {
+          break;
+        }
+        // not a seperator, advance one character
+        if (setType == TSDB_DATA_TYPE_NCHAR) {
+          end += TSDB_NCHAR_SIZE;
+        } else if (utf8) {
+          for (end++; end - setstr < setLen && ((*end & 0xC0) == 0x80); end++);
+        } else {
+          end++;
+        }
+      }
+
+      if (compare(patstr, patLen, start, end - start)) {
+        offset = j + 1;
+        break;
+      }
+
+      start = end + sepLen;
+    }
+
+    colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  if (needFreePat) {
+    taosMemoryFree(patstr);
+  }
+  if (needFreeSep) {
+    taosMemoryFree(sepstr);
+  }
+
+  return code;
+}
+
+static bool findInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  return (aLen == bLen) && (memcmp(a, b, aLen) == 0);
+}
+
+int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return matchInSetFunction(pInput, inputNum, pOutput, findInSetCompare);
+}
+
+static bool likeInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
+  return patternMatch(a, aLen, b, bLen, &pInfo) == TSDB_PATTERN_MATCH;
+}
+
+static bool wcsLikeInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
+  return wcsPatternMatch((TdUcs4*)a, aLen/TSDB_NCHAR_SIZE, (TdUcs4*)b, bLen/TSDB_NCHAR_SIZE, &pInfo) == TSDB_PATTERN_MATCH;
+}
+
+int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+    return matchInSetFunction(pInput, inputNum, pOutput, wcsLikeInSetCompare);
+  }
+  return matchInSetFunction(pInput, inputNum, pOutput, likeInSetCompare);
+}
+
+// to improve performance, the implementation of regexp_in_set is a little different from
+// find_in_set & like_in_set.
+int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
+
+static bool regexpInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  char patBuf[256], strBuf[256], msgbuf[256];
+
+  char  *pattern = patBuf, *str = strBuf;
+  if (aLen >= sizeof(patBuf)) {
+    pattern = taosMemoryMalloc(aLen + 1);
+    if (NULL == pattern) {
+      return false;  // terrno has been set
+    }
+  }
+  (void)memcpy(pattern, a, aLen);
+  pattern[aLen] = 0;
+
+  if (bLen >= sizeof(strBuf)) {
+    str = taosMemoryMalloc(bLen + 1);
+    if (NULL == str) {
+      if (pattern != patBuf) {
+        taosMemoryFree(pattern);
+      }
+      return false;  // terrno has been set
+    }
+  }
+  (void)memcpy(str, b, bLen);
+  str[bLen] = 0;
+
+  regex_t *regex = NULL;
+  int32_t ret = threadGetRegComp(&regex, pattern);
+  if (ret != 0) {
+    goto _return;
+  }
+
+  regmatch_t pmatch[1];
+  ret = regexec(regex, str, 1, pmatch, 0);
+  if (ret != 0 && ret != REG_NOMATCH) {
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
+    qDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf);
+  }
+
+_return:
+  if (str != strBuf) {
+    taosMemoryFree(str);
+  }
+  if( pattern != patBuf) {
+    taosMemoryFree(pattern);
+  }
+
+  return ret == 0;
+}
+
+int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+
+  SColumnInfoData *pats = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
+  char  *patstr = NULL, *setstr = NULL, *sepstr = ","; // "," is the default seperator
+  int32_t patLen = 0, setLen = 0, sepLen = 1;
+  int32_t patNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
+  bool needFreePat = false, needFreeSet = false, needFreeSep = false;
+
+  if (inputNum == 3) {
+    sepNum = pInput[2].numOfRows;
+    seps = pInput[2].columnData;
+  }
+  int32_t numOfRows = TMAX(TMAX(patNum, setNum), sepNum);
+
+  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))
+    || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))
+    || (patNum == 1 && colDataIsNull_s(pats, 0))
+    || (setNum == 1 && colDataIsNull_s(sets, 0)))) {
+    colDataSetNNULL(pOutput->columnData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return code;
+  }
+
+  // if there's only one pat/set/sep, get it now to improve performance
+  if (patNum == 1) {
+    patLen = varDataLen(colDataGetData(pats, 0));
+    patstr = varDataVal(colDataGetData(pats, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+      needFreePat = true;
+    }
+  }
+
+  if (setNum == 1) {
+    setLen = varDataLen(colDataGetData(sets, 0));
+    setstr = varDataVal(colDataGetData(sets, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+      needFreeSet = true;
+    }
+  }
+
+  if (sepNum != 1) {
+    // do nothing in this case
+  } else if (colDataIsNull_s(seps, 0)) {
+    // treat null seperator as empty
+    sepstr = NULL;
+    sepLen = 0;
+  } else {
+    sepLen = varDataLen(colDataGetData(seps, 0));
+    sepstr = varDataVal(colDataGetData(seps, 0));
+    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
+      needFreeSep = true;
+    }
+  }
+
+  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int64_t offset = 0;
+
+    if (patNum > 1) {
+      if (colDataIsNull_s(pats, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (needFreePat) {
+        taosMemoryFree(patstr);
+        needFreePat = false;
+      }
+      patstr = varDataVal(colDataGetData(pats, i));
+      patLen = varDataLen(colDataGetData(pats, i));
+      if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+        needFreePat = true;
+      }
+    }
+
+    if (setNum > 1) {
+      if (colDataIsNull_s(sets, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (needFreeSet) {
+        taosMemoryFree(setstr);
+        needFreeSet = false;
+      }
+      setstr = varDataVal(colDataGetData(sets, i));
+      setLen = varDataLen(colDataGetData(sets, i));
+      if (setLen > 0 && GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
+        needFreeSet = true;
+      }
+    }
+
+    if (sepNum > 1) {
+      if (needFreeSep) {
+        taosMemoryFree(sepstr);
+        needFreeSep = false;
+      }
+      if (colDataIsNull_s(seps, i)) {
+        sepstr = NULL;
+        sepLen = 0;
+      } else {
+        sepLen = varDataLen(colDataGetData(seps, i));
+        sepstr = varDataVal(colDataGetData(seps, i));
+        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != TSDB_DATA_TYPE_NCHAR) {
+          SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
+          needFreeSep = true;
+        }
+      }
+    }
+
+    // match pat & set directly when seperator is empty
+    if (sepLen == 0) {
+      if (regexpInSetCompare(patstr, patLen, setstr, setLen)) {
+        offset = 1;
+      }
+      colDataSetInt64(pOutput->columnData, i, &offset);
+      continue;
+    }
+
+    char *start = setstr;
+    for (int32_t j = 0; start < setstr + setLen; j++) {
+      char* end = start;
+
+      while (true) {
+        // set [end] to the end of [setstr] if not enough characters for a seperator
+        if (end + sepLen > setstr + setLen) {
+          end = setstr + setLen;
+          break;
+        }
+        // a seperator is found
+        if (memcmp(end, sepstr, sepLen) == 0) {
+          break;
+        }
+        // not a seperator, advance one character
+        if (utf8) {
+          for (end++; end - setstr < setLen && ((*end & 0xC0) == 0x80); end++);
+        } else {
+          end++;
+        }
+      }
+
+      if (regexpInSetCompare(patstr, patLen, start, end - start)) {
+        offset = j + 1;
+        break;
+      }
+
+      start = end + sepLen;
+    }
+
+    colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  if (needFreePat) {
+    taosMemoryFree(patstr);
+  }
+  if (needFreeSet) {
+    taosMemoryFree(setstr);
+  }
+  if (needFreeSep) {
+    taosMemoryFree(sepstr);
+  }
 
   return code;
 }
@@ -2683,9 +3106,54 @@ _return:
   return code;
 }
 
-int32_t toCharFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  char   *format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
-  char   *out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
+int32_t dateFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  int32_t code = 0;
+  char* format = "yyyy-mm-dd";
+  char* out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
+  SArray *formats = NULL;
+  if (out == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
+  int64_t precision = 0;
+  GET_TYPED_DATA(precision, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
+                typeGetTypeModFromColInfo(&pInput[1].columnData->info));
+
+  for (int32_t rowIdx = 0; rowIdx < pInput[0].numOfRows; ++rowIdx) {
+    if (colDataIsNull_s(pInput[0].columnData, rowIdx)) {
+      colDataSetNULL(pOutput->columnData, rowIdx);
+      continue;
+    }
+
+    int32_t type = GET_PARAM_TYPE(&pInput[0]);
+    char *data = colDataGetData(pInput[0].columnData, rowIdx);
+    int64_t ts = 0;
+    if (IS_VAR_DATA_TYPE(type)) { // datetime format strings
+      int32_t ret = convertStringToTimestamp(type, data, precision, &ts, pInput->tz, pInput->charsetCxt);
+      if (ret != TSDB_CODE_SUCCESS) {
+        colDataSetNULL(pOutput->columnData, rowIdx);
+        continue;
+      }
+    } else if (type == TSDB_DATA_TYPE_TIMESTAMP || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
+      GET_TYPED_DATA(ts, int64_t, type, data, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+    }
+
+    SCL_ERR_JRET(taosTs2Char(format, &formats, ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN, pInput->tz));
+    varDataSetLen(out, strlen(varDataVal(out)));
+    SCL_ERR_JRET(colDataSetVal(pOutput->columnData, rowIdx, out, false));
+  }
+
+_return:
+  if (code) {
+    qError("dateFunction failed since %s", tstrerror(code));
+  }
+  if (formats) taosArrayDestroy(formats);
+  taosMemoryFree(out);
+  return code;
+}
+
+int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  char *  format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
+  char *  out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
   int32_t len;
   SArray *formats = NULL;
   int32_t code = 0;
@@ -3373,6 +3841,11 @@ bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv
   return true;
 }
 
+bool getMaskPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
+  pEnv->calcMemSize = sizeof(int32_t);
+  return true;
+}
+
 #ifdef BUILD_NO_CALL
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   colDataSetInt64(pOutput->columnData, pOutput->numOfRows, (int64_t *)colDataGetData(pInput->columnData, 0));
@@ -3400,6 +3873,12 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t anomalyCheckMaskFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t p = *(int64_t*) colDataGetData(pInput->columnData, 5);
+  colDataSetInt32(pOutput->columnData, pOutput->numOfRows, (int32_t *)&p);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int8_t data = 0;
   colDataSetInt8(pOutput->columnData, pOutput->numOfRows, &data);
@@ -3408,7 +3887,7 @@ int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char   *p = colDataGetData(pInput->columnData, 0);
-  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, 1, true);
   if (code) {
     return code;
   }
@@ -3788,7 +4267,6 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  // int64_t count = 0, sum = 0, qSum = 0;
   bool hasNull = false;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -3796,80 +4274,6 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       hasNull = true;
       break;
     }
-#if 0
-    switch(type) {
-      case TSDB_DATA_TYPE_TINYINT: {
-        int8_t *in  = (int8_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT: {
-        int16_t *in  = (int16_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_INT: {
-        int32_t *in  = (int32_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        int64_t *in  = (int64_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UTINYINT: {
-        uint8_t *in  = (uint8_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_USMALLINT: {
-        uint16_t *in  = (uint16_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UINT: {
-        uint32_t *in  = (uint32_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UBIGINT: {
-        uint64_t *in  = (uint64_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        float *in  = (float *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        double *in  = (double *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-    }
-#endif
   }
 
   double *out = (double *)pOutputData->pData;
@@ -3877,24 +4281,38 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     colDataSetNULL(pOutputData, 0);
   } else {
     *out = 0;
-#if 0
-    double avg = 0;
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      avg = (int64_t)sum / (double)count;
-      *out =  sqrt(fabs((int64_t)qSum / ((double)count) - avg * avg));
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      avg = (uint64_t)sum / (double)count;
-      *out =  sqrt(fabs((uint64_t)qSum / ((double)count) - avg * avg));
-    } else if (IS_FLOAT_TYPE(type)) {
-      avg = (double)sum / (double)count;
-      *out =  sqrt(fabs((double)qSum / ((double)count) - avg * avg));
-    }
-#endif
   }
 
   pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t corrScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData1 = pInput[0].columnData;
+  SColumnInfoData *pInputData2 = pInput[1].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_f(pInputData1, i) || colDataIsNull_f(pInputData2, i)) {
+      hasNull = true;
+      break;
+    }
+  }
+
+  double *out = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataSetNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
 
 #define LEASTSQR_CAL(p, x, y, index, step) \
   do {                                     \
@@ -4066,6 +4484,22 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
+
+    // For '%f' (or '%F') in 'printf' functions, the C99 standard states:
+    //   A double argument representing an infinity is converted in one of the styles [-]inf
+    //   or [-]infinity — which style is implementation-defined. A double argument representing
+    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence) — which style,
+    //   and the meaning of any n-char-sequence, is implementation-defined.
+    //
+    // To make the behavior consistent across different compilers and avoid issues like TD-37674,
+    // we truncate the output when necessary.
+    if (isinf(matrix02) || isnan(matrix02)) {
+      slopBuf[(slopBuf[0] == '-') ? 4 : 3] = 0;
+    }
+    if (isinf(matrix12) || isnan(matrix12)) {
+      interceptBuf[(interceptBuf[0] == '-') ? 4 : 3] = 0;
+    }
+
     size_t len =
         snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
     varDataSetLen(buf, len);
@@ -4900,34 +5334,51 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
   return 0;
 }
 
-void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid) {
+int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid, int32_t type) {
   SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
   SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
-  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
-    if (timeStartParas.opType == OP_TYPE_GREATER_THAN || timeStartParas.opType == OP_TYPE_LOWER_THAN) {
+  int32_t code = 0, lino = 0;
+  if ((type & 0x1) && node->pStart) {
+    TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas));
+    
+    if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left. 
       pWinRange->skey = timeStartParas.timeValue + 1;
-    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL || OP_TYPE_LOWER_EQUAL) {
+    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
       pWinRange->skey = timeStartParas.timeValue;
     } else {
       qError("start time range error, opType:%d", timeStartParas.opType);
-      return;
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
   } else {
-    pWinRange->skey = 0;
+    pWinRange->skey = INT64_MIN;
   }
-  if (scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
-    if (timeEndParas.opType == OP_TYPE_LOWER_THAN || timeEndParas.opType == OP_TYPE_GREATER_THAN) {
-      pWinRange->ekey = timeEndParas.timeValue - 1;
-    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL || timeEndParas.opType == OP_TYPE_GREATER_EQUAL) {
+  
+  if ((type & 0x2) && node->pEnd) {
+    TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas));
+    
+    if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue;
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+      pWinRange->ekey = timeEndParas.timeValue + 1;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);
-      return;
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
   } else {
     pWinRange->ekey = INT64_MAX;
   }
-  qDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
+  
+  qDebug("%s, stream curr win calc range, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   *winRangeValid = true;
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
+
+

@@ -250,7 +250,7 @@ struct SSyncNode {
 };
 
 // open/close --------------
-SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
+SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t electInterval, int32_t heartbeatInterval);
 int32_t    syncNodeStart(SSyncNode* pSyncNode);
 int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
@@ -285,7 +285,7 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 void    syncNodeResetElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode, int32_t heartbeatInterval);
 
 // utils --------------
 int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
@@ -299,7 +299,7 @@ bool      syncNodeIsReadyForRead(SSyncNode* pSyncNode);
 // raft state change --------------
 void    syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 void    syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
-void    syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm, SRaftId id);
+void    syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm, SRaftId id, char* strFrom);
 void    syncNodeBecomeFollower(SSyncNode* pSyncNode, SRaftId leaderId, const char* debugStr);
 void    syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr);
 void    syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);

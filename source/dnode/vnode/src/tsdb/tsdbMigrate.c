@@ -21,18 +21,21 @@
 #include "tsdbInt.h"
 
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate);
+extern int32_t tsdbAsyncCompact(STsdb* tsdb, const STimeWindow* tw, ETsdbOpType type);
 
 
 // migrate monitor related functions
 typedef struct SSsMigrateMonitor {
   TdThreadCond  stateChanged;
-  SVnodeSsMigrateState state;
+  int32_t ssMigrateId;
+  int32_t fid;
+  int32_t state;
+  int64_t startTimeSec;
 } SSsMigrateMonitor;
 
 
 static int32_t getSsMigrateId(STsdb* tsdb) {
-  return tsdb->pSsMigrateMonitor->state.vnodeMigrateId;
+  return tsdb->pSsMigrateMonitor->ssMigrateId;
 }
 
 
@@ -41,18 +44,7 @@ int32_t tsdbOpenSsMigrateMonitor(STsdb *tsdb) {
   if (pmm == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  pmm->state.pFileSetStates = taosArrayInit(16, sizeof(SFileSetSsMigrateState));
-  if (pmm->state.pFileSetStates == NULL) {
-    taosMemoryFree(pmm);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
   TAOS_UNUSED(taosThreadCondInit(&pmm->stateChanged, NULL));
-
-  pmm->state.dnodeId = vnodeNodeId(tsdb->pVnode);
-  pmm->state.vgId = TD_VID(tsdb->pVnode);
-
   tsdb->pSsMigrateMonitor = pmm;
   return 0;
 }
@@ -65,150 +57,78 @@ void tsdbCloseSsMigrateMonitor(STsdb *tsdb) {
   }
 
   TAOS_UNUSED(taosThreadCondDestroy(&pmm->stateChanged));
-  tFreeSVnodeSsMigrateState(&pmm->state);
   taosMemoryFree(tsdb->pSsMigrateMonitor);
   tsdb->pSsMigrateMonitor = NULL;
 }
 
-bool tsdbResetSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId) {
-  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
-  for (int32_t i = 0; i < taosArrayGetSize(pmm->state.pFileSetStates); i++) {
-    SFileSetSsMigrateState *pState = taosArrayGet(pmm->state.pFileSetStates, i);
-    if (pState->state == FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
-      return false;
-    }
-  }
-  pmm->state.mnodeMigrateId = 0;
-  pmm->state.vnodeMigrateId = ssMigrateId;
-  pmm->state.startTimeSec = taosGetTimestampSec();
-  taosArrayClear(pmm->state.pFileSetStates);
-  return true;
+
+static void setMigrationState(STsdb* tsdb, int32_t state) {
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  tsdb->pSsMigrateMonitor->state = state;
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 }
 
-int32_t tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid) {
-  // no need to lock mutex here, since the caller should have already locked it
-  SFileSetSsMigrateState state = { .fid = fid, .state = FILE_SET_MIGRATE_STATE_IN_PROGRESS };
-  if (taosArrayPush(tsdb->pSsMigrateMonitor->state.pFileSetStates, &state) == NULL) {
-    return terrno;
-  }
-  return 0;
-}
 
-void tsdbSsMigrateMonitorSetFileSetState(STsdb *tsdb, int32_t fid, int32_t state) {
+int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pProgress) {
+  int32_t code = 0, vid = TD_VID(tsdb->pVnode);
+
   SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
 
-  if (taosThreadMutexLock(&tsdb->mutex) != TSDB_CODE_SUCCESS) {
-    return;
+  (void)taosThreadMutexLock(&tsdb->mutex);
+
+  if (pmm->ssMigrateId != pProgress->ssMigrateId) {
+    tsdbError("vgId:%d, ssMigrateId:%d, fid:%d, migrate id mismatch in query progress, actual %d",
+              vid, pProgress->ssMigrateId, pProgress->fid, pmm->ssMigrateId);
+    code = TSDB_CODE_INVALID_MSG;
+  } else if (pmm->fid != pProgress->fid) {
+    tsdbError("vgId:%d, ssMigrateId:%d, fid:%d, file set id mismatch in query progress, actual %d",
+              vid, pProgress->ssMigrateId, pProgress->fid, pmm->fid);
+    code = TSDB_CODE_INVALID_MSG;
+  } else {
+    pProgress->state = pmm->state;
   }
 
-  for(int32_t i = 0; i < taosArrayGetSize(pmm->state.pFileSetStates); i++) {
-    SFileSetSsMigrateState *pState = taosArrayGet(pmm->state.pFileSetStates, i);
-    if (pState->fid == fid) {
-      pState->state = state;
-      break;
-    }
-  }
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  return code;
 }
 
-int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, int32_t ssMigrateId, int32_t *rspSize, void** ppRsp) {
-  int32_t code = 0;
 
-  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
-  SVnodeSsMigrateState *pState = &pmm->state;
 
-  code = taosThreadMutexLock(&tsdb->mutex);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  pState->mnodeMigrateId = ssMigrateId;
-  *rspSize = tSerializeSQuerySsMigrateProgressRsp(NULL, 0, pState);
-  if (*rspSize < 0) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  *ppRsp = rpcMallocCont(*rspSize);
-  if (*ppRsp == NULL) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-    tsdbError("rpcMallocCont %d failed", *rspSize);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  TAOS_UNUSED(tSerializeSQuerySsMigrateProgressRsp(*ppRsp, *rspSize, pState));
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-
-  return 0;
-}
-
-int32_t tsdbUpdateSsMigrateState(STsdb* tsdb, SVnodeSsMigrateState* pState) {
+int32_t tsdbUpdateSsMigrateProgress(STsdb* tsdb, SSsMigrateProgress* pProgress) {
   int32_t vid = TD_VID(tsdb->pVnode), code = 0;
+  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
 
   // the state was generated by this vnode, so no need to process it
-  if (pState->dnodeId == vnodeNodeId(tsdb->pVnode)) {
-      tsdbDebug("vgId:%d, skip migration state update since it was generated by this vnode", vid);
-      return 0;
-  }
-
-  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
-  SVnodeSsMigrateState *pLocalState = &pmm->state;
-  if (pLocalState == NULL) {
-    tsdbDebug("vgId:%d, skip migration state update since local state not found", vid);
+  if (pProgress->nodeId == vnodeNodeId(tsdb->pVnode)) {
+    tsdbDebug("vgId:%d, skip migration progress update since it was generated by this vnode", vid);
     return 0;
   }
 
-  code = taosThreadMutexLock(&tsdb->mutex);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  (void)taosThreadMutexLock(&tsdb->mutex);
+
+  if (pmm->ssMigrateId != pProgress->ssMigrateId) {
+    tsdbError("vgId:%d, ssMigrateId:%d, fid:%d, migrate id mismatch in update progress, actual %d",
+              vid, pProgress->ssMigrateId, pProgress->fid, pmm->ssMigrateId);
+    code = TSDB_CODE_INVALID_MSG;
+  } else if (pmm->fid != pProgress->fid) {
+    tsdbError("vgId:%d, ssMigrateId:%d, fid:%d, file set id mismatch in update progress, actual %d",
+              vid, pProgress->ssMigrateId, pProgress->fid, pmm->fid);
+    code = TSDB_CODE_INVALID_MSG;
+  } else {
+    // update the state, and broadcast state change message, to avoid the timeout of
+    // the waiting thread, we should always broadcast the message even if the state
+    // is not changed actually.
+    pmm->state = pProgress->state;
+    (void)taosThreadCondBroadcast(&pmm->stateChanged);
   }
 
-  for( int32_t i = 0; i < taosArrayGetSize(pLocalState->pFileSetStates); i++) {
-    SFileSetSsMigrateState *pLocalFileSet = taosArrayGet(pLocalState->pFileSetStates, i);
-    if (pLocalFileSet->state != FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
-      continue; // only update the in-progress file sets
-    }
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 
-    // a wrong case
-    if (pState->mnodeMigrateId != pLocalState->vnodeMigrateId) {
-      pLocalFileSet->state = FILE_SET_MIGRATE_STATE_FAILED;
-      tsdbError("vgId:%d, fid:%d, set migration state to failed since mnode migrate id mismatch", vid, pLocalFileSet->fid);
-      continue;
-    }
-
-    // another wrong case
-    if (pState->vnodeMigrateId != pLocalState->vnodeMigrateId) {
-      pLocalFileSet->state = FILE_SET_MIGRATE_STATE_FAILED;
-      tsdbError("vgId:%d, fid:%d, set migration state to failed since vnode migrate id mismatch", vid, pLocalFileSet->fid);
-      continue;
-    }
-
-    bool found = false;
-    for( int32_t j = 0; j < taosArrayGetSize(pState->pFileSetStates); j++) {
-      SFileSetSsMigrateState *pRemoteFileSet = taosArrayGet(pState->pFileSetStates, j);
-      if (pLocalFileSet->fid == pRemoteFileSet->fid) {
-        found = true;
-        if (pRemoteFileSet->state != FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
-          pLocalFileSet->state = pRemoteFileSet->state;
-          tsdbDebug("vgId:%d, fid:%d, migration state was updated to %d", vid, pLocalFileSet->fid, pLocalFileSet->state);
-        }
-        break;
-      }
-    }
-
-    // the leader vnode has not this file set, so it will never be migrated, mark it as failed
-    // to avoid waiting for forever.
-    if (!found) {
-      pLocalFileSet->state = FILE_SET_MIGRATE_STATE_FAILED;
-      tsdbDebug("vgId:%d, fid:%d, set migration state to failed since remote state not found", vid, pLocalFileSet->fid);
-    }
-  }
-
-  // always boradcast the state change, so that the waiting threads won't timeout
-  TAOS_UNUSED(taosThreadCondBroadcast(&pmm->stateChanged));
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-  return 0;
+  return code;
 }
+
+
 
 // migrate file related functions
 int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t ssKeepLocal, int64_t nowSec) {
@@ -594,14 +514,14 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   // manifest, this also commit the migration
   code = uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, rtner->fset, getSsMigrateId(rtner->tsdb));
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return code;
   }
 
   tsdbInfo("vgId:%d, fid:%d, manifest uploaded, begin remove garbage files", vid, f->fid);
   tsdbRemoveSsGarbageFiles(vid, rtner->fset);
 
-  tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_SUCCEEDED);
+  setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SUCCEEDED);
   tsdbInfo("vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
 
   // no new chunks generated, no need to copy the last chunk
@@ -655,20 +575,28 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   *pCode = 0;
   if (!flocal) {
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file not exist", vid, pLocalFset->fid);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false;
   }
 
   if (rtner->lastCommit != pLocalFset->lastCommit) {
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, there are new commits after migration task is scheduled", vid, pLocalFset->fid);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false;
   }
 
   if (pCfg->ssCompact && flocal->f->lcn < 0) {
-    int32_t lcn = flocal->f->lcn;
+    int32_t     lcn = flocal->f->lcn;
     STimeWindow win = {0};
     tsdbFidKeyRange(pLocalFset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
-    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, true);
+    ETsdbOpType type = VND_IS_RSMA((rtner->tsdb->pVnode)) ? TSDB_OPTR_ROLLUP : TSDB_OPTR_SSMIGRATE;
+    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, type);
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, fileset need compact, lcn: %d", vid, pLocalFset->fid, lcn);
+    if (*pCode) {
+      setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
+    } else {
+      setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_COMPACT);
+    }
     return false; // compact in progress
   }
 
@@ -679,31 +607,22 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     tsdbTFileLastChunkName(rtner->tsdb, flocal->f, path);
   }
 
-  int64_t mtime = 0, size = 0;
-  *pCode = taosStatFile(path, &size, &mtime, NULL);
+  int64_t mtime = 0;
+  *pCode = taosStatFile(path, NULL, &mtime, NULL);
   if (*pCode != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, failed to stat file %s since %s", vid, pLocalFset->fid, path, tstrerror(*pCode));
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return false;
   }
 
-  if (size <= (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is too small, size: %" PRId64 " bytes", vid, pLocalFset->fid, size);
-    return false; // file too small, no need to migrate
-  }
-
-  if (mtime >= rtner->now - tsSsUploadDelaySec) {
+  // 'mtime >= rtner->tw.ekey - tsSsUploadDelaySec' means the file is active writing, and we should skip
+  // the migration. However, this may also be a result of the [ssCompact] option, which should not
+  // be skipped, so we also check 'mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact', note
+  // this is not an acurate condition, but is simple and good enough.
+  if (mtime >= rtner->tw.ekey - tsSsUploadDelaySec && (mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact)) {
     tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is active writting, modified at %" PRId64, vid, pLocalFset->fid, mtime);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // still active writing, postpone migration
-  }
-
-  if (tsdbFidLevel(pLocalFset->fid, &rtner->tsdb->keepCfg, rtner->now) < 0) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, file set is expired", vid, pLocalFset->fid);
-    return false; // file set expired
-  }
-
-  if (tsdbSsFidLevel(pLocalFset->fid, &rtner->tsdb->keepCfg, pCfg->ssKeepLocal, rtner->now) < 1) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, keep local file set", vid, pLocalFset->fid);
-    return false; // keep on local storage
   }
 
   // download manifest from shared storage
@@ -722,6 +641,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
       tsdbTFileSetClear(&pRemoteFset);
       tsdbError("vgId:%d, fid:%d, migration cancelled, remote manifest found but local lcn < 1", vid, pLocalFset->fid);
       *pCode = TSDB_CODE_FILE_CORRUPTED;
+      setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
       return false;
     }
 
@@ -729,6 +649,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     if (flocal->f->lcn >= 1) {
       tsdbError("vgId:%d, fid:%d, migration cancelled, remote manifest not found but local lcn >= 1", vid, pLocalFset->fid);
       *pCode = TSDB_CODE_FILE_CORRUPTED;
+      setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
       return false;
     }
 
@@ -738,6 +659,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 
   } else {
     tsdbError("vgId:%d, fid:%d, migration cancelled, failed to download manifest, code: %d", vid, pLocalFset->fid, *pCode);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return false;
   }
 
@@ -746,6 +668,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, cannot find data file information from remote manifest", vid, pLocalFset->fid);
     tsdbTFileSetClear(&pRemoteFset);
     *pCode = TSDB_CODE_FILE_CORRUPTED;
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return false;
   }
 
@@ -753,12 +676,14 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, remote and local data file information mismatch", vid, pLocalFset->fid);
     tsdbTFileSetClear(&pRemoteFset);
     *pCode = TSDB_CODE_FILE_CORRUPTED;
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return false;
   }
   
   if (fremote->f->maxVer == flocal->f->maxVer) {
     tsdbTFileSetClear(&pRemoteFset);
     tsdbError("vgId:%d, fid:%d, migration skipped, no new data", vid, pLocalFset->fid);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // no new data
   }
 
@@ -772,7 +697,6 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   int32_t code = 0, vid = TD_VID(rtner->tsdb->pVnode);
   STFileSet *fset = rtner->fset;
   SSsMigrateMonitor* pmm = rtner->tsdb->pSsMigrateMonitor;
-  SFileSetSsMigrateState *pState = NULL;
   int32_t fsIdx = 0;
 
   // though we make this check in the leader node, we should do this in the follower nodes too.
@@ -780,24 +704,15 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   // different commit time. if we don't do this, we may corrupt the follower data.
   if (rtner->lastCommit != fset->lastCommit) {
     tsdbInfo("vgId:%d, fid:%d, follower migration cancelled, there are new commits after migration is scheduled", vid, fset->fid);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return 0;
   }
 
   tsdbInfo("vgId:%d, fid:%d, vnode is follower, waiting leader on node %d to upload.", vid, fset->fid, rtner->nodeId);
 
-  code = taosThreadMutexLock(&rtner->tsdb->mutex);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+  (void)taosThreadMutexLock(&rtner->tsdb->mutex);
 
-  for (; fsIdx < taosArrayGetSize(pmm->state.pFileSetStates); fsIdx++) {
-    pState = taosArrayGet(pmm->state.pFileSetStates, fsIdx);
-    if (pState->fid == fset->fid) {
-      break;
-    }
-  }
-
-  while(pState->state == FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
+  while(pmm->state == SSMIGRATE_FILESET_STATE_IN_PROGRESS) {
     struct timespec ts;
     if ((code = taosClockGetTime(CLOCK_REALTIME, &ts)) != TSDB_CODE_SUCCESS) {
       tsdbError("vgId:%d, fid:%d, failed to get current time since %s", vid, fset->fid, tstrerror(code));
@@ -806,19 +721,25 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     }
     ts.tv_sec += 30; // TODO: make it configurable
     code = taosThreadCondTimedWait(&pmm->stateChanged, &rtner->tsdb->mutex, &ts);
-    pState = taosArrayGet(pmm->state.pFileSetStates, fsIdx);
     if (code == TSDB_CODE_TIMEOUT_ERROR) {
       tsdbError("vgId:%d, fid:%d, waiting leader migration timed out", vid, fset->fid);
-      pState->state = FILE_SET_MIGRATE_STATE_FAILED;
+      pmm->state = SSMIGRATE_FILESET_STATE_FAILED;
     }
+  }
+
+  if (pmm->state != SSMIGRATE_FILESET_STATE_SUCCEEDED) {
+    TAOS_UNUSED(taosThreadMutexUnlock(&rtner->tsdb->mutex));
+    tsdbInfo("vgId:%d, fid:%d, follower migration skipped because leader migration skipped or failed", vid, fset->fid);
+    return 0;
   }
 
   TAOS_UNUSED(taosThreadMutexUnlock(&rtner->tsdb->mutex));
 
-  if (pState->state != FILE_SET_MIGRATE_STATE_SUCCEEDED) {
-    tsdbInfo("vgId:%d, fid:%d, follower migration skipped because leader migration skipped or failed", vid, fset->fid);
-    return 0;
-  }
+  // NOTE: After the leader node finished processing the current file set and mnode sent the final
+  // follower migrate request, mnode waits at least 30 seconds before triggering the processing of
+  // the next file set. Because all file sets of a vgroup shares the same [pmm], from now on, the
+  // follower should not access [pmm->state] anymore.
+  // refer comments in mndUpdateSsMigrateProgress for more details.
 
   tsdbInfo("vgId:%d, fid:%d, follower migration started, begin downloading manifest...", vid, fset->fid);
   STFileSet *pRemoteFset = NULL;
@@ -947,8 +868,6 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   tsdbInfo("vgId:%d, fid:%d, vnode is leader, migration started", vid, fset->fid);
 
   if (!shouldMigrate(rtner, &code)) {
-    int32_t state = (code == TSDB_CODE_SUCCESS) ? FILE_SET_MIGRATE_STATE_SKIPPED : FILE_SET_MIGRATE_STATE_FAILED;
-    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, state);
     return code;
   }
 
@@ -956,7 +875,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   tsdbInfo("vgId:%d, fid:%d, begin migrate head file", vid, fset->fid);
   code = uploadFile(rtner, fset->farr[TSDB_FTYPE_HEAD]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return code;
   }
 
@@ -965,7 +884,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   // sma file
   code = uploadFile(rtner, fset->farr[TSDB_FTYPE_SMA]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return code;
   }
 
@@ -974,7 +893,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   // tomb file
   code = uploadFile(rtner, fset->farr[TSDB_FTYPE_TOMB]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return code;
   }
 
@@ -987,7 +906,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       code = uploadFile(rtner, fobj);
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+        setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
         return code;
       }
     }
@@ -998,7 +917,7 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
   // data file
   code = uploadDataFile(rtner, fset->farr[TSDB_FTYPE_DATA]);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, fset->fid, FILE_SET_MIGRATE_STATE_FAILED);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     return code;
   }
 
@@ -1014,3 +933,170 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner) {
   }
   return tsdbFollowerDoSsMigrate(rtner);
 }
+
+
+#ifdef USE_SHARED_STORAGE
+
+int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray* fidArr) {
+  int32_t vid = TD_VID(tsdb->pVnode), code = 0;
+  int64_t now = taosGetTimestampSec();
+  SVnodeCfg *pCfg = &tsdb->pVnode->config;
+
+  (void)taosThreadMutexLock(&tsdb->mutex);
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (tsdbFidLevel(fset->fid, &tsdb->keepCfg, now) < 0) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, file set is expired", vid, fset->fid);
+      continue;
+    }
+
+    if (tsdbSsFidLevel(fset->fid, &tsdb->keepCfg, tsdb->pVnode->config.ssKeepLocal, now) < 1) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, keep local file set", vid, fset->fid);
+      continue;
+    }
+
+    STFileObj *fdata = fset->farr[TSDB_FTYPE_DATA];
+    if (fdata == NULL) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, no data file", vid, fset->fid);
+      continue;
+    }
+
+    char path[TSDB_FILENAME_LEN];
+    if (fdata->f->lcn <= 1) {
+      strcpy(path, fdata->fname);
+    } else {
+      tsdbTFileLastChunkName(tsdb, fdata->f, path);
+    }
+
+    int64_t size = 0;
+    int32_t code = taosStatFile(path, &size, NULL, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbError("vgId:%d, fid:%d, migration skipped, failed to stat file since %s", vid, fset->fid, tstrerror(code));
+      continue;
+    }
+
+    if (size <= (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize) {
+      tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is too small, size: %" PRId64 " bytes", vid, fset->fid, size);
+      continue;
+    }
+
+    if (taosArrayPush(fidArr, &fset->fid) == NULL) {
+      code = terrno;
+      tsdbError("vgId:%d, failed to push file set id %d to array since %s", vid, fset->fid, tstrerror(code));
+      break;
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
+  return code;
+}
+
+
+static int32_t tsdbAsyncMigrateFileSetImpl(STsdb *tsdb,  const SSsMigrateFileSetReq *pReq) {
+  int32_t vid = TD_VID(tsdb->pVnode), code = 0;
+
+  // check if background task is disabled
+  if (tsdb->bgTaskDisabled) {
+    tsdbInfo("vgId:%d, ssMigrateId:%d, background task is disabled, skip", vid, pReq->ssMigrateId);
+    return TSDB_CODE_FAILED;
+  }
+
+  SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
+  if (pmm->fid != 0 && pmm->state == SSMIGRATE_FILESET_STATE_IN_PROGRESS) {
+    tsdbError("vgId:%d, fid:%d, ssMigrateId:%d, failed to monitor since previous migration is still in progress",
+              vid, pReq->fid, pReq->ssMigrateId);
+    return TSDB_CODE_FAILED;
+  }
+
+  STFileSet *fset = NULL, *fset1;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset1) {
+    if (fset1->fid == pReq->fid) {
+      fset = fset1;
+      break;
+    }
+  }
+
+  if (fset == NULL) {
+    tsdbError("vgId:%d, fid:%d, ssMigrateId:%d, file set not found", vid, pReq->fid, pReq->ssMigrateId);
+    return TSDB_CODE_NOT_FOUND;
+  }
+
+  if (fset->lastMigrate/1000 >= pReq->startTimeSec) {
+    tsdbInfo("vgId:%d, fid:%d, ssMigrate:%d, start time < last migration time, skip", vid, fset->fid, pReq->ssMigrateId);
+    return TSDB_CODE_FAILED;
+  }
+
+  SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+  if (arg == NULL) {
+    code = terrno;
+    tsdbError("vgId:%d, fid:%d, ssMigrateId:%d, memory allocation failed", vid, pReq->fid, pReq->ssMigrateId);
+    return code;
+  }
+
+  arg->tsdb = tsdb;
+  arg->tw.skey = INT64_MIN;
+  arg->tw.ekey = pReq->startTimeSec;
+  arg->fid = fset->fid;
+  arg->nodeId = pReq->nodeId;
+  arg->optrType = TSDB_OPTR_SSMIGRATE;
+  arg->lastCommit = fset->lastCommit;
+
+  pmm->ssMigrateId = pReq->ssMigrateId;
+  pmm->fid = fset->fid;
+  pmm->state = SSMIGRATE_FILESET_STATE_IN_PROGRESS;
+  pmm->startTimeSec = pReq->startTimeSec;
+
+  code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, &fset->migrateTask);
+  if (code) {
+    tsdbError("vgId:%d, fid:%d, ssMigrateId:%d, schedule async task failed", vid, pReq->fid, pReq->ssMigrateId);
+    taosMemoryFree(arg);
+    pmm->state = SSMIGRATE_FILESET_STATE_FAILED;
+  }
+
+  return code;
+}
+
+
+int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq) {
+  int32_t code = 0;
+
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbAsyncMigrateFileSetImpl(tsdb, pReq);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
+
+  return code;
+}
+
+
+void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId) {
+  (void)taosThreadMutexLock(&tsdb->mutex);
+
+  if (tsdb->pSsMigrateMonitor == NULL) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  if (tsdb->pSsMigrateMonitor->ssMigrateId != ssMigrateId) {
+    tsdbInfo("vgId:%d, ssMigrateId:%d, migration task not found", TD_VID(tsdb->pVnode), ssMigrateId);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  if (tsdb->pSsMigrateMonitor->state != SSMIGRATE_FILESET_STATE_IN_PROGRESS) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (fset->fid == tsdb->pSsMigrateMonitor->fid) {
+      (void)vnodeACancel(&fset->migrateTask);
+      break;
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
+}
+
+#endif

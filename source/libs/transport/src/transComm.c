@@ -28,7 +28,78 @@ static int32_t svrRefMgt;
 static int32_t instMgt;
 static int32_t transSyncMsgMgt;
 
-void transDestroySyncMsg(void* msg);
+static void transDestroySyncMsg(void* msg);
+typedef struct {
+  int64_t refId;
+  int32_t remove;
+  STrans* pTrans;
+  int32_t ref;
+} STransEntry;
+typedef struct {
+  int32_t     inited;
+  STransEntry tran[32];
+  int32_t     num;
+} STransCache;
+
+static STransCache transInstCache;
+
+static void transCacheInit() {
+  transInstCache.inited = 1;
+  transInstCache.num = 0;
+}
+
+int32_t transCachePut(int64_t refId, STrans* pTrans) {
+  if (!transInstCache.inited) {
+    transCacheInit();
+  }
+
+  STransEntry entry = {.refId = refId, .pTrans = pTrans, .remove = 0, .ref = 0};
+  if (transInstCache.num >= sizeof(transInstCache.tran) / sizeof(STransEntry)) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+  transInstCache.tran[transInstCache.num++] = entry;
+  return 0;
+}
+
+int32_t transCacheAcquireById(int64_t refId, STrans** pTrans) {
+  for (int32_t i = 0; i < transInstCache.num; ++i) {
+    if (transInstCache.tran[i].refId == refId && atomic_load_32(&transInstCache.tran[i].remove) == 0) {
+      *pTrans = transInstCache.tran[i].pTrans;
+      atomic_fetch_add_32(&transInstCache.tran[i].ref, 1);
+      tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", transInstCache.tran[i].pTrans, refId,
+             atomic_load_32(&transInstCache.tran[i].ref));
+      return 0;
+    }
+  }
+  return -1;
+}
+
+void transCacheRemoveByRefId(int64_t refId) {
+  for (int32_t i = 0; i < transInstCache.num; i++) {
+    if (transInstCache.tran[i].refId == refId) {
+      atomic_store_32(&transInstCache.tran[i].remove, 1);
+      while (atomic_load_32(&transInstCache.tran[i].ref) > 0) {
+        taosSsleep(1);
+      }
+      return;
+    }
+  }
+}
+void transCacheReleaseByRefId(int64_t refId) {
+  for (int32_t i = 0; i < transInstCache.num; i++) {
+    if (transInstCache.tran[i].refId == refId) {
+      atomic_sub_fetch_32(&transInstCache.tran[i].ref, 1);
+      tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", transInstCache.tran[i].pTrans, refId,
+             atomic_load_32(&transInstCache.tran[i].ref));
+      return;
+    }
+  }
+}
+
+void transCacheDestroy() {
+  atomic_store_32(&transInstCache.inited, 0);
+  transInstCache.num = 0;
+}
 
 int32_t transCompressMsg(char* msg, int32_t len) {
   int32_t        ret = 0;
@@ -36,7 +107,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   STransMsgHead* pHead = transHeadFromCont(msg);
 
   int64_t start = taosGetTimestampMs();
-  char* buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
+  char*   buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
   if (buf == NULL) {
     tWarn("failed to allocate memory for rpc msg compression, contLen:%d", len);
     ret = len;
@@ -154,15 +225,23 @@ void transFreeMsg(void* msg) {
 void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   char     buf[IP_RESERVE_CAP] = {0};
   uint16_t port = 0;
+  int      r = 0;
   if (sockname->sa_family == AF_INET) {
     struct sockaddr_in* addr = (struct sockaddr_in*)sockname;
 
-    int r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
+    r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
+    if (r != 0) {
+      uError("failed to get ip from sockaddr, err:%s", uv_strerror(r));
+    }
 
     port = ntohs(addr->sin_port);
   } else if (sockname->sa_family == AF_INET6) {
     struct sockaddr_in6* addr = (struct sockaddr_in6*)sockname;
-    uv_ip6_name(addr, buf, sizeof(buf));
+
+    r = uv_ip6_name(addr, buf, sizeof(buf));
+    if (r != 0) {
+      uError("failed to get ip from sockaddr, err:%s", uv_strerror(r));
+    }
     port = ntohs(addr->sin6_port);
   }
   sprintf(dst, "%s:%d", buf, port);
@@ -300,12 +379,32 @@ bool transReadComplete(SConnBuffer* connBuf) {
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
+int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len) {
+  int32_t      code = 0;
+  SConnBuffer* p = connBuf;
+  if (p->len + len > p->cap) {
+    int32_t newCap = p->len + len;
+    char*   newBuf = taosMemoryRealloc(p->buf, newCap);
+    if (newBuf == NULL) {
+      return terrno;
+    }
+    p->buf = newBuf;
+    p->cap = newCap;
+  }
+
+  memcpy(p->buf + p->len, buf, len);
+  p->len += len;
+  return code;
+}
+
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
+  int32_t ret = 0;
 #if defined(WINDOWS) || defined(DARWIN)
 #else
-  return uv_tcp_keepalive(stream, 1, keepalive);
+  ret = uv_tcp_keepalive(stream, 1, keepalive);
 #endif
-  return uv_tcp_nodelay(stream, 1);
+  ret = uv_tcp_nodelay(stream, 1);
+  return ret;
   // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
@@ -485,6 +584,8 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   }
 
   taosHashCleanup(src->args);
+  src->args = NULL;
+  src->brokenVal.val = NULL;
 }
 void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
   if (ctx->args == NULL) {
@@ -798,6 +899,8 @@ static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
+  transCacheInit();
+
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
 }
@@ -1835,3 +1938,14 @@ bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
   }
   return true;
 }
+STrans* transInstAcquire(int64_t mgtId, int64_t instId) {
+  STrans* ppInst = NULL;
+  int32_t code = transCacheAcquireById(instId, &ppInst);
+  if (code == TSDB_CODE_SUCCESS) {
+    return ppInst;
+  } else {
+    return NULL;
+  }
+}
+
+void transInstRelease(int64_t instId) { transCacheReleaseByRefId(instId); }

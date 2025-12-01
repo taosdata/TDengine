@@ -215,6 +215,9 @@ end:
   tDecoderClear(&decoder);
 
 static void tDeleteCommon(void* parm) {}
+static void tDeleteAlterTable(SVAlterTbReq* req) {
+  taosArrayDestroy(req->pMultiTag);
+}
 
 #define POLL_RSP_TYPE(pRequest,taosxRsp) \
 taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : \
@@ -361,7 +364,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           if (pHead->msgType == TDMT_VND_CREATE_TABLE) {
             PROCESS_EXCLUDED_MSG(SVCreateTbBatchReq, tDecodeSVCreateTbBatchReq, tDeleteSVCreateTbBatchReq)
           } else if (pHead->msgType == TDMT_VND_ALTER_TABLE) {
-            PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq, tDeleteCommon)
+            PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq, tDeleteAlterTable)
           } else if (pHead->msgType == TDMT_VND_CREATE_STB || pHead->msgType == TDMT_VND_ALTER_STB) {
             PROCESS_EXCLUDED_MSG(SVCreateStbReq, tDecodeSVCreateStbReq, tDeleteCommon)
           } else if (pHead->msgType == TDMT_VND_DELETE) {
@@ -413,7 +416,14 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           code = buildBatchMeta(&btMetaRsp, TDMT_VND_CREATE_TABLE, len, pBuf);
         }
         taosMemoryFree(pBuf);
-        taosArrayDestroyP(taosxRsp.createTableReq, NULL);
+        for (int i = 0; i < taosArrayGetSize(taosxRsp.createTableReq); i++) {
+          void* pCreateTbReq = taosArrayGetP(taosxRsp.createTableReq, i);
+          if (pCreateTbReq != NULL) {
+            tDestroySVSubmitCreateTbReq(pCreateTbReq, TSDB_MSG_FLG_DECODE);
+          }
+          taosMemoryFree(pCreateTbReq);
+        }
+        taosArrayDestroy(taosxRsp.createTableReq);
         taosxRsp.createTableReq = NULL;
         fetchVer++;
         if (code != 0){

@@ -1026,7 +1026,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      code = doFilter(pRes, pJoin->pFinFilter, NULL);
+      code = doFilter(pRes, pJoin->pFinFilter, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1054,7 +1054,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
     }
 
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      code = doFilter(pRes, pJoin->pFinFilter, NULL);
+      code = doFilter(pRes, pJoin->pFinFilter, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

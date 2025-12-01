@@ -8,7 +8,6 @@ import subprocess
 from datetime import datetime
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
-# from tmqCommon import *
 
 COMPARE_DATA = 0
 COMPARE_LEN = 1

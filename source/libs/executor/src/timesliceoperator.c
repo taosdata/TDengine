@@ -1127,7 +1127,7 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pSliceInfo->pNextGroupRes != NULL) {
       doHandleTimeslice(pOperator, pSliceInfo->pNextGroupRes);
       if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _finished);
         if (pSliceInfo->pRemainRes == NULL) {
           pSliceInfo->pNextGroupRes = NULL;
@@ -1163,7 +1163,7 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       doHandleTimeslice(pOperator, pBlock);
       if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _finished);
         if (pResBlock->info.rows != 0) {
           goto _finished;
@@ -1176,7 +1176,7 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     // except for fill(next), fill(linear)
     genInterpAfterDataBlock(pSliceInfo, pOperator, 0);
 
-    code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _finished);
     if (pOperator->status == OP_EXEC_DONE) {
       break;

@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom, sleep
+import os
 
 
 class TestVtableQueryAfterAlter:
@@ -58,15 +59,15 @@ class TestVtableQueryAfterAlter:
             tdSql.execute(f"CREATE TABLE `vtb_org_normal_{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col)")
 
         tdLog.info(f"insert data into org tables.")
-        datafile = etool.curFile(__file__, "data/data1.csv")
+        datafile = etool.getFilePath(__file__, "data", "data1.csv")
         tdSql.execute("insert into vtb_org_normal_0 file '%s';" % datafile)
         tdSql.execute("insert into vtb_org_child_0 file '%s';" % datafile)
 
-        datafile = etool.curFile(__file__, "data/data2.csv")
+        datafile = etool.getFilePath(__file__, "data", "data2.csv")
         tdSql.execute("insert into vtb_org_normal_1 file '%s';" % datafile)
         tdSql.execute("insert into vtb_org_child_1 file '%s';" % datafile)
 
-        datafile = etool.curFile(__file__, "data/data3.csv")
+        datafile = etool.getFilePath(__file__, "data", "data3.csv")
         tdSql.execute("insert into vtb_org_normal_2 file '%s';" % datafile)
         tdSql.execute("insert into vtb_org_child_2 file '%s';" % datafile)
 
@@ -211,9 +212,9 @@ class TestVtableQueryAfterAlter:
         tdSql.checkCols(cols)
 
     def test_virtual_stable_and_child_table(self):
-        """test virtual table select after alter.
+        """Query: after alter super/child table
 
-        test virtual table select after alter stable.
+        test virtual table select after alter stable
 
         Since: v3.3.6.0
 
@@ -274,9 +275,12 @@ class TestVtableQueryAfterAlter:
         self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
 
     def test_virtual_normal_table(self):
-        """test virtual table select after alter normal table.
+        """Query: after alter normal table
 
-        test virtual table select after alter normal table.
+        test virtual table select after alter normal table
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

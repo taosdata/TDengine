@@ -67,6 +67,7 @@ static SKeyword keywordTable[] = {
     {"CHILD",                TK_CHILD},
     {"CLIENT_VERSION",       TK_CLIENT_VERSION},
     {"CLUSTER",              TK_CLUSTER},
+    {"COALESCE",             TK_COALESCE},
     {"COLUMN",               TK_COLUMN},
     {"COMMENT",              TK_COMMENT},
     {"COMP",                 TK_COMP},
@@ -140,6 +141,7 @@ static SKeyword keywordTable[] = {
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},
     {"IF",                   TK_IF},
+    {"IFNULL",               TK_IFNULL},
     {"IGNORE",               TK_IGNORE},
     {"IGNORE_DISORDER",      TK_IGNORE_DISORDER},
     {"IGNORE_NODATA_TRIGGER", TK_IGNORE_NODATA_TRIGGER},
@@ -154,6 +156,8 @@ static SKeyword keywordTable[] = {
     {"INTERVAL",             TK_INTERVAL},
     {"INTO",                 TK_INTO},
     {"IS",                   TK_IS},
+    {"ISNOTNULL",            TK_ISNOTNULL},
+    {"ISNULL",               TK_ISNULL},
     {"JLIMIT",               TK_JLIMIT},
     {"JOIN",                 TK_JOIN},
     {"JSON",                 TK_JSON},
@@ -199,7 +203,10 @@ static SKeyword keywordTable[] = {
     {"NO_BATCH_SCAN",        TK_NO_BATCH_SCAN},
     {"NULL",                 TK_NULL},
     {"NULL_F",               TK_NULL_F},
+    {"NULLIF",               TK_NULLIF},
     {"NULLS",                TK_NULLS},
+    {"NVL",                  TK_NVL},
+    {"NVL2",                 TK_NVL2},
     {"OFFSET",               TK_OFFSET},
     {"ON",                   TK_ON},
     {"OR",                   TK_OR},
@@ -242,10 +249,13 @@ static SKeyword keywordTable[] = {
     {"REPLICA",              TK_REPLICA},
     {"RESET",                TK_RESET},
     {"RESTORE",              TK_RESTORE},
+    {"RETENTION",            TK_RETENTION},
     {"RETENTIONS",           TK_RETENTIONS},
     {"REVOKE",               TK_REVOKE},
     {"RIGHT",                TK_RIGHT},
     {"ROLLUP",               TK_ROLLUP},
+    {"RSMA",                 TK_RSMA},
+    {"RSMAS",                TK_RSMAS},
     {"SCHEMALESS",           TK_SCHEMALESS},
     {"SCORES",               TK_SCORES},
     {"SELECT",               TK_SELECT},
@@ -333,6 +343,7 @@ static SKeyword keywordTable[] = {
     {"VNODE",                TK_VNODE},
     {"VNODES",               TK_VNODES},
     {"VTABLE",               TK_VTABLE},
+    {"WAL",                  TK_WAL},
     {"WAL_FSYNC_PERIOD",     TK_WAL_FSYNC_PERIOD},
     {"WAL_LEVEL",            TK_WAL_LEVEL},
     {"WAL_RETENTION_PERIOD", TK_WAL_RETENTION_PERIOD},
@@ -380,6 +391,7 @@ static SKeyword keywordTable[] = {
     {"SS_KEEPLOCAL",         TK_SS_KEEPLOCAL},
     {"SS_COMPACT",           TK_SS_COMPACT},
     {"SSMIGRATE",            TK_SSMIGRATE},
+    {"SSMIGRATES",           TK_SSMIGRATES},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"IS_IMPORT",            TK_IS_IMPORT},
@@ -395,7 +407,12 @@ static SKeyword keywordTable[] = {
     {"TRUE_FOR",             TK_TRUE_FOR},
     {"META_ONLY",            TK_META_ONLY},
     {"VTABLES",              TK_VTABLES},
-    {"META_ONLY",            TK_META_ONLY}
+    {"META_ONLY",            TK_META_ONLY},
+    {"_IMPROWTS",            TK_IMPROWTS},
+    {"_IMPMASK",             TK_IMPMASK},
+    {"SCAN",                 TK_SCAN},
+    {"SCANS",                TK_SCANS},
+    {"_ANOMALYMASK",         TK_ANOMALYMASK},
 };
 // clang-format on
 
@@ -807,7 +824,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
     int32_t numOfComma = 0;
     char    t = str[*i];
-    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
+    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == '\b' || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;

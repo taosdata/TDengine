@@ -6,8 +6,7 @@ from taos.tmq import Consumer
 import platform
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from tmqCommon import tmqCom
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
 
 class TestCase:
     updatecfgDict = {'debugFlag': 135}    
@@ -246,8 +245,9 @@ class TestCase:
         """
         self.prepareTestEnv()
         self.tmqCase1()
+        if platform.system().lower() == 'windows':
+           os.system("taskkill /f /im taosBenchmark.exe")
 
         tdLog.success(f"{__file__} successfully executed")
 
-event = threading.Event()
 

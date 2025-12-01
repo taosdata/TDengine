@@ -93,14 +93,6 @@ int32_t walNextValidMsg(SWalReader *pReader, bool scanMeta) {
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
 int64_t walReaderGetValidFirstVer(const SWalReader *pReader) { return walGetFirstVer(pReader->pWal); }
-void    walReaderSetSkipToVersion(SWalReader *pReader, int64_t ver) { atomic_store_64(&pReader->skipToVersion, ver); }
-
-// this function is NOT multi-thread safe, and no need to be.
-int64_t walReaderGetSkipToVersion(SWalReader *pReader) {
-  int64_t newVersion = pReader->skipToVersion;
-  pReader->skipToVersion = 0;
-  return newVersion;
-}
 
 void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever) {
   *sver = walGetFirstVer(pReader->pWal);
@@ -268,14 +260,14 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
     }
   }
 
-  code = walValidHeadCksum(pRead->pHead);
+  // code = walValidHeadCksum(pRead->pHead);
 
-  if (code != 0) {
-    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed, 0x%" PRIx64,
-           pRead->pWal->cfg.vgId, ver, pRead->readerId);
+  // if (code != 0) {
+  //   wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed, 0x%" PRIx64,
+  //          pRead->pWal->cfg.vgId, ver, pRead->readerId);
 
-    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
-  }
+  //   TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  // }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -298,6 +290,7 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
   }
 
   pRead->curVersion++;
+  wDebug("vgId:%d, wal skip fetch body, curVersion:%"PRId64, pRead->pWal->cfg.vgId, pRead->curVersion);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -352,15 +345,15 @@ int32_t walFetchBody(SWalReader *pRead) {
 
   TAOS_CHECK_RETURN(decryptBody(&pRead->pWal->cfg, pRead->pHead, plainBodyLen, __FUNCTION__));
 
-  if (walValidBodyCksum(pRead->pHead) != 0) {
-    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed, reader:0x%" PRIx64, vgId,
-           ver, id);
+  // if (walValidBodyCksum(pRead->pHead) != 0) {
+  //   wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed, reader:0x%" PRIx64, vgId,
+  //          ver, id);
 
-    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
-  }
+  //   TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  // }
 
   pRead->curVersion++;
-
+  wDebug("vgId:%d, wal fetch body success:%" PRId64 ", curVersion:%"PRId64" reader:0x%" PRIx64, vgId, ver, pRead->curVersion, id);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 

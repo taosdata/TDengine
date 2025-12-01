@@ -3,6 +3,7 @@ import sys
 import time
 import socket
 import os
+import platform
 import threading
 
 sys.path.append("./7-tmq")
@@ -17,9 +18,9 @@ class TestSmlTs3724:
         #tdSql.init(conn.cursor(), logSql)
 
     def checkContent(self, dbname="sml_db"):
-        simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
-        buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/sml_test %s'%(buildPath, simClientCfg)
+        simClientCfg = os.path.join(tdDnodes.getSimCfgPath(), "taos.cfg")
+        exe_file = "sml_test" if platform.system() != "Windows" else "sml_test.exe"
+        cmdStr = os.path.join(tdCom.getBuildPath(), "build", "bin", exe_file) + " " + simClientCfg
         print("cmdStr:", cmdStr)
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)

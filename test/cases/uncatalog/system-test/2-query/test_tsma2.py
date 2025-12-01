@@ -5,7 +5,6 @@ from random import randrange
 import time
 import threading
 import secrets
-# from tmqCommon import *
 
 ROUND = 100
 
@@ -594,7 +593,7 @@ class TSMATestSQLGenerator:
     # order by, limit, having, subquery...
 
 class TestTsma2:
-    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 3}
+    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 10}
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数

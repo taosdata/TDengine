@@ -222,7 +222,7 @@ static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
 void vnodeSnapReaderClose(SVSnapReader *pReader) {
   vInfo("vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
   vnodeSnapReaderDestroyTsdbRanges(pReader);
-#ifdef USE_RSMA
+#ifdef USE_RSMA_ORIGIN
   if (pReader->pRsmaReader) {
     rsmaSnapReaderClose(&pReader->pRsmaReader);
   }
@@ -426,7 +426,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 #endif
   // RSMA ==============
-#ifdef USE_RSMA
+#ifdef USE_RSMA_ORIGIN
   if (VND_IS_RSMA(pReader->pVnode) && !pReader->rsmaDone) {
     // open if not
     if (pReader->pRsmaReader == NULL) {
@@ -662,7 +662,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
     if (code) goto _exit;
   }
-#ifdef USE_RSMA
+#ifdef USE_RSMA_ORIGIN
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter, rollback);
     if (code) goto _exit;
@@ -719,7 +719,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 #endif
-#ifdef USE_RSMA
+#ifdef USE_RSMA_ORIGIN
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterClose(&pWriter->pRsmaSnapWriter, rollback);
     if (code) goto _exit;
@@ -868,7 +868,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
 #endif
-#ifdef USE_RSMA
+#ifdef USE_RSMA_ORIGIN
     case SNAP_DATA_RSMA1:
     case SNAP_DATA_RSMA2:
     case SNAP_DATA_QTASK: {

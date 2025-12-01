@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 import taos
 import sys
 import time
@@ -23,7 +23,8 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
 
     def telemetryInfoCheck(self, infoDict=''):
         if  "ts" not in infoDict or len(infoDict["ts"]) == 0:
-            tdLog.exit("ts is null!")
+            tdLog.info("ts is null!")
+            return
 
         if "dnode_id" not in infoDict or infoDict["dnode_id"] != 1:
             tdLog.exit("dnode_id is null!")
@@ -226,7 +227,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
 
         # 3. check request body info
         infoDict = json.loads(plainText)
-        #print("================")
+        # print("================")
         # print(infoDict)
         self.telemetryInfoCheck(infoDict)
 

@@ -46,7 +46,10 @@ typedef struct {
   SArray  *pQueries;  // SArray<SQueryDesc>
   char     userApp[TSDB_APP_NAME_LEN];
   uint32_t userIp;
+  SIpAddr  userDualIp;
   SIpAddr  addr;
+  char     sVer[TSDB_VERSION_LEN];
+  char     cInfo[CONNECTOR_INFO_LEN];
 } SConnObj;
 
 typedef struct {
@@ -70,7 +73,7 @@ typedef struct {
 #define CACHE_OBJ_KEEP_TIME 3  // s
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *ip, int32_t pid,
-                               const char *app, int64_t startTime);
+                               const char *app, int64_t startTime, const char *sVer);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan);
@@ -144,19 +147,20 @@ static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
     varDataLen(dst) = strlen(varDataVal(dst));
   }
 
-  if (pConn->addr.ipv4[0] != 0 && strncmp(pConn->addr.ipv4, none, strlen(none)) != 0) {
-    char   *ipstr = IP_ADDR_STR(&pConn->addr);
+  if (pConn->userDualIp.ipv4[0] != 0 && strncmp(pConn->userDualIp.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->userDualIp);
     int32_t len = strlen(ipstr);
     memcpy(varDataVal(dst), ipstr, len);
     varDataLen(dst) = len;
   }
   return;
 }
-static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
+static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp, char *cInfo) {
   if (connObj == NULL) {
     return;
   }
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
+  tstrncpy(connObj->cInfo, cInfo, sizeof(connObj->cInfo));
   connObj->userIp = userIp;
 }
 static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
@@ -164,14 +168,15 @@ static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   if (connObj == NULL) {
     return;
   }
-  code = tIpUintToStr(pRange, &connObj->addr);
+
+  code = tIpUintToStr(pRange, &connObj->userDualIp);
   if (code != 0) {
     mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
     return;
   }
 }
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *pAddr, int32_t pid,
-                               const char *app, int64_t startTime) {
+                               const char *app, int64_t startTime, const char *sVer) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
@@ -199,6 +204,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   connObj.lastAccessTimeMs = connObj.loginTimeMs;
   tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
+  tstrncpy(connObj.sVer, sVer, TSDB_VERSION_LEN);
 
   SConnObj *pConn =
       taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), CACHE_OBJ_KEEP_TIME * 1000);
@@ -331,7 +337,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, &pReq->info.conn.cliAddr, connReq.pid,
-                        connReq.app, connReq.startTime);
+                        connReq.app, connReq.startTime, connReq.sVer);
   if (pConn == NULL) {
     code = terrno;
     mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip,
@@ -556,7 +562,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SConnObj *pConn = mndAcquireConn(pMnode, pBasic->connId);
     if (pConn == NULL) {
       pConn = mndCreateConn(pMnode, connInfo.user, CONN_TYPE__QUERY, &connInfo.cliAddr, pHbReq->app.pid,
-                            pHbReq->app.name, 0);
+                            pHbReq->app.name, 0, pHbReq->sVer);
       if (pConn == NULL) {
         mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
         code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -567,7 +573,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
     }
 
-    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp);
+    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp, pHbReq->cInfo);
     setUserInfoIpToConn(pConn, &pHbReq->userDualIp);
 
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
@@ -956,7 +962,12 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char addr[IP_RESERVE_CAP] = {0};
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    if (tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port) >= sizeof(addr)) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      mError("failed to set endpoint since %s", tstrerror(code));
+      return code;
+    }
+
     STR_TO_VARSTR(endpoint, addr);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -999,6 +1010,23 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
+    char ver[TSDB_VERSION_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(ver, pConn->sVer);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
+    if (code != 0) {
+      mError("failed to set ver since %s", tstrerror(code));
+      return code;
+    }
+
+    char cInfo[CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(cInfo, pConn->cInfo);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)cInfo, false);
+    if (code != 0) {
+      mError("failed to set connector info since %s", tstrerror(code));
+      return code;
+    }
     numOfRows++;
   }
 
@@ -1032,7 +1060,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
     (void)tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
-              pQuery->reqRid);
+                    pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);

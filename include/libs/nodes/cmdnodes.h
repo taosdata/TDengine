@@ -22,6 +22,7 @@ extern "C" {
 
 #include "query.h"
 #include "querynodes.h"
+#include "tglobal.h"
 
 #define DESCRIBE_RESULT_COLS               4
 #define DESCRIBE_RESULT_COLS_COMPRESS      7
@@ -38,11 +39,15 @@ extern "C" {
 
 #define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
+// Use tsMaxSQLLength * 3 for buffer size to accommodate CREATE TABLE statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength * 3))
 
 #define SHOW_CREATE_VIEW_RESULT_COLS       2
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
+// Use tsMaxSQLLength + header for buffer size to accommodate CREATE VIEW statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
@@ -54,6 +59,10 @@ extern "C" {
 #define COMPACT_DB_RESULT_COLS       3
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
 #define COMPACT_DB_RESULT_FIELD3_LEN 128
+
+#define SCAN_DB_RESULT_COLS       3
+#define SCAN_DB_RESULT_FIELD1_LEN 32
+#define SCAN_DB_RESULT_FIELD3_LEN 128
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
@@ -75,6 +84,8 @@ extern "C" {
 #define NOTIFY_NONE              0
 #define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
 #define NOTIFY_ON_FAILURE_PAUSE  BIT_FLAG_MASK(1)
+#define NOTIFY_HAS_FILTER        BIT_FLAG_MASK(2)
+#define CALC_SLIDING_OVERLAP     BIT_FLAG_MASK(3)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;
@@ -184,6 +195,20 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
+typedef struct SRollupDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SRollupDatabaseStmt;
+
+typedef struct SScanDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SScanDatabaseStmt;
+
 typedef struct SCreateMountStmt {
   ENodeType type;
   int32_t   dnodeId;
@@ -206,6 +231,22 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pEnd;
   bool       metaOnly;
 } SCompactVgroupsStmt;
+
+typedef struct SRollupVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SRollupVgroupsStmt;
+
+typedef struct SScanVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SScanVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType  type;
@@ -491,6 +532,14 @@ typedef struct SShowCreateViewStmt {
   void*     pViewMeta;
 } SShowCreateViewStmt;
 
+typedef struct SShowCreateRsmaStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+  void*     pRsmaMeta;  // SRsmaInfoRsp;
+  void*     pTableCfg;  // STableCfg
+} SShowCreateRsmaStmt;
+
 typedef struct SShowTableDistributedStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -525,10 +574,25 @@ typedef struct SShowCompactsStmt {
   ENodeType type;
 } SShowCompactsStmt;
 
+typedef struct SShowScansStmt {
+  ENodeType type;
+} SShowScansStmt;
+
 typedef struct SShowCompactDetailsStmt {
   ENodeType type;
-  SNode*    pCompactId;
+  SNode*    pId;
 } SShowCompactDetailsStmt;
+
+typedef SShowCompactDetailsStmt SShowRetentionDetailsStmt;
+
+typedef struct SShowScanDetailsStmt {
+  ENodeType type;
+  SNode*    pScanId;
+} SShowScanDetailsStmt;
+
+typedef struct SShowSsMigratesStmt {
+  ENodeType type;
+} SShowSsMigratesStmt;
 
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
@@ -635,27 +699,6 @@ typedef struct SKillQueryStmt {
   ENodeType type;
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
-
-
-typedef struct SStreamTriggerOptions {
-  ENodeType type; // QUERY_NODE_STREAM_TRIGGER_OPTIONS
-  SNode*    pPreFilter;
-  SNode*    pWaterMark;
-  SNode*    pMaxDelay;
-  SNode*    pExpiredTime;
-  SNode*    pFillHisStartTime;
-  int64_t   pEventType;
-  int64_t   fillHistoryStartTime;
-  bool      ignoreDisorder;
-  bool      deleteRecalc;
-  bool      deleteOutputTable;
-  bool      fillHistory;
-  bool      fillHistoryFirst;
-  bool      calcNotifyOnly;
-  bool      lowLatencyCalc;
-  bool      forceOutput;
-  bool      ignoreNoDataTrigger;
-} SStreamTriggerOptions;
 
 typedef enum EStreamNotifyEventType {
   SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
@@ -774,6 +817,17 @@ typedef struct SBalanceVgroupLeaderStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SBalanceVgroupLeaderStmt;
 
+typedef struct SSetVgroupKeepVersionStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int64_t   keepVersion;
+} SSetVgroupKeepVersionStmt;
+
+typedef struct STrimDbWalStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_FNAME_LEN];
+} STrimDbWalStmt;
+
 typedef struct SMergeVgroupStmt {
   ENodeType type;
   int32_t   vgId1;
@@ -821,6 +875,32 @@ typedef struct SDropTSMAStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
+
+typedef struct SCreateRsmaStmt {
+  ENodeType  type;
+  bool       ignoreExists;
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList* pFuncs;
+  SNodeList* pIntervals;
+} SCreateRsmaStmt;
+
+typedef struct SDropRsmaStmt {
+  ENodeType type;
+  bool      ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+} SDropRsmaStmt;
+
+typedef struct SAlterRsmaStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreNotExists;
+  int8_t     alterType;
+  SNodeList* pFuncs;
+} SAlterRsmaStmt;
 
 #ifdef __cplusplus
 }

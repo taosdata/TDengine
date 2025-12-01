@@ -28,6 +28,7 @@ class TsfmBaseService(AbstractForecastService):
         # let's request the gpt service
         data = {
             "input": self.list,
+            "ts": self.ts_list,
             "next_len": self.rows,
             "past_dynamic_real": self.past_dynamic_real,
             "dynamic_real":self.dynamic_real,

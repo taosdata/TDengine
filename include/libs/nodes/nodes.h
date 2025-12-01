@@ -46,6 +46,10 @@ extern "C" {
 // only be use in WHERE_EACH
 #define ERASE_NODE(list) cell = nodesListErase((list), cell)
 
+// only be use in WHERE_EACH
+// iterate from the first element AGAIN
+#define WHERE_FIRST(list) cell = (NULL != (list) ? (list)->pHead : NULL);
+
 #define FORBOTH(node1, list1, node2, list2)                                               \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL),                      \
                   *cell2 = (NULL != (list2) ? (list2)->pHead : NULL);                     \

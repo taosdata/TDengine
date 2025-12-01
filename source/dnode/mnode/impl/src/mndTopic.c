@@ -671,8 +671,10 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
       break;
     }
 
-    bool found = checkTopic(pConsumer->assignedTopics, topicName);
-    if (found) {
+    bool found1 = checkTopic(pConsumer->assignedTopics, topicName);
+    bool found2 = checkTopic(pConsumer->rebRemovedTopics, topicName);
+    bool found3 = checkTopic(pConsumer->rebNewTopics, topicName);
+    if (found1 || found2 || found3) {
       if (deleteConsumer) {
         MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
         MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
@@ -776,7 +778,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   mndTransSetDbName(pTrans, pTopic->db, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
-  mInfo("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
+  mInfo("trans:%d, used to drop topic:%s, force:%d", pTrans->id, pTopic->name, dropReq.force);
 
   MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
   MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));

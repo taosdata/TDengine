@@ -48,6 +48,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_HISTOGRAM,
   FUNCTION_TYPE_HYPERLOGLOG,
   FUNCTION_TYPE_STDVAR,
+  FUNCTION_TYPE_STDDEV_SAMP,
+  FUNCTION_TYPE_STDVAR_SAMP,
+  FUNCTION_TYPE_GROUP_CONCAT,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -65,6 +68,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STATE_COUNT,
   FUNCTION_TYPE_STATE_DURATION,
   FUNCTION_TYPE_FORECAST,
+  FUNCTION_TYPE_IMPUTATION,
+  FUNCTION_TYPE_CORR,
+  FUNCTION_TYPE_ANOMALYCHECK,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -113,6 +119,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_REPEAT,
   FUNCTION_TYPE_SUBSTR_IDX,
   FUNCTION_TYPE_BASE64,
+  FUNCTION_TYPE_FIND_IN_SET,
+  FUNCTION_TYPE_LIKE_IN_SET,
+  FUNCTION_TYPE_REGEXP_IN_SET,
+
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -132,6 +142,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WEEKDAY,
   FUNCTION_TYPE_WEEKOFYEAR,
   FUNCTION_TYPE_DAYOFWEEK,
+  FUNCTION_TYPE_DATE,
 
   // system function
   FUNCTION_TYPE_DATABASE = 3000,
@@ -176,6 +187,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TGRPID,             // _tgrpid
   FUNCTION_TYPE_PLACEHOLDER_COLUMN, // %%n
   FUNCTION_TYPE_PLACEHOLDER_TBNAME, // %%tbname
+  FUNCTION_TYPE_IMPUTATION_ROWTS,
+  FUNCTION_TYPE_IMPUTATION_MARK,
+  FUNCTION_TYPE_ANOMALY_MARK,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -227,7 +241,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STD_STATE_MERGE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
-
+  FUNCTION_TYPE_CORR_PARTIAL,
+  FUNCTION_TYPE_CORR_MERGE,
+  FUNCTION_TYPE_STDDEV_SAMP_MERGE,
+  FUNCTION_TYPE_STDVAR_SAMP_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -268,6 +285,7 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 
 bool          fmIsBuiltinFunc(const char* pFunc);
 EFunctionType fmGetFuncType(const char* pFunc);
+EFunctionType fmGetFuncTypeFromId(int32_t funcId);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -297,6 +315,7 @@ bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
 bool fmIsLastFunc(int32_t funcId);
 bool fmIsForecastFunc(int32_t funcId);
+bool fmIsImputationFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);
@@ -306,7 +325,7 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
-bool fmIsForecastPseudoColumnFunc(int32_t funcId);
+bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsIgnoreNullFunc(int32_t funcId);
@@ -324,7 +343,8 @@ bool fmIsPlaceHolderFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
-int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** pFunc);
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList,
+                                  SFunctionNode** pFunc);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
                         SFunctionNode** pMergeFunc);
@@ -345,14 +365,13 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef BUILD_NO_CALL
-int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
-bool    fmIsInvertible(int32_t funcId);
 #endif
 
-char* fmGetFuncName(int32_t funcId);
+const char* fmGetFuncName(int32_t funcId);
 
 bool    fmIsTSMASupportedFunc(func_id_t funcId);
+bool    fmIsRsmaSupportedFunc(func_id_t funcId);
 int32_t fmCreateStateFuncs(SNodeList* pFuncs);
 int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
 int32_t fmGetFuncId(const char* name);
@@ -372,13 +391,15 @@ bool    fmIsCountLikeFunc(int32_t funcId);
 
 // } SStreamPseudoFuncType;
 
-int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv);
-
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv* pEnv);
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
+bool        fmIsStreamPesudoColVal(int32_t funcId);
 
 void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+
+
 #ifdef __cplusplus
 }
 #endif

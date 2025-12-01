@@ -88,6 +88,8 @@ static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
     for (int32_t i = 0; i < pSchWrapper->nCols && hasExtSchema; i++) {
       TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pME->pExtSchemas[i].typeMod));
     }
+  } else {
+    pME->pExtSchemas = NULL;
   }
 
   return 0;
@@ -113,6 +115,62 @@ SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
     return ret;
   }
   return NULL;
+}
+
+int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
+  if (!rsmaSchema) return 0;
+  if ((pME->type != TSDB_SUPER_TABLE) || !TABLE_IS_ROLLUP(pME->flags)) {  // only support super table
+    *rsmaSchema = NULL;
+    return 0;
+  }
+
+  const SRSmaParam *pParam = &pME->stbEntry.rsmaParam;
+  const SSchema    *pSchema = pME->stbEntry.schemaRow.pSchema;
+  int32_t           nCols = pME->stbEntry.schemaRow.nCols;
+
+  *rsmaSchema = (SSchemaRsma *)taosMemoryMalloc(sizeof(SSchemaRsma));
+  if (*rsmaSchema == NULL) {
+    return terrno;
+  }
+
+  (*rsmaSchema)->funcIds = taosMemoryMalloc(sizeof(func_id_t) * nCols);
+  if ((*rsmaSchema)->funcIds == NULL) {
+    taosMemoryFree(*rsmaSchema);
+    *rsmaSchema = NULL;
+    return terrno;
+  }
+
+  (void)snprintf((*rsmaSchema)->tbName, TSDB_TABLE_NAME_LEN, "%s", pME->name);
+  (*rsmaSchema)->tbUid = pME->uid;
+  (*rsmaSchema)->tbType = pME->type;
+  (*rsmaSchema)->interval[0] = pParam->interval[0];
+  (*rsmaSchema)->interval[1] = pParam->interval[1];
+  (*rsmaSchema)->nFuncs = nCols;
+
+  func_id_t *pFuncIds = (*rsmaSchema)->funcIds;
+  int32_t    i = 0, j = 0;
+  for (i = 0; i < nCols; ++i) {
+    while (j < pParam->nFuncs) {
+      if (pParam->funcColIds[j] == pSchema[i].colId) {
+        pFuncIds[i] = pParam->funcIds[j];
+        break;
+      }
+      if (pParam->funcColIds[j] > pSchema[i].colId) {
+        pFuncIds[i] = 36;  // use last if not specified, fmGetFuncId("last") = 36
+        break;
+      }
+      ++j;
+    }
+    if (j >= pParam->nFuncs) {
+      for (; i < nCols; ++i) {
+        pFuncIds[i] = 36;  // use last if not specified, fmGetFuncId("last") = 36
+      }
+      break;
+    }
+  }
+  pFuncIds[0] = 0;  // Primary TS column has no function
+
+  return 0;
 }
 
 int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
@@ -418,6 +476,8 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(metaDecodeExtSchemas(pCoder, pME));
+    } else {
+      pME->pExtSchemas = NULL;
     }
   }
   if (pME->type == TSDB_SUPER_TABLE) {
@@ -448,9 +508,53 @@ static int32_t metaCloneSchema(const SSchemaWrapper *pSrc, SSchemaWrapper *pDst)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t metaCloneRsmaParam(const SRSmaParam *pSrc, SRSmaParam *pDst) {
+  if (pSrc == NULL || pDst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  memcpy(pDst, pSrc, sizeof(SRSmaParam));
+  pDst->name = tstrdup(pSrc->name);
+  if (pDst->name == NULL) {
+    return terrno;
+  }
+  if (pSrc->nFuncs > 0) {
+    pDst->nFuncs = pSrc->nFuncs;
+    pDst->funcColIds = (col_id_t *)taosMemoryMalloc(pSrc->nFuncs * sizeof(col_id_t));
+    if (pDst->funcColIds == NULL) {
+      return terrno;
+    }
+    memcpy(pDst->funcColIds, pSrc->funcColIds, pSrc->nFuncs * sizeof(col_id_t));
+
+    pDst->funcIds = (func_id_t *)taosMemoryMalloc(pSrc->nFuncs * sizeof(func_id_t));
+    if (pDst->funcIds == NULL) {
+      return terrno;
+    }
+    memcpy(pDst->funcIds, pSrc->funcIds, pSrc->nFuncs * sizeof(func_id_t));
+  } else {
+    pDst->nFuncs = 0;
+    pDst->funcColIds = NULL;
+    pDst->funcIds = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void metaCloneSchemaFree(SSchemaWrapper *pSchema) {
   if (pSchema) {
     taosMemoryFreeClear(pSchema->pSchema);
+  }
+}
+
+/**
+ * @param type 0x01 free name
+ */
+void metaFreeRsmaParam(SRSmaParam *pParam, int8_t type) {
+  if (pParam) {
+    if ((type & 0x01)) {
+      taosMemoryFreeClear(pParam->name);
+    }
+    taosMemoryFreeClear(pParam->funcColIds);
+    taosMemoryFreeClear(pParam->funcIds);
   }
 }
 
@@ -469,6 +573,9 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
   if (TSDB_SUPER_TABLE == (*ppEntry)->type) {
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaRow);
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaTag);
+    if (TABLE_IS_ROLLUP((*ppEntry)->flags)) {
+      metaFreeRsmaParam(&(*ppEntry)->stbEntry.rsmaParam, 1);
+    }
   } else if (TSDB_CHILD_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_CHILD_TABLE == (*ppEntry)->type) {
     taosMemoryFreeClear((*ppEntry)->ctbEntry.comment);
     taosMemoryFreeClear((*ppEntry)->ctbEntry.pTags);
@@ -528,6 +635,13 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     if (code) {
       metaCloneEntryFree(ppEntry);
       return code;
+    }
+    if (TABLE_IS_ROLLUP(pEntry->flags)) {
+      code = metaCloneRsmaParam(&pEntry->stbEntry.rsmaParam, &(*ppEntry)->stbEntry.rsmaParam);
+      if (code) {
+        metaCloneEntryFree(ppEntry);
+        return code;
+      }
     }
     (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
   } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {

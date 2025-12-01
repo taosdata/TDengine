@@ -73,6 +73,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
+  pOperator->exprSupp.hasWindow = true;
 
   SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
 
@@ -245,7 +246,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     code = eventWindowAggImpl(pOperator, pInfo, pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pRes, pSup->pFilterInfo, NULL);
+    code = doFilter(pRes, pSup->pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows >= pOperator->resultInfo.threshold ||
@@ -290,7 +291,7 @@ static int32_t doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* 
   int32_t numOfOutput = pSup->numOfExprs;
   int32_t numOfRows = endIndex - startIndex + 1;
 
-  doKeepTuple(pRowSup, tsList[endIndex], pBlock->info.id.groupId);
+  doKeepTuple(pRowSup, tsList[endIndex], endIndex, pBlock->info.id.groupId);
 
   code = setSingleOutputTupleBufv1(&pInfo->binfo.resultRowInfo, &pRowSup->win, &pInfo->pRow, pSup, &pInfo->aggSup);
   if (code != TSDB_CODE_SUCCESS) {  // null data, too many state code

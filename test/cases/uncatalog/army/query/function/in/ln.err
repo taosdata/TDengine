@@ -1,2 +1,0 @@
-select ln();
-select ln('1');

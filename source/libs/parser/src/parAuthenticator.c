@@ -171,6 +171,11 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
     SNode*      pTagCond = NULL;
     STableNode* pTable = (STableNode*)pNode;
+    if ((pAuthCxt->pParseCxt->enableSysInfo == 0) && IS_INFORMATION_SCHEMA_DB(pTable->dbName) &&
+        (strcmp(pTable->tableName, TSDB_INS_TABLE_VGROUPS) == 0)) {
+      pAuthCxt->errCode = TSDB_CODE_PAR_PERMISSION_DENIED;
+      return DEAL_RES_ERROR;
+    }
 #ifdef TD_ENTERPRISE
     SName name = {0};
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
@@ -410,6 +415,14 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
   return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
 }
 
+static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
@@ -453,7 +466,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+    // case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
@@ -488,6 +501,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:
       return authDropView(pCxt, (SDropViewStmt*)pStmt);
+    case QUERY_NODE_CREATE_RSMA_STMT:
+      return authCreateRsma(pCxt, (SCreateRsmaStmt*)pStmt);
+    case QUERY_NODE_DROP_RSMA_STMT:
+      return authDropRsma(pCxt, (SDropRsmaStmt*)pStmt);
     default:
       break;
   }

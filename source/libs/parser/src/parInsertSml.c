@@ -17,6 +17,7 @@
 #include "parInt.h"
 #include "parToken.h"
 #include "ttime.h"
+#include "ttokendef.h"
 
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen) {
@@ -31,6 +32,32 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
   TSDB_CHECK_CODE(code, lino, end);
   NEXT_TOKEN(pTableName, sToken);
   TSDB_CHECK_CONDITION(sToken.n <= 0, code, lino, end, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
+
+end:
+  if (code != 0) {
+    uError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t qCreateSName2(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
+                      int32_t msgBufLen) {
+  SMsgBuf msg = {.buf = msgBuf, .len = msgBufLen};
+  SToken  sToken = {0};
+  int     code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pTableName == NULL || strlen(pTableName) == 0) {
+    code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    goto end;
+  }
+
+  sToken.z = (char*)pTableName;
+  sToken.n = strlen(pTableName);
+  sToken.type = TK_NK_ID;
+
+  code = insCreateSName(pName, &sToken, acctId, dbName, &msg);
+  TSDB_CHECK_CODE(code, lino, end);
 
 end:
   if (code != 0) {

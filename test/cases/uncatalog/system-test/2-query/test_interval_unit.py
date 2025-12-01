@@ -4,7 +4,6 @@ import os
 import threading
 from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.common import tdCom
-# from tmqCommon import *
 
 class TestIntervalUnit:
 

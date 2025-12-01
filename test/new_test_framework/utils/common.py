@@ -517,14 +517,16 @@ class TDCom:
             projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
+            if ".git" in root:
+                continue
             if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
-        if platform.system().lower() == 'windows':
-            win_sep = "\\"
-            buildPath = buildPath.replace(win_sep,'/')
+        # if platform.system().lower() == 'windows':
+        #    win_sep = "\\"
+        #    buildPath = buildPath.replace(win_sep,'/')
 
         return buildPath
     def getTaosdPath(self, dnodeID="dnode1"):
@@ -2233,7 +2235,7 @@ class TDCom:
     def generate_query_result_file(self, test_case, idx, sql):
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
-        taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  "
+        taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}  "
         #print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
         os.system(taosCmd)
         return self.query_result_file
@@ -2244,7 +2246,25 @@ class TDCom:
         else:
             self.query_result_file = f"./temp_{test_case}.result"
             cfgPath = self.getClientCfgPath()
-            os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
+            tdLog.info(f"Generating query result file: {self.query_result_file} using input file: {inputfile}")
+            if platform.system().lower() == 'windows':
+                # 过滤 taos> 行
+                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw ")
+                time.sleep(1)
+                with open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin, open(self.query_result_file, "w", encoding="utf-8") as fout:
+                    for line in fin:
+                        stripped = line.rstrip()
+                        # 跳过整行是 taos> 或 taos> 后全是空白的行
+                        if re.match(r'^taos>\s*$', stripped):
+                            continue
+                        # taos> 开头的行去除行尾空白
+                        if stripped.startswith("taos>"):
+                            fout.write(stripped + "\n")
+                        else:
+                            fout.write(line)
+                os.system(f"rm -f {self.query_result_file}.raw")
+            else:
+                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}  ")
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):
@@ -2259,7 +2279,13 @@ class TDCom:
                 tdLog.info(f"result: {result}")
             else:
                 cmd='fc'
-                result = subprocess.run([cmd, file1, file2], text=True, capture_output=True)
+                file1 = os.path.abspath(os.path.normpath(file1))
+                file2 = os.path.abspath(os.path.normpath(file2))
+                # /W 参数忽略结尾空格和空白字符
+                result = subprocess.run([cmd, "/W", file1, file2], text=True, capture_output=True, encoding="utf-8", errors="ignore")
+                # Windows: 只要 returncode==0 就认为一致
+                if result.returncode == 0:
+                    return True
             # if result is not empty, print the differences and files name. Otherwise, the files are identical.
             if result.returncode != 0:
                 tdLog.info(f"{cmd} result.returncode: {result.returncode}")

@@ -208,15 +208,17 @@ function install_lib() {
     ${csudo}rm -f ${lib_link_dir}/libtaosnative* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaosnative* || :
 
-    [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
-    [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
     ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_link_dir}/libtaos.${lib_file_ext_1} ${lib_link_dir}/libtaos.${lib_file_ext} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_link_dir}/libtaosnative.${lib_file_ext_1} ${lib_link_dir}/libtaosnative.${lib_file_ext} 2>>${install_log_path} || return 1
 
-    [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
+    if ls ${lib_dir}/libtaosws.* > /dev/null 2>&1; then 
+      ${csudo}ln -sf ${lib_dir}/libtaosws.* ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
+    fi
 
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
       ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
@@ -224,7 +226,9 @@ function install_lib() {
       ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
       ${csudo}ln -s ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} ${lib64_link_dir}/libtaosnative.${lib_file_ext}  2>>${install_log_path} || return 1
 
-      [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
+      if ls ${lib_dir}/libtaosws.* > /dev/null 2>&1; then 
+        ${csudo}ln -sf ${lib_dir}/libtaosws.* ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
+      fi
     fi
 
     if [ "$osType" != "Darwin" ]; then
@@ -252,6 +256,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/*explorer || :
     ${csudo}rm -f ${bin_link_dir}/start-all.sh || :
     ${csudo}rm -f ${bin_link_dir}/stop-all.sh || :
+    [ -L "${bin_link_dir}/taosgen" ] && ${csudo}unlink ${bin_link_dir}/taosgen || :
 
     ${csudo}chmod 0555 ${bin_dir}/*
 
@@ -274,6 +279,9 @@ function install_bin() {
     if [ -x ${bin_dir}/taosBenchmark ]; then
       ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosdemo       2>>${install_log_path}
       ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosBenchmark  2>>${install_log_path}
+    fi
+    if [ -x ${bin_dir}/taosgen ]; then
+      ${csudo}ln -sf ${bin_dir}/taosgen ${bin_link_dir}/taosgen               2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/TDinsight.sh ]; then
       ${csudo}ln -sf ${bin_dir}/TDinsight.sh ${bin_link_dir}/TDinsight.sh    2>>${install_log_path} || return 1

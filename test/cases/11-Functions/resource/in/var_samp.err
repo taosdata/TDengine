@@ -1,0 +1,8 @@
+select var_samp() from ts_4893.d0;
+select var_samp(ts) from ts_4893.d0;
+select var_samp(name) from ts_4893.d0;
+select var_samp(id, current) from ts_4893.d0;
+select var_samp() from ts_4893.meters;
+select var_samp(ts) from ts_4893.meters;
+select var_samp(name) from ts_4893.meters;
+select var_samp(id, current) from ts_4893.meters;

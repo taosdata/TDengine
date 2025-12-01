@@ -8,9 +8,13 @@ class TestDbFlush:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_db_flush(self):
-        """flush database
+        """Flush database
 
-        1. -
+        1. Create a database with sst_trigger = 1.
+        2. Insert string-typed data.
+        3. Flush the database.
+        4. Continue inserting data (including duplicates).
+        5. Verify the query results for correctness.
 
         Catalog:
             - Database:Flush

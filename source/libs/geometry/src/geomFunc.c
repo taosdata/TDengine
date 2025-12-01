@@ -165,6 +165,10 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
   unsigned char *output = NULL;
 
   TAOS_CHECK_GOTO(doGeomFromTextFunc(input, &output), NULL, _exit);
+  if (output) {
+    // reset binary str length after parsing
+    pOutputData->info.bytes = varDataLen(output) + VARSTR_HEADER_SIZE;
+  }
   TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:

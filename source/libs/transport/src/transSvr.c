@@ -14,6 +14,7 @@
 
 #include "transComm.h"
 #include "transLog.h"
+#include "transTLS.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -66,6 +67,10 @@ typedef struct SSvrConn {
   uv_buf_t* buf;
   int32_t   bufSize;
   queue     wq;  // uv_write_t queue
+
+  int8_t enableSSL;
+
+  STransTLS* pTls;  // TLS connection
 } SSvrConn;
 
 typedef struct SSvrRespMsg {
@@ -216,6 +221,17 @@ void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   SSvrConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   int32_t      code = transAllocBuffer(pBuf, buf);
+  if (code < 0) {
+    tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
+  }
+}
+
+void uvAllocRecvBufferCbSSL(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+  int32_t     code = 0;
+  SSvrConn*   conn = handle->data;
+  SSslBuffer* pBuf = &conn->pTls->readBuf;
+
+  code = sslBufferRealloc(pBuf, suggested_size, buf);
   if (code < 0) {
     tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
   }
@@ -424,33 +440,38 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   STrans*   pInst = pConn->pInst;
   STraceId* trace = &pHead->traceId;
 
-  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
-  static int64_t EXCEPTION_LIMIT_US = 1000 * 1000;
+  int64_t cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
+  int64_t threshold = tsRpcRecvLogThreshold * 1000 * 1000;  // in us
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
-    if (cost >= EXCEPTION_LIMIT_US) {
-      tGWarn("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
-             ", sid:%" PRId64,
-             transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-             (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
-    } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", sid:%" PRId64,
-              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
-    }
-  } else {
-    if (cost >= EXCEPTION_LIMIT_US) {
+    if (cost >= threshold) {
       tGWarn(
-          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold: %d, recv exception, "
           "seqNum:%" PRId64 ", sid:%" PRId64,
           transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-          pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+          (int)cost, (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%" PRId64
-              ", "
-              "sid:%" PRId64,
+      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold:%dus, seqNum:%" PRId64
+              ", sid:%" PRId64,
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+              (int)cost, (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
+    }
+  } else {
+    if (cost >= threshold) {
+      tGWarn(
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, "
+          "threshold:%d, recv exception, "
+          "seqNum:%" PRId64 ", sid:%" PRId64,
+          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+          pHead->noResp, pTransMsg->code, (int)(cost), (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
+    } else {
+      tGDebug(
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, threshold:%dus, "
+          "seqNum:%" PRId64
+          ", "
+          "sid:%" PRId64,
+          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+          pHead->noResp, pTransMsg->code, (int)(cost), (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
   }
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pInst), pTransMsg->info.handle, pConn,
@@ -693,6 +714,60 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     transUnrefSrvHandle(conn);
   }
 }
+void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SSvrConn*  conn = cli->data;
+  STrans*    pInst = conn->pInst;
+  SWorkThrd* pThrd = conn->hostThrd;
+
+  STUB_RAND_NETWORK_ERR(nread);
+
+  if (true == pThrd->quit) {
+    tInfo("work thread received quit msg, destroy conn");
+    destroyConn(conn, true);
+    return;
+  }
+
+  code = transSetReadOption((uv_handle_t*)cli);
+  if (code != 0) {
+    tWarn("%s conn:%p, failed to set recv opt since %s", transLabel(pInst), conn, tstrerror(code));
+  }
+
+  SConnBuffer* pBuf = &conn->readBuf;
+  if (nread > 0) {
+    code = sslRead(conn->pTls, pBuf, nread, 0);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    if (pBuf->len <= TRANS_PACKET_LIMIT) {
+      while (transReadComplete(pBuf)) {
+        if (true == pBuf->invalid || false == uvHandleReq(conn)) {
+          tError("%s conn:%p, read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
+                 conn->src);
+          conn->broken = true;
+          transUnrefSrvHandle(conn);
+          return;
+        }
+      }
+      return;
+    } else {
+      tError("%s conn:%p, read invalid packet, exceed limit, received from %s, local info:%s", transLabel(pInst), conn,
+             conn->dst, conn->src);
+      transUnrefSrvHandle(conn);
+      return;
+    }
+  }
+  if (nread == 0) {
+    return;
+  }
+
+  tDebug("%s conn:%p, read error:%s", transLabel(pInst), conn, uv_err_name(nread));
+_error:
+  if (nread < 0 || code != 0) {
+    conn->broken = true;
+    transUnrefSrvHandle(conn);
+  }
+}
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->len = 2;
   buf->base = taosMemoryCalloc(1, sizeof(char) * buf->len);
@@ -707,6 +782,31 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
   tError("conn:%p, time out", pConn);
 }
 
+void uvOnSendCbSSL(uv_write_t* req, int status) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SSvrConn* pConn = req->data;
+  STrans*   pInst = pConn->pInst;
+
+  if (status != 0) {
+    tDebug("%s conn:%p, failed to send msg since %s", transLabel(pConn), pConn, uv_err_name(status));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  tDebug("%s conn:%p, send ssl msg successfully", transLabel(pConn), pConn);
+  if (!sslIsInited(pConn->pTls)) {
+    tDebug("%s conn:%p, ssl not inited, skip send msg", transLabel(pConn), pConn);
+    goto _error;
+  }
+  // if (!SSL_is_init_finished(pTls->ssl)) {
+  //   tDebug("%s conn:%p, ssl not init finished, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+  //   return;
+  // }
+_error:
+  taosMemoryFree(req);
+  return;
+}
 void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
@@ -718,6 +818,9 @@ void uvOnSendCb(uv_write_t* req, int status) {
   QUEUE_MOVE(&wrapper->node, &src);
 
   freeWReqToWQ(&conn->wq, wrapper);
+  if (conn->enableSSL) {
+    sslBufferUnref(&conn->pTls->sendBuf);
+  }
 
   tTrace("%s conn:%p, send data out", transLabel(conn->pInst), conn);
 
@@ -891,10 +994,17 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   }
 
   transRefSrvHandle(pConn);
+  if (pConn->enableSSL == 0) {
+    int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
+    if (ret != 0) {
+      tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+    }
+  } else {
+    code = sslWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
+  }
 
-  int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
-  if (ret != 0) {
-    tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
+  if (code != 0) {
     pConn->broken = true;
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
       queue* head = QUEUE_HEAD(&pWreq->node);
@@ -1108,14 +1218,18 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
   if (addr->sa_family == AF_INET) {
     struct sockaddr_in* addr_in = (struct sockaddr_in*)addr;
-    inet_ntop(AF_INET, &addr_in->sin_addr, ip->ipv4, INET_ADDRSTRLEN);
+    if (inet_ntop(AF_INET, &addr_in->sin_addr, ip->ipv4, INET_ADDRSTRLEN) == NULL) {
+      uInfo("failed to convert ipv4 address");
+    }
     ip->type = 0;
     ip->port = ntohs(addr_in->sin_port);
     ip->mask = 32;
   } else if (addr->sa_family == AF_INET6) {
     struct sockaddr_in6* addr_in = (struct sockaddr_in6*)addr;
     ip->port = ntohs(addr_in->sin6_port);
-    inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN);
+    if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
+      uInfo("failed to convert ipv6 address");
+    }
     ip->type = 1;
     ip->mask = 128;
   }
@@ -1207,7 +1321,16 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     if (code != 0) {
       tWarn("failed to set tcp option since %s", tstrerror(code));
     }
-    code = uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
+
+    void (*pAllocCb)(uv_handle_t*, size_t, uv_buf_t*) = uvAllocRecvBufferCb;
+    void (*pRecvCb)(uv_stream_t*, ssize_t, const uv_buf_t*) = uvOnRecvCb;
+    if (pConn->enableSSL) {
+      pAllocCb = uvAllocRecvBufferCbSSL;
+      pRecvCb = uvOnRecvCbSSL;
+      sslSetMode(pConn->pTls, 0);
+    }
+
+    code = uv_read_start((uv_stream_t*)(pConn->pTcp), pAllocCb, pRecvCb);
     if (code != 0) {
       tWarn("conn:%p, failed to start to read since %s", pConn, uv_err_name(code));
       transUnrefSrvHandle(pConn);
@@ -1370,6 +1493,8 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
   int32_t    lino;
   int8_t     wqInited = 0;
+  int8_t     queueInited = 0;
+  STrans*    pInst = pThrd->pInst;
   SSvrConn*  pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
   if (pConn == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
@@ -1405,7 +1530,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
   }
 
-  STrans* pInst = pThrd->pInst;
   pConn->refId = exh->refId;
 
   QUEUE_INIT(&exh->q);
@@ -1423,13 +1547,13 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   if (pConn->pTcp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+    TAOS_CHECK_GOTO(terrno, &lino, _end);
   }
 
   pConn->bufSize = pInst->shareConnLimit;
-  pConn->buf = taosMemoryCalloc(1, pInst->shareConnLimit * sizeof(uv_buf_t));
+  pConn->buf = taosMemoryCalloc(1, pConn->bufSize * sizeof(uv_buf_t));
   if (pConn->buf == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+    TAOS_CHECK_GOTO(terrno, &lino, _end);
   }
 
   code = uv_tcp_init(pThrd->loop, pConn->pTcp);
@@ -1439,9 +1563,20 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   }
   pConn->pTcp->data = pConn;
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
+  queueInited = 1;
 
   pConn->pInst = pThrd->pInst;
   pConn->hostThrd = pThrd;
+
+  if (pInst->enableSSL) {
+    code = sslInit(pInst->pSSLContext, &pConn->pTls);
+    TAOS_CHECK_GOTO(code, &lino, _end);
+
+    pConn->pTls->writeCb = uvOnSendCbSSL;
+    pConn->enableSSL = 1;
+    pConn->pTls->pConn = pConn;
+    pConn->pTls->pStream = pConn->pTcp;
+  }
 
   transRefSrvHandle(pConn);
   return pConn;
@@ -1459,6 +1594,14 @@ _end:
     taosMemoryFree(pConn->pTcp);
     if (wqInited) destroyWQ(&pConn->wq);
     taosMemoryFree(pConn->buf);
+
+    if (queueInited) QUEUE_REMOVE(&pConn->queue);
+
+    if (pConn->pTls) {
+      sslDestroy(pConn->pTls);
+      pConn->pTls = NULL;
+    }
+
     taosMemoryFree(pConn);
     pConn = NULL;
   }
@@ -1509,7 +1652,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transRemoveExHandle(uvGetConnRefOfThrd(thrd), conn->refId);
 
   STrans* pInst = thrd->pInst;
-  tDebug("%s conn:%p, destroy", transLabel(pInst), conn);
+  tDebug("%s conn:%p try to destroy", transLabel(pInst), conn);
 
   transQueueDestroy(&conn->resps);
 
@@ -1522,7 +1665,10 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transDestroyBuffer(&conn->readBuf);
 
   destroyWQ(&conn->wq);
+  sslDestroy(conn->pTls);
+
   taosMemoryFree(conn->buf);
+  tDebug("%s conn:%p destroy successful", transLabel(pInst), conn);
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
@@ -2102,7 +2248,7 @@ _return2:
 }
 
 int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
-  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+  STrans* pInst = (STrans*)transInstAcquire(transGetInstMgt(), (int64_t)thandle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
@@ -2138,11 +2284,11 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
       break;
     }
   }
-  transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
 
   if (code != 0) {
     tError("ip-white-list update failed since %s", tstrerror(code));
   }
+  transInstRelease((int64_t)thandle);
   return code;
 }
 #else
@@ -2176,7 +2322,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-   // impl later
+  // impl later
   return;
 }
 

@@ -16,6 +16,7 @@ from new_test_framework.utils import tdLog, tdSql, TDSetSql, tdDnodes
 import glob
 import os
 import time
+import platform
 
 def scanFiles(pattern):
     res = []
@@ -62,6 +63,7 @@ class TestMultilevel:
         checkFiles(r'/mnt/data1/*/*',1)
         checkFiles(r'/mnt/data2/*/*',0)
         tdDnodes.stop(1)
+        time.sleep(3)
     def dir_not_exist(self):
         tdLog.info("============== dir_not_exist test ===============")
         cfg={
@@ -200,6 +202,7 @@ class TestMultilevel:
     def missing_middle_level(self):
         tdLog.info("============== missing_middle_level test ===============")
         tdDnodes.stop(1)
+        time.sleep(3)
         # Test1 1 dataDir
         cfg={
             '/mnt/data1 1 0' : 'dataDir'           
@@ -294,15 +297,22 @@ class TestMultilevel:
         tdSql.createDir('/mnt/data2')
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
-
-        tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
-        tdSql.error('alter dnode 1 "dataDir /mnt/errpath 1"')
-        tdSql.error('alter dnode 1 "dataDir /mnt/data2 3"')
-        tdSql.error('alter dnode 1 "dataDir /mnt/data2 ee"')
+        if platform.system() == 'Windows':
+            drive_letter = os.path.splitdrive(os.path.dirname(__file__))[0]
+            tdSql.execute(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\data2 1"')
+            tdSql.error(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\errpath 1"')
+            tdSql.error(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\data2 3"')
+            tdSql.error(f'alter dnode 1 "dataDir v:\\\\mnt\\\\data2 ee"')
+        else:
+            tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
+            tdSql.error('alter dnode 1 "dataDir /mnt/errpath 1"')
+            tdSql.error('alter dnode 1 "dataDir /mnt/data2 3"')
+            tdSql.error('alter dnode 1 "dataDir /mnt/data2 ee"')
 
     def run_alter_disable_case(self):
         tdLog.info("============== run_alter_disable_case test ===============")
         tdDnodes.stop(1)
+        time.sleep(3)
         cfg={
             '/mnt/data1 0 1 1' : 'dataDir',
             '/mnt/data2 0 0 0' : 'dataDir',
@@ -321,8 +331,11 @@ class TestMultilevel:
         for i in range(1,600, 30):
             tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
         tdSql.execute('flush database dbtest')
-
-        tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
+        if platform.system() == 'Windows':
+            drive_letter = os.path.splitdrive(os.path.dirname(__file__))[0]
+            tdSql.execute(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\data2 1"')
+        else:
+            tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
 
         tdSql.execute('create database dbtest1 duration 3')
         tdSql.execute('use dbtest1')

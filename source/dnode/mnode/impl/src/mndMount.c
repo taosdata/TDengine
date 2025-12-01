@@ -662,7 +662,6 @@ int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) { return TS
 #endif
 
 static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
-  fprintf(stderr, "mndProcessDropMountReq\n");
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
   SMountObj    *pObj = NULL;

@@ -579,7 +579,7 @@ int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuild
 }
 
 int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
-                             uint64_t* uid, int32_t* vgId) {
+                             uint64_t* uid, int32_t* vgId, uint64_t* suid) {
   STableVgUid* pTbInfo = NULL;
   int32_t      code = 0;
 
@@ -589,7 +589,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
 
   if (NULL == pTbInfo) {
     SName sname;
-    code = qCreateSName(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+    code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -613,8 +613,9 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
 
     *uid = pTableMeta->uid;
     *vgId = pTableMeta->vgId;
+    *suid = pTableMeta->suid;
 
-    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId};
+    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId, .suid = *suid};
     code = tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
     if (TSDB_CODE_SUCCESS == code) {
       code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
@@ -624,6 +625,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
   } else {
     *uid = pTbInfo->uid;
     *vgId = pTbInfo->vgid;
+    *suid = pTbInfo->suid;
   }
 
   return code;
@@ -655,8 +657,8 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
     }
   }
 
-  int32_t        code = TSDB_CODE_SUCCESS;
-  SArray**       rowP = NULL;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SArray** rowP = NULL;
 
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
@@ -726,10 +728,11 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
+  uint64_t suid;
 
   pTbCtx->pData->aRowP = pTbData->aCol;
 
-  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
+  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId, &suid);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -781,11 +784,12 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
+  uint64_t suid;
 
   pTbCtx->pData->aRowP = pTbData->aCol;
   pTbCtx->pData->pBlobSet = pTbData->pBlobSet;
 
-  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
+  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId, &suid);
   if (ctbReq != NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
@@ -800,6 +804,10 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+    if (pTbCtx->pData->suid != suid) {
+      return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+    }
+
     pTbCtx->pMeta->vgId = vgId;
     pTbCtx->pMeta->uid = uid;
     pTbCtx->pData->uid = uid;
@@ -974,11 +982,11 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
           code = tRowSort(pTableCxt->pData->aRowP);
         }
         if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
-        code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, PREFER_NON_NULL);
+          code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, PREFER_NON_NULL);
         }
       } else {
         if (!pTableCxt->ordered) {
-        code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobSet);
+          code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobSet);
         }
         if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
           code = tRowMergeWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobSet, 0);
@@ -1050,7 +1058,6 @@ static void destroyVgDataBlocks(void* p) {
   taosMemoryFree(pVg);
 }
 
-
 int32_t insResetBlob(SSubmitReq2* p) {
   int32_t code = 0;
   if (p->raw) {
@@ -1061,15 +1068,15 @@ int32_t insResetBlob(SSubmitReq2* p) {
     for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
       SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
       SBlobSet**     ppBlob = taosArrayGet(p->aSubmitBlobData, i);
-      SBlobSet*      pBlob = *ppBlob;
+      SBlobSet*      pBlob = ppBlob ? *ppBlob : NULL;
       int32_t        nrow = taosArrayGetSize(pSubmitTbData->aRowP);
       int32_t        nblob = 0;
-      if (nrow > 0) {
+      if (nrow > 0 && pBlob) {
         nblob = taosArrayGetSize(pBlob->pSeqTable);
       }
       uTrace("blob %p row size %d, pData size %d", pBlob, nblob, nrow);
       pSubmitTbData->pBlobSet = pBlob;
-      *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
+      if (ppBlob != NULL) *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
     }
   } else {
     for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
@@ -1145,9 +1152,15 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
 
 int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fields, char* errstr, int32_t errstrLen) {
   if (*fields != pColSchema->type) {
-    if (errstr != NULL)
+    if (errstr != NULL) {
       snprintf(errstr, errstrLen, "column type not equal, name:%s, schema type:%s, data type:%s", pColSchema->name,
                tDataTypes[pColSchema->type].name, tDataTypes[*fields].name);
+    } else {
+      char buf[512] = {0};
+      snprintf(buf, sizeof(buf), "column type not equal, name:%s, schema type:%s, data type:%s", pColSchema->name,
+               tDataTypes[pColSchema->type].name, tDataTypes[*fields].name);
+      uError("checkSchema %s", buf);
+    }
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1158,71 +1171,115 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
     int32_t bytes = *(int32_t*)(fields + sizeof(int8_t));
     extractDecimalTypeInfoFromBytes(&bytes, &precisionData, &scaleData);
     if (precision != precisionData || scale != scaleData) {
-      if (errstr != NULL)
+      if (errstr != NULL) {
         snprintf(errstr, errstrLen,
                  "column decimal type not equal, name:%s, schema type:%s, precision:%d, scale:%d, data type:%s, "
                  "precision:%d, scale:%d",
                  pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
                  precisionData, scaleData);
-      return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_INVALID_PARA;
+      } else {
+        char buf[512] = {0};
+        snprintf(buf, sizeof(buf),
+                 "column decimal type not equal, name:%s, schema type:%s, precision:%d, scale:%d, data type:%s, "
+                 "precision:%d, scale:%d",
+                 pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
+                 precisionData, scaleData);
+        uError("checkSchema %s", buf);
+        return TSDB_CODE_INVALID_PARA;
+      }
     }
     return 0;
   }
 
-  if (IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) > pColSchema->bytes) {
-    if (errstr != NULL)
-      snprintf(errstr, errstrLen,
-               "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
-               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
-               *(int32_t*)(fields + sizeof(int8_t)));
-    return TSDB_CODE_INVALID_PARA;
+  if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+    int32_t bytes = *(int32_t*)(fields + sizeof(int8_t));
+    if (IS_STR_DATA_BLOB(pColSchema->type)) {
+      if (bytes >= TSDB_MAX_BLOB_LEN) {
+        uError("column blob data bytes exceed max limit, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, bytes);
+        return TSDB_CODE_INVALID_PARA;
+      }
+    } else {
+      if (bytes > pColSchema->bytes) {
+        if (errstr != NULL) {
+          snprintf(errstr, errstrLen,
+                   "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                   pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+                   *(int32_t*)(fields + sizeof(int8_t)));
+        } else {
+          char buf[512] = {0};
+          snprintf(buf, sizeof(buf),
+                   "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                   pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+                   *(int32_t*)(fields + sizeof(int8_t)));
+          uError("checkSchema %s", buf);
+        }
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
   }
 
   if (!IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-    if (errstr != NULL)
+    if (errstr != NULL) {
       snprintf(errstr, errstrLen,
                "column normal data bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
                pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
                *(int32_t*)(fields + sizeof(int8_t)));
+    } else {
+      char buf[512] = {0};
+      snprintf(buf, sizeof(buf),
+               "column normal data bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+               *(int32_t*)(fields + sizeof(int8_t)));
+      uError("checkSchema %s", buf);
+    }
     return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }
 
-#define PRCESS_DATA(i, j)                                                                                 \
-  ret = checkSchema(pColSchema, pColExtSchema, fields, errstr, errstrLen);                                \
-  if (ret != 0) {                                                                                         \
-    goto end;                                                                                             \
-  }                                                                                                       \
-                                                                                                          \
-  if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {                                                 \
-    hasTs = true;                                                                                         \
-  }                                                                                                       \
-                                                                                                          \
-  int8_t* offset = pStart;                                                                                \
-  if (IS_VAR_DATA_TYPE(pColSchema->type)) {                                                               \
-    pStart += numOfRows * sizeof(int32_t);                                                                \
-  } else {                                                                                                \
-    pStart += BitmapLen(numOfRows);                                                                       \
-  }                                                                                                       \
-  char* pData = pStart;                                                                                   \
-                                                                                                          \
-  SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);                                               \
-  ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData); \
-  if (ret != 0) {                                                                                         \
-    goto end;                                                                                             \
-  }                                                                                                       \
-  fields += sizeof(int8_t) + sizeof(int32_t);                                                             \
-  if (needChangeLength && version == BLOCK_VERSION_1) {                                                   \
-    pStart += htonl(colLength[i]);                                                                        \
-  } else {                                                                                                \
-    pStart += colLength[i];                                                                               \
-  }                                                                                                       \
+#define PRCESS_DATA(i, j)                                                                                          \
+  ret = checkSchema(pColSchema, pColExtSchema, fields, errstr, errstrLen);                                         \
+  if (ret != 0) {                                                                                                  \
+    goto end;                                                                                                      \
+  }                                                                                                                \
+                                                                                                                   \
+  if (pColSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {                                                          \
+    hasTs = true;                                                                                                  \
+  }                                                                                                                \
+                                                                                                                   \
+  int8_t* offset = pStart;                                                                                         \
+  if (IS_VAR_DATA_TYPE(pColSchema->type)) {                                                                        \
+    pStart += numOfRows * sizeof(int32_t);                                                                         \
+  } else {                                                                                                         \
+    pStart += BitmapLen(numOfRows);                                                                                \
+  }                                                                                                                \
+  char* pData = pStart;                                                                                            \
+                                                                                                                   \
+  SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);                                                        \
+  if (hasBlob) {                                                                                                   \
+    ret = tColDataAddValueByDataBlockWithBlob(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData, \
+                                              pBlobSet);                                                           \
+  } else {                                                                                                         \
+    ret = tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);        \
+  }                                                                                                                \
+  if (ret != 0) {                                                                                                  \
+    goto end;                                                                                                      \
+  }                                                                                                                \
+  fields += sizeof(int8_t) + sizeof(int32_t);                                                                      \
+  if (needChangeLength && version == BLOCK_VERSION_1) {                                                            \
+    pStart += htonl(colLength[i]);                                                                                 \
+  } else {                                                                                                         \
+    pStart += colLength[i];                                                                                        \
+  }                                                                                                                \
   boundInfo->pColIndex[j] = -1;
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* tFields,
                      int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw) {
-  int ret = 0;
+  int       ret = 0;
+  int8_t    hasBlob = 0;
+  SBlobSet* pBlobSet = NULL;
   if (data == NULL) {
     uError("rawBlockBindData, data is NULL");
     return TSDB_CODE_APP_ERROR;
@@ -1246,10 +1303,20 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     taosMemoryFree(pCreateReqTmp);
   }
 
+  hasBlob = pTableCxt->hasBlob;
+  if (hasBlob && pTableCxt->pData->pBlobSet == NULL) {
+    ret = tBlobSetCreate(512, 0, &pTableCxt->pData->pBlobSet);
+    if (pTableCxt->pData->pBlobSet == NULL) {
+      uError("create blob set failed");
+      ret = terrno;
+    }
+  }
+
   if (ret != TSDB_CODE_SUCCESS) {
     uError("insGetTableDataCxt error");
     goto end;
   }
+  pBlobSet = pTableCxt->pData->pBlobSet;
 
   pTableCxt->pData->flags |= TD_REQ_FROM_TAOX;
   if (tmp == NULL) {
@@ -1381,4 +1448,3 @@ int rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* 
 
   return 0;
 }
-

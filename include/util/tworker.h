@@ -164,6 +164,7 @@ typedef struct SQueryAutoQWorkerPool {
   SList                          *exitedWorkers;
   STaosQset                      *qset;
   struct SQueryAutoQWorkerPoolCB *pCb;
+  bool                            stopNoWaitQueue;
   volatile bool                   exit;
 } SQueryAutoQWorkerPool;
 

@@ -82,6 +82,16 @@ const char *sdbTableName(ESdbType type) {
       return "config";
     case SDB_MOUNT:
       return "mount";
+    case SDB_MOUNT_LOG:
+      return "mount_log";
+    case SDB_SSMIGRATE:
+      return "ssmigrate";
+    case SDB_SCAN:
+      return "scan";
+    case SDB_SCAN_DETAIL:
+      return "scan_detail";
+    case SDB_RSMA:
+      return "rsma";
     default:
       return "undefine";
   }

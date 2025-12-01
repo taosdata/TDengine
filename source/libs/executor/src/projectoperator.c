@@ -400,7 +400,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
 
       // do apply filter
-      code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
@@ -411,7 +411,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     } else {
       // do apply filter
       if (pRes->info.rows > 0) {
-        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
 
         if (pRes->info.rows == 0) {
@@ -437,7 +437,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
 
   *pResBlock = (p->info.rows > 0)? p:NULL;
@@ -669,7 +669,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
       }
     }
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     size_t rows = pInfo->pRes->info.rows;
@@ -856,7 +856,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = 1;
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   if (code) {
     pTaskInfo->code = code;
     return code;
@@ -884,12 +884,270 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
+int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, SqlFunctionCtx* pfCtx, int32_t* numOfRows, bool createNewColModel) {
+  int32_t code = 0, lino = 0;
+  SInputColumnInfoData* pInputData = &pfCtx->input;
+  SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+  TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
+
+  if (pResult->info.rows > 0 && !createNewColModel) {
+    if (pInputData->pData[0] == NULL) {
+      int32_t slotId = pfCtx->param[0].pCol->slotId;
+
+      SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+      TSDB_CHECK_NULL(pInput, code, lino, _exit, terrno);
+
+      TAOS_CHECK_EXIT(colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInput,
+                            pSrcBlock->info.rows));
+      *numOfRows = pSrcBlock->info.rows;
+      return code;
+    }
+    
+    TAOS_CHECK_EXIT(colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity,
+                          pInputData->pData[0], pInputData->numOfRows));
+    *numOfRows = pInputData->numOfRows;
+    return code;
+  } 
+  
+  if (pInputData->pData[0] == NULL) {
+    int32_t slotId = pfCtx->param[0].pCol->slotId;
+
+    SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+    TSDB_CHECK_NULL(pInput, code, lino, _exit, terrno);
+
+    TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info));
+    *numOfRows = pSrcBlock->info.rows;
+
+    return code;
+  }
+  
+  TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info));
+  *numOfRows = pInputData->numOfRows;
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+
+int32_t projectApplyValue(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel) {
+  int32_t code = 0, lino = 0;
+  SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+  TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
+
+  int32_t offset = createNewColModel ? 0 : pResult->info.rows;
+  int32_t type = pExpr->base.pParam[0].param.nType;
+  if (TSDB_DATA_TYPE_NULL == type) {
+    colDataSetNNULL(pColInfoData, offset, pSrcBlock->info.rows);
+  } else {
+    char* p = taosVariantGet(&pExpr->base.pParam[0].param, type);
+    for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
+      TAOS_CHECK_EXIT(colDataSetVal(pColInfoData, i + offset, p, false));
+    }
+  }
+
+  *numOfRows = pSrcBlock->info.rows;
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+
+
+int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams) {
+  int32_t code = 0, lino = 0;
+  SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
+  TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
+
+  void* px = taosArrayPush(pBlockList, &pSrcBlock);
+  TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+
+  SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+  TSDB_CHECK_NULL(pResColData, code, lino, _exit, terrno);
+
+  SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
+  SScalarParam dest = {.columnData = &idata};
+  TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtraParams, NULL));
+
+  if (pResult->info.rows > 0 && !createNewColModel) {
+    code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+  } else {
+    code = colDataAssign(pResColData, &idata, dest.numOfRows, &pResult->info);
+  }
+
+  colDataDestroy(&idata);
+  TAOS_CHECK_EXIT(code);
+
+  *numOfRows = dest.numOfRows;
+  
+_exit:
+
+  if (code < 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  taosArrayDestroy(pBlockList);
+  
+  return code;
+}
+
+
+int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, 
+                                    int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams, 
+                                    SArray* pPseudoList, SArray** processByRowFunctionCtx, bool doSelectFunc) {
+  int32_t code = 0, lino = 0;
+  SArray* pBlockList = NULL;
+  SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
+  TSDB_CHECK_NULL(pResColData, code, lino, _exit, terrno);
+
+  if (fmIsPlaceHolderFunc(pfCtx->functionId) && pExtraParams && pfCtx->pExpr->base.pParamList && 1 == pfCtx->pExpr->base.pParamList->length) {
+    TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows, pfCtx->functionId, pExtraParams));
+    *numOfRows = pSrcBlock->info.rows;
+
+    return code;
+  }
+
+  if (fmIsScalarFunc(pfCtx->functionId) || fmIsPlaceHolderFunc(pfCtx->functionId)) {
+    pBlockList = taosArrayInit(4, POINTER_BYTES);
+    TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
+
+    void* px = taosArrayPush(pBlockList, &pSrcBlock);
+    TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+
+    SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
+    SScalarParam dest = {.columnData = &idata};
+    TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, pExtraParams, NULL));
+
+    if (pResult->info.rows > 0 && !createNewColModel) {
+      code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+    } else {
+      SColumnInfo oriInfo = pResColData->info;
+      code = colDataAssign(pResColData, &idata, dest.numOfRows, &pResult->info);
+      // restore the original column info to satisfy the output column schema
+      pResColData->info = oriInfo;
+    }
+
+    colDataDestroy(&idata);
+    taosArrayDestroy(pBlockList);
+    TAOS_CHECK_EXIT(code);
+
+    *numOfRows = dest.numOfRows;
+
+    return code;
+  }
+
+  if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pfCtx);
+    TAOS_CHECK_EXIT(pfCtx->fpSet.init(pfCtx, pResInfo));
+
+
+    pfCtx->pOutput = (char*)pResColData;
+    TSDB_CHECK_NULL(pfCtx->pOutput, code, lino, _exit, terrno);
+
+    pfCtx->offset = createNewColModel ? 0 : pResult->info.rows;  // set the start offset
+
+    // set the timestamp(_rowts) output buffer
+    if (taosArrayGetSize(pPseudoList) > 0) {
+      int32_t* outputColIndex = taosArrayGet(pPseudoList, 0);
+      TSDB_CHECK_NULL(outputColIndex, code, lino, _exit, terrno);
+
+      pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
+    }
+
+    // link pDstBlock to set selectivity value
+    if (pfCtx->subsidiaries.num > 0) {
+      pfCtx->pDstBlock = pResult;
+    }
+
+    code = pfCtx->fpSet.process(pfCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (pfCtx->fpSet.cleanup != NULL) {
+        pfCtx->fpSet.cleanup(pfCtx);
+      }
+      TAOS_CHECK_EXIT(code);
+    }
+
+    *numOfRows = pResInfo->numOfRes;
+    
+    if (fmIsProcessByRowFunc(pfCtx->functionId)) {
+      if (NULL == *processByRowFunctionCtx) {
+        *processByRowFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));
+        TSDB_CHECK_NULL(*processByRowFunctionCtx, code, lino, _exit, terrno);
+      }
+
+      void* px = taosArrayPush(*processByRowFunctionCtx, &pfCtx);
+      TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+    }
+
+    return code;
+  } 
+
+  if (fmIsAggFunc(pfCtx->functionId)) {
+    // selective value output should be set during corresponding function execution
+    if (!doSelectFunc && fmIsSelectValueFunc(pfCtx->functionId)) {
+      return code;
+    }
+    
+    // _group_key function for "partition by tbname" + csum(col_name) query
+    int32_t slotId = pfCtx->param[0].pCol->slotId;
+
+    // todo handle the json tag
+    SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
+    TSDB_CHECK_NULL(pInput, code, lino, _exit, terrno);
+
+    for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
+      bool isNull = colDataIsNull_s(pInput, f);
+      if (isNull) {
+        colDataSetNULL(pResColData, pResult->info.rows + f);
+      } else {
+        char* data = colDataGetData(pInput, f);
+        TAOS_CHECK_EXIT(colDataSetVal(pResColData, pResult->info.rows + f, data, isNull));
+      }
+    }
+
+    *numOfRows = pSrcBlock->info.rows;
+
+    return code;
+  } 
+  
+  if (fmIsGroupIdFunc(pfCtx->functionId)) {
+    for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
+      TAOS_CHECK_EXIT(colDataSetVal(pResColData, pResult->info.rows + f, (const char*)&pSrcBlock->info.id.groupId, false));
+    }
+
+    *numOfRows = pSrcBlock->info.rows;
+    return code;
+  }
+  
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  taosArrayDestroy(pBlockList);
+  
+  return code;
+}
+
+
 int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
                                         SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc) {
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-  setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
+  if (hasIndefRowsFunc) {
+    setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
+  }
   pResult->info.dataLoad = 1;
 
   SArray* processByRowFunctionCtx = NULL;
@@ -899,21 +1157,16 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
 
       if (pExpr[k].pExpr->nodeType != QUERY_NODE_VALUE) {
         qError("project failed at: %s:%d", __func__, __LINE__);
-        code = TSDB_CODE_INVALID_PARA;
-        TSDB_CHECK_CODE(code, lino, _exit);
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
       }
       SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-      if (pColInfoData == NULL) {
-        code = terrno;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
+      TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
 
       int32_t type = pExpr[k].base.pParam[0].param.nType;
       if (TSDB_DATA_TYPE_NULL == type) {
         colDataSetNNULL(pColInfoData, 0, 1);
       } else {
-        code = colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        TAOS_CHECK_EXIT(colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false));
       }
     }
 
@@ -923,7 +1176,9 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
 
   if (pResult != pSrcBlock) {
     pResult->info.id.groupId = pSrcBlock->info.id.groupId;
-    memcpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
+    if (pSrcBlock->info.parTbName[0]) {
+      tstrncpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
+    }
     qTrace("%s, parName:%s,groupId:%" PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, pResult->info.id.groupId);
   }
 
@@ -931,10 +1186,7 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   // function or some operators.
   bool createNewColModel = (pResult == pSrcBlock);
   if (createNewColModel) {
-    code = blockDataEnsureCapacity(pResult, pResult->info.rows);
-    if (code) {
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    TAOS_CHECK_EXIT(blockDataEnsureCapacity(pResult, pResult->info.rows));
   }
 
   int32_t numOfRows = 0;
@@ -942,282 +1194,35 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   for (int32_t k = 0; k < numOfOutput; ++k) {
     int32_t               outputSlotId = pExpr[k].base.resSchema.slotId;
     SqlFunctionCtx*       pfCtx = &pCtx[k];
-    SInputColumnInfoData* pInputData = &pfCtx->input;
-
-    if (pExpr[k].pExpr->nodeType == QUERY_NODE_COLUMN) {  // it is a project query
-      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-      if (pColInfoData == NULL) {
-        code = terrno;
-        TSDB_CHECK_CODE(code, lino, _exit);
+    switch (pExpr[k].pExpr->nodeType) {
+      case QUERY_NODE_COLUMN: {
+        TAOS_CHECK_EXIT(projectApplyColumn(pResult, pSrcBlock, outputSlotId, pfCtx, &numOfRows, createNewColModel));
+        break;
+      } 
+      case QUERY_NODE_VALUE: {
+        TAOS_CHECK_EXIT(projectApplyValue(&pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows, createNewColModel));
+        break;
+      } 
+      case QUERY_NODE_OPERATOR: {
+        TAOS_CHECK_EXIT(projectApplyOperator(&pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows, createNewColModel, pExtraParams));
+        break;
+      } 
+      case QUERY_NODE_FUNCTION: {
+        TAOS_CHECK_EXIT(projectApplyFunction(pCtx, pfCtx, &pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows, createNewColModel, pExtraParams, pPseudoList, &processByRowFunctionCtx, doSelectFunc));
+        break;
       }
-
-      if (pResult->info.rows > 0 && !createNewColModel) {
-        int32_t ret = 0;
-
-        if (pInputData->pData[0] == NULL) {
-          int32_t slotId = pfCtx->param[0].pCol->slotId;
-
-          SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
-          if (pInput == NULL) {
-            code = terrno;
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-
-          ret = colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity, pInput,
-                                pSrcBlock->info.rows);
-        } else {
-          ret = colDataMergeCol(pColInfoData, pResult->info.rows, (int32_t*)&pResult->info.capacity,
-                                pInputData->pData[0], pInputData->numOfRows);
-        }
-
-        if (ret < 0) {
-          code = ret;
-        }
-
-        TSDB_CHECK_CODE(code, lino, _exit);
-      } else {
-        if (pInputData->pData[0] == NULL) {
-          int32_t slotId = pfCtx->param[0].pCol->slotId;
-
-          SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
-          if (pInput == NULL) {
-            code = terrno;
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-
-          code = colDataAssign(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info);
-          numOfRows = pSrcBlock->info.rows;
-        } else {
-          code = colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info);
-          numOfRows = pInputData->numOfRows;
-        }
-
-        TSDB_CHECK_CODE(code, lino, _exit);
+      default: {
+        qError("invalid project expr nodeType:%d", pExpr[k].pExpr->nodeType);
+        TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
       }
-    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_VALUE) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-      if (pColInfoData == NULL) {
-        code = terrno;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      int32_t offset = createNewColModel ? 0 : pResult->info.rows;
-
-      int32_t type = pExpr[k].base.pParam[0].param.nType;
-      if (TSDB_DATA_TYPE_NULL == type) {
-        colDataSetNNULL(pColInfoData, offset, pSrcBlock->info.rows);
-      } else {
-        char* p = taosVariantGet(&pExpr[k].base.pParam[0].param, type);
-        for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
-          code = colDataSetVal(pColInfoData, i + offset, p, false);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
-
-      numOfRows = pSrcBlock->info.rows;
-    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
-      SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
-      if (pBlockList == NULL) {
-        code = terrno;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      void* px = taosArrayPush(pBlockList, &pSrcBlock);
-      if (px == NULL) {
-        code = terrno;
-        taosArrayDestroy(pBlockList);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-      if (pResColData == NULL) {
-        code = terrno;
-        taosArrayDestroy(pBlockList);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
-
-      SScalarParam dest = {.columnData = &idata};
-      code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtraParams, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosArrayDestroy(pBlockList);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-      if (pResult->info.capacity <= 0) {
-        qError("project failed at: %s:%d", __func__, __LINE__);
-        code = TSDB_CODE_INVALID_PARA;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      int32_t ret =
-          colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
-      if (ret < 0) {
-        code = ret;
-      }
-
-      colDataDestroy(&idata);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      numOfRows = dest.numOfRows;
-      taosArrayDestroy(pBlockList);
-    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
-      // _rowts/_c0, not tbname column
-      if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId)) &&
-          !fmIsPlaceHolderFunc(pfCtx->functionId)) {
-        if (fmIsGroupIdFunc(pfCtx->functionId)) {
-          SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-          TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
-          code = colDataSetVal(pColInfoData, pResult->info.rows, (const char*)&pSrcBlock->info.id.groupId, false);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      } else if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
-        SResultRowEntryInfo* pResInfo = GET_RES_INFO(pfCtx);
-        code = pfCtx->fpSet.init(pfCtx, pResInfo);
-        TSDB_CHECK_CODE(code, lino, _exit);
-        pfCtx->pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
-        if (pfCtx->pOutput == NULL) {
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        pfCtx->offset = createNewColModel ? 0 : pResult->info.rows;  // set the start offset
-
-        // set the timestamp(_rowts) output buffer
-        if (taosArrayGetSize(pPseudoList) > 0) {
-          int32_t* outputColIndex = taosArrayGet(pPseudoList, 0);
-          if (outputColIndex == NULL) {
-            code = terrno;
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-
-          pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
-        }
-
-        // link pDstBlock to set selectivity value
-        if (pfCtx->subsidiaries.num > 0) {
-          pfCtx->pDstBlock = pResult;
-        }
-
-        code = pfCtx->fpSet.process(pfCtx);
-        if (code != TSDB_CODE_SUCCESS) {
-          if (pCtx[k].fpSet.cleanup != NULL) {
-            pCtx[k].fpSet.cleanup(&pCtx[k]);
-          }
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        numOfRows = pResInfo->numOfRes;
-        if (fmIsProcessByRowFunc(pfCtx->functionId)) {
-          if (NULL == processByRowFunctionCtx) {
-            processByRowFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));
-            if (!processByRowFunctionCtx) {
-              code = terrno;
-              TSDB_CHECK_CODE(code, lino, _exit);
-            }
-          }
-
-          void* px = taosArrayPush(processByRowFunctionCtx, &pfCtx);
-          if (px == NULL) {
-            code = terrno;
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-        }
-      } else if (fmIsAggFunc(pfCtx->functionId)) {
-        // selective value output should be set during corresponding function execution
-        if (!doSelectFunc && fmIsSelectValueFunc(pfCtx->functionId)) {
-          continue;
-        }
-        // _group_key function for "partition by tbname" + csum(col_name) query
-        SColumnInfoData* pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
-        if (pOutput == NULL) {
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        int32_t slotId = pfCtx->param[0].pCol->slotId;
-
-        // todo handle the json tag
-        SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
-        if (pInput == NULL) {
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
-          bool isNull = colDataIsNull_s(pInput, f);
-          if (isNull) {
-            colDataSetNULL(pOutput, pResult->info.rows + f);
-          } else {
-            char* data = colDataGetData(pInput, f);
-            code = colDataSetVal(pOutput, pResult->info.rows + f, data, isNull);
-            TSDB_CHECK_CODE(code, lino, _exit);
-          }
-        }
-
-      } else {
-        SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
-        if (pBlockList == NULL) {
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        void* px = taosArrayPush(pBlockList, &pSrcBlock);
-        if (px == NULL) {
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-        if (pResColData == NULL) {
-          taosArrayDestroy(pBlockList);
-          code = terrno;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
-
-        SScalarParam dest = {.columnData = &idata};
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, pExtraParams, NULL);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pBlockList);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-
-        int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-        if (pResult->info.capacity <= 0) {
-          qError("project failed at: %s:%d", __func__, __LINE__);
-          code = TSDB_CODE_INVALID_PARA;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-        int32_t ret =
-            colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
-        if (ret < 0) {
-          code = ret;
-        }
-
-        colDataDestroy(&idata);
-
-        numOfRows = dest.numOfRows;
-        taosArrayDestroy(pBlockList);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    } else {
-      return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }
 
   if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0) {
     SqlFunctionCtx** pfCtx = taosArrayGet(processByRowFunctionCtx, 0);
-    if (pfCtx == NULL) {
-      code = terrno;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    TSDB_CHECK_NULL(pfCtx, code, lino, _exit, terrno);
 
-    code = (*pfCtx)->fpSet.processFuncByRow(processByRowFunctionCtx);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_EXIT((*pfCtx)->fpSet.processFuncByRow(processByRowFunctionCtx));
     numOfRows = (*pfCtx)->resultInfo->numOfRes;
   }
 
@@ -1230,12 +1235,12 @@ _exit:
     taosArrayDestroy(processByRowFunctionCtx);
   }
   if (code) {
-    qError("project apply functions failed at: %s:%d", __func__, lino);
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
-  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams, false);
+  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams, false, true);
 }

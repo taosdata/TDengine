@@ -4,7 +4,6 @@ import os
 import threading
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
-# from tmqCommon import *
 
 class TestLimit:
 

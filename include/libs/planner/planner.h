@@ -21,7 +21,15 @@ extern "C" {
 #endif
 
 #include "plannodes.h"
-#include "taos.h"
+
+#define SYS_SCAN_FLAG  0x01  
+#define HSYS_SCAN_FLAG 0x03
+
+#define IS_SYS_SCAN(_flag)  (((_flag) & (SYS_SCAN_FLAG)) != 0)
+#define IS_HSYS_SCAN(_flag) (((_flag) & (HSYS_SCAN_FLAG)) != 0)
+
+#define SET_SYS_SCAN_FLAG(_f) (_f) = SYS_SCAN_FLAG
+#define SET_HSYS_SCAN_FLAG(_f) (_f) = HSYS_SCAN_FLAG
 
 typedef struct SPlanContext {
   uint64_t    queryId;
@@ -36,6 +44,8 @@ typedef struct SPlanContext {
   bool        isView;
   bool        isAudit;
   bool        withExtWindow;
+  bool        hasScan;
+  int32_t     sysScanFlag;
   int8_t      triggerType;
   int64_t     watermark;
   int64_t     deleteMark;
@@ -51,7 +61,8 @@ typedef struct SPlanContext {
   bool        streamVtableCalc;
   SNode*      streamTriggerScanSubplan;
   SArray*     pStreamCalcVgArray;
-  SHashObj*   pStreamCalcDbs;
+  ENodeType  streamTriggerWinType;
+  SNodeList*  streamTriggerScanList;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

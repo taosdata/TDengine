@@ -30,6 +30,7 @@ typedef struct SMnodeMgmt {
   const char    *path;
   const char    *name;
   SSingleWorker  queryWorker;
+  SSingleWorker  mqueryWorker;
   SSingleWorker  fetchWorker;
   SSingleWorker  readWorker;
   SSingleWorker  statusWorker;

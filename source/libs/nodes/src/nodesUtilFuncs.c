@@ -153,7 +153,7 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (g_pNodeAllocator->pCurrChunk->usedSize + alignedSize > g_pNodeAllocator->pCurrChunk->availableSize) {
     int32_t code = callocNodeChunk(g_pNodeAllocator, NULL);
     if (TSDB_CODE_SUCCESS != code) {
-      *pOut = NULL;
+      taosMemFreeClear(*pOut);
       return code;
     }
   }
@@ -589,6 +589,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_MOUNT_STMT:
       code = makeNode(type, sizeof(SDropMountStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_RSMA_STMT:
+      code = makeNode(type, sizeof(SCreateRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_RSMA_STMT:
+      code = makeNode(type, sizeof(SDropRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      code = makeNode(type, sizeof(SAlterRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
@@ -670,8 +679,20 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = makeNode(type, sizeof(SCompactDatabaseStmt), &pNode);
       break;
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+      code = makeNode(type, sizeof(SRollupDatabaseStmt), &pNode);
+      break;
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      code = makeNode(type, sizeof(SScanDatabaseStmt), &pNode);
+      break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = makeNode(type, sizeof(SCompactVgroupsStmt), &pNode);
+      break;
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SRollupVgroupsStmt), &pNode);
+      break;
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SScanVgroupsStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = makeNode(type, sizeof(SCreateFunctionStmt), &pNode);
@@ -706,6 +727,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       code = makeNode(type, sizeof(SBalanceVgroupLeaderStmt), &pNode);
+      break;
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:
+      code = makeNode(type, sizeof(SSetVgroupKeepVersionStmt), &pNode);
+      break;
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      code = makeNode(type, sizeof(STrimDbWalStmt), &pNode);
       break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = makeNode(type, sizeof(SMergeVgroupStmt), &pNode);
@@ -769,6 +796,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
+    case QUERY_NODE_SHOW_RSMAS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -792,17 +821,32 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       code = makeNode(type, sizeof(SShowCreateViewStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+      code = makeNode(type, sizeof(SShowCreateRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = makeNode(type, sizeof(SShowTableDistributedStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       code = makeNode(type, sizeof(SShowCompactsStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_SCANS_STMT:
+      code = makeNode(type, sizeof(SShowScansStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowCompactDetailsStmt), &pNode);
-      break;      
+      break;
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
+      code = makeNode(type, sizeof(SShowRetentionDetailsStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
+      code = makeNode(type, sizeof(SShowScanDetailsStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowTransactionDetailsStmt), &pNode); 
+      break;
+    case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      code = makeNode(type, sizeof(SShowSsMigratesStmt), &pNode);
       break;
     case QUERY_NODE_KILL_QUERY_STMT:
       code = makeNode(type, sizeof(SKillQueryStmt), &pNode);
@@ -810,6 +854,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_KILL_TRANSACTION_STMT:
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_COMPACT_STMT:
+    case QUERY_NODE_KILL_RETENTION_STMT:
+    case QUERY_NODE_KILL_SCAN_STMT:
+    case QUERY_NODE_KILL_SSMIGRATE_STMT:
       code = makeNode(type, sizeof(SKillStmt), &pNode);
       break;
     case QUERY_NODE_DELETE_STMT:
@@ -883,6 +930,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+      code = makeNode(type, sizeof(SImputationFuncLogicNode), &pNode);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = makeNode(type, sizeof(SGroupCacheLogicNode), &pNode);
@@ -966,7 +1016,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SSessionWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-      code = makeNode(type, sizeof(SStateWinodwPhysiNode), &pNode);
+      code = makeNode(type, sizeof(SStateWindowPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       code = makeNode(type, sizeof(SEventWinodwPhysiNode), &pNode);
@@ -988,6 +1038,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+      code = makeNode(type, sizeof(SImputationFuncPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = makeNode(type, sizeof(SDataDispatcherNode), &pNode);
@@ -1219,6 +1272,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pState->pCol);
       nodesDestroyNode(pState->pExpr);
       nodesDestroyNode(pState->pTrueForLimit);
+      nodesDestroyNode(pState->pExtend);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -1392,6 +1446,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
       nodesDestroyList(pExternal->pAggFuncList);
       nodesDestroyList(pExternal->pProjectionList);
+      nodesDestroyNode(pExternal->pTimeRange);
       taosMemoryFreeClear(pExternal->timezone);
     }
     case QUERY_NODE_HINT: {
@@ -1574,6 +1629,17 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_DROP_MOUNT_STMT:  // no pointer field
       break;
+    case QUERY_NODE_CREATE_RSMA_STMT: {
+      SCreateRsmaStmt* pStmt = (SCreateRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pFuncs);
+      nodesDestroyList(pStmt->pIntervals);
+      break;
+    }
+    case QUERY_NODE_ALTER_RSMA_STMT: {
+      SAlterRsmaStmt* pStmt = (SAlterRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pFuncs);
+      break;
+    }
     case QUERY_NODE_CREATE_USER_STMT: {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
@@ -1646,8 +1712,36 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pEnd);
       break;
     }
+    case QUERY_NODE_ROLLUP_DATABASE_STMT: {
+      SRollupDatabaseStmt* pStmt = (SRollupDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_SCAN_DATABASE_STMT: {
+      SScanDatabaseStmt* pStmt = (SScanDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
     case QUERY_NODE_COMPACT_VGROUPS_STMT: {
       SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT: {
+      SRollupVgroupsStmt* pStmt = (SRollupVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_SCAN_VGROUPS_STMT: {
+      SScanVgroupsStmt* pStmt = (SScanVgroupsStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);
@@ -1673,6 +1767,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ASSIGN_LEADER_STMT: 
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:           // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:  // no pointer field
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:          // no pointer field
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:               // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:                    // no pointer field
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -1730,7 +1826,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
-    case QUERY_NODE_SHOW_MOUNTS_STMT: {
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+    case QUERY_NODE_SHOW_RSMAS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -1748,12 +1846,21 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
+    case QUERY_NODE_SHOW_SCANS_STMT:
       break;
-    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT: {
       SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
-      nodesDestroyNode(pStmt->pCompactId);
+      nodesDestroyNode(pStmt->pId);
       break;
     }
+    case QUERY_NODE_SHOW_SCAN_DETAILS_STMT: {
+      SShowScanDetailsStmt* pStmt = (SShowScanDetailsStmt*)pNode;
+      nodesDestroyNode(pStmt->pScanId);
+      break;
+    }
+    case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT: {
       SShowTransactionDetailsStmt* pStmt = (SShowTransactionDetailsStmt*)pNode;
       nodesDestroyNode(pStmt->pTransactionId);
@@ -1774,7 +1881,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
     case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
     case QUERY_NODE_KILL_COMPACT_STMT:            // no pointer field
+    case QUERY_NODE_KILL_RETENTION_STMT:          // no pointer field
+    case QUERY_NODE_KILL_SCAN_STMT:
+    case QUERY_NODE_KILL_SSMIGRATE_STMT:          // no pointer field
       break;
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT: {
+      SRsmaInfoRsp* pMeta = ((SShowCreateRsmaStmt*)pNode)->pRsmaMeta;
+      if (pMeta != NULL) {
+        tFreeRsmaInfoRsp(pMeta, true);
+        taosMemFreeClear(((SShowCreateRsmaStmt*)pNode)->pRsmaMeta);
+      }
+      break;
+    }
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
       nodesDestroyNode(pStmt->pFromTable);
@@ -1917,6 +2035,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pTspk);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
       nodesDestroyNode(pLogicNode->pStateExpr);
       nodesDestroyNode(pLogicNode->pStartCond);
@@ -1971,6 +2090,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFuncs);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC: {
+      SImputationFuncLogicNode* pLogicNode = (SImputationFuncLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pFuncs);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE: {
       SGroupCacheLogicNode* pLogicNode = (SGroupCacheLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -1982,6 +2107,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN) {
         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
+        nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
       }
       break;
     }
@@ -2014,6 +2140,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
+      nodesDestroyNode(pPhyNode->pTimeRange);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
@@ -2131,7 +2258,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
-      SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
+      SStateWindowPhysiNode* pPhyNode = (SStateWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
@@ -2174,6 +2301,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pTimeSeries);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC: {
       SForecastFuncPhysiNode* pPhyNode = (SForecastFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
@@ -2214,6 +2342,7 @@ void nodesDestroyNode(SNode* pNode) {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
       if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
+        nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       break;
@@ -2380,6 +2509,7 @@ int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+// remove current node from the list and return next node
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   if (NULL == pCell->pPrev) {
     pList->pHead = pCell->pNext;
@@ -2694,6 +2824,19 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
     case OP_TYPE_MULTI:
     case OP_TYPE_DIV:
     case OP_TYPE_REM:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
       return true;
     default:
       break;
@@ -3308,13 +3451,6 @@ int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNo
     pValNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
     pValNode->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
-    char* p = taosMemoryMalloc(lenStr + 1 + VARSTR_HEADER_SIZE);
-    if (p == NULL) {
-      return terrno;
-    }
-    varDataSetLen(p, lenStr);
-    memcpy(varDataVal(p), literal, lenStr + 1);
-    pValNode->datum.p = p;
     pValNode->literal = tstrdup(literal);
     pValNode->flag |= VALUE_FLAG_IS_DURATION;
     pValNode->translate = false;

@@ -113,6 +113,8 @@ char* ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get TSMA]";
     case CTG_TASK_GET_TB_NAME:
       return "[bget table name]";
+    case CTG_TASK_GET_RSMA:
+      return "[get rsma]";
     default:
       return "unknown";
   }
@@ -2787,6 +2789,9 @@ uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
   }
   if (pTsmaInfo->pUsedCols) {
     size += sizeof(SSchema) * pTsmaInfo->pUsedCols->size;
+  }
+  if (pTsmaInfo->streamAddr) {
+    size += sizeof(SStreamTaskAddr);
   }
 
   return size;

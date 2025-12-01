@@ -93,6 +93,17 @@ int32_t tdListAppend(SList *list, const void *data) {
   return 0;
 }
 
+void* tdListPreReserve(SList *list) {
+  SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
+  if (node == NULL) {
+    return NULL;
+  }
+
+  TD_DLIST_PREPEND(list, node);
+
+  return (void*)node->data;
+}
+
 void* tdListReserve(SList *list) {
   SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
   if (node == NULL) {

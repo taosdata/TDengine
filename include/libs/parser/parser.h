@@ -144,6 +144,7 @@ bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int3
                         char* msgBuf, int32_t msgBufLen, int* pCode);
 int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, SSHashObj* predicateCols,
                               char* msgBuf, int32_t msgBufLen);
+bool    qIsSelectFromSql(const char* pStr, size_t length);
 bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 
 // for async mode
@@ -214,6 +215,8 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen);
+int32_t qCreateSName2(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
+                      int32_t msgBufLen);
 
 void qDestroyBoundColInfo(void* pInfo);
 

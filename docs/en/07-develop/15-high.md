@@ -5,8 +5,6 @@ slug: /developer-guide/ingesting-data-efficiently
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Image from '@theme/IdealImage';
-import imgThread from '../assets/ingesting-data-efficiently-01.png';
 
 To help users easily build data ingestion pipelines with million-level throughput, the TDengine connector provides a high-performance write feature. When this feature is enabled, the TDengine connector automatically creates write threads and dedicated queues, caches data sharded by sub-tables, and sends data in batches when the data volume threshold is reached or a timeout condition occurs. This approach reduces network requests and increases throughput, allowing users to achieve high-performance writes without needing to master multithreaded programming knowledge or data sharding techniques.
 
@@ -332,7 +330,7 @@ Below is a sample log output from an actual run on a machine with a 40-core CPU,
 
 From the client application's perspective, the following factors should be considered for efficient data writing:  
 
-1. **Batch Writing**: Generally, larger batch sizes improve efficiency (but the advantage diminishes beyond a certain threshold). When using SQL to write to TDengine, include as much data as possible in a single SQL statement. The maximum allowed SQL length in TDengine is **1MB** (1,048,576 characters).  
+1. **Batch Writing**: Generally, larger batch sizes improve efficiency (but the advantage diminishes beyond a certain threshold). When using SQL to write to TDengine, include as much data as possible in a single SQL statement.  
 2. **Multithreaded Writing**: Before system resource bottlenecks are reached, increasing the number of write threads can improve throughput (performance may decline due to server-side processing limitations beyond the threshold). It is recommended to assign independent connections to each write thread to reduce connection resource contention.  
 3. **Write Locality**: The distribution of data across different tables (or sub-tables), i.e., the locality of data to be written. Writing to a single table (or sub-table) in each batch is more efficient than writing to multiple tables (or sub-tables).  
 4. **Pre-Creating Tables**: Pre-creating tables improves write performance as it eliminates the need to check table existence and allows omitting tag column data during writing.  
@@ -383,11 +381,9 @@ For other parameters, refer to [Server Configuration](../../tdengine-reference/c
 
 From the factors affecting write performance discussed above, developing high-performance data writing programs requires knowledge of multithreaded programming and data sharding, posing a technical threshold. To reduce user development costs, the TDengine connector provides the **efficient writing feature**, allowing users to leverage TDengine's powerful writing capabilities without dealing with underlying thread management and data sharding logic.  
 
-Below is a schematic diagram of the connector's efficient writing feature implementation:  
-<figure>
-<Image img={imgThread} alt="Thread model for efficient writing example"/>
-<figcaption>Figure 1. Thread model for efficient writing example</figcaption>
-</figure>
+Below is a schematic diagram of the connector's efficient writing feature implementation:
+
+![ingesting-data](../assets/ingesting-data-efficiently-01.png)
 
 ### Design Principles  
 

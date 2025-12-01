@@ -211,7 +211,7 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   int32_t code = 0;
   int64_t seq = 0;
 
-  taosThreadMutexLock(&pVnode->lock);
+  (void)taosThreadMutexLock(&pVnode->lock);
   code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
   bool wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
@@ -538,10 +538,10 @@ static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 
 static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
-  if (code != 0) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
+  // if (code != 0) {
+  //   rpcFreeCont(pMsg->pCont);
+  //   pMsg->pCont = NULL;
+  // }
   return code;
 }
 
@@ -821,15 +821,16 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
       .syncEqMsg = vnodeSyncEqMsg,
       .syncEqCtrlMsg = vnodeSyncEqCtrlMsg,
       .pingMs = 5000,
-      .electMs = 4000,
-      .heartbeatMs = 700,
+      .electMs = tsVnodeElectIntervalMs,
+      .heartbeatMs = tsVnodeHeartbeatIntervalMs,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", path, TD_DIRSEP);
   syncInfo.pFsm = vnodeSyncMakeFsm(pVnode);
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
-  vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
+  vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d, electMs:%d, heartbeatMs:%d", pVnode->config.vgId,
+        pCfg->replicaNum, pCfg->myIndex, syncInfo.electMs, syncInfo.heartbeatMs);
   for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn,
@@ -850,6 +851,24 @@ int32_t vnodeSyncStart(SVnode *pVnode) {
   int32_t code = syncStart(pVnode->sync);
   if (code) {
     vError("vgId:%d, failed to start sync subsystem since %s", pVnode->config.vgId, tstrerror(code));
+    return code;
+  }
+  return 0;
+}
+
+int32_t vnodeSetSyncTimeout(SVnode *pVnode, int32_t ms) {
+  int32_t code = syncResetTimer(pVnode->sync, tsVnodeElectIntervalMs, tsVnodeHeartbeatIntervalMs);
+  if (code) {
+    vError("vgId:%d, failed to vnode Set SyncTimeout since %s", pVnode->config.vgId, tstrerror(code));
+    return code;
+  }
+  return 0;
+}
+
+int32_t vnodeSetElectBaseline(SVnode* pVnode, int32_t ms){
+  int32_t code = syncSetElectBaseline(pVnode->sync, ms);
+  if (code) {
+    vError("vgId:%d, failed to set electBaseline since %s", pVnode->config.vgId, tstrerror(code));
     return code;
   }
   return 0;

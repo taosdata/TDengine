@@ -185,7 +185,7 @@ static void generateClusterReport(taos_collector_registry_t* registry, void* pTr
   (void)snprintf(ts, sizeof(ts), "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
   char* pCont = (char*)taos_collector_registry_bridge_new(registry, ts, "%" PRId64, NULL);
   if (NULL == pCont) {
-    tscError("generateClusterReport failed, get null content.");
+    tscError("generateClusterReport failed, get null content. since %s", tstrerror(terrno));
     return;
   }
 
@@ -229,7 +229,7 @@ static void sendAllCounter() {
     }
     SAppInstInfo* pInst = getAppInstByClusterId(pMonitor->clusterId);
     if (pInst == NULL) {
-      taosHashCancelIterate(monitorCounterHash, ppMonitor);
+      taosHashCancelIterate(monitorSlowLogHash, ppMonitor);
       break;
     }
     SEpSet ep = getEpSet_s(&pInst->mgmtEp);

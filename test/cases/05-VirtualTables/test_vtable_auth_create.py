@@ -25,9 +25,12 @@ class TestVtableAuthCreate:
 
 
     def test_create_virtual_normal_table(self):
-        """test auth user create virtual normal tables.
+        """Auth: create virtual normal table
 
         test "write", "read", "none", "all" each auth user create opration
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -65,7 +68,7 @@ class TestVtableAuthCreate:
                     if (priv_tb2 != "none"):
                         tdSql.execute(f"grant {priv_tb2} on test_vtable_auth_create.test_vtable_auth_org_table_2 to test_vtable_user_create;")
 
-                    sleep(2)
+                    tdSql.execute(f"reset query cache")
                     tdLog.info(f"priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
                     testSql.execute("use test_vtable_auth_create;")
                     if (priv_db == "read"):
@@ -101,10 +104,13 @@ class TestVtableAuthCreate:
         tdSql.execute("drop database test_vtable_auth_create;")
 
     def test_create_virtual_child_table(self):
-        """test auth user create virtual child tables.
+        """Auth: create virtual child table
 
         test "write", "read", "none", "all" each auth user create opration
 
+        Catalog:
+            - VirtualTable
+            
         Since: v3.3.6.0
 
         Labels: virtual, create, auth
@@ -141,7 +147,7 @@ class TestVtableAuthCreate:
                     if (priv_tb2 != "none"):
                         tdSql.execute(f"grant {priv_tb2} on test_vctable_auth_create.test_vtable_auth_org_table_2 to test_vct_user_create;")
 
-                    sleep(2)
+                    tdSql.execute(f"reset query cache")
                     tdLog.info(f"priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
                     testSql.execute("use test_vctable_auth_create;")
                     if (priv_db == "read"):

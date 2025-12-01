@@ -7,11 +7,8 @@ slug: /tdengine-reference/client-libraries/rust
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-
-import Preparation from "../../assets/resources/_preparation.mdx"
+import Preparation from "../../assets/resources/_preparation.mdx";
 import RequestId from "../../assets/resources/_request_id.mdx";
-
-[![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` is the official Rust language connector for TDengine. Rust developers can use it to develop applications that access the TDengine database.
 
@@ -56,7 +53,7 @@ match conn.exec(sql) {
 }
 ```
 
-The error code of the error message can be referred to: [Error Codes](../../error-codes/)
+For specific error codes, please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 
@@ -121,7 +118,13 @@ The meanings of each part are as follows:
   - WebSocket connection: supports multiple addresses, separated by commas. When the address is not specified, the default is `localhost:6041`.
     - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Specifies the default database name to connect to, optional parameter.
-- **params**: Other optional parameters.
+- **params**:
+  - `token`: Authentication for the TDengine TSDB cloud service.
+  - `timezone`: Time zone setting, in the format of an IANA time zone name (e.g., `Asia/Shanghai`). The default is the local time zone.
+  - `compression`: Whether to enable data compression. The default is `false`.
+  - `conn_retries`: Maximum number of retries upon connection failure. The default is 5.
+  - `retry_backoff_ms`: Initial wait time (in milliseconds) upon connection failure. The default is 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
+  - `retry_backoff_max_ms`: Maximum wait time (in milliseconds) upon connection failure. The default is 2000.
 
 A complete DSN description string example is as follows: `taos+ws://localhost:6041/test`, indicating using WebSocket (`ws`) mode to connect to the server `localhost` through port `6041`, and specifying the default database as `test`.
 
