@@ -165,8 +165,8 @@ void rpcClose(void* arg) {
     return;
   }
   transCacheRemoveByRefId((int64_t)arg);
-  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
+  transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
   return;
 }
