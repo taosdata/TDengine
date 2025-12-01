@@ -993,7 +993,7 @@ class StreamUtil:
             sql = f"create view view{v} as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.t{v}"
             tdSql.execute(sql)
 
-    # for StreamCheckItem, see cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+    # for StreamCheckItem, see cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
     def checkAll(self, streams):
         for stream in streams:
             tdLog.info(f"stream:{stream.db} - create database, table, stream", color='blue')

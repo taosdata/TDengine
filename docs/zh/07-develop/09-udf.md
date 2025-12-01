@@ -245,7 +245,7 @@ typedef struct SUdfInterBuf {
 
 ### C UDF 示例代码
 
-#### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/3.0/test/cases/23-UDFs/sh/bit_and.c)
+#### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/bit_and.c)
 
 bit_and 实现多列的按位与功能。如果只有一列，返回这一列。bit_and 忽略空值。
 
@@ -253,12 +253,12 @@ bit_and 实现多列的按位与功能。如果只有一列，返回这一列。
 <summary>bit_and.c</summary>
 
 ```c
-{{#include test/cases/23-UDFs/sh/bit_and.c}}
+{{#include test/cases/12-UDFs/sh/bit_and.c}}
 ```
 
 </details>
 
-#### 聚合函数示例 1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/23-UDFs/sh/l2norm.c)
+#### 聚合函数示例 1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/l2norm.c)
 
 l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
@@ -266,12 +266,12 @@ l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先�
 <summary>l2norm.c</summary>
 
 ```c
-{{#include test/cases/23-UDFs/sh/l2norm.c}}
+{{#include test/cases/12-UDFs/sh/l2norm.c}}
 ```
 
 </details>
 
-#### 聚合函数示例 2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/3.0/test/cases/23-UDFs/sh/max_vol.c)
+#### 聚合函数示例 2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/max_vol.c)
 
 max_vol 实现了从多个输入的电压列中找到最大电压，返回由设备 ID + 最大电压所在（行，列）+ 最大电压值 组成的组合字符串值
 
@@ -297,12 +297,12 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 <summary>max_vol.c</summary>
 
 ```c
-{{#include test/cases/23-UDFs/sh/max_vol.c}}
+{{#include test/cases/12-UDFs/sh/max_vol.c}}
 ```
 
 </details>
 
-#### 聚合函数示例 3 切分字符串求平均值 [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/test/cases/23-UDFs/sh/extract_avg.c)
+#### 聚合函数示例 3 切分字符串求平均值 [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/extract_avg.c)
 
 `extract_avg` 函数是将一个逗号分隔的字符串数列转为一组数值，统计所有行的结果，计算最终平均值。实现时需注意：
 
@@ -338,7 +338,7 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 <summary>extract_avg.c</summary>
 
 ```c
-{{#include test/cases/23-UDFs/sh/extract_avg.c}}
+{{#include test/cases/12-UDFs/sh/extract_avg.c}}
 ```
 
 </details>
@@ -869,7 +869,7 @@ close log file: spread.log
 
 ### 更多 Python UDF 示例代码
 
-#### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/3.0/test/cases/23-UDFs/sh/pybitand.py)
+#### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pybitand.py)
 
 pybitand 实现多列的按位与功能。如果只有一列，返回这一列。pybitand 忽略空值。
 
@@ -877,32 +877,32 @@ pybitand 实现多列的按位与功能。如果只有一列，返回这一列�
 <summary>pybitand.py</summary>
 
 ```Python
-{{#include test/cases/23-UDFs/sh/pybitand.py}}
+{{#include test/cases/12-UDFs/sh/pybitand.py}}
 ```
 
 </details>
 
-#### 聚合函数示例 [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/23-UDFs/sh/pyl2norm.py)
+#### 聚合函数示例 [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pyl2norm.py)
 
 pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
 <details>
 <summary>pyl2norm.py</summary>
 
-```c
-{{#include test/cases/23-UDFs/sh/pyl2norm.py}}
+```python
+{{#include test/cases/12-UDFs/sh/pyl2norm.py}}
 ```
 
 </details>
 
-#### 聚合函数示例 [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/test/cases/23-UDFs/sh/pycumsum.py)
+#### 聚合函数示例 [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pycumsum.py)
 
 pycumsum 使用 numpy 计算输入列所有数据的累积和。
 <details>
 <summary>pycumsum.py</summary>
 
-```c
-{{#include test/cases/23-UDFs/sh/pycumsum.py}}
+```python
+{{#include test/cases/12-UDFs/sh/pycumsum.py}}
 ```
 
 </details>

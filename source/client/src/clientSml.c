@@ -1118,6 +1118,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     pName.tname[nameLen] = '\0';
     taosMemoryFree(measure);
 
+    pTableMeta = NULL;
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_STB_NOT_EXIST) {
@@ -1741,7 +1742,7 @@ void smlSetReqSQL(SRequestObj *request, char *lines[], char *rawLine, char *rawL
       return;
     }
 
-    rlen = TMIN(len, TSDB_MAX_ALLOWED_SQL_LEN);
+    rlen = TMIN(len, tsMaxSQLLength);
     rlen = TMAX(rlen, 0);
 
     char *sql = taosMemoryMalloc(rlen + 1);

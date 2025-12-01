@@ -46,6 +46,8 @@ static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropTtltbRsp(SRpcMsg *pReq);
+static int32_t  mndProcessTrimDbRsp(SRpcMsg *pReq);
+static int32_t  mndProcessTrimDbWalRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static int32_t  mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -80,6 +82,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TTL_TABLE_RSP, mndProcessDropTtltbRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_TRIM_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TRIM_WAL_RSP, mndProcessTrimDbWalRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
@@ -2982,6 +2985,9 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
 }
 
 static int32_t mndProcessDropTtltbRsp(SRpcMsg *pRsp) { return 0; }
+static int32_t mndProcessTrimDbRsp(SRpcMsg *pRsp) { return 0; }
+static int32_t mndProcessTrimDbWalRsp(SRpcMsg *pRsp) { return 0; }
+static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
 
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
@@ -3343,18 +3349,23 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
 }
 
 static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode  *pMnode = pReq->info.node;
-  SSdb    *pSdb = pMnode->pSdb;
-  int32_t  numOfRows = 0;
-  SStbObj *pStb = NULL;
-  int32_t  cols = 0;
-  int32_t  lino = 0;
-  int32_t  code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SStbObj  *pStb = NULL;
+  SUserObj *pUser = NULL;
+  int32_t   cols = 0;
+  int32_t   lino = 0;
+  int32_t   code = 0;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return terrno;
+  }
+
+  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) {
+    goto _ERROR;
   }
 
   while (numOfRows < rows) {
@@ -3368,6 +3379,12 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     if (isTsmaResSTb(pStb->name)) {
       sdbRelease(pSdb, pStb);
+      continue;
+    }
+
+    if ((0 == pUser->superUser) && mndCheckStbPrivilege(pMnode, pUser, MND_OPER_SHOW_STB, pStb) != 0) {
+      sdbRelease(pSdb, pStb);
+      terrno = 0;
       continue;
     }
 
@@ -3473,10 +3490,19 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
+  if (pUser != NULL) {
+    mndReleaseUser(pMnode, pUser);
+  }
 
   goto _OVER;
 
 _ERROR:
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+  }
+  if (pUser != NULL) {
+    mndReleaseUser(pMnode, pUser);
+  }
   mError("show:0x%" PRIx64 ", failed to retrieve data at %s:%d since %s", pShow->id, __FUNCTION__, lino,
          tstrerror(code));
 

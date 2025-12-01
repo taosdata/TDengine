@@ -7,6 +7,14 @@ from abc import abstractmethod, ABC
 class AnalyticsService:
     """ Analytics root class with only one method"""
 
+    READY = 0x01
+    UNAVAILABLE = 0x02
+
+    _toStatusName = {
+        READY: 'READY',
+        UNAVAILABLE: 'UNAVAIL'
+    }
+
     @abstractmethod
     def execute(self):
         """ the main execute method to perform fc or anomaly detection """
@@ -19,11 +27,16 @@ class AnalyticsService:
         """return exist params """
         return {}
 
+    def get_status(self) -> str:
+        """return model status """
+        return AnalyticsService._toStatusName[AnalyticsService.READY]
+
 
 class AbstractAnalyticsService(AnalyticsService, ABC):
     """ abstract base analytics service class definition"""
     name = ''
     desc = ''
+    status = ''
 
     def __init__(self):
         self.list = None
@@ -83,6 +96,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
 
         self.return_conf = 1
         self.conf = 0.95
+        self.precision = 'ms'
 
         self.past_dynamic_real = []
         self.dynamic_real = []
@@ -126,6 +140,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
             raise ValueError("invalid value of conf, should between 0 and 1.0")
 
         self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
+        self.precision = params.get('precision', 'ms')
 
     def get_params(self):
         return {
@@ -144,6 +159,24 @@ class AbstractImputationService(AbstractAnalyticsService, ABC):
         """ set the input data """
         self.set_input_list(input_list, input_ts_list)
 
+
+    def set_params(self, params: dict) -> None:
+        pass
+
+    def get_params(self):
+        return {
+            "dummy": "dummy"
+        }
+
+class AbstractCorrelationService(AbstractAnalyticsService, ABC):
+    """ abstract correlation analysis service"""
+    def __init__(self):
+        super().__init__()
+        self.list1 = None
+        self.type = "correlation"
+
+    def set_second_input_data(self, input_list1):
+        self.list1 = input_list1
 
     def set_params(self, params: dict) -> None:
         pass

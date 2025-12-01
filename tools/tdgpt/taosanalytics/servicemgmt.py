@@ -6,7 +6,8 @@ import inspect
 import os
 from collections import defaultdict
 from taosanalytics.conf import app_logger
-from taosanalytics.service import AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService
+from taosanalytics.service import (AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService, \
+                                   AbstractCorrelationService)
 
 os.environ['KERAS_BACKEND'] = 'torch'
 
@@ -28,10 +29,10 @@ class AnalyticsServiceLoader:
         for key, val in self.services.items():
             if val[0].type == type_str:
                 try:
-                    one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params()}
+                    one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params(), "status": val[0].get_status()}
                     all_items.append(one)
                 except AttributeError as e:
-                    app_logger.log_inst.error("failed to get service: %s info, reason: %s", key, e);
+                    app_logger.log_inst.error("failed to get service: %s info, reason: %s", key, e)
 
         return all_items
 
@@ -43,7 +44,8 @@ class AnalyticsServiceLoader:
             "details": [
                 self.get_forecast_algo_list(),
                 self.get_anomaly_detection_algo_list(),
-                self.get_imputation_algo_list()
+                self.get_imputation_algo_list(),
+                self.get_corr_algo_list()
             ]
         }
 
@@ -68,6 +70,12 @@ class AnalyticsServiceLoader:
         return {
             "type": "forecast",
             "algo": self.get_typed_services("forecast")
+        }
+
+    def get_corr_algo_list(self):
+        return {
+            "type": "correlation",
+            "algo": self.get_typed_services("correlation")
         }
 
     def load_all_service(self) -> None:
@@ -109,7 +117,8 @@ class AnalyticsServiceLoader:
                     if class_name in (
                             AbstractAnomalyDetectionService.__name__,
                             AbstractForecastService.__name__,
-                            AbstractImputationService.__name__
+                            AbstractImputationService.__name__,
+                            AbstractCorrelationService.__name__
                     ) or (not class_name.startswith('_')):
                         continue
 
@@ -125,6 +134,7 @@ class AnalyticsServiceLoader:
         do_load_service(current_directory, 'taosanalytics.algo.ad.', '/algo/ad/')
         do_load_service(current_directory, 'taosanalytics.algo.fc.', '/algo/fc/')
         do_load_service(current_directory, 'taosanalytics.algo.imputat.', '/algo/imputat/')
+        do_load_service(current_directory, 'taosanalytics.algo.correl.', '/algo/correl/')
 
 
 loader: AnalyticsServiceLoader = AnalyticsServiceLoader()

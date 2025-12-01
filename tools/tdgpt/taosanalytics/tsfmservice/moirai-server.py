@@ -296,7 +296,14 @@ def main():
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
 
-        download_model(model_name, model_folder, enable_ep=enable_ep)
+        # check if the model file exists or not
+        model_file = model_folder + '/model.safetensors'
+        model_conf_file = model_folder + '/config.json'
+
+        if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
+            download_model(model_name, model_folder, enable_ep=enable_ep)
+        else:
+            print("model file exists, start directly")
 
         """load the model from local folder"""
         pretrained_model = MoiraiMoEModule.from_pretrained(

@@ -16,8 +16,6 @@ class TestDatabaseAlterOptionKeep:
         5. Check results
         6. Repeat steps 3-5 several times
 
-        Catalog:
-            - Database:Alter
 
         Since: v3.0.0.0
 

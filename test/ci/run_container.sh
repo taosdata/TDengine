@@ -110,14 +110,8 @@ mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
 if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/test" ]; then
-    if [ "$exec_dir" != "." ]; then
-        subdir=`echo "$exec_dir"|cut -d/ -f1`
-        echo "cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/"
-        cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/
-    else
-        echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
-        cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
-    fi
+    echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
+    cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
 fi
 
 # if [ ! -f "${SOURCEDIR}/${packageName}" ]; then
@@ -134,6 +128,15 @@ if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
     coredump_dir="/home/coredump"
 fi
 
+echo "docker run \
+    -v $REP_MOUNT_PARAM \
+    -v $REP_MOUNT_DEBUG \
+    -v $REP_MOUNT_LIB \
+    -v $MOUNT_DIR \
+    -v ${SOURCEDIR}:/usr/local/src/ \
+    -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
+    -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
+    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param"
 docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \

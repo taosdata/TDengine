@@ -189,6 +189,7 @@ int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 int             metaCreateRsma(SMeta* pMeta, int64_t version, SVCreateRsmaReq* pReq);
 int             metaDropRsma(SMeta* pMeta, int64_t version, SVDropRsmaReq* pReq);
+int             metaAlterRsma(SMeta* pMeta, int64_t version, SVAlterRsmaReq* pReq);
 void            metaFreeRsmaParam(SRSmaParam* pParam, int8_t type);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
@@ -617,6 +618,7 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+  bool       forceTrim;  // force trim WAL, ignore keepVersion constraint
 };
 
 struct SCompactInfo {

@@ -113,7 +113,7 @@ void monInitMonitorFW(){
                            NET_OUT, IO_READ, IO_WRITE, IO_READ_DISK, IO_WRITE_DISK, /*ERRORS,*/
                            VNODES_NUM, MASTERS, HAS_MNODE, HAS_QNODE, HAS_SNODE,
                            DNODE_LOG_ERROR, DNODE_LOG_INFO, DNODE_LOG_DEBUG, DNODE_LOG_TRACE};
-  for(int32_t i = 0; i < 25; i++){
+  for (int32_t i = 0; i < sizeof(dnodes_gauges)/sizeof(dnodes_gauges[0]); i++) {
     gauge= taos_gauge_new(dnodes_gauges[i], "",  dnodes_label_count, dnodes_sample_labels);
     if(taos_collector_registry_register_metric(gauge) == 1){
       if (taos_counter_destroy(gauge) != 0) {
@@ -792,7 +792,7 @@ void monSendPromReport() {
       uDebugL("report cont prom:\n%s", promStr);
     }
     else{
-      uInfo("report cont is null");
+      uInfo("report cont is null, since %s", tstrerror(terrno));
     }
   }
   if (pCont != NULL) {

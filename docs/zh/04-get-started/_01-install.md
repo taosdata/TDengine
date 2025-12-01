@@ -89,3 +89,7 @@ TDengine 的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下
 - _TDinsight.sh_：用于下载 TDinsight 并安装的脚本
 - _set_core.sh_：用于方便调试设置系统生成 core dump 文件的脚本
 - _taosd-dump-cfg.gdb_：用于方便调试 taosd 的 gdb 执行脚本。
+
+## TDengine TSDB 支持的网络环境
+
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 (../08-operation/13-network.md)

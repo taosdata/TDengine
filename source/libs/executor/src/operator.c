@@ -15,7 +15,6 @@
 
 #include "filter.h"
 #include "function.h"
-#include "os.h"
 #include "tname.h"
 
 #include "tglobal.h"
@@ -377,7 +376,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return code;
       }
 
-      STableScanInfo* pScanInfo = pOperator->info;
+      STableMergeScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       code = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
@@ -410,7 +409,26 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
-      code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
+      if (pSysScanPhyNode->scan.virtualStableScan) {
+        STableListInfo*           pTableListInfo = tableListCreate();
+        if (!pTableListInfo) {
+          pTaskInfo->code = terrno;
+          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+          return terrno;
+        }
+
+        code = createScanTableListInfo((SScanPhysiNode*)pSysScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+                                       pTagIndexCond, pTaskInfo, NULL);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pTableListInfo, pUser, pTaskInfo, &pOperator);
+      } else {
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, NULL, pUser, pTaskInfo, &pOperator);
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type) {
       STableCountScanPhysiNode* pTblCountScanNode = (STableCountScanPhysiNode*)pPhyNode;
       code = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo, &pOperator);
@@ -620,8 +638,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC == type) {
     code = createForecastOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC == type) {
-    code = createImputationOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC == type) {
+    code = createGenericAnalysisOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     code = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
@@ -683,6 +701,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
+    pOperator->info = NULL;
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
@@ -1000,3 +1019,39 @@ _error:
   }
   return code;
 }
+
+int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
+  bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
+  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == targetBlkId) {
+      SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, pNode->slotId);
+      QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno)
+
+      if (isNull) {
+        colDataSetNNULL(pDstCol, 0, totalRows);
+      } else {
+        SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, ((SColumnNode*)pNode->pExpr)->slotId);
+        QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno)
+
+        code = colDataAssign(pDstCol, pSrcCol, pSrc->info.rows, &pDst->info);
+
+        QUERY_CHECK_CODE(code, lino, _return);
+        if (pSrc->info.rows < totalRows) {
+          colDataSetNNULL(pDstCol, pSrc->info.rows, totalRows - pSrc->info.rows);
+        }
+      }
+    }
+  }
+
+  return code;
+_return:
+  qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
+  return code;
+}
+

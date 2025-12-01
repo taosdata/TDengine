@@ -87,6 +87,9 @@ typedef enum {
   MND_OPER_SCAN_DB,
   MND_OPER_CREATE_RSMA,
   MND_OPER_DROP_RSMA,
+  MND_OPER_ROLLUP_DB,
+  MND_OPER_SHOW_STB,
+  MND_OPER_ALTER_RSMA,
 } EOperType;
 
 typedef enum {
@@ -253,8 +256,10 @@ typedef struct {
 } SDnodeObj;
 
 typedef struct {
-  int32_t nameLen;
   char*   name;
+  int32_t nameLen;
+  char*   pStatus;
+  char*   pNote;
 } SAnodeAlgo;
 
 typedef struct {
@@ -317,9 +322,9 @@ typedef struct {
 } SBnodeObj;
 
 typedef struct {
-  int32_t dnodeId;
+  int32_t assignedDnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
-  int8_t  acked;
+  int8_t  assignAcked;
 } SArbAssignedLeader;
 
 typedef struct {
@@ -580,6 +585,8 @@ typedef struct {
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
   int32_t   mountVgId;  // TS-5868
+  int64_t   keepVersion;  // WAL keep version, -1 for disabled
+  int64_t   keepVersionTime;  // WAL keep version time
 } SVgObj;
 
 
@@ -706,6 +713,15 @@ typedef struct {
   int32_t  funcVersion;
   SRWLatch lock;
 } SFuncObj;
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int64_t firstRegTime;
+  int64_t lastRegTime;
+  int32_t expire;
+} SInstanceObj;
 
 typedef struct {
   int64_t        id;
@@ -1028,6 +1044,7 @@ typedef struct {
     int32_t id;
   };
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* compactDetail;
   union {
@@ -1043,6 +1060,7 @@ typedef struct {
 typedef struct {
   int32_t scanId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* scanDetail;
 } SScanObj;

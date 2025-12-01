@@ -26,7 +26,7 @@ StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年�
 
 运行 StatsD：
 
-```
+```bash
 $ node stats.js config.js &
 [1] 8546
 $ 20 Apr 09:54:41 - [8546] reading config file: config.js
@@ -35,13 +35,13 @@ $ 20 Apr 09:54:41 - [8546] reading config file: config.js
 
 使用 nc 写入测试数据：
 
-```
+```bash
 echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 ```
 
 使用 TDengine TSDB CLI 验证从 StatsD 向 TDengine TSDB 写入数据并能够正确读出：
 
-```
+```sql
 taos> show databases;
               name              |
 =================================

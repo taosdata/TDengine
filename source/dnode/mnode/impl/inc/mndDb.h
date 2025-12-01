@@ -36,7 +36,7 @@ int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 bool    mndIsDbReady(SMnode *pMnode, SDbObj *pDb);
 void    mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
-bool    mndDbIsExist(SMnode *pMnode, const char *db);
+bool    mndDbIsExist(SMnode *pMnode, const char *db, int64_t uid);
 
 SSdbRaw    *mndDbActionEncode(SDbObj *pDb);
 const char *mndGetDbStr(const char *src);

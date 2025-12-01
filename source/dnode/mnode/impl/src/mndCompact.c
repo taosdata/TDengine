@@ -65,6 +65,7 @@ int32_t tSerializeSCompactObj(void *buf, int32_t bufLen, const SCompactObj *pObj
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
   TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pObj->flags));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->dbUid));
 
   tEndEncode(&encoder);
 
@@ -93,6 +94,11 @@ int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj) {
     TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pObj->flags));
   } else {
     pObj->flags = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->dbUid));
+  } else {
+    pObj->dbUid = 0;
   }
 
   tEndDecode(&decoder);
@@ -242,7 +248,7 @@ void mndReleaseCompact(SMnode *pMnode, SCompactObj *pCompact) {
   pCompact = NULL;
 }
 
-int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int32_t len) {
+static int32_t mndCompactGetDbInfo(SMnode *pMnode, int32_t compactId, char *dbname, int32_t len, int64_t *dbUid) {
   int32_t      code = 0;
   SCompactObj *pCompact = mndAcquireCompact(pMnode, compactId);
   if (pCompact == NULL) {
@@ -252,6 +258,7 @@ int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int
   }
 
   tstrncpy(dbname, pCompact->dbname, len);
+  if (dbUid) *dbUid = pCompact->dbUid;
   mndReleaseCompact(pMnode, pCompact);
   TAOS_RETURN(code);
 }
@@ -262,6 +269,7 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
   pCompact->compactId = tGenIdPI32();
 
   tstrncpy(pCompact->dbname, pDb->name, sizeof(pCompact->dbname));
+  pCompact->dbUid = pDb->uid;
 
   pCompact->startTime = taosGetTimestampMs();
 
@@ -700,10 +708,11 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  char dbname[TSDB_TABLE_FNAME_LEN] = {0};
-  TAOS_CHECK_RETURN(mndCompactGetDbName(pMnode, compactId, dbname, TSDB_TABLE_FNAME_LEN));
+  char    dbname[TSDB_TABLE_FNAME_LEN] = {0};
+  int64_t dbUid = 0;
+  TAOS_CHECK_RETURN(mndCompactGetDbInfo(pMnode, compactId, dbname, TSDB_TABLE_FNAME_LEN, &dbUid));
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     needSave = true;
     mWarn("compact:%" PRId32 ", no db exist, set needSave:%s", compactId, dbname);
   }
@@ -795,7 +804,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     allFinished = true;
     mWarn("compact:%" PRId32 ", no db exist, set all finished:%s", compactId, dbname);
   }

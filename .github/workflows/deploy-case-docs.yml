@@ -9,6 +9,7 @@ on:
     types: [closed]  # trigger on PR close
     paths:
       - 'test/cases/**/test_*.py'
+      - 'test/cases/**/test_*.sh'
       - 'test/new_test_framework/utils/*.py'
 
 jobs:
@@ -68,6 +69,7 @@ jobs:
         run: |
           mkdir -p test/docs/case_list_docs
           python .github/scripts/generate_case_md.py "test/mkdocs.yml" "test/docs/case_list_docs" ""
+          python .github/scripts/generate_shell_case_md.py --branch $BRANCH_NAME
         shell: bash
 
       - name: Generate Markdown files for utils

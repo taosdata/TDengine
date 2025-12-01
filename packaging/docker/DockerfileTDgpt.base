@@ -25,8 +25,8 @@ RUN pip3 install --upgrade pip && \
                     accelerate==1.8.1 \
                     tensorflow-cpu==2.15.0 \
                     # arm64 use: tensorflow==2.15.0 \
-                    uni2ts \
                     prophet==1.1.7 \
+                    fastdtw==0.3.4 \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
     find /usr/local/lib/python3.10 -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
@@ -61,7 +61,7 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_timesfm
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
-    pip install --no-cache-dir transformers==4.33 \
+    pip install --no-cache-dir transformers==4.33.3 momentfm \
         -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +

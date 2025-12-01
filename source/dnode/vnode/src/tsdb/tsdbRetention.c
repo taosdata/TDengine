@@ -345,7 +345,7 @@ static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner, SRtnArg *rtnArg) {
   }
 
   int32_t expLevel = tsdbFidLevel(fset->fid, &tsdb->keepCfg, rtner->tw.ekey);
-  if (expLevel < 0) {
+  if (expLevel <= 0) {
     return false;
   }
 
@@ -404,8 +404,10 @@ int32_t tsdbRetention(void *arg) {
       etype = TSDB_FEDIT_ROLLUP;
       TAOS_CHECK_GOTO(tsdbDoRollup(&rtner), &lino, _exit);
 #endif
-    } else {
+    } else if (rtnArg->optrType == TSDB_OPTR_NORMAL) {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
+    } else {
+      goto _exit;
     }
 
     TAOS_CHECK_GOTO(tsdbDoRetentionEnd(&rtner, etype), &lino, _exit);

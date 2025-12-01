@@ -238,31 +238,33 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
 
   SJson* pJson = tjsonCreateArray();
   SJson* item = tjsonCreateObject();
-  if (tjsonAddItemToArray(pJson, item) != 0) {
+  if ((terrno = tjsonAddItemToArray(pJson, item)) != 0) {
     tjsonDelete(pJson);
     return NULL;
   }
-  if (tjsonAddStringToObject(item, "ts", ts) != 0) {
+  if ((terrno = tjsonAddStringToObject(item, "ts", ts)) != 0) {
     tjsonDelete(pJson);
     return NULL;
   }
-  if (tjsonAddDoubleToObject(item, "protocol", 2) != 0) {
+  if ((terrno = tjsonAddDoubleToObject(item, "protocol", 2)) != 0) {
     tjsonDelete(pJson);
     return NULL;
   }
   SJson *array = tjsonCreateArray();
-  if (tjsonAddItemToObject(item, "tables", array) != 0) {
+  if ((terrno = tjsonAddItemToObject(item, "tables", array)) != 0) {
     tjsonDelete(pJson);
     return NULL;
   }
 
-  if (taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array) != 0) {
+  if ((terrno = taos_metric_formatter_load_metrics_new(self->metric_formatter, self->collectors, ts, format, array)) !=
+      0) {
     TAOS_LOG("failed to load metrics");
     tjsonDelete(pJson);
     return NULL;
   }
 
   if(tjsonGetArraySize(array) == 0){
+    terrno = TSDB_CODE_UTIL_NO_METRIC_EXIST;
     tjsonDelete(pJson);
     return NULL;
   }
@@ -314,6 +316,7 @@ _OVER:
   if(tmp_builder != NULL){
     taos_string_builder_destroy(tmp_builder);
   }
+  terrno = r;
 
   return NULL;
 }

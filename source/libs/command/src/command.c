@@ -959,6 +959,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   SViewMeta* pMeta = pStmt->pViewMeta;
   if (NULL == pMeta) {
     qError("exception: view meta is null");
+    taosMemoryFree(buf2);
     return TSDB_CODE_APP_ERROR;
   }
   snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
@@ -968,6 +969,57 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   code = colDataSetVal(pCol2, 0, buf2, false);
   taosMemoryFree(buf2);
 
+  return code;
+}
+
+extern const char* fmGetFuncName(int32_t funcId);
+static int32_t setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
+  int32_t       code = 0, lino = 0;
+  char*         buf2 = NULL;
+  SRsmaInfoRsp* pMeta = pStmt->pRsmaMeta;
+
+  if (pMeta->nFuncs != pMeta->nColNames) {
+    qError("exception: rsma meta is invalid, nFuncs:%d != nColNames:%d", pMeta->nFuncs, pMeta->nColNames);
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, 1));
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  char             buf1[SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1] = {0};
+  snprintf(varDataVal(buf1), TSDB_TABLE_FNAME_LEN + 4, "`%s`", expandIdentifier(pStmt->rsmaName, buf1));
+  varDataSetLen(buf1, strlen(varDataVal(buf1)));
+  TAOS_CHECK_EXIT(colDataSetVal(pCol1, 0, buf1, false));
+
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  if (!(buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN))) {
+    return terrno;
+  }
+
+  SName name = {0};
+  TAOS_CHECK_EXIT(tNameFromString(&name, pMeta->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+
+  int32_t len = 0;
+  len += tsnprintf(varDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                       "CREATE RSMA `%s` ON `%s`.`%s` FUNCTION(", expandIdentifier(pStmt->rsmaName, buf1),
+                       expandIdentifier(name.dbname, buf1), expandIdentifier(name.tname, buf1));
+  for (int32_t i = 0; i < pMeta->nFuncs; ++i) {
+    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                         "%s%s(`%s`)", (i > 0) ? "," : "", fmGetFuncName(pMeta->funcIds[i]),
+                         expandIdentifier(*(char**)TARRAY_GET_ELEM(pMeta->colNames, i), buf1));
+  }
+  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                       ") INTERVAL(%d%c", pMeta->interval[0], pMeta->intervalUnit);
+  if (pMeta->interval[1] > 0) {
+    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                         ",%d%c", pMeta->interval[1], pMeta->intervalUnit);
+  }
+  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+  varDataLen(buf2) = len;
+  code = colDataSetVal(pCol2, 0, buf2, false);
+_exit:
+  taosMemoryFree(buf2);
   return code;
 }
 
@@ -1239,6 +1291,19 @@ static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
+static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateRsmaResultIntoDataBlock(pBlock, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
+  }
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
                      void* charsetCxt) {
   switch (nodeType(pStmt)) {
@@ -1257,7 +1322,7 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
-      return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
+      return execShowCreateRsma((SShowCreateRsmaStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

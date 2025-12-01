@@ -14,6 +14,7 @@ TDengine TSDB 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、�
 ## 前置条件
 
 首先检查下面服务：
+
 - TDengine TSDB 已经安装并正常运行，此仪表盘需要 TDengine TSDB 3.0.0.0 及以上，并开启监控上报配置，具体配置请参考：[TDengine TSDB 监控配置](../taosd/#监控相关)。
 - taosAdapter 已经安装并正常运行。具体细节请参考：[taosAdapter 参考手册](../taosadapter)
 - taosKeeper 已安装并正常运行。具体细节请参考：[taosKeeper 参考手册](../taoskeeper)
@@ -30,9 +31,8 @@ TDengine TSDB 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、�
 - taosAdapter 集群认证信息，可使用用户名及密码。
 - taosKeeper 记录监控指标的数据库名称。
 
-
-
 ## 安装 TDengine TSDB 数据源插件和配置数据源
+
 安装 Grafana TDengine TSDB 数据源插件和配置数据源的步骤请参考：[与  Grafana 集成](../../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)
 
 ## 导入 TDinsightV3 仪表盘
@@ -40,13 +40,13 @@ TDengine TSDB 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、�
 在配置 TDengine TSDB 数据源界面，点击“Dashboards”tab，再点击”import”导入”TDengine for 3.x”仪表盘。
 导入成功后可以进入这个 dashboard，在左上角”Log from“选项中选择 taosKeeper 中设置的记录监控指标的数据库就可以看到监控结果。
 
-
-##  TDinsightV3 仪表盘详情
+## TDinsightV3 仪表盘详情
 
 TDinsight 仪表盘旨在提供 TDengine TSDB 相关资源的使用情况和状态，比如 dnodes、mnodes、vnodes 和数据库等。
 主要分为集群状态、DNodes 概述、MNode 概述、请求、数据库、DNode 资源使用情况和 taosAdapter 监控信息。下面我们分别详细介绍。  
 
 ### 集群状态
+
 这部分指标包括集群当前信息和状态。
 
 ![TDengine TSDB Database TDinsight mnodes overview](./assets/TDinsight-1-cluster-status.webp)
@@ -65,29 +65,35 @@ TDinsight 仪表盘旨在提供 TDengine TSDB 相关资源的使用情况和状�
 - **Measuring Points Used**：启用告警规则的测点数用量（社区版无数据，默认情况下是健康的）。
 
 ### DNodes 概述
+
 这部分指标包括集群 dnode 基本信息。
 
 ![TDengine TSDB Database TDinsight mnodes overview](./assets/TDinsight-2-dnodes.webp)
 
 指标详情：
+
 - **DNodes Status**：`show dnodes` 的简单表格视图。
 - **DNodes Number**：DNodes 数量变化。
 
 ### MNode 概述
+
 这部分指标包括集群 mnode 基本信息。
 
 ![TDengine TSDB Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
 
 指标详情：
+
 1. **MNodes Status**：`show mnodes` 的简单表格视图。
 2. **MNodes Number**：类似于`DNodes Number`，MNodes 数量变化。
 
 ### 请求统计
+
 这部分指标包括集群执行 sql 的统计指标。
 
 ![TDengine TSDB Database TDinsight requests](./assets/TDinsight-4-requests.webp)
 
 指标详情：
+
 1. **Select Request**：select 请求数。
 2. **Delete Request**：delete 请求数。
 3. **Insert Request**：insert 请求数。
@@ -101,6 +107,7 @@ TDinsight 仪表盘旨在提供 TDengine TSDB 相关资源的使用情况和状�
 ![TDengine TSDB Database TDinsight database](./assets/TDinsight-5-database.webp)
 
 指标详情：
+
 1. **STables**：超级表数量。
 2. **Total Tables**：所有表数量。
 3. **Tables**：所有普通表数量随时间变化图。
@@ -128,7 +135,6 @@ TDinsight 仪表盘旨在提供 TDengine TSDB 相关资源的使用情况和状�
 12. **Disk IO**：磁盘 IO 速率。
 13. **Net IO**：网络 IO，除本机网络之外的总合网络 IO 速率。
 
-
 ### taosAdapter 监控
 
 这部分指标包括 taosAdapter rest 和 websocket 请求统计详情。
@@ -150,31 +156,31 @@ TDinsight 仪表盘旨在提供 TDengine TSDB 相关资源的使用情况和状�
 
 涛思总结用户使用经验，整理出 14 个常用的告警规则（alert rule），能够对集群关键指标进行监测并及时上报指标异常、超限等告警信息。  
 从 TDengine TSDB server 3.3.4.3 版本（tdengine-datasource 3.6.3）开始，TDengine TSDB Datasource 支持预配置告警规则自动导入功能，用户可将 14 个告警规则一键导入 Grafana（11 及以上版本），直接使用。  
-预配置告警规则导入方法如下图所示，在 tdengine-datasource setting 界面，打开“Load Tengine Alert”开关，点击“Save & test”按钮后，插件会自动加载上述告警规则，规则会放入以数据源名称 + “-alert”的 grafana 告警目录中。如不需要，关闭“Load TDengine Alert”开关，点击“Clear TDengine Alert”旁边的按钮则会清除此数据源已导入的所有告警规则。 
+预配置告警规则导入方法如下图所示，在 tdengine-datasource setting 界面，打开“Load Tengine Alert”开关，点击“Save & test”按钮后，插件会自动加载上述告警规则，规则会放入以数据源名称 + “-alert”的 grafana 告警目录中。如不需要，关闭“Load TDengine Alert”开关，点击“Clear TDengine Alert”旁边的按钮则会清除此数据源已导入的所有告警规则。
 
 ![TDengine TSDB Alert](./assets/TDengine-Alert.webp)  
 
-导入后，点击 Grafana 左侧“Alert rules” ，可查看当前所有告警规则。 
+导入后，点击 Grafana 左侧“Alert rules” ，可查看当前所有告警规则。
 用户只需配置联络点（Contact points），即可获取告警通知。联络点配置方法见[告警配置](https://docs.taosdata.com/third-party/visual/grafana/#%E5%91%8A%E8%AD%A6%E9%85%8D%E7%BD%AE)。
 
-![Alert-rules](./assets/Alert-rules.webp) 
+![Alert-rules](./assets/Alert-rules.webp)
 
 14 个告警规则具体配置如下：  
 
 | 规则名称 | 规则阈值 | 无监控数据时的行为 | 数据扫描间隔 |持续时间 | 执行 SQL              |
 | ------ | --------- | ---------------- | ----------- |------- |----------------------|
-|dnode 节点的 CPU 负载 | 均值 > 80%|触发告警|5 分钟|5 分钟 |`select now(), dnode_ep, last(cpu_system) as cpu_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_ep `|
+|dnode 节点的 CPU 负载 | 均值 > 80%|触发告警|5 分钟|5 分钟 |`select now(), dnode_ep, last(cpu_system) as cpu_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_ep`|
 |dnode 节点的的内存 |均值 > 60%|触发告警|5 分钟|5 分钟|`select now(), dnode_ep, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_ep`|
 |dnode 节点的磁盘容量占用 | > 80%|触发告警|5 分钟|5 分钟|`select now(), dnode_ep, data_dir_level, data_dir_name, last(used) / last(total)  * 100 as used from log.taosd_dnodes_data_dirs where _ts >= (now - 5m) and _ts < now partition by dnode_ep, data_dir_level, data_dir_name`|
-|集群授权到期 |< 60 天 | 触发告警|1 天|0 秒|`select now(), cluster_id, last(grants_expire_time) / 86400 as expire_time from log.taosd_cluster_info where  _ts >= (now - 24h)  and _ts < now  partition by cluster_id having first(_ts) > 0 `|
+|集群授权到期 |< 60 天 | 触发告警|1 天|0 秒|`select now(), cluster_id, last(grants_expire_time) / 86400 as expire_time from log.taosd_cluster_info where  _ts >= (now - 24h)  and _ts < now  partition by cluster_id having first(_ts) > 0`|
 |测点数达到授权测点数|>= 90%|触发告警|1 天|0 秒|`select  now(), cluster_id,  CASE  WHEN max(grants_timeseries_total)  > 0.0 THEN max(grants_timeseries_used)  /max(grants_timeseries_total) * 100.0   ELSE 0.0    END AS result from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id  having timetruncate(first(_ts), 1m) > 0`|
 |查询并发请求数 | > 100|不触发报警|1 分钟|0 秒|`select now() as ts, count(*) as slow_count from performance_schema.perf_queries`|
 |慢查询执行最长时间（无时间窗口） |> 300 秒 | 不触发报警|1 分钟|0 秒|`select now() as ts, count(*) as slow_count from performance_schema.perf_queries where exec_usec>300000000`|
 |dnode 下线 |total != alive|触发告警|30 秒|0 秒|`select now(),  cluster_id, last(dnodes_total)  - last(dnodes_alive) as dnode_offline  from log.taosd_cluster_info where _ts >= (now -30s) and _ts < now partition by cluster_id having first(_ts) > 0`|
-|vnode 下线 |total != alive|触发告警|30 秒|0 秒|`select now(),  cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0 `|
-|数据删除请求数 |> 0|不触发报警|30 秒|0 秒|`select  now(), sum(`count`)  as `delete_count`  from log.taos_sql_req  where sql_type = 'delete' and _ts >= (now -30s) and _ts < now`|
-|Adapter RESTful 请求失败 |> 5|不触发报警|30 秒|0 秒|`select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now`|
-|Adapter WebSocket 请求失败 |> 5|不触发报警|30 秒|0 秒|`select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now`|
+|vnode 下线 |total != alive|触发告警|30 秒|0 秒|`select now(),  cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0`|
+|数据删除请求数 |> 0|不触发报警|30 秒|0 秒|`select  now(), sum(`count`)  as`delete_count`from log.taos_sql_req  where sql_type = 'delete' and _ts >= (now -30s) and _ts < now`|
+|Adapter RESTful 请求失败 |> 5|不触发报警|30 秒|0 秒|`select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now`|
+|Adapter WebSocket 请求失败 |> 5|不触发报警|30 秒|0 秒|`select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now`|
 |dnode 数据上报缺少 |< 3|触发告警|180 秒|0 秒|`select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0`|
 |dnode 重启 |max(update_time) > last(update_time)|触发告警|90 秒|0 秒|`select now(), dnode_ep, max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now partition by dnode_ep`|
 
@@ -183,15 +189,18 @@ Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而
 
 ![Alert Used Only](./assets/Alert-Used-Only.webp)
 
-
 ## 升级
+
 下面三种方式都可以进行升级：
+
 - 用图形界面，若有新版本，可以在”TDengine TSDB Datasource“插件页面点击 update 升级。
 - 按照手动安装步骤自行安装新的 Grafana 插件和 Dashboard。
 - 通过重新运行 `TDinsight.sh` 脚本升级到最新的 Grafana 插件和 TDinsight Dashboard。  
 
 ## 卸载
+
 针对不同的安装方式，卸载时：
+
 - 用图形界面，在”TDengine TSDB Datasource“插件页面点击”Uninstall“卸载。
 - 通过 `TDinsight.sh` 脚本安装的 TDinsight，可以使用命令行 `TDinsight.sh -R` 清理相关资源。
 - 手动安装的 TDinsight，要完全卸载，需要按照顺序清理以下内容：
@@ -203,6 +212,7 @@ Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而
 ## 附录
 
 ### TDinsight.sh 详细说明
+
 下面是 TDinsight.sh 的用法详细说明：
 
 ```text

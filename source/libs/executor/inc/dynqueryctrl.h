@@ -99,6 +99,7 @@ typedef struct SVtbScanDynCtrlInfo {
   int32_t          acctId;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;
+  STimeWindow      window;
   SArray*          readColList;
   SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
   SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
@@ -112,11 +113,29 @@ typedef struct SVtbScanDynCtrlInfo {
   SOperatorParam*  vtbScanParam;
 } SVtbScanDynCtrlInfo;
 
+typedef struct SVtbWindowDynCtrlInfo {
+  EWindowType              winType;
+  int32_t                  wstartSlotId;
+  int32_t                  wendSlotId;
+  int32_t                  wdurationSlotId;
+  int32_t                  outputWstartSlotId;
+  int32_t                  outputWendSlotId;
+  int32_t                  outputWdurationSlotId;
+  bool                     isVstb;
+  bool                     singleWinMode;
+  SNodeList*               pTargets;
+  SArray*                  pWins;        // SArray<SArray<SExtWinTimeWindow>>
+  int32_t                  curWinBatchIdx;
+  SSDataBlock*             pRes;
+  EStateWinExtendOption    extendOption;
+} SVtbWindowDynCtrlInfo;
+
 typedef struct SDynQueryCtrlOperatorInfo {
   EDynQueryType         qType;
   union {
-    SStbJoinDynCtrlInfo stbJoin;
-    SVtbScanDynCtrlInfo vtbScan;
+    SStbJoinDynCtrlInfo   stbJoin;
+    SVtbScanDynCtrlInfo   vtbScan;
+    SVtbWindowDynCtrlInfo vtbWindow;
   };
 } SDynQueryCtrlOperatorInfo;
 

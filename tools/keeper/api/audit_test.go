@@ -2,12 +2,16 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
@@ -163,4 +167,306 @@ func TestAudit(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 11, len(data.Data))
 	})
+}
+
+func TestNewAudit(t *testing.T) {
+	cfg := config.Config{
+		TDengine: config.TDengineRestful{
+			Username: "root",
+			Password: "taosdata",
+			Host:     "localhost",
+			Port:     6041,
+			Usessl:   false,
+		},
+		Audit: config.AuditConfig{
+			Database: config.Database{
+				Name: "",
+			},
+			Enable: true,
+		},
+	}
+
+	a, err := NewAudit(&cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, "audit", a.db)
+}
+
+func Test_handleDetails(t *testing.T) {
+	details := handleDetails("\"")
+	assert.Equal(t, "\\\"", details)
+
+	details = handleDetails(strings.Repeat("a", 60000))
+	assert.Equal(t, 50000, len(details))
+}
+
+func TestAudit_handleBatchFunc_NoConnection_Returns500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{conn: nil}
+	r.POST("/audit-batch", a.handleBatchFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{"records":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var body map[string]string
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "no connection", body["error"])
+}
+
+type errorReader struct{ err error }
+
+func (e errorReader) Read(p []byte) (int, error) { return 0, e.err }
+
+func TestAudit_handleBatchFunc_GetRawDataError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit-batch", a.handleBatchFunc())
+
+	boom := errors.New("boom")
+	req := httptest.NewRequest(http.MethodPost, "/audit-batch", errorReader{err: boom})
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
+	}
+	want := "get audit data error. " + boom.Error()
+	if body["error"] != want {
+		t.Fatalf("error=%q, want %q", body["error"], want)
+	}
+}
+
+func TestAudit_handleBatchFunc_TraceLogsWhenEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit-batch", a.handleBatchFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{"records":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusOK)
+	}
+}
+
+func TestAudit_handleBatchFunc_ParseError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit-batch", a.handleBatchFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+	if !strings.HasPrefix(body["error"], "parse audit data error: ") {
+		t.Fatalf("error prefix mismatch, got %q", body["error"])
+	}
+}
+
+func TestAudit_handleBatchFunc_TraceNoRecords_LogsAndReturnsOK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit-batch", a.handleBatchFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{"records":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "1")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusOK)
+	}
+}
+
+func TestAudit_handleFunc_NoConnection_Returns500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{conn: nil}
+	r.POST("/audit", a.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "1")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusInternalServerError)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
+	}
+	if body["error"] != "no connection" {
+		t.Fatalf(`error=%q, want "no connection"`, body["error"])
+	}
+}
+
+func TestAudit_handleFunc_GetRawDataError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit", a.handleFunc())
+
+	boom := errors.New("boom")
+	req := httptest.NewRequest(http.MethodPost, "/audit", errorReader{err: boom})
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
+	}
+	want := "get audit data error. " + boom.Error()
+	if body["error"] != want {
+		t.Fatalf("error=%q, want %q", body["error"], want)
+	}
+}
+
+func TestAudit_handleFunc_TraceLogsWhenEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit", a.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(`{`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAudit_handleFunc_ParseOldAuditError_ReturnsBadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit", a.handleFunc())
+
+	body := `{
+        "timestamp": 1690000000,
+        "cluster_id": "c1",
+        "user": 123,
+        "operation": "op",
+        "db": "d",
+        "resource": "r",
+        "client_add": "127.0.0.1",
+        "details": "x"
+    }`
+
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+	if !strings.HasPrefix(resp["error"], "parse audit data error: ") {
+		t.Fatalf("error prefix mismatch, got %q", resp["error"])
+	}
+}
+
+func TestAudit_handleFunc_ParseStringTimestamp_Error_ReturnsBadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Audit{conn: &db.Connector{}}
+	r.POST("/audit", a.handleFunc())
+
+	body := `{
+        "timestamp": "1690000000000000000",
+        "cluster_id": "c1",
+        "user": 123,
+        "operation": "op",
+        "db": "d",
+        "resource": "r",
+        "client_add": "127.0.0.1",
+        "details": "x"
+    }`
+
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+	if !strings.HasPrefix(resp["error"], "parse audit data error: ") {
+		t.Fatalf("error prefix mismatch, got %q", resp["error"])
+	}
 }

@@ -24,7 +24,7 @@
 #include "types.h"
 
 char* result1 = "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"stream_query\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"id\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}";
-char* result2 = "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"stream_out\",\"columns\":[{\"name\":\"_twstart\",\"type\":9,\"isPrimarykey\":true,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"avg(id)\",\"type\":7,\"isPrimarykey\":false,\"encode\":\"bss\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}";
+char* result2 = "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"stream_out\",\"columns\":[{\"name\":\"_twstart\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"avg(id)\",\"type\":7,\"isPrimarykey\":false,\"encode\":\"bss\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[]}";
 
 static void msg_process(TAOS_RES* msg) {
   printf("-----------topic-------------: %s\n", tmq_get_topic_name(msg));

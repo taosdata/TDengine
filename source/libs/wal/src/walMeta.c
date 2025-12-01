@@ -38,6 +38,41 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
+int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
+  int32_t code = 0;
+
+  if (pWal == NULL) {
+    wError("failed to set keep version, pWal is NULL");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (ver < 0) {
+    wError("vgId:%d, failed to set keep version, invalid ver:%" PRId64, pWal->cfg.vgId, ver);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
+  
+  int64_t oldKeepVersion = pWal->keepVersion;
+  pWal->keepVersion = ver;
+
+  // Save metadata to persist keepVersion
+  code = walSaveMeta(pWal);
+
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
+
+  if (code != TSDB_CODE_SUCCESS) {
+    wError("vgId:%d, failed to save wal meta after setting keep version to %" PRId64 " since %s", pWal->cfg.vgId, ver,
+           tstrerror(code));
+    return code;
+  }
+
+  wInfo("vgId:%d, wal keep version set from %" PRId64 " to %" PRId64 " and persisted", pWal->cfg.vgId, oldKeepVersion,
+        ver);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static FORCE_INLINE int walBuildMetaName(SWal* pWal, int64_t metaVer, char* buf) {
   return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver%" PRIi64, pWal->path, TD_DIRSEP, metaVer);
 }
@@ -336,7 +371,67 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-static int32_t walLogEntriesComplete(const SWal* pWal) {
+static int32_t walRenameCorruptedDir(SWal* pWal) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char    oldPath[WAL_FILE_LEN];
+  char    newPath[WAL_FILE_LEN + 32];
+  int64_t now = taosGetTimestampMs();
+
+  // Close all open file handles before renaming the directory
+  // This is critical especially for Windows systems where open files prevent directory rename
+  if (pWal->pLogFile != NULL) {
+    wDebug("vgId:%d, closing log file before renaming corrupted directory", pWal->cfg.vgId);
+    (void)taosCloseFile(&pWal->pLogFile);
+    pWal->pLogFile = NULL;
+  }
+  if (pWal->pIdxFile != NULL) {
+    wDebug("vgId:%d, closing idx file before renaming corrupted directory", pWal->cfg.vgId);
+    (void)taosCloseFile(&pWal->pIdxFile);
+    pWal->pIdxFile = NULL;
+  }
+
+  // Build old and new directory paths
+  tstrncpy(oldPath, pWal->path, sizeof(oldPath));
+  snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, oldPath, now);
+
+  wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, oldPath, newPath);
+
+  // Rename the directory (taosRenameFile works for directories too)
+  if (taosRenameFile(oldPath, newPath) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, oldPath, newPath,
+           tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  // Clear the fileInfoSet
+  taosArrayClear(pWal->fileInfoSet);
+
+  // Recreate the WAL directory
+  if (taosMkDir(oldPath) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    wError("vgId:%d, failed to recreate WAL directory %s since %s", pWal->cfg.vgId, oldPath, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  // Reset WAL version information
+  pWal->vers.firstVer = -1;
+  pWal->vers.lastVer = -1;
+  pWal->writeCur = -1;
+  pWal->totSize = 0;
+
+  wInfo("vgId:%d, successfully renamed corrupted WAL directory and recreated a new one", pWal->cfg.vgId);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    wError("vgId:%d, failed to rename corrupted WAL directory since %s, at line:%d", pWal->cfg.vgId, tstrerror(code),
+           lino);
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t walLogEntriesComplete(SWal* pWal) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   bool    complete = true;
   int32_t fileIdx = -1;
@@ -358,7 +453,11 @@ static int32_t walLogEntriesComplete(const SWal* pWal) {
     wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], index:%" PRId64
            ", snaphot index:%" PRId64,
            pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer);
-    TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
+    if (tsWalDeleteOnCorruption) {
+      TAOS_RETURN(walRenameCorruptedDir(pWal));
+    } else {
+      TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
+    }
   } else {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
@@ -507,8 +606,11 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     code = walScanLogGetLastVer(pWal, fileIdx, &lastVer);
     if (lastVer < 0) {
       if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
-        wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, terrstr());
-        goto _exit;;
+        wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, tstrerror(code));
+        if (tsWalDeleteOnCorruption) {
+          TAOS_RETURN(walRenameCorruptedDir(pWal));
+        }
+        goto _exit;
       }
       // empty log file
       lastVer = pFileInfo->firstVer - 1;
@@ -809,6 +911,8 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
   if (cJSON_AddStringToObject(pMeta, "commitVer", buf) == NULL) goto _err;
   (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.lastVer);
   if (cJSON_AddStringToObject(pMeta, "lastVer", buf) == NULL) goto _err;
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->keepVersion);
+  if (cJSON_AddStringToObject(pMeta, "keepVersion", buf) == NULL) goto _err;
 
   if (!cJSON_AddItemToObject(pRoot, "files", pFiles)) goto _err;
   SWalFileInfo* pData = pWal->fileInfoSet->pData;
@@ -864,6 +968,13 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
   pField = cJSON_GetObjectItem(pMeta, "lastVer");
   if (!pField) goto _err;
   pWal->vers.lastVer = atoll(cJSON_GetStringValue(pField));
+  // Load keepVersion, default to -1 if not present (backward compatibility)
+  pField = cJSON_GetObjectItem(pMeta, "keepVersion");
+  if (pField) {
+    pWal->keepVersion = atoll(cJSON_GetStringValue(pField));
+  } else {
+    pWal->keepVersion = -1;
+  }
 
   pFiles = cJSON_GetObjectItem(pRoot, "files");
   int sz = cJSON_GetArraySize(pFiles);

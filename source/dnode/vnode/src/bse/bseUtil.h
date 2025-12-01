@@ -51,8 +51,8 @@ extern "C" {
 void bseBuildDataFullName(SBse *pBse, char *name, char *buf);
 void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
 void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf);
-void bseBuildCurrentName(SBse *pBse, char *name) ;
-void bseBuildTempCurrentName(SBse *pBse, char *name);
+void bseBuildCurrentFullName(SBse *pBse, char *name) ;
+void bseBuildTempCurrentFullName(SBse *pBse, char *name);
 void bseBuildFullMetaName(SBse *pBse,char *name, char *path);
 void bseBuildFullTempMetaName(SBse *pBse, char *name, char *path);
 void bseBuildFullName(SBse *pBse, char *name, char *fullname);

@@ -546,55 +546,58 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
     goto _end;
   }
 
-  int32_t          realCols = taosArrayGetSize(pBlock->pDataBlock);
-  SColumnInfoData* pFilterCol = NULL;
-  if (pTask->addOptions & NOTIFY_HAS_FILTER) {
-    realCols -= 1;
-    pFilterCol = taosArrayGet(pBlock->pDataBlock, realCols);
-    if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
-      stError("invalid filter column type: %d", pFilterCol->info.type);
-      code = TSDB_CODE_INVALID_PARA;
-      goto _end;
-    }
-  }
   bool hasData = false;
-  for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
-    if (pFilterCol && !colDataIsNull_s(pFilterCol, rowIdx)) {
-      bool filter = *(bool*)colDataGetData(pFilterCol, rowIdx);
-      if (!filter) {
-        continue;
+
+  if (pBlock && pBlock->info.rows > 0) {
+    int32_t          realCols = taosArrayGetSize(pBlock->pDataBlock);
+    SColumnInfoData* pFilterCol = NULL;
+    if (pTask->addOptions & NOTIFY_HAS_FILTER) {
+      realCols -= 1;
+      pFilterCol = taosArrayGet(pBlock->pDataBlock, realCols);
+      if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
+        stError("invalid filter column type: %d", pFilterCol->info.type);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _end;
       }
     }
-    pRow = cJSON_CreateObject();
-    QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-    for (int32_t colIdx = 0; colIdx < realCols; ++colIdx) {
-      const SColumnInfoData*   pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
-      const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
-      const char*              colName = "unknown";
-      if (!pField) {
-        stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
-                (int64_t)taosArrayGetSize(pFields));
-        continue;
+    for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
+      if (pFilterCol && !colDataIsNull_s(pFilterCol, rowIdx)) {
+        bool filter = *(bool*)colDataGetData(pFilterCol, rowIdx);
+        if (!filter) {
+          continue;
+        }
       }
-      colName = pField->name;
-      bool isNull = colDataIsNull_s(pCol, rowIdx);
-      code = jsonAddColumnField(colName, &pCol->info, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+      pRow = cJSON_CreateObject();
+      QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-    TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-    hasData = true;
-    pRow = NULL;
+      for (int32_t colIdx = 0; colIdx < realCols; ++colIdx) {
+        const SColumnInfoData*   pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+        const SFieldWithOptions* pField = taosArrayGet(pFields, colIdx);
+        const char*              colName = "unknown";
+        if (!pField) {
+          stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
+                  (int64_t)taosArrayGetSize(pFields));
+          continue;
+        }
+        colName = pField->name;
+        bool isNull = colDataIsNull_s(pCol, rowIdx);
+        code = jsonAddColumnField(colName, &pCol->info, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      hasData = true;
+      pRow = NULL;
+    }
   }
-  if (hasData) {
-    pContent = cJSON_CreateObject();
-    QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-    JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
-    pResult = NULL;
-    *ppContent = cJSON_PrintUnformatted(pContent);
-    QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  }
+
+  pContent = cJSON_CreateObject();
+  QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
+  pResult = NULL;
+  *ppContent = cJSON_PrintUnformatted(pContent);
+  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
 _end:
   if (pRow) cJSON_Delete(pRow);
@@ -715,6 +718,10 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
     JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));
   }
 
+  char gidBuf[32];
+  snprintf(gidBuf, sizeof(gidBuf), "%" PRId64, groupId);
+  JSON_CHECK_ADD_ITEM(obj, "groupId", cJSON_CreateString(gidBuf));
+
   if (pParam->notifyType != STRIGGER_EVENT_ON_TIME) {
     JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
     if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
@@ -793,6 +800,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   code = streamAppendNotifyHeader(streamName, &sb);
   QUERY_CHECK_CODE(code, lino, _end);
   sb.pos -= msgTailLen;
+  int32_t nSentParams = 0;
   for (int32_t i = 0; i < nParam; ++i) {
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
@@ -800,6 +808,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
+    nSentParams++;
   }
   sb.pos -= 1;
   taosStringBuilderAppendStringLen(&sb, msgTail, msgTailLen);
@@ -853,6 +862,8 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
         // simply ignore the failure in DROP error handling mode
         code = TSDB_CODE_SUCCESS;
       }
+    } else {
+      ST_TASK_DLOG("notify %d events to %s successfully", nSentParams, *pUrl);
     }
   }
 

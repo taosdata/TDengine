@@ -58,7 +58,7 @@ class TestInformationSchema:
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
                         "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details' ]
         cls.perf_list = ['perf_connections', 'perf_queries',
-                         'perf_consumers',  'perf_trans', 'perf_apps']
+                         'perf_consumers',  'perf_trans', 'perf_apps', 'perf_instances']
 
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -216,8 +216,9 @@ class TestInformationSchema:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
+        
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(62)
+        tdSql.checkRows(70)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -296,6 +297,7 @@ class TestInformationSchema:
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
             'orc':'ORC',
+            'kinghist':'KingHistorian',
             'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
             'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
             'idmp_element':'TDengine IDMP Elements',

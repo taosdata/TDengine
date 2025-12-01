@@ -792,6 +792,7 @@ typedef struct SBlockDataInfo {
 
 // todo: move away
 typedef struct {
+  int32_t memSize;
   SArray *pUid;
   SArray *pFirstTs;
   SArray *pLastTs;
@@ -892,6 +893,7 @@ typedef struct SMergeTreeConf {
   STimeWindow   timewindow;
   SVersionRange verRange;
   bool          strictTimeRange;
+  bool          cacheStatis;    // cache the stt statis file info in cache
   SArray       *pSttFileBlockIterArray;
   void         *pCurrentFileset;
   STSchema     *pSchema;

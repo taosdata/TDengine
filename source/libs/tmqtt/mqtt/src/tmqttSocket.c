@@ -25,9 +25,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "tmqttBrokerInt.h"
 #include "ttqMemory.h"
 #include "ttqMisc.h"
-#include "tmqttBrokerInt.h"
 #include "ttqUtil.h"
 
 #include "version.h"
@@ -251,6 +251,33 @@ static void ttq_cxt_cleanup(void) {
   ttqCxtFreeDisused();
 }
 
+static void ttq_handle_sigint(int signal) {
+  fprintf(stderr, "signal handle: %d\n", signal);
+
+  run = 0;
+}
+
+static void ttq_handle_sighup(int signal) {
+  fprintf(stderr, "signal handle: %d\n", signal);
+
+  flag_reload = true;
+}
+
+static void ttq_signal_setup(void) {
+  struct sigaction sa = {0};
+
+  sa.sa_handler = ttq_handle_sigint;
+  (void)sigemptyset(&sa.sa_mask);
+  (void)sigaction(SIGINT, &sa, NULL);
+  sa.sa_handler = ttq_handle_sigint;
+  (void)sigaction(SIGTERM, &sa, NULL);
+
+#ifdef SIGHUP
+  sa.sa_handler = ttq_handle_sighup;
+  (void)sigaction(SIGHUP, &sa, NULL);
+#endif
+}
+
 static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
   int rc;
 
@@ -286,6 +313,8 @@ static int ttq_init(int argc, char *argv[], struct tmqtt__config *config) {
   if (rc) return rc;
 
   ttq_log_running();
+
+  ttq_signal_setup();
 
   run = 1;
 

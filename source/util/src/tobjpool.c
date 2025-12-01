@@ -229,6 +229,40 @@ int32_t taosObjListAppend(SObjList *pList, const void *pData) {
   return TSDB_CODE_SUCCESS;
 }
 
+void taosObjListPopHeadTo(SObjList *pList, void *pObj, int32_t nele) {
+  if (pList == NULL || pList->headIdx == TOBJPOOL_INVALID_IDX) {
+    return;
+  }
+
+  if (pObj == NULL) {
+    taosObjListClear(pList);
+    return;
+  }
+
+  SObjPool     *pPool = pList->pPool;
+  SObjPoolNode *pNode = TOBJPOOL_OBJ_GET_NODE(pObj);
+  int64_t       idx = TOBJPOOL_GET_IDX(pPool, pNode);
+  if (idx < 0 || idx >= pPool->capacity || pNode->prevIdx == TOBJPOOL_INVALID_IDX) {
+    return;
+  }
+  SObjPoolNode *pPrevNode = TOBJPOOL_GET_NODE(pPool, pNode->prevIdx);
+
+  // add all nodes before pNode back to pool
+  pPrevNode->nextIdx = pPool->freeHeadIdx;
+  if (pPool->freeHeadIdx != TOBJPOOL_INVALID_IDX) {
+    TOBJPOOL_GET_NODE(pPool, pPool->freeHeadIdx)->prevIdx = pNode->prevIdx;
+  } else {
+    pPool->freeTailIdx = pNode->prevIdx;
+  }
+  pPool->freeHeadIdx = pList->headIdx;
+  pPool->size -= nele;
+
+  // remove the nodes from the list
+  pNode->prevIdx = TOBJPOOL_INVALID_IDX;
+  pList->headIdx = idx;
+  pList->neles -= nele;
+}
+
 void taosObjListPopHead(SObjList *pList) {
   if (pList == NULL || pList->headIdx == TOBJPOOL_INVALID_IDX) {
     return;

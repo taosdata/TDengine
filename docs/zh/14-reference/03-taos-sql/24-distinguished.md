@@ -47,7 +47,7 @@ TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -112,13 +112,13 @@ INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗
 
 INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用。以下 SQL 语句非法：
 
-```
+```sql
 SELECT * FROM temp_tb_1 INTERVAL(1m);
 ```
 
 SLIDING 的向前滑动的时间不能超过一个窗口的时间范围。以下语句非法：
 
-```
+```sql
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
@@ -151,19 +151,19 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 使用 STATE_WINDOW 来确定状态窗口划分的列。例如
 
-```
+```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
 仅关心 status 为 2 时的状态窗口的信息。例如
 
-```
+```sql
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
 TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。例如，智能电表的电压正常范围是 205V 到 235V，那么可以通过监控电压来判断电路是否正常。
 
-```
+```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
 
@@ -173,9 +173,9 @@ Extend 参数可以设置窗口开始结束时的扩展策略，可选值为 0�
 - extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；
 - extend 值为 2 值窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
 
-全部查询数据起始位置状态值为NULL的数据将被包含在第一个窗口中，同样全部查询数据尾部状态值为 NULL 的数据将被包含在最后一个窗口中。以如下数据为例
+全部查询数据起始位置状态值为 NULL 的数据将被包含在第一个窗口中，同样全部查询数据尾部状态值为 NULL 的数据将被包含在最后一个窗口中。以如下数据为例
 
-```
+```sql
 taos> select * from state_window_example;
            ts            |   status    |
 ========================================
@@ -192,7 +192,7 @@ taos> select * from state_window_example;
 
 当 `extend` 值为 0 时
 
-```
+```sql
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
@@ -203,7 +203,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
 
 当 `extend` 值为 1 时
 
-```
+```sql
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 1);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
@@ -214,7 +214,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
 
 当 `extend` 值为 2 时
 
-```
+```sql
 select _wstart, _wduration, _wend, count(*) from state_window_test state_window(status, 2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
@@ -223,9 +223,22 @@ select _wstart, _wduration, _wend, count(*) from state_window_test state_window(
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
+Zeroth_state 指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
+仍以相同数据为例
+
+当 `zeroth_state` 值为 `2` 时
+
+```sql
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
 状态窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个状态窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
-```
+```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
 ```
 
@@ -237,8 +250,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
 
-```
-
+```sql
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
 
@@ -263,7 +275,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
-```
+```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
 ```
 
@@ -287,13 +299,13 @@ select _wstart, _wend, count(*) from t count_window(4);
 
 智能电表的建表语句如下：
 
-```
+```sql
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
 针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
 
-```
+```sql
 SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
   WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)

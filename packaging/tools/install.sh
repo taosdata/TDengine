@@ -42,6 +42,7 @@ keeperName="${PREFIX}keeper"
 inspect_name="${PREFIX}inspect"
 set_malloc_bin="set_taos_malloc.sh"
 mqtt_name="${PREFIX}mqtt"
+taosgen_name="${PREFIX}gen"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -185,7 +186,7 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh ${taosgen_name})
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "lite" ]; then
     services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
@@ -195,7 +196,7 @@ if [ "${verMode}" == "cluster" ]; then
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pkgMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh ${taosgen_name})
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -261,12 +262,15 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin || :
+    ${csudo}cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
-    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
-    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
+    if [ "${pkgMode}" != "lite" ]; then
+      ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
+      ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
+    fi
   fi
 
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
@@ -283,10 +287,12 @@ function install_bin() {
   fi
 
   # set taos_malloc.sh as bin script
-  if [ -f ${script_dir}/bin/${set_malloc_bin} ] && [ "${verType}" != "client" ]; then
-    ${csudo}cp -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
-  else
-    echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
+  if [ "${pkgMode}" != "lite" ]; then
+    if [[ -f ${script_dir}/bin/${set_malloc_bin} && "${verType}" != "client" ]]; then
+      ${csudo}cp -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
+    else
+      echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
+    fi
   fi
 
 
@@ -333,7 +339,6 @@ function install_lib() {
   tcmalloc_file="${driver_path}/libtcmalloc.so.4.5.18"
   [ -f "${jemalloc_file}" ] && ${csudo}ln -sf "${jemalloc_file}" "${driver_path}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
   [ -f "${tcmalloc_file}" ] && ${csudo}ln -sf "${tcmalloc_file}" "${driver_path}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
-
 
   #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
@@ -949,50 +954,60 @@ function finished_install_info(){
     echo
 
     # collect pairs "label|value"
-    entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
-    if [ -f "${configDir}/${adapterName}.toml" ] && [ -f "${installDir}/bin/${adapterName}" ]; then
-      entries+=("To configure ${clientName}Adapter:|edit ${configDir}/${adapterName}.toml")
-    fi
-    entries+=("To configure ${clientName}Keeper:|edit ${configDir}/${keeperName}.toml")
-    entries+=("To configure ${clientName}X:|edit ${configDir}/${xname}.toml")
-    entries+=("To configure ${clientName}Explorer:|edit ${configDir}/explorer.toml")
-
-    # insert a blank line between config and start
-    entries+=("|")
-    
-    if ((${service_mod} == 0)); then
-      entries+=("To start ${PREFIX}d:|${csudo}systemctl start ${serverName}")
-      if [ -f "${service_config_dir}/${clientName}adapter.service" ] && [ -f "${installDir}/bin/${clientName}adapter" ]; then
-        entries+=("To start ${clientName}Adapter:|${csudo}systemctl start ${clientName}adapter")
+    if [ "${pkgMode}" != "lite" ]; then
+      entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
+      if [[ -f "${configDir}/${adapterName}.toml" && -f "${installDir}/bin/${adapterName}" ]]; then
+        entries+=("To configure ${clientName}Adapter:|edit ${configDir}/${adapterName}.toml")
       fi
-    elif ((${service_mod} == 1)); then
-      entries+=("To start ${productName} server:|${csudo}service ${serverName} start")
-      if [ -f "${service_config_dir}/${clientName}adapter.service" ] && [ -f "${installDir}/bin/${clientName}adapter" ]; then
-        entries+=("To start ${clientName}Adapter:|${csudo}service ${clientName}adapter start")
+      
+      entries+=("To configure ${clientName}Keeper:|edit ${configDir}/${keeperName}.toml")
+      entries+=("To configure ${clientName}X:|edit ${configDir}/${xname}.toml")
+      entries+=("To configure ${clientName}Explorer:|edit ${configDir}/explorer.toml")
+
+      # insert a blank line between config and start
+      entries+=("|")
+      
+      if ((service_mod == 0)); then
+        entries+=("To start ${PREFIX}d:|${csudo}systemctl start ${serverName}")
+        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
+          entries+=("To start ${clientName}Adapter:|${csudo}systemctl start ${clientName}adapter")
+        fi
+      elif ((service_mod == 1)); then
+        entries+=("To start ${productName} server:|${csudo}service ${serverName} start")
+        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
+          entries+=("To start ${clientName}Adapter:|${csudo}service ${clientName}adapter start")
+        fi
+      else
+        entries+=("To start ${productName} server:|${serverName}")
+        if [ -f "${installDir}/bin/${clientName}adapter" ]; then
+          entries+=("To start ${clientName}Adapter:|${clientName}adapter")
+        fi
+      fi
+
+      entries+=("To start ${clientName}Keeper:|${csudo}systemctl start ${clientName}keeper")
+
+      if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
+        entries+=("To start ${clientName}X:|${csudo}systemctl start ${clientName}x")
+      fi
+      entries+=("To start ${clientName}Explorer:|${csudo}systemctl start ${clientName}-explorer")
+      entries+=("To start all the components:|${csudo}start-all.sh")
+      entries+=("|")
+      
+      entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
+      entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
+      entries+=("|")
+
+      if [ "${verMode}" == "cluster" ]; then
+        entries+=("To read the user manual:|http://$serverFqdn:6060/docs-en")
+        entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
+      else
+        entries+=("To read the user manual:|https://docs.tdengine.com")
       fi
     else
-      entries+=("To start ${productName} server:|${serverName}")
-      if [ -f "${installDir}/bin/${clientName}adapter" ]; then
-        entries+=("To start ${clientName}Adapter:|${clientName}adapter")
-      fi
-    fi
-
-    entries+=("To start ${clientName}Keeper:|${csudo}systemctl start ${clientName}keeper")
-
-    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
-      entries+=("To start ${clientName}X:|${csudo}systemctl start ${clientName}x")
-    fi
-    entries+=("To start ${clientName}Explorer:|${csudo}systemctl start ${clientName}-explorer")
-    entries+=("To start all the components:|${csudo}start-all.sh")
-    entries+=("|")
-    
-    entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
-    entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
-    entries+=("|")
-
-    if [ "$verMode" == "cluster" ]; then
-      entries+=("To read the user manual:|http://$serverFqdn:6060/docs-en")
-      entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
+      entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
+      entries+=("To start ${PREFIX}d:|${csudo}systemctl start ${serverName}")
+      entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
+      entries+=("To read the user manual:|https://docs.tdengine.com")
     fi
 
     # compute max label length

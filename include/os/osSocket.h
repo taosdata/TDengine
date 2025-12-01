@@ -164,6 +164,7 @@ int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *a
 int32_t     taosBlockSIGPIPE();
 int32_t     taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip);
 int32_t     taosGetFqdn(char *);
+int32_t     taosGetFqdnWithTimeCost(char *fqdn, int64_t *timeoutMs);
 void        taosInetNtoa(char *ipstr, uint32_t ip);
 uint32_t    taosInetAddr(const char *ipstr);
 int32_t     taosIgnSIGPIPE();

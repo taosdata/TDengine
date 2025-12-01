@@ -3,5 +3,5 @@
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 
 #TDgpt-test
-,,n,.,pytest cases/44-TDgpt/test_tdgpt.py
+,,n,.,pytest cases/80-Components/10-TDgpt/test_tdgpt.py
 

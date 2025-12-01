@@ -187,7 +187,7 @@ static bool checkImportPassword(SAstCreateContext* pCxt, const SToken* pPassword
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
-    if (strtrim(pPassword) < 32) {
+    if (strtrim(pPassword) < TSDB_PASSWORD_LEN - 1) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
     }
   }
@@ -712,6 +712,12 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     case HINT_HASH_JOIN:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
       break;
+    case HINT_WIN_OPTIMIZE_BATCH:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
+      break;
+    case HINT_WIN_OPTIMIZE_SINGLE:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_SINGLE)) return true;
+      break;
     default:
       return true;
   }
@@ -828,6 +834,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_SKIP_TSMA;
+        break;
+      case TK_WIN_OPTIMIZE_BATCH:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_BATCH;
+        break;
+      case TK_WIN_OPTIMIZE_SINGLE:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_SINGLE;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -1569,7 +1591,7 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExtend, SNode* pTrueForLimit) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
@@ -1578,13 +1600,23 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExte
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
   state->pTrueForLimit = pTrueForLimit;
-  state->pExtend = pExtend;
+  if (pOptions != NULL) {
+    if (pOptions->length >= 1) {
+      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 0), &state->pExtend);
+      CHECK_MAKE_NODE(state->pExtend);
+    }
+    if (pOptions->length == 2) {
+      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 1), &state->pZeroth);
+      CHECK_MAKE_NODE(state->pZeroth);
+    }
+    nodesDestroyList(pOptions);
+  }
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
   nodesDestroyNode(pExpr);
   nodesDestroyNode(pTrueForLimit);
-  nodesDestroyNode(pExtend);
+  nodesDestroyList(pOptions);
   return NULL;
 }
 
@@ -2650,6 +2682,18 @@ _err:
   return NULL;
 }
 
+SNode* createTrimDbWalStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
+  STrimDbWalStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRIM_DATABASE_WAL_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createSsMigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
@@ -2662,7 +2706,8 @@ _err:
   return NULL;
 }
 
-SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd, bool metaOnly) {
+SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd, bool metaOnly,
+                         bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SCompactDatabaseStmt* pStmt = NULL;
@@ -2672,6 +2717,7 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
   pStmt->pStart = pStart;
   pStmt->pEnd = pEnd;
   pStmt->metaOnly = metaOnly;
+  pStmt->force = force;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pStart);
@@ -2725,7 +2771,7 @@ _err:
 }
 
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
-                                SNode* pEnd, bool metaOnly) {
+                                SNode* pEnd, bool metaOnly, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pDbName) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
@@ -2740,6 +2786,7 @@ SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLi
   pStmt->pStart = pStart;
   pStmt->pEnd = pEnd;
   pStmt->metaOnly = metaOnly;
+  pStmt->force = force;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pDbName);
@@ -5068,6 +5115,22 @@ _err:
   return NULL;
 }
 
+SNode* createSetVgroupKeepVersionStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pKeepVersion) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetVgroupKeepVersionStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pVgId && NULL != pVgId->z) {
+    pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  }
+  if (NULL != pKeepVersion && NULL != pKeepVersion->z) {
+    pStmt->keepVersion = taosStr2Int64(pKeepVersion->z, NULL, 10);
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2) {
   CHECK_PARSER_STATUS(pCxt);
   SMergeVgroupStmt* pStmt = NULL;
@@ -5264,7 +5327,8 @@ _err:
   return NULL;
 }
 
-SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add) {
+SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, int8_t alterType,
+                           void* alterInfo) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterRsmaStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_RSMA_STMT, (SNode**)&pStmt);
@@ -5276,8 +5340,15 @@ SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode*
   memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
   nodesDestroyNode(pRsma);
 
-  pStmt->pFuncs = pFuncs;
-  pStmt->alterType = add ? 1 : 2;  // 1:add, 2:drop
+  pStmt->alterType = alterType;
+  switch (alterType) {
+    case TSDB_ALTER_RSMA_FUNCTION: {
+      pStmt->pFuncs = (SNodeList*)alterInfo;
+      break;
+    }
+    default:
+      break;
+  }
   return (SNode*)pStmt;
 _err:
   return NULL;
@@ -5288,8 +5359,8 @@ SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* 
   SShowCreateRsmaStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->rsmaName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->rsmaName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->rsmaName));
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -5321,8 +5392,8 @@ SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLis
     pCxt->errCode = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     CHECK_PARSER_STATUS(pCxt);
   }
-  SCompactVgroupsStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_COMPACT_VGROUPS_STMT, (SNode**)&pStmt);
+  SRollupVgroupsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ROLLUP_VGROUPS_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->pDbName = pDbName;
   pStmt->vgidList = vgidList;
