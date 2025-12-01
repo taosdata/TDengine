@@ -41,11 +41,6 @@ typedef struct SScalarStreamCtx {
   SScalarParam       twend;
 } SScalarStreamCtx;
 
-typedef struct SScalarFetchParam {
-  int32_t           subQIdx;
-  SRemoteValueNode* pRes;
-  STaskSubJobCtx*   pSubJobCtx;
-} SScalarFetchParam;
 
 typedef struct SScalarCtx {
   int32_t            code;
@@ -55,7 +50,8 @@ typedef struct SScalarCtx {
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
   SOperatorValueType type;
   SScalarStreamCtx   stream;
-  STaskSubJobCtx*    pSubJobCtx;
+  void*              pSubJobCtx;
+  sclFetchFromRemote fetchFp;
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000

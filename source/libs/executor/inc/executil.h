@@ -26,6 +26,27 @@
 #include "tsimplehash.h"
 #include "tjson.h"
 
+
+typedef struct STaskSubJobCtx {
+  uint64_t    queryId;
+  char*       idStr;
+  void*       pTaskInfo;
+  void*   rpcHandle;
+  bool    inFetch;
+  int32_t code;
+  tsem_t  ready;
+  SArray* subEndPoints;  // SArray<SDownstreamSourceNode*>
+  SArray* subResValues;  // SArray<SValueNode*>
+} STaskSubJobCtx;
+
+typedef struct SScalarFetchParam {
+  int32_t           subQIdx;
+  SRemoteValueNode* pRes;
+  STaskSubJobCtx*   pSubJobCtx;
+} SScalarFetchParam;
+
+
+
 #define T_LONG_JMP(_obj, _c)                                                              \
   do {                                                                                    \
     qError("error happens at %s, line:%d, code:%s", __func__, __LINE__, tstrerror((_c))); \

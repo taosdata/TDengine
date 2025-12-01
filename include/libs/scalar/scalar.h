@@ -23,26 +23,15 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
+typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SRemoteValueNode*);
 
 typedef struct SFilterInfo SFilterInfo;
-
-
-typedef struct STaskSubJobCtx {
-  uint64_t    queryId;
-  char*       idStr;
-  void*       pTaskInfo;
-  void*   rpcHandle;
-  bool    inFetch;
-  int32_t code;
-  tsem_t  ready;
-  SArray* subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray* subResValues;  // SArray<SValueNode*>
-} STaskSubJobCtx;
 
 typedef struct SScalarExtraInfo {
   void*   pStreamInfo;
   void*   pStreamRange;
-  STaskSubJobCtx* pSubJobCtx;
+  void*   pSubJobCtx;
+  sclFetchFromRemote fp;
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);

@@ -14,8 +14,6 @@ target_link_libraries(scalar
     PRIVATE nodes
     PRIVATE function
     PRIVATE qcom
-    PRIVATE index
-    PRIVATE executor
     PRIVATE parser
     PRIVATE geometry
     PRIVATE decimal
