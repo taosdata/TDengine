@@ -12,8 +12,8 @@ from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
 
+from taosanalytics.model import model_manager
 from taosanalytics.conf import conf
-from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
                                 get_second_data_list,
@@ -54,7 +54,7 @@ def list_all_services():
 @app.route("/models")
 def list_all_models():
     """ list all available models """
-    return get_avail_model()
+    return model_manager.get_model_list()
 
 
 @app.route("/anomaly-detect", methods=['POST'])

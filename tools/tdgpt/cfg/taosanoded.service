@@ -1,5 +1,5 @@
 [Unit]
-Description=TaosANode Service
+Description=TaosAnode Service
 After=network-online.target
 Wants=network-online.target
 
