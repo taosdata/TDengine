@@ -411,7 +411,7 @@ int32_t doCacheBlockForCorrelation(SCorrelationSupp* pSupp, const char* id, SSDa
     }
   }
 
-  if (pSupp->base.numOfRows > ANALY_IMPUTATION_INPUT_MAX_ROWS) {
+  if (pSupp->base.numOfRows > ANALY_CORRELATION_INPUT_MAX_ROWS) {
     qError("%s too many rows for correlation, maximum allowed:%d, input:%d", id, ANALY_CORRELATION_INPUT_MAX_ROWS,
            pSupp->base.numOfRows);
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
