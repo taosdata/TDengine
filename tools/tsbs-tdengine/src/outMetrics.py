@@ -35,6 +35,8 @@ class Delay :
         self.max = max
 class OutMetrics:
     def __init__(self):
+        self.version          = "3.0"
+        self.run_type         = "DAILY"
         self.time_start       = None
         self.time_start_write = {}
         self.time_start_test  = {}
@@ -195,6 +197,8 @@ class OutMetrics:
         # Json summary
         #
         metrics_data = {
+            'version': self.version,
+            'run_type': self.run_type,
             'run_start': datetime.fromtimestamp(self.time_start).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
             'run_took': (self.time_end - self.time_start) if (self.time_end and self.time_start) else 0,
             'note': cmd.get_note(),

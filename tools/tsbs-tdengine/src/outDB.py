@@ -35,9 +35,9 @@ class OutDB:
         create_stb_sql = """
         CREATE STABLE IF NOT EXISTS stb_tp(
             start_time TIMESTAMP, 
-            scenario VARCHAR(32), 
-            status VARCHAR(32), 
-            classif VARCHAR(32), 
+            scenario VARCHAR(64) PRIMARY KEY, 
+            status VARCHAR(64), 
+            classif VARCHAR(64), 
             out_rec INT, 
             in_rec INT, 
             end_time TIMESTAMP, 
@@ -55,6 +55,8 @@ class OutDB:
             test_took FLOAT
         ) 
         TAGS(
+            version VARCHAR(64),
+            run_type VARCHAR(32),
             run_start TIMESTAMP, 
             run_took FLOAT, 
             test_note VARCHAR(128)
@@ -133,11 +135,13 @@ class OutDB:
                 subtable_name = f"tp_{int(time.time())}"
 
             # Prepare tag values
-            run_took = metrics_data.get('run_took', 0)
-            test_note = metrics_data.get('note', '')
+            run_took  = metrics_data.get('run_took', 0 )
+            test_note = metrics_data.get('note'    , '')
+            version   = metrics_data.get('version' , '')
+            run_type  = metrics_data.get('run_type', '')
             
             log.out(f"Using subtable: {subtable_name}")
-            sql = f"create table {subtable_name} using stb_tp tags('{run_start_str}', {run_took}, '{test_note}')"
+            sql = f"create table {subtable_name} using stb_tp tags('{version}', '{run_type}', '{run_start_str}', {run_took}, '{test_note}')"
             cursor.execute(sql)
             
             # Insert data for each scenario
