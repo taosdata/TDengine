@@ -279,8 +279,8 @@ async fn kinghist_collect(
             let mut writer = StreamWriter::try_new(writer_stream, &schema_for_writer)?;
             let mut batch_cnt = 0usize;
             while let Ok(batch) = rx.recv() {
-                // 限流，避免内存占用过高，每发送一个 batch 就获取 2 个许可
-                writer_semaphore.acquire_many(2).await.unwrap().forget();
+                // 限流，避免内存占用过高
+                let _permit = writer_semaphore.acquire().await.unwrap();
                 writer.write(&batch)?;
                 batch_cnt += 1;
                 tracing::debug!(datetype, "kinghist_to_taos wrote batch: {batch_cnt}");
@@ -293,7 +293,6 @@ async fn kinghist_collect(
         let ack_reader_stream = ack_stream
             .try_clone()
             .context("kinghist_to_taos failed to clone ack stream for reader")?;
-        let ack_semaphore = semaphore.clone();
         let datetype = key.clone();
         let ack = tokio::task::spawn_blocking(move || {
             let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush)
@@ -309,8 +308,6 @@ async fn kinghist_collect(
                 }
                 ack_cnt += 1;
                 tracing::debug!(datetype, "kinghist_to_taos received ACK: {ack_cnt}");
-                // release semaphore permit
-                ack_semaphore.add_permits(1);
             }
             tracing::info!("kinghist_to_taos ACK reader finished for [{datetype}]");
             Ok(())
