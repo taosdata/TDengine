@@ -356,10 +356,10 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 
-int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, size_t bufLen);
-int32_t privRowKey(ETableType tbType, const char* db, const char* tb, int64_t tsStart, int64_t tsEnd, char* buf,
-                   size_t bufLen);
-int32_t privColKey(ETableType tbType, const char* db, const char* tb, const char* col, char* buf, size_t bufLen);
+int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen);
+int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen);
+
+const char* privObjTypeName(EPrivObjType objType);
 
 #ifdef __cplusplus
 }

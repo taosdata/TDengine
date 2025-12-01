@@ -18,6 +18,11 @@
 
 static TdThreadOnce privInit = PTHREAD_ONCE_INIT;
 
+static const char* privObjTypeNames[] = {
+    "CLUSTER", "NODE", "DATABASE", "TABLE", "FUNCTION", "INDEX", "VIEW",  "USER",
+    "ROLE",    "RSMA", "TSMA",     "TOPIC", "STREAM",   "MOUNT", "AUDIT", "TOKEN",
+};
+
 static SPrivInfo privInfoTable[] = {
     // ==================== system privileges ====================
     // Database Management
@@ -285,16 +290,39 @@ _loop:
   return true;
 }
 
-int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, size_t bufLen) {
+int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen) {
   return (objType == PRIV_OBJ_DB) ? snprintf(buf, bufLen, "%d.%s", objType, db ? db : "")
                                   : snprintf(buf, bufLen, "%d.%s.%s", objType, db ? db : "", tb ? tb : "");
 }
 
-int32_t privRowKey(ETableType tbType, const char* db, const char* tb, int64_t tsStart, int64_t tsEnd, char* buf,
-                   size_t bufLen) {
-  return snprintf(buf, bufLen, "%d.%s.%s.%" PRIi64 ".%" PRIi64, tbType, db, tb, tsStart, tsEnd);
+int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen) {
+  char* p = strchr(str, '.');
+  if (!p) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  *pObjType = taosStr2Int32(str, NULL, 10);
+  if (errno == ERANGE || *pObjType < PRIV_OBJ_CLUSTER || *pObjType >= PRIV_OBJ_MAX) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  char* pNext = strchr(p + 1, '.');
+  if (pNext) {
+    size_t dbLength = pNext - (p + 1);
+    if (dbLength >= (size_t)dbLen) {
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    strncpy(db, p + 1, dbLength);
+    db[dbLength] = '\0';
+    strncpy(tb, pNext + 1, tbLen);
+  } else {
+    strcpy(db, p + 1);
+    tb[0] = '\0';
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t privColKey(ETableType tbType, const char* db, const char* tb, const char* col, char* buf, size_t bufLen) {
-  return snprintf(buf, bufLen, "%d.%s.%s.%s", tbType, db ? db : "", tb ? tb : "", col ? col : "");
+const char* privObjTypeName(EPrivObjType objType) {
+  if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
+    return "UNKNOWN";
+  }
+  return privObjTypeNames[objType];
 }
