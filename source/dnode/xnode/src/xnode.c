@@ -30,9 +30,11 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
   (*pXnode)->dnodeId = pOption->dnodeId;
   (*pXnode)->protocol = (int8_t)pOption->proto;
 
+  xndInfo("xxxzgc*** Xnode proto: %d", pOption->proto);
+
   if (TSDB_BNODE_OPT_PROTO_MQTT == (*pXnode)->protocol) {
     if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
-      xndError("failed to start taosudf since %s", tstrerror(code));
+      xndError("failed to start txnoded since %s", tstrerror(code));
 
       taosMemoryFree(*pXnode);
       TAOS_RETURN(code);
@@ -44,7 +46,7 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
     TAOS_RETURN(code);
   }
 
-  xndInfo("Bnode opened.");
+  xndInfo("Xnode opened.");
 
   return TSDB_CODE_SUCCESS;
 }
