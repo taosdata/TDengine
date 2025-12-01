@@ -66,7 +66,7 @@ int32_t transCacheAcquireById(int64_t refId, STrans** pTrans) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId && atomic_load_32(&p->remove) == 0) {
       *pTrans = p->pTrans;
-      atomic_fetch_add_32(&p->ref, 1);
+      (void)atomic_fetch_add_32(&p->ref, 1);
       tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
       code = 0;
       break;
@@ -84,7 +84,7 @@ void transCacheRemoveByRefId(int64_t refId) {
   for (int32_t i = 0; i < taosArrayGetSize(transInstCache.pArray); i++) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId) {
-      atomic_store_32(&p->remove, 1);
+      (void)atomic_store_32(&p->remove, 1);
       taosArrayRemove(transInstCache.pArray, i);
       code = 0;
       break;
@@ -104,7 +104,7 @@ void transCacheReleaseByRefId(int64_t refId) {
   for (int32_t i = 0; i < taosArrayGetSize(transInstCache.pArray); i++) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId) {
-      atomic_sub_fetch_32(&p->ref, 1);
+      (void)atomic_sub_fetch_32(&p->ref, 1);
       tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
       code = 0;
       break;
