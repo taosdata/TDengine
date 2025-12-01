@@ -2163,7 +2163,9 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     pStmt->affectedRows += pStmt->exec.affectedRows;
   }
 
-  fp(pStmt->options.userdata, res, code);
+  if (fp) {
+    fp(pStmt->options.userdata, res, code);
+  }
 
   while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
     taosUsleep(1);
