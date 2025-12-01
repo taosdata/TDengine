@@ -6692,9 +6692,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           do {
             if (pTask->triggerType == STREAM_TRIGGER_STATE) {
               // for state trigger, check if state equals to the zeroth state
-              bool stEqualZeroth = false;
-              void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ?
-                    (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
+              bool  stEqualZeroth = false;
+              void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ? (void *)pGroup->stateVal.pData
+                                                                         : (void *)&pGroup->stateVal.val;
               code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
               QUERY_CHECK_CODE(code, lino, _end);
               if (stEqualZeroth) {
@@ -8098,7 +8098,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (TARRAY_SIZE(pContext->pWindows) == 0 && pGroup->stateVal.type == 0) {
+    if (pGroup->stateVal.type == 0) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
@@ -8138,7 +8138,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end);
             if (stEqualZeroth) {
               pWin = taosArrayPop(pContext->pWindows);
-              stRealtimeContextDestroyWindow((void*)pWin);
+              stRealtimeContextDestroyWindow((void *)pWin);
             } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
                                                    &pWin->pWinCloseNotify);
@@ -10034,60 +10034,75 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+    if (pGroup->stateVal.type == 0) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
-      if (isVarType) {
+      if (isVarType && pStateVal->pData == NULL) {
         pStateVal->nData = pStateCol->info.bytes;
         pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
         QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
         pStateData = pStateVal->pData;
       }
-
-      // open the first window
-      char   *newVal = colDataGetData(pStateCol, startIdx);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
-                                             &pExtraNotifyContent);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      code = stHistoryGroupOpenWindow(pGroup, pTsData[startIdx], &pExtraNotifyContent, false, true);
-      QUERY_CHECK_CODE(code, lino, _end);
-      memcpy(pStateData, newVal, bytes);
-      startIdx++;
     }
 
     for (int32_t r = startIdx; r < endIdx; r++) {
-      char   *newVal = colDataGetData(pStateCol, r);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (memcmp(pStateData, newVal, bytes) == 0) {
-        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
-        TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
-      } else {
-        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
-          QUERY_CHECK_CODE(code, lino, _end);
+      bool isNull = colDataIsNull_s(pStateCol, r);
+      if (isNull) {
+        if (pGroup->numPendingNull == 0) {
+          pGroup->pendingNullStart = pTsData[r];
         }
-        bool stEqualZeroth = false;
-        code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
-        QUERY_CHECK_CODE(code, lino, _end);
-        if (stEqualZeroth) {
-          TRINGBUF_DEQUEUE(&pGroup->winBuf);
-        } else {   
-          code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
-          QUERY_CHECK_CODE(code, lino, _end);
+        pGroup->numPendingNull++;
+      } else {
+        char   *oldVal = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pStateData : NULL;
+        char   *newVal = colDataGetData(pStateCol, r);
+        int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
+        int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[r];
+        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          if (memcmp(pStateData, newVal, bytes) == 0) {
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull + 1;
+            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+          } else {
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r] - 1;
+            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+              startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
+            }
+            bool stEqualZeroth = false;
+            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (stEqualZeroth) {
+              TRINGBUF_DEQUEUE(&pGroup->winBuf);
+            } else {
+              if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+                code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
+                                                     &pExtraNotifyContent);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+              code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+          }
+        }
+        if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
+            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, oldVal, newVal,
                                                  &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
+          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+            code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+          } else {
+            code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          memcpy(pStateData, newVal, bytes);
         }
-        code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
-        QUERY_CHECK_CODE(code, lino, _end);
-        memcpy(pStateData, newVal, bytes);
+        pGroup->numPendingNull = 0;
       }
     }
   }
@@ -10230,14 +10245,14 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
   }
 }
 
-int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual) {
+int32_t stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pStateData == NULL || pZeroth == NULL) {
     return code;
   }
 
-  SValueNode* pZerothState = (SValueNode*)pZeroth;
-  int8_t type = pZerothState->node.resType.type;
+  SValueNode *pZerothState = (SValueNode *)pZeroth;
+  int8_t      type = pZerothState->node.resType.type;
   if (IS_VAR_DATA_TYPE(type)) {
     *pIsEqual = compareLenPrefixedStr(pStateData, pZerothState->datum.p) == 0;
   } else if (IS_INTEGER_TYPE(type)) {

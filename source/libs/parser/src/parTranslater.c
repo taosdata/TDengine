@@ -12100,7 +12100,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     return TSDB_CODE_SUCCESS;
   }
 
-  pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+  pAlterReq->pFields = taosArrayInit(2, sizeof(SField));
   if (NULL == pAlterReq->pFields) {
     return terrno;
   }
@@ -12118,7 +12118,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES: {
-      TAOS_FIELD field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
+      SField field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
       tstrncpy(field.name, pStmt->colName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &field)) {
         return terrno;
@@ -12127,12 +12127,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     }
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
-      TAOS_FIELD oldField = {0};
+      SField oldField = {0};
       tstrncpy(oldField.name, pStmt->colName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &oldField)) {
         return terrno;
       }
-      TAOS_FIELD newField = {0};
+      SField newField = {0};
       tstrncpy(newField.name, pStmt->newColName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &newField)) {
         return terrno;
@@ -12140,7 +12140,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
-      TAOS_FIELD field = {0};
+      SField field = {0};
       tstrncpy(field.name, pStmt->colName, 65);
       if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;

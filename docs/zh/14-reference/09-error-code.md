@@ -777,7 +777,7 @@ Java 连接器可能报错的错误码包括 4 种：
 
 - [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
-### `C#`
+### C\#
 
 | 错误码 | 错误描述                         | 可能的出错场景或者可能的原因              | 建议用户采取的措施                                           |
 | ------ | -------------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
