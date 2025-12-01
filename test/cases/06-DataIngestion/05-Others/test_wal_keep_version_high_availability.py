@@ -60,8 +60,8 @@ class TestWalKeepVersionTrim:
         tdSql.execute("flush database test")
 
         tdSql.query("show test.vgroups")
-        tdSql.checkData(0, 18, 0)
-        tdSql.checkData(1, 18, -1)
+        tdSql.checkData(0, 19, 0)
+        tdSql.checkData(1, 19, -1)
 
         max_retry = 240
         # check wal vgId 3 firstVer is greater than 0 means flush finished
