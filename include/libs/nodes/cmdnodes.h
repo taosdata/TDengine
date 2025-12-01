@@ -658,6 +658,12 @@ typedef struct SDropTopicStmt {
   bool      force;
 } SDropTopicStmt;
 
+typedef struct SReloadTopicStmt {
+  ENodeType type;
+  char      topicName[TSDB_TOPIC_NAME_LEN];
+  bool      ignoreNotExists;
+} SReloadTopicStmt;
+
 typedef struct SDropCGroupStmt {
   ENodeType type;
   char      topicName[TSDB_TOPIC_NAME_LEN];

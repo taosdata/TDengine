@@ -661,6 +661,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_TOPIC_STMT:
       code = makeNode(type, sizeof(SDropTopicStmt), &pNode);
       break;
+    case QUERY_NODE_RELOAD_TOPIC_STMT:
+      code = makeNode(type, sizeof(SReloadTopicStmt), &pNode);
+      break;
     case QUERY_NODE_DROP_CGROUP_STMT:
       code = makeNode(type, sizeof(SDropCGroupStmt), &pNode);
       break;
@@ -1692,6 +1695,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SCreateTopicStmt*)pNode)->pWhere);
       break;
     case QUERY_NODE_DROP_TOPIC_STMT:   // no pointer field
+    case QUERY_NODE_RELOAD_TOPIC_STMT:   // no pointer field
     case QUERY_NODE_DROP_CGROUP_STMT:  // no pointer field
     case QUERY_NODE_ALTER_LOCAL_STMT:  // no pointer field
       break;

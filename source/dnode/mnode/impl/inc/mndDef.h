@@ -739,7 +739,6 @@ typedef struct {
   int32_t        version;
   int8_t         subType;   // column, db or stable
   int8_t         withMeta;  // TODO
-  SRWLatch       lock;
   int32_t        sqlLen;
   char*          sql;
   char*          physicalPlan;
@@ -759,7 +758,6 @@ typedef struct {
   int32_t  status;
   int32_t  hbStatus;          // hbStatus is not applicable to serialization
   int32_t  pollStatus;        // pollStatus is not applicable to serialization
-  SRWLatch lock;              // lock is used for topics update
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
@@ -810,7 +808,6 @@ void*   tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
-  SRWLatch  lock;
   int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;

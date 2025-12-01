@@ -670,7 +670,19 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         taosMsleep(10);
         continue;
       }
-      if (pHandle->consumerId == req.newConsumerId) {  // do nothing
+      if (req.subType == TOPIC_SUB_TYPE__COLUMN && strcpy(req.qmsg, pHandle->execHandle.execCol.qmsg) != 0) {
+        tqUnregisterPushHandle(pTq, pHandle);
+        STqHandle handle = {0};
+        ret = tqMetaCreateHandle(pTq, &req, &handle);
+        if (ret < 0) {
+          tqDestroyTqHandle(&handle);
+          taosWUnLockLatch(&pTq->lock);
+          goto end;
+        }
+        ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
+        tqInfo("vgId:%d, reload sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+         req.oldConsumerId, req.newConsumerId);
+      } else if (pHandle->consumerId == req.newConsumerId) {  // do nothing
         tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains, because redo wal log", req.vgId, req.newConsumerId);
       } else {
         tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,

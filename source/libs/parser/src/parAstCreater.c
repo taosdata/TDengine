@@ -4390,6 +4390,19 @@ _err:
   return NULL;
 }
 
+SNode* createReloadTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pTopicName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTopicName(pCxt, pTopicName));
+  SReloadTopicStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RELOAD_TOPIC_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pTopicName, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));

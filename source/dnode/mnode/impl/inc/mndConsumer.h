@@ -47,6 +47,7 @@ const char *mndConsumerStatusName(int status);
   do {                                                 \
     if (c == NULL) {                                   \
       code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY); \
+      lino = __LINE__;                                 \
       goto END;                                        \
     }                                                  \
   } while (0)
@@ -55,13 +56,14 @@ const char *mndConsumerStatusName(int status);
   do {                          \
     code = c;                   \
     if (code != 0) {            \
+      lino = __LINE__;          \
       goto END;                 \
     }                           \
   } while (0)
 
-#define PRINT_LOG_END(code)                                               \
+#define PRINT_LOG_END                                               \
   if (code != 0) {                                                        \
-    mError("%s return code:%d, msg:%s", __func__, code, tstrerror(code)); \
+    mError("%s failed at line:%d since:%s", __func__, lino, tstrerror(code)); \
   } else {                                                                \
     mDebug("%s return success", __func__);                                \
   }

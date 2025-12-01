@@ -818,6 +818,7 @@ cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(D)
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(E)
   STABLE full_table_name(C) where_clause_opt(D).                                  { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, E, D); }
 
+cmd ::= RELOAD TOPIC exists_opt(A) topic_name(B).                                        { pCxt->pRootNode = createReloadTopicStmt(pCxt, A, &B); }
 cmd ::= DROP TOPIC exists_opt(A) force_opt(C) topic_name(B).                             { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B, C); }
 cmd ::= DROP CONSUMER GROUP exists_opt(A) force_opt(D) cgroup_name(B) ON topic_name(C).  { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C, D); }
 

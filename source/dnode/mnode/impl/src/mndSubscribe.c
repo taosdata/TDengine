@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndSubscribe.h"
 #include "mndConsumer.h"
 #include "mndShow.h"
+#include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
@@ -45,7 +45,9 @@ static int32_t mndSetSubCommitLogs(STrans *pTrans, SMqSubscribeObj *pSub) {
   if (pTrans == NULL || pSub == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t  code = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   SSdbRaw *pCommitRaw = mndSubActionEncode(pSub);
   MND_TMQ_NULL_CHECK(pCommitRaw);
   code = mndTransAppendCommitlog(pTrans, pCommitRaw);
@@ -56,6 +58,7 @@ static int32_t mndSetSubCommitLogs(STrans *pTrans, SMqSubscribeObj *pSub) {
   code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -85,14 +88,14 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub) {
-  int32_t     code = 0;
-  SSdb*       pSdb = pMnode->pSdb;
-  SVgObj*     pVgroup = NULL;
+int32_t mndSchedInitSubEp(SMnode *pMnode, const SMqTopicObj *pTopic, SMqSubscribeObj *pSub) {
+  int32_t code = 0;
+  SSdb *  pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
 
-  void* pIter = NULL;
+  void *pIter = NULL;
   while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) {
       break;
     }
@@ -107,9 +110,10 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     SMqVgEp pVgEp = {0};
     pVgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     pVgEp.vgId = pVgroup->vgId;
-    if (taosArrayPush(pSub->unassignedVgs, &pVgEp) == NULL){
+    if (taosArrayPush(pSub->unassignedVgs, &pVgEp) == NULL) {
       code = terrno;
       sdbRelease(pSdb, pVgroup);
+      sdbCancelFetch(pSdb, pIter);
       goto END;
     }
     mInfo("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp.vgId);
@@ -120,12 +124,14 @@ END:
   return code;
 }
 
-
-static int32_t mndCreateSubscription(SMnode *pMnode, const SMqTopicObj *pTopic, const char *subKey, SMqSubscribeObj** pSub) {
-  if(pMnode == NULL || pTopic == NULL || subKey == NULL || pSub == NULL) {
+static int32_t mndCreateSubscription(SMnode *pMnode, const SMqTopicObj *pTopic, const char *subKey,
+                                     SMqSubscribeObj **pSub) {
+  if (pMnode == NULL || pTopic == NULL || subKey == NULL || pSub == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  int32_t lino = 0;
   int32_t code = 0;
+  PRINT_LOG_START
   MND_TMQ_RETURN_CHECK(tNewSubscribeObj(subKey, pSub));
   (*pSub)->dbUid = pTopic->dbUid;
   (*pSub)->stbUid = pTopic->stbUid;
@@ -135,6 +141,7 @@ static int32_t mndCreateSubscription(SMnode *pMnode, const SMqTopicObj *pTopic, 
   MND_TMQ_RETURN_CHECK(mndSchedInitSubEp(pMnode, pTopic, *pSub));
 
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -158,20 +165,23 @@ static void mndSplitSubscribeKey(const char *key, char *topic, char *cgroup, boo
   }
 }
 
-static int32_t mndBuildSubChangeReq(SMnode *pMnode, void **pBuf, int32_t *pLen, SMqSubscribeObj *pSub, const SMqRebOutputVg *pRebVg) {
+static int32_t mndBuildSubChangeReq(SMnode *pMnode, void **pBuf, int32_t *pLen, SMqSubscribeObj *pSub,
+                                    const SMqRebOutputVg *pRebVg) {
   if (pSub == NULL || pRebVg == NULL || pBuf == NULL || pLen == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMqRebVgReq req = {0};
-  int32_t     code = 0;
-  SEncoder encoder = {0};
+  SMqRebVgReq  req = {0};
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  SEncoder     encoder = {0};
   SMqTopicObj *pTopic = NULL;
+  void *       buf = NULL;
 
+  PRINT_LOG_START
   char topic[TSDB_TOPIC_FNAME_LEN] = {0};
   char cgroup[TSDB_CGROUP_LEN] = {0};
   mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
   MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, topic, &pTopic));
-  taosRLockLatch(&pTopic->lock);
 
   req.oldConsumerId = pRebVg->oldConsumerId;
   req.newConsumerId = pRebVg->newConsumerId;
@@ -186,12 +196,11 @@ static int32_t mndBuildSubChangeReq(SMnode *pMnode, void **pBuf, int32_t *pLen, 
   int32_t tlen = 0;
   tEncodeSize(tEncodeSMqRebVgReq, &req, tlen, code);
   if (code < 0) {
-    taosRUnLockLatch(&pTopic->lock);
     goto END;
   }
 
   tlen += sizeof(SMsgHead);
-  void *buf = taosMemoryMalloc(tlen);
+  buf = taosMemoryMalloc(tlen);
   MND_TMQ_NULL_CHECK(buf);
   SMsgHead *pMsgHead = (SMsgHead *)buf;
   pMsgHead->contLen = htonl(tlen);
@@ -200,11 +209,12 @@ static int32_t mndBuildSubChangeReq(SMnode *pMnode, void **pBuf, int32_t *pLen, 
   tEncoderInit(&encoder, POINTER_SHIFT(buf, sizeof(SMsgHead)), tlen);
   MND_TMQ_RETURN_CHECK(tEncodeSMqRebVgReq(&encoder, &req));
   *pBuf = buf;
+  buf = NULL;
   *pLen = tlen;
 
-  taosRUnLockLatch(&pTopic->lock);
-
 END:
+  PRINT_LOG_END
+  taosMemoryFree(buf);
   mndReleaseTopic(pMnode, pTopic);
   tEncoderClear(&encoder);
   return code;
@@ -216,7 +226,8 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubsc
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
-  void   *buf  = NULL;
+  int32_t lino = 0;
+  void *  buf = NULL;
 
   if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
     if (pRebVg->oldConsumerId == -1) return 0;  // drop stream, no consumer, while split vnode,all consumerId is -1
@@ -236,14 +247,15 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubsc
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
   action.pCont = buf;
+  buf = NULL;
   action.contLen = tlen;
   action.msgType = TDMT_VND_TMQ_SUBSCRIBE;
 
   mndReleaseVgroup(pMnode, pVgObj);
   MND_TMQ_RETURN_CHECK(mndTransAppendRedoAction(pTrans, &action));
-  return code;
 
 END:
+  PRINT_LOG_END
   taosMemoryFree(buf);
   return code;
 }
@@ -260,7 +272,9 @@ static int32_t mndGetOrCreateRebSub(SHashObj *pHash, const char *key, SMqRebInfo
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
-  SMqRebInfo* pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
+  int32_t lino = 0;
+  PRINT_LOG_START
+  SMqRebInfo *pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
   if (pRebInfo == NULL) {
     pRebInfo = tNewSMqRebSubscribe(key);
     if (pRebInfo == NULL) {
@@ -278,11 +292,12 @@ static int32_t mndGetOrCreateRebSub(SHashObj *pHash, const char *key, SMqRebInfo
     pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
     MND_TMQ_NULL_CHECK(pRebInfo);
   }
-  if (pReb){
+  if (pReb) {
     *pReb = pRebInfo;
   }
 
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -290,13 +305,17 @@ static int32_t pushVgDataToHash(SArray *vgs, SHashObj *pHash, int64_t consumerId
   if (vgs == NULL || pHash == NULL || key == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t         code = 0;
-  SMqVgEp       *pVgEp = (SMqVgEp *)taosArrayPop(vgs);
+  int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
+  SMqVgEp *pVgEp = (SMqVgEp *)taosArrayPop(vgs);
   MND_TMQ_NULL_CHECK(pVgEp);
   SMqRebOutputVg outputVg = {consumerId, -1, *pVgEp};
   MND_TMQ_RETURN_CHECK(taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg)));
   mInfo("tmq rebalance sub:%s mq rebalance remove vgId:%d from consumer:0x%" PRIx64, key, pVgEp->vgId, consumerId);
+
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -305,10 +324,12 @@ static int32_t processRemovedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   int32_t numOfRemoved = taosArrayGetSize(pInput->pRebInfo->removedConsumers);
   int32_t actualRemoved = 0;
   for (int32_t i = 0; i < numOfRemoved; i++) {
-    int64_t*      consumerId = (int64_t *)taosArrayGet(pInput->pRebInfo->removedConsumers, i);
+    int64_t *consumerId = (int64_t *)taosArrayGet(pInput->pRebInfo->removedConsumers, i);
     MND_TMQ_NULL_CHECK(consumerId);
     SMqConsumerEp *pConsumerEp = taosHashGet(pOutput->pSub->consumerHash, consumerId, sizeof(int64_t));
     if (pConsumerEp == NULL) {
@@ -326,12 +347,13 @@ static int32_t processRemovedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash
   }
 
   if (numOfRemoved != actualRemoved) {
-    mError("tmq rebalance sub:%s mq rebalance removedNum:%d not matched with actual:%d", pOutput->pSub->key, numOfRemoved,
-           actualRemoved);
+    mError("tmq rebalance sub:%s mq rebalance removedNum:%d not matched with actual:%d", pOutput->pSub->key,
+           numOfRemoved, actualRemoved);
   } else {
     mInfo("tmq rebalance sub:%s removed %d consumers", pOutput->pSub->key, numOfRemoved);
   }
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -340,16 +362,19 @@ static int32_t processNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputOb
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   int32_t numOfNewConsumers = taosArrayGetSize(pInput->pRebInfo->newConsumers);
 
   for (int32_t i = 0; i < numOfNewConsumers; i++) {
-    int64_t* consumerId = (int64_t *)taosArrayGet(pInput->pRebInfo->newConsumers, i);
+    int64_t *consumerId = (int64_t *)taosArrayGet(pInput->pRebInfo->newConsumers, i);
     MND_TMQ_NULL_CHECK(consumerId);
     SMqConsumerEp newConsumerEp = {0};
     newConsumerEp.consumerId = *consumerId;
     newConsumerEp.vgs = taosArrayInit(0, sizeof(SMqVgEp));
     MND_TMQ_NULL_CHECK(newConsumerEp.vgs);
-    if (taosHashPut(pOutput->pSub->consumerHash, consumerId, sizeof(int64_t), &newConsumerEp, sizeof(SMqConsumerEp)) != 0) {
+    if (taosHashPut(pOutput->pSub->consumerHash, consumerId, sizeof(int64_t), &newConsumerEp, sizeof(SMqConsumerEp)) !=
+        0) {
       freeSMqConsumerEp(&newConsumerEp);
       code = terrno;
       goto END;
@@ -358,6 +383,7 @@ static int32_t processNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputOb
     mInfo("tmq rebalance sub:%s mq rebalance add new consumer:0x%" PRIx64, pOutput->pSub->key, *consumerId);
   }
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -366,22 +392,27 @@ static int32_t processUnassignedVgroups(SMqRebOutputObj *pOutput, SHashObj *pHas
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   int32_t numOfVgroups = taosArrayGetSize(pOutput->pSub->unassignedVgs);
   for (int32_t i = 0; i < numOfVgroups; i++) {
     MND_TMQ_RETURN_CHECK(pushVgDataToHash(pOutput->pSub->unassignedVgs, pHash, -1, pOutput->pSub->key));
   }
 END:
+  PRINT_LOG_END
   return code;
 }
 
 static int32_t processModifiedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t minVgCnt,
-                                     int32_t remainderVgCnt) {
+                                        int32_t remainderVgCnt) {
   if (pOutput == NULL || pHash == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
   int32_t cnt = 0;
-  void   *pIter = NULL;
+  void *  pIter = NULL;
+  PRINT_LOG_START
 
   while (1) {
     pIter = taosHashIterate(pOutput->pSub->consumerHash, pIter);
@@ -407,6 +438,7 @@ static int32_t processModifiedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHas
     }
   }
 END:
+  PRINT_LOG_END
   taosHashCancelIterate(pOutput->pSub->consumerHash, pIter);
   return code;
 }
@@ -416,9 +448,11 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
   int32_t totalVgNum = 0;
   SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
+  void *  pIter = NULL;
+  void *  pIterHash = NULL;
   SArray *newVgs = taosArrayInit(0, sizeof(SMqVgEp));
   MND_TMQ_NULL_CHECK(newVgs);
   while (1) {
@@ -444,16 +478,15 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
     sdbRelease(pMnode->pSdb, pVgroup);
   }
 
-  pIter = NULL;
   while (1) {
-    pIter = taosHashIterate(pOutput->pSub->consumerHash, pIter);
-    if (pIter == NULL) break;
-    SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
-    int32_t j = 0;
+    pIterHash = taosHashIterate(pOutput->pSub->consumerHash, pIterHash);
+    if (pIterHash == NULL) break;
+    SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIterHash;
+    int32_t        j = 0;
     while (j < taosArrayGetSize(pConsumerEp->vgs)) {
       SMqVgEp *pVgEpTmp = taosArrayGet(pConsumerEp->vgs, j);
       MND_TMQ_NULL_CHECK(pVgEpTmp);
-      bool     find = false;
+      bool find = false;
       for (int32_t k = 0; k < taosArrayGetSize(newVgs); k++) {
         SMqVgEp *pnewVgEp = taosArrayGet(newVgs, k);
         MND_TMQ_NULL_CHECK(pnewVgEp);
@@ -476,27 +509,33 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
     MND_TMQ_NULL_CHECK(taosArrayAddAll(pOutput->pSub->unassignedVgs, newVgs));
     mInfo("tmq rebalance processRemoveAddVgs add new vg num:%d", (int)taosArrayGetSize(newVgs));
   }
-  taosArrayDestroy(newVgs);
-
-  return totalVgNum;
 
 END:
   sdbRelease(pMnode->pSdb, pVgroup);
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  taosHashCancelIterate(pOutput->pSub->consumerHash, pIterHash);
   taosArrayDestroy(newVgs);
-  return code;
+  if (code != 0) {
+    mError("tmq rebalance processRemoveAddVgs failed, code:%d", code);
+    return code;
+  } else {
+    mInfo("tmq rebalance processRemoveAddVgs completed, total vg num:%d", totalVgNum);
+    return totalVgNum;
+  }
 }
 
 static int32_t processSubOffsetRows(SMnode *pMnode, const SMqRebInputObj *pInput, SMqRebOutputObj *pOutput) {
   if (pMnode == NULL || pInput == NULL || pOutput == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  void *pIter = NULL;
+  void *           pIter = NULL;
   SMqSubscribeObj *pSub = NULL;
+  int32_t          lino = 0;
   int32_t          code = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key, &pSub);  // put all offset rows
-  if( code != 0){
+  if (code != 0) {
     return 0;
   }
-  taosRLockLatch(&pSub->lock);
+  PRINT_LOG_START
   if (pOutput->pSub->offsetRows == NULL) {
     pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
     MND_TMQ_NULL_CHECK(pOutput->pSub->offsetRows);
@@ -510,7 +549,7 @@ static int32_t processSubOffsetRows(SMnode *pMnode, const SMqRebInputObj *pInput
     for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
       OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
       MND_TMQ_NULL_CHECK(d1);
-      bool        jump = false;
+      bool jump = false;
       for (int i = 0; pConsumerEpNew && i < taosArrayGetSize(pConsumerEpNew->vgs); i++) {
         SMqVgEp *pVgEp = taosArrayGet(pConsumerEpNew->vgs, i);
         MND_TMQ_NULL_CHECK(pVgEp);
@@ -542,10 +581,9 @@ static int32_t processSubOffsetRows(SMnode *pMnode, const SMqRebInputObj *pInput
   }
 
 END:
-  taosRUnLockLatch(&pSub->lock);
-  taosHashCancelIterate(pSub->consumerHash, pIter);  
+  taosHashCancelIterate(pSub->consumerHash, pIter);
   mndReleaseSubscribe(pMnode, pSub);
-
+  PRINT_LOG_END
   return code;
 }
 
@@ -593,7 +631,8 @@ static void calcVgroupsCnt(const SMqRebInputObj *pInput, int32_t totalVgNum, con
     mInfo("tmq rebalance sub:%s no consumer subscribe this topic", pSubKey);
   }
   mInfo(
-      "tmq rebalance sub:%s mq rebalance %d vgroups, existed consumers:%d, added:%d, removed:%d, minVg:%d remainderVg:%d",
+      "tmq rebalance sub:%s mq rebalance %d vgroups, existed consumers:%d, added:%d, removed:%d, minVg:%d "
+      "remainderVg:%d",
       pSubKey, totalVgNum, pInput->oldConsumerNum, numOfAdded, numOfRemoved, *minVgCnt, *remainderVgCnt);
 }
 
@@ -602,9 +641,11 @@ static int32_t assignVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t 
     return TSDB_CODE_INVALID_PARA;
   }
   SMqRebOutputVg *pRebVg = NULL;
-  void           *pAssignIter = NULL;
-  void           *pIter = NULL;
+  void *          pAssignIter = NULL;
+  void *          pIter = NULL;
   int32_t         code = 0;
+  int32_t         lino = 0;
+  PRINT_LOG_START
 
   while (1) {
     pIter = taosHashIterate(pOutput->pSub->consumerHash, pIter);
@@ -661,14 +702,16 @@ static int32_t assignVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t 
 
     SMqRebOutputVg *pRebOutput = (SMqRebOutputVg *)pAssignIter;
     MND_TMQ_NULL_CHECK(taosArrayPush(pOutput->rebVgs, pRebOutput));
-    if (taosHashGetSize(pOutput->pSub->consumerHash) == 0) {            // if all consumer is removed
-      MND_TMQ_NULL_CHECK(taosArrayPush(pOutput->pSub->unassignedVgs, &pRebOutput->pVgEp));  // put all vg into unassigned
+    if (taosHashGetSize(pOutput->pSub->consumerHash) == 0) {  // if all consumer is removed
+      MND_TMQ_NULL_CHECK(
+          taosArrayPush(pOutput->pSub->unassignedVgs, &pRebOutput->pVgEp));  // put all vg into unassigned
     }
   }
 
 END:
   taosHashCancelIterate(pOutput->pSub->consumerHash, pIter);
   taosHashCancelIterate(pHash, pAssignIter);
+  PRINT_LOG_END
   return code;
 }
 
@@ -676,15 +719,17 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   if (pMnode == NULL || pInput == NULL || pOutput == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t     totalVgNum = processRemoveAddVgs(pMnode, pOutput);
-  if (totalVgNum < 0){
+  int32_t totalVgNum = processRemoveAddVgs(pMnode, pOutput);
+  if (totalVgNum < 0) {
     return totalVgNum;
   }
   const char *pSubKey = pOutput->pSub->key;
   int32_t     minVgCnt = 0;
   int32_t     remainderVgCnt = 0;
   int32_t     code = 0;
-  SHashObj   *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  int32_t     lino = 0;
+  PRINT_LOG_START
+  SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   MND_TMQ_NULL_CHECK(pHash);
   MND_TMQ_RETURN_CHECK(processRemovedConsumers(pOutput, pHash, pInput));
   MND_TMQ_RETURN_CHECK(processUnassignedVgroups(pOutput, pHash));
@@ -697,6 +742,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 
 END:
   taosHashCleanup(pHash);
+  PRINT_LOG_END
   return code;
 }
 
@@ -704,11 +750,13 @@ static int32_t presistConsumerByType(STrans *pTrans, SArray *consumers, int8_t t
   if (pTrans == NULL || consumers == NULL || cgroup == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t         code = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   SMqConsumerObj *pConsumerNew = NULL;
   int32_t         consumerNum = taosArrayGetSize(consumers);
   for (int32_t i = 0; i < consumerNum; i++) {
-    int64_t* consumerId = (int64_t *)taosArrayGet(consumers, i);
+    int64_t *consumerId = (int64_t *)taosArrayGet(consumers, i);
     MND_TMQ_NULL_CHECK(consumerId);
     MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(*consumerId, cgroup, type, topic, NULL, &pConsumerNew));
     MND_TMQ_RETURN_CHECK(mndSetConsumerCommitLogs(pTrans, pConsumerNew));
@@ -717,6 +765,7 @@ static int32_t presistConsumerByType(STrans *pTrans, SArray *consumers, int8_t t
   pConsumerNew = NULL;
 
 END:
+  PRINT_LOG_END
   tDeleteSMqConsumerObj(pConsumerNew);
   return code;
 }
@@ -726,10 +775,13 @@ static int32_t mndPresistConsumer(STrans *pTrans, const SMqRebOutputObj *pOutput
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   MND_TMQ_RETURN_CHECK(presistConsumerByType(pTrans, pOutput->modifyConsumers, CONSUMER_UPDATE_REB, cgroup, NULL));
   MND_TMQ_RETURN_CHECK(presistConsumerByType(pTrans, pOutput->newConsumers, CONSUMER_ADD_REB, cgroup, topic));
   MND_TMQ_RETURN_CHECK(presistConsumerByType(pTrans, pOutput->removedConsumers, CONSUMER_REMOVE_REB, cgroup, topic));
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -737,8 +789,10 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   if (pMnode == NULL || pMsg == NULL || pOutput == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t          code = 0;
-  STrans          *pTrans = NULL;
+  int32_t code = 0;
+  int32_t lino = 0;
+  STrans *pTrans = NULL;
+  PRINT_LOG_START
 
   char topic[TSDB_TOPIC_FNAME_LEN] = {0};
   char cgroup[TSDB_CGROUP_LEN] = {0};
@@ -777,6 +831,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
 
 END:
   mndTransDrop(pTrans);
+  PRINT_LOG_END
   TAOS_RETURN(code);
 }
 
@@ -785,13 +840,14 @@ static int32_t buildRebInfo(SHashObj *rebSubHash, SArray *topicList, int8_t type
   if (rebSubHash == NULL || topicList == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  taosRLockLatch(&pConsumer->lock);
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   int32_t topicNum = taosArrayGetSize(topicList);
   for (int32_t i = 0; i < topicNum; i++) {
     char *removedTopic = taosArrayGetP(topicList, i);
     MND_TMQ_NULL_CHECK(removedTopic);
-    char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
+    char key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
     (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", pConsumer->cgroup, TMQ_SEPARATOR, removedTopic);
     SMqRebInfo *pRebSub = NULL;
     MND_TMQ_RETURN_CHECK(mndGetOrCreateRebSub(rebSubHash, key, &pRebSub));
@@ -802,7 +858,7 @@ static int32_t buildRebInfo(SHashObj *rebSubHash, SArray *topicList, int8_t type
   }
 
 END:
-  taosRUnLockLatch(&pConsumer->lock);
+  PRINT_LOG_END
   return code;
 }
 
@@ -812,23 +868,21 @@ static void checkForVgroupSplit(SMnode *pMnode, SMqConsumerObj *pConsumer, SHash
   }
   int32_t newTopicNum = taosArrayGetSize(pConsumer->currentTopics);
   for (int32_t i = 0; i < newTopicNum; i++) {
-    char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    if (topic == NULL){
+    char *topic = taosArrayGetP(pConsumer->currentTopics, i);
+    if (topic == NULL) {
       continue;
     }
     SMqSubscribeObj *pSub = NULL;
-    char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
+    char             key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
     (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", pConsumer->cgroup, TMQ_SEPARATOR, topic);
     int32_t code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
     if (code != 0) {
       continue;
     }
-    taosRLockLatch(&pSub->lock);
 
     // iterate all vg assigned to the consumer of that topic
     SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
-    if (pConsumerEp == NULL){
-      taosRUnLockLatch(&pSub->lock);
+    if (pConsumerEp == NULL) {
       mndReleaseSubscribe(pMnode, pSub);
       continue;
     }
@@ -838,18 +892,17 @@ static void checkForVgroupSplit(SMnode *pMnode, SMqConsumerObj *pConsumer, SHash
       if (pVgEp == NULL) {
         continue;
       }
-      SVgObj  *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
       if (!pVgroup) {
         code = mndGetOrCreateRebSub(rebSubHash, key, NULL);
-        if (code != 0){
+        if (code != 0) {
           mError("failed to mndGetOrCreateRebSub vgroup:%d, error:%s", pVgEp->vgId, tstrerror(code))
-        }else{
+        } else {
           mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
         }
       }
       mndReleaseVgroup(pMnode, pVgroup);
     }
-    taosRUnLockLatch(&pSub->lock);
     mndReleaseSubscribe(pMnode, pSub);
   }
 }
@@ -858,11 +911,13 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
   if (pMsg == NULL || rebSubHash == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMnode         *pMnode = pMsg->info.node;
-  SSdb           *pSdb = pMnode->pSdb;
+  SMnode *        pMnode = pMsg->info.node;
+  SSdb *          pSdb = pMnode->pSdb;
   SMqConsumerObj *pConsumer = NULL;
-  void           *pIter = NULL;
+  void *          pIter = NULL;
   int32_t         code = 0;
+  int32_t         lino = 0;
+  PRINT_LOG_START
 
   // iterate all consumers, find all modification
   while (1) {
@@ -882,13 +937,14 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
 
     if (status == MQ_CONSUMER_STATUS_READY) {
       if (taosArrayGetSize(pConsumer->currentTopics) == 0) {  // unsubscribe or close
-        MND_TMQ_RETURN_CHECK(mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
+        MND_TMQ_RETURN_CHECK(
+            mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
       } else if (hbStatus * tsMqRebalanceInterval * 1000 >= pConsumer->sessionTimeoutMs ||
                  pollStatus * tsMqRebalanceInterval * 1000 >= pConsumer->maxPollIntervalMs) {
         mInfo("tmq rebalance for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64
-           ", hb lost cnt:%d, or long time no poll cnt:%d",
-           pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime,
-           pConsumer->createTime, hbStatus, pollStatus);
+              ", hb lost cnt:%d, or long time no poll cnt:%d",
+              pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime,
+              pConsumer->createTime, hbStatus, pollStatus);
         MND_TMQ_RETURN_CHECK(buildRebInfo(rebSubHash, pConsumer->currentTopics, 0, pConsumer));
       } else {
         checkForVgroupSplit(pMnode, pConsumer, rebSubHash);
@@ -897,13 +953,16 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
       MND_TMQ_RETURN_CHECK(buildRebInfo(rebSubHash, pConsumer->rebNewTopics, 1, pConsumer));
       MND_TMQ_RETURN_CHECK(buildRebInfo(rebSubHash, pConsumer->rebRemovedTopics, 0, pConsumer));
     } else {
-      MND_TMQ_RETURN_CHECK(mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
+      MND_TMQ_RETURN_CHECK(
+          mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
     }
 
     mndReleaseConsumer(pMnode, pConsumer);
     pConsumer = NULL;
   }
 END:
+  PRINT_LOG_END
+  sdbCancelFetch(pSdb, pIter);
   mndReleaseConsumer(pMnode, pConsumer);
   return code;
 }
@@ -945,6 +1004,8 @@ static int32_t initRebOutput(SMqRebOutputObj *rebOutput) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   rebOutput->newConsumers = taosArrayInit(0, sizeof(int64_t));
   MND_TMQ_NULL_CHECK(rebOutput->newConsumers);
   rebOutput->removedConsumers = taosArrayInit(0, sizeof(int64_t));
@@ -953,51 +1014,23 @@ static int32_t initRebOutput(SMqRebOutputObj *rebOutput) {
   MND_TMQ_NULL_CHECK(rebOutput->modifyConsumers);
   rebOutput->rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
   MND_TMQ_NULL_CHECK(rebOutput->rebVgs);
-  return code;
+  rebOutput = NULL;
 
 END:
+  PRINT_LOG_END
   clearRebOutput(rebOutput);
   return code;
 }
-
-// This function only works when there are dirty consumers
-// static int32_t checkConsumer(SMnode *pMnode, SMqSubscribeObj *pSub) {
-//   if (pMnode == NULL || pSub == NULL) {
-//     return TSDB_CODE_INVALID_PARA;
-//   }
-//   int32_t code = 0;
-//   void   *pIter = NULL;
-//   while (1) {
-//     pIter = taosHashIterate(pSub->consumerHash, pIter);
-//     if (pIter == NULL) {
-//       break;
-//     }
-
-//     SMqConsumerEp  *pConsumerEp = (SMqConsumerEp *)pIter;
-//     SMqConsumerObj *pConsumer = NULL;
-//     code = mndAcquireConsumer(pMnode, pConsumerEp->consumerId, &pConsumer);
-//     if (code == 0) {
-//       mndReleaseConsumer(pMnode, pConsumer);
-//       continue;
-//     }
-//     mError("consumer:0x%" PRIx64 " not exists in sdb for exception", pConsumerEp->consumerId);
-//     MND_TMQ_NULL_CHECK(taosArrayAddAll(pSub->unassignedVgs, pConsumerEp->vgs));
-
-//     MND_TMQ_RETURN_CHECK(taosHashRemove(pSub->consumerHash, &pConsumerEp->consumerId, sizeof(int64_t)));
-//     pIter = NULL;  // restart iterate since hash changed
-//   }
-// END:
-//   taosHashCancelIterate(pSub->consumerHash, pIter);
-//   return code;
-// }
 
 static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOutputObj *rebOutput) {
   if (pMnode == NULL || rebInput == NULL || rebOutput == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  const char      *key = rebInput->pRebInfo->key;
+  const char *     key = rebInput->pRebInfo->key;
   SMqSubscribeObj *pSub = NULL;
   int32_t          code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
+  int32_t          lino = 0;
+  PRINT_LOG_START
 
   if (code != 0) {
     // split sub key and extract topic
@@ -1006,27 +1039,22 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
     mndSplitSubscribeKey(key, topic, cgroup, true);
     SMqTopicObj *pTopic = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, topic, &pTopic));
-    taosRLockLatch(&pTopic->lock);
 
     rebInput->oldConsumerNum = 0;
     code = mndCreateSubscription(pMnode, pTopic, key, &rebOutput->pSub);
     if (code != 0) {
       mError("tmq rebalance mq rebalance %s failed create sub since %s, ignore", key, tstrerror(code));
-      taosRUnLockLatch(&pTopic->lock);
       mndReleaseTopic(pMnode, pTopic);
       return code;
     }
 
     (void)memcpy(rebOutput->pSub->dbName, pTopic->db, TSDB_DB_FNAME_LEN);
-    taosRUnLockLatch(&pTopic->lock);
     mndReleaseTopic(pMnode, pTopic);
 
     mInfo("tmq rebalance sub topic:%s has no consumers sub yet", key);
   } else {
-    taosRLockLatch(&pSub->lock);
     code = tCloneSubscribeObj(pSub, &rebOutput->pSub);
-    if(code != 0){
-      taosRUnLockLatch(&pSub->lock);
+    if (code != 0) {
       goto END;
     }
     // code = checkConsumer(pMnode, rebOutput->pSub);
@@ -1035,29 +1063,120 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
     //   goto END;
     // }
     rebInput->oldConsumerNum = taosHashGetSize(rebOutput->pSub->consumerHash);
-    taosRUnLockLatch(&pSub->lock);
 
-    mInfo("tmq rebalance sub topic:%s has %d consumers sub till now", key, taosHashGetSize(rebOutput->pSub->consumerHash));
+    mInfo("tmq rebalance sub topic:%s has %d consumers sub till now", key,
+          taosHashGetSize(rebOutput->pSub->consumerHash));
   }
 
 END:
+  PRINT_LOG_END
   mndReleaseSubscribe(pMnode, pSub);
   return code;
 }
 
-static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
-  if (pMsg == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+static int32_t collectVgs(SMqRebOutputObj rebOutput, SMqSubscribeObj *pSub) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  void *pIterConsumer = NULL;
+
+  PRINT_LOG_START
+  rebOutput.rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
+  MND_TMQ_NULL_CHECK(rebOutput.rebVgs);
+
+  SMqConsumerEp *pConsumerEp = NULL;
+
+  while (1) {
+    pIterConsumer = taosHashIterate(pSub->consumerHash, pIterConsumer);
+    if (pIterConsumer == NULL) break;
+    pConsumerEp = (SMqConsumerEp *)pIterConsumer;
+
+    for (int32_t i = 0; i < taosArrayGetSize(pConsumerEp->vgs); i++) {
+      SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, i);
+      MND_TMQ_NULL_CHECK(pVgEp);
+      SMqRebOutputVg *vg = taosArrayReserve(rebOutput.rebVgs, 1);
+      MND_TMQ_NULL_CHECK(vg);
+      vg->pVgEp = *pVgEp;
+      vg->oldConsumerId = -1;
+      vg->newConsumerId = pConsumerEp->consumerId;
+      mDebug("sub:%s reload rebalance vgId:%d remains on consumer:0x%" PRIx64, pSub->key, vg->pVgEp.vgId,
+             vg->newConsumerId);
+    }
   }
-  int     code = 0;
-  void   *pIter = NULL;
-  SMnode *pMnode = pMsg->info.node;
-  PRINT_LOG_START;
-  if (!mndRebTryStart()) {
-    mInfo("tmq rebalance mq rebalance already in progress, do nothing");
-    return code;
+END:
+  PRINT_LOG_END
+  taosHashCancelIterate(pSub->consumerHash, pIterConsumer);
+  return code;
+}
+
+static int32_t rebalanceOneSub(SRpcMsg *pMsg, SMqSubscribeObj *pSub) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SMnode *        pMnode = pMsg->info.node;
+  SMqRebOutputObj rebOutput = {0};
+
+  PRINT_LOG_START
+  // topic and cgroup
+  char topic[TSDB_TOPIC_FNAME_LEN] = {0};
+  char cgroup[TSDB_CGROUP_LEN] = {0};
+  mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
+  if (taosHashGet(topicsToReload, topic, strlen(topic)) == NULL) {
+    mDebug("%s topic:%s no need reload rebalance", __func__, topic);
+    goto END;
   }
 
+  rebOutput.pSub = pSub;
+  MND_TMQ_RETURN_CHECK(collectVgs(rebOutput, pSub));
+  code = mndPersistRebResult(pMnode, pMsg, &rebOutput);
+  if (code != 0) {
+    mError("%s error,msg:%s", __func__, tstrerror(code))
+  }
+
+END:
+  rebOutput.pSub = NULL;  // avoid double free
+  clearRebOutput(&rebOutput);
+  PRINT_LOG_END
+  return code;
+}
+
+static int32_t reloadRebalance(SRpcMsg *pMsg) {
+  SMnode *pMnode = pMsg->info.node;
+
+  SSdb *           pSdb = pMnode->pSdb;
+  SMqSubscribeObj *pSub = NULL;
+  int32_t          code = 0;
+  int32_t          lino = 0;
+
+  PRINT_LOG_START
+  mInfo("reloadRebalance start, total topics to reload:%d", taosHashGetSize(topicsToReload));
+  void *pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
+    if (pIter == NULL) {
+      break;
+    }
+
+    MND_TMQ_RETURN_CHECK(rebalanceOneSub(pMsg, pSub));
+    sdbRelease(pSdb, pSub);
+  }
+
+END:
+  sdbCancelFetch(pSdb, pIter);
+  sdbRelease(pSdb, pSub);
+  PRINT_LOG_END
+
+  return code;
+}
+
+static int32_t normalRebalance(SRpcMsg *pMsg) {
+  int     code = 0;
+  int32_t lino = 0;
+
+  void *  pIter = NULL;
+  SMnode *pMnode = pMsg->info.node;
+
+  PRINT_LOG_START
   SHashObj *rebSubHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
   MND_TMQ_NULL_CHECK(rebSubHash);
 
@@ -1083,14 +1202,14 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       mError("mq rebalance buildRebOutput, msg:%s", tstrerror(code))
     }
 
-    if (code == 0){
+    if (code == 0) {
       code = mndDoRebalance(pMnode, &rebInput, &rebOutput);
       if (code != 0) {
         mError("mq rebalance do rebalance error, msg:%s", tstrerror(code))
       }
     }
 
-    if (code == 0){
+    if (code == 0) {
       code = mndPersistRebResult(pMnode, pMsg, &rebOutput);
       if (code != 0) {
         mError("mq rebalance persist output error, possibly vnode splitted or dropped,msg:%s", tstrerror(code))
@@ -1105,11 +1224,37 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   }
 
 END:
+  PRINT_LOG_END
   taosHashCancelIterate(rebSubHash, pIter);
   taosHashCleanup(rebSubHash);
+  return code;
+}
+
+static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
+  if (pMsg == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int     code = 0;
+  int32_t lino = 0;
+
+  void *  pIter = NULL;
+  SMnode *pMnode = pMsg->info.node;
+  PRINT_LOG_START;
+  if (!mndRebTryStart()) {
+    mInfo("tmq rebalance mq rebalance already in progress, do nothing");
+    goto END;
+  }
+
+  if (taosHashGetSize(topicsToReload) > 0) {
+    code = reloadRebalance(pMsg);
+  } else {
+    code = normalRebalance(pMsg);
+  }
+
   mndRebCntDec();
 
-  PRINT_LOG_END(code);
+END:
+  PRINT_LOG_END
   TAOS_RETURN(code);
 }
 
@@ -1117,9 +1262,11 @@ static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STran
   if (pMnode == NULL || pSub == NULL || pTrans == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  void   *pIter = NULL;
+  void *  pIter = NULL;
   SVgObj *pVgObj = NULL;
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgObj);
     if (pIter == NULL) {
@@ -1153,6 +1300,7 @@ static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STran
   }
 
 END:
+  PRINT_LOG_END
   sdbRelease(pMnode->pSdb, pVgObj);
   sdbCancelFetch(pMnode->pSdb, pIter);
   return code;
@@ -1162,10 +1310,12 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
   if (pMnode == NULL || pTrans == NULL || cgroup == NULL || topic == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  void           *pIter = NULL;
+  void *          pIter = NULL;
   SMqConsumerObj *pConsumer = NULL;
   SMqConsumerObj *pConsumerNew = NULL;
   int             code = 0;
+  int32_t         lino = 0;
+  PRINT_LOG_START
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
     if (pIter == NULL) {
@@ -1182,13 +1332,14 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
     bool found3 = checkTopic(pConsumer->rebNewTopics, topic);
     if (found1 || found2 || found3) {
       if (deleteConsumer) {
-        MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+        MND_TMQ_RETURN_CHECK(
+            tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
         MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
         tDeleteSMqConsumerObj(pConsumerNew);
         pConsumerNew = NULL;
       } else {
-        mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
-              topic, pConsumer->consumerId, pConsumer->cgroup);
+        mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s", topic,
+               pConsumer->consumerId, pConsumer->cgroup);
         code = TSDB_CODE_MND_CGROUP_USED;
         goto END;
       }
@@ -1204,54 +1355,65 @@ END:
   return code;
 }
 
-static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
-  if (pMsg == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  SMnode         *pMnode = pMsg->info.node;
-  SMDropCgroupReq dropReq = {0};
-  STrans         *pTrans = NULL;
-  int32_t         code = TSDB_CODE_ACTION_IN_PROGRESS;
-  SMqSubscribeObj *pSub = NULL;
-
+static int32_t dropCgroup(SMqSubscribeObj *pSub, SRpcMsg *pMsg, SMDropCgroupReq* dropReq) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  STrans *        pTrans = NULL;
+  SMnode *        pMnode = pMsg->info.node;
   PRINT_LOG_START
-  MND_TMQ_RETURN_CHECK(tDeserializeSMDropCgroupReq(pMsg->pCont, pMsg->contLen, &dropReq));
-  char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
-  (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", dropReq.cgroup, TMQ_SEPARATOR, dropReq.topic);
-  code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
-  if (code != 0) {
-    if (dropReq.igNotExists) {
-      mInfo("cgroup:%s on topic:%s, not exist, ignore not exist is set", dropReq.cgroup, dropReq.topic);
-      return 0;
-    } else {
-      code = TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
-      mError("topic:%s, cgroup:%s, failed to drop since %s", dropReq.topic, dropReq.cgroup, tstrerror(code));
-      return code;
-    }
-  }
-
-  taosWLockLatch(&pSub->lock);
-  if (!dropReq.force && taosHashGetSize(pSub->consumerHash) != 0) {
+  if (!dropReq->force && taosHashGetSize(pSub->consumerHash) != 0) {
     code = TSDB_CODE_MND_CGROUP_USED;
-    mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, tstrerror(code));
+    mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq->cgroup, dropReq->topic, tstrerror(code));
     goto END;
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pMsg, "drop-cgroup");
   MND_TMQ_NULL_CHECK(pTrans);
-  mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
+  mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq->cgroup, dropReq->topic);
   mndTransSetDbName(pTrans, pSub->dbName, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   MND_TMQ_RETURN_CHECK(sendDeleteSubToVnode(pMnode, pSub, pTrans));
-  MND_TMQ_RETURN_CHECK(mndCheckConsumerByGroup(pMnode, pTrans, dropReq.cgroup, dropReq.topic, dropReq.force));
+  MND_TMQ_RETURN_CHECK(mndCheckConsumerByGroup(pMnode, pTrans, dropReq->cgroup, dropReq->topic, dropReq->force));
   MND_TMQ_RETURN_CHECK(mndSetDropSubCommitLogs(pMnode, pTrans, pSub));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
 
 END:
-  taosWUnLockLatch(&pSub->lock);
-  mndReleaseSubscribe(pMnode, pSub);
   mndTransDrop(pTrans);
-  PRINT_LOG_END(code);
+  PRINT_LOG_END
+  return code;
+}
+
+static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
+  if (pMsg == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SMnode *        pMnode = pMsg->info.node;
+  SMDropCgroupReq dropReq = {0};
+  int32_t         code = 0;
+  int32_t         lino = 0;
+
+  SMqSubscribeObj *pSub = NULL;
+
+  PRINT_LOG_START
+  MND_TMQ_RETURN_CHECK(tDeserializeSMDropCgroupReq(pMsg->pCont, pMsg->contLen, &dropReq));
+  char key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
+  (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", dropReq.cgroup, TMQ_SEPARATOR, dropReq.topic);
+  code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
+  if (code != 0) {
+    if (dropReq.igNotExists) {
+      mInfo("cgroup:%s on topic:%s, not exist, ignore not exist is set", dropReq.cgroup, dropReq.topic);
+      mndReleaseSubscribe(pMnode, pSub);
+      return 0;
+    } else {
+      code = TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
+      goto END;
+    }
+  }
+  MND_TMQ_RETURN_CHECK(dropCgroup(pSub, pMsg, &dropReq));
+
+END:
+  mndReleaseSubscribe(pMnode, pSub);
+  PRINT_LOG_END
 
   if (code != 0) {
     TAOS_RETURN(code);
@@ -1268,7 +1430,7 @@ static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void   *buf = NULL;
+  void *  buf = NULL;
   int32_t tlen = tEncodeSubscribeObj(NULL, pSub);
   if (tlen <= 0) goto SUB_ENCODE_OVER;
   int32_t size = sizeof(int32_t) + tlen + MND_SUBSCRIBE_RESERVE_SIZE;
@@ -1280,7 +1442,7 @@ static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
   if (buf == NULL) goto SUB_ENCODE_OVER;
 
   void *abuf = buf;
-  if (tEncodeSubscribeObj(&abuf, pSub) < 0){
+  if (tEncodeSubscribeObj(&abuf, pSub) < 0) {
     goto SUB_ENCODE_OVER;
   }
 
@@ -1300,7 +1462,7 @@ SUB_ENCODE_OVER:
     return NULL;
   }
 
-  mTrace("subscribe:%s, encode to raw:%p, row:%p", pSub->key, pRaw, pSub);
+  mDebug("subscribe:%s, encode to raw:%p, row:%p", pSub->key, pRaw, pSub);
   return pRaw;
 }
 
@@ -1311,9 +1473,9 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  SSdbRow         *pRow = NULL;
+  SSdbRow *        pRow = NULL;
   SMqSubscribeObj *pSub = NULL;
-  void            *buf = NULL;
+  void *           buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto SUB_DECODE_OVER;
@@ -1372,25 +1534,24 @@ SUB_DECODE_OVER:
     return NULL;
   }
 
-  mTrace("subscribe:%s, decode from raw:%p, row:%p", pSub->key, pRaw, pSub);
+  mDebug("subscribe:%s, decode from raw:%p, row:%p", pSub->key, pRaw, pSub);
   return pRow;
 }
 
 static int32_t mndSubActionInsert(SSdb *pSdb, SMqSubscribeObj *pSub) {
-  mTrace("subscribe:%s, perform insert action", pSub != NULL ? pSub->key : "null");
+  mDebug("subscribe:%s, perform insert action", pSub != NULL ? pSub->key : "null");
   return 0;
 }
 
 static int32_t mndSubActionDelete(SSdb *pSdb, SMqSubscribeObj *pSub) {
-  mTrace("subscribe:%s, perform delete action", pSub != NULL ? pSub->key : "null");
+  mDebug("subscribe:%s, perform delete action", pSub != NULL ? pSub->key : "null");
   tDeleteSubscribeObj(pSub);
   return 0;
 }
 
 static int32_t mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubscribeObj *pNewSub) {
-  if (pOldSub == NULL || pNewSub == NULL) return -1;
-  mTrace("subscribe:%s, perform update action", pOldSub->key);
-  taosWLockLatch(&pOldSub->lock);
+  if (pOldSub == NULL || pNewSub == NULL) return TSDB_CODE_INVALID_PARA;
+  mDebug("subscribe:%s, perform update action", pOldSub->key);
 
   SHashObj *tmp = pOldSub->consumerHash;
   pOldSub->consumerHash = pNewSub->consumerHash;
@@ -1404,15 +1565,14 @@ static int32_t mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubsc
   pOldSub->offsetRows = pNewSub->offsetRows;
   pNewSub->offsetRows = tmp2;
 
-  taosWUnLockLatch(&pOldSub->lock);
   return 0;
 }
 
-int32_t mndAcquireSubscribeByKey(SMnode *pMnode, const char *key, SMqSubscribeObj** pSub) {
-  if (pMnode == NULL || key == NULL || pSub == NULL){
+int32_t mndAcquireSubscribeByKey(SMnode *pMnode, const char *key, SMqSubscribeObj **pSub) {
+  if (pMnode == NULL || key == NULL || pSub == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SSdb            *pSdb = pMnode->pSdb;
+  SSdb *pSdb = pMnode->pSdb;
   *pSub = sdbAcquire(pSdb, SDB_SUBSCRIBE, key);
   if (*pSub == NULL) {
     return TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
@@ -1423,9 +1583,9 @@ int32_t mndAcquireSubscribeByKey(SMnode *pMnode, const char *key, SMqSubscribeOb
 int32_t mndGetGroupNumByTopic(SMnode *pMnode, const char *topicName) {
   if (pMnode == NULL || topicName == NULL) return 0;
   int32_t num = 0;
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
 
-  void            *pIter = NULL;
+  void *           pIter = NULL;
   SMqSubscribeObj *pSub = NULL;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
@@ -1455,24 +1615,29 @@ void mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub) {
 int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
   if (pMnode == NULL || pTrans == NULL || pSub == NULL) return TSDB_CODE_INVALID_PARA;
   int32_t  code = 0;
+  int32_t  lino = 0;
+  PRINT_LOG_START
   SSdbRaw *pCommitRaw = mndSubActionEncode(pSub);
   MND_TMQ_NULL_CHECK(pCommitRaw);
   code = mndTransAppendCommitlog(pTrans, pCommitRaw);
-  if (code != 0){
+  if (code != 0) {
     sdbFreeRaw(pCommitRaw);
     goto END;
   }
   code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 END:
+  PRINT_LOG_END
   return code;
 }
 
 int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName, bool force) {
   if (pMnode == NULL || pTrans == NULL || topicName == NULL) return TSDB_CODE_INVALID_PARA;
-  SSdb            *pSdb = pMnode->pSdb;
+  SSdb *           pSdb = pMnode->pSdb;
   int32_t          code = 0;
-  void            *pIter = NULL;
+  int32_t          lino = 0;
+  void *           pIter = NULL;
   SMqSubscribeObj *pSub = NULL;
+  PRINT_LOG_START
   while (1) {
     sdbRelease(pSdb, pSub);
     pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
@@ -1496,18 +1661,21 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName,
   }
 
 END:
+  PRINT_LOG_END
   sdbRelease(pSdb, pSub);
   sdbCancelFetch(pSdb, pIter);
 
   TAOS_RETURN(code);
 }
 
-static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t consumerId, const char* user, const char* fqdn,
-                           const char *topic, const char *cgroup, SArray *vgs, SArray *offsetRows) {
-  if (pBlock == NULL || numOfRows == NULL || topic == NULL || cgroup == NULL){
+static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t consumerId, const char *user,
+                           const char *fqdn, const char *topic, const char *cgroup, SArray *vgs, SArray *offsetRows) {
+  if (pBlock == NULL || numOfRows == NULL || topic == NULL || cgroup == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   int32_t sz = taosArrayGetSize(vgs);
   for (int32_t j = 0; j < sz; j++) {
     SMqVgEp *pVgEp = taosArrayGet(vgs, j);
@@ -1588,20 +1756,71 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     }
     (*numOfRows)++;
   }
-  return 0;
+
 END:
+  PRINT_LOG_END
+  return code;
+}
+
+static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SSDataBlock *pBlock, int32_t *numOfRows, int32_t rowsCapacity) {
+  int32_t          code = 0;
+  int32_t          lino = 0;
+  SMnode *         pMnode = pReq->info.node;
+  SSdb *           pSdb = pMnode->pSdb;
+  SMqConsumerEp *pConsumerEp = NULL;
+  void *         pIter = NULL;
+  PRINT_LOG_START
+
+  if (*numOfRows + pSub->vgNum > rowsCapacity) {
+    MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + pSub->vgNum));
+  }
+
+  // topic and cgroup
+  char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+  mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
+  varDataSetLen(topic, strlen(varDataVal(topic)));
+  varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
+
+  while (1) {
+    pIter = taosHashIterate(pSub->consumerHash, pIter);
+    if (pIter == NULL) break;
+    pConsumerEp = (SMqConsumerEp *)pIter;
+
+    char *          user = NULL;
+    char *          fqdn = NULL;
+    SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &pConsumerEp->consumerId);
+    if (pConsumer != NULL) {
+      user = pConsumer->user;
+      fqdn = pConsumer->fqdn;
+      sdbRelease(pSdb, pConsumer);
+    }
+    MND_TMQ_RETURN_CHECK(buildResult(pBlock, numOfRows, pConsumerEp->consumerId, user, fqdn, topic, cgroup,
+                                      pConsumerEp->vgs, pConsumerEp->offsetRows));
+  }
+
+  MND_TMQ_RETURN_CHECK(
+      buildResult(pBlock, numOfRows, -1, NULL, NULL, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows));
+
+  pBlock->info.rows = *numOfRows;
+
+END:
+  taosHashCancelIterate(pSub->consumerHash, pIter);
+
+  PRINT_LOG_END
   return code;
 }
 
 int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  if (pReq == NULL || pShow == NULL || pBlock == NULL){
+  if (pReq == NULL || pShow == NULL || pBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMnode          *pMnode = pReq->info.node;
-  SSdb            *pSdb = pMnode->pSdb;
+  SMnode *         pMnode = pReq->info.node;
+  SSdb *           pSdb = pMnode->pSdb;
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
   int32_t          code = 0;
+  int32_t          lino = 0;
 
   mInfo("mnd show subscriptions begin");
 
@@ -1611,57 +1830,25 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       break;
     }
 
-    taosRLockLatch(&pSub->lock);
+    MND_TMQ_RETURN_CHECK(retrieveSub(pReq, pSub, pBlock, &numOfRows, rowsCapacity));
 
-    if (numOfRows + pSub->vgNum > rowsCapacity) {
-      MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, numOfRows + pSub->vgNum))  ;
-    }
-
-    // topic and cgroup
-    char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-    mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
-    varDataSetLen(topic, strlen(varDataVal(topic)));
-    varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
-
-    SMqConsumerEp *pConsumerEp = NULL;
-    void          *pIter = NULL;
-
-    while (1) {
-      pIter = taosHashIterate(pSub->consumerHash, pIter);
-      if (pIter == NULL) break;
-      pConsumerEp = (SMqConsumerEp *)pIter;
-
-      char          *user = NULL;
-      char          *fqdn = NULL;
-      SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &pConsumerEp->consumerId);
-      if (pConsumer != NULL) {
-        user = pConsumer->user;
-        fqdn = pConsumer->fqdn;
-        sdbRelease(pSdb, pConsumer);
-      }
-      MND_TMQ_RETURN_CHECK(buildResult(pBlock, &numOfRows, pConsumerEp->consumerId, user, fqdn, topic, cgroup, pConsumerEp->vgs,
-                  pConsumerEp->offsetRows));
-    }
-
-    MND_TMQ_RETURN_CHECK(buildResult(pBlock, &numOfRows, -1, NULL, NULL, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows));
-
-    pBlock->info.rows = numOfRows;
-
-    taosRUnLockLatch(&pSub->lock);
     sdbRelease(pSdb, pSub);
+    pSub = NULL;
   }
-
   mInfo("mnd end show subscriptions");
-
   pShow->numOfRows += numOfRows;
-  return numOfRows;
 
 END:
-  taosRUnLockLatch(&pSub->lock);
+  sdbCancelFetch(pSdb, pShow->pIter);
   sdbRelease(pSdb, pSub);
 
-  return code;
+  if (code != 0) {
+    mError("mnd show subscriptions failed, msg:%s", tstrerror(code));
+    TAOS_RETURN(code);
+  } else {
+    mDebug("mnd show subscriptions success, rows:%d", numOfRows);
+    return numOfRows;
+  }
 }
 
 void mndCancelGetNextSubscribe(SMnode *pMnode, void *pIter) {
