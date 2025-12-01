@@ -947,6 +947,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
+  if (code != 0) {
+    mError("dnode:%d, failed to process status req since %s", statusReq.dnodeId, tstrerror(code));
+    return code;
+  }
+
   return mndUpdClusterInfo(pReq);
 }
 

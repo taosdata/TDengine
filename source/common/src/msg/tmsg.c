@@ -2019,7 +2019,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->clusterCfg.statusIntervalMs));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->timeWhiteVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timeWhiteVer));
 
   tEndEncode(&encoder);
 
