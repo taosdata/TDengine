@@ -11013,7 +11013,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
 
   int32_t subEndpointNum = taosArrayGetSize(pReq->subEndPoints);
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, &subEndpointNum));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, subEndpointNum));
   for (int32_t i = 0; i < subEndpointNum; ++i) {
     SDownstreamSourceNode* pSource = taosArrayGetP(pReq->subEndPoints, i);
     TAOS_CHECK_EXIT(tSerializeSDownstreamSourceNode(&encoder, pSource));

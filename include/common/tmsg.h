@@ -2043,6 +2043,20 @@ int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
 
+
+typedef struct SDownstreamSourceNode {
+  ENodeType      type;
+  SQueryNodeAddr addr;
+  uint64_t       clientId;
+  uint64_t       taskId;
+  uint64_t       sId;
+  int32_t        execId;
+  int32_t        fetchMsgType;
+  bool           localExec;
+} SDownstreamSourceNode;
+
+
+
 typedef struct SDNodeAddr {
   int32_t nodeId;  // dnodeId
   SEpSet  epSet;

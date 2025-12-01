@@ -5402,9 +5402,11 @@ static int32_t remoteValueToJson(const void* pObj, SJson* pJson) {
   const SRemoteValueNode* pNode = (const SRemoteValueNode*)pObj;
 
   int32_t code = valueNodeToJson(pObj, pJson);
+/*
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkRemoteValueValSet, pNode->valSet);
   }
+*/
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkRemoteValueSubQIdx, pNode->subQIdx);
   }
@@ -5417,9 +5419,11 @@ static int32_t jsonToRemoteValue(const SJson* pJson, void* pObj) {
   SRemoteValueNode* pNode = (SRemoteValueNode*)pObj;
 
   int32_t code = jsonToValueNode(pJson, pObj);
+/*
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkRemoteValueValSet, &pNode->valSet);
   }
+*/
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkRemoteValueSubQIdx, &pNode->subQIdx);
   }

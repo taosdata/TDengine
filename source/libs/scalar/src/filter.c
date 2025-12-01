@@ -5589,7 +5589,7 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       FLT_ERR_JRET(terrno);
     }
 
-    gTaskScalarExtra.pStreamInfo = info->pStreamRtInfo;
+    gTaskScalarExtra.pStreamInfo = (void*)info->pStreamRtInfo;
     gTaskScalarExtra.pStreamRange = NULL;
     code =
         scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);

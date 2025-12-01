@@ -23,9 +23,21 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
-extern threadlocal SScalarExtraInfo gTaskScalarExtra;
 
 typedef struct SFilterInfo SFilterInfo;
+
+
+typedef struct STaskSubJobCtx {
+  uint64_t    queryId;
+  char*       idStr;
+  void*       pTaskInfo;
+  void*   rpcHandle;
+  bool    inFetch;
+  int32_t code;
+  tsem_t  ready;
+  SArray* subEndPoints;  // SArray<SDownstreamSourceNode*>
+  SArray* subResValues;  // SArray<SValueNode*>
+} STaskSubJobCtx;
 
 typedef struct SScalarExtraInfo {
   void*   pStreamInfo;
@@ -180,6 +192,9 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
 
 int32_t streamCalcCurrWinTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, STimeWindow* pWinRange, bool* winRangeValid, int32_t type);
 int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins);
+
+extern threadlocal SScalarExtraInfo gTaskScalarExtra;
+
 
 #ifdef __cplusplus
 }

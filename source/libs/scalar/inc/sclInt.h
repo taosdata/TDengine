@@ -23,6 +23,7 @@ extern "C" {
 #include "thash.h"
 #include "querynodes.h"
 #include "function.h"
+#include "scalar.h"
 
 typedef struct SOperatorValueType {
   int32_t  opResType;
@@ -39,6 +40,12 @@ typedef struct SScalarStreamCtx {
   SScalarParam       twstart;
   SScalarParam       twend;
 } SScalarStreamCtx;
+
+typedef struct SScalarFetchParam {
+  int32_t           subQIdx;
+  SRemoteValueNode* pRes;
+  STaskSubJobCtx*   pSubJobCtx;
+} SScalarFetchParam;
 
 typedef struct SScalarCtx {
   int32_t            code;

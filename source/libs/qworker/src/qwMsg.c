@@ -43,10 +43,46 @@ void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, int32_t rawData
   rsp->numOfBlocks = htonl(input->numOfBlocks);
 }
 
-void qwFreeFetchRsp(void *msg) {
-  if (msg) {
-    rpcFreeCont(msg);
+void qwFreeFetchRsp(SQWTaskCtx *ctx, void *msg) {
+  if (NULL == msg) {
+    return;
   }
+  
+  if (!ctx->localExec) {
+    rpcFreeCont(msg);
+  } else {
+
+  }
+}
+
+int32_t qwCloneSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code) {
+  SQWSubQRes* pRes = &ctx->subQRes;
+  pRes->resGot = true;
+  pRes->code = code;
+  pRes->dataLen = dataLen;
+
+  SRetrieveTableRsp* pRsp = NULL;
+  code = qwMallocFetchRsp(!ctx->localExec, dataLen, &pRsp);
+  if (code) {
+    qError("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", dataLen, ctx->localExec, tstrerror(code));
+    return code;
+  }
+
+  memcpy(pRsp, rsp, sizeof(*pRsp) + dataLen);
+
+  pRes->rsp = pRsp;
+
+  return code;
+}
+
+int32_t qwChkSaveSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {
+  SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)rsp;
+  if (!queryEnd || be64toh(pRsp->numOfRows) != 1) {
+    qError("invalid subQ rsp, queryEnd:%d, numOfRows:%" PRId64, queryEnd, be64toh(pRsp->numOfRows));
+    code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
+  }
+
+  return qwCloneSubQueryFetchRsp(ctx, rsp, dataLen, code);
 }
 
 int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code) {
@@ -436,7 +472,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   *qType = msg.taskType;  // task type: TASK_TYPE_HQUERY or TASK_TYPE_QUERY
 
   SQWMsg qwMsg = {
-      .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info};
+      .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgMask = msg.msgMask};
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);

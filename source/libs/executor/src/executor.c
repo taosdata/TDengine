@@ -704,18 +704,59 @@ int32_t qExecutorInit(void) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initTaskSubJobCtx(SExecTaskInfo* pTask, SArray* subEndPoints) {
-  pTask->subJobCtx.subEndPoints = subEndPoints;
+int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadHandle* readHandle) {
+  STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
 
+  ctx->queryId = pTaskInfo->id.queryId;
+  ctx->idStr = pTaskInfo->id.str;
+  ctx->pTaskInfo = pTaskInfo;
+  ctx->subEndPoints = subEndPoints;
+  ctx->rpcHandle = readHandle ? readHandle->pMsgCb->clientRpc : NULL;
+  
   int32_t subJobNum = taosArrayGetSize(subEndPoints);
   if (subJobNum > 0) {
-    pTask->subJobCtx.subResValues = taosArrayInit_s(POINTER_BYTES, subJobNum);
-    if (NULL == pTask->subJobCtx.subResValues) {
-      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTask), subJobNum, tstrerror(terrno));
+    pTaskInfo->subJobCtx.subResValues = taosArrayInit_s(POINTER_BYTES, subJobNum);
+    if (NULL == pTaskInfo->subJobCtx.subResValues) {
+      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
       return terrno;
+    }
+    
+    int32_t code = tsem_init(&ctx->ready, 0, 0);
+    if (code) {
+      qError("%s tsem_init failed, error:%s", GET_TASKID(pTaskInfo), tstrerror(code));
+      return code;
     }
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExecTaskInfo* pTask = (SExecTaskInfo*)task;
+  if (pTask->pWorkerCb) {
+    code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
+  }
+
+  code = tsem_wait(pSem);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTask->code = code;
+    return pTask->code;
+  }
+
+  if (pTask->pWorkerCb) {
+    code = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -734,7 +775,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     goto _error;
   }
 
-  code = initTaskSubJobCtx(*pTask, subEndPoints);
+  code = initTaskSubJobCtx(*pTask, subEndPoints, readHandle);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1994,7 +2035,7 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
       code = terrno;
     }
     if (code == 0) {
-      gTaskScalarExtra.pStreamInfo = pExtraParams;
+      gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
       gTaskScalarExtra.pStreamRange = NULL;
       code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, &gTaskScalarExtra);
     }

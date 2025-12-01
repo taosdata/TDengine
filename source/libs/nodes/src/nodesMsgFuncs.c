@@ -1123,9 +1123,11 @@ static int32_t remoteValueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SRemoteValueNode* pNode = (const SRemoteValueNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, REMOTE_VALUE_CODE_VAL, valueNodeToMsg, pNode);
+/*
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, REMOTE_VALUE_CODE_VAL_SET, pNode->valSet);
   }
+*/
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, REMOTE_VALUE_CODE_SUBQ_IDX, pNode->subQIdx);
   }
@@ -1144,9 +1146,11 @@ static int32_t msgToRemoteValueNode(STlvDecoder* pDecoder, void* pObj) {
       case REMOTE_VALUE_CODE_VAL:
         code = tlvDecodeObjFromTlv(pTlv, msgToValueNode, &pNode->val);
         break;
+/*
       case REMOTE_VALUE_CODE_VAL_SET:
         code = tlvDecodeBool(pTlv, &pNode->valSet);
         break;
+*/
       case REMOTE_VALUE_CODE_SUBQ_IDX:
         code = tlvDecodeI32(pTlv, &pNode->subQIdx);
         break;

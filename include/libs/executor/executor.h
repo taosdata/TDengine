@@ -28,17 +28,13 @@ extern "C" {
 #include "tmsgcb.h"
 #include "storageapi.h"
 #include "functionMgt.h"
+#include "executor.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
 
 struct SRpcMsg;
 struct SSubplan;
-
-typedef struct STaskSubJobCtx {
-  SArray* subEndPoints;
-  SArray* subResValues;
-} STaskSubJobCtx;
 
 typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
 
@@ -317,6 +313,11 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 void    setTaskScalarExtraInfo(qTaskInfo_t tinfo);
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
+int32_t qSemWait(qTaskInfo_t pTask, tsem_t* pSem);
+
+int32_t getTaskCode(void* pTaskInfo);
+bool    isTaskKilled(void* pTaskInfo);
+
 
 #ifdef __cplusplus
 }

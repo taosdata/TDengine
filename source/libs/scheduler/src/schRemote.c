@@ -1144,6 +1144,7 @@ int32_t schBuildSubJobEndpoints(SArray** ppRes, SSchJob* pTarget) {
     }
 
     SCH_ERR_RET(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
+    
     memcpy(&pSource->addr, &pJob->resNode, sizeof(pSource->addr));
     pSource->clientId = pJob->fetchTask->clientId;
     pSource->taskId = pJob->fetchTask->taskId;
@@ -1237,6 +1238,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.msgMask = (pTask->plan->showRewrite) ? QUERY_MSG_MASK_SHOW_REWRITE() : 0;
       qMsg.msgMask |= (pTask->plan->isView) ? QUERY_MSG_MASK_VIEW() : 0;
       qMsg.msgMask |= (pTask->plan->isAudit) ? QUERY_MSG_MASK_AUDIT() : 0;
+      qMsg.msgMask |= (SCH_IS_PARENT_JOB(pJob)) ? 0 : QUERY_MSG_MASK_SUBQUERY();
       qMsg.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
       qMsg.explain = SCH_IS_EXPLAIN_JOB(pJob);
       qMsg.needFetch = SCH_TASK_NEED_FETCH(pTask);

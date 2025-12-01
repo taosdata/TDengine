@@ -147,7 +147,7 @@ typedef struct SValueNode {
 
 typedef struct SRemoteValueNode {
   SValueNode val;
-  bool       valSet;
+//  bool       valSet;
   int32_t    subQIdx;
 } SRemoteValueNode;
 
@@ -846,6 +846,7 @@ bool nodesExprsHasColumn(SNodeList* pList);
 
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
+int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
@@ -873,6 +874,7 @@ void rewriteExprAliasName(SExprNode* pNode, int64_t num);
 bool isRelatedToOtherExpr(SExprNode* pExpr);
 bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
+int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
 
 #ifdef __cplusplus
 }

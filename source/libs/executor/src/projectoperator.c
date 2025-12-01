@@ -978,7 +978,7 @@ int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock
 
   SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
   SScalarParam dest = {.columnData = &idata};
-  gTaskScalarExtra.pStreamInfo = pExtraParams;
+  gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
   gTaskScalarExtra.pStreamRange = NULL;
   TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, &gTaskScalarExtra));
 
@@ -1029,7 +1029,7 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
 
     SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
     SScalarParam dest = {.columnData = &idata};
-    gTaskScalarExtra.pStreamInfo = pExtraParams;
+    gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
     gTaskScalarExtra.pStreamRange = NULL;
     TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra));
 

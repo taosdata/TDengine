@@ -149,7 +149,7 @@ static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDs
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
+int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(flag);
@@ -509,7 +509,7 @@ static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDs
 
 static int32_t remoteValueCopy(const SRemoteValueNode* pSrc, SRemoteValueNode* pDst) {
   COPY_BASE_OBJECT_FIELD(val, valueNodeCopy);
-  COPY_SCALAR_FIELD(valSet);
+  //COPY_SCALAR_FIELD(valSet);
   COPY_SCALAR_FIELD(subQIdx);
 }
 

@@ -202,7 +202,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
       break;
     }
 
-    if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
+    if ((!ctx->subQuery) && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       break;
     }
 
@@ -471,7 +471,7 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
   }
 
   if (code) {
-    qwFreeFetchRsp(rsp);
+    qwFreeFetchRsp(ctx, rsp);
     rsp = NULL;
     dataLen = 0;
   }
@@ -790,6 +790,7 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_ERR_JRET(ctx->rspCode);
   }
 
+  ctx->subQuery = TEST_SUBQUERY_MASK(qwMsg->msgMask);
   ctx->ctrlConnInfo = qwMsg->connInfo;
   ctx->sId = sId;
   ctx->phase = -1;
@@ -853,7 +854,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
 
   taosEnableMemPoolUsage(ctx->memPoolSession);
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, qwMsg->msgInfo.compressMsg, sql,
-                         OPTR_EXEC_MODEL_BATCH, qwMsg.subEndPoints);
+                         OPTR_EXEC_MODEL_BATCH, qwMsg->subEndPoints);
   taosDisableMemPoolUsage();
 
   if (code) {
@@ -970,7 +971,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       break;
     }
 
-    qwFreeFetchRsp(rsp);
+    qwFreeFetchRsp(ctx, rsp);
     rsp = NULL;
 
     if (code && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
@@ -1028,6 +1029,14 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     goto _return;
   }
 
+  if (ctx->subQuery && ctx->subQRes.resGot) {
+    rsp = ctx->subQRes.rsp;
+    dataLen = ctx->subQRes.dataLen;
+    code = ctx->subQRes.code;
+    QW_TASK_DLOG("subQ task already got res, rsp:%p, dataLen:%d, code:%d", rsp, dataLen, code);
+    goto _return;
+  }
+
   SOutputData sOutput = {0};
   QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen, &rsp, &sOutput));
 
@@ -1079,7 +1088,7 @@ _return:
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_FETCH, &input, NULL);
 
   if (code) {
-    qwFreeFetchRsp(rsp);
+    qwFreeFetchRsp(ctx, rsp);
     rsp = NULL;
     dataLen = 0;
   }
@@ -1096,6 +1105,10 @@ _return:
     }
 
     if (!rsped && ctx) {
+      if (ctx->subQuery && !ctx->subQRes.resGot) {
+        code = qwChkSaveSubQueryFetchRsp(ctx, rsp, dataLen, code, sOutput.queryEnd);
+      }
+      
       code = qwBuildAndSendFetchRsp(ctx, qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
       if (TSDB_CODE_SUCCESS != code) {
         QW_TASK_ELOG("fetch rsp send fail, msgType:%s, handle:%p, code:%x - %s, dataLen:%d",
@@ -1105,7 +1118,7 @@ _return:
                      qwMsg->connInfo.handle, code, tstrerror(code), dataLen);
       }
     } else {
-      qwFreeFetchRsp(rsp);
+      qwFreeFetchRsp(ctx, rsp);
       rsp = NULL;
     }
 
