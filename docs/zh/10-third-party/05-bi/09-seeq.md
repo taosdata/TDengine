@@ -21,7 +21,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 **第 1 步**，查看 data 存储位置
 
-```
+```shell
 sudo seeq config get Folders/Data
 ```
 
@@ -29,7 +29,7 @@ sudo seeq config get Folders/Data
 
 **第 3 步**，重新启动 seeq server
 
-```
+```shell
 sudo seeq restart
 ```
 
@@ -47,7 +47,7 @@ sudo seeq restart
 
 **第 1 步**，在 TDengine TSDB 中创建表。
 
-```
+```sql
 CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
@@ -56,7 +56,7 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 
 **第 2 步**，在 TDengine TSDB 中构造数据。
 
-```
+```shell
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
@@ -67,7 +67,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Power
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -126,7 +126,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Goods
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -186,7 +186,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Temperature
 
-```
+```json
 {
     "QueryDefinitions": [
         {

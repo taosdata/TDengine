@@ -95,7 +95,6 @@ typedef uint16_t tmsg_t;
     pReq->sql = NULL;            \
   } while (0)
 
-
 static inline bool tmsgIsValid(tmsg_t type) {
   // static int8_t sz = sizeof(tMsgRangeDict) / sizeof(tMsgRangeDict[0]);
   int8_t maxSegIdx = TMSG_SEG_CODE(TDMT_MAX_MSG_MIN);
@@ -202,6 +201,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_RSMA,
   TSDB_MGMT_TABLE_RETENTION,
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
+  TSDB_MGMT_TABLE_INSTANCE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -512,7 +512,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_RSMAS_STMT,
   QUERY_NODE_SHOW_RETENTIONS_STMT,
   QUERY_NODE_SHOW_RETENTION_DETAILS_STMT,
-
+  QUERY_NODE_SHOW_INSTANCES_STMT,
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
   QUERY_NODE_LOGIC_PLAN_JOIN,
@@ -533,7 +533,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL,
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
   QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
-  QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC,
+  QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -603,7 +603,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
-  QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC,
+  QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC,
 } ENodeType;
 
 typedef struct {
@@ -2093,6 +2093,7 @@ typedef struct {
   SArray*     vgroupIds;
   int32_t     compactId;
   int8_t      metaOnly;
+  int8_t      force;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
@@ -2594,6 +2595,7 @@ typedef struct {
       uint16_t reserved : 12;
     };
   };
+  int8_t force;  // force compact
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -3414,6 +3416,7 @@ typedef struct SOrgTbInfo {
 
 typedef struct STableScanOperatorParam {
   bool        tableSeq;
+  bool        isNewParam;
   SArray*     pUidList;
   SOrgTbInfo* pOrgTbInfo;
   STimeWindow window;
@@ -3425,9 +3428,22 @@ typedef struct STagScanOperatorParam {
 
 typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
+  STimeWindow     window;
   SOperatorParam* pTagScanOp;
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
 } SVTableScanOperatorParam;
+
+typedef struct SMergeOperatorParam {
+  int32_t         winNum;
+} SMergeOperatorParam;
+
+typedef struct SExternalWindowOperatorParam {
+  SArray*         ExtWins;  // SArray<SExtWinTimeWindow>
+} SExternalWindowOperatorParam;
+
+typedef struct SDynQueryCtrlOperatorParam {
+  STimeWindow    window;
+} SDynQueryCtrlOperatorParam;
 
 struct SStreamRuntimeFuncInfo;
 typedef struct {
@@ -5444,6 +5460,30 @@ void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp);
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int32_t expire;
+} SInstanceRegisterReq;
+
+int32_t tSerializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
+int32_t tDeserializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
+
+typedef struct {
+  char filter_type[TSDB_INSTANCE_TYPE_LEN];
+} SInstanceListReq;
+
+typedef struct {
+  int32_t count;
+  char**  ids;  // Array of instance IDs
+} SInstanceListRsp;
+
+int32_t tSerializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
+int32_t tDeserializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
+int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
+int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
 
 #ifdef USE_MOUNT
 typedef struct {

@@ -26,7 +26,7 @@ TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给�
 
 重启 taosAdapter：
 
-```
+```bash
 sudo systemctl restart taosadapter
 ```
 
@@ -34,7 +34,7 @@ sudo systemctl restart taosadapter
 
 等待数秒后使用 TDengine TSDB CLI 查询 TDengine TSDB 是否创建相应数据库并写入数据。
 
-```
+```sql
 taos> show databases;
               name              |
 =================================

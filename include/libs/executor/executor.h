@@ -60,7 +60,9 @@ typedef struct {
   void*       pOtherBackend;
   int8_t      fillHistory;
   STimeWindow winRange;
+  STimeWindow extWinRange;
   bool        winRangeValid;
+  bool        extWinRangeValid;
 
   struct SStorageAPI api;
   void*              pWorkerCb;
@@ -272,7 +274,6 @@ int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
 SArray*  qStreamGetTableListArray(void* pTableListInfo);
 void     qStreamDestroyTableList(void* pTableListInfo);
 int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet);
-
 int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 

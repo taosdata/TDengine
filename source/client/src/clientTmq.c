@@ -1080,8 +1080,8 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
       int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
       for (int32_t j = 0; j < topicNumCur; j++) {
         SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
-        if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0) {
-          tqInfoC("consumer:0x%" PRIx64 ", update noPrivilege:%d, topic:%s", tmq->consumerId, privilege->noPrivilege, privilege->topic);
+        if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0 && pTopicCur->noPrivilege != privilege->noPrivilege) {
+          tqInfoC("consumer:0x%" PRIx64 ", update privilege:%s, topic:%s", tmq->consumerId, privilege->noPrivilege ? "false" : "true", privilege->topic);
           pTopicCur->noPrivilege = privilege->noPrivilege;
         }
       }

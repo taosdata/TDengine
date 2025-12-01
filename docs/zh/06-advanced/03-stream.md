@@ -33,7 +33,7 @@ trigger_type: {
     PERIOD(period_time[, offset_time])
   | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }

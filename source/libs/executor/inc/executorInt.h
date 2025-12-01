@@ -134,7 +134,8 @@ struct SExprSupp {
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
-  bool            hasWindowOrGroup;
+  bool            hasWindowOrGroup;    // denote that the function is used with time window or group
+  bool            hasWindow;           // denote that the function is used with time window
   bool            hasIndefRowsFunc;
 };
 
@@ -173,9 +174,11 @@ typedef struct SExchangeOperatorBasicParam {
   int32_t               srcOpType;
   bool                  tableSeq;
   SArray*               uidList;
+  bool                  isVtbWinScan;
   bool                  isVtbRefScan;
   bool                  isVtbTagScan;
   bool                  isNewDeployed; // used with newDeployedSrc
+  bool                  isNewParam;
   SOrgTbInfo*           colMap;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
@@ -463,11 +466,6 @@ typedef struct SPartitionDataInfo {
 } SPartitionDataInfo;
 
 typedef struct STimeWindowAggSupp {
-  int8_t          calTrigger;
-  int8_t          calTriggerSaved;
-  int64_t         deleteMark;
-  int64_t         deleteMarkSaved;
-  int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
@@ -682,6 +680,7 @@ typedef struct SWindowRowsSup {
   int32_t     numOfRows;
   uint64_t    groupId;
   uint32_t    numNullRows;  // number of continuous rows with null state col
+  TSKEY       lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col
@@ -940,7 +939,7 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
-int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);

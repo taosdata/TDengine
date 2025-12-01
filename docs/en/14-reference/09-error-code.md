@@ -11,7 +11,7 @@ This document provides a detailed list of error codes from both clients and the 
 
 ## TSDB
 
-TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained.**
+TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained**.
 
 ### Error Code Structure
 
@@ -31,10 +31,12 @@ Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digi
 #### Example Explanation
 
 Take the error code `0x80000216` as an example:
+
 - **Prefix**: `0x8000` → TDengine business error.
 - **Specific Error Code**: `0x0216` → Corresponds to the TSC module's "Syntax error in SQL".
 
 Take the error code `0x80FF0002` as an example:
+
 - **Prefix**: `0x80FF` → Linux system error.
 - **Specific Error Code**: `0x0002` → Corresponds to Linux `errno` 2, which means "No such file or directory".
 
@@ -329,23 +331,24 @@ Below are the business error codes for each module.
 
 #### query
 
-| Error Code | Error Description                    | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                                |
-| ---------- | ------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 0x80000700 | Invalid query handle                 | Current query handle does not exist                          | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000709 | Multiple retrieval of this query     | Current subquery is already in progress                      | Preserve the scene and logs, report issue on GitHub          |
-| 0x8000070A | Too many groups/time window in query | Number of groups or windows in query results exceeds the limit | Adjust the query statement to ensure the number of groups and windows does not exceed the limit |
-| 0x8000070D | System error                         | Error returned by underlying system API                      | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000720 | Scheduler not exist                  | Client information for the current subquery does not exist   | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000721 | Task not exist                       | Subquery does not exist                                      | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000722 | Task already exist                   | Subquery already exists                                      | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000729 | Task message error                   | Query message error                                          | Preserve the scene and logs, report issue on GitHub          |
-| 0x8000072B | Task status error                    | Subquery status error                                        | Preserve the scene and logs, report issue on GitHub          |
-| 0x8000072F | Job not exist                        | Query JOB no longer exists                                   | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000739 | Query memory upper limit is reached  | Single query memory upper limit is reached                   | Modify memory upper limit size or optimize SQL               |
-| 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
-| 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
-| 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                         | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
-| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G |
+| Error Code | Error Description                    | Possible Error Scenarios or Reasons                                                                                                                                                                                                                                                                | Recommended Actions for Users                                                                                                                                                                                                                                                                                                    |
+|------------| ------------------------------------ |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0x80000700 | Invalid query handle                 | Current query handle does not exist                                                                                                                                                                                                                                                                | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x80000709 | Multiple retrieval of this query     | Current subquery is already in progress                                                                                                                                                                                                                                                            | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x8000070A | Too many groups/time window in query | Number of groups or windows in query results exceeds the limit                                                                                                                                                                                                                                     | Adjust the query statement to ensure the number of groups and windows does not exceed the limit                                                                                                                                                                                                                                  |
+| 0x8000070D | System error                         | Error returned by underlying system API                                                                                                                                                                                                                                                            | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x80000720 | Scheduler not exist                  | Client information for the current subquery does not exist                                                                                                                                                                                                                                         | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x80000721 | Task not exist                       | Subquery does not exist                                                                                                                                                                                                                                                                            | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x80000722 | Task already exist                   | Subquery already exists                                                                                                                                                                                                                                                                            | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x80000729 | Task message error                   | Query message error                                                                                                                                                                                                                                                                                | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x8000072B | Task status error                    | Subquery status error                                                                                                                                                                                                                                                                              | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x8000072F | Job not exist                        | Query JOB no longer exists                                                                                                                                                                                                                                                                         | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
+| 0x80000739 | Query memory upper limit is reached  | Single query memory upper limit is reached                                                                                                                                                                                                                                                         | Modify memory upper limit size or optimize SQL                                                                                                                                                                                                                                                                                   |
+| 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                                                                                                                                                                                                                                                                 | Limit concurrent queries or add more physical memory                                                                                                                                                                                                                                                                             |
+| 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                                                                                                                                                                                                                                                                | Correct application to fetch data asap                                                                                                                                                                                                                                                                                           |
+| 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                                                                                                                                                                                                                                                               | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
+| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize                                                                                                                                                                                                                                                             | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G                                                                                                                                                 |
+| 0x8000073E | Duplicate timestamp not allowed in count/event/state window                                          | Duplicate timestamps in the window's input primary key column. When querying supertables with count/event/state window, all subtable data will be sorted by timestamp and merged into one timeline for calculation, which may result in duplicate timestamps, causing errors in some calculations. | Ensure there are no duplicate timestamp data in subtables when querying supertables using count/event/state window.                                                                                                                                                                                                              |
 
 #### grant
 
@@ -527,7 +530,7 @@ Below are the business error codes for each module.
 | 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement           |
 | 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement           |
 | 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement           |
-| 0x80002698 | Invalid extend value | Invalid extend value | Check and correct the SQL statement           |
+| 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement           |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
@@ -535,6 +538,7 @@ Below are the business error codes for each module.
 | 0x80002704 | Planner slot key not found                                                                             | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub                        |
 | 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
 | 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
+| 0x80002707 | Planner invalid window type                                                                            | Planner get invalid window type during making physic plan                  | Preserve the scene and logs, report issue on GitHub                         |
 
 #### function
 
@@ -653,15 +657,18 @@ Below are the business error codes for each module.
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 
 ## Connectors
+
 Below are the error codes specific to connectors for various programming languages. In addition to returning their own error codes, connectors also return the TSDB error codes mentioned above.
 
 ### C
 
 In the design of the C interface, error codes are represented as integers, and each error code corresponds to a specific error state. Unless otherwise specified:
+
 - When an API returns an integer, **0** indicates success, and other values are error codes representing the cause of failure.
 - When an API returns a pointer, **NULL** indicates failure.
 
 The C connector has two types of error codes:
+
 - General Error Codes  
   All error codes and their corresponding descriptions are in the `taoserror.h` file.  
   For detailed error code explanations, refer to: [TSDB Error Codes](./#tsdb)
@@ -679,7 +686,7 @@ The C connector has two types of error codes:
 | 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
 | 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
 | 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
-        
+
 ### Java
 
 The Java connector may report four types of error codes:
@@ -737,7 +744,6 @@ For specific error codes, refer to the table below:
 
 - [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
-
 ### Rust
 
 | Error Code | Error Description       | Possible Error Scenarios or Reasons       | Recommended User Actions                          |
@@ -751,7 +757,6 @@ For specific error codes, refer to the table below:
 | 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
 | 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
 | 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
-
 
 ### Node.js
 
@@ -779,7 +784,7 @@ For specific connector error codes, refer to the table below:
 
 - [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
-### C#
+### C\#
 
 | Error Code | Error Description                         | Possible Error Scenarios or Reasons              | Recommended User Actions                                           |
 | ---------- | ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ |
@@ -792,7 +797,8 @@ For specific connector error codes, refer to the table below:
 
 ### taosAdapter
 
-| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                         |
-|------------|------------------------------------------------|------------------------------------------------|--------------------------------------------------|
-| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message |
-| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests         |
+| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                                                   |
+|------------|------------------------------------------------|------------------------------------------------|----------------------------------------------------------------------------|
+| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message                           |
+| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests                                   |
+| 0xFFFD     | Query SQL has been rejected                    | Query SQL has been rejected                    | If you do not want to be intercepted, check the taosAdapter configuration. |

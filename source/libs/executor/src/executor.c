@@ -28,6 +28,8 @@
 #include "querytask.h"
 #include "storageapi.h"
 #include "streamexecutorInt.h"
+#include "taosdef.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "trpc.h"
@@ -352,6 +354,8 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.uid = pHandle->uid;
   pScanBaseInfo->readHandle.winRangeValid = pHandle->winRangeValid;
   pScanBaseInfo->readHandle.winRange = pHandle->winRange;
+  pScanBaseInfo->readHandle.extWinRangeValid = pHandle->extWinRangeValid;
+  pScanBaseInfo->readHandle.extWinRange = pHandle->extWinRange;
   pScanBaseInfo->readHandle.cacheSttStatis = pHandle->cacheSttStatis;
 }
 
@@ -1160,19 +1164,6 @@ void qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval,
-                                      STimeWindow* pLastWindow, TSKEY* pRecInteral) {
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow, pRecInteral);
-  }
-  SStreamScanInfo* pScanOp = (SStreamScanInfo*)pOperator->info;
-  *pWaterMark = pScanOp->twAggSup.waterMark;
-  *pInterval = pScanOp->interval;
-  *pLastWindow = pScanOp->lastScanRange;
-  *pRecInteral = pScanOp->recalculateInterval;
-  return TSDB_CODE_SUCCESS;
-}
-
 void* qExtractReaderFromTmqScanner(void* scanner) {
   SStreamScanInfo* pInfo = scanner;
   return (void*)pInfo->tqReader;
@@ -1861,6 +1852,27 @@ end:
   tableListDestroy(pList);
   return code;
 }
+
+// int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid, TdThreadRwlock* lock) {
+//   int32_t index = -1;
+//   (void)taosThreadRwlockRdlock(lock);
+//   if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
+//     index = 0;
+//     goto end;
+//   }
+//   for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
+//     int32_t offset = ((STableListInfo*)pTableListInfo)->groupOffset[i];
+
+//     STableKeyInfo* pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, offset);
+//     if (pKeyInfo != NULL && pKeyInfo->groupId == gid) {
+//       index = i;
+//       goto end;
+//     }
+//   }
+// end:
+//   (void)taosThreadRwlockUnlock(lock);
+//   return index;
+// }
 
 void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
 SArray*  qStreamGetTableListArray(void* pTableListInfo) {

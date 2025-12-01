@@ -526,6 +526,16 @@ static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+static STimeWindow* timeWindowClone(const STimeWindow* pSrc) {
+  STimeWindow* pDst = taosMemoryMalloc(sizeof(*pSrc));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(*pSrc));
+  return pDst;
+}
+
 static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pScanCols);
@@ -537,7 +547,9 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(scanType);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
+  CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
   CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_FIELD(pExtTimeRange);
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
   COPY_SCALAR_FIELD(showRewrite);
   COPY_SCALAR_FIELD(ratio);
@@ -709,22 +721,18 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pStartCond);
   CLONE_NODE_FIELD(pEndCond);
   COPY_SCALAR_FIELD(trueForLimit);
-  COPY_SCALAR_FIELD(triggerType);
-  COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(deleteMark);
-  COPY_SCALAR_FIELD(igExpired);
-  COPY_SCALAR_FIELD(igCheckUpdate);
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
   COPY_SCALAR_FIELD(indefRowsFunc);
   CLONE_NODE_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
-  COPY_SCALAR_FIELD(recalculateInterval);
   CLONE_NODE_LIST_FIELD(pProjs);
   COPY_SCALAR_FIELD(isSingleTable);
   COPY_SCALAR_FIELD(inputHasOrder);
   COPY_SCALAR_FIELD(extendOption);
+  COPY_SCALAR_FIELD(orgTableUid);
+  COPY_SCALAR_FIELD(orgTableVgId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -772,6 +780,7 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pFuncs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(precision);
@@ -817,6 +826,12 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_CHAR_ARRAY_FIELD(vtbScan.tbName);
   CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(vtbScan.pOrgVgIds);
+  COPY_SCALAR_FIELD(vtbWindow.wstartSlotId);
+  COPY_SCALAR_FIELD(vtbWindow.wendSlotId);
+  COPY_SCALAR_FIELD(vtbWindow.wdurationSlotId);
+  COPY_SCALAR_FIELD(vtbWindow.singleWinMode);
+  COPY_SCALAR_FIELD(vtbWindow.isVstb);
+  COPY_SCALAR_FIELD(vtbWindow.extendOption);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -877,7 +892,9 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
+  CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
   CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_FIELD(pExtTimeRange);
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
@@ -913,9 +930,6 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   CLONE_NODE_LIST_FIELD(pProjs);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
-  COPY_SCALAR_FIELD(triggerType);
-  COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(indefRowsFunc);
   return TSDB_CODE_SUCCESS;
 }
@@ -1265,7 +1279,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:

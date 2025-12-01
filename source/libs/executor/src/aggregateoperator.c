@@ -748,6 +748,7 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     pSup->pCtx[i].hasWindowOrGroup = pSup->hasWindowOrGroup;
+    pSup->pCtx[i].hasWindow= pSup->hasWindow;
     if (pState) {
       pSup->pCtx[i].saveHandle.pBuf = NULL;
       pSup->pCtx[i].saveHandle.pState = pState;

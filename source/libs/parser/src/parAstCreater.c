@@ -712,6 +712,12 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     case HINT_HASH_JOIN:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
       break;
+    case HINT_WIN_OPTIMIZE_BATCH:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
+      break;
+    case HINT_WIN_OPTIMIZE_SINGLE:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_SINGLE)) return true;
+      break;
     default:
       return true;
   }
@@ -828,6 +834,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_SKIP_TSMA;
+        break;
+      case TK_WIN_OPTIMIZE_BATCH:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_BATCH;
+        break;
+      case TK_WIN_OPTIMIZE_SINGLE:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_SINGLE;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -1569,7 +1591,7 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExtend, SNode* pTrueForLimit) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
@@ -1578,13 +1600,23 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExte
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
   state->pTrueForLimit = pTrueForLimit;
-  state->pExtend = pExtend;
+  if (pOptions != NULL) {
+    if (pOptions->length >= 1) {
+      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 0), &state->pExtend);
+      CHECK_MAKE_NODE(state->pExtend);
+    }
+    if (pOptions->length == 2) {
+      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 1), &state->pZeroth);
+      CHECK_MAKE_NODE(state->pZeroth);
+    }
+    nodesDestroyList(pOptions);
+  }
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
   nodesDestroyNode(pExpr);
   nodesDestroyNode(pTrueForLimit);
-  nodesDestroyNode(pExtend);
+  nodesDestroyList(pOptions);
   return NULL;
 }
 
@@ -2674,19 +2706,8 @@ _err:
   return NULL;
 }
 
-SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
-  CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, pDbName, false));
-  SSsMigrateDatabaseStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_SSMIGRATE_DATABASE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
-
-SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd, bool metaOnly) {
+SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd, bool metaOnly,
+                         bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SCompactDatabaseStmt* pStmt = NULL;
@@ -2696,6 +2717,7 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
   pStmt->pStart = pStart;
   pStmt->pEnd = pEnd;
   pStmt->metaOnly = metaOnly;
+  pStmt->force = force;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pStart);
@@ -2749,7 +2771,7 @@ _err:
 }
 
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
-                                SNode* pEnd, bool metaOnly) {
+                                SNode* pEnd, bool metaOnly, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pDbName) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
@@ -2764,6 +2786,7 @@ SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLi
   pStmt->pStart = pStart;
   pStmt->pEnd = pEnd;
   pStmt->metaOnly = metaOnly;
+  pStmt->force = force;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pDbName);

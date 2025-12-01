@@ -256,8 +256,10 @@ typedef struct {
 } SDnodeObj;
 
 typedef struct {
-  int32_t nameLen;
   char*   name;
+  int32_t nameLen;
+  char*   pStatus;
+  char*   pNote;
 } SAnodeAlgo;
 
 typedef struct {
@@ -711,6 +713,15 @@ typedef struct {
   int32_t  funcVersion;
   SRWLatch lock;
 } SFuncObj;
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int64_t firstRegTime;
+  int64_t lastRegTime;
+  int32_t expire;
+} SInstanceObj;
 
 typedef struct {
   int64_t        id;

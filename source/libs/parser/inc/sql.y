@@ -248,11 +248,10 @@ cmd ::= USE db_name(A).                                                         
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
-cmd ::= SSMIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createSsMigrateDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) WAL.                                             { pCxt->pRootNode = createTrimDbWalStmt(pCxt, &A); }
-cmd ::= S3MIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createS3MigrateDatabaseStmt(pCxt, &A); }
-cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D); }
-cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E); }
+cmd ::= SSMIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createSsMigrateDatabaseStmt(pCxt, &A); }
+cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D) force_opt(E).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D, E); }
+cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E) force_opt(F).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E, F); }
 cmd ::= SCAN DATABASE db_name(A) start_opt(B) end_opt(C).                                          { pCxt->pRootNode = createScanStmt(pCxt, &A, B, C); }
 cmd ::= SCAN db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D).   { pCxt->pRootNode = createScanVgroupsStmt(pCxt, A, B, C, D); }
 
@@ -651,6 +650,7 @@ cmd ::= SHOW LICENCES.                                                          
 cmd ::= SHOW GRANTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCES_STMT); }
 cmd ::= SHOW GRANTS FULL.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
 cmd ::= SHOW GRANTS LOGS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOGS_STMT); }
+cmd ::= SHOW INSTANCES like_pattern_opt(B).                                       { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_INSTANCES_STMT, B); }
 cmd ::= SHOW CLUSTER MACHINES.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }
 cmd ::= SHOW MOUNTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MOUNTS_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
@@ -902,7 +902,7 @@ stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_o
 /***** trigger type *****/
 
 trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
-trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) extend(C) NK_RP true_for_opt(D).                                 { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
+trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) state_window_opt(C) NK_RP true_for_opt(D).                       { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
@@ -1525,8 +1525,8 @@ pseudo_column(A) ::= TGRPID(B).                                                 
 pseudo_column(A) ::= NK_PH NK_INTEGER(B).                                         { A = createRawExprNode(pCxt, &B, createPlaceHolderColumnNode(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B))); }
 pseudo_column(A) ::= NK_PH TBNAME(B).                                             { A = createRawExprNode(pCxt, &B, createPHTbnameFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= IMPROWTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::= IMPMASK(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::= ANOMALYMASK(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= IMPMARK(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= ANOMALYMARK(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -1917,7 +1917,7 @@ twindow_clause_opt(A) ::= .                                                     
 twindow_clause_opt(A) ::= SESSION NK_LP column_reference(B) NK_COMMA
   interval_sliding_duration_literal(C) NK_RP.                                     { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 twindow_clause_opt(A) ::=
-  STATE_WINDOW NK_LP expr_or_subquery(B) extend(C) NK_RP true_for_opt(D).         { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
+  STATE_WINDOW NK_LP expr_or_subquery(B) state_window_opt(C) NK_RP true_for_opt(D).     { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
 twindow_clause_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(B)
   NK_RP sliding_opt(C) fill_opt(D).                                               { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }
 twindow_clause_opt(A) ::=
@@ -1935,8 +1935,17 @@ twindow_clause_opt(A) ::=
 twindow_clause_opt(A) ::=
   ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_COMMA NK_STRING(C) NK_RP.           { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
-extend(A) ::= .                                                                   { A = NULL; }
-extend(A) ::= NK_COMMA NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
+extend_literal(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
+
+zeroth_literal(A) ::= signed_integer(B).                                          { A = B; }
+zeroth_literal(A) ::= NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+zeroth_literal(A) ::= NK_BOOL(B).                                                 { A = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B); }
+
+%type state_window_opt                                                            { SNodeList* }
+%destructor state_window_opt                                                      { nodesDestroyList($$); }
+state_window_opt(A) ::= .                                                         { A = NULL; }
+state_window_opt(A) ::= NK_COMMA extend_literal(B).                               { A = createNodeList(pCxt, B); }
+state_window_opt(A) ::= NK_COMMA extend_literal(B) NK_COMMA zeroth_literal(C).    { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
 
 sliding_opt(A) ::= .                                                              { A = NULL; }
 sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.      { A = releaseRawExprNode(pCxt, B); }

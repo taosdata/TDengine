@@ -39,4 +39,4 @@ import PlatformSupported from "./05-connector/_platform_supported.mdx";
 
 ## TDengine TSDB 支持的网络环境
 
-TDengine 支持 IPv4 和 IPv6 两种通信方式, 其中 IPv6 内容参见 [IPv6 配置](../08-operation/13-network.md)
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [IPv6 配置](../08-operation/13-network.md)

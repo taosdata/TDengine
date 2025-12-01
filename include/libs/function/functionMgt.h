@@ -71,6 +71,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IMPUTATION,
   FUNCTION_TYPE_CORR,
   FUNCTION_TYPE_ANOMALYCHECK,
+  FUNCTION_TYPE_DTW,
+  FUNCTION_TYPE_DTW_PATH,
+  FUNCTION_TYPE_TLCC,
+
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -315,7 +319,7 @@ bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
 bool fmIsLastFunc(int32_t funcId);
 bool fmIsForecastFunc(int32_t funcId);
-bool fmIsImputationFunc(int32_t funcId);
+bool fmIsImputationCorrelationFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);

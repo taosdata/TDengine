@@ -1825,23 +1825,6 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   return code;
 }
 
-
-void fprintDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
-    if (!pBlock) {
-      qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
-      return;
-    } else if (pBlock->info.rows == 0) {
-      qDebug("%" PRIx64 " %s %s %s: Block is Empty. block type %d", qId, taskIdStr, flag, __func__, pBlock->info.type);
-      return;
-    }
-    
-    char*   pBuf = NULL;
-    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId);
-    if (code == 0) {
-      qDebugL("%" PRIx64 " %s %s", qId, __func__, pBuf);
-      taosMemoryFree(pBuf);
-    }
-}
 int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
                                  SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
   *listAdded = false;
@@ -2227,7 +2210,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     numOfTables = taosArrayGetSize(pUidList);
 
     if (canCacheTagEqCondFilter) {
-      qInfo("suid:%" PRIu64 ", %s add uid list to stable tag filter cache, "
+      qDebug("suid:%" PRIu64 ", %s add uid list to stable tag filter cache, "
         "uidListSize:%d", pScanNode->suid, idstr,
         (int32_t)taosArrayGetSize(pUidList));
 
@@ -3064,8 +3047,51 @@ SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   return c;
 }
 
+
+/**
+ * @brief Determine the actual time range for reading data based on the RANGE clause and the WHERE conditions.
+ * @param[in] cond The range specified by WHERE condition.
+ * @param[in] range The range specified by RANGE clause.
+ * @param[out] twindow The range to be read in DESC order, and only one record is needed.
+ * @param[out] extTwindow The external range to read for only one record, which is used for FILL clause.
+ * @note `cond` and `twindow` may be the same address.
+ */
+static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* range, STimeWindow* twindow,
+                                 STimeWindow* extTwindows) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  STimeWindow tempWindow;
+
+  if (cond->skey > cond->ekey || range->skey > range->ekey) {
+    *twindow = extTwindows[0] = extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
+    return code;
+  }
+
+  if (range->ekey < cond->skey) {
+    extTwindows[1] = *cond;
+    *twindow = extTwindows[0] = TSWINDOW_DESC_INITIALIZER;
+    return code;
+  }
+
+  if (cond->ekey < range->skey) {
+    extTwindows[0] = *cond;
+    *twindow = extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
+    return code;
+  }
+
+  // Only scan data in the time range intersecion.
+  extTwindows[0] = extTwindows[1] = *cond;
+  twindow->skey = TMAX(cond->skey, range->skey);
+  twindow->ekey = TMIN(cond->ekey, range->ekey);
+  extTwindows[0].ekey = twindow->skey - 1;
+  extTwindows[1].skey = twindow->ekey + 1;
+
+  return code;
+}
+
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode,
-                               const SReadHandle* readHandle) {
+                               const SReadHandle* readHandle, bool applyExtWin) {
+  int32_t code = 0;                             
   pCond->order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   pCond->numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
 
@@ -3116,7 +3142,18 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   }
 
   pCond->numOfCols = j;
-  return TSDB_CODE_SUCCESS;
+
+  if (applyExtWin) {
+    if (NULL != pTableScanNode->pExtScanRange) {
+      pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
+      code = getQueryExtWindow(&pCond->twindows, pTableScanNode->pExtScanRange, &pCond->twindows, pCond->extTwindows);
+    } else if (readHandle->extWinRangeValid) {
+      pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
+      code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);
+    }
+  }
+  
+  return code;
 }
 
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
@@ -3378,6 +3415,29 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
 }
 
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function
+// int32_t tableListRemoveTableInfo(STableListInfo* pTableList, uint64_t uid) {
+//   int32_t code = TSDB_CODE_SUCCESS;
+//   int32_t lino = 0;
+
+//   int32_t* slot = taosHashGet(pTableList->map, &uid, sizeof(uid));
+//   if (slot == NULL) {
+//     qDebug("table:%" PRIu64 " not found in table list", uid);
+//     return 0;
+//   }
+
+//   taosArrayRemove(pTableList->pTableList, *slot);
+//   code = taosHashRemove(pTableList->map, &uid, sizeof(uid));
+
+//   _end:
+//   if (code != TSDB_CODE_SUCCESS) {
+//     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+//   } else {
+//     qDebug("uid:%" PRIu64 ", remove from table list", uid);
+//   }
+
+//   return code;
+// }
+
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -3745,7 +3805,7 @@ char* getStreamOpName(uint16_t opType) {
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
-  if (qDebugFlag & DEBUG_TRACE) {
+  if (qDebugFlag & DEBUG_INFO) {
     if (!pBlock) {
       qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
       return;
