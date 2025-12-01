@@ -77,4 +77,4 @@ log-level = INFO
 
 ### 6. TDgpt 会返回哪些错误码
 
-参见 [TDgpt 错误码](../../14-reference/09-error-code.md/#TDgpt)
+参见 [TDgpt 错误码](../../14-reference/09-error-code.md#TDgpt)
