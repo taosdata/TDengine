@@ -71,6 +71,7 @@ log-level = INFO
 该配置项可选配置包括：DEBUG，INFO，CRITICAL，ERROR，WARN。
 
 对于某些无法直接使用错误码返回的错误信息，请检查日志文件获得准确的错误信息。日志文件位于 `/var/log/taos/taosanode/` 目录。
+
 - `taosanode.app.log` 是 TDgpt 产生的日志
 - `taosanode.log` 是 uWSGI 产生的 web 服务日志
 
