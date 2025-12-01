@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -21,6 +23,9 @@ import (
 )
 
 func TestAdapter2(t *testing.T) {
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:6041", 2*time.Second); err != nil {
+		t.Skip("taosAdapter REST not available; skipping integration test")
+	}
 	c := &config.Config{
 		InstanceID: 64,
 		Port:       6043,
@@ -132,6 +137,9 @@ func TestAdapter2(t *testing.T) {
 }
 
 func Test_adapterTableSql(t *testing.T) {
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:6041", 2*time.Second); err != nil {
+		t.Skip("taosAdapter REST not available; skipping integration test")
+	}
 	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
 	defer conn.Close()
 

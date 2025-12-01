@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -19,6 +21,9 @@ import (
 )
 
 func TestAudit(t *testing.T) {
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:6041", 2*time.Second); err != nil {
+		t.Skip("taosAdapter REST not available; skipping integration test")
+	}
 	cfg := config.GetCfg()
 	cfg.Audit = config.AuditConfig{
 		Database: config.Database{

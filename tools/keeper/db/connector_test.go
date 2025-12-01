@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"net"
 	"math"
 	"strings"
 	"sync/atomic"
@@ -19,6 +20,13 @@ import (
 
 func TestIPv6(t *testing.T) {
 	config.InitConfig()
+
+	// skip if REST is not available locally
+	if _, err := net.DialTimeout("tcp", "[::1]:6041", 200*time.Millisecond); err != nil {
+		if _, err4 := net.DialTimeout("tcp", "127.0.0.1:6041", 200*time.Millisecond); err4 != nil {
+			t.Skip("TDengine REST (taosAdapter) not available on :6041; skipping integration test")
+		}
+	}
 
 	conn, err := NewConnector("root", "taosdata", "[::1]", 6041, false)
 	assert.NoError(t, err)

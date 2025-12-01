@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,6 +22,11 @@ import (
 
 func TestTransferTaosdClusterBasicInfo(t *testing.T) {
 	config.InitConfig()
+
+	// skip if REST is not available locally
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:6041", 200*time.Millisecond); err != nil {
+		t.Skip("TDengine REST (taosAdapter) not available on :6041; skipping integration test")
+	}
 
 	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
 	defer conn.Close()

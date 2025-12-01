@@ -292,7 +292,7 @@ func (r *Reporter) generateCreateDBSql() string {
 
 func (r *Reporter) creatTables() {
 	ctx := context.Background()
-	conn, err := db.NewConnectorWithDbWithRetryForever(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+    conn, err := db.NewConnectorWithRetryForever(r.username, r.password, r.host, r.port, r.usessl)
 	if err != nil {
 		logger.Errorf("connect to database error, msg:%s", err)
 		return
@@ -300,9 +300,10 @@ func (r *Reporter) creatTables() {
 	defer r.closeConn(conn)
 
 	for _, createSql := range createList {
-		logger.Infof("execute sql:%s", createSql)
-		if _, err = conn.ExecWithRetryForever(ctx, createSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
-			logger.Errorf("execute sql:%s, error:%s", createSql, err)
+        qualified := qualifyCreateTableSQL(createSql, r.dbname)
+        logger.Infof("execute sql:%s", qualified)
+        if _, err = conn.ExecWithRetryForever(ctx, qualified, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+            logger.Errorf("execute sql:%s, error:%s", qualified, err)
 		}
 	}
 }
@@ -349,7 +350,7 @@ func (r *Reporter) handlerFunc() gin.HandlerFunc {
 		}
 		sqls = append(sqls, insertLogSummary(report.LogInfos, report.DnodeID, report.DnodeEp, report.ClusterID, report.Ts))
 
-		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+        conn, err := db.NewConnector(r.username, r.password, r.host, r.port, r.usessl)
 		if err != nil {
 			logger.Errorf("connect to database error, msg:%s", err)
 			return
@@ -357,10 +358,11 @@ func (r *Reporter) handlerFunc() gin.HandlerFunc {
 		defer r.closeConn(conn)
 		ctx := context.Background()
 
-		for _, sql := range sqls {
-			logger.Tracef("execute sql:%s", sql)
-			if _, err := conn.Exec(ctx, sql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
-				logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
+        for _, sql := range sqls {
+            qualified := qualifyInsertSQL(sql, r.dbname)
+            logger.Tracef("execute sql:%s", qualified)
+            if _, err := conn.Exec(ctx, qualified, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+                logger.Errorf("execute sql error, sql:%s, error:%s", qualified, err)
 			}
 		}
 	}
@@ -399,15 +401,15 @@ func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts s
 		}
 	}
 
-	sqls = append(sqls, fmt.Sprintf(
-		"insert into cluster_info_%s using cluster_info tags('%s') (ts, first_ep, first_ep_dnode_id, version, "+
-			"master_uptime, monitor_interval, dbs_total, tbs_total, stbs_total, dnodes_total, dnodes_alive, "+
-			"mnodes_total, mnodes_alive, vgroups_total, vgroups_alive, vnodes_total, vnodes_alive, connections_total, "+
-			"topics_total, streams_total, protocol) values ('%s', '%s', %d, '%s', %f, %d, %d, %d, %d, %d, %d, %d, %d, "+
-			"%d, %d, %d, %d, %d, %d, %d, %d)",
-		ClusterID, ClusterID, ts, info.FirstEp, info.FirstEpDnodeID, info.Version, info.MasterUptime, info.MonitorInterval,
-		info.DbsTotal, info.TbsTotal, info.StbsTotal, dtotal, dalive, mtotal, malive, info.VgroupsTotal, info.VgroupsAlive,
-		info.VnodesTotal, info.VnodesAlive, info.ConnectionsTotal, info.TopicsTotal, info.StreamsTotal, protocol))
+    sqls = append(sqls, fmt.Sprintf(
+        "insert into cluster_info_%s using cluster_info tags('%s') (ts, first_ep, first_ep_dnode_id, version, "+
+            "master_uptime, monitor_interval, dbs_total, tbs_total, stbs_total, dnodes_total, dnodes_alive, "+
+            "mnodes_total, mnodes_alive, vgroups_total, vgroups_alive, vnodes_total, vnodes_alive, connections_total, "+
+            "topics_total, streams_total, protocol) values ('%s', '%s', %d, '%s', %f, %d, %d, %d, %d, %d, %d, %d, %d, "+
+            "%d, %d, %d, %d, %d, %d, %d, %d)",
+        ClusterID, ClusterID, ts, info.FirstEp, info.FirstEpDnodeID, info.Version, info.MasterUptime, info.MonitorInterval,
+        info.DbsTotal, info.TbsTotal, info.StbsTotal, dtotal, dalive, mtotal, malive, info.VgroupsTotal, info.VgroupsAlive,
+        info.VnodesTotal, info.VnodesAlive, info.ConnectionsTotal, info.TopicsTotal, info.StreamsTotal, protocol))
 	return sqls
 }
 
@@ -443,8 +445,8 @@ func insertDataDirSql(disk DiskInfo, DnodeID int, DnodeEp string, ClusterID stri
 
 func insertVgroupSql(g VgroupInfo, DnodeID int, DnodeEp string, ClusterID string, ts string) []string {
 	var sqls []string
-	sqls = append(sqls, fmt.Sprintf("insert into vgroups_info_%s using vgroups_info tags (%d, '%s', '%s') "+
-		"(ts, vgroup_id, database_name, tables_num, status, ) values ( '%s','%d', '%s', %d, '%s')",
+    sqls = append(sqls, fmt.Sprintf("insert into vgroups_info_%s using vgroups_info tags (%d, '%s', '%s') "+
+        "(ts, vgroup_id, database_name, tables_num, status) values ('%s', %d, '%s', %d, '%s')",
 		ClusterID+strconv.Itoa(DnodeID)+strconv.Itoa(g.VgroupID), DnodeID, DnodeEp, ClusterID,
 		ts, g.VgroupID, g.DatabaseName, g.TablesNum, g.Status))
 	for _, v := range g.Vnodes {
@@ -475,4 +477,27 @@ func insertLogSummary(log LogInfo, DnodeID int, DnodeEp string, ClusterID string
 func insertGrantSql(g GrantInfo, DnodeID int, ClusterID string, ts string) string {
 	return fmt.Sprintf("insert into grants_info_%s using grants_info tags ('%s') (ts, expire_time, "+
 		"timeseries_used, timeseries_total) values ('%s', %d, %d, %d)", ClusterID+strconv.Itoa(DnodeID), ClusterID, ts, g.ExpireTime, g.TimeseriesUsed, g.TimeseriesTotal)
+}
+
+// qualifyCreateTableSQL prefixes create table statements with the database name to avoid implicit USE
+func qualifyCreateTableSQL(sql, dbname string) string {
+    prefix := "create table if not exists "
+    if strings.HasPrefix(strings.ToLower(sql), prefix) {
+        return prefix + fmt.Sprintf("%s.%s", backtick(dbname), sql[len(prefix):])
+    }
+    // stable creations and others can be left as-is; caller ensures context
+    return sql
+}
+
+// qualifyInsertSQL adds database qualifiers to both target and using table
+func qualifyInsertSQL(sql, dbname string) string {
+    // add qualifier after "insert into " and after " using "
+    out := sql
+    out = strings.Replace(out, "insert into ", fmt.Sprintf("insert into %s.", backtick(dbname)), 1)
+    out = strings.Replace(out, " using ", fmt.Sprintf(" using %s.", backtick(dbname)), 1)
+    return out
+}
+
+func backtick(name string) string {
+    return "`" + name + "`"
 }

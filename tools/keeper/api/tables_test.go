@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,9 @@ import (
 )
 
 func TestCreateClusterInfoSql(t *testing.T) {
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:6041", 2*time.Second); err != nil {
+		t.Skip("taosAdapter REST not available; skipping integration test")
+	}
 	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
 	defer conn.Close()
 
