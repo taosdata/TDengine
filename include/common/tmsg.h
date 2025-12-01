@@ -1397,7 +1397,7 @@ typedef struct {
 } SDateTimeWhiteList;
 
 SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src);
-bool isTimeInDateTimeWhiteList(SDateTimeWhiteList *wl, int64_t tm);
+bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 
 
 typedef struct {

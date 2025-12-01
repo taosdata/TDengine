@@ -2675,8 +2675,10 @@ SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src) {
 //
 // otherwise, it returns false.
 //
-// Note: tm is seconds since 1970-01-01 00:00:00 UTC
-bool isTimeInDateTimeWhiteList(SDateTimeWhiteList *wl, int64_t tm) {
+// Note: tm is seconds since 1970-01-01 00:00:00 UTC, can be obtained by taosGetTimestampSec.
+//
+// TODO: the whitelist entries are sorted, we can use binary search to optimize the performance.
+bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
   if (wl == NULL || wl->num == 0) {
     return true;
   }
@@ -2687,7 +2689,7 @@ bool isTimeInDateTimeWhiteList(SDateTimeWhiteList *wl, int64_t tm) {
   int32_t weekSec = (tm + (4 * 86400)) % (7 * 86400);
 
   for (int32_t i = 0; i < wl->num; ++i) {
-    SDateTimeWhiteListItem *item = &wl->ranges[i];
+    const SDateTimeWhiteListItem *item = &wl->ranges[i];
     if (item->neg) {
       if (item->absolute) {
         if (tm >= item->start && tm < item->start + item->duration) {
