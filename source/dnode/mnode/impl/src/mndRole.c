@@ -50,6 +50,8 @@ static int32_t  mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void     mndCancelGetNextRole(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
+static int32_t  mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void     mndCancelGetNextColPrivileges(SMnode *pMnode, void *pIter);
 
 int32_t mndInitRole(SMnode *pMnode) {
   // role management init
@@ -75,8 +77,8 @@ int32_t mndInitRole(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndCancelGetNextRole);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndRetrievePrivileges);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndCancelGetNextPrivileges);
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndRetrievePrivileges);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndCancelGetNextPrivileges);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndRetrieveColPrivileges);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndCancelGetNextColPrivileges);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -333,7 +335,7 @@ static int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash)
             !(tblPolicies.policy[policyIndex] = taosArrayInit(1, sizeof(SPrivTblPolicy)))) {
           TAOS_CHECK_EXIT(terrno);
         }
-        if(!taosArrayPush(tblPolicies.policy[policyIndex], &policy)){
+        if (!taosArrayPush(tblPolicies.policy[policyIndex], &policy)) {
           TAOS_CHECK_EXIT(terrno);
         }
       }
@@ -1068,6 +1070,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     cols = 0;
     STR_WITH_MAXSIZE_TO_VARSTR(roleName, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
 
+    // system privileges
     SPrivIter privIter = {0};
     privIterInit(&privIter, &pObj->sysPrivs);
     SPrivInfo *pPrivInfo = NULL;
@@ -1080,10 +1083,102 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
-      cols += 3; // skip object db, table, condition
+      // skip db, table, condition, notes, row_span, columns
+      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, "SYS", pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 1);
+      numOfRows++;
+    }
+
+    // object privileges
+
+    // row level privileges
+
+    // table level privileges
+
+    sdbRelease(pSdb, pObj);
+  }
+
+  pShow->numOfRows += numOfRows;
+_exit:
+  taosMemoryFreeClear(pBuf);
+  taosMemoryFreeClear(sql);
+  if (code < 0) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  return numOfRows;
+}
+
+static void mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_ROLE);
+}
+
+static int32_t mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  int32_t   code = 0, lino = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  int32_t   cols = 0;
+  SRoleObj *pObj = NULL;
+  char     *pBuf = NULL, *qBuf = NULL;
+  char     *sql = NULL;
+  char      roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
+  int32_t   bufSize = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE;
+
+  bool fetchNextInstance = pShow->restore ? false : true;
+  pShow->restore = false;
+
+  while (numOfRows < rows) {
+    if (fetchNextInstance) {
+      pShow->pIter = sdbFetch(pSdb, SDB_ROLE, pShow->pIter, (void **)&pObj);
+      if (pShow->pIter == NULL) break;
+    } else {
+      fetchNextInstance = true;
+      void *pKey = taosHashGetKey(pShow->pIter, NULL);
+      if (!(pObj = sdbAcquire(pSdb, SDB_ROLE, pKey))) {
+        continue;
+      }
+    }
+
+    int32_t nSysPrivileges = 0, nObjPrivileges = 0;
+    if (nSysPrivileges + nObjPrivileges >= rows) {
+      pShow->restore = true;
+      sdbRelease(pSdb, pObj);
+      break;
+    }
+
+    if (!pBuf && !(pBuf = taosMemoryMalloc(bufSize))) {
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    cols = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(roleName, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
+
+    SPrivIter privIter = {0};
+    privIterInit(&privIter, &pObj->sysPrivs);
+    SPrivInfo *pPrivInfo = NULL;
+    while (privIterNext(&privIter, &pPrivInfo)) {
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
+
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+
+      for (int32_t i = 0; i < 6; i++) {  // skip db, table, condition, notes, row_span, columns
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, "", 2);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
       }
       numOfRows++;
     }
@@ -1102,7 +1197,7 @@ _exit:
   return numOfRows;
 }
 
-static void mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter) {
+static void mndCancelGetNextColPrivileges(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_ROLE);
 }

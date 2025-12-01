@@ -33,6 +33,16 @@ extern "C" {
     }                                                                                      \
   } while (0)
 
+#define COL_DATA_SET_EMPTY_VARCHAR(pBuf, nums)                                       \
+  do {                                                                               \
+    for (int32_t idx = 0; idx < (nums); ++idx) {                                     \
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {                   \
+        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);                                   \
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit); \
+      }                                                                              \
+    }                                                                                \
+  } while (0)
+
 #define RETRIEVE_CHECK_GOTO(CMD, pObj, LINO, LABEL) \
   do {                                              \
     code = (CMD);                                   \
