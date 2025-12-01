@@ -127,6 +127,7 @@ coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
     coredump_dir="/home/coredump"
 fi
+
 echo "docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \

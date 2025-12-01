@@ -152,6 +152,7 @@ static SKeyword keywordTable[] = {
     {"INDEXES",              TK_INDEXES},
     {"INNER",                TK_INNER},
     {"INSERT",               TK_INSERT},
+    {"INSTANCES",            TK_INSTANCES},
     {"INT",                  TK_INT},
     {"INTEGER",              TK_INTEGER},
     {"INTERVAL",             TK_INTERVAL},

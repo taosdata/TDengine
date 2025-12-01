@@ -674,6 +674,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   SExternalWindowOperator* pExtW = pMlExtInfo->pExtW;
   SExprSupp* pSup = &pOperator->exprSupp;
   pSup->hasWindowOrGroup = true;
+  pSup->hasWindow = true;
   pMlExtInfo->curTs = INT64_MIN;
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;

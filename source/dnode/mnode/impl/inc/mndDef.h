@@ -749,6 +749,15 @@ typedef struct {
 } SFuncObj;
 
 typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int64_t firstRegTime;
+  int64_t lastRegTime;
+  int32_t expire;
+} SInstanceObj;
+
+typedef struct {
   int64_t        id;
   int8_t         type;
   int8_t         replica;
