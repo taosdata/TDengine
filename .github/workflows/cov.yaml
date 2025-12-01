@@ -1,4 +1,4 @@
-name: PR-CI-workflow
+name: Code Coverage
 
 on:
   # workflow_dispatch:
