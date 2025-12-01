@@ -45,7 +45,6 @@ static STransCache transInstCache;
 static void transCacheInit() {
   transInstCache.pArray = taosArrayInit(16, sizeof(STransEntry));
   if (transInstCache.pArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     tError("failed to init trans cache since %s", tstrerror(terrno));
     return;
   }
