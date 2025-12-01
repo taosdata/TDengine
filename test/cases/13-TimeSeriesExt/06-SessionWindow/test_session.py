@@ -184,13 +184,18 @@ class TestSession:
         tdSql.checkData(3, 1, "2020-05-27 10:00:00.001")
         tdSql.checkData(3, 2, 1)
         
-        sql = "select _wstart, _wend, 1, ts from dev_001 session(ts,1d);"
+        sql = "select _wstart, _wend, 1, ts from dev_001 session(ts,1d)"
         tdSql.error(sql)
         
         sql = "select _wstart, _wend, 1, dev from dev_001 session(ts,1d)"
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(4)
         
-        sql = "select _wstart, _wend, 1, tbname,  count(*)  from st partition by tbname session(ts,1d) order by tbname;"
+        sql = "select 1 from dev_001 session(ts,1d)"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = "select _wstart, _wend, 1, tbname,  count(*)  from st partition by tbname session(ts,1d) order by tbname"
         tdSql.query(sql)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -215,7 +220,7 @@ class TestSession:
         tdSql.checkData(4, 3, "dev_002")
         
         
-        sql = "select _wstart, _wend, 1, tbname from st partition by tbname session(ts,1d) order by tbname;"
+        sql = "select _wstart, _wend, 1, tbname from st partition by tbname session(ts,1d) order by tbname"
         tdSql.query(sql)
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -238,7 +243,11 @@ class TestSession:
         tdSql.checkData(4, 1, "2020-05-13 10:00:00.510")
         tdSql.checkData(4, 2, 1)
         tdSql.checkData(4, 3, "dev_002")
-        
+ 
+        sql = "select 1 from st partition by tbname session(ts,1d) order by tbname"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+               
         # print ====> select count(*) from dev_001 session(ts,1u)
         # sql select _wstart, count(*) from dev_001 session(ts,1u)
         # print rows: $rows

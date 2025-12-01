@@ -654,6 +654,10 @@ class TestCount:
         tdSql.error(sql)
         sql = f"select  _wstart, 1, ta, tb, tc, count(*), tbname from t1 count_window(2)  slimit 2 limit 2"
         tdSql.error(sql)
+        
+        sql = f"select  _wstart, 1, ta, tb, tc, tbname from t1 count_window(2)"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
                 
         sql = f"select  _wstart, 1 from t1 count_window(2)"
         tdSql.query(sql)
@@ -662,5 +666,10 @@ class TestCount:
         sql = f"select  _wstart, 1, count(*) from t1 count_window(2)"
         tdSql.query(sql)
         tdSql.checkRows(3)
+        
+        sql = f"select 1 from t1 count_window(2)"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
         
         tdLog.info(f"query_count0 end")

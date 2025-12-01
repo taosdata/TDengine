@@ -353,6 +353,10 @@ class TestStateWindow:
         tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 3, "b")
         
+        sql = "select 1 from ntb state_window(s, 2)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        
         sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
         tdSql.error(sql, show=True)
 
