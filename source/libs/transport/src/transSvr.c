@@ -330,6 +330,9 @@ int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
   return len;
 }
 void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
+  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
   int32_t   len = 0;
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
@@ -2317,6 +2320,7 @@ void uvHandleUpdateIpWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
     memcpy(pList->pIpRanges, pUser->pIpDualRanges, sz);
     code = uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
     if (code != 0) {
+      taosMemoryFree(pList);
       break;
     }
   }

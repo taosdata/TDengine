@@ -135,7 +135,7 @@ static void dmUpdateRpcTimeWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc)
     return;
   }
   // TODO: implement rpcSetTimeWhite
-  code = rpcSetIpWhite(pTrans, &timeWhite);
+  code = rpcSetTimeIpWhite(pTrans, &timeWhite);
   pData->timeWhiteVer = timeWhite.ver;
 
   (void)tFreeSRetrieveDateTimeWhiteListRsp(&timeWhite);
