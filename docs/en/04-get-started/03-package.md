@@ -24,13 +24,17 @@ You can install TDengine TSDB Enterprise on Linux and Windows. To install TDengi
 1. Download the tar.gz installation package from the list below:  
    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.4" platform="Linux-Generic" pkgType="Server" />
 2. Navigate to the directory where the package is located and extract it using `tar`. For example, on an x64 architecture:  
+
    ```bash
    tar -zxvf tdengine-tsdb-enterprise-3.3.8.4-linux-x64.tar.gz
    ```
+
 3. After extracting the files, go into the subdirectory and run the `install.sh` script:  
+
    ```bash
    sudo ./install.sh
    ```
+
 </TabItem>
 
 <TabItem label="Windows" value="windows">

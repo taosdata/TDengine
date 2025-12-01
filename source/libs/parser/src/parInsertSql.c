@@ -263,6 +263,10 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
     }
 
     char tmpTokenBuf[TSDB_COL_NAME_LEN + 2] = {0};  // used for deleting Escape character backstick(`)
+    if (token.n >= TSDB_COL_NAME_LEN + 2) {
+      taosMemoryFree(pUseCols);
+      return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
+    }
     strncpy(tmpTokenBuf, token.z, token.n);
     token.z = tmpTokenBuf;
     token.n = strdequote(token.z);
@@ -3043,8 +3047,17 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
   if (code == TSDB_CODE_SUCCESS && pCxt->pComCxt->stmtBindVersion == 0) {
     SRow**            pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
-    SRowBuildScanInfo sinfo = {0};
-    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, &sinfo);
+    if ((*ppTableDataCxt)->hasBlob) {
+      SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
+      if ((*ppTableDataCxt)->pData->pBlobSet == NULL) {
+        code = tBlobSetCreate(1024, 0, &(*ppTableDataCxt)->pData->pBlobSet);
+        TAOS_CHECK_RETURN(code);
+      }
+      code = tRowBuildWithBlob(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, (*ppTableDataCxt)->pData->pBlobSet, &sinfo);
+    } else {
+      SRowBuildScanInfo sinfo = {0};
+      code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, &sinfo);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       SRowKey key;
       tRowGetKey(*pRow, &key);

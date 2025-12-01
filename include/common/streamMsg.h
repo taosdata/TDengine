@@ -1045,9 +1045,9 @@ typedef struct STsInfo {
 } STsInfo;
 
 typedef struct VTableInfo {
-  int64_t gId;        // group id
-  int64_t uid;        // table uid
-  SColRefWrapper cols;    
+  int64_t        gId;      // group id
+  int64_t        uid;      // table uid
+  SColRefWrapper cols;
 } VTableInfo;
 
 typedef struct SStreamMsgVTableInfo {

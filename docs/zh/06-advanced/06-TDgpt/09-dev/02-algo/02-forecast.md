@@ -25,8 +25,8 @@ return {
 | period      | 输入时间序列的周期性，多少个数据点表示一个完整的周期。如果没有周期性，设置为 0 即可 |  0  |
 | start_ts    | 预测结果的开始时间                                   |  0  |
 | time_step   | 预测结果的两个数据点之间时间间隔                            | 0   |
-| fc_rows     | 预测结果的数量                                     |  0  |
-| return_conf | 预测结果中是否包含置信区间范围，如果不包含置信区间，那么上界和下界与自身相同      |  1  | 
+| rows        | 预测结果的数量                                     |  0  |
+| return_conf | 预测结果中是否包含置信区间范围，如果不包含置信区间，那么上界和下界与自身相同      |  1  |
 | conf        | 置信区间分位数                                     | 95  |
 
 ### 示例代码
@@ -34,9 +34,7 @@ return {
 下面我们开发一个示例预测算法，对于任何输入的时间序列数据，固定返回值 1 作为预测结果。
 
 ```python
-import numpy as np
 from taosanalytics.service import AbstractForecastService
-
 
 # 算法实现类名称 需要以下划线 "_" 开始，并以 Service 结束
 class _MyForecastService(AbstractForecastService):
@@ -57,17 +55,17 @@ class _MyForecastService(AbstractForecastService):
         res = []
 
         """这个预测算法固定返回 1 作为预测值，预测值的数量是用户通过 self.fc_rows 指定"""
-        ts_list = [self.start_ts + i * self.time_step for i in range(self.fc_rows)]
+        ts_list = [self.start_ts + i * self.time_step for i in range(self.rows)]
         res.append(ts_list)  # 设置预测结果时间戳列
 
         """生成全部为 1 的预测结果 """
-        res_list = [1] * self.fc_rows
+        res_list = [1] * self.rows
         res.append(res_list)
 
         """检查用户输入，是否要求返回预测置信区间上下界"""
         if self.return_conf:
             """对于没有计算预测置信区间上下界的算法，直接返回预测值作为上下界即可"""
-            bound_list = [1] * self.fc_rows
+            bound_list = [1] * self.rows
             res.append(bound_list)  # 预测结果置信区间下界
             res.append(bound_list)  # 预测结果执行区间上界
 
