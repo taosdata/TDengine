@@ -280,6 +280,9 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
       case BNODE:
         code = TSDB_CODE_BNODE_ALREADY_DEPLOYED;
         break;
+      case XNODE:
+        code = TSDB_CODE_XNODE_ALREADY_DEPLOYED;
+        break;
       default:
         code = TSDB_CODE_APP_ERROR;
     }

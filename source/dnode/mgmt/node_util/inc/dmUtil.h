@@ -100,7 +100,8 @@ typedef enum {
   QNODE = 3,
   SNODE = 4,
   BNODE = 5,
-  NODE_END = 6,
+  XNODE = 6,
+  NODE_END = 7,
 } EDndNodeType;
 
 typedef enum {

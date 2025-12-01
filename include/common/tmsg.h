@@ -2997,7 +2997,7 @@ typedef struct {
   char*   url;
   char*   user;
   char*   pass;
-} SMCreateXnodeReq;
+} SMCreateXnodeReq, SDCreateXnodeReq;
 
 int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
 int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
@@ -3007,7 +3007,7 @@ typedef struct {
   int32_t xnodeId;
   int32_t sqlLen;
   char*   sql;
-} SMDropXnodeReq, SMUpdateXnodeReq;
+} SMDropXnodeReq, SMUpdateXnodeReq, SDDropXnodeReq;
 
 int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
 int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);

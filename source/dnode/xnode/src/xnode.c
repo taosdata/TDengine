@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "libs/tmqtt/tmqtt.h"
+#include "libs/txnode/txnode.h"
 #include "xndInt.h"
 
 int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
@@ -30,9 +30,9 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
   (*pXnode)->dnodeId = pOption->dnodeId;
   (*pXnode)->protocol = (int8_t)pOption->proto;
 
-  if (TSDB_BNODE_OPT_PROTO_MQTT == (*pXnode)->protocol) {
-    if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
-      xndError("failed to start taosudf since %s", tstrerror(code));
+  if (TSDB_XNODE_OPT_PROTO == (*pXnode)->protocol) {
+    if ((code = xnodeMgmtStartXnoded((*pXnode)->dnodeId)) != 0) {
+      xndError("failed to start xnoded since %s", tstrerror(code));
 
       taosMemoryFree(*pXnode);
       TAOS_RETURN(code);
@@ -44,15 +44,36 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
     TAOS_RETURN(code);
   }
 
-  xndInfo("Bnode opened.");
+  xndInfo("Xnode opened.");
 
   return TSDB_CODE_SUCCESS;
 }
 
 void xndClose(SXnode *pXnode) {
-  mqttMgmtStopMqttd();
+  xnodeMgmtStopXnoded();
 
   taosMemoryFree(pXnode);
 
   xndInfo("Xnode closed.");
+}
+
+static SXnode xnodeInstance = {0};
+SXnode       *xndInstance() { return &xnodeInstance; }
+
+int32_t mndOpenXnd(const SXnodeOpt *pOption) {
+  int32_t code = 0;
+
+  SXnode *pXnode = xndInstance();
+  pXnode->dnodeId = pOption->dnodeId;
+  pXnode->protocol = (int8_t)pOption->proto;
+  pXnode->msgCb = pOption->msgCb;
+  // 1. 产生 runtime 数据结构，看是否需要清理，目测不需要清理，因为无状态; 尝试启动 xnoded, 如果已经启动，就直接退出。
+  // 2. 执行 xnodeMgmtStartXnoded, 启动 xnoded
+  if ((code = xnodeMgmtStartXnoded(pXnode->dnodeId)) != 0) {
+    xndError("failed to start xnoded since %s", tstrerror(code));
+
+    taosMemoryFree(pXnode);
+    TAOS_RETURN(code);
+  }
+  return code;
 }

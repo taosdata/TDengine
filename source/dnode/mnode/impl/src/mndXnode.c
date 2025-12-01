@@ -20,6 +20,7 @@
 #include "tdef.h"
 #include "types.h"
 
+#include <curl/curl.h>
 #include "audit.h"
 #include "mndDnode.h"
 #include "mndInt.h"
@@ -31,9 +32,11 @@
 #include "sdb.h"
 #include "taoserror.h"
 #include "tjson.h"
+#include "xnode.h"
 
 #define TSDB_XNODE_VER_NUMBER   1
 #define TSDB_XNODE_RESERVE_SIZE 64
+#define XNODED_URL              "http://localhost:6051"
 
 /** xnodes systable actions */
 static SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj);
@@ -1803,26 +1806,172 @@ static int32_t mndGetXnodeAlgoList(const char *url, SXnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
+typedef enum {
+  HTTP_TYPE_GET = 0,
+  HTTP_TYPE_POST,
+} EHttpType;
+
+typedef struct {
+  char   *data;
+  int64_t dataLen;
+} SCurlResp;
+
+static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
+  SCurlResp *pRsp = userdata;
+  if (contLen == 0 || nmemb == 0 || pCont == NULL) {
+    pRsp->dataLen = 0;
+    pRsp->data = NULL;
+    uError("curl response is received, len:%" PRId64, pRsp->dataLen);
+    return 0;
+  }
+
+  int64_t newDataSize = (int64_t)contLen * nmemb;
+  int64_t size = pRsp->dataLen + newDataSize;
+
+  if (pRsp->data == NULL) {
+    pRsp->data = taosMemoryMalloc(size + 1);
+    if (pRsp->data == NULL) {
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t)size + 1, tstrerror(terrno));
+      return 0;  // return the recv length, if failed, return 0
+    }
+  } else {
+    char *p = taosMemoryRealloc(pRsp->data, size + 1);
+    if (p == NULL) {
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t)size + 1, tstrerror(terrno));
+      return 0;  // return the recv length, if failed, return 0
+    }
+
+    pRsp->data = p;
+  }
+
+  if (pRsp->data != NULL) {
+    (void)memcpy(pRsp->data + pRsp->dataLen, pCont, newDataSize);
+
+    pRsp->dataLen = size;
+    pRsp->data[size] = 0;
+
+    uDebugL("curl response is received, len:%" PRId64 ", content:%s", size, pRsp->data);
+    return newDataSize;
+  } else {
+    pRsp->dataLen = 0;
+    uError("failed to malloc curl response");
+    return 0;
+  }
+}
+
+static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout) {
+  CURL    *curl = NULL;
+  CURLcode code = 0;
+
+  curl = curl_easy_init();
+  if (curl == NULL) {
+    uError("failed to create curl handle");
+    return -1;
+  }
+
+  if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout) != 0) goto _OVER;
+
+  uDebug("curl get request will sent, url:%s", url);
+  code = curl_easy_perform(curl);
+  if (code != CURLE_OK) {
+    uError("failed to perform curl action, code:%d", code);
+  }
+
+_OVER:
+  if (curl != NULL) curl_easy_cleanup(curl);
+  return code;
+}
+
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout) {
+  struct curl_slist *headers = NULL;
+  CURL              *curl = NULL;
+  CURLcode           code = 0;
+
+  curl = curl_easy_init();
+  if (curl == NULL) {
+    uError("failed to create curl handle");
+    return -1;
+  }
+
+  headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
+  if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POST, 1) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L) != 0) goto _OVER;
+
+  uDebugL("curl post request will sent, url:%s len:%d content:%s", url, bufLen, buf);
+  code = curl_easy_perform(curl);
+  if (code != CURLE_OK) {
+    uError("failed to perform curl action, code:%d", code);
+  }
+
+_OVER:
+  if (curl != NULL) {
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+  }
+  return code;
+}
+
+SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen) {
+  int32_t   code = -1;
+  SJson    *pJson = NULL;
+  SCurlResp curlRsp = {0};
+
+  if (type == HTTP_TYPE_GET) {
+    if (taosCurlGetRequest(url, &curlRsp, timeout) != 0) {
+      terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+      goto _OVER;
+    }
+  } else {
+    if (taosCurlPostRequest(url, &curlRsp, buf, bufLen, timeout) != 0) {
+      terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+      goto _OVER;
+    }
+  }
+
+  if (curlRsp.data == NULL || curlRsp.dataLen == 0) {
+    terrno = TSDB_CODE_MND_XNODE_URL_RSP_IS_NULL;
+    goto _OVER;
+  }
+
+  pJson = tjsonParse(curlRsp.data);
+  if (pJson == NULL) {
+    if (curlRsp.data[0] == '<') {
+      terrno = TSDB_CODE_MND_XNODE_RETURN_ERROR;
+    } else {
+      terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+    }
+    goto _OVER;
+  }
+
+_OVER:
+  if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
+  return pJson;
+}
+
 static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen) {
   int32_t code = 0;
   int32_t protocol = 0;
-  double  tmp = 0;
-  char    xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/%s", pObj->url, "status");
 
-  SJson *pJson = NULL;  // taosAnalySendReqRetJson(xnodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL, 0);
+  if (pObj->status == 2) {
+    strcpy(status, "drain");
+    return code;
+  }
+
+  char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/status?xnode_ep=%s", XNODED_URL, pObj->url);
+  SJson *pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_GET, 5000, NULL, 0);
   if (pJson == NULL) return terrno;
-
-  code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
-  if (code < 0) {
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-  protocol = (int32_t)(tmp * 1000);
-  if (protocol != 100 && protocol != 1000) {
-    code = TSDB_CODE_MND_XNODE_INVALID_PROTOCOL;
-    goto _OVER;
-  }
 
   code = tjsonGetStringValue2(pJson, "status", status, statusLen);
   if (code < 0) {
@@ -1830,7 +1979,7 @@ static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLe
     goto _OVER;
   }
   if (strlen(status) == 0) {
-    code = TSDB_CODE_MND_XNODE_INVALID_PROTOCOL;
+    code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
@@ -1954,4 +2103,16 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
   // _OVER:
   //   tFreeRetrieveAnalyticAlgoRsp(&rsp);
   //   TAOS_RETURN(code);
+}
+
+// mgmt xnode
+void mndXnodeHandleBecomeLeader(SMnode *pMnode) {
+  int32_t code = 0;
+  mInfo("mndxnode start to process mnode become leader");
+  SXnodeOpt pOption = {0};
+  pOption.dnodeId = pMnode->selfDnodeId;
+  if ((code = mndOpenXnd(&pOption)) != 0) {
+    mError("dnode:%d, mnd failed to open xnd since %s", pOption.dnodeId, tstrerror(code));
+    return;
+  }
 }

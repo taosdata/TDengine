@@ -29,11 +29,11 @@
 extern "C" {
 #endif
 
-typedef struct SXnode {
+struct SXnode {
   SMsgCb  msgCb;
   int32_t dnodeId;
   int8_t  protocol;
-} SXnode;
+};
 
 #ifdef __cplusplus
 }

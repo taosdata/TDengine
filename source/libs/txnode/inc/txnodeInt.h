@@ -13,22 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_XNODE_H_
-#define _TD_MND_XNODE_H_
-
-#include "mndInt.h"
+#ifndef _TD_TXNODE_INT_H_
+#define _TD_TXNODE_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitXnode(SMnode* pMnode);
-void    mndCleanupXnode(SMnode* pMnode);
-void    mndRetrieveTasks(SMnode* pMnode, SArray* pFc, SArray* pAd);
-void    mndXnodeHandleBecomeLeader(SMnode* pMnode);
+// clang-format on
+#if defined(_MSC_VER) && _MSC_VER < 1900 && !defined(bool)
+
+#ifndef __cplusplus
+#define bool char
+#define true 1
+#define false 0
+#endif
+
+#else
+
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
+#endif
+
+#include <stddef.h>
+#include <stdint.h>
+#include "txnode.h"
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_ANODE_H_*/
+#endif /*_TD_TXNODE_INT_H_*/

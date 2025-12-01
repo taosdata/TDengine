@@ -14,11 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndSync.h"
 #include "mndCluster.h"
 #include "mndStream.h"
-#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndXnode.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -422,6 +423,7 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
   msmHandleBecomeLeader(pMnode);
+  mndXnodeHandleBecomeLeader(pMnode);
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {

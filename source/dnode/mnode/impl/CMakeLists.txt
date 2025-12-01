@@ -26,7 +26,10 @@ endif()
 add_library(mnode STATIC ${MNODE_SRC})
 target_include_directories(
   mnode
-  PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
+  PUBLIC 
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
