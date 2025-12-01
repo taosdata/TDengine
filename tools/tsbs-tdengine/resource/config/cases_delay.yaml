@@ -7,7 +7,7 @@ testCases:
             interval(1a) 
             sliding(1a)
             from db.stbd1 
-            stream_options(IGNORE_NODATA_TRIGGER) 
+            stream_options(IGNORE_NODATA_TRIGGER|LOW_LATENCY_CALC) 
             into db.res_d1 
             as 
               select  _twstart    ts, 
@@ -22,10 +22,10 @@ testCases:
       description: ""
       sql: |
          create stream db.stm_d2 
-            interval(10a) 
-            sliding(10a)
+            interval(1a) 
+            sliding(1a)
             from db.stbd2 
-            stream_options(IGNORE_NODATA_TRIGGER) 
+            stream_options(IGNORE_NODATA_TRIGGER|LOW_LATENCY_CALC) 
             into db.res_d2 
             as 
               select  _twstart    ts, 

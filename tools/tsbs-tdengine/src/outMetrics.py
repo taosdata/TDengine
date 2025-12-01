@@ -17,6 +17,7 @@ import os
 import sys
 import time
 import json
+from datetime import datetime
 from outLog import log
 from cmdLine import cmd
 from outDB import OutDB
@@ -107,7 +108,8 @@ class OutMetrics:
             f.write(msg + '\n') 
 
     def output_metrics(self):
-        log.out(f"Outputting metrics to {self.metrics_file}")        
+        log.out(f"Outputting metrics to {self.metrics_file}")
+        succ = 0
         
         # Column widths
         col_widths = {
@@ -189,11 +191,13 @@ class OutMetrics:
         self.write_metrics(header)
         self.write_metrics(separator)
         
-        # Collect metrics data for JSON output
+        #
+        # Json summary
+        #
         metrics_data = {
-            'test_start_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.time_start)) if self.time_start else None,
-            'test_end_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.time_end)) if self.time_end else None,
-            'total_duration_seconds': (self.time_end - self.time_start) if (self.time_end and self.time_start) else 0,
+            'run_start': datetime.fromtimestamp(self.time_start).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+            'run_took': (self.time_end - self.time_start) if (self.time_end and self.time_start) else 0,
+            'note': cmd.get_note(),
             'scenarios': []
         }
         
@@ -206,10 +210,16 @@ class OutMetrics:
             in_rows    = self.data_rows.get(scenario, 0)
             throughput = round((in_rows / duration) if duration > 0 else 0, 2)
             status     = self.status.get(scenario, "UNKNOWN")
+            write_took = round(self.time_end_write.get(scenario, 0) - self.time_start_write.get(scenario, 0), 2)
+            test_took = round(self.time_end_test.get(scenario, 0) - self.time_start_test.get(scenario, 0), 2)
+            
+            # count success
+            if status == "Passed":
+                succ += 1
             
             # Format time strings
             if start_time == 0 or start_time is None:
-                start_time_str = "-"
+                start_time_str = "-"    
                 duration = 0
             else:
                 start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
@@ -250,7 +260,9 @@ class OutMetrics:
             )
             self.write_metrics(row)
             
-            # Add to JSON data
+            #
+            # json each scenario
+            #
             json_data = {
                 'scenario': self.scenarioId[scenario],
                 'status': status,
@@ -260,7 +272,9 @@ class OutMetrics:
                 'start_time': start_time_str,
                 'end_time': end_time_str,
                 'dur': duration,
-                'tp': throughput
+                'tp': throughput,
+                'write_took': write_took,
+                'test_took': test_took
             }
             if cmd.get_check_delay():
                 delay = self.delay.get(scenario, Delay())
@@ -276,6 +290,7 @@ class OutMetrics:
                 }                
                 json_data.update(json_delay)
             
+            # append
             metrics_data['scenarios'].append(json_data)
         
         # End
@@ -301,12 +316,12 @@ class OutMetrics:
             log.out(f"Failed to save metrics JSON: {e}")
             
         # Write JSON to database if configured
-        out_db = cmd.get_out_db()
-        if out_db:
-            try:
-                db = OutDB()
-                db.write_metrics_to_db(metrics_data, out_db)
-            except Exception as e:
-                log.out(f"Failed to write metrics to database: {e}")     
+        try:        
+            out_db = cmd.get_out_db()
+            if out_db and succ > 0:
+                    db = OutDB()
+                    db.write_metrics_to_db(metrics_data, out_db)
+        except Exception as e:
+            log.out(f"Failed to write metrics to database: {e}")     
         
 metrics = OutMetrics()

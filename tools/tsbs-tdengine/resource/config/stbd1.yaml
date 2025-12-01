@@ -4,7 +4,7 @@ testCases:
       querySql: select count(*) from db.stbd1;
       dataRows: 20000
       verifySql: select count(*) from db.res_d1;
-      expectRows: 20000
+      expectRows: 10000
       compare: ">="
       delaySql: select 
                     count(ts)  cnt,

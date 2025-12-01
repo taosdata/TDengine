@@ -39,8 +39,13 @@ class PrepareEnv(BaseStep):
                     if command.upper() == "WAIT TRANSACTIONS OVER":
                         wait_transactions_zero(seconds=300, interval=1)
                     else:
-                        conn.execute(command)
-                        log.out(f"exe success: {command}")
+                        try:
+                            conn.execute(command)
+                            log.out(f"exe success: {command}")
+                        except Exception as e:
+                            info = f"exe failed: {command}: {e}"
+                            log.out(info)
+                            raise Exception(info)
             except Exception as e:
                 info = f"Error executing SQL file {sql_file}: {e}"
                 log.out(info)
