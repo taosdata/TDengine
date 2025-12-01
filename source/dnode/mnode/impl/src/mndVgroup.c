@@ -1197,6 +1197,8 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     }
     
     bool isReady = false;
+    bool isLeaderRestored = false;
+    bool hasFollowerRestored = false;
     // default 3 replica, add 1 replica if move vnode
     for (int32_t i = 0; i < 4; ++i) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1225,8 +1227,12 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
           if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER ||
               pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
             if (pVgroup->vnodeGid[i].syncRestore) {
-              isReady = true;
-            } 
+              isLeaderRestored = true;
+            }
+          } else if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_FOLLOWER) {
+            if (pVgroup->vnodeGid[i].syncRestore) {
+              hasFollowerRestored = true;
+            }
           }
           snprintf(role, sizeof(role), "%s", syncStr(pVgroup->vnodeGid[i].syncState));
           /*
@@ -1283,6 +1289,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       }
     }
 
+    if (isLeaderRestored && hasFollowerRestored) isReady = true;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&isReady, false);
     if (code != 0) {
