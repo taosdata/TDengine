@@ -260,7 +260,7 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
 
 int32_t schProcessOnSubJobSuccess(SSchJob *pJob) {
   SSchJob* pParent = pJob->parent;
-  int64_t doneNum = atomic_add_fetch_64(&pParent->subJobDoneNum, 1);
+  int64_t doneNum = atomic_add_fetch_32(&pParent->subJobDoneNum, 1);
 
   if (pParent->subJobExecIdx < pParent->subJobs->size) {
     SCH_RET(schLaunchJobImpl(taosArrayGetP(pParent->subJobs, pParent->subJobExecIdx++)));
@@ -317,7 +317,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     if (SCH_IS_PARENT_JOB(pJob)) {
       SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
     } else {
-      SCH_RET(schProcessOnSubJobSuccess(pJob))
+      SCH_RET(schProcessOnSubJobSuccess(pJob));
     }
   }
 
