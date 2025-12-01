@@ -530,7 +530,7 @@ Below are the business error codes for each module.
 | 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement           |
 | 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement           |
 | 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement           |
-| 0x80002698 | Invalid extend value | Invalid extend value | Check and correct the SQL statement           |
+| 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement           |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
@@ -538,6 +538,7 @@ Below are the business error codes for each module.
 | 0x80002704 | Planner slot key not found                                                                             | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub                        |
 | 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
 | 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
+| 0x80002707 | Planner invalid window type                                                                            | Planner get invalid window type during making physic plan                  | Preserve the scene and logs, report issue on GitHub                         |
 
 #### function
 

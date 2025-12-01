@@ -1238,7 +1238,7 @@ class TestStreamSubqueryEvent:
             res_query="select ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c12, c13 from rdb.r133 where tag_tbname='t1' limit 3",
             exp_query="select _wstart, APERCENTILE(cint, 25), AVG(cuint), SUM(cint), COUNT(cbigint), 270000, HYPERLOGLOG(cdouble), LEASTSQUARES(csmallint, 1, 2), SPREAD(ctinyint), STDDEV(cutinyint), STDDEV_POP(cfloat), VAR_POP(cbigint), PERCENTILE(cint, 25) from qdb.t1 where cts >='2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(5m);",
         )
-        self.streams.append(stream)
+        #self.streams.append(stream)
 
 
         tdLog.info(f"create total:{len(self.streams)} streams")

@@ -12100,7 +12100,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     return TSDB_CODE_SUCCESS;
   }
 
-  pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
+  pAlterReq->pFields = taosArrayInit(2, sizeof(SField));
   if (NULL == pAlterReq->pFields) {
     return terrno;
   }
@@ -12118,7 +12118,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES: {
-      TAOS_FIELD field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
+      SField field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
       tstrncpy(field.name, pStmt->colName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &field)) {
         return terrno;
@@ -12127,12 +12127,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
     }
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
-      TAOS_FIELD oldField = {0};
+      SField oldField = {0};
       tstrncpy(oldField.name, pStmt->colName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &oldField)) {
         return terrno;
       }
-      TAOS_FIELD newField = {0};
+      SField newField = {0};
       tstrncpy(newField.name, pStmt->newColName, 65);
       if (NULL == taosArrayPush(pAlterReq->pFields, &newField)) {
         return terrno;
@@ -12140,7 +12140,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
-      TAOS_FIELD field = {0};
+      SField field = {0};
       tstrncpy(field.name, pStmt->colName, 65);
       if (!checkColumnEncode(pStmt->pColOptions->encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
       if (!checkColumnCompress(pStmt->pColOptions->compress)) return TSDB_CODE_TSC_COMPRESS_PARAM_ERROR;
@@ -20547,12 +20547,15 @@ _err:
 }
 
 static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRefTableName, char* pRefColName,
-                           SDataType type) {
+                           SDataType type, int8_t precision) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
+  if (pRefTableMeta->tableInfo.precision != precision) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE, "timestamp precision of virtual table and its reference table do not match"));
+  }
   // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN, "virtual table's column reference can not from table with composite key"));
@@ -20613,7 +20616,8 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
     // check ref column exists and check type
     PAR_ERR_RET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
-                            (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)}));
+                            (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)},
+                            pTableMeta->tableInfo.precision));
 
     pReq->type = pStmt->dataType.type;
     pReq->bytes = calcTypeBytes(pStmt->dataType);
@@ -20824,7 +20828,8 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   PAR_ERR_JRET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
-                           (SDataType){.type = pSchema->type, .bytes = pSchema->bytes}));
+                           (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
+                           pTableMeta->tableInfo.precision));
 
   pReq->colName = taosStrdup(pStmt->colName);
   pReq->refDbName = taosStrdup(pStmt->refDbName);
@@ -21112,6 +21117,8 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   SArray*            pBufArray = NULL;
   SNode*             pNode = NULL;
   int32_t            index = 0;
+  SDbCfgInfo         dbCfg = {0};
+  int8_t             precision = 0;
 
   PAR_ERR_JRET(checkCreateVirtualTable(pCxt, pStmt));
 
@@ -21121,6 +21128,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   }
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+
 
   FOREACH(pNode, pStmt->pCols) {
     SColumnDefNode* pColNode = (SColumnDefNode*)pNode;
@@ -21134,7 +21142,8 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       }
       PAR_ERR_JRET(
           checkColRef(pCxt, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
-                      (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)}));
+                      (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)},
+                      dbCfg.precision));
     }
     index++;
   }
@@ -21189,7 +21198,8 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
         PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
       PAR_ERR_JRET(checkColRef(pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-                               (SDataType){.type = pSchema->type, .bytes = pSchema->bytes}));
+                               (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
+                               pSuperTableMeta->tableInfo.precision));
     }
   } else if (pStmt->pColRefs) {
     int32_t index = 1;
@@ -21197,7 +21207,8 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(checkColRef(
           pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-          (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes}));
+          (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes},
+          pSuperTableMeta->tableInfo.precision));
       index++;
     }
   } else {
