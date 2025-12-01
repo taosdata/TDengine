@@ -3,26 +3,18 @@ title: Data Preprocessing
 sidebar_label: Data Preprocessing
 ---
 
-import Image from '@theme/IdealImage';
-import preprocFlow from '../../assets/tdgpt-02.png';
-import wnData from '../../assets/tdgpt-03.png'
-
 ### Analysis Workflow
 
 Data must be preprocessed before it can be analyzed by TDgpt. This process is described in the following figure:
 
-<figure>
-<Image img={preprocFlow} alt="Preprocessing workflow" />
-</figure>
+![](../../assets/tdgpt-02.png)
 
 TDgpt first performs a white noise data check on the dataset that you input. Data that passes this check and is intended for use in forecasting is then resampled and its timestamps are aligned. Note that resampling and alignment are not performed for datasets used in anomaly detection.
 After the data has been preprocessed, forecasting or anomaly detection is performed. Preprocessing is not part of the business logic for forecasting and anomaly detection.
 
 ### White Noise Data Check
 
-<figure>
-<Image img={wnData} alt="White noise data"/>
-</figure>
+![](../../assets/tdgpt-03.png)
 
 The white noise data check determines whether the input data consists of random numbers. The figure above shows an example of a regular distribution of random numbers. Random numbers cannot be analyzed meaningfully, and this data is rejected by the system. The white noise data check is performed using the classic Ljung-Box test. The test is performed over an entire time series. If you are certain that your data is not random, you can specify the `wncheck=0` parameter to force TDgpt to skip this check.
 TDgpt does not provide white noise checking as an independent feature. It is performed only as part of data preprocessing.

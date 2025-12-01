@@ -3,9 +3,6 @@ title: Data Backup and Restoration
 slug: /operations-and-maintenance/data-backup-and-restoration
 ---
 
-import Image from '@theme/IdealImage';
-import imgBackup from '../assets/data-backup-01.png';
-
 You can back up the data in your TDengine cluster and restore it in the event that data is lost or damaged.
 
 ## Data Backup and Restoration Using taosdump
@@ -47,10 +44,7 @@ TDengine Enterprise implements incremental backup and recovery of data by using 
 
 ### Incremental Backup Example
 
-<figure>
-<Image img={imgBackup} alt="Incremental backup process"/>
-<figcaption>Figure 1. Incremental backup process</figcaption>
-</figure>
+![](../assets/data-backup-01.png)
 
 1. The user creates a backup plan to execute the backup task every 1 day starting from 2024-08-27 00:00:00 .
 2. The first backup task was executed at 2024-08-27 00:00:00, generating an initial backup point .

@@ -3,16 +3,6 @@ title: MySQL
 slug: /advanced-features/data-connectors/mysql
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/mysql-01.png';
-import imgStep02 from '../../assets/mysql-02.png';
-import imgStep03 from '../../assets/mysql-03.png';
-import imgStep04 from '../../assets/mysql-04.png';
-import imgStep05 from '../../assets/mysql-05.png';
-import imgStep06 from '../../assets/mysql-06.png';
-import imgStep07 from '../../assets/mysql-07.png';
-import imgStep08 from '../../assets/mysql-08.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -31,9 +21,7 @@ MySQL is one of the most popular relational databases. Many systems have used or
 
 Click the **+ Add Data Source** button in the top left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/mysql-01.png)
 
 ### 2. Configure Basic Information
 
@@ -45,17 +33,13 @@ Select *`MySQL`* from the **Type** dropdown menu, as shown below (the fields on 
 
 **Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/mysql-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source MySQL database`* in the **Connection Configuration** area, as shown below:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/mysql-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -63,9 +47,7 @@ Fill in the *`connection information for the source MySQL database`* in the **Co
 
 **Password** Enter the login password for the user mentioned above in the source MySQL database.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](../../assets/mysql-04.png)
 
 ### 5. Configure Connection Options
 
@@ -74,9 +56,7 @@ Options include utf8, utf8mb4, utf16, utf32, gbk, big5, latin1, ascii.
 
 **SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of negotiation. The default value is PREFERRED. Options include DISABLED, PREFERRED, REQUIRED.
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![](../../assets/mysql-05.png)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source MySQL database.
 
@@ -106,9 +86,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/mysql-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -124,9 +102,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/mysql-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -136,9 +112,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![](../../assets/mysql-08.png)
 
 ### 9. Completion
 

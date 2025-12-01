@@ -3,16 +3,6 @@ title: PostgreSQL
 slug: /advanced-features/data-connectors/postgresql
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/postgresql-01.png';
-import imgStep02 from '../../assets/postgresql-02.png';
-import imgStep03 from '../../assets/postgresql-03.png';
-import imgStep04 from '../../assets/postgresql-04.png';
-import imgStep05 from '../../assets/postgresql-05.png';
-import imgStep06 from '../../assets/postgresql-06.png';
-import imgStep07 from '../../assets/postgresql-07.png';
-import imgStep08 from '../../assets/postgresql-08.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -31,9 +21,7 @@ TDengine can efficiently read data from PostgreSQL and write it to TDengine, ena
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/postgresql-01.png)
 
 ### 2. Configure Basic Information
 
@@ -45,17 +33,13 @@ Select *`PostgreSQL`* from the **Type** dropdown menu, as shown below (the field
 
 **Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/postgresql-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source PostgreSQL database`* in the **Connection Configuration** area, as shown below:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/postgresql-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -63,9 +47,7 @@ Fill in the *`connection information for the source PostgreSQL database`* in the
 
 **Password** Enter the login password for the user mentioned above in the source PostgreSQL database.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](../../assets/postgresql-04.png)
 
 ### 5. Configure Connection Options
 
@@ -73,9 +55,7 @@ Fill in the *`connection information for the source PostgreSQL database`* in the
 
 **SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of such negotiation. The default value is PREFER. Options include DISABLE, ALLOW, PREFER, REQUIRE.
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![](../../assets/postgresql-05.png)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source PostgreSQL database.
 
@@ -105,9 +85,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/postgresql-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -123,9 +101,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/postgresql-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -135,9 +111,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![](../../assets/postgresql-08.png)
 
 ### 9. Completion
 

@@ -3,24 +3,11 @@ title: Monitoring Your Cluster
 slug: /operations-and-maintenance/monitor-your-cluster
 ---
 
-import Image from '@theme/IdealImage';
-import imgMonitor1 from '../assets/monitor-your-cluster-01.png';
-import imgMonitor2 from '../assets/monitor-your-cluster-02.png';
-import imgMonitor3 from '../assets/monitor-your-cluster-03.png';
-import imgMonitor4 from '../assets/monitor-your-cluster-04.png';
-import imgMonitor5 from '../assets/monitor-your-cluster-05.png';
-import imgMonitor6 from '../assets/monitor-your-cluster-06.png';
-import imgMonitor7 from '../assets/monitor-your-cluster-07.png';
-import imgMonitor8 from '../assets/monitor-your-cluster-08.png';
-
 To ensure stable operation of the cluster, TDengine integrates various monitoring metrics collection mechanisms and summarizes them through taosKeeper. taosKeeper is responsible for receiving these data and writing them into a separate TDengine instance, which can remain independent of the monitored TDengine cluster. The two core components of TDengine, taosd (database engine) and taosX (data access platform), both implement runtime monitoring through the same monitoring architecture, but their monitoring metrics are designed differently.
 
 As for how to obtain and use these monitoring data, users can use third-party monitoring tools such as Zabbix to retrieve the saved system monitoring data, thereby seamlessly integrating the operation status of TDengine into the existing IT monitoring system. Alternatively, users can use the TDinsight plugin provided by TDengine, which allows users to visually display and manage these monitoring information through the Grafana platform, as shown in the figure below. This provides users with flexible monitoring options to meet operational needs in different scenarios.
 
-<figure>
-<Image img={imgMonitor1} alt="Managing monitoring information"/>
-<figcaption>Figure 1. Managing monitoring information</figcaption>
-</figure>
+![](../assets/monitor-your-cluster-01.png)
 
 ## Configuring taosKeeper
 
@@ -63,10 +50,7 @@ On the "Home" -> "Dashboards" page of Grafana, click the "New" -> "import" butto
 
 After filling in the above Dashboard ID or Dashboard URL, click the "Load" button and follow the guide to complete the import. After the import is successful, the "TDinsight for 3.x" dashboard will appear on the Dashboards list page. Click to enter, and you will see the panels of various metrics created in TDinsight, as shown in the figure below:
 
-<figure>
-<Image img={imgMonitor2} alt="TDinsight interface"/>
-<figcaption>Figure 2. TDinsight interface</figcaption>
-</figure>
+![](../assets/monitor-your-cluster-02.png)
 
 **Note** In the "Log from" dropdown list in the upper left corner of the TDinsight interface, you can select the `log` database.
 
@@ -125,9 +109,7 @@ Each configuration also has corresponding command line options and environment v
 1. In the Grafana interface menu, click "Data sources", then select the TDengine data source that has been configured.
 2. In the data source configuration interface, select the "Dashboard" tab, and then import the "TDinsight for taosX" dashboard (you need to import it the first time you use it). Below is an example image:
 
-   <figure>
-   <Image img={imgMonitor3} alt=""/>
-   </figure>
+   ![](../assets/monitor-your-cluster-03.png)
 
    Each row on the dashboard represents one or a category of monitoring objects. The top row is for monitoring taosX, followed by the Agent monitoring row, and finally the monitoring of various data writing tasks.
    :::note
@@ -139,21 +121,15 @@ Each configuration also has corresponding command line options and environment v
 
 1. taosX monitoring example image
 
-   <figure>
-   <Image img={imgMonitor4} alt=""/>
-   </figure>
+   ![](../assets/monitor-your-cluster-04.png)
 
 2. Agent monitoring example image
 
-   <figure>
-   <Image img={imgMonitor5} alt=""/>
-   </figure>
+   ![](../assets/monitor-your-cluster-05.png)
 
 3. TDengine2 data source monitoring example image
 
-   <figure>
-   <Image img={imgMonitor6} alt=""/>
-   </figure>
+   ![](../assets/monitor-your-cluster-06.png)
 
    :::info
    The monitoring panel only displays some monitoring indicators for data writing tasks. There are more comprehensive monitoring indicators on the Explorer page, with detailed explanations for each indicator.
@@ -162,15 +138,11 @@ Each configuration also has corresponding command line options and environment v
 
 4. TDengine3 data source monitoring example image
 
-   <figure>
-   <Image img={imgMonitor7} alt=""/>
-   </figure>
+   ![](../assets/monitor-your-cluster-07.png)
 
 5. Other data source monitoring example image
 
-   <figure>
-   <Image img={imgMonitor8} alt=""/>
-   </figure>
+   ![](../assets/monitor-your-cluster-08.png)
 
 #### Limitations
 

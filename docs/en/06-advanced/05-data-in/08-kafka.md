@@ -4,26 +4,6 @@ sidebar_label: Kafka
 slug: /advanced-features/data-connectors/kafka
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/kafka-01.png';
-import imgStep02 from '../../assets/kafka-02.png';
-import imgStep03 from '../../assets/kafka-03.png';
-import imgStep04 from '../../assets/kafka-04.png';
-import imgStep05 from '../../assets/kafka-05.png';
-import imgStep06 from '../../assets/kafka-06.png';
-import imgStep07 from '../../assets/kafka-07.png';
-import imgStep08 from '../../assets/kafka-08.png';
-import imgStep09 from '../../assets/kafka-09.png';
-import imgStep10 from '../../assets/kafka-10.png';
-import imgStep11 from '../../assets/kafka-11.png';
-import imgStep12 from '../../assets/kafka-12.png';
-import imgStep13 from '../../assets/kafka-13.png';
-import imgStep14 from '../../assets/kafka-14.png';
-import imgStep15 from '../../assets/kafka-15.png';
-import imgStep16 from '../../assets/kafka-16.png';
-import imgStep17 from '../../assets/kafka-17.png';
-import imgStep18 from '../../assets/kafka-18.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -42,9 +22,7 @@ TDengine can efficiently read data from Kafka and write it into TDengine, enabli
 
 On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/kafka-01.png)
 
 ### 2. Configure Basic Information
 
@@ -56,9 +34,7 @@ Select **Kafka** from the **Type** dropdown list.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/kafka-02.png)
 
 ### 3. Configure Connection Information
 
@@ -68,9 +44,7 @@ Select a target database from the **Target Database** dropdown list, or click th
 
 When there are multiple broker addresses, add a **+Add Broker** button at the bottom right of the connection settings to add bootstrap-server and service port pairs.
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/kafka-03.png)
 
 ### 4. Configure SASL Authentication Mechanism
 
@@ -80,25 +54,19 @@ If the server has enabled SASL authentication, you need to enable SASL here and 
 
 Select the `PLAIN` authentication mechanism and enter the username and password:
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](../../assets/kafka-04.png)
 
 #### 4.2. SCRAM (SCRAM-SHA-256) Authentication
 
 Select the `SCRAM-SHA-256` authentication mechanism and enter the username and password:
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![](../../assets/kafka-05.png)
 
 #### 4.3. GSSAPI Authentication
 
 Select `GSSAPI`, which will use the [RDkafka client](https://github.com/confluentinc/librdkafka) to invoke the GSSAPI applying Kerberos authentication mechanism:
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/kafka-06.png)
 
 The required information includes:
 
@@ -130,9 +98,7 @@ If an error occurs: "Server xxxx not found in kerberos database", you need to co
 
 If the server has enabled SSL encryption authentication, SSL needs to be enabled here and related content configured.
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/kafka-07.png)
 
 ### 6. Configure Collection Information
 
@@ -155,9 +121,7 @@ Set the maximum duration to wait for insufficient data when fetching messages in
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![](../../assets/kafka-08.png)
 
 ### 7. Configure Payload Parsing
 
@@ -188,15 +152,11 @@ or
 
 The parsing results are shown as follows:
 
-<figure>
-<Image img={imgStep09} alt=""/>
-</figure>
+![](../../assets/kafka-09.png)
 
 Click the **magnifying glass icon** to view the preview parsing results.
 
-<figure>
-<Image img={imgStep10} alt=""/>
-</figure>
+![](../../assets/kafka-10.png)
 
 #### 7.2 Field Splitting
 
@@ -206,15 +166,11 @@ Click **Add** to add more extraction rules.
 
 Click **Delete** to delete the current extraction rule.
 
-<figure>
-<Image img={imgStep11} alt=""/>
-</figure>
+![](../../assets/kafka-11.png)
 
 Click the **magnifying glass icon** to view the preview extraction/splitting results.
 
-<figure>
-<Image img={imgStep12} alt=""/>
-</figure>
+![](../../assets/kafka-12.png)
 
 #### 7.3 Data Filtering
 
@@ -224,15 +180,11 @@ Click **Add** to add more filtering rules.
 
 Click **Delete** to delete the current filtering rule.
 
-<figure>
-<Image img={imgStep13} alt=""/>
-</figure>
+![](../../assets/kafka-13.png)
 
 Click the **magnifying glass icon** to view the preview filtering results.
 
-<figure>
-<Image img={imgStep14} alt=""/>
-</figure>
+![](../../assets/kafka-14.png)
 
 #### 7.4 Table Mapping
 
@@ -240,27 +192,19 @@ In the **Target Supertable** dropdown, select a target supertable, or click the 
 
 In the **Mapping** section, fill in the name of the subtable in the target supertable, for example: `t_{id}`. Fill in the mapping rules as required, where mapping supports setting default values.
 
-<figure>
-<Image img={imgStep15} alt=""/>
-</figure>
+![](../../assets/kafka-15.png)
 
 Click **Preview** to view the results of the mapping.
 
-<figure>
-<Image img={imgStep16} alt=""/>
-</figure>
+![](../../assets/kafka-16.png)
 
 ### 8. Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
-<figure>
-<Image img={imgStep17} alt=""/>
-</figure>
+![](../../assets/kafka-17.png)
 
-<figure>
-<Image img={imgStep18} alt=""/>
-</figure>
+![](../../assets/kafka-18.png)
 
 ### 9. Completion of Creation
 

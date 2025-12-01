@@ -3,9 +3,6 @@ title: Active-Active Deployment
 slug: /operations-and-maintenance/active-active-deployment
 ---
 
-import Image from '@theme/IdealImage';
-import imgDual from '../assets/active-standby-deployment-01.png';
-
 import Enterprise from '../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -18,10 +15,7 @@ In the event that the primary node cannot provide service, the client driver fai
 
 Replicated data is specially marked to avoid infinite loops. The architecture of an active-active deployment is described in the following figure.
 
-<figure>
-<Image img={imgDual} alt=""/>
-<figcaption>Figure 1. TDengine in active-active mode</figcaption>
-</figure>
+![](../assets/active-standby-deployment-01.png)
 
 ## Limitations
 

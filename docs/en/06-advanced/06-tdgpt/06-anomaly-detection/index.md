@@ -3,10 +3,6 @@ title: Anomaly Detection
 description: Anomaly Detection
 ---
 
-import Image from '@theme/IdealImage';
-import anomDetect from '../../../assets/tdgpt-05.png';
-import adResult from '../../../assets/tdgpt-06.png';
-
 This service is provided via an anomaly window that has been introduced into TDengine. An anomaly window is a special type of event window, defined by the anomaly detection algorithm as a time window during which an anomaly is occurring. This window differs from an event window in that the algorithm determines when it opens and closes instead of expressions input by the user. You can use the `ANOMALY_WINDOW` keyword in a `WHERE` clause to invoke the anomaly detection service. The window pseudocolumns `_WSTART`, `_WEND`, and `_WDURATION` record the start, end, and duration of the window. For example:
 
 ```SQL
@@ -18,9 +14,7 @@ ANOMALY_WINDOW(col_val, "algo=iqr");
 
 As shown in the following figure, the anode returns the anomaly window `[10:51:30, 10:53:40]`.
 
-<figure>
-<Image img={anomDetect} alt="Anomaly detection" />
-</figure>
+![](../../../assets/tdgpt-05.png)
 
 You can then query, aggregate, or perform other operations on the data in the window.
 
@@ -111,6 +105,4 @@ After the comparison program finishes running, it automatically generates a file
 
 If `gen_figure` is set to true, the tool automatically generates a visual representation of the analysis results for each algorithm being compared. The k-sigma algorithm is shown here as an example.
 
-<figure>
-<Image img={adResult} alt="Anomaly detection results"/>
-</figure>
+![](../../../assets/tdgpt-06.png)

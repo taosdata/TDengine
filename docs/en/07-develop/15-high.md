@@ -5,8 +5,6 @@ slug: /developer-guide/ingesting-data-efficiently
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Image from '@theme/IdealImage';
-import imgThread from '../assets/ingesting-data-efficiently-01.png';
 
 To help users easily build data ingestion pipelines with million-level throughput, the TDengine connector provides a high-performance write feature. When this feature is enabled, the TDengine connector automatically creates write threads and dedicated queues, caches data sharded by sub-tables, and sends data in batches when the data volume threshold is reached or a timeout condition occurs. This approach reduces network requests and increases throughput, allowing users to achieve high-performance writes without needing to master multithreaded programming knowledge or data sharding techniques.
 
@@ -384,10 +382,8 @@ For other parameters, refer to [Server Configuration](../../tdengine-reference/c
 From the factors affecting write performance discussed above, developing high-performance data writing programs requires knowledge of multithreaded programming and data sharding, posing a technical threshold. To reduce user development costs, the TDengine connector provides the **efficient writing feature**, allowing users to leverage TDengine's powerful writing capabilities without dealing with underlying thread management and data sharding logic.  
 
 Below is a schematic diagram of the connector's efficient writing feature implementation:  
-<figure>
-<Image img={imgThread} alt="Thread model for efficient writing example"/>
-<figcaption>Figure 1. Thread model for efficient writing example</figcaption>
-</figure>
+
+![](../assets/ingesting-data-efficiently-01.png)
 
 ### Design Principles  
 

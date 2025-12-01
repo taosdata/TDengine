@@ -4,9 +4,6 @@ title: Security Suggestions
 toc_max_heading_level: 4
 ---
 
-import Image from '@theme/IdealImage';
-import imgEcosys from '../assets/tdengine-components-01.png';
-
 ## Background
 
 The distributed and multi-component nature of TDengine makes its security configuration a concern in production systems. This document aims to explain the security issues of various TDengine components and different deployment methods, and provide deployment and configuration suggestions to support the security of user data.
@@ -30,10 +27,7 @@ In addition to TDengine deployment and applications, there are also the followin
 
 The relationship between the components is as follows:
 
-<figure>
-<Image img={imgEcosys} alt="TDengine ecosystem"/>
-<figcaption>TDengine ecosystem</figcaption>
-</figure>
+![](../assets/tdengine-components-01.png)
 
 ## TDengine Security Settings
 

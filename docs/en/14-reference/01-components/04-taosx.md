@@ -4,9 +4,6 @@ sidebar_label: taosX
 slug: /tdengine-reference/components/taosx
 ---
 
-import Image from '@theme/IdealImage';
-import imgTdx from '../../assets/taosx-01.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
