@@ -1009,7 +1009,7 @@ static int32_t tsdbAsyncMigrateFileSetImpl(STsdb *tsdb,  const SSsMigrateFileSet
     return TSDB_CODE_FAILED;
   }
 
-  STFileSet *fset, *fset1;
+  STFileSet *fset = NULL, *fset1;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset1) {
     if (fset1->fid == pReq->fid) {
       fset = fset1;

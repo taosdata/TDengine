@@ -1,0 +1,22 @@
+pandas==1.5.0
+scikit-learn==1.5.2
+outlier-utils==0.0.5
+statsmodels==0.14.4
+pyculiarity==0.0.7
+Cython==3.0.11
+pmdarima==2.0.4
+Flask==3.0.3
+matplotlib==3.9.2
+uWSGI==2.0.27
+keras==3.9.0
+taospy==2.8.6
+transformers==4.40.0
+accelerate==0.34.2
+cmdstanpy==1.2.0
+fastdtw==0.3.4
+prophet==1.1.7
+numpy==1.26.4
+xlsxwriter==3.2.1
+--find-links https://download.pytorch.org/whl/torch/
+torch==2.3.1+cpu
+tensorflow-cpu==2.18.0

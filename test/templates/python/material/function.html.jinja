@@ -125,11 +125,10 @@
                   {% endwith %}
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Summary:</strong> {{ summary|safe }}
+                    <strong>{{ summary|safe }}</strong> 
                   </div>
                   {% if details %}
                     <div class="doc doc-docstring doc-description">
-                      <strong>Description:</strong>
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                         {% for line in details %}
                           {% set indent = (line|length - line.lstrip()|length) %}
@@ -139,7 +138,7 @@
                     </div>
                   {% endif %}
                   <div class="doc doc-docstring doc-function.path">
-                    <strong>Path:</strong>
+                    {{ "path:" }}
                     <a href="https://github.com/taosdata/TDengine/blob/{{ config.github_branch }}/test/{{ function.relative_filepath }}" target="_blank">
                       {{ function.relative_filepath|safe }}
                     </a>

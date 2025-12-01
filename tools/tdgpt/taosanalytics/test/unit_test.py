@@ -5,13 +5,13 @@ import os.path
 import unittest
 import sys
 
-import numpy as np
-from matplotlib import pyplot as plt
+from taosanalytics.algo.imputation import check_freq_param
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.servicemgmt import loader
-from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary
+from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
+    parse_time_delta_string
 
 
 class UtilTest(unittest.TestCase):
@@ -131,6 +131,28 @@ class UtilTest(unittest.TestCase):
         #
         print("download moirai-moe-1.0-small success")
 
+    def test_parse_freq(self):
+        val, unit = parse_time_delta_string('12s')
+        self.assertEqual(val, 12)
+        self.assertEqual(unit, 's')
+
+        val, unit = parse_time_delta_string('m')
+        self.assertEqual(val, 1)
+        self.assertEqual(unit, 'm')
+
+    def test_list_delta(self):
+        with self.assertRaises(ValueError):
+            check_freq_param([100, 200, 300, 400, 500, 600], '1s', 'ms')
+
+        with self.assertRaises(ValueError):
+            check_freq_param([123, 456, 789], '1m', 'ms')
+
+        check_freq_param([100, 200, 300, 400, 500, 600], '20s', 's')
+        check_freq_param([20, 30, 40, 50, 60, 90], '10s', 's')
+        check_freq_param([1, 2, 3, 4, 5, 6],'10s', 'm')
+        check_freq_param([123, 419, 533, 918], '20ms', 'ms')
+
+
 class ServiceTest(unittest.TestCase):
     def setUp(self):
         """ load all service before start unit test """
@@ -138,13 +160,15 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 3)
+        self.assertEqual(len(service_list["details"]), 4)
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 self.assertEqual(len(item["algo"]), 6)
             elif item["type"] == "forecast":
                 self.assertEqual(len(item["algo"]), 8)
+            elif item["type"] == 'correlation':
+                self.assertEqual(len(item['algo']), 2)
             else:
                 self.assertEqual(len(item["algo"]), 1)
 

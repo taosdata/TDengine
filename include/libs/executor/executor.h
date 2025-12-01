@@ -60,13 +60,16 @@ typedef struct {
   void*       pOtherBackend;
   int8_t      fillHistory;
   STimeWindow winRange;
+  STimeWindow extWinRange;
   bool        winRangeValid;
+  bool        extWinRangeValid;
 
   struct SStorageAPI api;
   void*              pWorkerCb;
   bool               localExec;
   int64_t            uid;
   void*              streamRtInfo;
+  bool               cacheSttStatis;
 } SReadHandle;
 
 typedef struct SStreamInserterParam {
@@ -115,7 +118,8 @@ typedef enum {
  * @return
  */
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, SStreamInserterParam* pInsertParams, int32_t vgId, int32_t taskId);
-int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range);
+int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle);
+bool    qNeedReset(qTaskInfo_t pInfo);
 
 /**
  * Create the exec task for queue mode
@@ -263,17 +267,14 @@ void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
                                          SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap);
-int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid);
-int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
-uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
-void     qStreamDestroyTableList(void* pTableListInfo);
-void     qStreamDupTableList(void* pTableListInfo);
-int32_t  qStreamGetTableListGroupNum(const void* pTableList);
-void     qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum);
-SArray*  qStreamGetTableArrayList(const void* pTableList);
-int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
-int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet);
 
+int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
+                                        SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
+                                        SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList);
+
+SArray*  qStreamGetTableListArray(void* pTableListInfo);
+void     qStreamDestroyTableList(void* pTableListInfo);
+int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet);
 int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 

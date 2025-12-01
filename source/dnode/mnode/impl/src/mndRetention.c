@@ -66,7 +66,7 @@ int32_t mndInitRetention(SMnode *pMnode) {
 
 void mndCleanupRetention(SMnode *pMnode) { mDebug("mnd retention cleanup"); }
 
-void tFreeRetentionObj(SRetentionObj *pObj) {}
+void tFreeRetentionObj(SRetentionObj *pObj) { tFreeCompactObj((SCompactObj *)pObj); }
 
 int32_t tSerializeSRetentionObj(void *buf, int32_t bufLen, const SRetentionObj *pObj) {
   return tSerializeSCompactObj(buf, bufLen, (const SCompactObj *)pObj);
@@ -84,7 +84,7 @@ SSdbRaw *mndRetentionActionEncode(SRetentionObj *pObj) {
   void    *buf = NULL;
   SSdbRaw *pRaw = NULL;
 
-  int32_t tlen = tSerializeSCompactObj(NULL, 0, pObj);
+  int32_t tlen = tSerializeSRetentionObj(NULL, 0, pObj);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto OVER;
@@ -103,7 +103,7 @@ SSdbRaw *mndRetentionActionEncode(SRetentionObj *pObj) {
     goto OVER;
   }
 
-  tlen = tSerializeSCompactObj(buf, tlen, pObj);
+  tlen = tSerializeSRetentionObj(buf, tlen, pObj);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto OVER;
@@ -167,7 +167,7 @@ SSdbRow *mndRetentionActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, OVER);
 
-  if ((terrno = tDeserializeSCompactObj(buf, tlen, pObj)) < 0) {
+  if ((terrno = tDeserializeSRetentionObj(buf, tlen, pObj)) < 0) {
     goto OVER;
   }
 
@@ -190,7 +190,7 @@ int32_t mndRetentionActionInsert(SSdb *pSdb, SRetentionObj *pObj) {
 
 int32_t mndRetentionActionDelete(SSdb *pSdb, SRetentionObj *pObj) {
   mTrace("retention:%" PRId32 ", perform delete action", pObj->id);
-  tFreeCompactObj(pObj);
+  tFreeRetentionObj(pObj);
   return 0;
 }
 
@@ -216,7 +216,7 @@ void mndReleaseRetention(SMnode *pMnode, SRetentionObj *pObj) {
   sdbRelease(pSdb, pObj);
 }
 
-int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t len) {
+static int32_t mndRetentionGetDbInfo(SMnode *pMnode, int32_t id, char *dbname, int32_t len, int64_t *dbUid) {
   int32_t        code = 0;
   SRetentionObj *pObj = mndAcquireRetention(pMnode, id);
   if (pObj == NULL) {
@@ -226,6 +226,7 @@ int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t 
   }
 
   tstrncpy(dbname, pObj->dbname, len);
+  if (dbUid) *dbUid = pObj->dbUid;
   mndReleaseRetention(pMnode, pObj);
   TAOS_RETURN(code);
 }
@@ -235,6 +236,7 @@ int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pO
   pObj->id = tGenIdPI32();
 
   tstrncpy(pObj->dbname, pDb->name, sizeof(pObj->dbname));
+  pObj->dbUid = pDb->uid;
 
   pObj->startTime = taosGetTimestampMs();
 
@@ -269,14 +271,11 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   int32_t        code = 0, lino = 0;
   char           tmpBuf[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
-  if (strlen(pShow->db) > 0) {
-    sep = strchr(pShow->db, '.');
-    if (sep &&
-        ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
-      sep++;
-    } else {
-      pDb = mndAcquireDb(pMnode, pShow->db);
-      if (pDb == NULL) return terrno;
+  if ((pShow->db[0] != 0) && (sep = strchr(pShow->db, '.')) && (*(++sep) != 0)) {
+    if (IS_SYS_DBNAME(sep)) {
+      goto _OVER;
+    } else if (!(pDb = mndAcquireDb(pMnode, pShow->db))) {
+      return terrno;
     }
   }
 
@@ -291,13 +290,17 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     COL_DATA_SET_VAL_GOTO((const char *)&pObj->id, false, pObj, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pDb != NULL || !IS_SYS_DBNAME(pObj->dbname)) {
-      SName name = {0};
-      TAOS_CHECK_GOTO(tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
-      (void)tNameGetDbName(&name, varDataVal(tmpBuf));
-    } else {
-      tstrncpy(varDataVal(tmpBuf), pObj->dbname, sizeof(tmpBuf) - VARSTR_HEADER_SIZE);
+    if (pDb != NULL && strcmp(pDb->name, pObj->dbname) != 0) {
+      sdbRelease(pSdb, pObj);
+      continue;
     }
+    SName name = {0};
+    if ((code = tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB)) != 0) {
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pShow->pIter);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
+    }
+    (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     COL_DATA_SET_VAL_GOTO((const char *)tmpBuf, false, pObj, pShow->pIter, _OVER);
 
@@ -326,9 +329,12 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   }
 
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve retention at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
@@ -344,7 +350,7 @@ static void *mndBuildKillRetentionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *
   req.dnodeId = dnodeId;
   terrno = 0;
 
-  mInfo("vgId:%d, build kill retention vnode config req", pVgroup->vgId);
+  mInfo("vgId:%d, build kill retention req", pVgroup->vgId);
   int32_t contLen = tSerializeSVKillCompactReq(NULL, 0, &req);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -362,7 +368,6 @@ static void *mndBuildKillRetentionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  mTrace("vgId:%d, build compact vnode config req, contLen:%d", pVgroup->vgId, contLen);
   int32_t ret = 0;
   if ((ret = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
     taosMemoryFreeClear(pReq);
@@ -494,7 +499,7 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   SRetentionObj *pObj = mndAcquireRetention(pMnode, req.id);
   if (pObj == NULL) {
-    code = TSDB_CODE_MND_INVALID_TRIM_ID;
+    code = TSDB_CODE_MND_INVALID_RETENTION_ID;
     tFreeSKillCompactReq(&req);
     TAOS_RETURN(code);
   }
@@ -674,10 +679,11 @@ static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  char dbname[TSDB_TABLE_FNAME_LEN] = {0};
-  TAOS_CHECK_RETURN(mndRetentionGetDbName(pMnode, id, dbname, TSDB_TABLE_FNAME_LEN));
+  char    dbname[TSDB_TABLE_FNAME_LEN] = {0};
+  int64_t dbUid = 0;
+  TAOS_CHECK_RETURN(mndRetentionGetDbInfo(pMnode, id, dbname, TSDB_TABLE_FNAME_LEN, &dbUid));
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     needSave = true;
     mWarn("retention:%" PRId32 ", no db exist, set needSave:%s", id, dbname);
   }
@@ -769,7 +775,7 @@ static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     allFinished = true;
     mWarn("retention:%" PRId32 ", no db exist, set all finished:%s", id, dbname);
   }

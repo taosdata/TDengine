@@ -29,6 +29,7 @@ bool mstEventHandledChkSet(int32_t event);
 typedef enum {
   STM_ERR_TASK_NOT_EXISTS = 1,
   STM_ERR_STREAM_STOPPED,
+  STM_ERR_PROCESSING_ERR,
 } EStmErrType;
 
 
@@ -96,7 +97,8 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_ACT_RECALC     (1 << 4)
 
 #define MND_STREAM_RESERVE_SIZE      64
-#define MND_STREAM_VER_NUMBER        7
+#define MND_STREAM_VER_NUMBER        8
+#define MND_STREAM_COMPATIBLE_VER_NUMBER 7
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
 #define MND_STREAM_DEFAULT_NUM       100
 #define MND_STREAM_DEFAULT_TASK_NUM  200
@@ -278,6 +280,7 @@ typedef struct SStmStatus {
   int64_t           fatalRetryTs;
   int64_t           fatalRetryTimes;
 
+  SRWLatch          resetLock;
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
   SArray*           trigOReaders;       // SArray<SStmTaskStatus>, virtable table only
   SList*            calcReaders;        // SList<SStmTaskStatus>

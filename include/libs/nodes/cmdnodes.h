@@ -22,6 +22,7 @@ extern "C" {
 
 #include "query.h"
 #include "querynodes.h"
+#include "tglobal.h"
 
 #define DESCRIBE_RESULT_COLS               4
 #define DESCRIBE_RESULT_COLS_COMPRESS      7
@@ -38,11 +39,15 @@ extern "C" {
 
 #define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
+// Use tsMaxSQLLength * 3 for buffer size to accommodate CREATE TABLE statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength * 3))
 
 #define SHOW_CREATE_VIEW_RESULT_COLS       2
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
+// Use tsMaxSQLLength + header for buffer size to accommodate CREATE VIEW statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
@@ -188,6 +193,7 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
   bool      metaOnly;
+  bool      force;
 } SCompactDatabaseStmt;
 
 typedef struct SRollupDatabaseStmt {
@@ -225,7 +231,16 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pStart;
   SNode*     pEnd;
   bool       metaOnly;
+  bool       force;
 } SCompactVgroupsStmt;
+
+typedef struct SRollupVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SRollupVgroupsStmt;
 
 typedef struct SScanVgroupsStmt {
   ENodeType  type;
@@ -522,8 +537,9 @@ typedef struct SShowCreateViewStmt {
 typedef struct SShowCreateRsmaStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-  char      rsmaName[TSDB_VIEW_NAME_LEN];
-  void*     pRsmaMeta;
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+  void*     pRsmaMeta;  // SRsmaInfoRsp;
+  void*     pTableCfg;  // STableCfg
 } SShowCreateRsmaStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -803,6 +819,17 @@ typedef struct SBalanceVgroupLeaderStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SBalanceVgroupLeaderStmt;
 
+typedef struct SSetVgroupKeepVersionStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int64_t   keepVersion;
+} SSetVgroupKeepVersionStmt;
+
+typedef struct STrimDbWalStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_FNAME_LEN];
+} STrimDbWalStmt;
+
 typedef struct SMergeVgroupStmt {
   ENodeType type;
   int32_t   vgId1;
@@ -854,11 +881,9 @@ typedef struct SDropTSMAStmt {
 typedef struct SCreateRsmaStmt {
   ENodeType  type;
   bool       ignoreExists;
-  uint8_t    precision;
   char       rsmaName[TSDB_TABLE_NAME_LEN];
   char       dbName[TSDB_DB_NAME_LEN];
   char       tableName[TSDB_TABLE_NAME_LEN];
-  SNodeList* pCols;
   SNodeList* pFuncs;
   SNodeList* pIntervals;
 } SCreateRsmaStmt;

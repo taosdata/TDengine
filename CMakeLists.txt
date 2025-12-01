@@ -45,6 +45,7 @@ add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
 
 add_subdirectory(contrib/TSZ)
+add_subdirectory(contrib/libmqtt)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)

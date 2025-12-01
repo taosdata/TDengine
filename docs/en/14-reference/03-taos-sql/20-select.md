@@ -55,7 +55,7 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -96,7 +96,7 @@ order_expr:
   - FILL: Types can be selected as NONE (unfilled), VALUE (filled with specified value), PREV (previous non NULL value), NEXT (next non NULL value), NEAR (nearest non NULL value before and after).
 - window_cause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../time-series-extensions/).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
-  - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. TRUE_FOR specifies the minimum duration of the window, with a positive time range and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as TRUE_FOR (1a).
+  - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the minimum duration of the window, with a positive time range and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as TRUE_FOR (1a).
   - INTERVAL: Time window, interval_val specifies the window size, sliding_val specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values, and precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as interval_val (2d) and SLIDING (1d).
   - FILL: types can be selected as NONE, VALUE, PREV, NEXT, NEAR.
   - EVENT_WINDOW: The event window uses start_trigger_dedition and end_trigger_dedition to specify start and end conditions, supports any expression, and can specify different columns. Such as ```start with voltage>220 end with voltage<=220```.
@@ -282,7 +282,7 @@ select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-0
 ```
 
 **\_IROWTS\_ORIGIN**
-The `_irowts_origin` pseudocolumn can only be used with the interp function, is not supported in stream computing, and is only applicable for FILL types PREV/NEXT/NEAR. It returns the timestamp column of the original data used by the interp function. If there are no values within the range, it returns NULL.
+The `_irowts_origin` pseudocolumn can only be used with the interp function, and is only applicable for FILL types PREV/NEXT/NEAR. It returns the timestamp column of the original data used by the interp function. If there are no values within the range, it returns NULL.
 
 ```sql
 select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
@@ -304,13 +304,13 @@ TDengine supports INNER JOIN based on the timestamp primary key, with the follow
 
 ## INTERP
 
-The INTERP clause is a dedicated syntax for the INTERP function (../function/#interp). When an SQL statement contains an INTERP clause, it can only query the INTERP function and cannot be used with other functions. Additionally, the INTERP clause cannot be used simultaneously with window clauses (window_clause) or group by clauses (group_by_clause). The INTERP function must be used with the RANGE, EVERY, and FILL clauses; stream computing does not support the use of RANGE but requires the use of the EVERY and FILL keywords.
+The INTERP clause is a dedicated syntax for the INTERP function (../function/#interp). When an SQL statement contains an INTERP clause, it can only query the INTERP function and cannot be used with other functions. Additionally, the INTERP clause cannot be used simultaneously with window clauses (window_clause) or group by clauses (group_by_clause). The INTERP function must be used with the RANGE, EVERY, and FILL clauses.
 
 - The output time range for INTERP is specified by the RANGE(timestamp1, timestamp2) field, which must satisfy timestamp1 \<= timestamp2. Here, timestamp1 is the start value of the output time range, i.e., if the conditions for interpolation are met at timestamp1, then timestamp1 is the first record output, and timestamp2 is the end value of the output time range, i.e., the timestamp of the last record output cannot be greater than timestamp2.
 - INTERP determines the number of results within the output time range based on the EVERY(time_unit) field, starting from timestamp1 and interpolating at fixed intervals of time (time_unit value), where time_unit can be time units: 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). For example, EVERY(500a) will interpolate the specified data every 500 milliseconds.
 - INTERP determines how to interpolate at each time point that meets the output conditions based on the FILL field. For how to use the FILL clause, refer to [FILL Clause](../time-series-extensions/)
 - INTERP can interpolate at a single time point specified in the RANGE field, in which case the EVERY field can be omitted. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
-- INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in stream computing and window queries. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR).(Supported from version 3.3.4.9).
+- INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in window queries. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR).(Supported from version 3.3.4.9).
 - INTERP `RANGE` clause supports the expansion of the time range (supported from version 3.3.4.9), such as `RANGE('2023-01-01 00:00:00', 10s)` means to find data 10s before and after the time point '2023-01-01 00:00:00' for interpolation, FILL PREV/NEXT/NEAR respectively means to look for data forward/backward/around the time point, if there is no data around the time point, then use the value specified by FILL for interpolation, therefore the FILL clause must specify a value at this time. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1). Currently, only the combination of time point and time range is supported, not the combination of time interval and time range, i.e., RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h) is not supported. The specified time range rules are similar to EVERY, the unit cannot be year or month, the value cannot be 0, and cannot have quotes. When using this extension, other FILL modes except FILL PREV/NEXT/NEAR are not supported, and the EVERY clause cannot be specified.
 
 ## GROUP BY
@@ -535,7 +535,11 @@ UNION [ALL] SELECT ...
 [UNION [ALL] SELECT ...]
 ```
 
-TDengine supports the UNION [ALL] operator. This means that if multiple SELECT clauses return result sets with the exact same structure (column names, column types, number of columns, order), these result sets can be combined together using UNION [ALL].
+In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+1. Each SELECT clause must return results with the same number of columns;
+2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
+
+After combination, the column names of the result set are determined by those defined in the first SELECT clause.
 
 ## SQL Examples
 

@@ -56,7 +56,7 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -97,7 +97,7 @@ order_expr:
   - FILL: 类型可选 NONE (不填充)、VALUE（指定值填充）、PREV（前一个非 NULL 值）、NEXT（后一个非 NULL）、NEAR（前后最近的非 NULL 值）。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
-  - STATE_WINDOW: 状态窗口，extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；TRUE_FOR 指定窗口最小持续时长，时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 TRUE_FOR(1a)。
+  - STATE_WINDOW: 状态窗口，extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；zeroth state 指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量；TRUE_FOR 指定窗口最小持续时长，时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 TRUE_FOR(1a)。
   - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 interval_val(2d)、SLIDING(1d)。
     FILL 类型可选 NONE、VALUE、PREV、NEXT、NEAR。
   - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。如 ```start with voltage > 220 end with voltage <= 220```。
@@ -282,7 +282,7 @@ select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-0
 ```
 
 **\_IROWTS\_ORIGIN**
-`_irowts_origin` 伪列只能与 interp 函数一起使用，不支持在流计算中使用，仅适用于 FILL 类型为 PREV/NEXT/NEAR, 用于返回 interp 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。
+`_irowts_origin` 伪列只能与 interp 函数一起使用，仅适用于 FILL 类型为 PREV/NEXT/NEAR, 用于返回 interp 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。
 
 ```sql
 select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
@@ -304,13 +304,13 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 
 ## INTERP
 
-interp 子句是 INTERP 函数 (../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用；流计算不支持使用 RANGE，但需要与 EVERY 和 FILL 关键字一起使用。
+interp 子句是 INTERP 函数 (../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
 
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished#fill-子句)
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
-- INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在流计算中和窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (v3.3.4.9 及以后支持)。
+- INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (v3.3.4.9 及以后支持)。
 - INTERP `RANGE`子句支持时间范围的扩展 (v3.3.4.9 及以后支持)，如`RANGE('2023-01-01 00:00:00', 10s)`表示在时间点 '2023-01-01 00:00:00' 查找前后 10s 的数据进行插值，FILL PREV/NEXT/NEAR 分别表示从时间点向前/向后/前后查找数据，若时间点周围没有数据，则使用 FILL 指定的值进行插值，因此此时 FILL 子句必须指定值。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1)`。目前仅支持时间点和时间范围的组合，不支持时间区间和时间范围的组合，即不支持 `RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h)`。所指定的时间范围规则与 EVERY 类似，单位不能是年或月，值不能为 0，不能带引号。使用该扩展时，不支持除 `FILL PREV/NEXT/NEAR` 外的其他 FILL 模式，且不能指定 EVERY 子句。
 
 ## GROUP BY
@@ -506,7 +506,7 @@ ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 
 从 2.2.0.0 版本开始，TDengine TSDB 的查询引擎开始支持在 FROM 子句中使用非关联子查询（“非关联”的意思是，子查询不会用到父查询中的参数）。也即在普通 SELECT 语句的 tb_name_list 位置，用一个独立的 SELECT 语句来代替（这一 SELECT 语句被包含在英文圆括号内），于是完整的嵌套查询 SQL 语句形如：
 
-```
+```sql
 SELECT ... FROM (SELECT ... FROM ...) ...;
 ```
 
@@ -533,36 +533,41 @@ UNION [ALL] SELECT ...
 [UNION [ALL] SELECT ...]
 ```
 
-TDengine TSDB 支持 UNION [ALL] 操作符。也就是说，如果多个 SELECT 子句返回结果集的结构完全相同（列名、列类型、列数、顺序），那么可以通过 UNION [ALL] 把这些结果集合并到一起。
+TDengine 支持 UNION [ALL] 操作符，用于合并多个 SELECT 子句的查询结果。使用该操作符时，多个 SELECT 子句需满足以下两个条件：
+
+1. 各 SELECT 子句返回结果的列数必须一致；
+2. 对应位置的列需保持相同的顺序，且数据类型必须相同或兼容。
+
+合并后，结果集的列名由第一个 SELECT 子句所定义的列名决定。
 
 ## SQL 示例
 
 对于下面的例子，表 tb1 用以下语句创建：
 
-```
+```sql
 CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
 ```
 
 查询 tb1 刚过去的一个小时的所有记录：
 
-```
+```sql
 SELECT * FROM tb1 WHERE ts >= NOW - 1h;
 ```
 
 查询表 tb1 从 2018-06-01 08:00:00.000 到 2018-06-02 08:00:00.000 时间范围，并且 col3 的字符串是'nny'结尾的记录，结果按照时间戳降序：
 
-```
+```sql
 SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
 ```
 
 查询 col1 与 col2 的和，并取名 complex，时间大于 2018-06-01 08:00:00.000，col2 大于 1.2，结果输出仅仅 10 条记录，从第 5 条开始：
 
-```
+```sql
 SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
 ```
 
 查询过去 10 分钟的记录，col2 的值大于 3.14，并且将结果输出到文件 `/home/testoutput.csv`：
 
-```
+```sql
 SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
 ```

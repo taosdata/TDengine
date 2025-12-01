@@ -18,6 +18,7 @@
 
 #include "function.h"
 #include "index.h"
+#include "osMemory.h"
 #include "taosdef.h"
 #include "tcommon.h"
 #include "tmsg.h"
@@ -136,12 +137,14 @@ typedef struct SMetaTableInfo {
   int64_t         suid;
   int64_t         uid;
   SSchemaWrapper* schema;
+  SExtSchema*     pExtSchemas;
   char            tbName[TSDB_TABLE_NAME_LEN];
 } SMetaTableInfo;
 
 static FORCE_INLINE void destroyMetaTableInfo(SMetaTableInfo* mtInfo){
   if (mtInfo == NULL) return;
   tDeleteSchemaWrapper(mtInfo->schema);
+  taosMemoryFreeClear(mtInfo->pExtSchemas);
 }
 
 typedef struct SSnapContext {
@@ -193,12 +196,14 @@ typedef struct TsdReader {
   int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
-  int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock, SArray* pIdList);
+  int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
 
   void         (*tsdReaderReleaseDataBlock)(void* pReader);
 
   int32_t      (*tsdReaderResetStatus)(void* p, SQueryTableDataCond* pCond);
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
+  void         (*tsdReaderGetDatablock)();
+  void         (*tsdReaderSetDatablock)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
 
@@ -211,8 +216,12 @@ typedef struct TsdReader {
   int32_t (*fileSetGetEntryField)(struct SFileSetReader *, const char *, void *);
   void (*fileSetReaderClose)(struct SFileSetReader **);
 
-  int32_t (*getProgress)(const void* pReader, void** pBuf, uint64_t* pLen);
-  int32_t (*setProgress)(void *pReader, const void *pBuf, uint64_t len);
+  // retrieve first/last ts for each table
+  int32_t  (*tsdCreateFirstLastTsIter)(void *pVnode, STimeWindow *pWindow, SVersionRange *pVerRange, uint64_t suid, void *pTableList,
+                                   int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
+  int32_t  (*tsdNextFirstLastTsBlock)(void *pIter, SSDataBlock *pRes, bool* hasNext);
+  void     (*tsdDestroyFirstLastTsIter)(void *pIter);
+
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -293,6 +302,12 @@ typedef struct SStoreMeta {
                                 bool* acquireRes);
   int32_t (*putCachedTableList)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                 int32_t payloadLen, double selectivityRatio);
+  int32_t (*getStableCachedTableList)(void* pVnode, tb_uid_t suid,
+    const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
+    const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes);
+  int32_t (*putStableCachedTableList)(void* pVnode, uint64_t suid,
+    const void* pTagCondKey, int32_t tagCondKeyLen,
+    const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
 
   int32_t (*metaGetCachedRefDbs)(void* pVnode, tb_uid_t suid, SArray* pList);
   int32_t (*metaPutRefDbsToCache)(void* pVnode, tb_uid_t suid, SArray* pList);

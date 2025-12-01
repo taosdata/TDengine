@@ -1281,6 +1281,45 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
   TAOS_RETURN(code);
 }
 
+int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans) {
+  int32_t        code = 0;
+  SSdb          *pSdb = pMnode->pSdb;
+  void          *pIter = NULL;
+  bool           conflict = false;
+  SRetentionObj *pRetention = NULL;
+
+  while ((pIter = sdbFetch(pSdb, SDB_RETENTION, pIter, (void **)&pRetention)) != NULL) {
+    conflict = false;
+
+    if (pTrans->conflict == TRN_CONFLICT_GLOBAL) {
+      conflict = true;
+    }
+    if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+      if (taosStrcasecmp(pTrans->dbname, pRetention->dbname) == 0) conflict = true;
+    }
+
+    if (conflict) {
+      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with retention:%d db:%s", pTrans->id,
+             pTrans->dbname, pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
+      sdbRelease(pSdb, pRetention);
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    } else {
+      mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with retention:%d db:%s", pTrans->id, pTrans->dbname,
+            pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
+    }
+    sdbRelease(pSdb, pRetention);
+  }
+
+  if (conflict) {
+    code = TSDB_CODE_MND_TRANS_CONFLICT_RETENTION;
+    mError("trans:%d, failed to check tran conflict with retention since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
 static bool mndTransActionsOfSameType(SArray *pActions) {
   int32_t size = taosArrayGetSize(pActions);
   ETrnAct lastActType = TRANS_ACTION_NULL;
@@ -2042,9 +2081,9 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
   }
 
   if (*actionPos >= numOfActions) {
-    mError("trans:%d, failed to execute action in serail group, actionPos:%d >= numOfActions:%d at group %d",
-           pTrans->id, *actionPos, numOfActions, groupId);
-    return TSDB_CODE_INTERNAL_ERROR;
+    mInfo("trans:%d, this serial group is finished, actionPos:%d >= numOfActions:%d at group %d", pTrans->id,
+          *actionPos, numOfActions, groupId);
+    return TSDB_CODE_MND_TRANS_GROUP_FINISHED;
   }
 
   for (int32_t action = *actionPos; action < numOfActions; ++action) {
@@ -2221,6 +2260,8 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
             tstrerror(code));
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, group:%d/%d(%d) is executed and still in progress", pTrans->id, currentGroup, groupCount, *key);
+    } else if (code == TSDB_CODE_MND_TRANS_GROUP_FINISHED) {
+      mInfo("trans:%d, group:%d/%d(%d) is finished", pTrans->id, currentGroup, groupCount, *key);
     } else if (code != 0) {
       mError("trans:%d, group:%d/%d(%d) failed to execute, code:%s", pTrans->id, currentGroup, groupCount, *key,
              tstrerror(code));

@@ -1,10 +1,10 @@
 ---
 sidebar_label: 用 Docker 快速体验
 title: 用 Docker 快速体验 TDengine
-description: 使用 Docker 快速体验 TDengine TSDB的高效写入和查询
+description: 使用 Docker 快速体验 TDengine TSDB 的高效写入和查询
 ---
 
-为了能够快速体验 TDengine TSDB 的完整功能，推荐您使用 TDengine TSDB-Enterprise. 本节首先介绍如何通过 Docker 快速启动 TDengine TSDB，然后介绍如何在 Docker 环境下体验 TDengine TSDB 的写入、查询、可视化管理、与 Grafana 集成和零代码数据写入等功能。如果您不熟悉 Docker，请使用[安装包的方式快速体验](../../get-started/package/)。如果您希望为 TDengine TSDB 贡献代码或对内部技术实现感兴趣，请参考 [TDengine TSDB GitHub 主页](https://github.com/taosdata/TDengine).
+为了能够快速体验 TDengine TSDB 的完整功能，推荐您使用 TDengine TSDB-Enterprise. 本节首先介绍如何通过 Docker 快速启动 TDengine TSDB-Enterprise，然后介绍如何在 Docker 环境下体验 TDengine TSDB-Enterprise 的写入、查询、可视化管理、与 Grafana 集成和零代码数据写入等功能。如果您不熟悉 Docker，请使用[安装包的方式快速体验](../../get-started/package/)。如果您希望为 TDengine TSDB 贡献代码或对内部技术实现感兴趣，请参考 [TDengine TSDB GitHub 主页](https://github.com/taosdata/TDengine).
 
 :::note
 从 3.3.7.0 版本开始，TDengine TSDB 的镜像名称调整如下：
@@ -33,6 +33,7 @@ docker run -d \
   -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6060:6060 \
   -p 6044-6049:6044-6049 \
   -p 6044-6045:6044-6045/udp \
+  -p 6050:6050 -p 6055:6055 \
   --name tdengine-tsdb \
   tdengine/tsdb-ee
 ```

@@ -77,7 +77,7 @@ FROM
 
 选择“WebHook”并填写“请求 URL”为 taosAdapter 提供 REST 服务的地址，如果是本地启动的 taosadapter，那么默认地址为：
 
-```
+```bash
 http://127.0.0.1:6041/rest/sql
 ```
 
@@ -89,7 +89,7 @@ http://127.0.0.1:6041/rest/sql
 
 编辑资源配置，增加 Authorization 认证的键/值配对项。默认用户名和密码对应的 Authorization 值为：
 
-```
+```bash
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
 
@@ -130,7 +130,7 @@ INSERT INTO test.sensor_data VALUES(
 
 ## 执行测试模拟发送 MQTT 数据
 
-```
+```bash
 npm install mqtt mockjs --save --registry=https://registry.npm.taobao.org
 node mock.js
 ```

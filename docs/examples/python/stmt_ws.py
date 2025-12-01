@@ -40,7 +40,7 @@ try:
         voltages = []
         phases = []
         for j in range (numOfRow):
-            timestamps.append(current + i)
+            timestamps.append(current + j)
             currents.append(random.random() * 30)
             voltages.append(random.randint(100, 300))
             phases.append(random.random())

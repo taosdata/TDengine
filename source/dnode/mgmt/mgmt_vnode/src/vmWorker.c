@@ -80,6 +80,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_VND_DISABLE_WRITE:
       code = vmProcessDisableVnodeWriteReq(pMgmt, pMsg);
       break;
+    case TDMT_VND_SET_KEEP_VERSION:
+      code = vmProcessSetKeepVersionReq(pMgmt, pMsg);
+      break;
     case TDMT_VND_ALTER_HASHRANGE:
       code = vmProcessAlterHashRangeReq(pMgmt, pMsg);
       break;

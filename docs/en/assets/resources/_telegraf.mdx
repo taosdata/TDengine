@@ -1,3 +1,18 @@
+#### Configuring taosAdapter
+
+Enable the configuration in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
+
+```toml
+# Automatically create the database when writing data with the schemaless feature if set to true.
+smlAutoCreateDB = true
+[influxdb]
+enable = true
+```
+
+The `smlAutoCreateDB` configuration item is used to enable the automatic database creation feature. When set to true, taosAdapter will automatically create the corresponding database upon receiving data if it does not already exist.
+
+#### Configuring Telegraf
+
 In the Telegraf configuration file (default location /etc/telegraf/telegraf.conf), add the configuration for the outputs.http output module:
 
 ```

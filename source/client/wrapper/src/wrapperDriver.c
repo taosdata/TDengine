@@ -14,6 +14,7 @@
  */
 
 #include "wrapper.h"
+#include "wrapperHint.h"
 
 #ifdef WINDOWS
 #define DRIVER_NATIVE_NAME    "taosnative.dll"
@@ -82,6 +83,7 @@ int32_t taosDriverInit(EDriverType driverType) {
 
   if (tsDriver == NULL) {
     printf("failed to load %s since %s [0x%X]\r\n", driverName, terrstr(), terrno);
+    showWrapperHint(terrno);
     return code;
   }
 
@@ -264,6 +266,7 @@ int32_t taosDriverInit(EDriverType driverType) {
 _OVER:
   if (code != 0) {
     printf("failed to load function %s from %s since %s [0x%X]\r\n", funcName, driverPath, terrstr(), terrno);
+    showWrapperHint(terrno);
     taosDriverCleanup();
   }
 

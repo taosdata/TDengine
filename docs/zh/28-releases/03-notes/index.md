@@ -5,8 +5,8 @@ description: 各版本版本说明
 ---
 
 ```mdx-code-block
-import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
+import SortedDocCardList from "/components/SortedDocCardList";
 
-<DocCardList items={useCurrentSidebarCategory().items}/>
+<SortedDocCardList />
 ```

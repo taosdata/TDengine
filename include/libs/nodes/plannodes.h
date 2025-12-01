@@ -91,7 +91,9 @@ typedef struct SScanLogicNode {
   EScanType          scanType;
   uint8_t            scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow        scanRange;
+  STimeWindow*       pExtScanRange;
   SNode*             pTimeRange;  // for create stream
+  SNode*             pExtTimeRange;  // for create stream
   SName              tableName;
   bool               showRewrite;
   double             ratio;
@@ -221,6 +223,7 @@ typedef struct SInterpFuncLogicNode {
   SLogicNode    node;
   SNodeList*    pFuncs;
   STimeWindow   timeRange;
+  SNode*        pTimeRange; // STimeRangeNode for create stream
   int64_t       interval;
   int8_t        intervalUnit;
   int8_t        precision;
@@ -234,7 +237,7 @@ typedef struct SInterpFuncLogicNode {
 typedef struct SForecastFuncLogicNode {
   SLogicNode node;
   SNodeList* pFuncs;
-} SForecastFuncLogicNode, SImputationFuncLogicNode;
+} SForecastFuncLogicNode, SGenericAnalysisLogicNode;
 
 typedef struct SGroupCacheLogicNode {
   SLogicNode node;
@@ -255,6 +258,7 @@ typedef struct SDynQueryCtrlStbJoin {
 typedef struct SDynQueryCtrlVtbScan {
   bool          scanAllCols;
   bool          isSuperTable;
+  bool          useTagScan;
   char          dbName[TSDB_DB_NAME_LEN];
   char          tbName[TSDB_TABLE_NAME_LEN];
   uint64_t      suid;
@@ -315,17 +319,6 @@ typedef struct SMergeLogicNode {
   bool       ignoreGroupId;
   bool       inputWithGroupId;
 } SMergeLogicNode;
-
-typedef enum EWindowType {
-  WINDOW_TYPE_INTERVAL = 1,
-  WINDOW_TYPE_SESSION,
-  WINDOW_TYPE_STATE,
-  WINDOW_TYPE_EVENT,
-  WINDOW_TYPE_COUNT,
-  WINDOW_TYPE_ANOMALY,
-  WINDOW_TYPE_EXTERNAL,
-  WINDOW_TYPE_PERIOD
-} EWindowType;
 
 typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,
@@ -529,7 +522,9 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t        scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow    scanRange;
+  STimeWindow*   pExtScanRange; 
   SNode*         pTimeRange;  // for create stream
+  SNode*         pExtTimeRange;  // for create stream
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
@@ -576,6 +571,7 @@ typedef struct SInterpFuncPhysiNode {
   SNodeList*        pExprs;
   SNodeList*        pFuncs;
   STimeWindow       timeRange;
+  SNode*            pTimeRange;  // for stream
   int64_t           interval;
   int8_t            intervalUnit;
   int8_t            precision;
@@ -590,7 +586,7 @@ typedef struct SForecastFuncPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;
   SNodeList* pFuncs;
-} SForecastFuncPhysiNode, SImputationFuncPhysiNode;
+} SForecastFuncPhysiNode, SGenericAnalysisPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;

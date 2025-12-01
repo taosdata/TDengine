@@ -2302,6 +2302,10 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
   if (pReq->virtualStb) {
     TABLE_SET_VIRTUAL(entry.flags);
   }
+  if(TABLE_IS_ROLLUP(pEntry->flags)) {
+    TABLE_SET_ROLLUP(entry.flags);
+    entry.stbEntry.rsmaParam = pEntry->stbEntry.rsmaParam;
+  }
 
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);
@@ -2362,7 +2366,7 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (NULL == pReq->name || pReq->name[0] == 0) {
-    metaError("vgId:%d, %s failed at %d since invalid rsma name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+    metaError("vgId:%d, failed at %d to create rsma since invalid rsma name, version:%" PRId64, TD_VID(pMeta->pVnode),
               __LINE__, version);
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
@@ -2370,35 +2374,28 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
   if (code) {
-    metaError("vgId:%d, %s failed at %d to create rsma %s since table %s not found, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, version);
+    metaError("vgId:%d, failed at %d to create rsma %s since table %s not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, version);
     TAOS_RETURN(TSDB_CODE_TDB_STB_NOT_EXIST);
   }
 
   if (pEntry->type != TSDB_SUPER_TABLE) {
-    metaError("vgId:%d, %s failed at %d to create rsma %s since table %s type %d is invalid, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pEntry->type, version);
+    metaError("vgId:%d, failed at %d to create rsma %s since table %s type %d is invalid, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, pEntry->type, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
 
   if (pEntry->uid != pReq->tbUid) {
-    metaError("vgId:%d, %s failed at %d %s since table %s uid %" PRId64 " is not equal to %" PRId64
+    metaError("vgId:%d, failed at %d to create rsma %s since table %s uid %" PRId64 " is not equal to %" PRId64
               ", version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pEntry->uid, pReq->tbUid, version);
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, pEntry->uid, pReq->tbUid, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
   if (TABLE_IS_ROLLUP(pEntry->flags)) {
-    if (pEntry->stbEntry.rsmaParam.uid == pReq->uid &&
-        strncmp(pEntry->stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN) == 0) {
-      metaInfo("vgId:%d, %s no need at %d since table %s is rollup table with same rsma name:%s and uid:%" PRIi64
-               ", version:%" PRId64,
-               TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->tbName, pReq->name, pReq->uid, version);
-      metaFetchEntryFree(&pEntry);
-      TAOS_RETURN(TSDB_CODE_RSMA_ALREADY_EXISTS);
-    }
+    // overwrite the old rsma definition if exists
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcColIds);
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcIds);
   } else {
@@ -2419,8 +2416,8 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);
   if (code) {
-    metaError("vgId:%d, %s failed at %d %s since %s, uid:%" PRId64 ", version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __LINE__, pReq->name, tstrerror(code), pReq->tbUid, version);
+    metaError("vgId:%d, failed at %d to create rsma %s since %s, uid:%" PRId64 ", version:%" PRId64,
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, tstrerror(code), pReq->tbUid, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(code);
   } else {
@@ -2513,6 +2510,64 @@ int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
       pMeta->pVnode->config.isRsma = 0;
     }
     metaInfo("vgId:%d, table %s uid %" PRId64 " is updated since rsma created %s:%" PRIi64 ", version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName, pReq->tbUid, pReq->name, pReq->uid, version);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+int metaAlterRsma(SMeta *pMeta, int64_t version, SVAlterRsmaReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->name || pReq->name[0] == 0) {
+    metaError("vgId:%d, failed at %d to alter rsma since invalid rsma name, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaError("vgId:%d, failed at %d to alter rsma %s since table %s not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, version);
+    TAOS_RETURN(TSDB_CODE_TDB_STB_NOT_EXIST);
+  }
+
+  if (pEntry->uid != pReq->tbUid) {
+    metaError("vgId:%d, failed at %d to alter rsma %s since table %s uid %" PRId64 " is not equal to %" PRId64
+              ", version:%" PRId64,
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, pEntry->uid, pReq->tbUid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  if (TABLE_IS_ROLLUP(pEntry->flags)) {
+    taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcColIds);
+    taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcIds);
+  } else {
+    metaError("vgId:%d, failed at %d to alter rsma %s since table %s is not rollup table, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_RSMA_NOT_EXIST);
+  }
+
+  SMetaEntry entry = *pEntry;
+  entry.version = version;
+  if (pReq->alterType == TSDB_ALTER_RSMA_FUNCTION) {
+    entry.stbEntry.rsmaParam.nFuncs = pReq->nFuncs;
+    entry.stbEntry.rsmaParam.funcColIds = pReq->funcColIds;
+    entry.stbEntry.rsmaParam.funcIds = pReq->funcIds;
+  }
+  // do handle the entry
+  code = metaHandleEntry2(pMeta, &entry);
+  if (code) {
+    metaError("vgId:%d, failed at %d to alter rsma %s since %s, uid:%" PRId64 ", version:%" PRId64,
+              TD_VID(pMeta->pVnode), __LINE__, pReq->name, tstrerror(code), pReq->tbUid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated since rsma altered %s:%" PRIi64 ", version:%" PRId64,
              TD_VID(pMeta->pVnode), pReq->tbName, pReq->tbUid, pReq->name, pReq->uid, version);
   }
 

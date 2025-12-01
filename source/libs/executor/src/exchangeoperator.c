@@ -26,7 +26,7 @@
 #include "trpc.h"
 
 typedef struct SFetchRspHandleWrapper {
-  uint32_t exchangeId;
+  int64_t  exchangeId;
   int32_t  sourceIndex;
   int64_t  seqId;
 } SFetchRspHandleWrapper;
@@ -1165,7 +1165,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
   SSDataBlock* pBlock = NULL;
   if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
-    code = blockDecode(pRes, pData, (const char**)pNextStart);
+    code = blockDecodeInternal(pRes, pData, (const char**)pNextStart);
     if (code) {
       return code;
     }
@@ -1195,7 +1195,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    code = blockDecode(pBlock, pStart, NULL);
+    code = blockDecodeInternal(pBlock, pStart, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataEnsureCapacity(pRes, pBlock->info.rows);
@@ -1515,6 +1515,12 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         return code;
       }
 
+      SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pOperator->pPhyNode;
+      code = nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, (SNode*)pNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
       void* tmp = taosArrayPush(pExchangeInfo->pSources, pNode);
       if (!tmp) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));

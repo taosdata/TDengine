@@ -152,6 +152,7 @@ ${csudo}rm -f ${bin_link_dir}/taos       || :
 ${csudo}rm -f ${bin_link_dir}/taosd      || :
 ${csudo}rm -f ${bin_link_dir}/taosudf    || :
 ${csudo}rm -f ${bin_link_dir}/taosmqtt  || :
+${csudo}rm -f ${bin_link_dir}/taosgen  || :
 ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
 ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
 ${csudo}rm -f ${bin_link_dir}/taosdemo   || :

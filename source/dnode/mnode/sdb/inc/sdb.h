@@ -177,7 +177,8 @@ typedef enum {
   SDB_RSMA = 35,
   SDB_RETENTION = 36,
   SDB_RETENTION_DETAIL = 37,
-  SDB_MAX = 38
+  SDB_INSTANCE = 38,
+  SDB_MAX = 39
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -306,7 +307,7 @@ int32_t sdbReadFile(SSdb *pSdb);
  */
 int32_t sdbWriteFile(SSdb *pSdb, int32_t delta);
 
-int32_t sdbWriteFileForDump(SSdb *pSdb);
+int32_t sdbWriteFileForDump(SSdb *pSdb, int32_t skip_type);
 /**
  * @brief Parse and write raw data to sdb, then free the pRaw object
  *

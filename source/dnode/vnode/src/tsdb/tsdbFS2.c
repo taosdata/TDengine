@@ -535,13 +535,6 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
     }
   }
 
-  if (corrupt) {
-    tsdbError("vgId:%d, not to clear dangling files due to fset incompleteness", TD_VID(fs->tsdb->pVnode));
-    fs->fsstate = TSDB_FS_STATE_INCOMPLETE;
-    code = 0;
-    goto _exit;
-  }
-
   {  // clear unreferenced files
     STfsDir *dir = NULL;
     TAOS_CHECK_GOTO(tfsOpendir(fs->tsdb->pVnode->pTfs, fs->tsdb->path, &dir), &lino, _exit);
@@ -565,6 +558,12 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   }
 
 _exit:
+  if (corrupt) {
+    tsdbError("vgId:%d, TSDB file system is corrupted", TD_VID(fs->tsdb->pVnode));
+    fs->fsstate = TSDB_FS_STATE_INCOMPLETE;
+    code = 0;
+  }
+
   if (code) {
     TSDB_ERROR_LOG(TD_VID(fs->tsdb->pVnode), lino, code);
   }
@@ -723,6 +722,7 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
       } else if (etype == TSDB_FEDIT_SSMIGRATE) {
         fset->lastMigrate = now;
       } else if (etype == TSDB_FEDIT_ROLLUP) {
+        fset->lastRollupLevel = fs->rollupLevel;
         fset->lastRollup = now;
         fset->lastCompact = now;  // rollup implies compact
       }
@@ -831,8 +831,8 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
-  tsdbStopAllRetentionTask(pTsdb);
 #endif
+  tsdbStopAllRetentionTask(pTsdb);
   return 0;
 }
 
@@ -927,9 +927,6 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
         fset->numWaitCommit++;
         (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
         fset->numWaitCommit--;
-      }
-      if (fset->numWaitCommit == 0) {
-        (void)taosThreadCondDestroy(&fset->canCommit);
       }
     });
   }
@@ -1343,6 +1340,13 @@ static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
   // get file set details
   pReader->fid = pReader->pFileSet->fid;
   tsdbFidKeyRange(pReader->fid, pTsdb->keepCfg.days, pTsdb->keepCfg.precision, &pReader->startTime, &pReader->endTime);
+  if (pTsdb->keepCfg.precision == TSDB_TIME_PRECISION_MICRO) {
+    pReader->startTime /= 1000;
+    pReader->endTime /= 1000;
+  } else if (pTsdb->keepCfg.precision == TSDB_TIME_PRECISION_NANO) {
+    pReader->startTime /= 1000000;
+    pReader->endTime /= 1000000;
+  }
   pReader->lastCompactTime = pReader->pFileSet->lastCompact;
   pReader->totalSize = 0;
   for (int32_t i = 0; i < TSDB_FTYPE_MAX; i++) {
@@ -1368,7 +1372,7 @@ int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader) {
   return code;
 }
 
-extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type);
+extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, int32_t expLevel, ETsdbOpType type);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value) {
   const char *fieldName;
 
@@ -1410,7 +1414,7 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
     *(bool *)value = false;
 #ifdef TD_ENTERPRISE
-    *(bool *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, TSDB_OPTR_NORMAL);
+    *(bool *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, 0, TSDB_OPTR_NORMAL);
 #endif
     return TSDB_CODE_SUCCESS;
   }

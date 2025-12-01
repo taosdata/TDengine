@@ -68,6 +68,7 @@ void    taosObjListClear(SObjList *pList);
 void    taosObjListClearEx(SObjList *pList, FDelete fp);
 int32_t taosObjListPrepend(SObjList *pList, const void *pData);
 int32_t taosObjListAppend(SObjList *pList, const void *pData);
+void    taosObjListPopHeadTo(SObjList *pList, void *pObj, int32_t nele);
 void    taosObjListPopHead(SObjList *pList);
 void    taosObjListPopHeadEx(SObjList *pList, FDelete fp);
 void    taosObjListPopTail(SObjList *pList);

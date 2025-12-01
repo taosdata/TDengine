@@ -173,7 +173,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
       return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
-      return "_WSTART, _WEND and _WDURATION can only be used in window query";
+      return "_WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query";
     case TSDB_CODE_PAR_INVALID_TAGS_PC:
       return "Tags can only applied to super table and child table";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
@@ -276,6 +276,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid notify condition in create stream clause";
     case TSDB_CODE_STREAM_INVALID_PLACE_HOLDER:
       return "Invalid placeholder in create stream clause";
+    case TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR:
+      return "Invalid expr in order by clause: %s";
     default:
       return "Unknown error";
   }

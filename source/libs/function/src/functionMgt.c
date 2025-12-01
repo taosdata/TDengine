@@ -256,12 +256,14 @@ bool fmIsForecastFunc(int32_t funcId) {
 
 bool fmIsAnalysisPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_ANALYTICS_PC_FUNC); }
 
-bool fmIsImputationFunc(int32_t funcId) {
+bool fmIsImputationCorrelationFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
 
-  return FUNCTION_TYPE_IMPUTATION == funcMgtBuiltins[funcId].type;
+  int32_t type = funcMgtBuiltins[funcId].type;
+  return FUNCTION_TYPE_IMPUTATION == type || FUNCTION_TYPE_DTW == type || FUNCTION_TYPE_DTW_PATH == type ||
+         FUNCTION_TYPE_TLCC == type;
 }
 
 bool fmIsLastRowFunc(int32_t funcId) {
@@ -767,6 +769,11 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
   return NULL;
 }
 
+bool fmIsStreamPesudoColVal(int32_t funcId) {
+  return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN
+         || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME;
+}
+
 int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv) {
   if (NULL == pParamNodes || pParamNodes->length < 1) {
     uError("invalid stream pesudo func param list %p", pParamNodes);
@@ -834,8 +841,12 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         return TSDB_CODE_INTERNAL_ERROR;
       }
       if (IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
+        char* tmp = taosMemoryCalloc(1, pValue->data.nData + VARSTR_HEADER_SIZE); 
+        if (tmp == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
-        ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(1, pValue->data.nData + VARSTR_HEADER_SIZE); 
+        ((SValueNode*)pFirstParam)->datum.p = tmp;
         memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
       } else {

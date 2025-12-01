@@ -58,6 +58,9 @@ def do_add_fc_params(params, json_obj):
     if "return_conf" in json_obj:
         params["return_conf"] = int(json_obj["return_conf"])
 
+    if "prec" in json_obj:
+        params["precision"] = json_obj["prec"]
+
 
 def insert_ts_list(res, start_ts, time_step, fc_rows):
     """ insert the ts list before return results """

@@ -72,6 +72,7 @@ typedef enum {
   TSDB_OPTION_CONNECTION_TIMEZONE,       // timezone, Same as the scope supported by the system
   TSDB_OPTION_CONNECTION_USER_IP,        // user ip
   TSDB_OPTION_CONNECTION_USER_APP,       // user app, max lengthe is 23, truncated if longer than 23
+  TSDB_OPTION_CONNECTION_CONNECTOR_INFO, // connector info, max lengthe is 255, truncated if longer than 255
   TSDB_MAX_OPTIONS_CONNECTION
 } TSDB_OPTION_CONNECTION;
 
@@ -463,6 +464,12 @@ typedef enum {
 DLL_EXPORT TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen);
 DLL_EXPORT void               taos_write_crashinfo(int signum, void *sigInfo, void *context);
 DLL_EXPORT char              *getBuildInfo();
+/* ---- end ---- */
+
+/* -- taosadapter instance management -- */
+DLL_EXPORT int32_t taos_register_instance(const char *id, const char *type, const char *desc, int32_t expire);
+DLL_EXPORT int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCount);
+DLL_EXPORT void    taos_free_instances(char ***pList, int32_t pCount);
 /* ---- end ---- */
 
 #ifdef __cplusplus

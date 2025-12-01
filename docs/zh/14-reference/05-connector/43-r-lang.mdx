@@ -24,9 +24,11 @@ install.packages("RJDBC", repos='http://cran.us.r-project.org')
 ```
 
 :::note
+
 1. Ubuntu 系统自带的 R 语言软件版本 4.2 在调用 RJDBC 库会产生无响应 bug，请安装 R 语言[官网](https://www.r-project.org/)的安装包。
 2. 在 Linux 上安装 RJDBC 包可能需要安装编译需要的组件，以 Ubuntu 为例执行 `apt install -y libbz2-dev libpcre2-dev libicu-dev` 命令安装。
 3. 在 Windows 系统上需要设置 JAVA_HOME 环境变量。
+
 :::
 
 3. 下载 TDengine TSDB JDBC 驱动程序：访问 maven.org 网站，下载 TDengine TSDB JDBC 驱动程序（taos-jdbcdriver-X.X.X-dist.jar）。

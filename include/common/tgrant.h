@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 #define GRANT_HEART_BEAT_MIN 2
-#define GRANT_EXPIRE_VALUE   (31556995201)
+#define GRANT_EXPIRE_VALUE   (31556995201LL)
 #define GRANT_ACTIVE_CODE    "activeCode"
 #define GRANT_FLAG_ALL       (0x01)
 #define GRANT_FLAG_AUDIT     (0x02)

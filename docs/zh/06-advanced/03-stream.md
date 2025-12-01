@@ -33,7 +33,7 @@ trigger_type: {
     PERIOD(period_time[, offset_time])
   | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
@@ -224,3 +224,21 @@ CREATE STREAM sm1 PERIOD(1h)
 对于超出 `WATERMARK` 的乱序、更新、删除场景，使用重新计算的方式来保证最终结果的正确性，重新计算意味着对于乱序、更新和删除的数据覆盖区间重新进行触发和运算。为了保证这种方式的有效性，用户需要确保其计算语句和数据源表是与处理时间无关的，也就是说同一个触发即使执行多次其结果依然是有效的。
 
 重新计算可以分为自动重新计算与手动重新计算，如果用户不需要自动重新计算，可以通过选项关闭。
+
+## 连续异常检测
+
+流计算框架可通过与异常检测模块搭配，按需提供针对时序数据的连续异常监测服务。通过流计算调用异常检测服务，首先需要[部署 TDgpt](./06-TDgpt/03-management.md)，请并确保其正常工作。
+
+然后可以在创建流的语句中，调用异常检测的模型即可对目标表进行异常检测操作。
+
+```sql
+CREATE STREAM sample_stream SLIDING(5m) FROM target_table INTO res_table
+AS
+  SELECT _wstart, count(*), first(col_name) 
+  FROM target_table
+  WHERE ts>=_tprev_ts
+  ANOMALY_WINDOW(col_name, 'algo=iqr, wncheck=0')
+
+```
+
+上述的语句创建了一个 `sample_stream` 的流，针对 `target_table` 进行每隔 `5分钟` 对 `col_name`列进行一次异常检测，进行异常检测调用的模型是 `iqr`，同时忽略白噪声检查，并将结果写入 `res_table`。针对检测到的异常窗口，将窗口起始时间戳，窗口中包含了异常点数量和第一个点的值写入 `res_table` 中。

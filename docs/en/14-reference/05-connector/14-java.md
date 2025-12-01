@@ -33,6 +33,10 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                               | TDengine Version   |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.7.8                   | Fixed the bug that the `getTables` method requires an identifier quote string. | -                  |
+| 3.7.7                   | 1. Fixed the issue of loading configuration files on the Windows platform. <br/> 2. Fixed the problem of mutual interference between WebSocket connection Statement timeout settings | -                  |
+| 3.7.6                   | Optimized WebSocket connection load balancing and the `setObject` method for parameter binding. | -                  |
+| 3.7.5                   | 1. WebSocket connections support load balancing. <br/> 2. Automatic reconnection supports parameter binding. <br/> 3. Optimized serialization performance for efficient writing. <br/> 4. Improved the performance of WebSocket connection isValid.   |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
 | 3.7.3                   | Optimized WebSocket/Native query implementations.    |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
 | 3.7.2                   | Fixed the supportsBatchUpdates issue that caused poor performance in Spring JdbcTemplate parameter binding.    |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
 | 3.7.1                   | 1. Replace Java-WebSocket library with Netty to enhance small query performance. <br/>  2. Add IPv6 protocol compatibility. <br/>  3. Implement BLOB (Binary Large Object) data type support. <br/>  4. Enable TDengine version compatibility checks. <br/>  5. Support `varcharAsString` in connection property. <br/>  6. Optimize memory utilization in WebSocket query operations. <br/>  7. Fix timezone handling in WebSocket connections. <br/> |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
@@ -78,66 +82,7 @@ After an error occurs, the error information and error code can be obtained thro
 {{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
 ```
 
-The error codes that the JDBC connector may report include 4 types:
-
-- Errors from the JDBC driver itself (error codes between 0x2301 and 0x2350)
-- Errors from native connection methods (error codes between 0x2351 and 0x2360)
-- Errors from data subscription (error codes between 0x2371 and 0x2380)
-- Errors from other TDengine modules, please refer to [Error Codes](../../error-codes/)
-
-Please refer to the specific error codes:
-
-| Error Code | Description                                                     | Suggested Actions                                                                                                                  |
-| ---------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 0x2301     | connection already closed                                       | The connection is already closed, check the connection status, or recreate the connection to execute related commands.             |
-| 0x2302     | this operation is NOT supported currently!                      | The current interface is not supported, consider switching to another connection method.                                           |
-| 0x2303     | invalid variables                                               | Invalid parameters, please check the interface specifications and adjust the parameter types and sizes.                            |
-| 0x2304     | statement is closed                                             | The statement is already closed, check if the statement was used after being closed, or if the connection is normal.               |
-| 0x2305     | resultSet is closed                                             | The resultSet has been released, check if the resultSet was used after being released.                                             |
-| 0x2306     | Batch is empty!                                                 | Add parameters to prepareStatement before executing executeBatch.                                                                  |
-| 0x2307     | Can not issue data manipulation statements with executeQuery()  | Use executeUpdate() for update operations, not executeQuery().                                                                     |
-| 0x2308     | Can not issue SELECT via executeUpdate()                        | Use executeQuery() for query operations, not executeUpdate().                                                                      |
-| 0x230d     | parameter index out of range                                    | Parameter out of bounds, check the reasonable range of parameters.                                                                 |
-| 0x230e     | connection already closed                                       | The connection is already closed, check if the Connection was used after being closed, or if the connection is normal.             |
-| 0x230f     | unknown sql type in tdengine                                    | Check the Data Type types supported by TDengine.                                                                                   |
-| 0x2310     | can't register JDBC-JNI driver                                  | Cannot register JNI driver, check if the url is correctly filled.                                                                  |
-| 0x2312     | url is not set                                                  | Check if the REST connection url is correctly filled.                                                                              |
-| 0x2314     | numeric value out of range                                      | Check if the correct interface was used for numeric types in the result set.                                                       |
-| 0x2315     | unknown taos type in tdengine                                   | When converting TDengine data types to JDBC data types, check if the correct TDengine data type was specified.                     |
-| 0x2317     |                                                                 | Incorrect request type used in REST connection.                                                                                    |
-| 0x2318     |                                                                 | Data transmission error occurred in REST connection, check the network situation and retry.                                        |
-| 0x2319     | user is required                                                | Username information is missing when creating a connection.                                                                        |
-| 0x231a     | password is required                                            | Password information is missing when creating a connection.                                                                        |
-| 0x231c     | httpEntity is null, sql:                                        | An exception occurred in REST connection execution.                                                                                |
-| 0x231d     | can't create connection with server within                      | Increase the httpConnectTimeout parameter to extend the connection time, or check the connection with taosAdapter.                 |
-| 0x231e     | failed to complete the task within the specified time           | Increase the messageWaitTimeout parameter to extend the execution time, or check the connection with taosAdapter.                  |
-| 0x231f         | RESTful client query exception  | HTTP request error. Check details for more information.                                |
-| 0x2320     | Type conversion exception       | Verify correct data types are being used.                                              |
-| 0x2321     | TDengine version incompatible  | TDengine version mismatch. Upgrade to the required version.                            |
-| 0x2322     | Resource has been freed         | Resource has been released. Confirm operation validity.                                |
-| 0x2323     | BLOB unsupported on server      | BLOB type is not supported by the server. Server upgrade required.                     |
-| 0x2324     | Line bind mode unsupported      | Line binding mode is not supported by the server. Server upgrade required.             |
-| 0x2350     | unknown error                                                   | Unknown exception, please provide feedback to the developers on github.                                                            |
-| 0x2352     | Unsupported encoding                                            | An unsupported character encoding set was specified in the local connection.                                                       |
-| 0x2353     | internal error of database, please see taoslog for more details | An error occurred while executing prepareStatement in local connection, check taos log for troubleshooting.                        |
-| 0x2354     | JNI connection is NULL                                          | The Connection was already closed when executing commands in local connection. Check the connection with TDengine.                 |
-| 0x2355     | JNI result set is NULL                                          | The result set is abnormal in local connection, check the connection and retry.                                                    |
-| 0x2356     | invalid num of fields                                           | The meta information of the result set obtained in local connection does not match.                                                |
-| 0x2357     | empty sql string                                                | Fill in the correct SQL for execution.                                                                                             |
-| 0x2359     | JNI alloc memory failed, please see taoslog for more details    | Memory allocation error in local connection, check taos log for troubleshooting.                                                   |
-| 0x2371     | consumer properties must not be null!                           | Parameters are null when creating a subscription, fill in the correct parameters.                                                  |
-| 0x2372     | configs contain empty key, failed to set consumer property      | The parameter key contains empty values, fill in the correct parameters.                                                           |
-| 0x2373     | failed to set consumer property,                                | The parameter value contains empty values, fill in the correct parameters.                                                         |
-| 0x2375     | topic reference has been destroyed                              | During the data subscription process, the topic reference was released. Check the connection with TDengine.                        |
-| 0x2376     | failed to set consumer topic, topic name is empty               | During the data subscription process, the subscription topic name is empty. Check if the specified topic name is correctly filled. |
-| 0x2377     | consumer reference has been destroyed                           | The data transmission channel for the subscription has been closed, check the connection with TDengine.                            |
-| 0x2378     | consumer create error                                           | Data subscription creation failed, check the error information and taos log for troubleshooting.                                   |
-| 0x2379     | seek offset must not be a negative number                       | The seek interface parameter must not be negative, use the correct parameters.                                                     |
-| 0x237a     | vGroup not found in result set                                  | VGroup not assigned to the current consumer, due to the Rebalance mechanism causing the Consumer and VGroup to be unbound.         |
-| 0x2390     | background thread write error in Efficient Writing              | In the event of an efficient background thread write error, you can stop writing and rebuild the connection.                       |
-
-- [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
-<!-- - [TDengine_ERROR_CODE](../error-code) -->
+For error code information please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 
@@ -339,7 +284,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.HTTP_POOL_SIZE [`httpPoolSize`]: REST concurrent request size, default 20.
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION [`enableCompression`]: Whether to enable compression during transmission. Effective only when using REST/WebSocket connections. true: enabled, false: not enabled. Default is false.
 - TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT [`enableAutoReconnect`]: Whether to enable auto-reconnect. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
-  > **Note**: Enabling auto-reconnect is only effective for simple SQL execution, schema-less writing, and data subscription. It is ineffective for parameter binding. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
+  > **Note**: Enabling auto-reconnect is not effective for fetching result sets. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
 
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS [`reconnectIntervalMs`]: Auto-reconnect retry interval, in milliseconds, default value 2000. Effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]: Auto-reconnect retry count, default value 3, effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
@@ -349,6 +294,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.
+- TSDBDriver.PROPERTY_KEY_WS_KEEP_ALIVE_SECONDS [`wsKeepAlive`]: The validity period of the WebSocket connection, in seconds. During this period, calling `isValid` will directly return the previous result. The default value is 300.
 
 - TSDBDriver.PROPERTY_KEY_ASYNC_WRITE [`asyncWrite`]: Efficient Writing mode. Currently, only the `stmt` method is supported. Effective only when using WebSocket connections. Default value is empty, meaning Efficient Writing mode is not enabled.
 - TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM [`backendWriteThreadNum`]: In Efficient Writing mode, this refers to the number of background write threads. Effective only when using WebSocket connections. Default value is 10.
@@ -1418,7 +1364,7 @@ Consumer support property list:
   2. If using a Native connection, it is the `ip:port` where the TDengine TSDB server is located. Native connections do not support multiple endpoints.
 - enable.auto.commit: Whether to allow automatic commit.
 - group.id: The group where the consumer belongs.
-- value.deserializer: Result set deserialization method, you can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer`, specify the result set bean, and implement deserialization. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and customize the deserialization method based on the SQL resultSet.
+- value.deserializer: Result set deserialization method, you can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer`, specify the result set bean, and implement deserialization. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and customize the deserialization method based on the SQL resultSet. When subscribing to a database, you need to set `value.deserializer` to `com.taosdata.jdbc.tmq.MapEnhanceDeserializer` when creating a consumer, and then create a consumer of type `TaosConsumer<TMQEnhMap>`. This way, each row of data can be deserialized into a table name and a `Map`.
 - httpConnectTimeout: Connection creation timeout parameter, in ms, default is 5000 ms. Only valid under WebSocket connection.
 - messageWaitTimeout: Data transfer timeout parameter, in ms, default is 10000 ms. Only valid under WebSocket connection.
 - httpPoolSize: Maximum number of parallel requests under the same connection. Only valid under WebSocket connection.

@@ -159,12 +159,12 @@ static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   return streamCheckpointSetReady(streamId);
 }
 
-static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
+static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf =  NULL;
 
-  int32_t blockSize = pBlock == NULL ? 0 : blockGetEncodeSize(pBlock);
+  int32_t blockSize = pBlock == NULL ? 0 : blockGetInternalEncodeSize(pBlock);
   size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
   buf = rpcMallocCont(dataEncodeBufSize);
   if (!buf) {
@@ -185,7 +185,7 @@ static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int
   } else {
     pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
     pRetrieve->numOfBlocks = htonl(1);
-    int32_t actualLen = blockEncode(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+    int32_t actualLen = blockEncodeInternal(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     if (actualLen < 0) {
       code = terrno;
       goto end;
@@ -224,6 +224,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.execId = req.execId;
   calcReq.sessionId = req.pStRtFuncInfo->sessionId;
   calcReq.triggerType = req.pStRtFuncInfo->triggerType;
+  calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
+  calcReq.precision = req.pStRtFuncInfo->precision;
   TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
   TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
   calcReq.gid = req.pStRtFuncInfo->groupId;
@@ -238,7 +240,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
 
-  TAOS_CHECK_EXIT(buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
+  TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
 
 _exit:
 
@@ -276,7 +278,7 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   bool finished;
   TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
 
-  TAOS_CHECK_EXIT(buildFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
+  TAOS_CHECK_EXIT(buildStreamFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
 
 _exit:
 

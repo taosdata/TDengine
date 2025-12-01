@@ -525,7 +525,7 @@ _DEL_WAL:
   TAOS_RETURN(code);
 }
 
-int32_t syncEndSnapshot(int64_t rid) {
+int32_t syncEndSnapshot(int64_t rid, bool forceTrim) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -537,7 +537,7 @@ int32_t syncEndSnapshot(int64_t rid) {
 
   if (atomic_load_64(&pSyncNode->snapshottingIndex) != SYNC_INDEX_INVALID) {
     SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
-    code = walEndSnapshot(pData->pWal);
+    code = walEndSnapshot(pData->pWal, forceTrim);
     if (code != 0) {
       sNError(pSyncNode, "wal snapshot end error since:%s", tstrerror(code));
       syncNodeRelease(pSyncNode);
@@ -1932,6 +1932,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
     sError("vgId:%d, failed to send sync msg since %s. epset:%p dnode:%d addr:0x%" PRIx64, pNode->vgId, tstrerror(code),
            epSet, DID(destRaftId), destRaftId->addr);
     rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
 
   TAOS_RETURN(code);

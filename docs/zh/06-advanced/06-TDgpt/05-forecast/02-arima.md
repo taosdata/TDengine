@@ -37,7 +37,7 @@ ARIMA 模型是一种自回归模型，只需要自变量即可预测后续的�
 
 针对 i32 列进行数据预测，输入列 i32 每 10 个点是一个周期；start_p 起始是 1，最大拟合是 5；start_q 是 1，最大值是 5，预测结果中返回 95% 置信区间范围边界。
 
-```
+```SQL
 FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5")
 ```
 
