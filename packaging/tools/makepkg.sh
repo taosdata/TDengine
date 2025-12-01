@@ -90,7 +90,7 @@ else
     #   ${build_dir}/bin/TDinsight.sh \
     #   ${build_dir}/bin/tdengine-datasource.zip \
     #   ${build_dir}/bin/tdengine-datasource.zip.md5"
-    # This script packages only taosBenchmark and taosdump, as the branch is intended solely for full_long_time_test and will not be actively maintained
+    # taostools only includes taosBenchmark and taosdump, as the branch is intended solely for full_long_time_test and will not be actively maintained
     taostools_bin_files=" ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/taosdump "
   fi
