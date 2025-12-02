@@ -155,6 +155,7 @@ static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, (void *)NULL));
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, (void *)NULL));
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT, (void *)NULL));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT_LOG, (void *)NULL));
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_0, (void *)NULL));
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, (void *)NULL));
 _exit:
@@ -986,6 +987,11 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
       COL_DATA_SET_VAL_GOTO((const char *)&pObj->updateTime, false, pObj, pShow->pIter, _exit);
+    }
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      char *roleType = pObj->sys ? "SYSTEM" : "USER";
+      STR_WITH_MAXSIZE_TO_VARSTR(tBuf, roleType, pShow->pMeta->pSchemas[cols].bytes);
+      COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pObj, pShow->pIter, _exit);
     }
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {

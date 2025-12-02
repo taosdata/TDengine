@@ -24,11 +24,19 @@
 extern "C" {
 #endif
 
-#define TSDB_ROLE_SYSDBA    "SYSDBA"
-#define TSDB_ROLE_SYSSEC    "SYSSEC"
-#define TSDB_ROLE_SYSAUDIT  "SYSAUDIT"
-#define TSDB_ROLE_SYSINFO_0 "SYSINFO_0"
-#define TSDB_ROLE_SYSINFO_1 "SYSINFO_1"
+#define ROLE_SYSDBA       0x01
+#define ROLE_SYSSEC       0x02
+#define ROLE_SYSAUDIT     0x04
+#define ROLE_SYSAUDIT_LOG 0x08
+#define ROLE_SYSINFO_0    0x10
+#define ROLE_SYSINFO_1    0x20
+
+#define TSDB_ROLE_SYSDBA       "SYSDBA"
+#define TSDB_ROLE_SYSSEC       "SYSSEC"
+#define TSDB_ROLE_SYSAUDIT     "SYSAUDIT"
+#define TSDB_ROLE_SYSAUDIT_LOG "SYSAUDIT_LOG"
+#define TSDB_ROLE_SYSINFO_0    "SYSINFO_0"
+#define TSDB_ROLE_SYSINFO_1    "SYSINFO_1"
 
 typedef enum {
   // ==================== Legacy Privilege ====================
@@ -283,6 +291,7 @@ typedef struct {
   EPrivType     privType;
   EPrivCategory category;
   EPrivObjType  objType;
+  uint8_t       sysType;
   const char*   name;
 } SPrivInfo;
 
