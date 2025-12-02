@@ -363,7 +363,7 @@ if [ "$verMode" == "cluster" ]; then
           	git clone -b main --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
     	  fi
     	  cd taos-connector-jdbc
-    	  mvn clean package -Dmaven.test.skip=true
+    	  mvn clean package -DskipTests -DskipITs=true
     	  echo  ${build_dir}/lib/
     	  cp target/*.jar  ${build_dir}/lib/
     	  cd ${install_dir}/connector
