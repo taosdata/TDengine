@@ -96,6 +96,8 @@ static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
+static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq);
+
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
 #else
@@ -125,6 +127,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DNODE_RELOAD_TLS, mndProcessUpdateDnodeReloadTls);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -1725,4 +1728,9 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
     sdbRelease(pSdb, pObj);
   }
   return fqdns;
+}
+
+static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
+  int32_t code = 0;
+  return code;
 }
