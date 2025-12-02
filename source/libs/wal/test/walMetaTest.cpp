@@ -213,7 +213,7 @@ class WalEncrypted : public ::testing::Test {
     cfg.rollPeriod = 0;
     cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
-    cfg.encryptAlgorithm = 1;
+    cfg.encryptAlgr = 1;
     pWal = walOpen(pathName, &cfg);
     ASSERT(pWal != NULL);
   }
