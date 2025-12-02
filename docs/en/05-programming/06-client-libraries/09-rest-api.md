@@ -267,7 +267,7 @@ Before executing the following sample code, you must create a database named pow
   }
   ```
 
-- Inert data into meters
+- Insert data into meters
 
   ```bash
   curl -L -d \
