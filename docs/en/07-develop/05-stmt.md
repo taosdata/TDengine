@@ -100,6 +100,7 @@ The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher 
 ```c
 {{#include docs/examples/c-ws-new/stmt2_insert_demo.c}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 Not supported
