@@ -167,6 +167,13 @@ class TestSession:
         tdSql.checkData(3, 1, "2020-05-27 10:00:00.001")
         tdSql.checkData(3, 2, 1)
         
+        sql = "select _wstart, 1 from (select _wstart tt, _wend, 1,  count(*)  from dev_001 session(ts,1d)) session(tt, 3d)"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        
+        sql = "select 1 from (select _wstart tt, _wend, 1,  count(*)  from dev_001 session(ts,1d)) session(tt, 3d)"
+        tdSql.query(sql)
+        tdSql.checkRows(3)      
         
         sql = "select _wstart, _wend, 1 from dev_001 session(ts,1d)"
         tdSql.query(sql)

@@ -35,22 +35,22 @@ class TestInterval:
 
         """
 
-        # self.QueryInterval()
-        # tdStream.dropAllStreamsAndDbs()
-        # self.QueryIntervalOffset()
-        # tdStream.dropAllStreamsAndDbs()
-        # self.QueryEmptyTsRange()
-        # tdStream.dropAllStreamsAndDbs()
-        # self.ParserSliding()
-        # tdStream.dropAllStreamsAndDbs()
-        # self.ParserFunction()
-        # tdStream.dropAllStreamsAndDbs()
-        # self.ComputeInterval()
-        # tdStream.dropAllStreamsAndDbs()
-        # self.ComputeInterval1()
-        # tdStream.dropAllStreamsAndDbs()
+        self.QueryInterval()
+        tdStream.dropAllStreamsAndDbs()
+        self.QueryIntervalOffset()
+        tdStream.dropAllStreamsAndDbs()
+        self.QueryEmptyTsRange()
+        tdStream.dropAllStreamsAndDbs()
+        self.ParserSliding()
+        tdStream.dropAllStreamsAndDbs()
+        self.ParserFunction()
+        tdStream.dropAllStreamsAndDbs()
+        self.ComputeInterval()
+        tdStream.dropAllStreamsAndDbs()
+        self.ComputeInterval1()
+        tdStream.dropAllStreamsAndDbs()
         self.WithoutAggInterval()
-        # tdStream.dropAllStreamsAndDbs()
+        tdStream.dropAllStreamsAndDbs()
 
     def QueryInterval(self):
         dbPrefix = "m_in_db"
@@ -1621,3 +1621,12 @@ class TestInterval:
 
         sql = "select _wstart, ts, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)"
         tdSql.error(sql)
+        
+        sql = "select _wstart, 1 from (select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)) interval(10m)"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        
+        sql = "select 1 from (select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)) interval(10m)"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        
