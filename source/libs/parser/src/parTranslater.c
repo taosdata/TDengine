@@ -7922,7 +7922,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
     }
   }
-  resetOrderBySubqueryOrder(pSelect);
+  // resetOrderBySubqueryOrder(pSelect);
 
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   code = translateExpr(pCxt, &pSelect->pWindow);
