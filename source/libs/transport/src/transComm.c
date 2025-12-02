@@ -35,6 +35,13 @@ typedef struct {
   STrans* pTrans;
   int32_t ref;
 } STransEntry;
+
+/*
+ * pArray: array of STransEntry; typically contains fewer than 8 entries.
+ * lock: The lock protects concurrent access (reads/writes) to this collection.
+ * Access pattern is heavily read-dominated; write operations are rare.
+ */
+
 typedef struct {
   SArray*        pArray;
   TdThreadRwlock lock;
