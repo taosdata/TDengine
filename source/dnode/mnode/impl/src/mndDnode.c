@@ -1732,5 +1732,6 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
 
 static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
   int32_t code = 0;
+  
   return code;
 }
