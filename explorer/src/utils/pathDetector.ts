@@ -19,7 +19,7 @@ class PathDetector {
       const scripts = document.getElementsByTagName('script');
       for (const script of scripts) {
         if (script.src.includes('index-')) {
-          const srcPath = script.src.split('/').slice(0, -1).join('/');
+          const srcPath = script.src.split('/').slice(0, -2).join('/');
           const basePath = new URL(srcPath).pathname;
           this._basePath = basePath.endsWith('/') ? basePath : basePath + '/';
           break;

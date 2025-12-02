@@ -159,12 +159,12 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let opc_points = match points_mode {
         // 解析 csv 文件中的点位
         PointsMode::ByCsv => {
+            tracing::info!("Get OPC datasets by csv files");
             let opc_type = OpcType::from_dsn(&from)?;
             let csv_files = parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
                 "csv_config_file not found in dsn: {}",
                 from.to_string()
             ))?;
-
             let source_type = SourceType::try_from(opc_type.as_static_str())?;
             let parser = CsvParser::try_new(source_type, csv_files)?;
             let model_config = parser.parse().await?;
@@ -172,8 +172,8 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
         }
         // 通过 taosx-opc points 命令获取点位
         PointsMode::ByCommand => {
+            tracing::info!("Get OPC datasets by taosx-opc points command");
             let mut config = OPCConfig::from_dsn_point_mode(&from)?;
-
             config.set_temp_filepath("certificate", certificate.as_ref())?;
             config.set_temp_filepath("private_key", private_key.as_ref())?;
             config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;

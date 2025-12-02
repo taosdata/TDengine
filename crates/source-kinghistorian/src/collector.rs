@@ -45,6 +45,101 @@ use crate::{
     ensure_api,
 };
 
+#[cfg(windows)]
+fn create_server_connection(connect: &KingHistConnectConfig) -> anyhow::Result<ServerConnection> {
+    // connect to kinghistorian server
+    let prot = connect.port.to_string();
+    let mut builder =
+        ConnectionOptions::builder(&connect.host, &prot, &connect.username, &connect.password);
+    if let Some(timeout) = &connect.timeout_ms {
+        builder = builder.network_timeout_ms(*timeout);
+    }
+    let opts = builder.build();
+    let conn =
+        ServerConnection::new(opts).context("failed to create kinghistorian server connection")?;
+
+    tracing::info!(
+        "kinghistorian connected at {}:{}",
+        &connect.host,
+        connect.port
+    );
+
+    Ok(conn)
+}
+
+#[cfg(windows)]
+fn query_tag_values_with_retry(
+    conn: &mut ServerConnection,
+    conn_config: &KingHistConnectConfig,
+    points: &[String],
+    start: DateTime<Local>,
+    end: DateTime<Local>,
+    max_retries: usize,
+    retry_interval_sec: usize,
+    cancel: &CancellationToken,
+) -> anyhow::Result<HashMap<String, Vec<KhData>>> {
+    let mut attempt: usize = 0;
+    loop {
+        if cancel.is_cancelled() {
+            tracing::info!("kinghist_to_taos collect history cancelled during retry, aborting...");
+            return Ok(HashMap::new());
+        }
+
+        let filter = DataCriteria::builder(points)
+            .start_time(start.to_utc())
+            .end_time(end.to_utc())
+            .row_count(MAX_ROWS_PER_DAY)
+            .build();
+        let result = conn
+            .query_tag_values(filter)
+            .context("failed to query kinghistorian tag values")
+            .inspect_err(|e| {
+                tracing::error!("kinghistorian query_tag_values error: {e:#?}");
+            });
+
+        match result {
+            Ok(tags) => return Ok(tags),
+            Err(err) => {
+                attempt += 1;
+                if attempt > max_retries {
+                    return Err(err.context(format!(
+                        "kinghistorian query_tag_values failed after {} retries",
+                        max_retries
+                    )));
+                }
+
+                tracing::warn!(
+                    "kinghistorian query_tag_values failed (attempt {}/{}) for window [{} - {}], will retry after {}s: {:#?}",
+                    attempt,
+                    max_retries,
+                    start,
+                    end,
+                    retry_interval_sec,
+                    err
+                );
+
+                let sleep_ms = (retry_interval_sec as u64).saturating_mul(1000);
+                let step = std::time::Duration::from_millis(100);
+                let mut waited = 0u64;
+                while waited < sleep_ms {
+                    if cancel.is_cancelled() {
+                        tracing::info!(
+                            "kinghist_to_taos collect history cancelled during backoff, aborting..."
+                        );
+                        return Ok(HashMap::new());
+                    }
+                    std::thread::sleep(step);
+                    waited = waited.saturating_add(step.as_millis() as u64);
+                }
+
+                // recreate connection before next attempt
+                *conn = create_server_connection(conn_config)?;
+                tracing::info!("recreating kinghistorian connection before next retry...");
+            }
+        }
+    }
+}
+
 // use the sql repr as key
 pub fn type_key_of(val: &IpcDataType) -> String {
     val.sql_repr_display()
@@ -84,7 +179,7 @@ pub async fn run_collectors(
         // to avoid the Send bound required by tokio::spawn.
         #[cfg(windows)]
         let h = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-            tracing::info!("collector[{key}] start, points: {:?}", points);
+            tracing::info!("collector[{key}] start, points: {}", points.len());
 
             // Build schema for this type key
             let ipc_ty = IpcDataType::from_str(&key)
@@ -106,6 +201,8 @@ pub async fn run_collectors(
                         &ipc_ty,
                         tx_clone,
                         cancel_inner,
+                        task_config.max_retries,
+                        task_config.retry_interval_sec,
                     )?;
                 }
                 KingHistMode::RealTime => {
@@ -152,6 +249,8 @@ pub async fn run_collectors(
                         &ipc_ty,
                         tx_clone,
                         cancel_inner,
+                        task_config.max_retries,
+                        task_config.retry_interval_sec,
                     )?;
                 }
                 KingHistMode::RealTime => {
@@ -218,37 +317,31 @@ pub async fn run_collectors(
 #[cfg(windows)]
 const MAX_ROWS_PER_DAY: u32 = 24 * 3600 * 1000;
 #[cfg(windows)]
-const BATCH: usize = 1000;
+const BATCH: usize = 10000;
 
 #[allow(unused_variables)]
 fn collect_history(
-    connect: &KingHistConnectConfig,
+    conn_config: &KingHistConnectConfig,
     points: Vec<String>,
     query: &HistQueryCriteria,
     schema: &arrow_schema::Schema,
     ipc_ty: &IpcDataType,
     sender: flume::Sender<RecordBatch>,
     cancel: CancellationToken,
+    max_retries: usize,
+    retry_interval_sec: usize,
 ) -> anyhow::Result<()> {
     ensure_api()?;
 
+    #[cfg(not(windows))]
+    {
+        anyhow::bail!("kinghistorian collector is only supported on Windows");
+    }
+
     #[cfg(windows)]
     {
-        // connect to kinghistorian server
-        let opts = ConnectionOptions::builder(
-            &connect.host,
-            connect.port.to_string().as_str(),
-            &connect.username,
-            &connect.password,
-        )
-        .build();
-        let mut conn = ServerConnection::new(opts)
-            .context("failed to create kinghistorian server connection")?;
-        tracing::info!(
-            "kinghistorian connected to {}:{}",
-            &connect.host,
-            connect.port
-        );
+        // create initial connection and reuse it across windows
+        let mut conn = create_server_connection(conn_config)?;
 
         // generate query windows
         let windows = gen_windows(query);
@@ -260,99 +353,102 @@ fn collect_history(
             }
 
             tracing::debug!(
-                "kinghist_to_taos querying data from {} to {}, points: {:?}",
+                "kinghist_to_taos querying data from {} to {}, points: {}",
                 start,
                 end,
-                points
+                points.len()
             );
-            // request time in milliseconds
-            let request_ts_ms = Local::now().timestamp_millis();
-            let filter = DataCriteria::builder(&points)
-                .start_time(start.to_utc())
-                .end_time(end.to_utc())
-                .row_count(MAX_ROWS_PER_DAY)
-                .build();
-            let tags = conn
-                .query_tag_values(filter)
-                .context("failed to query kinghistorian tag values")
-                .inspect_err(|e| {
-                    tracing::error!("kinghistorian query_tag_values error: {e:#?}");
-                })
-                .context("kinghistorian query_tag_values error")?;
-            // received time in milliseconds
-            let received_ts_ms = Local::now().timestamp_millis();
 
-            let tag_cnt = tags.len();
-            let mut row_cnt = 0;
-            for (key, rows) in tags {
-                if rows.is_empty() {
-                    continue;
-                }
-                // Build column vectors first
-                let n = rows.len();
-                row_cnt += n;
-
-                // id and name: both are the key
-                let ids: Vec<Option<String>> =
-                    std::iter::repeat(Some(key.clone())).take(n).collect();
-                let names: Vec<Option<String>> =
-                    std::iter::repeat(Some(key.clone())).take(n).collect();
-                // ts
-                let ts_vals: Vec<Option<i64>> = rows
-                    .iter()
-                    .map(|d| d.timestamp.map(|t| t.timestamp_millis()))
-                    .collect();
-                // received ts (ms)
-                let rts_vals: Vec<i64> = std::iter::repeat(received_ts_ms).take(n).collect();
-                // request ts (ms)
-                let qts_vals: Vec<i64> = std::iter::repeat(request_ts_ms).take(n).collect();
-                // quality
-                let status_vals: Vec<i64> = rows.iter().map(|d| d.quality as i64).collect();
-                // value column according to ipc_ty
-                let value_arr: ArrayRef = build_value_array(ipc_ty, &rows)?;
-
-                // Construct arrays
-                let id_arr = Arc::new(StringArray::from(ids)) as ArrayRef;
-                let name_arr = Arc::new(StringArray::from(names)) as ArrayRef;
-                let ts_arr = Arc::new(TimestampMillisecondArray::from(ts_vals)) as ArrayRef;
-                let received_arr = Arc::new(TimestampMillisecondArray::from(rts_vals)) as ArrayRef;
-                let status_arr = Arc::new(Int64Array::from(status_vals)) as ArrayRef;
-                let request_arr = Arc::new(TimestampMillisecondArray::from(qts_vals)) as ArrayRef;
-
-                let batch = RecordBatch::try_new(
-                    Arc::new(schema.clone()),
-                    vec![
-                        id_arr,
-                        name_arr,
-                        ts_arr,
-                        received_arr,
-                        value_arr,
-                        status_arr,
-                        request_arr,
-                    ],
+            for chunk in points.chunks(100) {
+                // request time in milliseconds
+                let request_ts_ms = Local::now().timestamp_millis();
+                let tags = query_tag_values_with_retry(
+                    &mut conn,
+                    conn_config,
+                    chunk,
+                    start,
+                    end,
+                    max_retries,
+                    retry_interval_sec,
+                    &cancel,
                 )?;
+                // received time in milliseconds
+                let received_ts_ms = Local::now().timestamp_millis();
 
-                // Send to IPC stream
-                if let Err(e) = sender.send(batch) {
-                    anyhow::bail!("failed to send record batch to IPC: {}", e);
+                let tag_cnt = tags.len();
+                let mut row_cnt = 0;
+                for (key, rows) in tags {
+                    if rows.is_empty() {
+                        continue;
+                    }
+                    // Build column vectors first
+                    let n = rows.len();
+                    row_cnt += n;
+
+                    // id and name: both are the key
+                    let ids: Vec<Option<String>> =
+                        std::iter::repeat(Some(key.clone())).take(n).collect();
+                    let names: Vec<Option<String>> =
+                        std::iter::repeat(Some(key.clone())).take(n).collect();
+                    // ts
+                    let ts_vals: Vec<Option<i64>> = rows
+                        .iter()
+                        .map(|d| d.timestamp.map(|t| t.timestamp_millis()))
+                        .collect();
+                    // received ts (ms)
+                    let rts_vals: Vec<i64> = std::iter::repeat(received_ts_ms).take(n).collect();
+                    // request ts (ms)
+                    let qts_vals: Vec<i64> = std::iter::repeat(request_ts_ms).take(n).collect();
+                    // quality
+                    let status_vals: Vec<i64> = rows.iter().map(|d| d.quality as i64).collect();
+                    // value column according to ipc_ty
+                    let value_arr: ArrayRef = build_value_array(ipc_ty, &rows)?;
+
+                    // Construct arrays
+                    let id_arr = Arc::new(StringArray::from(ids)) as ArrayRef;
+                    let name_arr = Arc::new(StringArray::from(names)) as ArrayRef;
+                    let ts_arr = Arc::new(TimestampMillisecondArray::from(ts_vals)) as ArrayRef;
+                    let received_arr =
+                        Arc::new(TimestampMillisecondArray::from(rts_vals)) as ArrayRef;
+                    let status_arr = Arc::new(Int64Array::from(status_vals)) as ArrayRef;
+                    let request_arr =
+                        Arc::new(TimestampMillisecondArray::from(qts_vals)) as ArrayRef;
+
+                    let batch = RecordBatch::try_new(
+                        Arc::new(schema.clone()),
+                        vec![
+                            id_arr,
+                            name_arr,
+                            ts_arr,
+                            received_arr,
+                            value_arr,
+                            status_arr,
+                            request_arr,
+                        ],
+                    )?;
+
+                    // Send to IPC stream
+                    if let Err(e) = sender.send(batch) {
+                        anyhow::bail!("failed to send record batch to IPC: {}", e);
+                    }
+                    tracing::debug!("kinghist_to_taos sent {} rows for point {}", n, key);
                 }
-                tracing::debug!("kinghist_to_taos sent {} rows for point {}", n, key);
-            }
 
-            tracing::debug!(
-                "kinghistorian query returned {} tags {} rows",
-                tag_cnt,
-                row_cnt
-            );
+                tracing::debug!(
+                    "kinghistorian query returned {} tags {} rows",
+                    tag_cnt,
+                    row_cnt
+                );
+            }
 
             // interval between queries
             if query.interval > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(query.interval as u64));
             }
         }
-    }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 #[cfg(windows)]
@@ -712,7 +808,7 @@ fn gen_windows(query: &HistQueryCriteria) -> Vec<(DateTime<Local>, DateTime<Loca
 #[allow(unused_variables)]
 /// 实时数据同步
 fn collect_realtime(
-    connect: &KingHistConnectConfig,
+    conn_config: &KingHistConnectConfig,
     points: Vec<String>,
     min_elapsed: usize,
     schema: &arrow_schema::Schema,
@@ -722,6 +818,11 @@ fn collect_realtime(
 ) -> anyhow::Result<()> {
     ensure_api()?;
 
+    #[cfg(not(windows))]
+    {
+        anyhow::bail!("kinghistorian realtime data collection only supported on Windows")
+    }
+
     #[cfg(windows)]
     {
         tracing::info!(
@@ -730,19 +831,11 @@ fn collect_realtime(
         );
 
         // connect to kinghistorian server
-        let opts = ConnectionOptions::builder(
-            &connect.host,
-            connect.port.to_string().as_str(),
-            &connect.username,
-            &connect.password,
-        )
-        .build();
-        let mut conn = ServerConnection::new(opts)
-            .context("failed to create kinghistorian server connection")?;
+        let mut conn = create_server_connection(conn_config)?;
         tracing::info!(
             "kinghistorian connected to {}:{}",
-            &connect.host,
-            connect.port
+            &conn_config.host,
+            conn_config.port
         );
 
         let (sender, receiver) = flume::bounded(128);
@@ -864,41 +957,27 @@ fn collect_realtime(
         }
 
         tracing::info!("kinghistorian realtime data collection stopped");
-    }
 
-    anyhow::bail!("kinghistorian realtime data collection only supported on Windows")
+        Ok(())
+    }
 }
 
-pub fn list_groups(connect: KingHistConnectConfig) -> anyhow::Result<Vec<DataSet>> {
+pub fn list_groups(conn_config: KingHistConnectConfig) -> anyhow::Result<Vec<DataSet>> {
     tracing::info!(
         "kinghistorian list var groups from {}:{}",
-        &connect.host,
-        connect.port
+        &conn_config.host,
+        conn_config.port
     );
     ensure_api()?;
 
     #[cfg(not(windows))]
     {
-        anyhow::bail!("kinghistorian list groups only supported on Windows")
+        anyhow::bail!("kinghist_to_taos list groups only supported on Windows")
     }
 
     #[cfg(windows)]
     {
-        // connect to kinghistorian server
-        let opts = ConnectionOptions::builder(
-            &connect.host,
-            connect.port.to_string().as_str(),
-            &connect.username,
-            &connect.password,
-        )
-        .build();
-        let mut conn = ServerConnection::new(opts)
-            .context("failed to create kinghistorian server connection")?;
-        tracing::info!(
-            "kinghistorian connected at {}:{}",
-            &connect.host,
-            connect.port
-        );
+        let mut conn = create_server_connection(&conn_config)?;
 
         // Only list groups meta without fetching var names to speed up
         let groups =
@@ -925,25 +1004,15 @@ pub fn list_datasets(
     );
     ensure_api()?;
 
+    #[cfg(not(windows))]
+    {
+        anyhow::bail!("kinghist_to_taos list datasets only supported on Windows")
+    }
+
     #[cfg(windows)]
     {
-        // connect to kinghistorian server
-
         use crate::csv;
-        let opts = ConnectionOptions::builder(
-            &connect.host,
-            connect.port.to_string().as_str(),
-            &connect.username,
-            &connect.password,
-        )
-        .build();
-        let mut conn = ServerConnection::new(opts)
-            .context("failed to create kinghistorian server connection")?;
-        tracing::info!(
-            "kinghistorian connected at {}:{}",
-            &connect.host,
-            connect.port
-        );
+        let mut conn = create_server_connection(&connect)?;
 
         let mut datasets = vec![];
 
@@ -1025,11 +1094,6 @@ pub fn list_datasets(
         }
 
         return Ok(datasets);
-    }
-
-    #[cfg(not(windows))]
-    {
-        anyhow::bail!("kinghistorian list datasets only supported on Windows")
     }
 }
 
@@ -1191,48 +1255,67 @@ fn fetch_tags_by_groups(
         return Ok(Vec::new());
     }
 
-    // 按 BATCH 构造查询，减少一次性传输过多名称导致的 RPC 压力
-    let mut out: Vec<TagProperties> = Vec::with_capacity(required_tag_names.len());
+    let mut tags: Vec<TagProperties> = Vec::with_capacity(required_tag_names.len());
+    match &point_mask {
+        // 如果设置了 point_mask，则直接按 mask 查询，不再按变量名分 chunk，避免在服务端多次全量扫描
+        Some(mask) => {
+            let filter = TagCriteria::builder().tag_name_mask(mask).build();
+            let fields = TagFields::builder()
+                .tag_id()
+                .tag_name()
+                .description()
+                .data_type()
+                .data_length()
+                .last_modified()
+                .last_modified_user()
+                .build();
 
-    for chunk in required_tag_names.chunks(BATCH) {
-        // tag_name_mask expects &str; only apply if point_mask is Some
-        let mut builder = TagCriteria::builder().tag_names(chunk);
-        if let Some(mask) = point_mask.as_ref() {
-            builder = builder.tag_name_mask(mask);
+            tags = conn
+                .query_tag_properties(filter, fields)
+                .inspect_err(|e| {
+                    tracing::error!("kinghistorian list datasets error (mask only): {e:#?}");
+                })
+                .context("kinghistorian list datasets error (mask only)")?;
         }
-        let filter = builder.build();
-        let fields = TagFields::builder()
-            .tag_id() // tag_id：变量ID
-            .tag_name() // tag_name: 变量名
-            .description() // tag_description：变量描述
-            .data_type() // data_type：变量类型
-            .data_length() // data_length：变量数据长度
-            .last_modified() // last_modified：上次修改变量配置时间
-            .last_modified_user() // last_modified_user：上次修改变量配置的用户
-            .build();
+        // 未设置 point_mask 时，按变量名精确查询，并分 chunk 降低单次 RPC 负载
+        None => {
+            for chunk in required_tag_names.chunks(BATCH) {
+                let filter = TagCriteria::builder().tag_names(chunk).build();
+                let fields = TagFields::builder()
+                    .tag_id()
+                    .tag_name()
+                    .description()
+                    .data_type()
+                    .data_length()
+                    .last_modified()
+                    .last_modified_user()
+                    .build();
 
-        let mut batch_tags = conn
-            .query_tag_properties(filter, fields)
-            .inspect_err(|e| {
-                tracing::error!("kinghistorian list datasets error: {e:#?}");
-            })
-            .context("kinghistorian list datasets error")?;
+                let mut batch_tags = conn
+                    .query_tag_properties(filter, fields)
+                    .inspect_err(|e| {
+                        tracing::error!("kinghistorian list datasets error: {e:#?}");
+                    })
+                    .context("kinghistorian list datasets error")?;
 
-        let fetched = batch_tags.len();
-        out.append(&mut batch_tags);
-        tracing::debug!(
-            "fetch_tags_by_groups: fetched {} tag properties in current batch (total so far: {})",
-            fetched,
-            out.len()
-        );
+                let fetched = batch_tags.len();
+                tags.append(&mut batch_tags);
+                tracing::debug!(
+                    "fetch_tags_by_groups: fetched {} tag properties in current batch (total so far: {})",
+                    fetched,
+                    tags.len()
+                );
+            }
+        }
     }
 
-    // 返回汇总结果，而不是最后一个 batch
+    // 返回汇总结果
     tracing::info!(
         "fetch_tags_by_groups: aggregated {} tag properties",
-        out.len()
+        tags.len()
     );
-    Ok(out)
+
+    Ok(tags)
 }
 
 /// 从 KingHistorian Server 中查所有变量

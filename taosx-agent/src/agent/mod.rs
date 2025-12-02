@@ -385,14 +385,19 @@ impl Client {
                         .unwrap()]));
                     let action: ArrayRef =
                         Arc::new(StringArray::from_iter_values(["list".to_string()]));
-                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let req_id_arr: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                     let item = RecordBatch::try_from_iter(vec![
                         ("ts", val),
                         ("action", action),
                         ("context", context),
-                        ("req_id", req_id),
+                        ("req_id", req_id_arr),
                     ]);
-                    tracing::debug!("{item:?}");
+
+                    tracing::debug!(
+                        "RespAction::ListOk, result len: {}, req_id: {}",
+                        sets.res.as_ref().map_or(0, |r| r.len()),
+                        req_id
+                    );
                     item
                 }
                 RespAction::CheckOk(response) => {
