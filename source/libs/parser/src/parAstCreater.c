@@ -6027,8 +6027,12 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName) {
     goto _err;
   }
 
-  if (alterName->n == strlen(tls) && strncmp(alterName->z, tls, alterName->n) == 0) {
+  if (alterName->n == strlen(tls) && taosStrncasecmp(alterName->z, tls, alterName->n) == 0) {
     pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT, (SNode**)&pStmt);
+
+    memcpy(pStmt->config, "reload", strlen("reload"));
+    memcpy(pStmt->value, "tls", strlen("tls"));
+    pStmt->dnodeId = -1;
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "alter is not supported");
     goto _err;
