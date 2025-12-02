@@ -66,7 +66,9 @@ int32_t transCachePut(int64_t refId, STrans* pTrans) {
 
 int32_t transCacheAcquireById(int64_t refId, STrans** pTrans) {
   int32_t code = TSDB_CODE_RPC_MODULE_QUIT;
+
   (void)taosThreadRwlockRdlock(&transInstCache.lock);
+
   for (int32_t i = 0; i < taosArrayGetSize(transInstCache.pArray); ++i) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId && atomic_load_32(&p->remove) == 0) {
@@ -79,6 +81,9 @@ int32_t transCacheAcquireById(int64_t refId, STrans** pTrans) {
   }
 
   (void)taosThreadRwlockUnlock(&transInstCache.lock);
+  if (code != 0) {
+    tError("failed to acquire from trans cache by refId:%" PRId64 " since %s", refId, tstrerror(code));
+  }
   return code;
 }
 
@@ -86,6 +91,7 @@ void transCacheRemoveByRefId(int64_t refId) {
   int32_t code = TSDB_CODE_RPC_MODULE_QUIT;
 
   (void)taosThreadRwlockWrlock(&transInstCache.lock);
+
   for (int32_t i = 0; i < taosArrayGetSize(transInstCache.pArray); i++) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId) {
@@ -98,7 +104,7 @@ void transCacheRemoveByRefId(int64_t refId) {
   (void)taosThreadRwlockUnlock(&transInstCache.lock);
 
   if (code != 0) {
-    tInfo("failed to remove from trans cache by refId:%" PRId64 " since %s", refId, tstrerror(code));
+    tError("failed to remove from trans cache by refId:%" PRId64 " since %s", refId, tstrerror(code));
   }
 }
 void transCacheReleaseByRefId(int64_t refId) {
