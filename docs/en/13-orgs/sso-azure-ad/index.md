@@ -88,7 +88,7 @@ For more details of the Azure AD SSO integration, please see the following Azure
 ## How to update the Azure AD single sign-on configuration
 
 1. Log in to TDengine Cloud as an administrator. Go to the Organization Management page. Click the Change Organization button.
-2. Then you can modify the configuration of the Azure Ad SSO configuration in the form. only Client ID and Client Secret can be modified.
+2. Then you can modify the configuration of the Azure AD SSO configuration in the form. Only Client ID and Client Secret can be modified.
 
 ## How to invite a new Azure organization user to your TDengine Cloud organization
 
