@@ -1081,7 +1081,7 @@ This configuration affects the following interfaces:
 - **RESTful Interface**
 - **WebSocket SQL Execution Interface**
 
-#### Parameter Description
+Parameter Description
 
 - **`request.queryLimitEnable`**
   - **When set to `true`**: Enables the query request concurrency limit feature.
@@ -1097,7 +1097,7 @@ This configuration affects the following interfaces:
 - **`request.excludeQueryLimitSqlRegex`**
   - Configures a list of regular expressions for SQL statements that are not subject to concurrency limits.
 
-##### Customizable per User
+Customizable per User
 
 Configurable only via the configuration file:
 
@@ -1108,7 +1108,7 @@ Configurable only via the configuration file:
 - **`request.users.<username>.queryMaxWait`**
   - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
 
-##### Example
+Example
 
 ```toml
 [request]
@@ -1158,13 +1158,13 @@ This configuration affects the following interfaces:
 - **RESTful interface**
 - **WebSocket SQL execution interface**
 
-#### Parameter Description
+Parameter Description
 
 - **`rejectQuerySqlRegex`**
   - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
   - Default: an empty list, meaning no queries are rejected.
 
-##### Example
+Example
 
 ```toml
 rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']

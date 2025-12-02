@@ -541,7 +541,7 @@ taosAdapter 的基础配置参数如下：
 
 ### 注册配置
 
-从 **3.4.0.0** 版本开始，taosAdapter 将注册到 TDengine TSDB 中，可以通过 SQL 语句 `select * from performance_schema.perf_instances where type = 'taosadapter'` 进行查询。 
+从 **3.4.0.0** 版本开始，taosAdapter 将注册到 TDengine TSDB 中，可以通过 SQL 语句 `select * from performance_schema.perf_instances where type = 'taosadapter'` 进行查询。
 
 注册配置参数如下：
 
