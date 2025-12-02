@@ -17489,6 +17489,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_DNODE_STMT:
       code = translateAlterDnode(pCxt, (SAlterDnodeStmt*)pNode);
       break;
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
+      code = translateAlterDnode(pCxt, (SAlterDnodeStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_ANODE_STMT:
       code = translateCreateAnode(pCxt, (SCreateAnodeStmt*)pNode);
       break;

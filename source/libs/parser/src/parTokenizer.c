@@ -434,7 +434,7 @@ static SKeyword keywordTable[] = {
     {"ALLOW_TOKEN_NUM",      TK_ALLOW_TOKEN_NUM},
     {"NOT_ALLOW_HOST",       TK_NOT_ALLOW_HOST},
     {"ALLOW_DATETIME",       TK_ALLOW_DATETIME},
-    {"NOT_ALLOW_DATETIME",   TK_NOT_ALLOW_DATETIME},
+    {"RELOAD",   TK_RELOAD},
 };
 // clang-format on
 
