@@ -93,7 +93,7 @@ For more details of the Azure AD SSO integration, please see the following Azure
 ## How to invite a new Azure organization user to your TDengine Cloud organization
 
 1. Create a new user under your Azure AD organization.
-   1. Select “Manage”, then select “Users”. Click "New User", Then fill in the user information to create a new organization user.
+   1. Select “Manage”, then select “Users”. Click "New User", then fill in the user information to create a new organization user.
    2. Make sure to fill in a valid email address in the "Properties" --> "Contact information" Form. This is so that the users you invite can receive an email to activate their TDengine Cloud account.
       ![Add contact email](./contact-email.webp)
       <center><figcaption>Figure 11. add contact email </figcaption></center>
