@@ -128,23 +128,23 @@ class TestTaosShellError:
         tdSql.init(conn.cursor())
 
 
-    def test_taos_shell_error(self):
-        """summary: xxx
+    def test_tool_taos_shell_error(self):
+        """taos-CLI except
+        
+        1. taos-CLI connect with different error parameters
+        2. taos-CLI execute sql with different error parameters
+        3. taos-CLI expect connect or execute error
+        4. taos-CLI different parameters include: -h, -P, -u, -p, -a, -f
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_taos_shell_error.py
+
         """
         tdSql.prepare()
         # time.sleep(2)

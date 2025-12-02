@@ -64,6 +64,41 @@ class TestMultilevel:
         checkFiles(r'/mnt/data2/*/*',0)
         tdDnodes.stop(1)
         time.sleep(3)
+
+    def basic_createdb(self):
+        cfg={
+            '/mnt/data1 0 1 0' : 'dataDir',
+            '/mnt/data2 0 0 0' : 'dataDir',
+            '/mnt/data3 0 0 0' : 'dataDir',
+            '/mnt/data4 0 0 0' : 'dataDir'
+        }
+        tdSql.createDir('/mnt/data1')
+        tdSql.createDir('/mnt/data2')
+        tdSql.createDir('/mnt/data3')
+        tdSql.createDir('/mnt/data4')
+
+        tdDnodes.stop(1)
+        time.sleep(3)
+        tdDnodes.deploy(1,cfg)
+        tdDnodes.start(1)
+        
+        checkFiles(r'/mnt/data1/*/*',1)
+        checkFiles(r'/mnt/data2/*/*',0)
+        
+        tdSql.execute('create database nws vgroups 20 stt_trigger 1 wal_level 1 wal_retention_period 0')
+
+        checkFiles(r'/mnt/data1/vnode/*/wal',5)
+        checkFiles(r'/mnt/data2/vnode/*/wal',5)
+        checkFiles(r'/mnt/data3/vnode/*/wal',5)
+        checkFiles(r'/mnt/data4/vnode/*/wal',5)
+        
+        # clear env
+        tdSql.execute('drop database nws')
+        tdDnodes.stop(1)
+        time.sleep(3)
+        # delete dirs
+        os.system('rm -rf /mnt/data*')
+        
     def dir_not_exist(self):
         tdLog.info("============== dir_not_exist test ===============")
         cfg={
@@ -346,23 +381,32 @@ class TestMultilevel:
         tdSql.execute('flush database dbtest1')
 
     def test_multilevel(self):
-        """summary: xxx
+        """Multi level except
+        
+        1. dir not exist
+        2. dir permission denied
+        3. file distribution same level
+        4. three level basic
+        5. more than 128 disks
+        6. trim database
+        7. missing middle level
+        8. disable create new file
+        9. run alter disable err case
+        10. run alter disable case
+        11. create/drop database on multi level storage
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_multilevel.py
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_multilevel_createdb.py
+
         """
+        self.basic_createdb()
         self.basic()
         self.dir_not_exist()
         self.dir_permission_denied()

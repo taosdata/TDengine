@@ -175,23 +175,23 @@ class TestTelemetry:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
-    def test_telemetry(self):
-        """summary: xxx
+    def test_com_telemetry(self):
+        """Server support telemetry 
+        
+        1. Configure telemetry params
+        2. Start http server to receive telemetry info
+        3. Check telemetry info content valid
+        4. Stop http server
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_telemetry.py
+
         """
         tdSql.prepare()
         # time.sleep(2)

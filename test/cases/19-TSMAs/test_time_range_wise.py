@@ -1,618 +1,302 @@
-from datetime import datetime
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
+
+# -*- coding: utf-8 -*-
+
+from new_test_framework.utils import tdLog, tdSql
+import sys
+import random
 import time
+import copy
+import string
 
-from dataclasses import dataclass
-from typing import List, Any, Tuple
-from new_test_framework.utils import tdLog, tdSql, DataSet
-from new_test_framework.utils.constant import *
-import os
-import time
-PRIMARY_COL = "ts"
-
-INT_COL = "c_int"
-BINT_COL = "c_bint"
-SINT_COL = "c_sint"
-TINT_COL = "c_tint"
-FLOAT_COL = "c_float"
-DOUBLE_COL = "c_double"
-BOOL_COL = "c_bool"
-TINT_UN_COL = "c_utint"
-SINT_UN_COL = "c_usint"
-BINT_UN_COL = "c_ubint"
-INT_UN_COL = "c_uint"
-BINARY_COL = "c_binary"
-NCHAR_COL = "c_nchar"
-TS_COL = "c_ts"
-
-NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
-CHAR_COL = [BINARY_COL, NCHAR_COL, ]
-BOOLEAN_COL = [BOOL_COL, ]
-TS_TYPE_COL = [TS_COL, ]
-
-INT_TAG = "t_int"
-
-ALL_COL = [PRIMARY_COL, INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BINARY_COL, NCHAR_COL, BOOL_COL, TS_COL]
-TAG_COL = [INT_TAG]
-
-# insert data args：
-TIME_STEP = 10000
-NOW = int(datetime.timestamp(datetime.now()) * 1000)
-
-# init db/table
-DBNAME  = "db"
-STBNAME = "stb1"
-CTBNAME = "ct1"
-NTBNAME = "nt1"
-
-
-@dataclass
-class SMAschema:
-    creation            : str           = "CREATE"
-    index_name          : str           = "sma_index_1"
-    index_flag          : str           = "SMA INDEX"
-    operator            : str           = "ON"
-    tbname              : str           = None
-    watermark           : str           = "5s"
-    max_delay           : str           = "6m"
-    func                : Tuple[str]    = None
-    interval            : Tuple[str]    = ("6m", "10s")
-    sliding             : str           = "6m"
-    other               : Any           = None
-    drop                : str           = "DROP"
-    drop_flag           : str           = "INDEX"
-    querySmaOptimize    : int           = 1
-    show                : str           = "SHOW"
-    show_msg            : str           = "INDEXES"
-    show_oper           : str           = "FROM"
-    dbname              : str           = None
-    rollup_db           : bool          = False
-
-    def __post_init__(self):
-        if isinstance(self.other, dict):
-            for k,v in self.other.items():
-
-                if k.lower() == "index_name" and isinstance(v, str) and not self.index_name:
-                    self.index_name = v
-                    del self.other[k]
-
-                if k.lower() == "index_flag" and isinstance(v, str) and not self.index_flag:
-                    self.index_flag = v
-                    del self.other[k]
-
-                if k.lower() == "operator" and isinstance(v, str) and not self.operator:
-                    self.operator = v
-                    del self.other[k]
-
-                if k.lower() == "tbname" and isinstance(v, str) and not self.tbname:
-                    self.tbname = v
-                    del self.other[k]
-
-                if k.lower() == "watermark" and isinstance(v, str) and not self.watermark:
-                    self.watermark = v
-                    del self.other[k]
-
-                if k.lower() == "max_delay" and isinstance(v, str) and not self.max_delay:
-                    self.max_delay = v
-                    del self.other[k]
-
-                if k.lower() == "functions" and isinstance(v, tuple) and not self.func:
-                    self.func = v
-                    del self.other[k]
-
-                if k.lower() == "interval" and isinstance(v, tuple) and not self.interval:
-                    self.interval = v
-                    del self.other[k]
-
-                if k.lower() == "sliding" and isinstance(v, str) and not self.sliding:
-                    self.sliding = v
-                    del self.other[k]
-
-                if k.lower() == "drop_flag" and isinstance(v, str) and not self.drop_flag:
-                    self.drop_flag = v
-                    del self.other[k]
-
-                if k.lower() == "show_msg" and isinstance(v, str) and not self.show_msg:
-                    self.show_msg = v
-                    del self.other[k]
-
-                if k.lower() == "dbname" and isinstance(v, str) and not self.dbname:
-                    self.dbname = v
-                    del self.other[k]
-
-                if k.lower() == "show_oper" and isinstance(v, str) and not self.show_oper:
-                    self.show_oper = v
-                    del self.other[k]
-
-                if k.lower() == "rollup_db" and isinstance(v, bool) and not self.rollup_db:
-                    self.rollup_db = v
-                    del self.other[k]
-
+import taos
 
 class TestTimeRangeWise:
-    updatecfgDict = {"querySmaOptimize": 1}
-
+    updatecfgDict = {'vdebugFlag': 143, 'qdebugflag':135, 'tqdebugflag':135, 'udebugflag':135, 'rpcdebugflag':135,
+                     'asynclog': 0, 'stdebugflag':135}
+    # init
     def setup_class(cls):
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql), True)
-        cls.precision = "ms"
-        cls.sma_count = 0
-        cls.sma_created_index = []
+        seed = time.time() % 10000  
+        random.seed(seed)
 
-    """
-        create sma index :
-            1. only create on stable, err_type: [child-table, normal-table]
-            2. one taosd, one sma index , err_type: [
-                one stb --> multi sma index,
-                multi stb in one db--> multi sma index,
-                multi stb in multi db --> multi sma index
-            ]
-            3. arg of (interval/sliding) in query sql is equal to this arg in sma index
-            4. client timezone is equal to timezone of sma index
-            5. does not take effect unless querySmaOptimize flag is turned on,
-    """
-    def __create_sma_index(self, sma:SMAschema):
-        sql = f"{sma.creation} {sma.index_flag} {sma.index_name} {sma.operator} {sma.tbname}"
-        if sma.func:
-            sql += f" function({', '.join(sma.func)})"
-        if sma.interval:
-            interval, offset = self.__get_interval_offset(sma.interval)
-            if offset:
-                sql += f" interval({interval}, {offset})"
+    # random string
+    def random_string(self, count):
+        letters = string.ascii_letters
+        return ''.join(random.choice(letters) for i in range(count))
+
+    # get col value and total max min ...
+    def getColsValue(self, i, j):
+        # c1 value
+        if random.randint(1, 10) == 5:
+            c1 = None
+        else:
+            c1 = 1
+
+        # c2 value
+        if j % 3200 == 0:
+            c2 = 8764231
+        elif random.randint(1, 10) == 5:
+            c2 = None
+        else:
+            c2 = random.randint(-87654297, 98765321)    
+
+
+        value = f"({self.ts}, "
+
+        # c1
+        if c1 is None:
+            value += "null,"
+        else:
+            self.c1Cnt += 1
+            value += f"{c1},"
+        # c2
+        if c2 is None:
+            value += "null,"
+        else:
+            value += f"{c2},"
+            # total count
+            self.c2Cnt += 1
+            # max
+            if self.c2Max is None:
+                self.c2Max = c2
             else:
-                sql += f" interval({interval})"
-        if sma.sliding:
-            sql += f" sliding({sma.sliding})"
-        if sma.watermark:
-            sql += f" watermark {sma.watermark}"
-        if sma.max_delay:
-            sql += f" max_delay {sma.max_delay}"
-        if isinstance(sma.other, dict):
-            for k,v in sma.other.items():
-                if isinstance(v,tuple) or isinstance(v, list):
-                    sql += f" {k} ({' '.join(v)})"
+                if c2 > self.c2Max:
+                    self.c2Max = c2
+            # min
+            if self.c2Min is None:
+                self.c2Min = c2
+            else:
+                if c2 < self.c2Min:
+                    self.c2Min = c2
+            # sum
+            if self.c2Sum is None:
+                self.c2Sum = c2
+            else:
+                self.c2Sum += c2
+
+        # c3 same with ts
+        value += f"{self.ts})"
+        
+        # move next 1s interval
+        self.ts += 1
+
+        return value
+
+    # insert data
+    def insertData(self):
+        tdLog.info("insert data ....")
+        sqls = ""
+        for i in range(self.childCnt):
+            # insert child table
+            values = ""
+            pre_insert = f"insert into @db_name.t{i} values "
+            for j in range(self.childRow):
+                if values == "":
+                    values = self.getColsValue(i, j)
                 else:
-                    sql += f" {k} {v}"
-        if isinstance(sma.other, tuple) or isinstance(sma.other, list):
-            sql += " ".join(sma.other)
-        if isinstance(sma.other, int) or isinstance(sma.other, float) or isinstance(sma.other, str):
-            sql += f" {sma.other}"
+                    values += "," + self.getColsValue(i, j)
 
-        return sql
+                # batch insert    
+                if j % self.batchSize == 0  and values != "":
+                    sql = pre_insert + values
+                    self.exeDouble(sql)
+                    values = ""
+            # append last
+            if values != "":
+                sql = pre_insert + values
+                self.exeDouble(sql)
+                values = ""
 
-    def __get_sma_func_col(self, func):
-        cols = []
-        if isinstance(func, str):
-            cols.append( func.split("(")[-1].split(")")[0] )
-        elif isinstance(func, tuple) or isinstance(func, list):
-            for func_col in func:
-                cols.append(func_col.split("(")[-1].split(")")[0])
+        # insert finished
+        tdLog.info(f"insert data successfully.\n"
+        f"                            inserted child table = {self.childCnt}\n"
+        f"                            inserted child rows  = {self.childRow}\n"
+        f"                            total inserted rows  = {self.childCnt*self.childRow}\n")
+        return
+    
+    def exeDouble(self, sql):
+        # dbname replace
+        sql1 = sql.replace("@db_name", self.db1)
+
+        if len(sql1) > 100:
+            tdLog.info(sql1[:100])
         else:
-            cols = []
-        return cols
+            tdLog.info(sql1)
+        tdSql.execute(sql1)
 
-    def __check_sma_func(self, func:tuple):
-        if not isinstance(func, str) and not isinstance(func, tuple) and not isinstance(func, list):
+        sql2 = sql.replace("@db_name", self.db2)
+        if len(sql2) > 100:
+            tdLog.info(sql2[:100])
+        else:
+            tdLog.info(sql2)
+        tdSql.execute(sql2)
+        
+
+    # prepareEnv
+    def prepareEnv(self):
+        # init                
+        self.ts = 1680000000000
+        self.childCnt = 2
+        self.childRow = 100000
+        self.batchSize = 5000
+        self.vgroups1  = 4
+        self.vgroups2  = 4
+        self.db1 = "db1" # no sma
+        self.db2 = "db2" # have sma
+        self.smaClause = "interval(10s)"
+        
+        # total
+        self.c1Cnt = 0
+        self.c2Cnt = 0
+        self.c2Max = None
+        self.c2Min = None
+        self.c2Sum = None
+
+        # alter local optimization to treu
+        sql = "alter local 'querysmaoptimize 1'"
+        tdSql.execute(sql, 5, True)
+
+        # check forbid mulit-replic on create sma index
+        sql = f"create database db vgroups {self.vgroups1} replica 3"
+        tdSql.execute(sql, 5, True)
+        sql = f"create table db.st(ts timestamp, c1 int, c2 bigint, ts1 timestamp) tags(area int)"
+        tdSql.execute(sql, 5, True)
+
+        # create database  db
+        sql = f"create database @db_name vgroups {self.vgroups1} replica 1"
+        self.exeDouble(sql)
+
+        # create super talbe st
+        sql = f"create table @db_name.st(ts timestamp, c1 int, c2 bigint, ts1 timestamp) tags(area int)"
+        self.exeDouble(sql)
+
+        # create child table
+        for i in range(self.childCnt):
+            sql = f"create table @db_name.t{i} using @db_name.st tags({i}) "
+            self.exeDouble(sql)
+
+        # insert data
+        self.insertData()
+
+    # check data correct
+    def checkExpect(self, sql, expectVal):
+        tdSql.query(sql)
+        rowCnt = tdSql.getRows()
+        for i in range(rowCnt):
+            val = tdSql.getData(i,0)
+            if val != expectVal:
+                tdLog.exit(f"Not expect . query={val} expect={expectVal} i={i} sql={sql}")
+                return False
+
+        tdLog.info(f"check expect ok. sql={sql} expect ={expectVal} rowCnt={rowCnt}")
+        return True
+
+    # check query result same
+    def queryDoubleImpl(self, sql):
+        # sql
+        sql1 = sql.replace('@db_name', self.db1)
+        tdLog.info(sql1)
+        start1 = time.time()
+        rows1 = tdSql.query(sql1)
+        spend1 = time.time() - start1
+        res1 = copy.copy(tdSql.queryResult)
+
+        sql2 = sql.replace('@db_name', self.db2)
+        tdLog.info(sql2)
+        start2 = time.time()
+        tdSql.query(sql2)
+        spend2 = time.time() - start2
+        res2 = tdSql.queryResult
+
+        rowlen1 = len(res1)
+        rowlen2 = len(res2)
+
+        if rowlen1 != rowlen2:
+            tdLog.info(f"check error. rowlen1={rowlen1} rowlen2={rowlen2} both not equal.")
             return False
-        if isinstance(func, str) :
-            if "(" not in func or ")" not in func:
+        
+        for i in range(rowlen1):
+            row1 = res1[i]
+            row2 = res2[i]
+            collen1 = len(row1)
+            collen2 = len(row2)
+            if collen1 != collen2:
+                tdLog.info(f"checkerror. collen1={collen1} collen2={collen2} both not equal.")
                 return False
-            if func.split("(")[0].upper() not in SMA_INDEX_FUNCTIONS:
-                return False
-            if func.split("(")[1].split(")")[0] not in ALL_COL and func.split("(")[1].split(")")[0] not in TAG_COL :
-                return False
-        if isinstance(func, tuple) or isinstance(func, list):
-            for arg in func:
-                if not isinstance(arg, str):
+            for j in range(collen1):
+                if row1[j] != row2[j]:
+                    tdLog.exit(f"col={j} col1={row1[j]} col2={row2[j]} both col not equal.")
                     return False
-                if "(" not in arg or ")" not in arg:
-                    return False
-                if arg.split("(")[0].upper() not in SMA_INDEX_FUNCTIONS:
-                    return False
-                if arg.split("(")[1].split(")")[0] not in ALL_COL and arg.split("(")[1].split(")")[0] not in TAG_COL :
-                    return False
-        return True
 
-    def __check_sma_watermark(self, arg):
-        if not arg:
-            return False
-        if not isinstance(arg, str):
-            return False
-        if arg[-1] not in SMA_WATMARK_MAXDELAY_INIT:
-            return False
-        if len(arg) == 1:
-            return False
-        if not arg[:-1].isdecimal():
-            return False
-        if tdSql.get_times(arg) > WATERMARK_MAX:
-            return False
-        if tdSql.get_times(arg) < WATERMARK_MIN:
+        # warning performance
+        multiple = spend1/spend2
+        tdLog.info("spend1=%.6fs spend2=%.6fs multiple=%.1f"%(spend1, spend2, multiple))
+        if spend2 > spend1 and multiple < 4:
+            tdLog.info(f"performace not reached: multiple(spend1/spend)={multiple} require is >=4 ")
             return False
 
         return True
 
-    def __check_sma_max_delay(self, arg):
-        if not self.__check_sma_watermark(arg):
-            return False
-        if tdSql.get_times(arg) < MAX_DELAY_MIN:
-            return False
+    # check query result same
+    def queryDouble(self, sql, tryCount=60, gap=1):
+        for i in range(tryCount):
+            if self.queryDoubleImpl(sql):
+                return True
+            # error
+            tdLog.info(f"queryDouble return false, try loop={i}")
+            time.sleep(gap)
 
-        return True
+        tdLog.exit(f"queryDouble try {tryCount} times, but all failed.")
+        return False
 
-    def __check_sma_sliding(self, arg):
-        if not isinstance(arg, str):
-            return False
-        if arg[-1] not in TAOS_TIME_INIT:
-            return False
-        if len(arg) == 1:
-            return False
-        if not arg[:-1].isdecimal():
-            return False
+    # check result
+    def checkResult(self):
 
-        return True
+        # max
+        sql = f"select max(c1) from @db_name.st {self.smaClause}"
+        self.queryDouble(sql)
 
-    def __get_interval_offset(self, args):
-        if isinstance(args, str):
-            interval, offset = args, None
-        elif isinstance(args,tuple) or isinstance(args, list):
-            if len(args) == 1:
-                interval, offset = args[0], None
-            elif len(args) == 2:
-                interval, offset = args
-            else:
-                interval, offset = False, False
-        else:
-            interval, offset = False, False
+        # min
+        sql = f"select max(c2) from @db_name.st {self.smaClause}"
+        self.queryDouble(sql)
 
-        return interval, offset
+        # mix
+        sql = f"select max(c1),max(c2),min(c1),min(c2) from @db_name.st {self.smaClause}"
+        self.queryDouble(sql)
 
-    def __check_sma_interval(self, args):
-        if not isinstance(args, tuple) and not isinstance(args,str):
-            return False
-        interval, offset =  self.__get_interval_offset(args)
-        if not interval:
-            return False
-        if not self.__check_sma_sliding(interval):
-            return False
-        if tdSql.get_times(interval) < INTERVAL_MIN:
-            return False
-        if offset:
-            if not self.__check_sma_sliding(offset):
-                return False
-            if tdSql.get_times(interval) <= tdSql.get_times(offset) :
-                return False
 
-        return True
-
-    def __sma_create_check(self, sma:SMAschema):
-        if  self.updatecfgDict["querySmaOptimize"] == 0:
-            return False
-        tdSql.query("select database()")
-        dbname =  tdSql.getData(0,0)
-        tdSql.query("select * from information_schema.ins_databases")
-        for index , value in enumerate(tdSql.cursor.description):
-            if value[0] == "retentions":
-                r_index = index
-                break
-        for row in tdSql.queryResult:
-            if row[0] == dbname:
-                if row[r_index] is None:
-                    continue
-                if ":" in row[r_index]:
-                    sma.rollup_db = True
-        if sma.rollup_db :
-            return False
-        tdSql.query("show stables")
-        if not sma.tbname:
-            return False
-        stb_in_list = False
-        for row in tdSql.queryResult:
-            if sma.tbname == row[0]:
-                stb_in_list = True
-        if not stb_in_list:
-            return False
-        if not sma.creation or not isinstance(sma.creation, str) or sma.creation.upper() != "CREATE":
-            return False
-        if not sma.index_flag or not isinstance(sma.index_flag, str) or  sma.index_flag.upper() != "SMA INDEX" :
-            return False
-        if not sma.index_name or not isinstance(sma.index_name, str) or sma.index_name.upper() in TAOS_KEYWORDS:
-            return False
-        if not sma.operator or not isinstance(sma.operator, str) or sma.operator.upper() != "ON":
-            return False
-
-        if not sma.func or not self.__check_sma_func(sma.func):
-            return False
-        tdSql.query(f"desc {sma.tbname}")
-        _col_list = []
-        for col_row in  tdSql.queryResult:
-            _col_list.append(col_row[0])
-        _sma_func_cols = self.__get_sma_func_col(sma.func)
-        for  _sma_func_col in _sma_func_cols:
-            if _sma_func_col not in _col_list:
-                return False
-
-        if sma.sliding and not self.__check_sma_sliding(sma.sliding):
-            return False
-        interval, _ =  self.__get_interval_offset(sma.interval)
-        if not sma.interval or not self.__check_sma_interval(sma.interval) :
-            return False
-        if sma.sliding and tdSql.get_times(interval) < tdSql.get_times(sma.sliding):
-            return False
-        if sma.watermark and not self.__check_sma_watermark(sma.watermark):
-            return False
-        if sma.max_delay and not self.__check_sma_max_delay(sma.max_delay):
-            return False
-        if sma.other:
-            return False
-
-        return True
-
-    def sma_create_check(self, sma:SMAschema):
-        if self.__sma_create_check(sma):
-            tdSql.query(self.__create_sma_index(sma))
-            self.sma_count += 1
-            self.sma_created_index.append(sma.index_name)
-            tdSql.query(self.__show_sma_index(sma))
-            tdSql.checkRows(self.sma_count)
-            tdSql.checkData(0, 2, sma.tbname)
-
-        else:
-            tdSql.error(self.__create_sma_index(sma))
-
-    def __drop_sma_index(self, sma:SMAschema):
-        sql = f"{sma.drop} {sma.drop_flag} {sma.index_name}"
-        return sql
-
-    def __sma_drop_check(self, sma:SMAschema):
-        if not sma.drop:
-            return False
-        if not sma.drop_flag:
-            return False
-        if not sma.index_name:
-            return False
-
-        return True
-
-    def sma_drop_check(self, sma:SMAschema):
-        if self.__sma_drop_check(sma):
-            tdSql.query(self.__drop_sma_index(sma))
-            self.sma_count -= 1
-            self.sma_created_index = list(filter(lambda x: x != sma.index_name, self.sma_created_index))
-            tdSql.query("show streams")
-            tdSql.checkRows(self.sma_count)
-            time.sleep(1)
-        else:
-            tdSql.error(self.__drop_sma_index(sma))
-
-    def __show_sma_index(self, sma:SMAschema):
-        sql = f"{sma.show} {sma.show_msg} {sma.show_oper} {sma.tbname}"
-        return sql
-
-    def __sma_show_check(self, sma:SMAschema):
-        if not sma.show:
-            return False
-        if not sma.show_msg:
-            return False
-        if not sma.show_oper:
-            return False
-        if not sma.tbname:
-            return False
-
-        return True
-
-    def sma_show_check(self, sma:SMAschema):
-        if self.__sma_show_check(sma):
-            tdSql.query(self.__show_sma_index(sma))
-            tdSql.checkRows(self.sma_count)
-        else:
-            tdSql.error(self.__show_sma_index(sma))
-
-    @property
-    def __create_sma_sql(self):
-        err_sqls = []
-        cur_sqls = []
-        # err_set
-        # # case 1: required fields check
-        err_sqls.append( SMAschema(creation="", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(index_name="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(func=("",),tbname=STBNAME ) )
-        err_sqls.append( SMAschema(interval=(""),tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-
-        # # case 2: err fields
-        err_sqls.append( SMAschema(creation="show",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(creation="alter",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(creation="select",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-
-        err_sqls.append( SMAschema(index_flag="SMA INDEXES", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(index_flag="SMA INDEX ,", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(index_name="tbname", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-
-        # current_set
-
-        cur_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        cur_sqls.append( SMAschema(watermark="",index_name="sma_index_2",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        cur_sqls.append( SMAschema(sliding="",index_name='sma_index_3',tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-
-        return err_sqls, cur_sqls
-
-    def check_create_sma(self):
-        err_sqls , cur_sqls = self.__create_sma_sql
-        for err_sql in err_sqls:
-            self.sma_create_check(err_sql)
-        for cur_sql in cur_sqls:
-            self.sma_create_check(cur_sql)
-
-    @property
-    def __drop_sma_sql(self):
-        err_sqls = []
-        cur_sqls = []
-        # err_set
-        ## case 1: required fields check
-        err_sqls.append( SMAschema(drop="") )
-        err_sqls.append( SMAschema(drop_flag="") )
-        err_sqls.append( SMAschema(index_name="") )
-
-        for index in self.sma_created_index:
-            cur_sqls.append(SMAschema(index_name=index))
-
-        return err_sqls, cur_sqls
-
-    def check_drop_sma(self):
-        err_sqls , cur_sqls = self.__drop_sma_sql
-        for err_sql in err_sqls:
-            self.sma_drop_check(err_sql)
-        for cur_sql in cur_sqls:
-            self.sma_drop_check(cur_sql)
-
-    def all_test(self):
-        self.check_create_sma()
-        self.check_drop_sma()
-
-    def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, dbname=DBNAME):
-        tdLog.printNoPrefix("==========step: create table")
-        create_stb_sql = f'''create table {dbname}.{stb}(
-                {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-            ) tags ({INT_TAG} int)
-            '''
-        tdSql.execute(create_stb_sql)
-
-        for i in range(ntbnum):
-            create_ntb_sql = f'''create table {dbname}.nt{i+1}(
-                    {PRIMARY_COL} timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                    {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                    {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
-                    {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
-                    {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-                )
-                '''
-            tdSql.execute(create_ntb_sql)
-
-        for i in range(ctb_num):
-            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.{stb} tags ( {i+1} )')
-
-    def __insert_data(self, rows, ctb_num=20, dbname=DBNAME, star_time=NOW):
-        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
-        # from ...pytest.util.common import DataSet
-        data = DataSet()
-        data.get_order_set(rows, bint_step=2)
-
-        for i in range(rows):
-            row_data = f'''
-                {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
-                {data.bool_data[i]}, '{data.vchar_data[i]}', '{data.nchar_data[i]}', {data.ts_data[i]}, {data.utint_data[i]},
-                {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
-            '''
-            tdSql.execute( f"insert into {dbname}.{NTBNAME} values ( {star_time - i * int(TIME_STEP * 1.2)}, {row_data} )" )
-
-            for j in range(ctb_num):
-                tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
-
+    # run
     def test_time_range_wise(self):
-        """Database SMA and Retentions Test (Obsolete)
-
-        this case is obsolete, reserved for reference only
-
+        """TSMA basic
+        
+        1. Create database db1 without sma and db2 with sma
+        2. Create same super table and child tables on db1 and db2
+        3. Insert same data into child tables of db1 and db2
+        4. Query data from db1 and db2 
+        5. Expect query result same from db1 and db2
+        
         Since: v3.0.0.0
 
-        Labels: common,ci,skip
+        Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-9-16 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_time_range_wise.py
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_time_range_wise.py
 
         """
-        self.rows = 10
+        # prepare env
+        self.prepareEnv()
 
-        tdLog.printNoPrefix("==========step0:all check")
-
-        tdLog.printNoPrefix("==========step1:create table in normal database")
-        tdSql.prepare()
-        self.__create_tb(dbname=DBNAME)
-        self.__insert_data(rows=self.rows)
-        self.all_test()
-
-        # # from ...pytest.util.sql import *
-
-        # drop databases, create same name db、stb and sma index
-        tdSql.prepare()
-        self.__create_tb(dbname=DBNAME)
-        self.__insert_data(rows=self.rows,star_time=NOW + self.rows * 2 * TIME_STEP)
-        tdLog.printNoPrefix("==========step1.1 : create a tsma index and checkdata")
-        tdSql.execute(f"create sma index {DBNAME}.sma_index_name1 on {DBNAME}.{STBNAME} function(max({INT_COL}),max({BINT_COL}),min({INT_COL})) interval(6m,10s) sliding(6m)")
-        self.__insert_data(rows=self.rows)
-        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
-        tdSql.checkData(0, 0, self.rows - 1)
-        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
-        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
-        # tdSql.checkData(0, 2, 0)
-
-        tdLog.printNoPrefix("==========step1.2 : alter table schema, drop col without index")
-        tdSql.execute(f"alter stable {DBNAME}.{STBNAME} drop column {BINARY_COL}")
-        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
-        tdSql.checkData(0, 0, self.rows - 1)
-        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
-        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
-
-        tdLog.printNoPrefix("==========step1.3 : alter table schema, drop col with index")
-        # TODO: TD-18047, can not drop col,  when col in tsma-index and tsma-index is not dropped.
-        tdSql.error(f"alter stable {DBNAME}.stb1 drop column {BINT_COL}")
-
-        tdLog.printNoPrefix("==========step1.4 : alter table schema, add col")
-        tdSql.execute(f"alter stable {DBNAME}.{STBNAME} add column {BINT_COL}_1 bigint")
-        tdSql.execute(f"insert into {DBNAME}.{CTBNAME} ({PRIMARY_COL}, {BINT_COL}_1) values(now(), 111)")
-        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
-        tdSql.checkData(0, 0, self.rows - 1)
-        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
-        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
-        # tdSql.checkData(0, 2, 0)
-        tdSql.query(f"select max({BINT_COL}_1) from {DBNAME}.{STBNAME} ")
-        tdSql.checkData(0, 0 , 111)
-
-        tdSql.execute(f"flush database {DBNAME}")
-        
-        tdLog.printNoPrefix("==========step1.5 : drop index")
-        tdSql.execute(f"drop index {DBNAME}.sma_index_name1")
-
-        tdLog.printNoPrefix("==========step1.6 : drop child table")
-        tdSql.execute(f"drop table {CTBNAME}")
-        tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
-        tdSql.checkData(0, 0, self.rows - 1)
-        tdSql.checkData(0, 1, (self.rows - 1) * 2 )
-        tdSql.checkData(tdSql.queryRows - 1, 2, 0)
-
-        tdLog.printNoPrefix("==========step1.7 : drop stable")
-        tdSql.execute(f"drop table {STBNAME}")
-        tdSql.error(f"select * from {DBNAME}.{STBNAME}")
-
-        self.all_test()
-
-        tdLog.printNoPrefix("==========step2:create table in rollup database")
-        tdSql.execute("create database db3 retentions -:4m,2s:8m,3s:12m")
-        tdSql.execute("use db3")
-        tdSql.execute(f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL}) ")
-        self.all_test()
-
-        tdSql.execute("drop database if exists db1 ")
-        tdSql.execute("drop database if exists db2 ")
-
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
-
-        tdSql.execute("flush database db ")
-
-        tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        self.all_test()
-
-        # add for TS-2440
-        for i in range(self.rows):
-            tdSql.execute("drop database if exists db3 ")
-            tdSql.execute("create database db3 retentions -:4m,2s:8m,3s:12m")
-        
-        tdLog.success(f"{__file__} successfully executed")
+        # check two db query result same
+        tdLog.info(f"check have sma(db1) and no sma(db2) performace...")
+        self.checkResult()

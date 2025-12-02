@@ -112,23 +112,27 @@ class TestTaosShellNetChk:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def test_taos_shell_net_chk(self):
-        """summary: xxx
+    def test_shell_taos_shell_net_chk(self):
+        """taos-CLI net check
+        
+        1. taosd normal running
+        2. taos-CLI -k expect 2: service ok
+        3. taosd stop
+        4. taos-CLI -k expect 0: unavailable
+        5. taos-CLI -n server start
+        6. taos-CLI -n client expect response is received
+        7. taosd restart
+        8. taos-CLI -k expect 2: service ok        
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_taos_shell_net_chk.py
+
         """
         tdSql.prepare()
         tdSql.query("create user testpy pass 'testpy243#@'")

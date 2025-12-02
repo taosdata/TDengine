@@ -21,23 +21,25 @@ class TestSmlRestart:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
-    def test_sml_restart(self):
-        """summary: xxx
+    def test_write_sml_restart(self):
+        """Write sml restart 
+        
+        1. taosBenchmark sml data with json file
+        2. line_protocol include json/line/telnet
+        3. insert mode include: taosc/stmt
+        4. Restart taosd after writing over
+        5. Query server and client version
+        6. Verify taosBenchmark write sml data correct
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_sml_restart.py
+
         """
 
         if platform.system() == 'Windows':

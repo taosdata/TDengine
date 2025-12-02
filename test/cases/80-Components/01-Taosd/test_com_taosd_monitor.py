@@ -280,22 +280,24 @@ class TestTaosdMonitor:
         tdSql.init(conn.cursor())
 
     def test_taosd_monitor(self):
-        """summary: xxx
+        """Taosd telemetry monitor
+        
+        1. Configure monitorFqdn/monitorPort/monitor params
+        2. Start http server to receive monitor info
+        3. Do some operations to generate monitor info
+        4. Check monitor info content valid
+        5. Check telemetry info content valid
+        6. Stop http server
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_taosd_monitor.py
+
         """
         tdSql.prepare()
         # time.sleep(2)

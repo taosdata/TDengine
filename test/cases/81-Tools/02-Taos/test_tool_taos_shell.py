@@ -135,23 +135,25 @@ class TestTaosShell:
             if "crash" in value:
                 tdLog.exit(f"command: {commands} crash") 
 
-    def test_taos_shell(self):
-        """summary: xxx
+    def test_tool_taos_shell(self):
+        """taos-CLI command line
+        
+        1. taos-CLI connect with different parameters
+        2. taos-CLI execute sql with different parameters
+        3. taos-CLI verify execute result with system database
+        4. taos-CLI parameters include: -h, -P, -u, -p, -a, -A, -c, -C, -s, -r, -f, -t, -n, -l, -N, -V, -d, -w
+        5. taos-CLI test -k repeatly
+        6. taos-CLI test environment: taosd with cluster mode
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_taos_shell.py
+
         """
         tdSql.prepare()
         # time.sleep(2)

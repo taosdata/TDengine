@@ -5,7 +5,7 @@ import os.path
 import platform
 import subprocess
 import time
-
+import shutil
 
 class TestTaosdlog:
 
@@ -390,22 +390,23 @@ class TestTaosdlog:
         tdSql.checkEqual(True, os.path.exists(f"{dnodePath}/log/taoslog0.0"))
 
     def test_taosdlog(self):
-        """summary: xxx
+        """Taosd log
+        
+        1. Check log compress
+        2. Check log output
+        3. Check log rotate
+        4. Close taosd and taos
 
-        description: xxx
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_taosdlog.py
+
         """
         tdSql.prepare()
         self.checkLogCompress()
