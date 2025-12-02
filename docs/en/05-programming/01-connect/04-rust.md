@@ -69,7 +69,7 @@ To obtain the real dsn value, please log in [TDengine Cloud](https://cloud.tdeng
 
 ## Connect
 
-Copy following code to `main.rs`.Then you can execute `cargo run` to test the connection.
+Copy following code to `main.rs`. Then you can execute `cargo run` to test the connection.
 
 ```rust title="main.rs"
 {{#include docs/examples/rust/cloud-example/src/main.rs}}
