@@ -703,9 +703,9 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   }
 
   pRowSup->win.skey = pRowSup->win.ekey = 0;
-  pRowSup->prevTs = pRowSup->startRowIndex = 0;
-  pRowSup->numOfRows = pRowSup->groupId = 0;
-  resetNumNullRows(pRowSup);
+  pRowSup->prevTs = pRowSup->lastTs = INT64_MIN;
+  pRowSup->startRowIndex = pRowSup->groupId = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = 0;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
