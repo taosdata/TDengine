@@ -297,8 +297,7 @@ priv_type(A) ::= SHOW USERS.                                                    
 priv_type(A) ::= CREATE AUDIT DATABASE.                                           { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_CREATE); }
 priv_type(A) ::= DROP AUDIT DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_DROP); }
 priv_type(A) ::= ALTER AUDIT DATABASE.                                            { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_ALTER); }
-priv_type(A) ::= READ AUDIT DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_READ); }
-priv_type(A) ::= WRITE AUDIT DATABASE.                                            { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_WRITE); }
+priv_type(A) ::= USE AUDIT DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_USE); }
 
 priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_SET_TYPE(PRIV_TOKEN_CREATE); }
 priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_SET_TYPE(PRIV_TOKEN_DROP); }
