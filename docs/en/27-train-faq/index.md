@@ -8,7 +8,7 @@ slug: /frequently-asked-questions
 If the information in the FAQ does not help you, and you need technical support and assistance from the TDengine technical team, please package the contents of the following two directories:
 
 1. `/var/log/taos` (if the default path has not been modified)
-2. `/etc/taos` (if no other configuration file path has been specified)
+1. `/etc/taos` (if no other configuration file path has been specified)
 
 Attach the necessary problem description, including the version information of TDengine used, platform environment information, the operations performed when the problem occurred, the manifestation of the problem, and the approximate time, and submit an issue on [GitHub](https://github.com/taosdata/TDengine).
 
@@ -29,10 +29,10 @@ However, when the system is running normally, be sure to set the debugFlag to 13
 Version 3.0 is a complete reconstruction based on previous versions, and the configuration files and data files are not compatible. Be sure to perform the following operations before upgrading:
 
 1. Delete the configuration file, execute `sudo rm -rf /etc/taos/taos.cfg`
-2. Delete the log files, execute `sudo rm -rf /var/log/taos/`
-3. Under the premise that the data is no longer needed, delete the data files, execute `sudo rm -rf /var/lib/taos/`
-4. Install the latest stable version of TDengine 3.0
-5. If data migration is needed or data files are damaged, please contact the official technical support team of Taos Data for assistance
+1. Delete the log files, execute `sudo rm -rf /var/log/taos/`
+1. Under the premise that the data is no longer needed, delete the data files, execute `sudo rm -rf /var/lib/taos/`
+1. Install the latest stable version of TDengine 3.0
+1. If data migration is needed or data files are damaged, please contact the official technical support team of Taos Data for assistance
 
 ### 2. What should I do if JDBC Driver cannot find the dynamic link library on Windows platform?
 
@@ -48,6 +48,7 @@ Problem Cause:
 This occurs because the client cannot find the required dynamic link library files, possibly due to incorrect installation or improper configuration of the system library path.
 
 Problem Solution:  
+
 - **Check files**: Verify that the symbolic link files `libtaosnative.so` or `libtaosws.so` and their corresponding actual files exist in the system shared library directory and are complete. If the symbolic links or actual files are missing, reinstall them as they are included in both the TDengine TSDB client and server installation packages.
 - **Check environment variables**: Ensure that the system shared library loading directory environment variable `LD_LIBRARY_PATH` includes the directory where `libtaosnative.so` or `libtaosws.so` files are located. If not included, add it with `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<new_path>`.
 - **Check permissions**: Ensure that the current user has read and execute permissions for both the `libtaosnative.so` or `libtaosws.so` symbolic links and their actual files.
@@ -64,47 +65,47 @@ If the client encounters a connection failure, please follow the steps below to 
 
 1. Check the network environment
 
-- Cloud server: Check if the security group of the cloud server has opened access permissions for TCP/UDP ports 6030/6041
-- Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
-- Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
+   - Cloud server: Check if the security group of the cloud server has opened access permissions for TCP/UDP ports 6030/6041
+   - Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
+   - Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
 
-2. Ensure that the client and server version numbers are exactly the same, open source TSDB-OSS edition and TSDB-Enterprise edition cannot be mixed
+1. Ensure that the client and server version numbers are exactly the same, open source TSDB-OSS edition and TSDB-Enterprise edition cannot be mixed
 
-3. On the server, execute `systemctl status taosd` to check the *taosd* running status. If it is not running, start *taosd*
+1. On the server, execute `systemctl status taosd` to check the *taosd* running status. If it is not running, start *taosd*
 
-4. Confirm that the correct server FQDN (Fully Qualified Domain Name —— can be obtained by executing the Linux/macOS command hostname -f on the server) was specified when the client connected.
+1. Confirm that the correct server FQDN (Fully Qualified Domain Name —— can be obtained by executing the Linux/macOS command hostname -f on the server) was specified when the client connected.
 
-5. Ping the server FQDN, if there is no response, please check your network, DNS settings, or the system hosts file of the client's computer. If a TDengine cluster is deployed, the client needs to be able to ping all cluster node FQDNs.
+1. Ping the server FQDN, if there is no response, please check your network, DNS settings, or the system hosts file of the client's computer. If a TDengine cluster is deployed, the client needs to be able to ping all cluster node FQDNs.
 
-6. Check the firewall settings (use ufw status on Ubuntu, use firewall-cmd --list-port on CentOS), ensure that all hosts in the cluster can communicate on ports 6030/6041 for TCP/UDP protocols.
+1. Check the firewall settings (use ufw status on Ubuntu, use firewall-cmd --list-port on CentOS), ensure that all hosts in the cluster can communicate on ports 6030/6041 for TCP/UDP protocols.
 
-7. For Linux JDBC (ODBC, Python, Go, and similar interfaces) connections, ensure that `libtaos.so` is in the directory `/usr/local/taos/driver`, and that `/usr/local/taos/driver` is in the system library search path `LD_LIBRARY_PATH`
+1. For Linux JDBC (ODBC, Python, Go, and similar interfaces) connections, ensure that `libtaos.so` is in the directory `/usr/local/taos/driver`, and that `/usr/local/taos/driver` is in the system library search path `LD_LIBRARY_PATH`
 
-8. For JDBC connections on macOS (similar for ODBC, Python, Go, etc.), ensure that `libtaos.dylib` is in the directory `/usr/local/lib`, and that `/usr/local/lib` is included in the system library search path `LD_LIBRARY_PATH`.
+1. For JDBC connections on macOS (similar for ODBC, Python, Go, etc.), ensure that `libtaos.dylib` is in the directory `/usr/local/lib`, and that `/usr/local/lib` is included in the system library search path `LD_LIBRARY_PATH`.
 
-9. For JDBC, ODBC, Python, Go, etc., connections on Windows, ensure that `C:\TDengine\driver\taos.dll` is in your system library search directory (it is recommended to place `taos.dll` in the directory `C:\Windows\System32`).
+1. For JDBC, ODBC, Python, Go, etc., connections on Windows, ensure that `C:\TDengine\driver\taos.dll` is in your system library search directory (it is recommended to place `taos.dll` in the directory `C:\Windows\System32`).
 
-10. If you still cannot eliminate connection issues:
+1. If you still cannot eliminate connection issues:
 
-    - On Linux/macOS, use the command line tool nc to separately check if the TCP and UDP connections on the specified port are clear:
-      - Check if the UDP port connection is working: `nc -vuz {hostIP} {port}`
-      - Check if the server-side TCP port connection is working: `nc -l {port}`
-      - Check if the client-side TCP port connection is working: `nc {hostIP} {port}`
+   - On Linux/macOS, use the command line tool nc to separately check if the TCP and UDP connections on the specified port are clear:
+     - Check if the UDP port connection is working: `nc -vuz {hostIP} {port}`
+     - Check if the server-side TCP port connection is working: `nc -l {port}`
+     - Check if the client-side TCP port connection is working: `nc {hostIP} {port}`
 
-    - On Windows, use the PowerShell command `Test-NetConnection -ComputerName {fqdn} -Port {port}` to check if the server-side port is accessible.
+   - On Windows, use the PowerShell command `Test-NetConnection -ComputerName {fqdn} -Port {port}` to check if the server-side port is accessible.
 
-11. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
+1. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
 
 ### 6. What to do if you encounter the error "Unable to resolve FQDN"?
 
 This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TDengine CLI or client applications, please check the following:
 
 1. Check if the FQDN of the server you are connecting to is correct.
-2. If there is a DNS server in the network configuration, check if it is working properly
-3. If there is no DNS server configured in the network, check the hosts file on the client machine to see if the FQDN is configured and has the correct IP address
-4. If the network configuration is OK, you need to be able to ping the FQDN from the client machine, otherwise the client cannot connect to the server
-5. If the server has previously used TDengine and changed the hostname, it is recommended to check if the dnode.json in the data directory matches the currently configured EP, typically located at /var/lib/taos/dnode. Normally, it is advisable to change to a new data directory or backup and delete the previous data directory to avoid this issue.
-6. Check /etc/hosts and /etc/hostname for the pre-configured FQDN
+1. If there is a DNS server in the network configuration, check if it is working properly
+1. If there is no DNS server configured in the network, check the hosts file on the client machine to see if the FQDN is configured and has the correct IP address
+1. If the network configuration is OK, you need to be able to ping the FQDN from the client machine, otherwise the client cannot connect to the server
+1. If the server has previously used TDengine and changed the hostname, it is recommended to check if the dnode.json in the data directory matches the currently configured EP, typically located at /var/lib/taos/dnode. Normally, it is advisable to change to a new data directory or backup and delete the previous data directory to avoid this issue.
+1. Check /etc/hosts and /etc/hostname for the pre-configured FQDN
 
 ### 7. What is the most effective method for data insertion?
 
@@ -193,9 +194,9 @@ In TDengine, the time zone of timestamps is always handled by the client, indepe
 The client handles timestamp strings with the following logic:
 
 1. By default, without special settings, the client uses the time zone settings of the operating system it is running on.
-2. If the `timezone` parameter is set in taos.cfg, the client will follow the settings in this configuration file.
-3. If the timezone is explicitly specified when establishing a database connection in Connector Drivers for various programming languages such as C/C++/Java/Python, that specified time zone setting will be used. For example, the Java Connector's JDBC URL includes a timezone parameter.
-4. When writing SQL statements, you can also directly use Unix timestamps (e.g., `1554984068000`) or timestamps with time zone strings, either in RFC 3339 format (e.g., `2013-04-12T15:52:01.123+08:00`) or ISO-8601 format (e.g., `2013-04-12T15:52:01.123+0800`). In these cases, the values of these timestamps are not affected by other time zone settings.
+1. If the `timezone` parameter is set in taos.cfg, the client will follow the settings in this configuration file.
+1. If the timezone is explicitly specified when establishing a database connection in Connector Drivers for various programming languages such as C/C++/Java/Python, that specified time zone setting will be used. For example, the Java Connector's JDBC URL includes a timezone parameter.
+1. When writing SQL statements, you can also directly use Unix timestamps (e.g., `1554984068000`) or timestamps with time zone strings, either in RFC 3339 format (e.g., `2013-04-12T15:52:01.123+08:00`) or ISO-8601 format (e.g., `2013-04-12T15:52:01.123+0800`). In these cases, the values of these timestamps are not affected by other time zone settings.
 
 ### 17. What network ports are used by TDengine 3.0?
 
@@ -224,48 +225,48 @@ Here are the solutions:
 
 1. Create a file /Library/LaunchDaemons/limit.maxfiles.plist, write the following content (the example changes limit and maxfiles to 100,000, modify as needed):
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-<key>Label</key>
-  <string>limit.maxfiles</string>
-<key>ProgramArguments</key>
-<array>
-  <string>launchctl</string>
-  <string>limit</string>
-  <string>maxfiles</string>
-  <string>100000</string>
-  <string>100000</string>
-</array>
-<key>RunAtLoad</key>
-  <true/>
-<key>ServiceIPC</key>
-  <false/>
-</dict>
-</plist>
-```
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+   <key>Label</key>
+     <string>limit.maxfiles</string>
+   <key>ProgramArguments</key>
+   <array>
+     <string>launchctl</string>
+     <string>limit</string>
+     <string>maxfiles</string>
+     <string>100000</string>
+     <string>100000</string>
+   </array>
+   <key>RunAtLoad</key>
+     <true/>
+   <key>ServiceIPC</key>
+     <false/>
+   </dict>
+   </plist>
+   ```
 
-2. Modify file permissions
+1. Modify file permissions
 
-```shell
-sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
-sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
-```
+   ```shell
+   sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
+   sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
+   ```
 
-3. Load the plist file (or it will take effect after restarting the system. launchd will automatically load the plist in this directory at startup)
+1. Load the plist file (or it will take effect after restarting the system. launchd will automatically load the plist in this directory at startup)
 
-```shell
-sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
-```
+   ```shell
+   sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
+   ```
 
-4. Confirm the changed limit
+1. Confirm the changed limit
 
-```shell
-launchctl limit maxfiles
-```
+   ```shell
+   launchctl limit maxfiles
+   ```
 
 ### 21. Prompted with "Out of dnodes" when creating a database or "Vnodes exhausted" when creating a table
 
@@ -324,7 +325,7 @@ Reporting this error indicates that the first connection to the cluster was succ
 
 - The ports of other dnodes in the cluster are not open
 - The client's hosts file is not configured correctly
-  
+
 Therefore, first, check whether all ports on the server and cluster (default 6030 for native connections and 6041 for HTTP connections) are open; Next, check if the client's hosts file has configured the fqdn and IP information for all dnodes in the cluster.
 If the issue still cannot be resolved, it is necessary to contact Taos technical personnel for support.
 
@@ -353,24 +354,30 @@ Currently, TDengine only provides compression ratios based on tables, not databa
 
 ### 37. Why didn't my configuration parameter take effect even though I modified the configuration file?
 
-**Problem Description:**
+#### Problem Description
+
 In TDengine versions 3.3.5.0 and above, some users might encounter an issue: they modify a configuration parameter in `taos.cfg`, but after restarting, the parameter doesn't seem to take effect, and no errors are found in the logs.
 
-**Problem Reason:**
+#### Problem Reason
+
 This is because TDengine versions 3.3.5.0 and above support persisting dynamically modified configuration parameters. This means that parameters you change dynamically using the `ALTER` command will remain effective even after a restart. Therefore, when restarting, TDengine versions 3.3.5.0 and above will, by default, load configuration parameters (except for `dataDir` itself) from the `dataDir`, rather than using the parameters configured in `taos.cfg`.
 
-**Problem Solution:**
+#### Problem Solution
+
 If you understand the feature of persistent configuration parameters but still wish to load configuration parameters from the configuration file upon restart, you can add `forceReadConfig 1` to the configuration file. This will force TDengine to read configuration parameters from the file.
 
 ### 38. I have clearly modified the configuration file, but the configuration parameters haven't taken effect
 
-**Problem description:**
+#### Problem description
+
 In TDengine versions 3.3.5.0 and above, some users may encounter an issue: they have clearly modified a certain configuration parameter in the taos.cfg file, but after restarting, they find that the modification has not taken effect, and no error reports can be found when checking the logs.
 
-**Cause of the problem:**
+#### Cause of the problem
+
 This is because TDengine versions 3.3.5.0 and above support the persistence of dynamically modified configuration parameters. That is, the parameters dynamically modified through ALTER will still be effective after a restart. Therefore, in TDengine versions 3.3.5.0 and above, when restarting, it will by default load the configuration parameters (except for dataDir) from dataDir, and will not use the configuration parameters in the taos.cfg file.
 
-**Solution to the problem:**
+#### Solution to the problem
+
 If you understand the function of configuration parameter persistence but still want to load the configuration parameters from the configuration file after a restart, you can add forceReadConfig 1 to the configuration file. This will make TDengine forcefully read the configuration parameters from the configuration file.
 
 ### 39. Database upgrade from version 2.6 to 3.3, When data migration is carried out and data is being written in the business at the same time, will there be serious out-of-order issues?

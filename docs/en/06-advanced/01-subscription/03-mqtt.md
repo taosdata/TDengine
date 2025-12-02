@@ -140,4 +140,3 @@ topic_meters 1 b'{"topic":"topic_meters","db":"db","vid":2,"rows":[{"ts":1753086
 ```
 
 In the third line, `topic_meters`, is the topic we subscribed to. 1 is the QoS value for this message, followed by a JSON message encoded in UTF-8, where `rows` is an array of data rows.
-
