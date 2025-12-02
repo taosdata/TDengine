@@ -1018,11 +1018,13 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
   }
 
   if (numOfTables) {
-    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables;
+    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables +
+                   pConf->vndStats.numOfVTables + pConf->vndStats.numOfVCTables;
   }
 
   if (numOfNormalTables) {
-    *numOfNormalTables = pConf->vndStats.numOfNTables;
+    *numOfNormalTables = pConf->vndStats.numOfNTables +
+                         pConf->vndStats.numOfVTables;
   }
 }
 

@@ -1253,6 +1253,12 @@ void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeTagScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
 
+void freeMergeGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
+void freeDynQueryCtrlGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
+void freeDynQueryCtrlNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
@@ -1267,10 +1273,22 @@ void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeMergeNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
   pParam->reUse = false;
   freeOperatorParam(pParam, OP_GET_PARAM);
+}
+
+void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
+  SExternalWindowOperatorParam *pExtParam = (SExternalWindowOperatorParam*)pParam->value;
+  taosArrayDestroy(pExtParam->ExtWins);
+  for (int32_t i = 0; i < taosArrayGetSize(pParam->pChildren); i++) {
+    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pParam->pChildren, i);
+    pChild->reUse = false;
+  }
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
@@ -1281,6 +1299,8 @@ void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
 }
 
 void freeVTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
+void freeExternalWindowNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
   if (NULL == pParam || pParam->reUse) {
@@ -1305,6 +1325,15 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE:
+      type == OP_GET_PARAM ? freeMergeGetOperatorParam(pParam) : freeMergeNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      type == OP_GET_PARAM ? freeExternalWindowGetOperatorParam(pParam) : freeExternalWindowNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
+      type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);
