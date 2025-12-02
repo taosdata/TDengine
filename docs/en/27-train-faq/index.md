@@ -303,7 +303,7 @@ By default, starting the taos service will use the system's default username (ro
 
 Starting from version 3.3.6.6, a new environment variable `TAOS_ROOT_PASSWORD` is introduced for TDengine TSDB Docker image, to set the custom password. When starting a container with the `docker run` command, you can add the `-e TAOS_ROOT_PASSWORD=<password>` parameter to use the custom password to start the TDengine TSDB service, without the need to manually modify the password in the configuration files.
 
-For versions 3.3.6.6 to 3.3.8.4, in Docker environments, if you changed the password in an older version, you need to touch an empty file named `.docker-entrypoint-root-password-changed` in the data directory, then restart the container.
+For versions 3.3.6.6 to 3.3.8.4 in Docker environments, if you changed the password in an older version, you need to touch an empty file named `.docker-entrypoint-root-password-changed` in the data directory (default is `/var/lib/taos`), then restart the container.
 
 For version 3.3.8.8 and above in Docker environments, you can upgrade directly.
 

@@ -304,7 +304,7 @@ TDengine TSDB 在写入数据时如果有很严重的乱序写入问题，会严
 
 在 3.3.6.6 版本之后，针对 Docker 环境新增了 `TAOS_ROOT_PASSWORD` 环境变量，用于设置自定义密码。使用 `docker run` 命令启动容器时，添加 `-e TAOS_ROOT_PASSWORD=<password>` 参数，即可使用自定义密码启动 TDengine TSDB 服务，无需修改配置文件。
 
-对于 3.3.6.6-3.3.8.4 版本，针对 Docker 环境,如果在旧版本修改了密码，则需要在 data 目录 touch 一个空文件 .docker-entrypoint-root-password-changed，再次启动容器即可。
+对于 3.3.6.6-3.3.8.4 版本，针对 Docker 环境,如果在旧版本修改了密码，则需要在`data`目录（ 默认`/var/lib/taos` ）`touch`一个空文件`.docker-entrypoint-root-password-changed`，再次启动容器即可。
 
 而对于 3.3.8.8 及以上的版本，针对 Docker 环境，直接升级即可。
 
