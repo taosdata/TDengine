@@ -24,7 +24,6 @@ The source code for the Python client library is hosted on [GitHub](https://gith
 
 For detailed information on how to establish a connection, please refer to: [Programming - Connect - Python](../01-connect/01-python.md).
 
-
 ## Installation
 
 ### Preparation
@@ -60,9 +59,9 @@ import taosrest
 
 All arguments to the `connect()` function are optional keyword arguments. The following are the connection parameters specified.
 
-- `url`： The cloud URL.
-- `token`: The cloud token.
-- `timeout`: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
+* `url`： The cloud URL.
+* `token`: The cloud token.
+* `timeout`: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
 
 ## Sample program
 
@@ -80,9 +79,9 @@ The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
 {{#include docs/examples/python/reference_cursor.py:basic}}
 ```
 
-- `cursor.execute` : Used to execute arbitrary SQL statements.
-- `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
-- `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
+* `cursor.execute` : Used to execute arbitrary SQL statements.
+* `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
+* `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
 
 ### Use of the RestClient class
 
@@ -129,8 +128,8 @@ except BaseException as other:
 
 Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms` and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python client library may modify the interface in the future if Python officially supports nanoseconds in full.
 
-1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
-2. https://www.python.org/dev/peps/pep-0564/
+1. [https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds](https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds)
+2. [https://www.python.org/dev/peps/pep-0564/](https://www.python.org/dev/peps/pep-0564/)
 
 ## Important Update
 
@@ -138,5 +137,5 @@ Due to the current imperfection of Python's nanosecond support (see link below),
 
 ## API Reference
 
-- [taos](https://docs.taosdata.com/api/taospy/taos/)
-- [taosrest](https://docs.taosdata.com/api/taospy/taosrest)
+* [taos](https://docs.taosdata.com/api/taospy/taos/)
+* [taosrest](https://docs.taosdata.com/api/taospy/taosrest)

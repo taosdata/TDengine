@@ -232,18 +232,22 @@ Before executing the following sample code, you must create a database named pow
 :::
 
 - Set url and token
+
   ```bash
   export TDENGINE_CLOUD_URL="<url>"
   export TDENGINE_CLOUD_TOKEN="<token>"
   ```
 
 - Create stable named meters
+
   ```bash
   curl -L -d \
   "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)" \
   $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
   ```
+
     Response body:
+
   ```bash
   {
     "code": 0,
@@ -263,14 +267,16 @@ Before executing the following sample code, you must create a database named pow
   }
   ```
 
-
 - Inert data into meters
+
   ```bash
   curl -L -d \
   "INSERT INTO power.d1001 USING power.meters TAGS('California.SanFrancisco', 2) VALUES ('2018-10-03 14:38:05.000', 10.30000, 219, 0.31000) ('2018-10-03 14:38:15.000', 12.60000, 218, 0.33000)" \
   $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
   ```
+
   Response body:
+
   ```bash
   {
   "code": 0,
@@ -287,12 +293,8 @@ Before executing the following sample code, you must create a database named pow
     ]
   ],
   "rows": 1
-}
+  }
   ```
-
-
-
-
 
 - query all records from table d1001 of the database power
 

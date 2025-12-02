@@ -60,7 +60,7 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 
 <!-- exclude -->
 :::note IMPORTANT
-Replace  &lt;DSN&gt; with value of the TDengine Cloud instance you wish to access, which should be in the format `wss://<cloud_endpoint>?token=<token>`. 
+Replace  &lt;DSN&gt; with value of the TDengine Cloud instance you wish to access, which should be in the format `wss://<cloud_endpoint>?token=<token>`.
 
 To obtain the real dsn value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Rust".
 
@@ -69,7 +69,7 @@ To obtain the real dsn value, please log in [TDengine Cloud](https://cloud.tdeng
 
 ## Connect
 
-Copy following code to `main.rs`.Then you can execute `cargo run` to test the connection. 
+Copy following code to `main.rs`.Then you can execute `cargo run` to test the connection.
 
 ```rust title="main.rs"
 {{#include docs/examples/rust/cloud-example/src/main.rs}}
