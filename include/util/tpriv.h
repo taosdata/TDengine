@@ -333,6 +333,12 @@ typedef struct {
   int32_t   groupIndex;
 } SPrivIter;
 
+typedef struct {
+  SPrivInfo* privInfo;
+  int32_t    privInfoCnt;
+  int32_t    index;
+} SPrivInfoIter;
+
 static FORCE_INLINE void privAddSet(SPrivSet* privSet1, SPrivSet* privSet2) {
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     if (privSet2->set[i]) {
@@ -369,11 +375,14 @@ static FORCE_INLINE void privTblPoliciesFree(SPrivTblPolicies* pTblPolicies) {
 int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
+void    privInfoIterInit(SPrivInfoIter* pIter);
+bool    privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo);
 
 int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen);
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen);
 
 const char* privObjTypeName(EPrivObjType objType);
+uint32_t    getSysRoleType(const char* roleName);
 
 #ifdef __cplusplus
 }

@@ -23,6 +23,8 @@ static const char* privObjTypeNames[] = {
     "ROLE",    "RSMA", "TSMA",     "TOPIC", "STREAM",   "MOUNT", "AUDIT", "TOKEN",
 };
 
+// SYSDBA, SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSINFO_0, SYSINFO_1
+
 #define SYS_ADMIN_BASIC_ROLES (ROLE_SYSDBA | ROLE_SYSSEC | ROLE_SYSAUDIT)
 #define SYS_ADMIN_INFO1_ROLES (SYS_ADMIN_BASIC_ROLES | ROLE_SYSINFO_1)
 #define SYS_ADMIN_INFO_ROLES  (SYS_ADMIN_BASIC_ROLES | ROLE_SYSINFO_0 | ROLE_SYSINFO_1)
@@ -87,6 +89,16 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_TOTP_UPDATE, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSSEC, "UPDATE TOTP"},
     {PRIV_PASS_ALTER, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSDBA, "ALTER PASS"},
     {PRIV_PASS_ALTER_SELF, PRIV_CATEGORY_SYSTEM, 0, 0, "ALTER SELF PASS"},
+
+    // Grant/Revoke Privileges
+    {PRIV_GRANT_PRIVILEGE, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSSEC, "GRANT PRIVILEGE"},
+    {PRIV_REVOKE_PRIVILEGE, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSSEC, "REVOKE PRIVILEGE"},
+    {PRIV_GRANT_SYSDBA, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSDBA, "GRANT SYSDBA PRIVILEGE"},
+    {PRIV_REVOKE_SYSDBA, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSDBA, "REVOKE SYSDBA PRIVILEGE"},
+    {PRIV_GRANT_SYSSEC, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSSEC, "GRANT SYSSEC PRIVILEGE"},
+    {PRIV_REVOKE_SYSSEC, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSSEC, "REVOKE SYSSEC PRIVILEGE"},
+    {PRIV_GRANT_SYSAUDIT, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSAUDIT, "GRANT SYSAUDIT PRIVILEGE"},
+    {PRIV_REVOKE_SYSAUDIT, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSAUDIT, "REVOKE SYSAUDIT PRIVILEGE"},
 
     // Audit Management
     {PRIV_AUDIT_DB_CREATE, PRIV_CATEGORY_SYSTEM, 0, ROLE_SYSDBA, "CREATE AUDIT DATABASE"},
@@ -183,7 +195,6 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_TYPE_WRITE, PRIV_CATEGORY_LEGACY, 0, 0, "WRITE PRIVILEGE"},
     {PRIV_TYPE_SUBSCRIBE, PRIV_CATEGORY_LEGACY, 0, 0, "SUBSCRIBE PRIVILEGE"},
     {PRIV_TYPE_ALTER, PRIV_CATEGORY_LEGACY, 0, 0, "ALTER PRIVILEGE"},
-
 };
 
 static SPrivInfo* privLookup[MAX_PRIV_TYPE + 1] = {0};
@@ -296,6 +307,24 @@ _loop:
   return true;
 }
 
+void privInfoIterInit(SPrivInfoIter* pIter) {
+  pIter->privInfo = privInfoTable;
+  pIter->privInfoCnt = sizeof(privInfoTable) / sizeof(privInfoTable[0]);
+  pIter->index = 0;
+}
+
+bool privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo) {
+  if (iter->index < iter->privInfoCnt) {
+    if (ppPrivInfo) {
+      *ppPrivInfo = &iter->privInfo[iter->index++];
+    } else {
+      iter->index++;
+    }
+    return true;
+  }
+
+  return false;
+}
 // objType.1.db.tb or objType.1.db
 int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen) {
   return (objType == PRIV_OBJ_DB) ? snprintf(buf, bufLen, "%d.%s", objType, db ? db : "")
@@ -337,4 +366,21 @@ const char* privObjTypeName(EPrivObjType objType) {
     return "UNKNOWN";
   }
   return privObjTypeNames[objType];
+}
+
+uint32_t getSysRoleType(const char* roleName) {
+  if (strcmp(roleName, TSDB_ROLE_SYSDBA) == 0) {
+    return ROLE_SYSDBA;
+  } else if (strcmp(roleName, TSDB_ROLE_SYSSEC) == 0) {
+    return ROLE_SYSSEC;
+  } else if (strcmp(roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+    return ROLE_SYSAUDIT;
+  } else if (strcmp(roleName, TSDB_ROLE_SYSAUDIT_LOG) == 0) {
+    return ROLE_SYSAUDIT_LOG;
+  } else if (strcmp(roleName, TSDB_ROLE_SYSINFO_0) == 0) {
+    return ROLE_SYSINFO_0;
+  } else if (strcmp(roleName, TSDB_ROLE_SYSINFO_1) == 0) {
+    return ROLE_SYSINFO_1;
+  }
+  return 0;
 }

@@ -31,7 +31,7 @@ typedef struct {
 
 int32_t mndInitRole(SMnode *pMnode);
 void    mndCleanupRole(SMnode *pMnode);
-int32_t mndAcquireRole(SMnode *pMnode, const char *userName, SRoleObj **ppRole);
+int32_t mndAcquireRole(SMnode *pMnode, const char *roleName, SRoleObj **ppRole);
 void    mndReleaseRole(SMnode *pMnode, SRoleObj *pRole);
 void    mndRoleFreeObj(SRoleObj *pObj);
 int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew);

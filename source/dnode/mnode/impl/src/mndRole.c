@@ -32,7 +32,8 @@
 
 // clang-format on
 
-#define MND_ROLE_VER_NUMBER 1
+#define MND_ROLE_VER_NUMBER  1
+#define MND_ROLE_SYSROLE_VER 1  // increase if system role definition updated in privInfoTable
 
 static SRoleMgmt roleMgmt = {0};
 
@@ -108,10 +109,34 @@ bool mndNeedRetrieveRole(SUserObj *pUser) {
   return result;
 }
 
+static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint32_t roleType) {
+  int32_t       code = 0, lino = 0;
+  SPrivInfoIter iter = {0};
+  privInfoIterInit(&iter);
+
+  SPrivInfo *pPrivInfo = NULL;
+  while (privInfoIterNext(&iter, &pPrivInfo)) {
+    if ((pPrivInfo->sysType & roleType) == 0) continue;
+    if (pPrivInfo->category == PRIV_CATEGORY_SYSTEM) {
+      privAddType(&pObj->sysPrivs, pPrivInfo->privType);
+    } else if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {
+    }
+  }
+_exit:
+  TAOS_RETURN(code);
+}
+
 /**
  * system roles: SYSDBA/SYSSEC/SYSAUDIT/SYSINFO_0/SYSINFO_1
  */
-static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, void *privileges) {
+static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleType) {
+  SRoleObj *pRole = NULL;
+  if (mndAcquireRole(pMnode, role, &pRole) == 0) {
+    mInfo("role:%s already exists, no need to create again", role);
+    mndReleaseRole(pMnode, pRole);
+    return 0;
+  }
+
   int32_t  code = 0, lino = 0;
   SRoleObj roleObj = {0};
   tstrncpy(roleObj.name, role, TSDB_ROLE_LEN);
@@ -119,6 +144,8 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, void *privileges
   roleObj.updateTime = roleObj.createdTime;
   roleObj.enable = 1;
   roleObj.sys = 1;
+
+  TAOS_CHECK_EXIT(mndFillSystemRolePrivileges(pMnode, &roleObj, role));
 
   SSdbRaw *pRaw = mndRoleActionEncode(&roleObj);
   if (pRaw == NULL) goto _exit;
@@ -152,12 +179,12 @@ _exit:
 
 static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, (void *)NULL));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, (void *)NULL));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT, (void *)NULL));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT_LOG, (void *)NULL));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_0, (void *)NULL));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, (void *)NULL));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, ROLE_SYSDBA));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, ROLE_SYSSEC));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT, ROLE_SYSAUDIT));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT_LOG, ROLE_SYSAUDIT_LOG));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_0, ROLE_SYSINFO_0));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, ROLE_SYSINFO_1));
 _exit:
   TAOS_RETURN(code);
 }
@@ -600,11 +627,11 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   return 0;
 }
 
-int32_t mndAcquireRole(SMnode *pMnode, const char *userName, SRoleObj **ppRole) {
+int32_t mndAcquireRole(SMnode *pMnode, const char *roleName, SRoleObj **ppRole) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
-  *ppRole = sdbAcquire(pSdb, SDB_ROLE, userName);
+  *ppRole = sdbAcquire(pSdb, SDB_ROLE, roleName);
   if (*ppRole == NULL) {
     if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
       code = TSDB_CODE_MND_ROLE_NOT_EXIST;
