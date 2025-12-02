@@ -241,4 +241,4 @@ TDengine TSDB 的所有可执行文件默认存放在 `/usr/local/taos/bin` 目�
 - `set_core.sh`: 用于方便调试设置系统生成 core dump 文件的脚本
 - `taosd-dump-cfg.gdb`: 用于方便调试 taosd 的 gdb 执行脚本。
 
-TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见[网络配置](../network.md)
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见[网络配置](../network)
