@@ -2868,6 +2868,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
       sdbCancelFetch(pSdb, pIter);
       TAOS_RETURN(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED);
     }
+    sdbRelease(pSdb, pTopic);
   }
   TAOS_RETURN(code);
 }

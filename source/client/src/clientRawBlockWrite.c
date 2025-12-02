@@ -516,7 +516,10 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   RAW_RETURN_CHECK(tTagToValArray(pTag, &pTagVals));
   if (tTagIsJson(pTag)) {
     STag* p = (STag*)pTag;
-    RAW_FALSE_CHECK(p->nTag != 0);
+    if (p->nTag == 0) {
+      uWarn("p->nTag == 0");
+      goto end;
+    }
     parseTagDatatoJson(pTag, &pJson, NULL);
     RAW_NULL_CHECK(pJson);
     cJSON* tag = cJSON_CreateObject();
