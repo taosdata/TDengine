@@ -131,7 +131,7 @@ Please ensure to distinguish between the URLs for REST connections and WebSocket
 
 ## Connect
 
-Copy code bellow to your editor, then run it.
+Copy code below to your editor, then run it.
 <Tabs defaultValue="rest">
 <TabItem value="rest" label="REST">
 
