@@ -1119,10 +1119,13 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schBuildSubJobEndpoints(SArray** ppRes, SSchJob* pTarget) {
+int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarget) {
   *ppRes = NULL;
-
+  SSchJob* pJob = NULL;
+  
   if (SCH_IS_PARENT_JOB(pTarget) && !SCH_JOB_GOT_SUB_JOBS(pTarget)) {
+    pJob = pTarget;
+    SCH_TASK_DLOG("task query without subEndPoints, pJob:%p", pTarget);
     return TSDB_CODE_SUCCESS;
   }
   
@@ -1137,7 +1140,7 @@ int32_t schBuildSubJobEndpoints(SArray** ppRes, SSchJob* pTarget) {
   }
   
   for (int32_t i = 0; i < subJobNum; ++i) {
-    SSchJob* pJob = taosArrayGetP(pTarget->subJobs, i);
+    pJob = taosArrayGetP(pTarget->subJobs, i);
     if (NULL == pJob->fetchTask) {
       SCH_JOB_ELOG("no fetchTask set in job, status:%d", pJob->status);
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
@@ -1157,6 +1160,9 @@ int32_t schBuildSubJobEndpoints(SArray** ppRes, SSchJob* pTarget) {
       SCH_ERR_RET(terrno);
     }
   }
+
+  pJob = pTarget;
+  SCH_TASK_DLOG("task query with %d subEndPoints", subJobNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1242,7 +1248,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
       qMsg.explain = SCH_IS_EXPLAIN_JOB(pJob);
       qMsg.needFetch = SCH_TASK_NEED_FETCH(pTask);
-      qMsg.sqlLen = strlen(pJob->sql);
+      qMsg.sqlLen = pJob->sql ? strlen(pJob->sql) : 0;
       qMsg.sql = pJob->sql;
       qMsg.msgLen = pTask->msgLen;
       qMsg.msg = pTask->msg;
@@ -1253,7 +1259,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
         qMsg.compress = 1;
       }
 
-      SCH_ERR_JRET(schBuildSubJobEndpoints(&qMsg.subEndPoints, pJob));
+      SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
 
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {

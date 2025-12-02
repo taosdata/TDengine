@@ -807,6 +807,8 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
 _return:
 
+  QW_TASK_DLOG("task preprocess %s, code:%s, subQuery:%d", code ? "failed": "succeed", tstrerror(code), ctx ? ctx->subQuery : 0);
+
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
     if (code) {
@@ -816,8 +818,6 @@ _return:
     QW_UNLOCK(QW_WRITE, &ctx->lock);    
     qwReleaseTaskCtx(mgmt, ctx);
   }
-
-  QW_TASK_DLOG("task preprocess %s, code:%s", code ? "failed": "succeed", tstrerror(code));
 
   return code;
 }

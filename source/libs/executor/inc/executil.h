@@ -273,5 +273,6 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
+int32_t qFetchRemoteValue(void* pCtx, int32_t subQIdx, SRemoteValueNode* pRes);
 
 #endif  // TDENGINE_EXECUTIL_H

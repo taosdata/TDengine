@@ -1048,7 +1048,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTargetTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   initStreamInfo(&pCxt->streamInfo);
-  if (NULL == pCxt->pSubQueries || NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables || NULL == pCxt->pTargetTables) {
+  if (NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables || NULL == pCxt->pTargetTables) {
     return terrno;
   }
   return initSubQueries ? nodesMakeList(&pCxt->pSubQueries) : TSDB_CODE_SUCCESS;
@@ -3842,10 +3842,7 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
     case E_SUB_QUERY_SCALAR: {
       code = validateScalarSubQuery(pSubQuery);
       if (TSDB_CODE_SUCCESS == code) {
-        STempTableNode** ppTable = (STempTableNode**)pNode;
-        (*ppTable)->pSubquery = NULL;
-        nodesDestroyNode((SNode*)*ppTable);
-        *ppTable = NULL;
+        *pNode = NULL;
         code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE, pNode);
       }
       if (TSDB_CODE_SUCCESS == code) {
@@ -3866,12 +3863,12 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
 }
 
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
-  int32_t code = updateExprSubQueryType((*(STempTableNode**)pNode)->pSubquery, pCxt->expSubQueryType);
+  int32_t code = updateExprSubQueryType(*pNode, pCxt->expSubQueryType);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateSubquery(pCxt, (*(STempTableNode**)pNode)->pSubquery);
+    code = translateSubquery(pCxt, *pNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExpSubQuery(pCxt, pNode, (*(STempTableNode**)pNode)->pSubquery);
+    code = rewriteExpSubQuery(pCxt, pNode, *pNode);
   }
   return (TSDB_CODE_SUCCESS == code) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -4052,6 +4049,8 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
 
 static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
+  pCxt->expSubQueryType = E_SUB_QUERY_SCALAR;
+
   switch (nodeType(*pNode)) {
     case QUERY_NODE_COLUMN:
       return translateColumn(pCxt, (SColumnNode**)pNode);
@@ -4063,7 +4062,8 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
       return translateFunction(pCxt, (SFunctionNode**)pNode);
     case QUERY_NODE_LOGIC_CONDITION:
       return translateLogicCond(pCxt, (SLogicConditionNode*)*pNode);
-    case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
       return translateExprSubquery(pCxt, pNode);
     case QUERY_NODE_WHEN_THEN:
       return translateWhenThen(pCxt, (SWhenThenNode*)*pNode);
@@ -6293,6 +6293,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   int32_t      code = TSDB_CODE_SUCCESS;
 
   ((STableNode*)*pTable)->inJoin = inJoin;
+  pCxt->expSubQueryType = E_SUB_QUERY_TABLE;
 
   switch (nodeType(*pTable)) {
     case QUERY_NODE_REAL_TABLE: {
@@ -17675,7 +17676,7 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   } else {
     STranslateContext cxt = {0};
 
-    int32_t code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, false, &cxt);
+    code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, false, &cxt);
     if (TSDB_CODE_SUCCESS == code) {
       cxt.pSubQueries = pCxt->pSubQueries;
       code = setCurrLevelNsFromParent(pCxt, &cxt);
@@ -22379,7 +22380,7 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
     pQuery->pPrevRoot = cxt.pPrevRoot;
     pQuery->pPostRoot = cxt.pPostRoot;
   }
-  if (TSDB_CODE_SUCCESS == code && cxt.pSubQueries->length > 0) {
+  if (TSDB_CODE_SUCCESS == code && cxt.pSubQueries && cxt.pSubQueries->length > 0) {
     transferSubQueries(&cxt, pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {

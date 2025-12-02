@@ -89,7 +89,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
 
-  SCH_TASK_TLOG("task initialized, max retry(exec):%d(%d), max retry duration:%.2fs", pTask->maxRetryTimes,
+  SCH_TASK_DLOG("task initialized, max retry(exec):%d(%d), max retry duration:%.2fs", pTask->maxRetryTimes,
                 pTask->maxExecTimes, (pTask->redirectCtx.redirectDelayMs * pTask->maxRetryTimes) / 1000.0);
 
   return TSDB_CODE_SUCCESS;
@@ -1162,13 +1162,26 @@ _return:
 
 int32_t schLaunchTaskImpl(void *param) {
   SSchTaskCtx *pCtx = (SSchTaskCtx *)param;
-  SSchJob     *pJob = NULL;
+  SSchJob     *pJob = NULL, *pParent = NULL;
 
-  (void)schAcquireJob(pCtx->jobRid, &pJob);
-  if (NULL == pJob) {
+  (void)schAcquireJob(pCtx->jobRid, &pParent);
+  if (NULL == pParent) {
     qDebug("job refId 0x%" PRIx64 " already not exist", pCtx->jobRid);
     taosMemoryFree(param);
     SCH_RET(TSDB_CODE_SCH_JOB_IS_DROPPING);
+  }
+
+  if (pCtx->subJobId >= 0) {
+    pJob = taosArrayGetP(pParent->subJobs, pCtx->subJobId);
+    if (NULL == pJob) {
+      qDebug("subJobId %d not found in subJobs, totalSubJobNum:%d", pCtx->subJobId, (int32_t)taosArrayGetSize(pParent->subJobs));
+      (void)schReleaseJob(pParent->refId);
+
+      taosMemoryFree(param);
+      SCH_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
+  } else {
+    pJob = pParent;
   }
 
   SSchTask *pTask = pCtx->pTask;
@@ -1221,7 +1234,7 @@ int32_t schLaunchTaskImpl(void *param) {
 
 _return:
 
-  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+  if (pJob && pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
     if (code) {
       code = schProcessOnTaskFailure(pJob, pTask, code);
     }
@@ -1234,7 +1247,7 @@ _return:
     SCH_UNLOCK_TASK(pTask);
   }
 
-  (void)schReleaseJob(pJob->refId);
+  (void)schReleaseJob(pParent->refId);
 
   taosMemoryFree(param);
 
@@ -1248,6 +1261,7 @@ int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   }
 
   param->jobRid = pJob->refId;
+  param->subJobId = pJob->subJobId;
   param->pTask = pTask;
 
   if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {

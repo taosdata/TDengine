@@ -4014,7 +4014,7 @@ int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
 }
 
 
-int32_t sclCreateBlockFromRemoteValueNode(SSDataBlock** ppBlock, SRemoteValueNode* pRemote) {
+int32_t createBlockFromRemoteValueNode(SSDataBlock** ppBlock, SRemoteValueNode* pRemote) {
   SValueNode* pVal = (SValueNode*)pRemote;
   int32_t code = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -4042,11 +4042,13 @@ int32_t sclCreateBlockFromRemoteValueNode(SSDataBlock** ppBlock, SRemoteValueNod
     return code;
   }
 
+  *ppBlock = pBlock;
+
   return code;
 }
 
 
-int32_t sclExtractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) {
+int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   void*              decompBuf = NULL;
@@ -4089,7 +4091,7 @@ _end:
   return code;
 }
 
-int32_t sclSetValueFromResBlock(STaskSubJobCtx* ctx, SRemoteValueNode* pRes, SSDataBlock* pBlock) {
+int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SRemoteValueNode* pRes, SSDataBlock* pBlock) {
   int32_t code = 0;
   bool needFree = true;
   int32_t colNum = taosArrayGetSize(pBlock->pDataBlock);
@@ -4114,7 +4116,7 @@ int32_t sclSetValueFromResBlock(STaskSubJobCtx* ctx, SRemoteValueNode* pRes, SSD
   return code;
 }
 
-int32_t sclFetchRemoteCallBack(void* param, SDataBuf* pMsg, int32_t code) {
+int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
   SScalarFetchParam* pParam = (SScalarFetchParam*)param;
   STaskSubJobCtx* ctx = pParam->pSubJobCtx;
   SSDataBlock* pResBlock = NULL;
@@ -4135,7 +4137,7 @@ int32_t sclFetchRemoteCallBack(void* param, SDataBuf* pMsg, int32_t code) {
 */
 
   if (0 == code && NULL == pMsg->pData) {
-    qError("invalid rsp msg, msgType:%d, len:%d", pMsg->msgType, pMsg->len);
+    qError("%s invalid rsp msg, msgType:%d, len:%d", ctx->idStr, pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
   }
 
@@ -4153,15 +4155,15 @@ int32_t sclFetchRemoteCallBack(void* param, SDataBuf* pMsg, int32_t code) {
       ctx->code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
     } else {
       qDebug("%s scl fetch rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
-      ctx->code = sclCreateBlockFromRemoteValueNode(&pResBlock, pParam->pRes);
+      ctx->code = createBlockFromRemoteValueNode(&pResBlock, pParam->pRes);
       if (TSDB_CODE_SUCCESS == ctx->code) {
         ctx->code = blockDataEnsureCapacity(pResBlock, 1);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
-        ctx->code = sclExtractSingleRspBlock(pRsp, pResBlock);
+        ctx->code = extractSingleRspBlock(pRsp, pResBlock);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
-        ctx->code = sclSetValueFromResBlock(ctx, pParam->pRes, pResBlock);
+        ctx->code = setValueFromResBlock(ctx, pParam->pRes, pResBlock);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
         taosArraySet(ctx->subResValues, pParam->subQIdx, &pParam->pRes);
@@ -4180,13 +4182,13 @@ int32_t sclFetchRemoteCallBack(void* param, SDataBuf* pMsg, int32_t code) {
   
   code = tsem_post(&pParam->pSubJobCtx->ready);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to invoke post when scl fetch rsp is ready, code:%s", tstrerror(code));
+    qError("%s failed to invoke post when scl fetch rsp is ready, code:%s", ctx->idStr, tstrerror(code));
     return code;
   }
 
   blockDataDestroy(pResBlock);
 
-  return code;
+  return ctx->code;
 }
 
 
@@ -4249,7 +4251,7 @@ int32_t fetchRemoteValueImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SRemoteValueN
   pMsgSendInfo->msgInfo.pData = msg;
   pMsgSendInfo->msgInfo.len = msgSize;
   pMsgSendInfo->msgType = pSource->fetchMsgType;
-  pMsgSendInfo->fp = sclFetchRemoteCallBack;
+  pMsgSendInfo->fp = remoteFetchCallBack;
   pMsgSendInfo->requestId = ctx->queryId;
 
   int64_t transporterId = 0;
@@ -4265,11 +4267,13 @@ int32_t fetchRemoteValueImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SRemoteValueN
   code = qSemWait(ctx->pTaskInfo, &ctx->ready);
   if (isTaskKilled(ctx->pTaskInfo)) {
     code = getTaskCode(ctx->pTaskInfo);
+  } else {
+    code = ctx->code;
   }
       
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -4280,14 +4284,14 @@ int32_t qFetchRemoteValue(void* pCtx, int32_t subQIdx, SRemoteValueNode* pRes) {
   int32_t code = 0, lino = 0;
   int32_t       subEndPoinsNum = taosArrayGetSize(ctx->subEndPoints);
   if (subQIdx >= subEndPoinsNum) {
-    qError("invalid subQIdx %d, subEndPointsNum:%d", subQIdx, subEndPoinsNum);
+    qError("%s invalid subQIdx %d, subEndPointsNum:%d", ctx->idStr, subQIdx, subEndPoinsNum);
     return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
   }
 
   SValueNode** ppRes = taosArrayGet(ctx->subResValues, subQIdx);
   if (NULL == *ppRes) {
     TAOS_CHECK_EXIT(fetchRemoteValueImpl(ctx, subQIdx, pRes));
-    *ppRes = (SValueNode*)fetchRemoteValueImpl;
+    *ppRes = (SValueNode*)pRes;
   } else {
     TAOS_CHECK_EXIT(valueNodeCopy(*ppRes, &pRes->val));
     pRes->val.node.type = QUERY_NODE_VALUE;
@@ -4296,7 +4300,7 @@ int32_t qFetchRemoteValue(void* pCtx, int32_t subQIdx, SRemoteValueNode* pRes) {
 _exit:
 
   if (code) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
   }
 
   return code;

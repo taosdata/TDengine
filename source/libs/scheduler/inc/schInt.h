@@ -331,6 +331,7 @@ typedef struct SSchJob {
 
 typedef struct SSchTaskCtx {
   int64_t   jobRid;
+  int32_t   subJobId;
   SSchTask *pTask;
   bool      asyncLaunch;
 } SSchTaskCtx;
@@ -473,27 +474,27 @@ void schSetJobType(SSchJob* pJob, ESubplanType type);
     (_task)->profile.endTs = us;                                                 \
   } while (0)
 
-#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
-#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
-#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...)                                                                                    \
-  qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qError("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...)                                                                                    \
-  qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qDebug("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_TLOG(param, ...)                                                                                    \
-  qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qTrace("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...)                                                                                    \
-  qDebugL("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qDebugL("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
           SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...)                                                                                   \
-  qWarn("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qWarn("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_ILOG(param, ...)                                                                                   \
-  qInfo("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qInfo("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
           SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 
 #define SCH_SET_ERRNO(_err)                     \

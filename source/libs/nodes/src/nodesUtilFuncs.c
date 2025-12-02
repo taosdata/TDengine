@@ -522,6 +522,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SStreamNotifyOptions), &pNode);
       break;
     case QUERY_NODE_REMOTE_VALUE:
+      code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
@@ -1485,6 +1486,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_REMOTE_VALUE: {
       SRemoteValueNode* pValue = (SRemoteValueNode*)pNode;
+      pValue->val.node.type = QUERY_NODE_VALUE;
       nodesDestroyNode((SNode *)&pValue->val);
       break;
     }

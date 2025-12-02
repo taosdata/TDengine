@@ -511,6 +511,7 @@ static int32_t remoteValueCopy(const SRemoteValueNode* pSrc, SRemoteValueNode* p
   COPY_BASE_OBJECT_FIELD(val, valueNodeCopy);
   //COPY_SCALAR_FIELD(valSet);
   COPY_SCALAR_FIELD(subQIdx);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {

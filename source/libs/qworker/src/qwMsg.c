@@ -62,10 +62,10 @@ int32_t qwCloneSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int
   pRes->dataLen = dataLen;
 
   SRetrieveTableRsp* pRsp = NULL;
-  code = qwMallocFetchRsp(!ctx->localExec, dataLen, &pRsp);
-  if (code) {
-    qError("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", dataLen, ctx->localExec, tstrerror(code));
-    return code;
+  int32_t tcode = qwMallocFetchRsp(!ctx->localExec, dataLen, &pRsp);
+  if (tcode) {
+    qError("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", dataLen, ctx->localExec, tstrerror(tcode));
+    return tcode;
   }
 
   memcpy(pRsp, rsp, sizeof(*pRsp) + dataLen);

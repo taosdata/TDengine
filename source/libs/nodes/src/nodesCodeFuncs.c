@@ -121,6 +121,8 @@ const char* nodesNodeName(ENodeType type) {
       return "StreamNotifyOptions";
     case QUERY_NODE_TIME_RANGE:
       return "TimeRange";
+    case QUERY_NODE_REMOTE_VALUE:
+      return "RemoteValue";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -4775,19 +4777,35 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
 
 static const char* jkPlanQueryId = "QueryId";
 static const char* jkPlanNumOfSubplans = "NumOfSubplans";
-static const char* jkPlanSubplans = "Subplans";
+static const char* jkPlanSubplans = "Subplan";
+static const char* jkPlanSubQueries = "SubQueries";
 
 static int32_t planToJson(const void* pObj, SJson* pJson) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
+  char tmpBuf[64] = {0};
+  SNode* pTmp = NULL;
+  int32_t i = 0;
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkPlanQueryId, pNode->queryId);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkPlanNumOfSubplans, pNode->numOfSubplans);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkPlanSubplans, nodeToJson, nodesListGetNode(pNode->pSubplans, 0));
+    FOREACH(pTmp, pNode->pSubplans) {
+      snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubplans, i);
+      code = tjsonAddObject(pJson, tmpBuf, nodeToJson, pTmp);
+      ++i;
+    }
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    i = 0;
+    FOREACH(pTmp, pNode->pChildren) {
+      snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubQueries, i);
+      code = tjsonAddObject(pJson, tmpBuf, nodeToJson, pTmp);
+      ++i;
+    }
+  }
+  
   return code;
 }
 

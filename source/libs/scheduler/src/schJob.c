@@ -267,7 +267,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
         SCH_TASK_DLOG("parents info, the %d parent TID 0x%" PRIx64, n, (*parentTask)->taskId);
       }
 
-      SCH_TASK_TLOG("level:%d, parentNum:%d, childNum:%d", i, parentNum, childNum);
+      SCH_TASK_DLOG("level:%d, parentNum:%d, childNum:%d", i, parentNum, childNum);
     }
   }
 
@@ -442,10 +442,10 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       ++pJob->taskNum;
     }
 
-    SCH_JOB_TLOG("level %d initialized, taskNum:%d", i, taskNum);
+    SCH_JOB_DLOG("level %d initialized, taskNum:%d", i, taskNum);
   }
 
-  if (totalTaskNum != pDag->numOfSubplans) {
+  if (!SCH_JOB_GOT_SUB_JOBS(pJob) && totalTaskNum != pDag->numOfSubplans) {
     SCH_JOB_ELOG("totalTaskNum %d mis-match with numOfSubplans %d", totalTaskNum, pDag->numOfSubplans);
     SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -885,7 +885,7 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->attr.localExec = false;
   pJob->conn = pParent->conn;
   
-  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p", pParent->queryId, subJobId, pJob->conn.pTrans);
+  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p", pParent->queryId, subJobId, pJob->conn.pTrans, pJob);
 
   // TODO COPY SQL
   /*
@@ -960,7 +960,6 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->attr.localExec = pReq->localReq;
   pJob->conn = *pReq->pConn;
-  qInfo("QID:0x%" PRIx64 " init with pTrans:%p", pReq->pDag->queryId, pJob->conn.pTrans);
   
   if (pReq->sql) {
     pJob->sql = taosStrdup(pReq->sql);
@@ -986,6 +985,8 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->subJobId = -1;
   pJob->queryId = pReq->pDag->queryId;
   (void)atomic_add_fetch_64(&pJob->seriesId, 1);
+
+  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p", pJob->queryId, pJob->subJobId, pJob->conn.pTrans, pJob);
 
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qTrace("QID:0x%" PRIx64 ", input exec nodeList is empty", pReq->pDag->queryId);

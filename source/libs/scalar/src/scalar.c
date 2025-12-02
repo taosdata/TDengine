@@ -515,6 +515,8 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->colAlloced = false;
       break;
     }
+    case QUERY_NODE_REMOTE_VALUE:
+      SCL_ERR_RET(TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
     default:
       break;
   }

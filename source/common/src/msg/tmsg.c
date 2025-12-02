@@ -11155,7 +11155,9 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->needFetch));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compress));
   TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->sqlLen));
-  TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen));
+  if (pReq->sqlLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen));
+  }
   TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->msgLen));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (uint8_t *)pReq->msg, pReq->msgLen));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
@@ -11228,7 +11230,9 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->needFetch));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compress));
   TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->sqlLen));
-  TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pReq->sql));
+  if (pReq->sqlLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pReq->sql));
+  }
   TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->msgLen));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->msg, NULL));
   if (!tDecodeIsEnd(&decoder)) {
@@ -11244,8 +11248,15 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
     if (NULL == pReq->subEndPoints) {
       TAOS_CHECK_EXIT(terrno);
     }
-    SDownstreamSourceNode* pSource = taosArrayReserve(pReq->subEndPoints, 1);
-    TAOS_CHECK_EXIT(tDeserializeSDownstreamSourceNode(&decoder, pSource));
+    SDownstreamSourceNode** ppSource = taosArrayReserve(pReq->subEndPoints, 1);
+    if (NULL == ppSource) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    *ppSource = taosMemoryCalloc(1, sizeof(SDownstreamSourceNode));
+    if (NULL == *ppSource) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDeserializeSDownstreamSourceNode(&decoder, *ppSource));
   }
   tEndDecode(&decoder);
 
