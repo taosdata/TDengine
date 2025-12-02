@@ -301,7 +301,11 @@ This indicates that the client and server versions are incompatible. Here, the c
 
 By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to connection. After changing the password, you also need to modify the password in the configuration file of the taosKeeper component (located at /etc/taos/taoskeeper.toml by default) and restart the service.
 
-Starting from version V3.3.6.6, a new environment variable `TAOS_ROOT_PASSWORD` is introduced for TDengine TSDB Docker image, to set the custom password. When starting a container with the `docker run` command, you can add the `-e TAOS_ROOT_PASSWORD=<password>` parameter to use the custom password to start the TDengine TSDB service, without the need to manually modify the password in the configuration files.
+Starting from version 3.3.6.6, a new environment variable `TAOS_ROOT_PASSWORD` is introduced for TDengine TSDB Docker image, to set the custom password. When starting a container with the `docker run` command, you can add the `-e TAOS_ROOT_PASSWORD=<password>` parameter to use the custom password to start the TDengine TSDB service, without the need to manually modify the password in the configuration files.
+
+For versions 3.3.6.6 to 3.3.8.4, if you changed the password in an older version, you need to touch an empty file named `.docker-entrypoint-root-password-changed` in the data directory, then restart the container.
+
+For version 3.3.8.8 and above, you can upgrade directly.
 
 ### 29. After changing the root password of the database, the Grafana monitoring plugin TDinsight shows no data
 
