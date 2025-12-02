@@ -122,10 +122,10 @@ class TestCase:
                                 tdLog.exit(f"error: {element[4]} {element[-1]}")
 
                         tdSql.execute(f"alter table {func_name} add tag t1 int")
-                        tdSql.error(f"alter table {func_name} drop tag groupId")
-                        tdSql.error(f"alter table {func_name} drop tag location")
-                        tdSql.execute(f"INSERT INTO {func_name}_3 USING {func_name} TAGS('d3', 2, 1)  VALUES('2018-10-05 14:00:00.000',1.3,219,0.31000,'i3')")
-                        tdSql.execute(f"INSERT INTO {func_name}_4 USING {func_name} TAGS('d4', 21, 84) VALUES('2018-10-05 15:00:00.000',1.4,219,0.31000,'i4')")
+                        tdSql.execute(f"alter table {func_name} drop tag groupId")
+                        tdSql.execute(f"alter table {func_name} drop tag location")
+                        tdSql.execute(f"INSERT INTO {func_name}_3 USING {func_name} TAGS(2)  VALUES('2018-10-05 14:00:00.000',1.3,219,0.31000,'i3')")
+                        tdSql.execute(f"INSERT INTO {func_name}_4 USING {func_name} TAGS(21) VALUES('2018-10-05 15:00:00.000',1.4,219,0.31000,'i4')")
 
                     if index == 1:
                             if len(data) != 1:
@@ -288,8 +288,8 @@ class TestCase:
 
         # self.check_add_table()
 
-        # self.check_add_drop_tag()
-        self.check_alter_tag_name_bytes()
+        self.check_add_drop_tag()
+        # self.check_alter_tag_name_bytes()
         # self.check_alter_tag_value()
 
         # self.check_add_col()

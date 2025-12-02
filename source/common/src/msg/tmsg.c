@@ -8582,6 +8582,7 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, strlen(pReq->sql)));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->sql));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->reload));
 
   tEndEncode(&encoder);
 
@@ -8629,7 +8630,9 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
     }
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->sql));
   }
-
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->reload));
+  }
   tEndDecode(&decoder);
 
 _exit:

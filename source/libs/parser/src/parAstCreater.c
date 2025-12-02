@@ -4359,7 +4359,7 @@ _err:
   return NULL;
 }
 
-SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery) {
+SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery, bool reload) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));
   SCreateTopicStmt* pStmt = NULL;
@@ -4368,6 +4368,7 @@ SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists,
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pQuery = pQuery;
+  pStmt->reload = reload;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pQuery);
@@ -4410,19 +4411,6 @@ SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists,
 _err:
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pWhere);
-  return NULL;
-}
-
-SNode* createReloadTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pTopicName) {
-  CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkTopicName(pCxt, pTopicName));
-  SReloadTopicStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_RELOAD_TOPIC_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
-  pStmt->ignoreNotExists = ignoreNotExists;
-  return (SNode*)pStmt;
-_err:
   return NULL;
 }
 

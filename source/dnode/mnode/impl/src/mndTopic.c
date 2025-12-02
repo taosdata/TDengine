@@ -65,7 +65,6 @@ int32_t mndInitTopic(SMnode *pMnode) {
   }
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CREATE_TOPIC, mndProcessCreateTopicReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DROP_TOPIC, mndProcessDropTopicReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_RELOAD_TOPIC, mndProcessReloadTopicReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextTopic);
@@ -427,28 +426,77 @@ END:
   return code;
 }
 
-static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
-  if (pReq == NULL || pReq->contLen <= 0) {
-    return TSDB_CODE_INVALID_MSG;
-  }
-  SMnode *          pMnode = pReq->info.node;
-  int32_t           code = TSDB_CODE_SUCCESS;
-  int32_t           lino = 0;
-  SMqTopicObj *     pTopic = NULL;
-  SDbObj *          pDb = NULL;
-  SCMCreateTopicReq createTopicReq = {0};
+static int32_t mndReloadTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb,
+                              const char *userName, SMqTopicObj* topicObj) {
+  if (pMnode == NULL || pReq == NULL || pCreate == NULL || pDb == NULL || userName == NULL)
+    return TSDB_CODE_INVALID_PARA;
+  STrans *    pTrans = NULL;
+  int32_t     code = 0;
+  int32_t     lino = 0;
 
   PRINT_LOG_START
-  MND_TMQ_RETURN_CHECK(tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq));
+  mInfo("start to reload topic:%s", pCreate->name);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "reload-topic");
+  MND_TMQ_NULL_CHECK(pTrans);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
+  MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
 
-  mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
+  tstrncpy(topicObj->name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
+  tstrncpy(topicObj->db, pDb->name, TSDB_DB_FNAME_LEN);
+  tstrncpy(topicObj->createUser, userName, TSDB_USER_LEN);
 
-  MND_TMQ_RETURN_CHECK(mndCheckCreateTopicReq(&createTopicReq));
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, topicObj));
 
-  code = mndAcquireTopic(pMnode, createTopicReq.name, &pTopic);
+  topicObj->updateTime = taosGetTimestampMs();
+  topicObj->dbUid = pDb->uid;
+  topicObj->version++;
+  char* tmp = taosStrdup(pCreate->sql);
+  MND_TMQ_NULL_CHECK(tmp);
+  taosMemoryFree(topicObj->sql);
+  topicObj->sql = tmp;
+  topicObj->sqlLen = strlen(pCreate->sql) + 1;
+  topicObj->subType = pCreate->subType;
+  topicObj->withMeta = pCreate->withMeta;
+
+  MND_TMQ_RETURN_CHECK(processAst(topicObj, pCreate->ast));
+
+  if (pCreate->subStbName[0] != 0) {
+    tstrncpy(topicObj->stbName, pCreate->subStbName, TSDB_TABLE_FNAME_LEN);
+    SStbObj *pStb = mndAcquireStb(pMnode, topicObj->stbName);
+    MND_TMQ_NULL_CHECK(pStb);
+    topicObj->stbUid = pStb->uid;
+    mndReleaseStb(pMnode, pStb);
+  }
+
+  SSdbRaw *pCommitRaw = mndTopicActionEncode(topicObj);
+  MND_TMQ_NULL_CHECK(pCommitRaw);
+  code = mndTransAppendCommitlog(pTrans, pCommitRaw);
+  if (code != 0) {
+    sdbFreeRaw(pCommitRaw);
+    goto END;
+  }
+
+  MND_TMQ_RETURN_CHECK(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+  MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
+
+END:
+  PRINT_LOG_END
+  mndTransDrop(pTrans);
+  return code;
+}
+
+static int32_t creatTopic(SRpcMsg *pReq, SCMCreateTopicReq* createTopicReq) {
+  SMqTopicObj *     pTopic = NULL;
+  SDbObj *          pDb = NULL;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+  SMnode *          pMnode = pReq->info.node;
+  PRINT_LOG_START
+  mInfo("topic:%s start to create, sql:%s", createTopicReq->name, createTopicReq->sql);
+  code = mndAcquireTopic(pMnode, createTopicReq->name, &pTopic);
   if (code == TSDB_CODE_SUCCESS) {
-    if (createTopicReq.igExists) {
-      mInfo("topic:%s already exist, ignore exist is set", createTopicReq.name);
+    if (createTopicReq->igExists) {
+      mInfo("topic:%s already exist, ignore exist is set", createTopicReq->name);
     } else {
       code = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
     }
@@ -457,7 +505,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto END;
   }
 
-  pDb = mndAcquireDb(pMnode, createTopicReq.subDbName);
+  pDb = mndAcquireDb(pMnode, createTopicReq->subDbName);
   MND_TMQ_NULL_CHECK(pDb);
 
   if (pDb->cfg.walRetentionPeriod == 0) {
@@ -471,21 +519,96 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   }
 
   MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
-  MND_TMQ_RETURN_CHECK(mndCreateTopic(pMnode, pReq, &createTopicReq, pDb, pReq->info.conn.user));
+  MND_TMQ_RETURN_CHECK(mndCreateTopic(pMnode, pReq, createTopicReq, pDb, pReq->info.conn.user));
 
-  auditRecord(pReq, pMnode->clusterId, "createTopic", createTopicReq.subDbName, createTopicReq.name,
-              createTopicReq.sql, strlen(createTopicReq.sql));
+  auditRecord(pReq, pMnode->clusterId, "createTopic", createTopicReq->subDbName, createTopicReq->name,
+              createTopicReq->sql, strlen(createTopicReq->sql));
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 END:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("%s failed, topic:%s since %s", __func__, createTopicReq.name, tstrerror(code));
+    mError("%s failed, topic:%s since %s", __func__, createTopicReq->name, tstrerror(code));
   } else {
-    mInfo("topic:%s create successfully", createTopicReq.name);
+    mInfo("topic:%s create successfully", createTopicReq->name);
+  }
+  mndReleaseTopic(pMnode, pTopic);
+  mndReleaseDb(pMnode, pDb);
+  return code;
+}
+
+static int32_t reloadTopic(SRpcMsg *pReq, SCMCreateTopicReq* createTopicReq) {
+  SMnode *          pMnode = pReq->info.node;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+  SDbObj *          pDb = NULL;
+  SMqTopicObj *     pTopic = NULL;
+
+  PRINT_LOG_START
+  code = mndAcquireTopic(pMnode, createTopicReq->name, &pTopic);
+  if (code != 0) {
+    if (createTopicReq->igExists) {
+      mInfo("topic:%s, not exist, ignore not exist is set", createTopicReq->name);
+      code = 0;
+      goto END;
+    } else {
+      mError("topic:%s, failed to reload since %s", createTopicReq->name, tstrerror(code));
+      goto END;
+    }
+  }
+
+  pDb = mndAcquireDb(pMnode, createTopicReq->subDbName);
+  MND_TMQ_NULL_CHECK(pDb);
+
+  MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
+  MND_TMQ_RETURN_CHECK(mndReloadTopic(pMnode, pReq, createTopicReq, pDb, pReq->info.conn.user, pTopic));
+
+  auditRecord(pReq, pMnode->clusterId, "reloadTopic", createTopicReq->subDbName, createTopicReq->name,
+              createTopicReq->sql, strlen(createTopicReq->sql));
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  if (topicsToReload == NULL) {
+    topicsToReload = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    MND_TMQ_NULL_CHECK(topicsToReload);
+  }
+  MND_TMQ_RETURN_CHECK(taosHashPut(topicsToReload, createTopicReq->name, strlen(createTopicReq->name), createTopicReq->name, 1));
+  mInfo("topic:%s, marked to reload", createTopicReq->name);
+
+END:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("%s failed, topic:%s since %s", __func__, createTopicReq->name, tstrerror(code));
+  } else {
+    mInfo("topic:%s create successfully", createTopicReq->name);
   }
   mndReleaseTopic(pMnode, pTopic);
   mndReleaseDb(pMnode, pDb);
 
+  return code;
+}
+
+static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
+  if (pReq == NULL || pReq->contLen <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SMnode *          pMnode = pReq->info.node;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  int32_t           lino = 0;
+  
+  SCMCreateTopicReq createTopicReq = {0};
+
+  PRINT_LOG_START
+  MND_TMQ_RETURN_CHECK(tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq));
+
+  mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
+
+  MND_TMQ_RETURN_CHECK(mndCheckCreateTopicReq(&createTopicReq));
+
+  if (createTopicReq.reload) {
+    MND_TMQ_RETURN_CHECK(reloadTopic(pReq, &createTopicReq));
+  } else {
+    MND_TMQ_RETURN_CHECK(creatTopic(pReq, &createTopicReq));
+  }
+
+END:
   tFreeSCMCreateTopicReq(&createTopicReq);
   return code;
 }

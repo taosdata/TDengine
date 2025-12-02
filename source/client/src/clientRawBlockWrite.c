@@ -1929,11 +1929,10 @@ static int32_t buildCreateTbMap(SMqDataRsp* rsp, SHashObj* pHashObj) {
           taosHashPut(pHashObj, pCreateReq.name, strlen(pCreateReq.name), &pCreateReq, sizeof(SVCreateTbReq)));
     } else {
       tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-      pCreateReq = (SVCreateTbReq){0};
     }
 
     tDecoderClear(&decoderTmp);
-    decoderTmp = (SDecoder){0};
+    pCreateReq = (SVCreateTbReq){0};
   }
 
 end:

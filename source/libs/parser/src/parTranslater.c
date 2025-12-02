@@ -10626,11 +10626,6 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       break;
     }
 
-    case TDMT_MND_TMQ_RELOAD_TOPIC: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMReloadTopicReq, pReq);
-      break;
-    }
-
     case TDMT_MND_BALANCE_VGROUP_LEADER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupLeaderReq, pReq);
       break;
@@ -12913,6 +12908,7 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
   snprintf(pReq->name, sizeof(pReq->name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   pReq->igExists = pStmt->ignoreExists;
   pReq->withMeta = pStmt->withMeta;
+  pReq->reload   = pStmt->reload;
 
   pReq->sql = taosStrdup(pCxt->pParseCxt->pSql);
   if (NULL == pReq->sql) {
@@ -13133,17 +13129,6 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
   tFreeSMDropTopicReq(&dropReq);
-  return code;
-}
-
-static int32_t translateReloadTopic(STranslateContext* pCxt, SReloadTopicStmt* pStmt) {
-  SMReloadTopicReq reloadReq = {0};
-
-  snprintf(reloadReq.name, sizeof(reloadReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
-  reloadReq.igNotExists = pStmt->ignoreNotExists;
-
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_TMQ_RELOAD_TOPIC, (FSerializeFunc)tSerializeSMReloadTopicReq, &reloadReq);
-  tFreeSMReloadTopicReq(&reloadReq);
   return code;
 }
 
@@ -17390,9 +17375,6 @@ _return:
       break;
     case QUERY_NODE_DROP_TOPIC_STMT:
       code = translateDropTopic(pCxt, (SDropTopicStmt*)pNode);
-      break;
-    case QUERY_NODE_RELOAD_TOPIC_STMT:
-      code = translateReloadTopic(pCxt, (SReloadTopicStmt*)pNode);
       break;
     case QUERY_NODE_DROP_CGROUP_STMT:
       code = translateDropCGroup(pCxt, (SDropCGroupStmt*)pNode);

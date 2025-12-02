@@ -207,8 +207,6 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateTopicStmt";
     case QUERY_NODE_DROP_TOPIC_STMT:
       return "DropTopicStmt";
-    case QUERY_NODE_RELOAD_TOPIC_STMT:
-      return "ReloadTopicStmt";
     case QUERY_NODE_DROP_CGROUP_STMT:
       return "DropConsumerGroupStmt";
     case QUERY_NODE_ALTER_LOCAL_STMT:
@@ -8592,30 +8590,8 @@ static int32_t dropTopicStmtToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
-static int32_t reloadTopicStmtToJson(const void* pObj, SJson* pJson) {
-  const SReloadTopicStmt* pNode = (const SReloadTopicStmt*)pObj;
-
-  int32_t code = tjsonAddStringToObject(pJson, jkDropTopicStmtTopicName, pNode->topicName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkDropTopicStmtIgnoreNotExists, pNode->ignoreNotExists);
-  }
-
-  return code;
-}
-
 static int32_t jsonToDropTopicStmt(const SJson* pJson, void* pObj) {
   SDropTopicStmt* pNode = (SDropTopicStmt*)pObj;
-
-  int32_t code = tjsonGetStringValue(pJson, jkDropTopicStmtTopicName, pNode->topicName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkDropTopicStmtIgnoreNotExists, &pNode->ignoreNotExists);
-  }
-
-  return code;
-}
-
-static int32_t jsonToReloadTopicStmt(const SJson* pJson, void* pObj) {
-  SReloadTopicStmt* pNode = (SReloadTopicStmt*)pObj;
 
   int32_t code = tjsonGetStringValue(pJson, jkDropTopicStmtTopicName, pNode->topicName);
   if (TSDB_CODE_SUCCESS == code) {
@@ -9767,8 +9743,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createTopicStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_TOPIC_STMT:
       return dropTopicStmtToJson(pObj, pJson);
-    case QUERY_NODE_RELOAD_TOPIC_STMT:
-      return reloadTopicStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_CGROUP_STMT:
       return dropConsumerGroupStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_LOCAL_STMT:
@@ -10192,8 +10166,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCreateTopicStmt(pJson, pObj);
     case QUERY_NODE_DROP_TOPIC_STMT:
       return jsonToDropTopicStmt(pJson, pObj);
-    case QUERY_NODE_RELOAD_TOPIC_STMT:
-      return jsonToReloadTopicStmt(pJson, pObj);
     case QUERY_NODE_DROP_CGROUP_STMT:
       return jsonToDropConsumerGroupStmt(pJson, pObj);
     case QUERY_NODE_ALTER_LOCAL_STMT:

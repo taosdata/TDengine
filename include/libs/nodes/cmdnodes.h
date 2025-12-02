@@ -656,6 +656,7 @@ typedef struct SCreateTopicStmt {
   int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
+  bool      reload;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
@@ -664,12 +665,6 @@ typedef struct SDropTopicStmt {
   bool      ignoreNotExists;
   bool      force;
 } SDropTopicStmt;
-
-typedef struct SReloadTopicStmt {
-  ENodeType type;
-  char      topicName[TSDB_TOPIC_NAME_LEN];
-  bool      ignoreNotExists;
-} SReloadTopicStmt;
 
 typedef struct SDropCGroupStmt {
   ENodeType type;
