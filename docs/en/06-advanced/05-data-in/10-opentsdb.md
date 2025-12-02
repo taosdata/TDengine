@@ -3,16 +3,6 @@ title: OpenTSDB
 slug: /advanced-features/data-connectors/opentsdb
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/opentsdb-01.png';
-import imgStep02 from '../../assets/opentsdb-02.png';
-import imgStep03 from '../../assets/opentsdb-03.png';
-import imgStep04 from '../../assets/opentsdb-04.png';
-import imgStep05 from '../../assets/opentsdb-05.png';
-import imgStep06 from '../../assets/opentsdb-06.png';
-import imgStep07 from '../../assets/opentsdb-07.png';
-import imgStep08 from '../../assets/opentsdb-08.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -31,9 +21,7 @@ During the operation, the task will save progress information to the disk, so if
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/opentsdb-01.png)
 
 ### 2. Configure Basic Information
 
@@ -45,37 +33,25 @@ Select *`OpenTSDB`* from the **Type** dropdown menu, as shown below (the fields 
 
 **Target Database** is required. Since OpenTSDB stores data with millisecond precision, you need to select a *`millisecond precision database`*, or click the **+ Create Database** button on the right.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/opentsdb-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source OpenTSDB database`* in the **Connection Configuration** area, as shown below:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/opentsdb-03.png)
 
 Below the **Connection Configuration** area, there is a **Connectivity Check** button. Users can click this button to check whether the information filled in above can normally access the data from the source OpenTSDB database. The check results are shown below:  
 
-  <figure>
-  <Image img={imgStep04} alt=""/>
-  <figcaption>Failed</figcaption>
-  </figure>
+  ![](../../assets/opentsdb-04.png)
 
-  <figure>
-  <Image img={imgStep05} alt=""/>
-  <figcaption>Successful</figcaption>
-  </figure>
+  ![](../../assets/opentsdb-05.png)
 
 ### 4. Configure Task Information
 
 **Metrics** are the physical quantities in which data is stored in the OpenTSDB database. Users can specify multiple metrics to synchronize, or synchronize all data in the database if none are specified. If users specify metrics, they need to first click the **Get Metrics** button on the right to obtain all the metric information from the current source OpenTSDB database, and then select from the dropdown menu, as shown below:
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/opentsdb-06.png)
 
 **Start Time** refers to the start time of the data in the source OpenTSDB database, using the timezone selected in explorer, and this field is required.
 
@@ -89,13 +65,9 @@ Below the **Connection Configuration** area, there is a **Connectivity Check** b
 
 The **Advanced Options** area is collapsed by default. Click the `>` on the right to expand it, as shown in the following images:
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/opentsdb-07.png)
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![](../../assets/opentsdb-08.png)
 
 ### 6. Completion of Creation
 

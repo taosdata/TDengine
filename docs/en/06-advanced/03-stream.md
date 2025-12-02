@@ -3,9 +3,6 @@ title: Stream Processing
 slug: /advanced-features/stream-processing
 ---
 
-import Image from '@theme/IdealImage';
-import watermarkImg from '../assets/stream-processing-01-watermark.webp';
-
 In the processing of time-series data, it is often necessary to clean and preprocess the raw data before using a time-series database for long-term storage. Moreover, it is common to use the original time-series data to generate new time-series data through calculations. In traditional time-series data solutions, it is often necessary to deploy systems like Kafka, Flink, etc., for stream processing. However, the complexity of stream processing systems brings high development and operational costs.
 
 TDengine's stream computing engine provides the capability to process data streams in real-time as they are written. It uses SQL to define real-time stream transformations. Once data is written into the stream's source table, it is automatically processed in the defined manner and pushed to the destination table according to the defined trigger mode. It offers a lightweight solution that replaces complex stream processing systems and can provide millisecond-level computational result latency under high-throughput data writing scenarios.
@@ -165,10 +162,7 @@ To further control the tolerance level for out-of-order data, stream computing i
 
 Assuming T = Latest event time - watermark, each time new data is written, the system updates the window closure time based on this formula. Specifically, the system closes all open windows whose end time is less than T. If the trigger mode is set to window_close or max_delay, the aggregated results of the window are pushed. The diagram below illustrates the window closure process in stream computing.
 
-<figure>
-<Image img={watermarkImg} alt="Window closure in stream processing"/>
-<figcaption>Figure 1. Window closure diagram</figcaption>
-</figure>
+![](../assets/stream-processing-01-watermark.webp)
 
 In the diagram above, the vertical axis represents moments, and the dots on the horizontal axis represent the data received. The related process is described as follows.
 

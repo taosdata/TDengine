@@ -4,16 +4,6 @@ sidebar_label: SQL Server
 slug: /advanced-features/data-connectors/sql-server
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/sql-server-01.png';
-import imgStep02 from '../../assets/sql-server-02.png';
-import imgStep03 from '../../assets/sql-server-03.png';
-import imgStep04 from '../../assets/sql-server-04.png';
-import imgStep05 from '../../assets/sql-server-05.png';
-import imgStep06 from '../../assets/sql-server-06.png';
-import imgStep07 from '../../assets/sql-server-07.png';
-import imgStep08 from '../../assets/sql-server-08.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -32,9 +22,7 @@ Microsoft SQL Server is one of the most popular relational databases. Many syste
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/sql-server-01.png)
 
 ### 2. Configure Basic Information
 
@@ -46,17 +34,13 @@ Select *`Microsoft SQL Server`* from the **Type** dropdown menu, as shown below 
 
 **Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/sql-server-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source Microsoft SQL Server database`* in the **Connection Configuration** area, as shown below:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/sql-server-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -64,9 +48,7 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 **Password** Enter the login password for the user mentioned above in the source Microsoft SQL Server database.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](../../assets/sql-server-04.png)
 
 ### 5. Configure Connection Options
 
@@ -80,10 +62,8 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 **Trust Certificate CA** Set whether to trust the server's certificate CA. If a CA file is uploaded, the server certificate will be verified based on the provided CA certificate in addition to the system trust store.
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
-  
+![](../../assets/sql-server-05.png)
+
 Then click the **Check Connectivity** button. Users can click this button to check if the information filled in above can normally retrieve data from the source Microsoft SQL Server database.
 
 ### 6. Configure SQL Query
@@ -114,9 +94,7 @@ Then click the **Check Connectivity** button. Users can click this button to che
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writing, each synchronization task will read data from before the delay duration.
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/sql-server-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -132,9 +110,7 @@ In **Mapping**, select the supertable in TDengine to which you want to map, and 
 
 Click **Preview** to view the results of the mapping.
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/sql-server-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -144,9 +120,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![](../../assets/sql-server-08.png)
 
 ### 9. Completion
 

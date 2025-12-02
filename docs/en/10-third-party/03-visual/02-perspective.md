@@ -4,17 +4,12 @@ title: Integration with Perspective
 description: This guide demonstrates how to integrate TDengine with Perspective.
 ---
 
-import Image from '@theme/IdealImage';
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import prospectiveImg from '../../assets/perspective-01.png';
 
 This document demonstrates how to integrate TDengine with [Perspective](https://perspective.finos.org/), a powerful data visualization library from [Prospective.co](https://prospective.co/). By combining these technologies, you can create a real-time data visualization platform that streams data from TDengine to an interactive real-time Perspective dashboard.
 
-<figure>
-<Image img={prospectiveImg} alt=""/>
-<figcaption>TDengine--Perspective integration workflow</figcaption>
-</figure>
+![](../../assets/perspective-01.png)
 
 The integration can be performed using the Node.js or Python connector.
 

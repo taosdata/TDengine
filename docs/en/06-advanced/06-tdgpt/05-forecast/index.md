@@ -3,9 +3,6 @@ title: Time-Series Forecasting
 description: Time-Series Forecasting
 ---
 
-import Image from '@theme/IdealImage';
-import fcResult from '../../../assets/tdgpt-04.png';
-
 Time-series forecasting takes a continuous period of time-series data as its input and forecasts how the data will trend in the next continuous period. The number of data points in the forecast results is not fixed, but can be specified by the user. TDgpt uses the `FORECAST` function to provide forecasting. The input for this function is the historical time-series data used as a basis for forecasting, and the output is forecast data. You can use the `FORECAST` function to invoke a forecasting algorithm on an anode to provide service. Forecasting is typically performed on a subtable or on the same time series across tables.
 
 In this section, the table `foo` is used as an example to describe how to perform forecasting and anomaly detection in TDgpt. This table is described as follows:
@@ -198,6 +195,4 @@ python3.10 ./analytics_compare.py forecast
 
 If you set `gen_figure` to `true`, a chart is also generated, as displayed in the following figure.
 
-<figure>
-<Image img={fcResult} alt="Forecasting comparison"/>
-</figure>
+![](../../../assets/tdgpt-04.png)
