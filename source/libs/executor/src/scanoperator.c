@@ -1230,11 +1230,22 @@ int compareColIdPair(const void* elem1, const void* elem2) {
   SColIdPair* node1 = (SColIdPair*)elem1;
   SColIdPair* node2 = (SColIdPair*)elem2;
 
-  if (node1->orgColId < node2->orgColId) {
-    return -1;
+  if (node1->orgColId == node2->orgColId) {
+    return 0;
   }
 
-  return node1->orgColId > node2->orgColId;
+  return node1->orgColId < node2->orgColId ? -1 : 1;
+}
+
+int compareColIdSlotIdPair(const void* elem1, const void* elem2) {
+  SColIdSlotIdPair* node1 = (SColIdSlotIdPair*)elem1;
+  SColIdSlotIdPair* node2 = (SColIdSlotIdPair*)elem2;
+
+  if (node1->orgColId == node2->orgColId) {
+    return 0;
+  }
+
+  return node1->orgColId < node2->orgColId ? -1 : 1;
 }
 
 static bool isNewScanParam(STableScanOperatorParam* pParam) {
@@ -1295,7 +1306,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   pColArray = taosArrayInit(schema->nCols, sizeof(SColIdPair));
   QUERY_CHECK_NULL(pColArray, code, lino, _return, terrno);
-  pBlockColArray = taosArrayInit(schema->nCols, sizeof(int32_t));
+  pBlockColArray = taosArrayInit(schema->nCols, sizeof(SColIdSlotIdPair));
   QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
 
   // virtual table's origin table scan do not has ts column.
@@ -1318,15 +1329,25 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
       SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
       if (pItem->colId == pPair->vtbColId) {
-        SColIdPair tmpPair = {.orgColId = pPair->orgColId, .vtbColId = pItem->dstSlotId};
-        QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &tmpPair), code, lino, _return, terrno);
+        SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
+        QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
         break;
       }
     }
   }
 
   taosArraySort(pColArray, compareColIdPair);
-  taosArraySort(pBlockColArray, compareColIdPair);
+  taosArraySort(pBlockColArray, compareColIdSlotIdPair);
+  if (pInfo->pBlockColMap) {
+    taosArrayDestroy(pInfo->pBlockColMap);
+    pInfo->pBlockColMap = NULL;
+  }
+  pInfo->pBlockColMap = taosArrayDup(pBlockColArray, NULL);
+  QUERY_CHECK_NULL(pInfo->pBlockColMap, code, lino, _return, terrno)
+
+
+  taosArrayRemoveDuplicate(pColArray, compareColIdPair, NULL);
+  taosArrayRemoveDuplicate(pBlockColArray, compareColIdSlotIdPair, NULL);
 
   code = initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -1563,7 +1584,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       if (result) {
         SSDataBlock* res = NULL;
         pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
-        code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, &res);
+        code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
         QUERY_CHECK_CODE(code, lino, _end);
         pInfo->pResBlock = res;
         blockDataDestroy(result);
@@ -1738,6 +1759,7 @@ static void destroyTableScanOperatorInfo(void* param) {
     taosHashCleanup(pTableScanInfo->readerCache);
   }
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
+  taosArrayDestroy(pTableScanInfo->pBlockColMap);
   taosMemoryFreeClear(param);
 }
 
@@ -1814,6 +1836,8 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   blockDataEmpty(pInfo->pResBlock);
   blockDataEmpty(pInfo->pOrgBlock);
   taosHashClear(pInfo->pIgnoreTables);
+  taosArrayDestroy(pInfo->pBlockColMap);
+  pInfo->pBlockColMap = NULL;
   return code;
 }
 
