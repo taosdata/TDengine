@@ -475,7 +475,7 @@ static int32_t processAlterStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   tDecoderInit(&coder, data, len);
 
   RAW_RETURN_CHECK(tDecodeSVCreateStbReq(&coder, &req));
-  buildAlterSTableJson(req.alterOriData, req.alterOriDataLen, pJson);
+  RAW_RETURN_CHECK(buildAlterSTableJson(req.alterOriData, req.alterOriDataLen, pJson));
 
 end:
   tDecoderClear(&coder);
@@ -689,7 +689,7 @@ static int32_t processAutoCreateTable(SMqDataRsp* rsp, char** string) {
     RAW_RETURN_CHECK(tDecodeSVCreateTbReq(&decoder[iReq], pCreateReq + iReq));
 
     if (pCreateReq[iReq].type != TSDB_CHILD_TABLE && pCreateReq[iReq].type != TSDB_NORMAL_TABLE) {
-      uError("%s failed. pCreateReq[iReq].type:%s invalid", __func__, pCreateReq[iReq].type);
+      uError("%s failed. pCreateReq[iReq].type:%d invalid", __func__, pCreateReq[iReq].type);
       goto end;
     }
   }
