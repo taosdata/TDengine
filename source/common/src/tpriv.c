@@ -290,11 +290,13 @@ _loop:
   return true;
 }
 
+// objType.1.db.tb or objType.1.db
 int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen) {
   return (objType == PRIV_OBJ_DB) ? snprintf(buf, bufLen, "%d.%s", objType, db ? db : "")
                                   : snprintf(buf, bufLen, "%d.%s.%s", objType, db ? db : "", tb ? tb : "");
 }
 
+// objType.1.db or objType.1.db.tb
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen) {
   char* p = strchr(str, '.');
   if (!p) {
@@ -305,14 +307,18 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
     return TSDB_CODE_INVALID_DATA_FMT;
   }
   char* pNext = strchr(p + 1, '.');
-  if (pNext) {
-    size_t dbLength = pNext - (p + 1);
+  if (!pNext) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  char* qNext = strchr(pNext + 1, '.');
+  if (qNext) {
+    size_t dbLength = qNext - (p + 1);
     if (dbLength >= (size_t)dbLen) {
       return TSDB_CODE_INVALID_DATA_FMT;
     }
     strncpy(db, p + 1, dbLength);
     db[dbLength] = '\0';
-    strncpy(tb, pNext + 1, tbLen);
+    strncpy(tb, qNext + 1, tbLen);
   } else {
     strcpy(db, p + 1);
     tb[0] = '\0';

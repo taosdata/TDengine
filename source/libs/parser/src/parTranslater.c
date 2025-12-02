@@ -15931,13 +15931,13 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name cannot be empty for non-database level privileges");
       }
-      return TSDB_CODE_SUCCESS;
+      goto _exit;
     } else if (strncmp(pStmt->tabName, "*", 2) == 0) {
       if (objType == PRIV_OBJ_DB) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name should be empty for database level privileges");
       }
-      return TSDB_CODE_SUCCESS;
+      goto _exit;
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
     }
@@ -15985,8 +15985,6 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name cannot be empty for table or view level privileges");
       }
-      snprintf(pReq->objFName, sizeof(pReq->objFName), "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-      snprintf(pReq->tblName, sizeof(pReq->tblName), "%s", pStmt->tabName);
       if (objType = PRIV_OBJ_TABLE) {
         code = translateGrantTagCond(pCxt, pStmt, pReq);
         if (TSDB_CODE_SUCCESS != code) {
@@ -16020,6 +16018,15 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Unsupported object type for privilege");
+  }
+_exit:
+  if (code == TSDB_CODE_SUCCESS) {
+    if(pStmt->objName[0] != 0) {
+      (void)snprintf(pReq->objFName, sizeof(pReq->objFName), "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+    }
+    if(pStmt->tabName[0] != 0) {
+      (void)snprintf(pReq->tblName, sizeof(pReq->tblName), "%s", pStmt->tabName);
+    }
   }
   TAOS_RETURN(code);
 }
