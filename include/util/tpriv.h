@@ -24,6 +24,12 @@
 extern "C" {
 #endif
 
+#define TSDB_ROLE_SYSDBA    "SYSDBA"
+#define TSDB_ROLE_SYSSEC    "SYSSEC"
+#define TSDB_ROLE_SYSAUDIT  "SYSAUDIT"
+#define TSDB_ROLE_SYSINFO_0 "SYSINFO_0"
+#define TSDB_ROLE_SYSINFO_1 "SYSINFO_1"
+
 typedef enum {
   // ==================== Legacy Privilege ====================
   PRIV_TYPE_ALL = 0,        // ALL PRIVILEGES

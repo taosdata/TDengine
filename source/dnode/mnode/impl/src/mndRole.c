@@ -108,63 +108,57 @@ bool mndNeedRetrieveRole(SUserObj *pUser) {
   return result;
 }
 
-static int32_t mndCreateDefaultRole(SMnode *pMnode, char *acct, char *user, char *pass) {
-  //   int32_t  code = 0;
-  //   int32_t  lino = 0;
-  //   SRoleObj userObj = {0};
-  //   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.pass);
-  //   tstrncpy(userObj.user, user, TSDB_ROLE_LEN);
-  //   tstrncpy(userObj.acct, acct, TSDB_ROLE_LEN);
-  //   userObj.createdTime = taosGetTimestampMs();
-  //   userObj.updateTime = userObj.createdTime;
-  //   userObj.sysInfo = 1;
-  //   userObj.enable = 1;
-  //   userObj.ipWhiteListVer = taosGetTimestampMs();
-  //   TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteListDual));
-  //   if (strcmp(user, TSDB_DEFAULT_ROLE) == 0) {
-  //     userObj.superRole = 1;
-  //     userObj.createdb = 1;
-  //   }
+/**
+ * system roles: SYSDBA/SYSSEC/SYSAUDIT/SYSINFO_0/SYSINFO_1
+ */
+static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, void *privileges) {
+  int32_t  code = 0, lino = 0;
+  SRoleObj roleObj = {0};
+  tstrncpy(roleObj.name, role, TSDB_ROLE_LEN);
+  roleObj.createdTime = taosGetTimestampMs();
+  roleObj.updateTime = roleObj.createdTime;
+  roleObj.enable = 1;
+  roleObj.sys = 1;
 
-  //   SSdbRaw *pRaw = mndRoleActionEncode(&userObj);
-  //   if (pRaw == NULL) goto _ERROR;
-  //   TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), &lino, _ERROR);
+  SSdbRaw *pRaw = mndRoleActionEncode(&roleObj);
+  if (pRaw == NULL) goto _exit;
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
-  //   mInfo("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
+  mInfo("role:%s, will be created when deploying, raw:%p", roleObj.name, pRaw);
 
-  //   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-user");
-  //   if (pTrans == NULL) {
-  //     sdbFreeRaw(pRaw);
-  //     mError("user:%s, failed to create since %s", userObj.user, terrstr());
-  //     goto _ERROR;
-  //   }
-  //   mInfo("trans:%d, used to create user:%s", pTrans->id, userObj.user);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-role");
+  if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
+    mError("user:%s, failed to create since %s", roleObj.name, terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
+  mInfo("trans:%d, used to create role:%s", pTrans->id, roleObj.name);
 
-  //   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
-  //     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
-  //     mndTransDrop(pTrans);
-  //     goto _ERROR;
-  //   }
-  //   TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), &lino, _ERROR);
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
-  //   if (mndTransPrepare(pMnode, pTrans) != 0) {
-  //     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-  //     mndTransDrop(pTrans);
-  //     goto _ERROR;
-  //   }
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
 
-  //   mndTransDrop(pTrans);
-  //   taosMemoryFree(userObj.pIpWhiteListDual);
-  //   return 0;
-  // _ERROR:
-  //   taosMemoryFree(userObj.pIpWhiteListDual);
-  //   TAOS_RETURN(terrno ? terrno : TSDB_CODE_APP_ERROR);
-  return 0;
+_exit:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
-  //   return mndCreateDefaultRole(pMnode, TSDB_DEFAULT_ROLE, TSDB_DEFAULT_ROLE, TSDB_DEFAULT_PASS);
-  return 0;
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, (void *)NULL));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, (void *)NULL));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT, (void *)NULL));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_0, (void *)NULL));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, (void *)NULL));
+_exit:
+  TAOS_RETURN(code);
 }
 
 static int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, const SHashObj *pHash) {
