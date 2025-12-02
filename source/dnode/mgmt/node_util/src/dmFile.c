@@ -363,7 +363,7 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
     return terrno;
   }
 
-  SCryptOpts opts;
+  SCryptOpts opts = {0};
   tstrncpy(opts.key, key, ENCRYPT_KEY_LEN + 1);
   opts.len = len;
   opts.source = DM_KEY_INDICATOR;

@@ -12,18 +12,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #define _DEFAULT_SOURCE
+
+#include <openssl/provider.h>
 #include "dmMgmt.h"
-#include "mnode.h"
-#include "osFile.h"
-#include "tconfig.h"
-#include "tglobal.h"
-#include "version.h"
-#include "tconv.h"
 #include "dmUtil.h"
+#include "mnode.h"
+#include "osEnv.h"
+#include "osFile.h"
 #include "qworker.h"
+#include "tconfig.h"
+#include "tconv.h"
+#include "tglobal.h"
 #include "tss.h"
+#include "version.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -619,6 +621,26 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   };
+
+  if (tsEncryptExtDir[0] != '\0') {
+    dInfo("load encrypt ext from %s", tsEncryptExtDir);
+
+    tsProvCustomized = OSSL_PROVIDER_load(NULL, tsEncryptExtDir);
+    if (tsProvCustomized == NULL) {
+      dError("failed to load provider:%s", tsEncryptExtDir);
+      return TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV;
+    }
+
+    dInfo("load encrypt ext %p", tsProvCustomized);
+
+    tsProvDefault = OSSL_PROVIDER_load(NULL, "default");
+    if (tsProvDefault == NULL) {
+      dError("failed to load default provider");
+      return TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV;
+    }
+
+    dInfo("load encrypt default ext %p", tsProvDefault);
+  }
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {

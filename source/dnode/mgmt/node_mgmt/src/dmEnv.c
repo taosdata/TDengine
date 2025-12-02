@@ -220,6 +220,10 @@ static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
 void dmCleanup() {
   dDebug("start to cleanup dnode env");
   SDnode *pDnode = dmInstance();
+
+  if (tsProvCustomized != NULL) OSSL_PROVIDER_unload(tsProvCustomized);
+  if (tsProvDefault != NULL) OSSL_PROVIDER_unload(tsProvDefault);
+
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
   monCleanup();

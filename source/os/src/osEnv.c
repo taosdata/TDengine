@@ -20,6 +20,7 @@ char            configDir[PATH_MAX] = {0};
 char            tsDataDir[PATH_MAX] = {0};
 char            tsLogDir[PATH_MAX] = {0};
 char            tsTempDir[PATH_MAX] = {0};
+char            tsEncryptExtDir[PATH_MAX] = {0};
 SDiskSpace      tsDataSpace = {0};
 SDiskSpace      tsLogSpace = {0};
 SDiskSpace      tsTempSpace = {0};
@@ -35,6 +36,9 @@ int64_t         tsStreamMax = 0;
 float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
+
+OSSL_PROVIDER *tsProvCustomized = NULL;
+OSSL_PROVIDER *tsProvDefault = NULL;
 
 char tsAVX512Enable = 0;
 char tsSSE42Supported = 0;

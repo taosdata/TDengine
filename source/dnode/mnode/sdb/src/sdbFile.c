@@ -48,6 +48,26 @@ static int32_t sdbDeployData(SSdb *pSdb) {
   return 0;
 }
 
+static int32_t sdbUpgradeData(SSdb *pSdb, int32_t version) {
+  int32_t code = 0;
+  mInfo("start to upgrade sdb");
+
+  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    SdbUpgradeFp fp = pSdb->upgradeFps[i];
+    if (fp == NULL) continue;
+
+    mInfo("start to upgrade sdb:%s", sdbTableName(i));
+    code = (*fp)(pSdb->pMnode, version);
+    if (code != 0) {
+      mError("failed to upgrade sdb:%s since %s", sdbTableName(i), tstrerror(code));
+      return -1;
+    }
+  }
+
+  mInfo("sdb upgrade success");
+  return 0;
+}
+
 static int32_t sdbAfterRestoredData(SSdb *pSdb) {
   int32_t code = 0;
   mInfo("start to prepare sdb");
@@ -385,7 +405,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
         goto _OVER;
       }
 
-      SCryptOpts opts;
+      SCryptOpts opts = {0};
       opts.len = ENCRYPTED_LEN(pRaw->dataLen);
       opts.source = pRaw->pData;
       opts.result = plantContent;
@@ -394,7 +414,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
       count = CBC_Decrypt(&opts);
 
-      // mDebug("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
+      // mDebug("read sdb, CBC Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
       memcpy(pRaw->pData, plantContent, pRaw->dataLen);
       taosMemoryFree(plantContent);
@@ -530,7 +550,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
             break;
           }
 
-          SCryptOpts opts;
+          SCryptOpts opts = {0};
           opts.len = newDataLen;
           opts.source = pRaw->pData;
           opts.result = newData;
@@ -539,7 +559,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
 
           int32_t count = CBC_Encrypt(&opts);
 
-          // mDebug("write sdb, CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s",
+          // mDebug("write sdb, CBC Encrypt encryptedDataLen:%d, dataLen:%d, %s",
           //       newDataLen, pRaw->dataLen, __FUNCTION__);
         }
 
@@ -654,6 +674,21 @@ int32_t sdbWriteFileForDump(SSdb *pSdb, int32_t skip_type) {
 int32_t sdbDeploy(SSdb *pSdb) {
   int32_t code = 0;
   code = sdbDeployData(pSdb);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
+
+  code = sdbWriteFile(pSdb, 0);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
+
+  return 0;
+}
+
+int32_t sdbUpgrade(SSdb *pSdb, int32_t version) {
+  int32_t code = 0;
+  code = sdbUpgradeData(pSdb, version);
   if (code != 0) {
     TAOS_RETURN(code);
   }

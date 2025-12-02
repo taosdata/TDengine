@@ -17,9 +17,7 @@
 extern int32_t CBC_DecryptImpl(SCryptOpts *opts);
 extern int32_t CBC_EncryptImpl(SCryptOpts *opts);
 
-int32_t CBC_Encrypt(SCryptOpts *opts) { 
-  return CBC_EncryptImpl(opts); 
-}
+int32_t CBC_Encrypt(SCryptOpts *opts) { return CBC_EncryptImpl(opts); }
 int32_t CBC_Decrypt(SCryptOpts *opts) { 
   return CBC_DecryptImpl(opts); 
 }

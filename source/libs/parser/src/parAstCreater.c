@@ -4077,6 +4077,21 @@ _err:
   return NULL;
 }
 
+SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_ID_TOO_LONG);
+    goto _err;
+  }
+  SDropEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ENCRYPT_ALGR_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateDnodeStmt* pStmt = NULL;
@@ -4126,6 +4141,42 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   if (NULL != pValue) {
     (void)trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createCreateAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId, const SToken* name, const SToken* desc,
+                            const SToken* type, const SToken* osslAlgrName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_ID_TOO_LONG);
+    goto _err;
+  }
+  if (name->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_NAME_TOO_LONG);
+    goto _err;
+  }
+  if (desc->n >= TSDB_ENCRYPT_ALGR_DESC_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_DESC_TOO_LONG);
+    goto _err;
+  }
+  if (type->n >= TSDB_ENCRYPT_ALGR_TYPE_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG);
+    goto _err;
+  }
+  if (osslAlgrName->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG);
+    goto _err;
+  }
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
+  (void)trimString(name->z, name->n, pStmt->name, sizeof(pStmt->name));
+  (void)trimString(desc->z, desc->n, pStmt->desc, sizeof(pStmt->desc));
+  (void)trimString(type->z, type->n, pStmt->algrType, sizeof(pStmt->algrType));
+  (void)trimString(osslAlgrName->z, osslAlgrName->n, pStmt->osslAlgrName, sizeof(pStmt->osslAlgrName));
   return (SNode*)pStmt;
 _err:
   return NULL;

@@ -23,6 +23,7 @@
 #include "mndCompactDetail.h"
 #include "mndConfig.h"
 #include "mndDnode.h"
+#include "mndEncryptAlgr.h"
 #include "mndIndex.h"
 #include "mndPrivilege.h"
 #include "mndRetention.h"
@@ -43,6 +44,7 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
+#include "mndEncryptAlgr.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 14
@@ -486,7 +488,7 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return code;
 #ifdef TD_ENTERPRISE
   if ((pCfg->replications == 2) ^ (pCfg->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) return code;
-  if (pCfg->encryptAlgorithm < TSDB_MIN_ENCRYPT_ALGO || pCfg->encryptAlgorithm > TSDB_MAX_ENCRYPT_ALGO) return code;
+  // if (pCfg->encryptAlgorithm < TSDB_MIN_ENCRYPT_ALGO || pCfg->encryptAlgorithm > TSDB_MAX_ENCRYPT_ALGO) return code;
 #else
   if (pCfg->replications != 1 && pCfg->replications != 3) return code;
   if (pCfg->encryptAlgorithm != TSDB_DEFAULT_ENCRYPT_ALGO) return code;
@@ -865,19 +867,34 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .compactEndTime = pCreate->compactEndTime,
       .compactTimeOffset = pCreate->compactTimeOffset,
   };
-
+  if (strlen(pCreate->encryptAlgrName) > 0) {
+    SEncryptAlgrObj *pEncryptAlgr = mndAcquireEncryptAlgrByAId(pMnode, pCreate->encryptAlgrName);
+    if (pEncryptAlgr != NULL) {
+      if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
+        code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
+        mError("db:%s, faile to create, encrypt algorithm not match, %s, expect type %d", pCreate->db,
+               pCreate->encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
+        TAOS_RETURN(code);
+      }
+      dbObj.cfg.encryptAlgorithm = pEncryptAlgr->id;
+    } else {
+      code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
+      mError("db:%s, faile to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
+      TAOS_RETURN(code);
+    }
+  }
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
   if ((code = mndCheckDbName(dbObj.name, pUser)) != 0) {
-    mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, check db name failed, since %s", pCreate->db, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
-    mError("db:%s, failed to create, check db cfg failed, since %s", pCreate->db, terrstr());
+    mError("db:%s, failed to create, check db cfg failed, since %s", pCreate->db, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -1452,7 +1469,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
+static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId) {
   tstrncpy(cfgRsp->db, pDb->name, sizeof(cfgRsp->db));
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
@@ -1492,12 +1509,13 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->ssKeepLocal = pDb->cfg.ssKeepLocal;
   cfgRsp->ssCompact = pDb->cfg.ssCompact;
   cfgRsp->withArbitrator = pDb->cfg.withArbitrator;
-  cfgRsp->encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+  // cfgRsp->encryptAlgr = pDb->cfg.encryptAlgorithm;
   cfgRsp->compactInterval = pDb->cfg.compactInterval;
   cfgRsp->compactStartTime = pDb->cfg.compactStartTime;
   cfgRsp->compactEndTime = pDb->cfg.compactEndTime;
   cfgRsp->compactTimeOffset = pDb->cfg.compactTimeOffset;
   cfgRsp->flags = pDb->cfg.flags;
+  tstrncpy(cfgRsp->algorithmsId, algorithmsId, sizeof(cfgRsp->algorithmsId));
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -1517,7 +1535,9 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    mndDumpDbCfgInfo(&cfgRsp, pDb);
+    char algrId[TSDB_ENCRYPT_ALGR_NAME_LEN] = {0};
+    mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, algrId);
+    mndDumpDbCfgInfo(&cfgRsp, pDb, algrId);
   }
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
@@ -2126,7 +2146,9 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
     if (pDbCacheInfo->cfgVersion < pDb->cfgVersion) {
       rsp.cfgRsp = taosMemoryCalloc(1, sizeof(SDbCfgRsp));
-      mndDumpDbCfgInfo(rsp.cfgRsp, pDb);
+      char algrId[TSDB_ENCRYPT_ALGR_NAME_LEN] = {0};
+      mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, algrId);
+      mndDumpDbCfgInfo(rsp.cfgRsp, pDb, algrId);
     }
 
     if (pDbCacheInfo->tsmaVersion != pDb->tsmaVersion) {
@@ -2709,16 +2731,17 @@ static const char *getCacheModelStr(int8_t cacheModel) {
   return "unknown";
 }
 
-static const char *getEncryptAlgorithmStr(int8_t encryptAlgorithm) {
+static void getEncryptAlgorithmStr(SMnode *pMnode, int8_t encryptAlgorithm, char *out) {
   switch (encryptAlgorithm) {
     case TSDB_ENCRYPT_ALGO_NONE:
-      return TSDB_ENCRYPT_ALGO_NONE_STR;
-    case TSDB_ENCRYPT_ALGO_SM4:
-      return TSDB_ENCRYPT_ALGO_SM4_STR;
+      tstrncpy(out, TSDB_ENCRYPT_ALGO_NONE_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
     default:
-      break;
+      SEncryptAlgrObj *obj = mndAcquireEncryptAlgrById(pMnode, encryptAlgorithm);
+      if (obj != NULL) {
+        tstrncpy(out, obj->algorithm_id, TSDB_ENCRYPT_ALGR_NAME_LEN);
+        mndReleaseEncryptAlgr(pMnode, obj);
+      }
   }
-  return "unknown";
 }
 
 bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
@@ -2957,7 +2980,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.withArbitrator, false), &lino, _OVER);
 
-    const char *encryptAlgorithmStr = getEncryptAlgorithmStr(pDb->cfg.encryptAlgorithm);
+    char encryptAlgorithmStr[TSDB_ENCRYPT_ALGR_NAME_LEN] = {0};
+    getEncryptAlgorithmStr(pMnode, pDb->cfg.encryptAlgorithm, encryptAlgorithmStr);
     char        encryptAlgorithmVStr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(encryptAlgorithmVStr, encryptAlgorithmStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
