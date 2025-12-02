@@ -309,10 +309,6 @@ export default {
               meta: {
                 allowCreate: true,
                 filterable: true
-              },
-              displayDependsOn: ['datasets/currentTab'],
-              displayDependsOnValues: {
-                currentTab: ['select_all_points']
               }
             },
             {
@@ -325,11 +321,7 @@ export default {
               grid_two: false,
               type: 'number',
               min: 60,
-              max: 2147483647,
-              displayDependsOn: ['datasets/currentTab'],
-              displayDependsOnValues: {
-                currentTab: ['select_all_points']
-              }
+              max: 2147483647
             }
           ],
           hide: false
