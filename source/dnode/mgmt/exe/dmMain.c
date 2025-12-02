@@ -14,7 +14,6 @@
  */
 #define _DEFAULT_SOURCE
 
-#include <openssl/provider.h>
 #include "dmMgmt.h"
 #include "dmUtil.h"
 #include "mnode.h"
@@ -77,6 +76,7 @@ static struct {
   char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
+extern int32_t cryptLoadProviders();
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
 static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
@@ -623,23 +623,14 @@ int mainWindows(int argc, char **argv) {
   };
 
   if (tsEncryptExtDir[0] != '\0') {
-    dInfo("load encrypt ext from %s", tsEncryptExtDir);
-
-    tsProvCustomized = OSSL_PROVIDER_load(NULL, tsEncryptExtDir);
-    if (tsProvCustomized == NULL) {
-      dError("failed to load provider:%s", tsEncryptExtDir);
-      return TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV;
+#if defined(TD_ENTERPRISE)
+    if ((code = cryptLoadProviders()) != 0) {
+      dError("failed to load encrypt providers since %s", tstrerror(code));
+      taosCloseLog();
+      taosCleanupArgs();
+      return code;
     }
-
-    dInfo("load encrypt ext %p", tsProvCustomized);
-
-    tsProvDefault = OSSL_PROVIDER_load(NULL, "default");
-    if (tsProvDefault == NULL) {
-      dError("failed to load default provider");
-      return TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV;
-    }
-
-    dInfo("load encrypt default ext %p", tsProvDefault);
+#endif
   }
 
   if ((code = dmInit()) != 0) {

@@ -27,6 +27,8 @@
 #include "stream.h"
 // clang-format on
 
+extern void cryptUnloadProviders();
+
 #define DM_INIT_AUDIT()                       \
   do {                                        \
     auditCfg.port = tsMonitorPort;            \
@@ -221,8 +223,9 @@ void dmCleanup() {
   dDebug("start to cleanup dnode env");
   SDnode *pDnode = dmInstance();
 
-  if (tsProvCustomized != NULL) OSSL_PROVIDER_unload(tsProvCustomized);
-  if (tsProvDefault != NULL) OSSL_PROVIDER_unload(tsProvDefault);
+#if defined(TD_ENTERPRISE)
+  cryptUnloadProviders();
+#endif
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);

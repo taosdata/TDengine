@@ -16,7 +16,6 @@
 #ifndef _TD_OS_ENV_H_
 #define _TD_OS_ENV_H_
 
-#include <openssl/provider.h>
 #include "osSysinfo.h"
 #include "osTimezone.h"
 
@@ -51,9 +50,6 @@ extern char tsDataDir[];
 extern char tsLogDir[];
 extern char tsTempDir[];
 extern char tsEncryptExtDir[];
-
-extern OSSL_PROVIDER *tsProvCustomized;
-extern OSSL_PROVIDER *tsProvDefault;
 
 extern SDiskSpace tsDataSpace;
 extern SDiskSpace tsLogSpace;
