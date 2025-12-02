@@ -502,6 +502,9 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
       if (pJoin->pResColMap[i]) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pBuild->valCols[buildIdx].dstSlot);
         if (pBuild->valCols[buildIdx].keyCol) {
+          if (pBuild->valCols[buildIdx].vardata && 34 == pBuild->valCols[buildIdx].bytes && 2 == pBuild->keyNum) {
+            pKeyData += sizeof(int64_t);
+          }
           code = colDataSetVal(pDst, pRes->info.rows + r, pKeyData, false);
           if (code) {
             return code;
@@ -524,6 +527,9 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
         }
         buildIdx++;
       } else if (0 == r) {
+        if (pProbe->valCols[probeIdx].keyCol && pProbe->valCols[probeIdx].vardata && pProbe->valCols[probeIdx].bytes == 34) {
+          pProbe->valCols[probeIdx].srcSlot = taosArrayGetSize(pJoin->ctx.pProbeData->pDataBlock) - 1;
+        }
         SColumnInfoData* pSrc = taosArrayGet(pJoin->ctx.pProbeData->pDataBlock, pProbe->valCols[probeIdx].srcSlot);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pProbe->valCols[probeIdx].dstSlot);
     
