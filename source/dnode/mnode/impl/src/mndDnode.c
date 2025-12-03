@@ -97,6 +97,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq);
+static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp);
 
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
@@ -128,6 +129,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DNODE_RELOAD_TLS, mndProcessUpdateDnodeReloadTls);
+  mndSetMsgHandle(pMnode, TDMT_MND_RELOAD_DNODE_TLS, mndProcessReloadDnodeTlsRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -1790,16 +1792,9 @@ static int32_t mndGetAllNodeAddrByType(SMnode *pMnode, ESdbType type, SArray *pA
       continue;
     }
 
-    char *addr = taosStrdup(pDnodeObj->ep);
-    if (addr == NULL) {
-      mError("failed to strdup addr:%s", pDnodeObj->ep);
-      sdbRelease(pSdb, pObj);
-      TAOS_CHECK_GOTO(terrno, &lino, _exit);
-    }
-
-    if (taosArrayPush(pAddr, &addr) == NULL) {
+    SEpSet epSet = mndGetDnodeEpset(pDnodeObj);
+    if (taosArrayPush(pAddr, &epSet) == NULL) {
       mError("failed to push addr into array");
-      taosMemoryFreeClear(addr);
       sdbRelease(pSdb, pObj);
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
@@ -1850,13 +1845,51 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  SArray *pAddr = taosArrayInit(4, sizeof(char *));
+  SArray *pAddr = taosArrayInit(4, sizeof(SEpSet));
   if (pAddr == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
 
   code = mndGetAllNodeAddr(pMnode, pAddr);
 
+  for (int32_t i = 0; i < taosArrayGetSize(pAddr); i++) {
+    SEpSet *pEpSet = (SEpSet *)taosArrayGetP(pAddr, i);
+    // SEpSet epSet = mndCreateEpSetByStr(addr);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_RELOAD_DNODE_TLS, .pCont = NULL, .contLen = 0};
+    code = tmsgSendReq(pEpSet, &rpcMsg);
+    if (code != 0) {
+      mError("failed to send reload tls req to dnode addr:%s since %s", pEpSet->eps[0].fqdn, tstrerror(code));
+    }
+  }
+
 _OVER:
   return code;
+}
+
+static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp) {
+  int32_t code = 0;
+  return code;
+  // SMnode *pMnode = pRsp->info.node;
+  // int16_t nSuccess = 0;
+  // int16_t nFailed = 0;
+
+  // if (0 == pRsp->code) {
+  //   nSuccess = atomic_add_fetch_16(&pMnode->encryptMgmt.nSuccess, 1);
+  // } else {
+  //   nFailed = atomic_add_fetch_16(&pMnode->encryptMgmt.nFailed, 1);
+  // }
+
+  // int16_t nReq = atomic_load_16(&pMnode->encryptMgmt.nEncrypt);
+  // bool    finished = nSuccess + nFailed >= nReq;
+
+  // if (finished) {
+  //   atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
+  // }
+
+  // const STraceId *trace = &pRsp->info.traceId;
+  // mGInfo("msg:%p, create encrypt key rsp, nReq:%" PRIi16 ", nSucess:%" PRIi16 ", nFailed:%" PRIi16 ", %s", pRsp,
+  // nReq,
+  //        nSuccess, nFailed, finished ? "encrypt done" : "in encrypting");
+
+  return 0;
 }
