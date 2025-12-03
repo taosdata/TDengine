@@ -24,8 +24,8 @@ extern "C" {
 #endif
 
 typedef struct {
-  int64_t lastUpd;  // Last update time of role, unit is ms, default value is INT64_MAX. If user's
-                    // lastRoleRetrieve time < lastUpd, need to retrieve role again.
+  int64_t lastUpd;  // Last update time of role, unit is ms, default value is INT64_MAX. If user's lastRoleRetrieve time
+                    // < lastUpd, need to retrieve role again.
   TdThreadRwlock rw;
 } SRoleMgmt;
 

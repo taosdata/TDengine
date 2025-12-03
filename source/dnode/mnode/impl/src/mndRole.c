@@ -36,8 +36,10 @@
 #define MND_ROLE_SYSROLE_VER 1  // increase if system role definition updated in privInfoTable
 
 static SRoleMgmt roleMgmt = {0};
+static bool      isDeploy = false;
 
 static int32_t  mndCreateDefaultRoles(SMnode *pMnode);
+static int32_t  mndUpgradeDefaultRoles(SMnode *pMnode);
 static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw);
 static int32_t  mndRoleActionInsert(SSdb *pSdb, SRoleObj *pRole);
 static int32_t  mndRoleActionDelete(SSdb *pSdb, SRoleObj *pRole);
@@ -80,6 +82,7 @@ int32_t mndInitRole(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndCancelGetNextPrivileges);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndRetrieveColPrivileges);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndCancelGetNextColPrivileges);
+  if (!isDeploy) mndUpgradeDefaultRoles(pMnode);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -185,36 +188,57 @@ _exit:
  * system roles: SYSDBA/SYSSEC/SYSAUDIT/SYSINFO_0/SYSINFO_1
  */
 static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleType) {
-  SRoleObj *pRole = NULL;
+  int32_t   code = 0, lino = 0;
+  SRoleObj *pRole = NULL, *pNew = NULL;
   if (mndAcquireRole(pMnode, role, &pRole) == 0) {
-    mInfo("role:%s already exists, no need to create again", role);
-    mndReleaseRole(pMnode, pRole);
-    return 0;
+    if (pRole->version < MND_ROLE_SYSROLE_VER) {
+      mInfo("role:%s version:%ld need upgrade to version:%d", role, pRole->version, MND_ROLE_SYSROLE_VER);
+      pNew = taosMemoryCalloc(1, sizeof(SRoleObj));
+      if (pNew == NULL) {
+        mndReleaseRole(pMnode, pRole);
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
+      snprintf(pNew->name, TSDB_ROLE_LEN, "%s", pRole->name);
+      pNew->createdTime = pRole->createdTime;
+      pNew->uid = pRole->uid;
+      pNew->flag = pRole->flag;
+      pNew->updateTime = taosGetTimestampMs();
+      pNew->version = MND_ROLE_SYSROLE_VER;
+      mndReleaseRole(pMnode, pRole);
+    } else {
+      mInfo("role:%s already exists, no need to create again", role);
+      mndReleaseRole(pMnode, pRole);
+      return 0;
+    }
+  } else {
+    pNew = taosMemoryCalloc(1, sizeof(SRoleObj));
+    if (pNew == NULL) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    tstrncpy(pNew->name, role, TSDB_ROLE_LEN);
+    pNew->uid = mndGenerateUid(pNew->name, strlen(pNew->name));
+    pNew->createdTime = taosGetTimestampMs();
+    pNew->updateTime = pNew->createdTime;
+    pNew->enable = 1;
+    pNew->sys = 1;
+    pNew->version = MND_ROLE_SYSROLE_VER;
   }
 
-  int32_t  code = 0, lino = 0;
-  SRoleObj roleObj = {0};
-  tstrncpy(roleObj.name, role, TSDB_ROLE_LEN);
-  roleObj.createdTime = taosGetTimestampMs();
-  roleObj.updateTime = roleObj.createdTime;
-  roleObj.enable = 1;
-  roleObj.sys = 1;
+  TAOS_CHECK_EXIT(mndFillSystemRolePrivileges(pMnode, pNew, roleType));
 
-  TAOS_CHECK_EXIT(mndFillSystemRolePrivileges(pMnode, &roleObj, roleType));
-
-  SSdbRaw *pRaw = mndRoleActionEncode(&roleObj);
+  SSdbRaw *pRaw = mndRoleActionEncode(pNew);
   if (pRaw == NULL) goto _exit;
   TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
-  mInfo("role:%s, will be created when deploying, raw:%p", roleObj.name, pRaw);
+  mInfo("role:%s, will be created when deploying, raw:%p", pNew->name, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-role");
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
-    mError("user:%s, failed to create since %s", roleObj.name, terrstr());
+    mError("user:%s, failed to create since %s", pNew->name, terrstr());
     TAOS_CHECK_EXIT(terrno);
   }
-  mInfo("trans:%d, used to create role:%s", pTrans->id, roleObj.name);
+  mInfo("trans:%d, used to create role:%s", pTrans->id, pNew->name);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
@@ -228,11 +252,12 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleTyp
   }
 
 _exit:
+  if (pNew) taosMemoryFree(pNew);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
+static int32_t mndUpgradeDefaultRoles(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, ROLE_SYSDBA));
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, ROLE_SYSSEC));
@@ -242,6 +267,11 @@ static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, ROLE_SYSINFO_1));
 _exit:
   TAOS_RETURN(code);
+}
+
+static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
+  isDeploy = true;
+  return mndUpgradeDefaultRoles(pMnode);
 }
 
 static int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, const SHashObj *pHash) {
@@ -609,6 +639,8 @@ static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, _exit);
   TAOS_CHECK_EXIT(tDeserializeSRoleObj(buf, tlen, pObj));
+  if (pObj->version < MND_ROLE_SYSROLE_VER) {
+  }
   taosInitRWLatch(&pObj->lock);
 _exit:
   taosMemoryFreeClear(buf);
@@ -716,6 +748,7 @@ static int32_t mndCreateRole(SMnode *pMnode, char *acct, SCreateRoleReq *pCreate
   obj.uid = mndGenerateUid(obj.name, strlen(obj.name));
   obj.version = 1;
   obj.enable = 1;
+  obj.sys = 0;
   // TODO: assign default privileges
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-role");
@@ -946,9 +979,13 @@ _exit:
 
 int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
   int32_t code = 0, lino = 0;
-  (void)memcpy(pNew, pOld, sizeof(SRoleObj));
-  ++pNew->version;
+  snprintf(pNew->name, TSDB_ROLE_LEN, "%s", pOld->name);
+  pNew->createdTime = pOld->createdTime;
+  pNew->uid = pOld->uid;
+  pNew->version = pOld->version + 1;
+  pNew->flag = pOld->flag;
   pNew->updateTime = taosGetTimestampMs();
+  pNew->sysPrivs = pOld->sysPrivs;
 
   taosRLockLatch(&pOld->lock);
   TAOS_CHECK_EXIT(mndDupPrivObjHash(pOld->objPrivs, &pNew->objPrivs));
