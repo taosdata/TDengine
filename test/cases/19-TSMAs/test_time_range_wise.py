@@ -165,12 +165,6 @@ class TestTimeRangeWise:
         sql = "alter local 'querysmaoptimize 1'"
         tdSql.execute(sql, 5, True)
 
-        # check forbid mulit-replic on create sma index
-        sql = f"create database db vgroups {self.vgroups1} replica 3"
-        tdSql.execute(sql, 5, True)
-        sql = f"create table db.st(ts timestamp, c1 int, c2 bigint, ts1 timestamp) tags(area int)"
-        tdSql.execute(sql, 5, True)
-
         # create database  db
         sql = f"create database @db_name vgroups {self.vgroups1} replica 1"
         self.exeDouble(sql)

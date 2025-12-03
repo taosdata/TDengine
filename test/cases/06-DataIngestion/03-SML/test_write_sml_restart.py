@@ -47,12 +47,16 @@ class TestSmlRestart:
             tdDnodes.stop(1)
             time.sleep(3)
         else:
-            os.system(f"LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/part_insertmode.json -y")
-            os.system("pkill  -9  taosd")   # make sure all the data are saved in disk.
-            os.system("pkill  -9  taos") 
+            cmd = f"taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/part_insertmode.json -y"
+            print(cmd)
+            subprocess.run(cmd, shell=True, check=True)
+            print("taosBenchmark end")
+            tdDnodes.stop(1)
+            time.sleep(3)
+            print("taosd stop end")
 
         tdDnodes.start(1)
-        time.sleep(1)
+        time.sleep(3)
 
         tdsql=tdCom.newTdSql()
         tdsql.query(f"SELECT SERVER_VERSION();")

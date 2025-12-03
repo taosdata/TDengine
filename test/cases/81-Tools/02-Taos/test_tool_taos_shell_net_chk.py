@@ -112,7 +112,7 @@ class TestTaosShellNetChk:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def test_shell_taos_shell_net_chk(self):
+    def test_tool_taos_shell_net_chk(self):
         """taos-CLI net check
         
         1. taosd normal running
