@@ -41,6 +41,32 @@ static void pkcs7_padding_pad_buffer(uint8_t *buffer, size_t data_length, uint8_
   }
 }
 
+static size_t pkcs7_padding_data_length(uint8_t *buffer, size_t buffer_size, uint8_t modulus) {
+  /* test for valid buffer size */
+  if (buffer_size % modulus != 0 || buffer_size < modulus) {
+    return 0;
+  }
+  uint8_t padding_value;
+  padding_value = buffer[buffer_size - 1];
+  /* test for valid padding value */
+  if (padding_value < 1 || padding_value > modulus) {
+    return buffer_size;
+  }
+  /* buffer must be at least padding_value + 1 in size */
+  if (buffer_size < padding_value + 1) {
+    return 0;
+  }
+  uint8_t count = 1;
+  buffer_size--;
+  for (; count < padding_value; count++) {
+    buffer_size--;
+    if (buffer[buffer_size] != padding_value) {
+      return 0;
+    }
+  }
+  return buffer_size;
+}
+
 #define SM4_BLOCKLEN 16  // Block length in bytes - SM4 is 128b block only
 
 uint32_t tsm4_encrypt_len(int32_t len) {
@@ -84,6 +110,7 @@ int32_t taosSm4Decrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len)
   memcpy(opts.key, key, ENCRYPT_KEY_LEN);
 
   count = CBC_Decrypt(&opts);
+  count = pkcs7_padding_data_length(pBuf, count, SM4_BLOCKLEN);
 
   return count;
 }

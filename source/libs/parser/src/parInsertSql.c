@@ -650,6 +650,16 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       NEXT_VALID_TOKEN(*ppSql, *pToken);
       if (TK_NULL == pToken->type) {
         NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_COMMA != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_INTEGER != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, "integer [224, 256, 384, 512] expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
         if (TK_NK_RP == pToken->type) {
           pVal->flag = CV_FLAG_NULL;
 
@@ -3046,14 +3056,15 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     }
   }
   if (code == TSDB_CODE_SUCCESS && pCxt->pComCxt->stmtBindVersion == 0) {
-    SRow**            pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
+    SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
     if ((*ppTableDataCxt)->hasBlob) {
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
       if ((*ppTableDataCxt)->pData->pBlobSet == NULL) {
         code = tBlobSetCreate(1024, 0, &(*ppTableDataCxt)->pData->pBlobSet);
         TAOS_CHECK_RETURN(code);
       }
-      code = tRowBuildWithBlob(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, (*ppTableDataCxt)->pData->pBlobSet, &sinfo);
+      code = tRowBuildWithBlob(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow,
+                               (*ppTableDataCxt)->pData->pBlobSet, &sinfo);
     } else {
       SRowBuildScanInfo sinfo = {0};
       code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, &sinfo);
