@@ -22,7 +22,7 @@ TDengine can efficiently read data from Kafka and write it into TDengine, enabli
 
 On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-![](../../assets/kafka-01.png)
+![Add data source](../../assets/kafka-01.png)
 
 ### 2. Configure Basic Information
 
@@ -34,7 +34,7 @@ Select **Kafka** from the **Type** dropdown list.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![](../../assets/kafka-02.png)
+![Configure basic settings](../../assets/kafka-02.png)
 
 ### 3. Configure Connection Information
 
@@ -44,7 +44,7 @@ Select a target database from the **Target Database** dropdown list, or click th
 
 When there are multiple broker addresses, add a **+Add Broker** button at the bottom right of the connection settings to add bootstrap-server and service port pairs.
 
-![](../../assets/kafka-03.png)
+![Configure connection information](../../assets/kafka-03.png)
 
 ### 4. Configure SASL Authentication Mechanism
 
@@ -54,19 +54,19 @@ If the server has enabled SASL authentication, you need to enable SASL here and 
 
 Select the `PLAIN` authentication mechanism and enter the username and password:
 
-![](../../assets/kafka-04.png)
+![Configure plain authentication](../../assets/kafka-04.png)
 
 #### 4.2. SCRAM (SCRAM-SHA-256) Authentication
 
 Select the `SCRAM-SHA-256` authentication mechanism and enter the username and password:
 
-![](../../assets/kafka-05.png)
+![Configure SCRAM authentication](../../assets/kafka-05.png)
 
 #### 4.3. GSSAPI Authentication
 
 Select `GSSAPI`, which will use the [RDkafka client](https://github.com/confluentinc/librdkafka) to invoke the GSSAPI applying Kerberos authentication mechanism:
 
-![](../../assets/kafka-06.png)
+![Configure GSSAPI authentication](../../assets/kafka-06.png)
 
 The required information includes:
 
@@ -98,7 +98,7 @@ If an error occurs: "Server xxxx not found in kerberos database", you need to co
 
 If the server has enabled SSL encryption authentication, SSL needs to be enabled here and related content configured.
 
-![](../../assets/kafka-07.png)
+![Configure SSL certificate](../../assets/kafka-07.png)
 
 ### 6. Configure Collection Information
 
@@ -121,7 +121,7 @@ Set the maximum duration to wait for insufficient data when fetching messages in
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![](../../assets/kafka-08.png)
+![Configure collection settings](../../assets/kafka-08.png)
 
 ### 7. Configure Payload Parsing
 
@@ -152,11 +152,11 @@ or
 
 The parsing results are shown as follows:
 
-![](../../assets/kafka-09.png)
+![Payload parsing results](../../assets/kafka-09.png)
 
 Click the **magnifying glass icon** to view the preview parsing results.
 
-![](../../assets/kafka-10.png)
+![Preview parsing results](../../assets/kafka-10.png)
 
 #### 7.2 Field Splitting
 
@@ -166,11 +166,11 @@ Click **Add** to add more extraction rules.
 
 Click **Delete** to delete the current extraction rule.
 
-![](../../assets/kafka-11.png)
+![Extract or split from column](../../assets/kafka-11.png)
 
 Click the **magnifying glass icon** to view the preview extraction/splitting results.
 
-![](../../assets/kafka-12.png)
+![Preview results](../../assets/kafka-12.png)
 
 #### 7.3 Data Filtering
 
@@ -180,11 +180,11 @@ Click **Add** to add more filtering rules.
 
 Click **Delete** to delete the current filtering rule.
 
-![](../../assets/kafka-13.png)
+![Data filtering conditions](../../assets/kafka-13.png)
 
 Click the **magnifying glass icon** to view the preview filtering results.
 
-![](../../assets/kafka-14.png)
+![Preview filtering results](../../assets/kafka-14.png)
 
 #### 7.4 Table Mapping
 
@@ -192,19 +192,19 @@ In the **Target Supertable** dropdown, select a target supertable, or click the 
 
 In the **Mapping** section, fill in the name of the subtable in the target supertable, for example: `t_{id}`. Fill in the mapping rules as required, where mapping supports setting default values.
 
-![](../../assets/kafka-15.png)
+![Configure table mapping](../../assets/kafka-15.png)
 
 Click **Preview** to view the results of the mapping.
 
-![](../../assets/kafka-16.png)
+![Preview mapping results](../../assets/kafka-16.png)
 
 ### 8. Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
-![](../../assets/kafka-17.png)
+![Configure advanced options](../../assets/kafka-17.png)
 
-![](../../assets/kafka-18.png)
+![Expanded advanced options](../../assets/kafka-18.png)
 
 ### 9. Completion of Creation
 

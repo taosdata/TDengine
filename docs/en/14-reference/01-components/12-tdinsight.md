@@ -49,7 +49,7 @@ It mainly includes Cluster Status, DNodes Overview, MNode Overview, Requests, Da
 
 This section includes current information and status of the cluster.
 
-![](../../assets/tdinsight-01.png)
+![Cluster status section](../../assets/tdinsight-01.png)
 
 Metric details (from top to bottom, left to right):
 
@@ -68,7 +68,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes basic information about the cluster's dnodes.
 
-![](../../assets/tdinsight-02.png)
+![Dnode overview section](../../assets/tdinsight-02.png)
 
 Metric details:
 
@@ -79,7 +79,7 @@ Metric details:
 
 This section includes basic information about the cluster's mnode.
 
-![](../../assets/tdinsight-03.png)
+![Mnode overview section](../../assets/tdinsight-03.png)
 
 Metric details:
 
@@ -90,7 +90,7 @@ Metric details:
 
 This section includes statistical metrics for SQL execution in the cluster.
 
-![](../../assets/tdinsight-04.png)
+![SQL request overview](../../assets/tdinsight-04.png)
 
 Metric details:
 
@@ -104,7 +104,7 @@ Metric details:
 
 This section includes statistical metrics for tables in the cluster.
 
-![](../../assets/tdinsight-05.png)
+![Table statistics section](../../assets/tdinsight-05.png)
 
 Metric details:
 
@@ -117,7 +117,7 @@ Metric details:
 
 This section includes a display of resource usage for all data nodes in the cluster, with each data node shown as a Row.
 
-![](../../assets/tdinsight-06.png)
+![Dnode resource usage section](../../assets/tdinsight-06.png)
 
 Metric details (from top to bottom, left to right):
 
@@ -139,7 +139,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes detailed statistics for taosAdapter rest and websocket requests.
 
-![](../../assets/tdinsight-07.png)
+![taosAdapter section](../../assets/tdinsight-07.png)
 
 Metric details:
 

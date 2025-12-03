@@ -40,9 +40,9 @@ If the client encounters a connection failure, please follow the steps below to 
 
 1. Check the network environment
 
-- Cloud server: Check if the security group of the cloud server has opened access permissions for TCP/UDP ports 6030/6041
-- Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
-- Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
+   - Cloud server: Check if the security group of the cloud server has opened access permissions for TCP/UDP ports 6030/6041
+   - Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
+   - Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
 
 1. Ensure that the client and server version numbers are exactly the same, open source TSDB-OSS edition and TSDB-Enterprise edition cannot be mixed
 
@@ -62,12 +62,12 @@ If the client encounters a connection failure, please follow the steps below to 
 
 1. If you still cannot eliminate connection issues:
 
-    - On Linux/macOS, use the command line tool nc to separately check if the TCP and UDP connections on the specified port are clear:
-      - Check if the UDP port connection is working: `nc -vuz {hostIP} {port}`
-      - Check if the server-side TCP port connection is working: `nc -l {port}`
-      - Check if the client-side TCP port connection is working: `nc {hostIP} {port}`
+   - On Linux/macOS, use the command line tool nc to separately check if the TCP and UDP connections on the specified port are clear:
+     - Check if the UDP port connection is working: `nc -vuz {hostIP} {port}`
+     - Check if the server-side TCP port connection is working: `nc -l {port}`
+     - Check if the client-side TCP port connection is working: `nc {hostIP} {port}`
 
-    - On Windows, use the PowerShell command `Test-NetConnection -ComputerName {fqdn} -Port {port}` to check if the server-side port is accessible.
+   - On Windows, use the PowerShell command `Test-NetConnection -ComputerName {fqdn} -Port {port}` to check if the server-side port is accessible.
 
 1. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
 
@@ -196,48 +196,48 @@ Here are the solutions:
 
 1. Create a file /Library/LaunchDaemons/limit.maxfiles.plist, write the following content (the example changes limit and maxfiles to 100,000, modify as needed):
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-<key>Label</key>
-  <string>limit.maxfiles</string>
-<key>ProgramArguments</key>
-<array>
-  <string>launchctl</string>
-  <string>limit</string>
-  <string>maxfiles</string>
-  <string>100000</string>
-  <string>100000</string>
-</array>
-<key>RunAtLoad</key>
-  <true/>
-<key>ServiceIPC</key>
-  <false/>
-</dict>
-</plist>
-```
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+   <key>Label</key>
+     <string>limit.maxfiles</string>
+   <key>ProgramArguments</key>
+   <array>
+     <string>launchctl</string>
+     <string>limit</string>
+     <string>maxfiles</string>
+     <string>100000</string>
+     <string>100000</string>
+   </array>
+   <key>RunAtLoad</key>
+     <true/>
+   <key>ServiceIPC</key>
+     <false/>
+   </dict>
+   </plist>
+   ```
 
 1. Modify file permissions
 
-```shell
-sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
-sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
-```
+   ```shell
+   sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
+   sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
+   ```
 
 1. Load the plist file (or it will take effect after restarting the system. launchd will automatically load the plist in this directory at startup)
 
-```shell
-sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
-```
+   ```shell
+   sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
+   ```
 
 1. Confirm the changed limit
 
-```shell
-launchctl limit maxfiles
-```
+   ```shell
+   launchctl limit maxfiles
+   ```
 
 ### 20. Prompted with "Out of dnodes" when creating a database or "Vnodes exhausted" when creating a table
 
@@ -294,7 +294,7 @@ Reporting this error indicates that the first connection to the cluster was succ
 
 - The ports of other dnodes in the cluster are not open
 - The client's hosts file is not configured correctly
-  
+
 Therefore, first, check whether all ports on the server and cluster (default 6030 for native connections and 6041 for HTTP connections) are open; Next, check if the client's hosts file has configured the fqdn and IP information for all dnodes in the cluster.
 If the issue still cannot be resolved, it is necessary to contact Taos technical personnel for support.
 
@@ -323,24 +323,30 @@ Currently, TDengine only provides compression ratios based on tables, not databa
 
 ### 36 Why didn't my configuration parameter take effect even though I modified the configuration file?
 
-**Problem Description:**
+#### Problem Description
+
 In TDengine versions 3.3.5.0 and above, some users might encounter an issue: they modify a configuration parameter in `taos.cfg`, but after restarting, the parameter doesn't seem to take effect, and no errors are found in the logs.
 
-**Problem Reason:**
+#### Problem Reason
+
 This is because TDengine versions 3.3.5.0 and above support persisting dynamically modified configuration parameters. This means that parameters you change dynamically using the `ALTER` command will remain effective even after a restart. Therefore, when restarting, TDengine versions 3.3.5.0 and above will, by default, load configuration parameters (except for `dataDir` itself) from the `dataDir`, rather than using the parameters configured in `taos.cfg`.
 
-**Problem Solution:**
+#### Problem Solution
+
 If you understand the feature of persistent configuration parameters but still wish to load configuration parameters from the configuration file upon restart, you can add `forceReadConfig 1` to the configuration file. This will force TDengine to read configuration parameters from the file.
 
 ### 37 I have clearly modified the configuration file, but the configuration parameters haven't taken effect
 
-**Problem description:**
+#### Problem description
+
 In TDengine versions 3.3.5.0 and above, some users may encounter an issue: they have clearly modified a certain configuration parameter in the taos.cfg file, but after restarting, they find that the modification has not taken effect, and no error reports can be found when checking the logs.
 
-**Cause of the problem:**
+#### Cause of the problem
+
 This is because TDengine versions 3.3.5.0 and above support the persistence of dynamically modified configuration parameters. That is, the parameters dynamically modified through ALTER will still be effective after a restart. Therefore, in TDengine versions 3.3.5.0 and above, when restarting, it will by default load the configuration parameters (except for dataDir) from dataDir, and will not use the configuration parameters in the taos.cfg file.
 
-**Solution to the problem:**
+#### Solution to the problem
+
 If you understand the function of configuration parameter persistence but still want to load the configuration parameters from the configuration file after a restart, you can add forceReadConfig 1 to the configuration file. This will make TDengine forcefully read the configuration parameters from the configuration file.
 
 ### 38 Database upgrade from version 2.6 to 3.3, When data migration is carried out and data is being written in the business at the same time, will there be serious out-of-order issues?

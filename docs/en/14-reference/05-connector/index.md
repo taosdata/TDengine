@@ -14,7 +14,7 @@ import VerifyMacOS from "../../assets/resources/_verify_macos.mdx";
 
 TDengine provides a rich set of application development interfaces. To facilitate users in quickly developing their own applications, TDengine supports connectors for multiple programming languages, including official connectors for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support connecting to the TDengine cluster using the native interface (taosc) and WebSocket interface. Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, Lua connector, and [PHP connector](https://github.com/Yurunsoft/php-tdengine).
 
-![](../../assets/client-libraries-01.png)
+![Architecture](../../assets/client-libraries-01.png)
 
 ## Supported Platforms
 

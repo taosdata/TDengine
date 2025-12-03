@@ -154,12 +154,15 @@ cd TDengine-TDgpt-<version>
 ```
 
 To prevent TDgpt from affecting Python environments that may exist on your machine, anodes are installed in a virtual environment. When you install an anode, a virtual Python environment is deployed in the `/var/lib/taos/taosanode/venv/` directory. All libraries required by the anode are installed in this directory.
+
 Note that this virtual environment is not uninstalled automatically by the `rmtaosanode` command. If you are sure that you do not want to use TDgpt on a machine, you can remove the directory manually.
 
 ### Activate the Virtual Environment
 
 The virtual Python environment for TDgpt is located in the `/var/lib/taos/taosanode/venv/` directory. Once the environment is created, PiPy is used to install the Python dependencies for TDgpt.
+
 This environment is not removed y the `rmtaosanode` command. You can remove it manually if desired.
+
 Any algorithms or models that you create for TDgpt must be installed into this virtual environment using Pip.
 
 ### Uninstalling TDgpt

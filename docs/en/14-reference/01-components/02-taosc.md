@@ -58,7 +58,6 @@ The TDengine client driver provides all the APIs needed for application programm
 | maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert |
 | maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 1,048,576; minimum value: 1,048,576; maximum value: 67,108,864|
 
-
 ### Region Related
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|

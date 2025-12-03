@@ -5,7 +5,7 @@ slug: /tdengine-reference/tools/taosdump
 ---
 
 `taosdump` is a TDengine data backup/recovery tool provided for open source users, and the backed up data files adopt the standard [Apache AVRO](https://avro.apache.org/)
-  Format, convenient for exchanging data with the external ecosystem.  
+  Format, convenient for exchanging data with the external ecosystem.
  taosdump provides multiple data backup and recovery options to meet different data needs, and all supported options can be viewed through --help.
 
 ## Get
@@ -39,11 +39,11 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   or:  taosdump [OPTION...] -i inpath
   or:  taosdump [OPTION...] -o outpath
 
-  -h, --host=HOST            Server host dumping data from. Default is
+  -h, --host=HOST            Server host from which to dump data. Default is
                              localhost.
   -p, --password             User password to connect to server. Default is
                              taosdata.
-  -P, --port=PORT            Port to connect
+  -P, --port=PORT            Port to connect.
   -u, --user=USER            User name used to connect to server. Default is
                              root.
   -c, --config-dir=CONFIG_DIR   Configure directory. Default is /etc/taos
@@ -52,23 +52,23 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -r, --resultFile=RESULTFILE DumpOut/In Result file path and name.
   -a, --allow-sys            Allow to dump system database.
   -A, --all-databases        Dump all databases.
-  -D, --databases=DATABASES  Dump inputted databases. Use comma to separate
-                             databases' name.
-  -e, --escape-character     Use escaped character for database name
+  -D, --databases=DATABASES  Dump listed databases. Use comma to separate
+                             databases names.
+  -e, --escape-character     Use escaped character for database name.
   -N, --without-property     Dump database without its properties.
-  -s, --schemaonly           Only dump tables' schema.
+  -s, --schemaonly           Only dump table schemas.
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
                              and lzma.
   -S, --start-time=START_TIME   Start time to dump. Either epoch or
                              ISO8601/RFC3339 format is acceptable. ISO8601
                              format example: 2017-10-01T00:00:00.000+0800 or
                              2017-10-0100:00:00:000+0800 or '2017-10-01
-                             00:00:00.000+0800'
+                             00:00:00.000+0800'.
   -E, --end-time=END_TIME    End time to dump. Either epoch or ISO8601/RFC3339
                              format is acceptable. ISO8601 format example:
                              2017-10-01T00:00:00.000+0800 or
                              2017-10-0100:00:00.000+0800 or '2017-10-01
-                             00:00:00.000+0800'
+                             00:00:00.000+0800'.
   -B, --data-batch=DATA_BATCH   Number of data per query/insert statement when
                              backup/restore. Default value is 16384. If you see
                              'error actual dump .. batch ..' when backup or if
@@ -76,8 +76,8 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              restore, please adjust the value to a smaller one
                              and try. The workable value is related to the
                              length of the row and type of table schema.
-  -I, --inspect              inspect avro file content and print on screen
-  -L, --loose-mode           Using loose mode if the table name and column name
+  -I, --inspect              inspect avro file content and print on screen.
+  -L, --loose-mode           Use loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
   -Q, --dot-replace          Replace dot character with underline character in

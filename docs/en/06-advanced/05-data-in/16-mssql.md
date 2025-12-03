@@ -12,9 +12,7 @@ This section describes how to create data migration tasks through the Explorer i
 
 ## Feature Overview
 
-Microsoft SQL Server is one of the most popular relational databases. Many systems have used or are using Microsoft SQL Server to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, Microsoft SQL Server can no longer meet business needs. Starting from TDengine Enterprise Edition 3.3.2.0 [^1], TDengine can efficiently read data from Microsoft SQL Server and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving technical pain points faced by businesses.
-
-[^1]: TDengine Enterprise Edition was renamed to TDengine TSDB-Enterprise starting from version 3.3.7.0
+Microsoft SQL Server is one of the most popular relational databases. Many systems have used or are using Microsoft SQL Server to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, Microsoft SQL Server can no longer meet business needs. TDengine TSDB-Enterprise can efficiently read data from Microsoft SQL Server and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving technical pain points faced by businesses.
 
 ## Creating a Task
 
@@ -22,7 +20,7 @@ Microsoft SQL Server is one of the most popular relational databases. Many syste
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![](../../assets/sql-server-01.png)
+![Add data source](../../assets/sql-server-01.png)
 
 ### 2. Configure Basic Information
 
@@ -34,13 +32,13 @@ Select *`Microsoft SQL Server`* from the **Type** dropdown menu, as shown below 
 
 **Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
-![](../../assets/sql-server-02.png)
+![Configure basic settings](../../assets/sql-server-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source Microsoft SQL Server database`* in the **Connection Configuration** area, as shown below:
 
-![](../../assets/sql-server-03.png)
+![Configure connection information](../../assets/sql-server-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -48,7 +46,7 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 **Password** Enter the login password for the user mentioned above in the source Microsoft SQL Server database.
 
-![](../../assets/sql-server-04.png)
+![Configure authentication information](../../assets/sql-server-04.png)
 
 ### 5. Configure Connection Options
 
@@ -62,7 +60,7 @@ Fill in the *`connection information for the source Microsoft SQL Server databas
 
 **Trust Certificate CA** Set whether to trust the server's certificate CA. If a CA file is uploaded, the server certificate will be verified based on the provided CA certificate in addition to the system trust store.
 
-![](../../assets/sql-server-05.png)
+![Configure connection options](../../assets/sql-server-05.png)
 
 Then click the **Check Connectivity** button. Users can click this button to check if the information filled in above can normally retrieve data from the source Microsoft SQL Server database.
 
@@ -94,7 +92,7 @@ Then click the **Check Connectivity** button. Users can click this button to che
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writing, each synchronization task will read data from before the delay duration.
 
-![](../../assets/sql-server-06.png)
+![Configure data collection](../../assets/sql-server-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -110,7 +108,7 @@ In **Mapping**, select the supertable in TDengine to which you want to map, and 
 
 Click **Preview** to view the results of the mapping.
 
-![](../../assets/sql-server-07.png)
+![Configure data mapping](../../assets/sql-server-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -120,7 +118,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![](../../assets/sql-server-08.png)
+![Configure advanced options](../../assets/sql-server-08.png)
 
 ### 9. Completion
 

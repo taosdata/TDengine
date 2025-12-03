@@ -381,9 +381,9 @@ For other parameters, refer to [Server Configuration](../../tdengine-reference/c
 
 From the factors affecting write performance discussed above, developing high-performance data writing programs requires knowledge of multithreaded programming and data sharding, posing a technical threshold. To reduce user development costs, the TDengine connector provides the **efficient writing feature**, allowing users to leverage TDengine's powerful writing capabilities without dealing with underlying thread management and data sharding logic.  
 
-Below is a schematic diagram of the connector's efficient writing feature implementation:  
+Below is a schematic diagram of the connector's efficient writing feature implementation:
 
-![](../assets/ingesting-data-efficiently-01.png)
+![ingesting-data](../assets/ingesting-data-efficiently-01.png)
 
 ### Design Principles  
 

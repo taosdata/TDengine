@@ -53,4 +53,4 @@ When using RESTful and WebSocket connections to communicate with taosAdapter, ta
 
 The diagram below shows the compression and decompression process of the TDengine engine in the entire transmission and storage process of time-series data, to better understand the entire handling process.
 
-![](../assets/data-compression-01.png)
+![Compression and decompression process](../assets/data-compression-01.png)

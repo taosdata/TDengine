@@ -14,7 +14,7 @@ ANOMALY_WINDOW(col_val, "algo=iqr");
 
 As shown in the following figure, the anode returns the anomaly window `[10:51:30, 10:53:40]`.
 
-![](../../../assets/tdgpt-05.png)
+![Anomaly detection](../../../assets/tdgpt-05.png)
 
 You can then query, aggregate, or perform other operations on the data in the window.
 
@@ -105,4 +105,4 @@ After the comparison program finishes running, it automatically generates a file
 
 If `gen_figure` is set to true, the tool automatically generates a visual representation of the analysis results for each algorithm being compared. The k-sigma algorithm is shown here as an example.
 
-![](../../../assets/tdgpt-06.png)
+![Anomaly detection results](../../../assets/tdgpt-06.png)

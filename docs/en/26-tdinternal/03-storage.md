@@ -21,23 +21,23 @@ There are two encoding formats for row format in TDengine—Tuple encoding forma
 
 1. Tuple Encoding Format
 
-The Tuple encoding format is mainly used in non-sparse data scenarios, such as scenarios where all column data are non-None or have few None values. Tuple-encoded rows access column data directly based on the offset information provided by the table's schema, with a time complexity of O(1) and fast access speed. As shown in the following diagram:
+   The Tuple encoding format is mainly used in non-sparse data scenarios, such as scenarios where all column data are non-None or have few None values. Tuple-encoded rows access column data directly based on the offset information provided by the table's schema, with a time complexity of O(1) and fast access speed. As shown in the following diagram:
 
-   ![](../assets/storage-engine-01.png)
+   ![Tuple row format](../assets/storage-engine-01.png)
 
 1. Key-Value Encoding Format
 
-The Key-Value encoding format is particularly suitable for sparse data scenarios, that is, scenarios where a large number of columns (such as thousands of columns) are defined in the table's schema, but very few columns actually have values. In this case, using the traditional Tuple encoding format would cause a great waste of space. In contrast, using the Key-Value encoding format can significantly reduce the storage space occupied by row data. As shown in the following diagram.
+   The Key-Value encoding format is particularly suitable for sparse data scenarios, that is, scenarios where a large number of columns (such as thousands of columns) are defined in the table's schema, but very few columns actually have values. In this case, using the traditional Tuple encoding format would cause a great waste of space. In contrast, using the Key-Value encoding format can significantly reduce the storage space occupied by row data. As shown in the following diagram.
 
-Key-Value encoded row data indexes the values of each column through an offset array. Although this method is slower in accessing column data directly, it significantly reduces the storage space occupied. In the actual encoding implementation, by introducing a flag option, the space occupancy is further optimized. Specifically, when all offset values are less than 256, the offset array of the Key-Value encoded row uses the uint8_t type; if all offset values are less than 65,536, then the uint16_t type is used; in other cases, the uint32_t type is used. This design further improves space utilization.
+   Key-Value encoded row data indexes the values of each column through an offset array. Although this method is slower in accessing column data directly, it significantly reduces the storage space occupied. In the actual encoding implementation, by introducing a flag option, the space occupancy is further optimized. Specifically, when all offset values are less than 256, the offset array of the Key-Value encoded row uses the uint8_t type; if all offset values are less than 65,536, then the uint16_t type is used; in other cases, the uint32_t type is used. This design further improves space utilization.
 
-   ![](../assets/storage-engine-02.png)
+   ![Key-value row format](../assets/storage-engine-02.png)
 
 ### Column Format
 
 In TDengine, fixed-length data in column format can be viewed as arrays, but due to the coexistence of NONE, NULL, and valued data, column format also needs a bitmap to indicate whether each index position is NONE, NULL, or has a value. For variable-length data types, the column format is different. In addition to the data array, the column format for variable-length data types also includes an offset array, used to index the starting position of variable-length data. The length of variable-length data can be obtained by the difference between two adjacent offset values. This design makes data storage and access more efficient, as shown in the following diagram:
 
-   ![](../assets/storage-engine-03.png)
+![Column format](../assets/storage-engine-03.png)
 
 ## vnode Storage
 
@@ -49,7 +49,7 @@ A vnode is the basic unit of data storage, query, and backup in TDengine. Each v
 - Storage of metadata.
 - Storage of time-series data.
 
-![](../assets/storage-engine-04.png)
+![Vnode storage architecture](../assets/storage-engine-04.png)
 
 When a vnode receives a data write request, it first preprocesses the request to ensure the consistency of data across multiple replicas. The purpose of preprocessing is to ensure data security and consistency. After preprocessing, the data is written to the WAL file to ensure data persistence. Then, the data is written into the vnode's memory pool. When the space occupied by the memory pool reaches a certain threshold, a background thread flushes the written data to the disk (META and TSDB) for persistence. At the same time, the corresponding WAL number in memory is marked as written to disk. Additionally, TSDB uses an LSM (Log-Structured Merge-Tree) storage structure, which merges TSDB data files in the background when opening multiple tables with low-frequency parameters in the database, reducing the number of files and improving query performance. This design makes data storage and access more efficient.
 
@@ -57,17 +57,17 @@ When a vnode receives a data write request, it first preprocesses the request to
 
 The metadata stored in vnode mainly involves the metadata information of the table, including the name of the supertable, the schema definition of the supertable, the definition of the tag schema, the name of the subtable, the tag information of the subtable, and the index of the tags, etc. Since metadata query operations are far more frequent than write operations, TDengine uses B+Tree as the storage structure for metadata. B+Tree, with its efficient query performance and stable insert and delete operations, is very suitable for scenarios with more reads than writes, ensuring the efficiency and stability of metadata management. The metadata writing process is shown in the following figure:
 
-![](../assets/storage-engine-05.png)
+![Metadata writing process](../assets/storage-engine-05.png)
 
 When the META module receives a metadata write request, it generates multiple Key-Value pairs and stores these pairs in the underlying TDB storage engine. TDB is a B+Tree storage engine developed by TDengine according to its own needs, consisting of three main parts—built-in Cache, TDB storage main file, and TDB log file. When data is written to TDB, it is first written to the built-in Cache. If there is not enough memory in the Cache, the system will request additional memory allocation from the vnode's memory pool. If the write operation involves changes to existing data pages, the system will write the unchanged data pages to the TDB log file as a backup before modifying the data pages. This ensures data update atomicity and data integrity in case of power failure or other faults.
 
 Since vnode stores various metadata information and metadata query needs are diverse, vnode internally creates multiple B+Trees to store different dimensional index information. These B+Trees are stored in a shared storage file and indexed by a root page number 1 index B+Tree, as shown in the following figure:
 
-![](../assets/storage-engine-06.png)
+![B+ tree storage structure](../assets/storage-engine-06.png)
 
 The page structure of the B+Tree is shown in the following figure:
 
-![](../assets/storage-engine-07.png)
+![B+ tree page structure](../assets/storage-engine-07.png)
 
 In TDB, both Key and Value are variable-length. To handle cases where Key or Value exceeds the size of the file page, TDB uses an overflow page design to accommodate the excess data. Additionally, to effectively control the height of the B+Tree, TDB limits the maximum length of Key and Value in non-overflow pages, ensuring a fan-out of at least 4 for the B+Tree.
 
@@ -75,7 +75,7 @@ In TDB, both Key and Value are variable-length. To handle cases where Key or Val
 
 Time-Series data in vnode is stored through the TSDB engine. Given the massive nature of time-series data and its continuous write traffic, using a traditional B+Tree structure for storage would rapidly increase the height of the tree as data volume grows, leading to a sharp decline in query and write performance, and eventually rendering the engine unusable. Therefore, TDengine has chosen the LSM storage structure to handle time series data. LSM optimizes data write performance through a log-structured storage method and reduces storage space usage and improves query efficiency through background merge operations, thus ensuring the storage and access performance of time series data. The TSDB engine's writing process is shown in the following figure:
 
-![](../assets/storage-engine-08.png)
+![TSDB engine write process](../assets/storage-engine-08.png)
 
 In the MemTable, data indexing adopts a combination of Red-Black Tree and SkipList. Data indexes of different tables are stored in the Red-Black Tree, while data indexes of the same table are stored in the SkipList. This design fully utilizes the characteristics of time-series data, enhancing data storage and access efficiency.
 
@@ -85,11 +85,11 @@ The SkipList is a data structure based on ordered linked lists, which achieves f
 
 By combining the Red-Black Tree and SkipList, TDengine implements an efficient data indexing method in the MemTable, enabling quick location of data from different tables and specific time ranges within the same table. The SkipList index is shown in the following figure:
 
-![](../assets/storage-engine-09.png)
+![SkipList index](../assets/storage-engine-09.png)
 
 In the TSDB engine, whether in memory or in data files, data is sorted by the (ts, version) tuple. To better manage and organize these time-ordered data, the TSDB engine divides data files into multiple data file groups based on time ranges. Each data file group covers a certain range of data, ensuring data continuity and completeness, and also facilitating data sharding and partitioning operations. By dividing data into multiple file groups based on time ranges, the TSDB engine can more effectively manage and access data stored on disk. The file groups are shown in the following figure:
 
-![](../assets/storage-engine-10.png)
+![File set](../assets/storage-engine-10.png)
 
 When querying data, based on the time range of the data being queried, the file group number can be quickly calculated, thereby quickly locating the data file group to be queried. This design method can significantly improve query performance because it can reduce unnecessary file scanning and data loading, directly locating the file group containing the required data. Next, the files contained in the data file group are introduced separately:
 
@@ -101,7 +101,7 @@ The query engine can efficiently filter the time range contained in the data blo
 
 The head file stores multiple BRIN record blocks and their indexes. BRIN record blocks use columnar compression, which can greatly reduce space occupancy while maintaining high query performance. The BRIN index structure is shown in the following figure:
 
-![](../assets/storage-engine-11.png)
+![BRIN index structure](../assets/storage-engine-11.png)
 
 #### data file
 

@@ -15,7 +15,7 @@ In the event that the primary node cannot provide service, the client driver fai
 
 Replicated data is specially marked to avoid infinite loops. The architecture of an active-active deployment is described in the following figure.
 
-![](../assets/active-standby-deployment-01.png)
+![Active-active deployment](../assets/active-standby-deployment-01.png)
 
 ## Limitations
 

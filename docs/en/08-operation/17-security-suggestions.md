@@ -27,7 +27,7 @@ In addition to TDengine deployment and applications, there are also the followin
 
 The relationship between the components is as follows:
 
-![](../assets/tdengine-components-01.png)
+![TDengine components](../assets/tdengine-components-01.png)
 
 ## TDengine Security Settings
 

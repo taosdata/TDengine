@@ -11,9 +11,7 @@ This section describes how to create data migration tasks through the Explorer i
 
 ## Overview
 
-MySQL is one of the most popular relational databases. Many systems have used or are using MySQL databases to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, MySQL can no longer meet business needs. Starting from TDengine Enterprise Edition 3.3.0.0 [^1], TDengine can efficiently read data from MySQL and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving the technical pain points faced by businesses.
-
-[^1]: TDengine Enterprise Edition was renamed to TDengine TSDB-Enterprise starting from version 3.3.7.0
+MySQL is one of the most popular relational databases. Many systems have used or are using MySQL databases to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, MySQL can no longer meet business needs. TDengine TSDB-Enterprise can efficiently read data from MySQL and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving the technical pain points faced by businesses.
 
 ## Creating a Task
 
@@ -21,7 +19,7 @@ MySQL is one of the most popular relational databases. Many systems have used or
 
 Click the **+ Add Data Source** button in the top left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![](../../assets/mysql-01.png)
+![Add data source](../../assets/mysql-01.png)
 
 ### 2. Configure Basic Information
 
@@ -33,13 +31,13 @@ Select *`MySQL`* from the **Type** dropdown menu, as shown below (the fields on 
 
 **Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
-![](../../assets/mysql-02.png)
+![Configure basic settings](../../assets/mysql-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source MySQL database`* in the **Connection Configuration** area, as shown below:
 
-![](../../assets/mysql-03.png)
+![Configure connection information](../../assets/mysql-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -47,7 +45,7 @@ Fill in the *`connection information for the source MySQL database`* in the **Co
 
 **Password** Enter the login password for the user mentioned above in the source MySQL database.
 
-![](../../assets/mysql-04.png)
+![Configure authentication information](../../assets/mysql-04.png)
 
 ### 5. Configure Connection Options
 
@@ -56,7 +54,7 @@ Options include utf8, utf8mb4, utf16, utf32, gbk, big5, latin1, ascii.
 
 **SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of negotiation. The default value is PREFERRED. Options include DISABLED, PREFERRED, REQUIRED.
 
-![](../../assets/mysql-05.png)
+![Configure character set and SSL mode](../../assets/mysql-05.png)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source MySQL database.
 
@@ -86,7 +84,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![](../../assets/mysql-06.png)
+![Configure data collection](../../assets/mysql-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -102,7 +100,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-![](../../assets/mysql-07.png)
+![Configure data mapping](../../assets/mysql-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -112,7 +110,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![](../../assets/mysql-08.png)
+![Configure advanced options](../../assets/mysql-08.png)
 
 ### 9. Completion
 

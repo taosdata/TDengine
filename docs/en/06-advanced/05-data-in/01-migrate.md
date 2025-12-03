@@ -29,14 +29,12 @@ For more options, it is recommended to read the description of each form field o
 
 First, click on the "Data Writing" menu on the left, then click the "Add Data Source" button on the right.
 
-![](../../assets/tdengine-2-01.png)
+![Add data source](../../assets/tdengine-2-01.png)
 
 Then enter the task name, such as "migrate-test", and finally select the type "TDengine2". At this point, the form switches to a form dedicated to migrating data from TDengine2, containing a large number of options, each with detailed explanations, as shown in the images below.
 
-![](../../assets/tdengine-2-02.png)
-
-![](../../assets/tdengine-2-03.png)
-
-![](../../assets/tdengine-2-04.png)
+![Configure basic settings](../../assets/tdengine-2-02.png)
+![Configure migration options](../../assets/tdengine-2-03.png)
+![Configure real-time mode settings](../../assets/tdengine-2-04.png)
 
 After clicking the "Submit" button to submit the task, return to the "Data Source" task list page to monitor the status of the task.
