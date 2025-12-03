@@ -244,7 +244,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
-  pCfg->tsdbCfg.encryptAlgorithm = 0;
+  pCfg->tsdbCfg.encryptAlgr = 0;
 #endif
 
   pCfg->walCfg.vgId = pCreate->vgId;  // pCreate->mountVgId ? pCreate->mountVgId : pCreate->vgId;
@@ -261,7 +261,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
-  pCfg->walCfg.encryptAlgorithm = 0;
+  pCfg->walCfg.encryptAlgr = 0;
 #endif
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
@@ -271,7 +271,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     tstrncpy(pCfg->tdbEncryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
-  pCfg->tdbEncryptAlgorithm = 0;
+  pCfg->tdbEncryptAlgr = 0;
 #endif
 
   pCfg->sttTrigger = pCreate->sstTrigger;

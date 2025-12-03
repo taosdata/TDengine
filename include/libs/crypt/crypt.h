@@ -32,8 +32,8 @@ typedef struct SCryptOpts {
 
 int32_t CBC_Decrypt(SCryptOpts* opts);
 int32_t CBC_Encrypt(SCryptOpts* opts);
-int32_t Symmetric_Ciphers_CBC_Encrypt(SCryptOpts* opts);
-int32_t Symmetric_Ciphers_CBC_Decrypt(SCryptOpts* opts);
+int32_t Builtin_CBC_Encrypt(SCryptOpts* opts);
+int32_t Builtin_CBC_Decrypt(SCryptOpts* opts);
 
 #ifdef __cplusplus
 }

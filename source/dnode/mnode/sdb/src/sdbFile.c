@@ -412,7 +412,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.unitLen = 16;
       tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
-      count = CBC_Decrypt(&opts);
+      count = Builtin_CBC_Decrypt(&opts);
 
       // mDebug("read sdb, CBC Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
@@ -557,7 +557,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           opts.unitLen = 16;
           tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
-          int32_t count = CBC_Encrypt(&opts);
+          int32_t count = Builtin_CBC_Encrypt(&opts);
 
           // mDebug("write sdb, CBC Encrypt encryptedDataLen:%d, dataLen:%d, %s",
           //       newDataLen, pRaw->dataLen, __FUNCTION__);
