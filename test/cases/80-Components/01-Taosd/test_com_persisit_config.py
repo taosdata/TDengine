@@ -33,23 +33,24 @@ class TestPersisitConfig:
         if os.system(cmd) != 0 :
             tdLog.exit(cmd)
             
-    def test_persisit_config(self):
-        """summary: xxx
+    def test_com_persisit_config(self):
+        """Server persist config
+        
+        1. Obtain taos.cfg file path
+        2. Modify fqdn/dataDir/logDir with new values
+        3. Restart taosd
+        4. Check config values loaded from mnd sdb
+        5. Expect new values go into effect
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_persisit_config.py
+
         """
         buildPath = tdCom.getBuildPath()
         if (buildPath == ""):

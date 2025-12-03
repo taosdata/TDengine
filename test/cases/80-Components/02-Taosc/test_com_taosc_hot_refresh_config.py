@@ -216,23 +216,24 @@ class TestHotRefreshConfigurations:
                 dnode = random.choice(p_list)
                 tdSql.error(f'alter {dnode} "{name} {v}";')
 
-    def test_hot_refresh_configurations(self):
-        """summary: xxx
+    def test_com_taosc_hot_refresh_config(self):
+        """Taosc config hot refresh
+        
+        1. Execute "alter all dnodes 'resetlog';"
+        2. Expect found 'reset log file' in taosd logs
+        3. Hot refresh client config  queryPolicy/numOfLogLines/logKeepDays
+        4. Hot refresh server config  mndSdbWriteDelta/enableWhiteList/audit and more
+        5. Expect config value changed successfully
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_hot_refresh_configurations.py
+
         """
 
         # reset log

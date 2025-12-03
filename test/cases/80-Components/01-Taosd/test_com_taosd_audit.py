@@ -120,22 +120,26 @@ class TestTaosdAudit:
         self.dnodes = cluster.dnodes
 
     def test_taosd_audit(self):
-        """summary: xxx
+        """Taosd telemetry audit
+        
+        1. Create database with vgroups 4
+        2. Create super table and table
+        3. Insert data into table
+        4. Delete data from table
+        5. Start http server to receive telemetry info
+        6. Check telemetry info content valid
+        7. Stop http server
 
-        description: xxx
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_taosd_audit.py
+
         """
         tdSql.prepare()
         # time.sleep(2)

@@ -104,6 +104,7 @@
 ## 08-Keep
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_keep_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mlevel_basic.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mlevel_except.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mutil_stage.py
 ## 09-Stt
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/09-Stt/test_stt_blocks_check.py
@@ -226,6 +227,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_influxdb_line.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_json.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_telnet.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_restart.py
 ## 04-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Import/test_write_import_csv.py
 ## 05-Others
@@ -620,6 +622,7 @@
 # 19-TSMAs
 
 90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
 
 # 20-RSMAs
 
@@ -628,8 +631,8 @@
 # 21-MetaData
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_change.py -N 3 -M 3
-,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_sysdb.py
-,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_sysdb2.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_information_schema.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_ins_tables.py
 
 # 22-PerformanceData
 
@@ -662,6 +665,7 @@
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_subscribe.py
 
 # 26-NodeManager
 
@@ -767,20 +771,31 @@
 
 # 01-Taosd
 ,,n,.,pytest cases/80-Components/01-Taosd/test_com_cmdline.py
+,,n,.,pytest cases/80-Components/01-Taosd/test_com_taosd_log.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_persisit_config.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_audit.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_monitor.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_telemetry.py
 # 02-Taosc
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_count_always_return_value.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_taosc_hot_refresh_config.py
 
 # 81-Tools
 
 ## 01-Check
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_error_code.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
+
 ## 02-Taos
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_error.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_net_chk.py
 ## 03-Benchmark
 ,,n,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_bugs.py -B
@@ -981,34 +996,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill_with_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
-
-
-### 1-insert (empty)
-
-### 0-others
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_error.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_telemetry.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_monitor.py
-#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_new_monitor.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_time_range_wise.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_empty_identifier.py
-#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
-#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan_vgroups.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_grant.py
 
 #develop test
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py

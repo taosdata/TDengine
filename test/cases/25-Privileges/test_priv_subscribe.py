@@ -69,41 +69,6 @@ class TestSubscribeStreamPrivilege:
         tdSql.query("show user privileges")
         tdSql.checkRows(rowCnt)
 
-    def streamTest(self):
-        tdSql.execute("create stream s1 trigger at_once fill_history 1 into so1 as select ts,abs(col2) from stb partition by tbname")
-        time.sleep(2)
-        tdSql.query("select * from so1")
-        tdSql.checkRows(4)
-        tdSql.execute("insert into stb_0(ts,col2) values(now, 332)")
-        time.sleep(2)
-        tdSql.query("select * from so1")
-        tdSql.checkRows(5)
-
-        time.sleep(2)
-        tdSql.query("select * from information_schema.ins_stream_tasks")
-        tdSql.checkData(0, 5, 'ready')
-
-        print(time.time())
-        while 1:
-            t = time.time()
-            if t > 1706254434 :
-                break
-            else:
-                print("time:%d" %(t))
-                time.sleep(1)
-
-
-        tdSql.error("create stream s11 trigger at_once fill_history 1 into so1 as select ts,abs(col2) from stb partition by tbname")
-
-        time.sleep(10)
-        tdSql.query("select * from information_schema.ins_stream_tasks")
-        tdSql.checkData(0, 5, 'paused')
-        tdSql.execute("insert into stb_0(ts,col2) values(now, 3232)")
-        tdSql.query("select * from so1")
-        tdSql.checkRows(5)
-
-        tdSql.error("resume stream s1")
-
     def consumeTest(self):
         consumer_dict = {
             "group.id": "g1",
@@ -163,28 +128,32 @@ class TestSubscribeStreamPrivilege:
         tdSql.execute(f'create topic {self.topic_name} as database {self.dbnames[0]}')
         tdSql.execute(f'create user {self.user_name} pass "123456rf@#"')
 
-    def test_subscribe_stream_privilege(self):
-        """summary: xxx
+    def test_priv_subscribe(self):
+        """Privileges subscribe
+        
+        1. Prepare 1 database, 1 super table, 4 child tables
+        2. Insert data into child tables
+        3. Create topic on the database by admin user
+        4. Create normal user
+        5. Test subscribe topic privilege without granted
+        6. Grant subscribe privilege on the topic to normal user
+        7. Test subscribe topic privilege after granted
+        8. Revoke subscribe privilege on the topic from normal user
+        9. Test subscribe topic privilege after revoked
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-02 Alex Duan Migrated from uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
+
         """
         self.prepare_data()
         self.create_user()
         self.consumeTest()
-        # self.streamTest()
 
         tdLog.success("%s successfully executed" % __file__)
 
