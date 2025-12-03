@@ -42,7 +42,10 @@ typedef struct STranslateContext {
   SHashObj*        pTargetTables;
   SExplainOptions* pExplainOpt;
   SParseMetaCache* pMetaCache;
+  bool             isExprSubQ;
+  bool             isCorrelatedSubQ;
   bool             hasNonLocalSubQ;
+  bool             hasLocalSubQ;
   bool             stableQuery;
   bool             showRewrite;
   bool             withOpt;

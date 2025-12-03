@@ -986,8 +986,6 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->queryId = pReq->pDag->queryId;
   (void)atomic_add_fetch_64(&pJob->seriesId, 1);
 
-  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p", pJob->queryId, pJob->subJobId, pJob->conn.pTrans, pJob);
-
   if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
     qTrace("QID:0x%" PRIx64 ", input exec nodeList is empty", pReq->pDag->queryId);
   } else {
@@ -1021,12 +1019,15 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     
     SNode* pNode = NULL;
     SSchJob* pSubJob = NULL;
-    FOREACH_R(pNode, pReq->pDag->pChildren) {
+    FOREACH(pNode, pReq->pDag->pChildren) {
       SCH_ERR_JRET(schInitSubJob(pJob, (SQueryPlan*)pNode, i, &pSubJob, pReq));
       taosArraySet(pJob->subJobs, i, &pSubJob);
       i++;
     }
   }
+
+  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p, subJobNum:%d", 
+    pJob->queryId, pJob->subJobId, pJob->conn.pTrans, pJob, (int32_t)taosArrayGetSize(pJob->subJobs));
   
   SCH_ERR_JRET(schValidateAndBuildJob(pReq->pDag, pJob));
 

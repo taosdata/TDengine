@@ -1130,6 +1130,7 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
   }
   
   int32_t subJobNum = SCH_IS_PARENT_JOB(pTarget) ? pTarget->subJobs->size : pTarget->subJobId;
+  SSchJob* pParent = SCH_IS_PARENT_JOB(pTarget) ? pTarget : (SSchJob*)pTarget->parent;
   SDownstreamSourceNode* pSource = NULL;
 
   if (subJobNum > 0) {
@@ -1140,9 +1141,9 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
   }
   
   for (int32_t i = 0; i < subJobNum; ++i) {
-    pJob = taosArrayGetP(pTarget->subJobs, i);
-    if (NULL == pJob->fetchTask) {
-      SCH_JOB_ELOG("no fetchTask set in job, status:%d", pJob->status);
+    pJob = taosArrayGetP(pParent->subJobs, i);
+    if (NULL == pJob || NULL == pJob->fetchTask) {
+      SCH_JOB_ELOG("no fetchTask set in job, pJob:%p, fetchTask:%p", pJob, pJob ? pJob->fetchTask : NULL);
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
 

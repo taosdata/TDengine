@@ -11248,15 +11248,17 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
     if (NULL == pReq->subEndPoints) {
       TAOS_CHECK_EXIT(terrno);
     }
-    SDownstreamSourceNode** ppSource = taosArrayReserve(pReq->subEndPoints, 1);
-    if (NULL == ppSource) {
-      TAOS_CHECK_EXIT(terrno);
+    for(int32_t i = 0; i < subEndpointNum; ++i) {
+      SDownstreamSourceNode** ppSource = taosArrayReserve(pReq->subEndPoints, 1);
+      if (NULL == ppSource) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      *ppSource = taosMemoryCalloc(1, sizeof(SDownstreamSourceNode));
+      if (NULL == *ppSource) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      TAOS_CHECK_EXIT(tDeserializeSDownstreamSourceNode(&decoder, *ppSource));
     }
-    *ppSource = taosMemoryCalloc(1, sizeof(SDownstreamSourceNode));
-    if (NULL == *ppSource) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    TAOS_CHECK_EXIT(tDeserializeSDownstreamSourceNode(&decoder, *ppSource));
   }
   tEndDecode(&decoder);
 

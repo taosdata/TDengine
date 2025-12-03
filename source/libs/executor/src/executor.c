@@ -304,7 +304,7 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
-  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
+  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, NULL);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
@@ -705,34 +705,6 @@ int32_t qExecutorInit(void) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadHandle* readHandle) {
-  STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
-
-  ctx->queryId = pTaskInfo->id.queryId;
-  ctx->idStr = pTaskInfo->id.str;
-  ctx->pTaskInfo = pTaskInfo;
-  ctx->subEndPoints = subEndPoints;
-  ctx->rpcHandle = readHandle ? readHandle->pMsgCb->clientRpc : NULL;
-  
-  int32_t subJobNum = taosArrayGetSize(subEndPoints);
-  if (subJobNum > 0) {
-    pTaskInfo->subJobCtx.subResValues = taosArrayInit_s(POINTER_BYTES, subJobNum);
-    if (NULL == pTaskInfo->subJobCtx.subResValues) {
-      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
-      return terrno;
-    }
-    
-    int32_t code = tsem_init(&ctx->ready, 0, 0);
-    if (code) {
-      qError("%s tsem_init failed, error:%s", GET_TASKID(pTaskInfo), tstrerror(code));
-      return code;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
 int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SExecTaskInfo* pTask = (SExecTaskInfo*)task;
@@ -771,14 +743,9 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints));
 
   readHandle->uid = 0;
-  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
+  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, subEndPoints);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
-    goto _error;
-  }
-
-  code = initTaskSubJobCtx(*pTask, subEndPoints, readHandle);
-  if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
     
@@ -818,8 +785,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     }
   }
 
-  qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s", taskId, pSubplan->id.queryId,
-         tstrerror(code));
+  qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s subEndPoints:%d", 
+    taskId, pSubplan->id.queryId, tstrerror(code), (int32_t)taosArrayGetSize((*pTask)->subJobCtx.subEndPoints));
 
 _error:
   // if failed to add ref for all tables in this query, abort current query
