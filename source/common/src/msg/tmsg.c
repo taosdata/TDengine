@@ -9024,7 +9024,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->changeVersion));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->keepTimeOffset));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encryptAlgr));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encryptAlgorithm));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssChunkSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
@@ -9128,12 +9128,12 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
-  pReq->encryptAlgr = TSDB_DEFAULT_ENCRYPT_ALGO;
+  pReq->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pReq->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
   pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
   pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encryptAlgr));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encryptAlgorithm));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssChunkSize));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact));

@@ -2543,7 +2543,7 @@ typedef struct {
   int8_t   learnerSelfIndex;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
   int32_t  changeVersion;
-  int8_t   encryptAlgr;
+  int8_t   encryptAlgorithm;
   char     encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
 } SCreateVnodeReq;
 
