@@ -197,8 +197,11 @@ extern char     tsCfgKey[129];             // CFG_KEY (config encryption key)
 extern char     tsMetaKey[129];            // META_KEY (metadata encryption key)
 extern char     tsDataKey[129];            // DATA_KEY (data encryption key)
 extern int32_t  tsEncryptAlgorithmType;    // Algorithm type (SM2/SM3/SM4)
+extern int32_t  tsEncryptFileVersion;      // File format version for compatibility
+extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1, increments on update)
 extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
-extern int64_t  tsEncryptKeyUpdateTime;    // Key update timestamp
+extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
+extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
 extern bool     tsCfgKeyEnabled;           // CFG_KEY enabled flag
 extern bool     tsMetaKeyEnabled;          // META_KEY enabled flag
 extern bool     tsDataKeyEnabled;          // DATA_KEY enabled flag

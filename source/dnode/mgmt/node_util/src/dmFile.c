@@ -590,7 +590,8 @@ extern int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineI
 extern int32_t dmGetEncryptKeyFromTaosk();
 
 extern int32_t taoskLoadEncryptKeys(const char *encryptFile, char *svrKey, char *dbKey, char *cfgKey, char *metaKey,
-                                    char *dataKey, int32_t *algorithm, int64_t *createTime, int64_t *updateTime);
+                                    char *dataKey, int32_t *algorithm, int32_t *fileVersion, int32_t *keyVersion,
+                                    int64_t *createTime, int64_t *svrKeyUpdateTime, int64_t *dbKeyUpdateTime);
 
 static int32_t dmReadEncryptCodeFile(char *file, char **output) {
   TdFilePtr pFile = NULL;
@@ -658,20 +659,26 @@ int32_t dmGetEncryptKeyFromTaosk() {
 
   // Prepare variables for decrypted keys
   int32_t algorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
   int64_t createTime = 0;
-  int64_t updateTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
 
   // Call enterprise function to decrypt and load multi-layer keys
   // Similar to tsdbAsyncCompact - external function implemented in enterprise code
   int32_t code = taoskLoadEncryptKeys(encryptFile,
-                                      tsSvrKey,     // output: SVR_KEY (server master key)
-                                      tsDbKey,      // output: DB_KEY (database master key)
-                                      tsCfgKey,     // output: CFG_KEY (config encryption key)
-                                      tsMetaKey,    // output: META_KEY (metadata encryption key)
-                                      tsDataKey,    // output: DATA_KEY (data encryption key)
-                                      &algorithm,   // output: encryption algorithm type
-                                      &createTime,  // output: key creation timestamp
-                                      &updateTime   // output: key update timestamp
+                                      tsSvrKey,          // output: SVR_KEY (server master key)
+                                      tsDbKey,           // output: DB_KEY (database master key)
+                                      tsCfgKey,          // output: CFG_KEY (config encryption key)
+                                      tsMetaKey,         // output: META_KEY (metadata encryption key)
+                                      tsDataKey,         // output: DATA_KEY (data encryption key)
+                                      &algorithm,        // output: encryption algorithm type
+                                      &fileVersion,      // output: file format version
+                                      &keyVersion,       // output: key update version
+                                      &createTime,       // output: key creation timestamp
+                                      &svrKeyUpdateTime, // output: SVR_KEY update timestamp
+                                      &dbKeyUpdateTime   // output: DB_KEY update timestamp
   );
 
   if (code != 0) {
@@ -687,8 +694,11 @@ int32_t dmGetEncryptKeyFromTaosk() {
 
   // Store metadata
   tsEncryptAlgorithmType = algorithm;
+  tsEncryptFileVersion = fileVersion;   // file format version for compatibility
+  tsEncryptKeyVersion = keyVersion;     // key update version
   tsEncryptKeyCreateTime = createTime;
-  tsEncryptKeyUpdateTime = updateTime;
+  tsSvrKeyUpdateTime = svrKeyUpdateTime;
+  tsDbKeyUpdateTime = dbKeyUpdateTime;
 
   // For backward compatibility: copy DATA_KEY to tsEncryptKey (truncated to 16 bytes)
   int keyLen = strlen(tsDataKey);
