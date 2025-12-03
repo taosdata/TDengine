@@ -449,18 +449,18 @@ typedef struct {
   SHashObj* updateRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* deleteRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
 
-  SHashObj* readDbs;  //      db.*, *.* => migrate to readTbs and writeTbs when update from 3.3.x.y
-  SHashObj* writeDbs;
+  // SHashObj* readDbs;  //      db.*, *.* => migrate to readTbs and writeTbs when update from 3.3.x.y
+  // SHashObj* writeDbs;
   SHashObj* topics;
 
   // table level privileges
   union {
     SHashObj* selectTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-    SHashObj* readTbs;
+    // SHashObj* readTbs;
   };
   union {
     SHashObj* insertTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-    SHashObj* writeTbs;
+    // SHashObj* writeTbs;
   };
   SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* deleteTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies

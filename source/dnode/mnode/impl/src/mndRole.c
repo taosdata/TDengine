@@ -451,10 +451,12 @@ _exit:
   return code;
 }
 
-static void tFreePrivTblPolicies(SHashObj **ppHash) {
+void tFreePrivTblPolicies(SHashObj **ppHash) {
   if (*ppHash) {
     void *pIter = NULL;
     while (pIter = taosHashIterate(*ppHash, pIter)) {
+      int32_t vlen = taosHashGetValueSize(pIter);  // value is NULL for key 1.db.* or 1.*.*
+      if (vlen == 0) continue;
       privTblPoliciesFree((SPrivTblPolicies *)pIter);
     }
     taosHashCleanup(*ppHash);

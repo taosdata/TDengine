@@ -1757,13 +1757,12 @@ int32_t mndDupUseDbHash(SHashObj *pOld, SHashObj **ppNew) {
 }
 
 int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
-  int32_t code = 0;
-  *ppNew =
-      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (*ppNew == NULL) {
+  if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                              HASH_ENTRY_LOCK);)) {
     TAOS_RETURN(terrno);
   }
 
+  int32_t  code = 0;
   uint8_t *flag = NULL;
   while ((flag = taosHashIterate(pOld, flag))) {
     size_t keyLen = 0;
@@ -1779,14 +1778,64 @@ int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
-int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
-  int32_t code = 0;
-  *ppNew =
-      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (*ppNew == NULL) {
-    TAOS_RETURN(terrno);
+int32_t mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
+  if (!(*ppNew)) return mndDupPrivObjHash(pOld, ppNew);
+
+  int32_t           code = 0, lino = 0;
+  SHashObj         *pNew = *ppNew;
+  SPrivObjPolicies *policies = NULL;
+  while ((policies = taosHashIterate(pOld, policies))) {
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
+
+    if ((code = taosHashPut(pNew, key, klen, vlen ? policies : NULL, vlen)) != 0) {
+      taosHashCancelIterate(pOld, policies);
+      taosHashCleanup(pNew);
+      TAOS_RETURN(code);
+    }
   }
 
+  TAOS_RETURN(code);
+}
+
+int32_t mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
+  if (!(*ppNew)) return mndDupPrivTblHash(pOld, ppNew);
+
+  int32_t code = 0;
+  SPrivTblPolicies *policies = NULL;
+  while ((policies = taosHashIterate(pOld, policies))) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(policies, &keyLen);
+
+    SPrivTblPolicies tmpPolicies = {.nPolicies = policies->nPolicies};
+
+    for (int32_t i = 0; i < policies->nPolicies; ++i) {
+      if (policies->policy[i] && !(tmpPolicies.policy[i] = taosArrayDup(policies->policy[i], NULL))) {
+        code = terrno;
+        privTblPoliciesFree(&tmpPolicies);
+        taosHashCancelIterate(pOld, policies);
+        taosHashCleanup(*ppNew);
+        TAOS_RETURN(code);
+      }
+    }
+
+    if ((code = taosHashPut(*ppNew, key, keyLen, &tmpPolicies, sizeof(*policies))) != 0) {
+      taosHashCancelIterate(pOld, policies);
+      taosHashCleanup(*ppNew);
+      TAOS_RETURN(code);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
+  if ((*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                             HASH_ENTRY_LOCK))) {
+    TAOS_RETURN(terrno);
+  }
+  int32_t           code = 0;
   SPrivObjPolicies *policies = NULL;
   while ((policies = taosHashIterate(pOld, policies))) {
     size_t keyLen = 0;
@@ -1803,13 +1852,11 @@ int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
 }
 
 int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
-  int32_t code = 0;
-  *ppNew =
-      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (*ppNew == NULL) {
+  if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                              HASH_ENTRY_LOCK))) {
     TAOS_RETURN(terrno);
   }
-
+  int32_t           code = 0;
   SPrivTblPolicies *policies = NULL;
   while ((policies = taosHashIterate(pOld, policies))) {
     size_t keyLen = 0;

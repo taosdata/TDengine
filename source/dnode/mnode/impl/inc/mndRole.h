@@ -40,6 +40,7 @@ int32_t mndRoleGrantToUser(SMnode *pMnode, STrans *pTrans, SRoleObj *pRole, SUse
 int64_t mndGetRoleLastUpd();
 void    mndSetRoleLastUpd(int64_t updateTime);
 bool    mndNeedRetrieveRole(SUserObj *pUser);
+void    tFreePrivTblPolicies(SHashObj **ppHash);
 
 SSdbRaw *mndRoleActionEncode(SRoleObj *pRole);
 #ifdef __cplusplus
