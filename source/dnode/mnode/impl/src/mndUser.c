@@ -988,13 +988,17 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   int32_t  lino = 0;
   SUserObj userObj = {0};
 
-  generateSalt(userObj.salt, sizeof(userObj.salt));
   userObj.passwords = taosMemCalloc(1, sizeof(SUserPassword));
   if (userObj.passwords == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _ERROR);
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
-  TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _ERROR);
+  userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
+  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsEncryptKey) > 0) {
+    generateSalt(userObj.salt, sizeof(userObj.salt));
+    TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _ERROR);
+  }
+
   userObj.passwords[0].setTime = taosGetTimestampSec();
   userObj.numOfPasswords = 1;
 
@@ -2039,6 +2043,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
 
   pOld->numOfPasswords = pNew->numOfPasswords;
   TSWAP(pOld->passwords, pNew->passwords);
+  (void)memcpy(pOld->salt, pNew->salt, sizeof(pOld->salt));
   (void)memcpy(pOld->totpsecret, pNew->totpsecret, sizeof(pOld->totpsecret));
   TSWAP(pOld->readDbs, pNew->readDbs);
   TSWAP(pOld->writeDbs, pNew->writeDbs);
@@ -2055,6 +2060,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->ipWhiteListVer = pNew->ipWhiteListVer;
   TSWAP(pOld->pTimeWhiteList, pNew->pTimeWhiteList);
   pOld->timeWhiteListVer = pNew->timeWhiteListVer;
+  pOld->passEncryptAlgorithm = pNew->passEncryptAlgorithm;
 
   taosWUnLockLatch(&pOld->lock);
 
@@ -2172,6 +2178,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   } else {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
+    userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _OVER);
   }
   userObj.passwords[0].setTime = taosGetTimestampSec();
@@ -3187,6 +3194,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     }
     char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
+    pass[sizeof(pass) - 1] = 0;
     TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
 
     if (newUser.passwordReuseMax > 0 || newUser.passwordReuseTime > 0) {
