@@ -245,8 +245,8 @@ void dmCleanup() {
 
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
-    tssCloseDefaultInstance();
-    tssUninit();
+    (void)tssCloseDefaultInstance();
+    (void)tssUninit();
   }
 #endif
 
