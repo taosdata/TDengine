@@ -305,7 +305,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
     TAOS_RETURN(code);
   }
 
-  tIpRangeSetMask(&range, 32);
+  (void)tIpRangeSetMask(&range, 32);
 
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteListDual **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
@@ -668,7 +668,7 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
   for (int i = 0; i < num; i++) {
     SIpRange *pRange = &range[i];
     SIpAddr   addr = {0};
-    tIpUintToStr(pRange, &addr);
+    (void)tIpUintToStr(pRange, &addr);
 
     len += tsnprintf(buf + len, bufLen - len, "%s/%d,", IP_ADDR_STR(&addr), addr.mask);
   }

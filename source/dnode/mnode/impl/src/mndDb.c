@@ -2732,14 +2732,18 @@ static const char *getCacheModelStr(int8_t cacheModel) {
 
 static void getEncryptAlgorithmStr(SMnode *pMnode, int8_t encryptAlgorithm, char *out) {
   switch (encryptAlgorithm) {
-    case TSDB_ENCRYPT_ALGO_NONE:
+    case TSDB_ENCRYPT_ALGO_NONE: {
       tstrncpy(out, TSDB_ENCRYPT_ALGO_NONE_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
-    default:
+      break;
+    }
+    default: {
       SEncryptAlgrObj *obj = mndAcquireEncryptAlgrById(pMnode, encryptAlgorithm);
       if (obj != NULL) {
         tstrncpy(out, obj->algorithm_id, TSDB_ENCRYPT_ALGR_NAME_LEN);
         mndReleaseEncryptAlgr(pMnode, obj);
       }
+      break;
+    }
   }
 }
 

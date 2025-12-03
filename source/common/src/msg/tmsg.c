@@ -2711,7 +2711,7 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
-void tFreeSCreateEncryptAlgrReq(SCreateEncryptAlgrReq *pReq) {}
+void tFreeSCreateEncryptAlgrReq(SCreateEncryptAlgrReq *pReq) { FREESQL(); }
 
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
   SEncoder encoder = {0};

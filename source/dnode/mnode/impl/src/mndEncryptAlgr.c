@@ -461,7 +461,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  auditRecord(pReq, pMnode->clusterId, "dropEncryptAlgr", "", createReq.algorithmId, createReq.sql,
+  auditRecord(pReq, pMnode->clusterId, "createEncryptAlgr", "", createReq.algorithmId, createReq.sql,
               strlen(createReq.sql));
 
   return code;
