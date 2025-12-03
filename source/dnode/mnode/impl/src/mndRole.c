@@ -39,7 +39,6 @@ static SRoleMgmt roleMgmt = {0};
 static bool      isDeploy = false;
 
 static int32_t  mndCreateDefaultRoles(SMnode *pMnode);
-static int32_t  mndUpgradeDefaultRoles(SMnode *pMnode);
 static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw);
 static int32_t  mndRoleActionInsert(SSdb *pSdb, SRoleObj *pRole);
 static int32_t  mndRoleActionDelete(SSdb *pSdb, SRoleObj *pRole);
@@ -65,6 +64,7 @@ int32_t mndInitRole(SMnode *pMnode) {
       .sdbType = SDB_ROLE,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)mndCreateDefaultRoles,
+      // .redeployFp = (SdbDeployFp)mndCreateDefaultRoles, // TODO: upgrade role table
       .encodeFp = (SdbEncodeFp)mndRoleActionEncode,
       .decodeFp = (SdbDecodeFp)mndRoleActionDecode,
       .insertFp = (SdbInsertFp)mndRoleActionInsert,
@@ -82,7 +82,6 @@ int32_t mndInitRole(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndCancelGetNextPrivileges);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndRetrieveColPrivileges);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES, mndCancelGetNextColPrivileges);
-  if (!isDeploy) mndUpgradeDefaultRoles(pMnode);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -192,7 +191,7 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleTyp
   SRoleObj *pRole = NULL, *pNew = NULL;
   if (mndAcquireRole(pMnode, role, &pRole) == 0) {
     if (pRole->version < MND_ROLE_SYSROLE_VER) {
-      mInfo("role:%s version:%ld need upgrade to version:%d", role, pRole->version, MND_ROLE_SYSROLE_VER);
+      mInfo("role:%s version:%ld upgrade to version:%d", role, pRole->version, MND_ROLE_SYSROLE_VER);
       pNew = taosMemoryCalloc(1, sizeof(SRoleObj));
       if (pNew == NULL) {
         mndReleaseRole(pMnode, pRole);
@@ -206,7 +205,6 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleTyp
       pNew->version = MND_ROLE_SYSROLE_VER;
       mndReleaseRole(pMnode, pRole);
     } else {
-      mInfo("role:%s already exists, no need to create again", role);
       mndReleaseRole(pMnode, pRole);
       return 0;
     }
@@ -257,7 +255,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndUpgradeDefaultRoles(SMnode *pMnode) {
+static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, ROLE_SYSDBA));
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, ROLE_SYSSEC));
@@ -267,11 +265,6 @@ static int32_t mndUpgradeDefaultRoles(SMnode *pMnode) {
   TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, ROLE_SYSINFO_1));
 _exit:
   TAOS_RETURN(code);
-}
-
-static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
-  isDeploy = true;
-  return mndUpgradeDefaultRoles(pMnode);
 }
 
 static int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, const SHashObj *pHash) {
