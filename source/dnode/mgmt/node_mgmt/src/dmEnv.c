@@ -224,7 +224,7 @@ void dmCleanup() {
   SDnode *pDnode = dmInstance();
 
 #if defined(TD_ENTERPRISE)
-  cryptUnloadProviders();
+  // cryptUnloadProviders();
 #endif
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
