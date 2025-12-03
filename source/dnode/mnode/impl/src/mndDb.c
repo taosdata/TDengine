@@ -44,7 +44,6 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
-#include "mndEncryptAlgr.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 14
