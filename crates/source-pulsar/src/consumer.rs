@@ -73,10 +73,7 @@ pub async fn build_consumer_with_context(
     context: CustomContext,
 ) -> anyhow::Result<CustomConsumer> {
     let joins = context.fetch_add_joins();
-    tracing::info!(
-        "pulsar build consumer with context, joins times: {:?}",
-        joins
-    );
+    tracing::info!("build_consumer_with_context, joins times: {:?}", joins);
 
     let pulsar = build_pulsar(&config.connect).await?;
     let new_consumer =

@@ -41,6 +41,12 @@ async fn get_sample_impl(
     limit: usize,
     timeout: Duration,
 ) -> anyhow::Result<Vec<HashMap<&'static str, String>>> {
+    tracing::debug!(
+        dsn = %dsn,
+        limit = limit,
+        timeout = timeout.as_millis(),
+        "get_sample_impl params",
+    );
     let conn_config = PulsarConnectConfig::from_dsn(dsn)?;
     let init_position = PulsarTaskConfig::parse_initial_position(dsn)?;
     let task_config = PulsarTaskConfig::from_dsn(dsn)?;
@@ -118,7 +124,6 @@ async fn get_sample_impl(
                 consumer.ack(&msg).await?;
             }
             Err(err) => {
-                tracing::error!("Pulsar polling error: {:#}", err);
                 anyhow::bail!("Pulsar polling error: {:#}", err);
             }
         }
