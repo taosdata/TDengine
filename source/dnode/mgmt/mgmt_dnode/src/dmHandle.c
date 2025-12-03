@@ -16,12 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "audit.h"
 #include "dmInt.h"
+// #include "dmMgmt.h"
 #include "monitor.h"
+#include "stream.h"
 #include "systable.h"
 #include "tanalytics.h"
 #include "tchecksum.h"
 #include "tutil.h"
-#include "stream.h"
 
 extern SConfig *tsCfg;
 
@@ -736,7 +737,16 @@ _exit:
 
 int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t code = 0;
-  return code;
+  SMsgCb *msgCb = &pMgmt->msgCb;
+  void *pTransCli = msgCb->clientRpc;
+  void *pTransStatus = msgCb->statusRpc;  
+  void *pTransSync = msgCb->syncRpc; 
+  void *pTransServer = msgCb->serverRpc;
+
+
+  
+
+   return code;
 }
 
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {

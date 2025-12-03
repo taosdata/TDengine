@@ -204,8 +204,11 @@ static void uvHandleRelease(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void uvHandleResp(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void uvHandleRegister(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void uvHandleUpdate(SSvrRespMsg* pMsg, SWorkThrd* thrd);
-static void (*transAsyncHandle[])(SSvrRespMsg* msg, SWorkThrd* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
-                                                                        uvHandleRegister, uvHandleUpdate};
+static void uvHandleFreeById(SSvrRespMsg* pMsg, SWorkThrd* thrd);
+static void uvHandleReloadTlsConfig(SSvrRespMsg* pMsg, SWorkThrd* thrd);
+static void (*transAsyncHandle[])(SSvrRespMsg* msg, SWorkThrd* thrd) = {
+    uvHandleResp,   uvHandleQuit,     uvHandleRelease,        uvHandleRegister,
+    uvHandleUpdate, uvHandleFreeById, uvHandleReloadTlsConfig};
 
 static void uvDestroyConn(uv_handle_t* handle);
 
@@ -2391,6 +2394,13 @@ void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
   }
 }
 
+void uvHandleFreeById(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  // placeholder function
+  return;
+}
+
+void uvHandleReloadTlsConfig(SSvrRespMsg* msg, SWorkThrd* thrd) { return; }
+
 void destroyWorkThrdObj(SWorkThrd* pThrd) {
   if (pThrd == NULL) {
     return;
@@ -2726,6 +2736,41 @@ int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   }
   return code;
 }
+
+int32_t transReloadServerTlsConfig(void* handle) {
+  int32_t code = 0;
+  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
+  if (pInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  SServerObj* svrObj = pInst->tcphandle;
+  for (int i = 0; i < svrObj->numOfThreads; i++) {
+    SWorkThrd* pThrd = svrObj->pThreadObj[i];
+
+    SSvrRespMsg* msg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
+    if (msg == NULL) {
+      code = terrno;
+      break;
+    }
+
+    msg->type = ReloadTLS;
+
+    if ((code = transAsyncSend(pThrd->asyncPool, &msg->q)) != 0) {
+      code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+      taosMemoryFree(msg);
+      break;
+    }
+  }
+
+  transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
+
+  if (code != 0) {
+    tError("ip-white-list update failed since %s", tstrerror(code));
+  }
+  return code;
+}
+
 #else
 int32_t transReleaseSrvHandle(void *handle, int32_t status) {
   tDebug("rpc start to release svr handle");

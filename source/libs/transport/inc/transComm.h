@@ -227,7 +227,7 @@ typedef struct {
   int8_t  retryInit;
   int8_t  epsetRetryCnt;
 } SReqCtx;
-typedef enum { Normal, Quit, Release, Register, Update, FreeById } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -401,6 +401,12 @@ int32_t transGetRefCount(void* handle);
 
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
+
+int32_t transReloadTlsConfig(void* handle, int8_t type);
+
+int32_t transReloadClientTlsConfig(void* handle);
+
+int32_t transReloadServerTlsConfig(void* handle);
 
 #endif
 

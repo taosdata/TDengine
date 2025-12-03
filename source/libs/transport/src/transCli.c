@@ -239,14 +239,15 @@ static void cliHandleReq(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleQuit(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleRelease(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleUpdate(SCliThrd* pThrd, SCliReq* pReq);
-static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq) { return; }
+static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq);
+static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq);
 
 static void cliDoReq(queue* h, SCliThrd* pThrd);
 static void cliDoBatchReq(queue* h, SCliThrd* pThrd);
 static void (*cliDealFunc[])(queue* h, SCliThrd* pThrd) = {cliDoReq, cliDoBatchReq};
 
-static void (*cliAsyncHandle[])(SCliThrd* pThrd, SCliReq* pReq) = {cliHandleReq, cliHandleQuit,   cliHandleRelease,
-                                                                   NULL,         cliHandleUpdate, cliHandleFreeById};
+static void (*cliAsyncHandle[])(SCliThrd* pThrd, SCliReq* pReq) = {
+    cliHandleReq, cliHandleQuit, cliHandleRelease, NULL, cliHandleUpdate, cliHandleFreeById, cliHandleReloadTlsConfig};
 
 static FORCE_INLINE void destroyReq(void* cmsg);
 
@@ -2025,6 +2026,11 @@ static void cliHandleUpdate(SCliThrd* pThrd, SCliReq* pReq) {
   destroyReq(pReq);
   return;
 }
+static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq) {
+  // placeholder function 
+  return;
+}
+static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq) { return; }
 
 FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr* pCvtAddr) {
   if (pEpSet == NULL || pCvtAddr == NULL) {
@@ -3759,6 +3765,37 @@ int32_t transSetDefaultAddr(void* pInstRef, const char* ip, const char* fqdn) {
   }
 
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
+  return code;
+}
+
+int32_t transReloadClientTlsConfig(void* handle) {
+  int32_t code = 0;
+
+  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
+  if (pInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+  for (int8_t i = 0; i < pInst->numOfThreads; i++) {
+    SCliReq* pReq = taosMemoryCalloc(1, sizeof(SCliReq));
+    if (pReq == NULL) {
+      code = terrno;
+      break;
+    }
+    pReq->type = ReloadTLS;
+
+    SCliThrd* thrd = ((SCliObj*)pInst->tcphandle)->pThreadObj[i];
+    tDebug("%s reload tls config at thread:%08" PRId64, pInst->label, thrd->pid);
+
+    if ((code = transAsyncSend(thrd->asyncPool, &(pReq->q))) != 0) {
+      destroyReq(pReq);
+      if (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT) {
+        code = TSDB_CODE_RPC_MODULE_QUIT;
+      }
+      break;
+    }
+  }
+
+  transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
   return code;
 }
 

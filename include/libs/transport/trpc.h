@@ -198,6 +198,7 @@ int32_t rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 int32_t rpcAllocHandle(int64_t *refId);
 int32_t rpcSetIpWhite(void *thandle, void *arg);
 int32_t rpcSetTimeIpWhite(void *thandle, void *arg);
+int32_t rpcReloadTlsConfig(void* handle, int8_t type);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 

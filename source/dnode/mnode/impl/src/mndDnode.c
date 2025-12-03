@@ -129,7 +129,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DNODE_RELOAD_TLS, mndProcessUpdateDnodeReloadTls);
-  mndSetMsgHandle(pMnode, TDMT_MND_RELOAD_DNODE_TLS, mndProcessReloadDnodeTlsRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_RELOAD_DNODE_TLS, mndProcessReloadDnodeTlsRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -1855,7 +1855,7 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
   for (int32_t i = 0; i < taosArrayGetSize(pAddr); i++) {
     SEpSet *pEpSet = (SEpSet *)taosArrayGetP(pAddr, i);
     // SEpSet epSet = mndCreateEpSetByStr(addr);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_RELOAD_DNODE_TLS, .pCont = NULL, .contLen = 0};
+    SRpcMsg rpcMsg = {.msgType = TDMT_DND_RELOAD_DNODE_TLS, .pCont = NULL, .contLen = 0};
     code = tmsgSendReq(pEpSet, &rpcMsg);
     if (code != 0) {
       mError("failed to send reload tls req to dnode addr:%s since %s", pEpSet->eps[0].fqdn, tstrerror(code));
