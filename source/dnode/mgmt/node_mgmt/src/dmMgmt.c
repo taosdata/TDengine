@@ -24,6 +24,9 @@
 #include "tgrant.h"
 #include "tconv.h"
 #include "stream.h"
+#ifdef TD_ENTERPRISE
+#include "taoskInt.h"
+#endif
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -174,6 +177,35 @@ int32_t dmInitVars(SDnode *pDnode) {
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   tsiEncryptAlgorithm = pData->encryptAlgorigthm;
   tsiEncryptScope = pData->encryptScope;
+
+  // Load local encryption keys and initialize key version
+  {
+    char encryptFile[PATH_MAX] = {0};
+    snprintf(encryptFile, sizeof(encryptFile), "%s%senc%sencrypt.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+    char    svrKey[129] = {0};
+    char    dbKey[129] = {0};
+    char    cfgKey[129] = {0};
+    char    metaKey[129] = {0};
+    char    dataKey[129] = {0};
+    int32_t algorithm = 0;
+    int32_t fileVersion = 0;
+    int32_t keyVersion = 0;
+    int64_t createTime = 0;
+    int64_t svrKeyUpdateTime = 0;
+    int64_t dbKeyUpdateTime = 0;
+
+    code = taoskLoadEncryptKeys(encryptFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm, &fileVersion,
+                                &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+    if (code == 0) {
+      tsLocalKeyVersion = keyVersion;
+      dInfo("loaded local encryption keys, version:%d", tsLocalKeyVersion);
+    } else {
+      tsLocalKeyVersion = 0;
+      dInfo("no local encryption keys found or failed to load, will sync from mnode");
+    }
+  }
+#endif
   /*
   if(tsiEncryptAlgorithm != 0) {
     if(pData->machineId != NULL && strlen(pData->machineId) > 0){
@@ -209,7 +241,6 @@ int32_t dmInitVars(SDnode *pDnode) {
     }
   }
   */
-#endif
 
   if (pData->dropped) {
     dError("dnode will not start since its already dropped");

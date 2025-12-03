@@ -22,6 +22,9 @@
 #include "tchecksum.h"
 #include "tutil.h"
 #include "stream.h"
+#ifdef TD_ENTERPRISE
+#include "taoskInt.h"
+#endif
 
 extern SConfig *tsCfg;
 
@@ -354,6 +357,107 @@ _exit:
   rpcFreeCont(pRsp->pCont);
   if (needStop) {
     dmStop();
+  }
+}
+
+int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
+  const STraceId *trace = &pRsp->info.traceId;
+  int32_t         code = 0;
+  SKeySyncRsp     keySyncRsp = {0};
+
+  if (pRsp->code != 0) {
+    dError("failed to sync keys from mnode since %s", tstrerror(pRsp->code));
+    return pRsp->code;
+  }
+
+  if (pRsp->pCont == NULL || pRsp->contLen <= 0) {
+    dError("invalid key sync response, empty content");
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  code = tDeserializeSKeySyncRsp(pRsp->pCont, pRsp->contLen, &keySyncRsp);
+  if (code != 0) {
+    dError("failed to deserialize key sync response since %s", tstrerror(code));
+    return code;
+  }
+
+  dInfo("received key sync response, mnode keyVersion:%d, local keyVersion:%d, needUpdate:%d", keySyncRsp.keyVersion,
+        tsLocalKeyVersion, keySyncRsp.needUpdate);
+
+  if (keySyncRsp.needUpdate) {
+#ifdef TD_ENTERPRISE
+    // Get encrypt file path from tsDataDir
+    char encryptFile[PATH_MAX] = {0};
+    snprintf(encryptFile, sizeof(encryptFile), "%s%senc%sencrypt.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+
+    dInfo("updating local encryption keys, keyVersion:%d -> %d", tsLocalKeyVersion, keySyncRsp.keyVersion);
+
+    // Save keys to master.bin and derived.bin
+    code = taoskSaveEncryptKeys(encryptFile, keySyncRsp.svrKey, keySyncRsp.dbKey, keySyncRsp.cfgKey, keySyncRsp.metaKey,
+                                keySyncRsp.dataKey, keySyncRsp.algorithm, keySyncRsp.keyVersion, keySyncRsp.createTime,
+                                keySyncRsp.svrKeyUpdateTime, keySyncRsp.dbKeyUpdateTime);
+    if (code != 0) {
+      dError("failed to save encryption keys since %s", tstrerror(code));
+      return code;
+    }
+
+    // Update local key version
+    tsLocalKeyVersion = keySyncRsp.keyVersion;
+    dInfo("successfully updated local encryption keys to version:%d", tsLocalKeyVersion);
+#else
+    dWarn("enterprise features not enabled, skipping key sync");
+#endif
+  } else {
+    dDebug("local keys are up to date, version:%d", tsLocalKeyVersion);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void dmSendKeySyncReq(SDnodeMgmt *pMgmt) {
+  int32_t     code = 0;
+  SKeySyncReq req = {0};
+
+  req.dnodeId = pMgmt->pData->dnodeId;
+  req.keyVersion = tsLocalKeyVersion;
+  dDebug("send key sync req to mnode, dnodeId:%d keyVersion:%d", req.dnodeId, req.keyVersion);
+
+  int32_t contLen = tSerializeSKeySyncReq(NULL, 0, &req);
+  if (contLen < 0) {
+    dError("failed to serialize key sync req since %s", tstrerror(contLen));
+    return;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    dError("failed to malloc cont since %s", tstrerror(contLen));
+    return;
+  }
+  contLen = tSerializeSKeySyncReq(pHead, contLen, &req);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize key sync req since %s", tstrerror(contLen));
+    return;
+  }
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_KEY_SYNC,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1,
+                    .info.refId = 0,
+                    .info.noResp = 0,
+                    .info.handle = 0};
+  SRpcMsg rpcRsp = {0};
+
+  SEpSet epSet = {0};
+  (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
+
+  code = tmsgSendReq(&epSet, &rpcMsg);
+  if (code != 0) {
+    dError("failed to send key sync req since %s", tstrerror(code));
+    rpcFreeCont(pHead);
+    return;
   }
 }
 

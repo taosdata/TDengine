@@ -59,6 +59,34 @@ static void *dmConfigThreadFp(void *param) {
   return NULL;
 }
 
+static void *dmKeySyncThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-keysync");
+
+  // Wait a bit before first sync attempt
+  taosMsleep(3000);
+
+  while (1) {
+    taosMsleep(100);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = curTime - lastTime;
+
+    // Sync keys periodically (every 30 seconds) or on first run
+    if (interval >= 30000 || lastTime == 0) {
+      dmSendKeySyncReq(pMgmt);
+      lastTime = curTime;
+
+      // After first successful sync, we can break if keys are synchronized
+      // But we keep checking periodically for updates
+    }
+  }
+  return NULL;
+}
+
 static void *dmStatusInfoThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -388,6 +416,25 @@ int32_t dmStartConfigThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartKeySyncThread(SDnodeMgmt *pMgmt) {
+  int32_t      code = 0;
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
+  if (taosThreadCreate(&pMgmt->keySyncThread, &thAttr, dmKeySyncThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    dError("failed to create key sync thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-keysync", "initialized");
+  return 0;
+}
+
 int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
@@ -418,6 +465,13 @@ void dmStopConfigThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->configThread)) {
     (void)taosThreadJoin(pMgmt->configThread, NULL);
     taosThreadClear(&pMgmt->configThread);
+  }
+}
+
+void dmStopKeySyncThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->keySyncThread)) {
+    (void)taosThreadJoin(pMgmt->keySyncThread, NULL);
+    taosThreadClear(&pMgmt->keySyncThread);
   }
 }
 

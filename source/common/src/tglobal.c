@@ -45,6 +45,7 @@ int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
+int32_t       tsLocalKeyVersion = 0;
 int32_t       tsStatusInterval = 1;  // second
 int32_t       tsStatusIntervalMs = 1000;
 int32_t       tsStatusSRTimeoutMs = 5000;

@@ -2276,6 +2276,96 @@ _exit:
 
 void tFreeSConfigRsp(SConfigRsp *pRsp) { taosArrayDestroy(pRsp->array); }
 
+int32_t tSerializeSKeySyncReq(void *buf, int32_t bufLen, SKeySyncReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->keyVersion));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSKeySyncReq(void *buf, int32_t bufLen, SKeySyncReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keyVersion));
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->keyVersion));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->needUpdate));
+  if (pRsp->needUpdate) {
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, 129));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->algorithm));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->createTime));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->svrKeyUpdateTime));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->dbKeyUpdateTime));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->keyVersion));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->needUpdate));
+  if (pRsp->needUpdate) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->svrKey));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->dbKey));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->cfgKey));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->metaKey));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->dataKey));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->algorithm));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->createTime));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->svrKeyUpdateTime));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->dbKeyUpdateTime));
+  }
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSDnodeInfoReq(void *buf, int32_t bufLen, SDnodeInfoReq *pReq) {
   int32_t  code = 0, lino = 0;
   int32_t  tlen = 0;
