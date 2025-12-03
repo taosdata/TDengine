@@ -2665,6 +2665,8 @@ END:
   terrno = code;
   if (tmq != NULL && terrno != 0) {
     tqErrorC("consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", tmq->consumerId, lino, tstrerror(terrno));
+  } else {
+    tqDebugC("consumer:0x%" PRIx64 " poll end with no data", tmq->consumerId);
   }
   return NULL;
 }

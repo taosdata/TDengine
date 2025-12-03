@@ -14,6 +14,7 @@
  */
 
 #include "tq.h"
+#include <string.h>
 #include "osDef.h"
 #include "taoserror.h"
 #include "stream.h"
@@ -629,14 +630,14 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     goto end;
   }
 
-  tqInfo("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+  tqInfo("vgId:%d, tq process subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
 
   taosRLockLatch(&pTq->lock);
   STqHandle* pHandle = NULL;
   int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
   if (code != 0){
-    tqInfo("vgId:%d, tq process sub req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
+    tqInfo("vgId:%d, tq process subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
   }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
@@ -664,13 +665,13 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       taosWLockLatch(&pTq->lock);
       bool exec = tqIsHandleExec(pHandle);
       if (exec) {
-        tqInfo("vgId:%d, topic:%s, subscription is executing, sub wait for 10ms and retry, pHandle:%p",
+        tqInfo("vgId:%d, topic:%s, subscribe is executing, subscribe wait for 10ms and retry, pHandle:%p",
                pTq->pVnode->config.vgId, pHandle->subKey, pHandle);
         taosWUnLockLatch(&pTq->lock);
         taosMsleep(10);
         continue;
       }
-      if (req.subType == TOPIC_SUB_TYPE__COLUMN && strcpy(req.qmsg, pHandle->execHandle.execCol.qmsg) != 0) {
+      if (req.subType == TOPIC_SUB_TYPE__COLUMN && strcmp(req.qmsg, pHandle->execHandle.execCol.qmsg) != 0) {
         tqUnregisterPushHandle(pTq, pHandle);
         STqHandle handle = {0};
         ret = tqMetaCreateHandle(pTq, &req, &handle);
@@ -680,7 +681,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
           goto end;
         }
         ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
-        tqInfo("vgId:%d, reload sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+        tqInfo("vgId:%d, reload subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
       } else if (pHandle->consumerId == req.newConsumerId) {  // do nothing
         tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains, because redo wal log", req.vgId, req.newConsumerId);

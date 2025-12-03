@@ -853,6 +853,7 @@ typedef struct {
   SArray*          removedConsumers;  // SArray<int64_t>
   SArray*          modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj* pSub;
+  bool             isReload;
 } SMqRebOutputObj;
 
 typedef struct {

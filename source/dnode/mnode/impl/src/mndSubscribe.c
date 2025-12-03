@@ -228,7 +228,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubsc
   int32_t code = 0;
   int32_t lino = 0;
   void *  buf = NULL;
-
+  PRINT_LOG_START
   if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
     if (pRebVg->oldConsumerId == -1) return 0;  // drop stream, no consumer, while split vnode,all consumerId is -1
     code = TSDB_CODE_MND_INVALID_SUB_OPTION;
@@ -821,7 +821,9 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   MND_TMQ_RETURN_CHECK(mndSetSubCommitLogs(pTrans, pOutput->pSub));
 
   // 3. commit log: consumer to update status and epoch
-  MND_TMQ_RETURN_CHECK(mndPresistConsumer(pTrans, pOutput, cgroup, topic));
+  if (!pOutput->isReload){
+    MND_TMQ_RETURN_CHECK(mndPresistConsumer(pTrans, pOutput, cgroup, topic));
+  }
 
   // 4. set cb
   mndTransSetCb(pTrans, TRANS_START_FUNC_MQ_REB, TRANS_STOP_FUNC_MQ_REB, NULL, 0);
@@ -1074,15 +1076,15 @@ END:
   return code;
 }
 
-static int32_t collectVgs(SMqRebOutputObj rebOutput, SMqSubscribeObj *pSub) {
+static int32_t collectVgs(SMqRebOutputObj* rebOutput, SMqSubscribeObj *pSub) {
   int32_t code = 0;
   int32_t lino = 0;
 
   void *pIterConsumer = NULL;
 
   PRINT_LOG_START
-  rebOutput.rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
-  MND_TMQ_NULL_CHECK(rebOutput.rebVgs);
+  rebOutput->rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
+  MND_TMQ_NULL_CHECK(rebOutput->rebVgs);
 
   SMqConsumerEp *pConsumerEp = NULL;
 
@@ -1094,7 +1096,7 @@ static int32_t collectVgs(SMqRebOutputObj rebOutput, SMqSubscribeObj *pSub) {
     for (int32_t i = 0; i < taosArrayGetSize(pConsumerEp->vgs); i++) {
       SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, i);
       MND_TMQ_NULL_CHECK(pVgEp);
-      SMqRebOutputVg *vg = taosArrayReserve(rebOutput.rebVgs, 1);
+      SMqRebOutputVg *vg = taosArrayReserve(rebOutput->rebVgs, 1);
       MND_TMQ_NULL_CHECK(vg);
       vg->pVgEp = *pVgEp;
       vg->oldConsumerId = -1;
@@ -1127,7 +1129,8 @@ static int32_t rebalanceOneSub(SRpcMsg *pMsg, SMqSubscribeObj *pSub) {
   }
 
   rebOutput.pSub = pSub;
-  MND_TMQ_RETURN_CHECK(collectVgs(rebOutput, pSub));
+  rebOutput.isReload = true;
+  MND_TMQ_RETURN_CHECK(collectVgs(&rebOutput, pSub));
   code = mndPersistRebResult(pMnode, pMsg, &rebOutput);
   if (code != 0) {
     mError("%s error,msg:%s", __func__, tstrerror(code))
@@ -1160,7 +1163,7 @@ static int32_t reloadRebalance(SRpcMsg *pMsg) {
     MND_TMQ_RETURN_CHECK(rebalanceOneSub(pMsg, pSub));
     sdbRelease(pSdb, pSub);
   }
-
+  taosHashClear(topicsToReload);
 END:
   sdbCancelFetch(pSdb, pIter);
   sdbRelease(pSdb, pSub);

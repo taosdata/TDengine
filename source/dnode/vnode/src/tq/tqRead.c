@@ -413,7 +413,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
   while (1) {
     int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
     while (pReader->nextBlk < numOfBlocks) {
-      tqTrace("tq reader next data block %d/%d, len:%d %" PRId64, pReader->nextBlk, numOfBlocks, pReader->msg.msgLen,
+      tqDebug("tq reader next data block %d/%d, len:%d %" PRId64, pReader->nextBlk, numOfBlocks, pReader->msg.msgLen,
               pReader->msg.ver);
 
       SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
@@ -427,7 +427,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
         continue;
       }
       if (pReader->tbIdHash == NULL || taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t)) != NULL) {
-        tqTrace("tq reader return submit block, uid:%" PRId64, pSubmitTbData->uid);
+        tqDebug("tq reader return submit block, uid:%" PRId64, pSubmitTbData->uid);
         SSDataBlock* pRes = NULL;
         int32_t      code = tqRetrieveDataBlock(pReader, &pRes, NULL);
         if (code == TSDB_CODE_SUCCESS) {
@@ -435,7 +435,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
         }
       } else {
         pReader->nextBlk += 1;
-        tqTrace("tq reader discard submit block, uid:%" PRId64 ", continue", pSubmitTbData->uid);
+        tqDebug("tq reader discard submit block, uid:%" PRId64 ", continue", pSubmitTbData->uid);
       }
     }
 

@@ -278,9 +278,7 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopicObj *pNewTopic) {
   if (pOldTopic == NULL || pNewTopic == NULL) return 0;
   mDebug("topic:%s perform update action", pOldTopic->name);
-  (void)atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
-  (void)atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
-
+  TSWAP(*pOldTopic, *pNewTopic);
   return 0;
 }
 
@@ -441,12 +439,10 @@ static int32_t mndReloadTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   mndTransSetDbName(pTrans, pDb->name, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
 
-  tstrncpy(topicObj->name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
-  tstrncpy(topicObj->db, pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(topicObj->createUser, userName, TSDB_USER_LEN);
-
   MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, topicObj));
 
+  tstrncpy(topicObj->db, pDb->name, TSDB_DB_FNAME_LEN);
+  tstrncpy(topicObj->createUser, userName, TSDB_USER_LEN);
   topicObj->updateTime = taosGetTimestampMs();
   topicObj->dbUid = pDb->uid;
   topicObj->version++;
