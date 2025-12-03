@@ -3317,6 +3317,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
 #endif
   if (dataLen > dataBuflen) goto _exit;
 
+  uInfo("tony: blockEncode dataLen:%d, dataBuflen:%zu", dataLen, dataBuflen);
   return dataLen;
 
 _exit:

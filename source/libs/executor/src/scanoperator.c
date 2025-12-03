@@ -1038,6 +1038,7 @@ static int32_t doGroupedTableScan(SOperatorInfo* pOperator, SSDataBlock** pBlock
   while (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
     SSDataBlock* p = NULL;
     code = doTableScanImplNext(pOperator, &p);
+    printDataBlock(p, "tony:doGroupedTableScan - asc", pTaskInfo->id.str);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (p != NULL) {
@@ -1073,6 +1074,7 @@ static int32_t doGroupedTableScan(SOperatorInfo* pOperator, SSDataBlock** pBlock
     while (pTableScanInfo->scanTimes < total) {
       SSDataBlock* p = NULL;
       code = doTableScanImplNext(pOperator, &p);
+      printDataBlock(p, "tony:doGroupedTableScan - desc", pTaskInfo->id.str);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (p != NULL) {
