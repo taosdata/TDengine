@@ -1065,11 +1065,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
-  if (pStateColInfoData->pData == NULL) {
-    pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-  }
-  int64_t gid = pBlock->info.id.groupId;
+  uint64_t gid = pBlock->info.id.groupId;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
   int32_t bytes = pStateColInfoData->info.bytes;
 
@@ -1113,6 +1109,10 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       doKeepStateWindowNullInfo(pRowSup, tsList[j]);
       continue;
+    }
+    if (pStateColInfoData->pData == NULL) {
+      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
     char* val = colDataGetData(pStateColInfoData, j);
 
