@@ -270,7 +270,7 @@ class TestTimeRangeWise:
 
     # run
     def test_time_range_wise(self):
-        """TSMA basic
+        """TSMAs correctness
         
         1. Create database db1 without sma and db2 with sma
         2. Create same super table and child tables on db1 and db2
