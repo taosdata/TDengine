@@ -1713,25 +1713,150 @@ static void mndCancelGetNextDnode(SMnode *pMnode, void *pIter) {
 }
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
+  int32_t    code = 0;
   SDnodeObj *pObj = NULL;
   void      *pIter = NULL;
   SSdb      *pSdb = pMnode->pSdb;
   SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+  if (fqdns == NULL) {
+    mError("failed to init fqdns array");
+    return NULL;
+  }
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
     char *fqdn = taosStrdup(pObj->fqdn);
+    if (fqdn == NULL) {
+      sdbRelease(pSdb, pObj);
+      mError("failed to strdup fqdn:%s", pObj->fqdn);
+
+      code = terrno;
+      break;
+    }
+
     if (taosArrayPush(fqdns, &fqdn) == NULL) {
       mError("failed to fqdn into array, but continue at this time");
     }
     sdbRelease(pSdb, pObj);
   }
+
+_error:
+  if (code != 0) {
+    for (int32_t i = 0; i < taosArrayGetSize(fqdns); i++) {
+      char *pFqdn = (char *)taosArrayGetP(fqdns, i);
+      taosMemoryFreeClear(pFqdn);
+    }
+    taosArrayDestroy(fqdns);
+    fqdns = NULL;
+  }
+
   return fqdns;
+}
+
+static SDnodeObj *getDnodeObjByType(void *p, ESdbType type) {
+  if (p == NULL) return NULL;
+
+  switch (type) {
+    case SDB_DNODE:
+      return (SDnodeObj *)p;
+    case SDB_QNODE:
+      return ((SQnodeObj *)p)->pDnode;
+    case SDB_SNODE:
+      return ((SSnodeObj *)p)->pDnode;
+    case SDB_BNODE:
+      return ((SBnodeObj *)p)->pDnode;
+    default:
+      break;
+  }
+  return NULL;
+}
+static int32_t mndGetAllNodeAddrByType(SMnode *pMnode, ESdbType type, SArray *pAddr) {
+  int32_t lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int32_t code = 0;
+
+  while (1) {
+    void *pObj = NULL;
+    pIter = sdbFetch(pSdb, type, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SDnodeObj *pDnodeObj = getDnodeObjByType(pObj, type);
+    if (pDnodeObj == NULL) {
+      mError("null dnode object for type:%d", type);
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
+
+    char *addr = taosStrdup(pDnodeObj->ep);
+    if (addr == NULL) {
+      mError("failed to strdup addr:%s", pDnodeObj->ep);
+      sdbRelease(pSdb, pObj);
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    }
+
+    if (taosArrayPush(pAddr, &addr) == NULL) {
+      mError("failed to push addr into array");
+      taosMemoryFreeClear(addr);
+      sdbRelease(pSdb, pObj);
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    }
+    sdbRelease(pSdb, pObj);
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t mndGetAllNodeAddr(SMnode *pMnode, SArray *pAddr) {
+  int32_t lino = 0;
+  int32_t code = 0;
+  if (pMnode == NULL || pAddr == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &lino, _error);
+  }
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_QNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_SNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_BNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_DNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  return code;
 }
 
 static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
   int32_t code = 0;
-  
+
+  SMnode *pMnode = pReq->info.node;
+  void   *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  mInfo("start to reload dnode tls config");
+
+  SMCfgDnodeReq req = {0};
+  if ((code = tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &req)) != 0) {
+    goto _OVER;
+  }
+
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DNODE_RELOAD_TLS)) != 0) {
+    goto _OVER;
+  }
+
+  SArray *pAddr = taosArrayInit(4, sizeof(char *));
+  if (pAddr == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
+  }
+
+  code = mndGetAllNodeAddr(pMnode, pAddr);
+
+_OVER:
   return code;
 }
