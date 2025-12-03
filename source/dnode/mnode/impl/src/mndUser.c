@@ -1450,7 +1450,6 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
     }
     SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[0].pass, TSDB_PASSWORD_LEN, _OVER)
-    pUser->passwords->setTime = pUser->updateTime / 1000;
     pUser->numOfPasswords = 1;
     memset(pUser->salt, 0, sizeof(pUser->salt));
   } else {
@@ -1469,6 +1468,9 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
+  if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
+    pUser->passwords[0].setTime = pUser->updateTime / 1000;
+  }
 
   if (sver >= USER_VER_SUPPORT_ADVANCED_SECURITY) {
     SDB_GET_INT64(pRaw, dataPos, &pUser->lastLoginTime, _OVER)
