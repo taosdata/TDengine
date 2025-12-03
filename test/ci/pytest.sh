@@ -19,23 +19,22 @@ else
 fi
 
 export ASAN_OPTIONS=detect_odr_violation=0
-cd .
 
-# Get responsible directories
-CODE_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Get script directory
+SCRIPT_DIR="$(dirname "$0")"
+# set test code directory
+TEST_CODE_DIR="$(dirname "$SCRIPT_DIR")"
 
 IN_TDINTERNAL="community"
-if [[ "${CODE_DIR}" == *"${IN_TDINTERNAL}"* ]]; then
-  cd ../../
+if [[ "${SCRIPT_DIR}" == *"${IN_TDINTERNAL}"* ]]; then
+  TOP_DIR="${TEST_CODE_DIR}/../../"
 else
-  cd ../
+  TOP_DIR="${TEST_CODE_DIR}/../"
 fi
 
-TOP_DIR="$(pwd)"
+cd "$TOP_DIR" || exit
 TAOSD_DIR=$(find . -name "taosd" | grep bin | head -n1)
-
-cut_opt="-f "
-
+cut_opt="-f"
 if [[ "${TAOSD_DIR}" == *"${IN_TDINTERNAL}"* ]]; then
   BIN_DIR=$(find . -name "taosd" | grep bin | head -n1 | cut -d '/' ${cut_opt}2,3)
 else
@@ -52,7 +51,7 @@ echo "------------------------------------------------------------------------"
 echo "Start TDengine Testing Case ..."
 echo "BUILD_DIR: ${BUILD_DIR}"
 echo "SIM_DIR  : ${SIM_DIR}"
-echo "CODE_DIR : ${CODE_DIR}"
+echo "TEST_CODE_DIR : ${TEST_CODE_DIR}"
 echo "ASAN_DIR : ${ASAN_DIR}"
 
 # Prevent deleting / folder or /usr/bin
@@ -66,7 +65,7 @@ rm -rf "${SIM_DIR:?}/"*
 mkdir -p "${PRG_DIR}"
 mkdir -p "${ASAN_DIR}"
 
-cd "${CODE_DIR}" || exit
+cd "${TEST_CODE_DIR}" || exit
 ulimit -n 600000
 ulimit -c unlimited
 
@@ -106,7 +105,7 @@ else
     echo "Execute script successfully and check asan"
     # TODO: to be refactored, need to check if taos* process is closed successfully
     sleep 3
-    "$CODE_DIR"/ci/checkAsan.sh
+    "$TEST_CODE_DIR"/ci/checkAsan.sh
   else
     echo "Execute script failure"
     exit 1
