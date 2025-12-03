@@ -303,7 +303,7 @@ typedef struct {
 typedef struct {
   int64_t policyId;  // used for revoke by policyId directly
   TSKEY   span[2];   // startTs, endTs, if span[0] == 0 && span[1] == 0, means all rows
-  SArray* cols;      // SColIdNameKV, NULL means all columns, sorted by colId. No need to include and check primary key
+  SArray* cols;      // SColNameFlag, NULL means all columns, sorted by colId. No need to include and check primary key
                      // column since primary key column is always included implicitly if any other columns specified.
   char*    tagCond;  // NULL if no tag condition
   uint32_t taghash;  // MurmurHash3_32 of tagCond, 0 means no tag condition
@@ -380,6 +380,7 @@ bool    privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo);
 
 int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen);
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen);
+int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
 const char* privObjTypeName(EPrivObjType objType);
 uint32_t    getSysRoleType(const char* roleName);

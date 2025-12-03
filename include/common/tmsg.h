@@ -3499,6 +3499,12 @@ typedef struct SColIdNameKV {
   char     colName[TSDB_COL_NAME_LEN];
 } SColIdNameKV;
 
+typedef struct SColIdNameKV {
+  col_id_t colId;
+  char     colName[TSDB_COL_NAME_LEN];
+  int8_t   flag;
+} SColNameFlag;
+
 typedef struct SColIdPair {
   col_id_t vtbColId;
   col_id_t orgColId;
