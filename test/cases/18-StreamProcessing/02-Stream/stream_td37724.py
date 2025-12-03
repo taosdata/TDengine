@@ -12,7 +12,7 @@ class TestSnodeMgmt:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Check stream td37724 test
+        """Stream bug TD-37724
         
         1. Check stream td37724 
 

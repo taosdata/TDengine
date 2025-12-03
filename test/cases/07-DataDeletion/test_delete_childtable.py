@@ -216,7 +216,7 @@ class TestDeleteChildtable:
                     tdSql.query(f'select {func}(*) from {self.stbname}_{i}')
             tdSql.execute(f'drop table {self.stbname}')
     def test_delete_childtable(self):
-        """Delete Data in Child Table
+        """Delete child table
 
         1. Create child table
         2. Insert data into child table

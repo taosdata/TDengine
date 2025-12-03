@@ -35,7 +35,7 @@ extern "C" {
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
 #define EXPLAIN_DISTBLK_SCAN_FORMAT "Block Dist Scan on %s"
 #define EXPLAIN_LASTROW_SCAN_FORMAT "Last Row Scan on %s"
-#define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Row Scan on %s"
+#define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Scan on %s"
 #define EXPLAIN_PROJECTION_FORMAT "Projection"
 #define EXPLAIN_JOIN_FORMAT "%s"
 #define EXPLAIN_AGG_FORMAT "%s"
@@ -124,6 +124,7 @@ extern "C" {
 #define EXPLAIN_SEQ_WIN_GRP_FORMAT "seq_win_grp=%d"
 #define EXPLAIN_GRP_JOIN_FORMAT "group_join=%d"
 #define EXPLAIN_JOIN_ALGO "algo=%s"
+#define EXPLAIN_ORIGIN_VGROUP_NUM_FORMAT "origin_vgroup_num=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"

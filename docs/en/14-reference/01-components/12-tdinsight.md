@@ -49,7 +49,7 @@ It mainly includes Cluster Status, DNodes Overview, MNode Overview, Requests, Da
 
 This section includes current information and status of the cluster.
 
-![](../../assets/tdinsight-01.png)
+![Cluster status section](../../assets/tdinsight-01.png)
 
 Metric details (from top to bottom, left to right):
 
@@ -68,7 +68,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes basic information about the cluster's dnodes.
 
-![](../../assets/tdinsight-02.png)
+![Dnode overview section](../../assets/tdinsight-02.png)
 
 Metric details:
 
@@ -79,7 +79,7 @@ Metric details:
 
 This section includes basic information about the cluster's mnode.
 
-![](../../assets/tdinsight-03.png)
+![Mnode overview section](../../assets/tdinsight-03.png)
 
 Metric details:
 
@@ -90,7 +90,7 @@ Metric details:
 
 This section includes statistical metrics for SQL execution in the cluster.
 
-![](../../assets/tdinsight-04.png)
+![SQL request overview](../../assets/tdinsight-04.png)
 
 Metric details:
 
@@ -104,7 +104,7 @@ Metric details:
 
 This section includes statistical metrics for tables in the cluster.
 
-![](../../assets/tdinsight-05.png)
+![Table statistics section](../../assets/tdinsight-05.png)
 
 Metric details:
 
@@ -117,7 +117,7 @@ Metric details:
 
 This section includes a display of resource usage for all data nodes in the cluster, with each data node shown as a Row.
 
-![](../../assets/tdinsight-06.png)
+![Dnode resource usage section](../../assets/tdinsight-06.png)
 
 Metric details (from top to bottom, left to right):
 
@@ -139,7 +139,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes detailed statistics for taosAdapter rest and websocket requests.
 
-![](../../assets/tdinsight-07.png)
+![taosAdapter section](../../assets/tdinsight-07.png)
 
 Metric details:
 
@@ -173,9 +173,9 @@ The specific configuration of the 14 alert rules is as follows:
 | Maximum time for slow query execution (no time window)       | > 300 seconds                        | Do not trigger alert  | 1 minute               | 0 seconds   | `select now() as ts, count(*) as slow_count from performance_schema.perf_queries where exec_usec>300000000` |
 | dnode offline                                                | total != alive                       | Trigger alert         | 30 seconds             | 0 seconds   | `select now(),  cluster_id, last(dnodes_total)  - last(dnodes_alive) as dnode_offline  from log.taosd_cluster_info where _ts >= (now -30s) and _ts < now partition by cluster_id having first(_ts) > 0` |
 | vnode offline                                                | total != alive                       | Trigger alert         | 30 seconds             | 0 seconds   | `select now(),  cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0` |
-| Number of data deletion requests                             | > 0                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select  now(), sum(`count`) as `delete_count`  from log.taos_sql_req where sql_type = 'delete' and _ts >= (now -30s) and _ts < now` |
-| Adapter RESTful request fail                                 | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now` |
-| Adapter WebSocket request fail                               | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now` |
+| Number of data deletion requests                             | > 0                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select  now(), sum(`count`) as`delete_count`from log.taos_sql_req where sql_type = 'delete' and _ts >= (now -30s) and _ts < now` |
+| Adapter RESTful request fail                                 | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now` |
+| Adapter WebSocket request fail                               | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now` |
 | Dnode data reporting is missing                              | < 3                                  | Trigger alert         | 180 seconds            | 0 seconds   | `select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0` |
 | Restart dnode                                                | max(update_time) > last(update_time) | Trigger alert         | 90 seconds             | 0 seconds   | `select now(), dnode_ep, max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now partition by dnode_ep` |
 

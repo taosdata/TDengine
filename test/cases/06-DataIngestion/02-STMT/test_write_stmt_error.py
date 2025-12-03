@@ -12,13 +12,6 @@ class TestStmtError:
     #     self.err_case = 0
     #     self.curret_case = 0
 
-    def caseDescription(self):
-
-        '''
-        case1 <wenzhouwww>: [TD-11899] : this is an test case for check stmt error use .
-        '''
-        return
-
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         #tdSql.init(conn.cursor(), logSql), logSql)
@@ -360,7 +353,7 @@ class TestStmtError:
             raise err
 
     def test_stmt_error(self):
-        """Write STMT Error
+        """STMT error
 
         1. Write data with STMT
         2. Query data with STMT

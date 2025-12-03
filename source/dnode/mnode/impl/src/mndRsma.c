@@ -218,24 +218,19 @@ SSdbRow *mndRsmaActionDecode(SSdbRaw *pRaw) {
   void     *buf = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
-    goto _exit;
-  }
+  TAOS_CHECK_EXIT(sdbGetRawSoftVer(pRaw, &sver));
 
   if (sver != MND_RSMA_VER_NUMBER) {
-    code = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("rsma read invalid ver, data ver: %d, curr ver: %d", sver, MND_RSMA_VER_NUMBER);
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_SDB_INVALID_DATA_VER);
   }
 
   if (!(pRow = sdbAllocRow(sizeof(SRsmaObj)))) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (!(pObj = sdbGetRowObj(pRow))) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   int32_t tlen;
@@ -243,15 +238,11 @@ SSdbRow *mndRsmaActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &tlen, _exit);
   buf = taosMemoryMalloc(tlen + 1);
   if (buf == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, _exit);
 
-  if (tDeserializeSRsmaObj(buf, tlen, pObj) < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
+  TAOS_CHECK_EXIT(tDeserializeSRsmaObj(buf, tlen, pObj));
 
   taosInitRWLatch(&pObj->lock);
 
@@ -634,7 +625,7 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   (void)snprintf(obj.createUser, TSDB_USER_LEN, "%s", pUser->user);
   obj.createdTime = taosGetTimestampMs();
   obj.updateTime = obj.createdTime;
-  obj.uid = mndGenerateUid(obj.name, TSDB_TABLE_FNAME_LEN);
+  obj.uid = mndGenerateUid(obj.name, strlen(obj.name));
   obj.tbUid = pCreate->tbUid;
   obj.dbUid = pDb->uid;
   obj.interval[0] = pCreate->interval[0];

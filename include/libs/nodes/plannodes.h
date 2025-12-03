@@ -255,6 +255,7 @@ typedef struct SDynQueryCtrlStbJoin {
 typedef struct SDynQueryCtrlVtbScan {
   bool          scanAllCols;
   bool          isSuperTable;
+  bool          useTagScan;
   char          dbName[TSDB_DB_NAME_LEN];
   char          tbName[TSDB_TABLE_NAME_LEN];
   uint64_t      suid;
@@ -315,17 +316,6 @@ typedef struct SMergeLogicNode {
   bool       ignoreGroupId;
   bool       inputWithGroupId;
 } SMergeLogicNode;
-
-typedef enum EWindowType {
-  WINDOW_TYPE_INTERVAL = 1,
-  WINDOW_TYPE_SESSION,
-  WINDOW_TYPE_STATE,
-  WINDOW_TYPE_EVENT,
-  WINDOW_TYPE_COUNT,
-  WINDOW_TYPE_ANOMALY,
-  WINDOW_TYPE_EXTERNAL,
-  WINDOW_TYPE_PERIOD
-} EWindowType;
 
 typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,

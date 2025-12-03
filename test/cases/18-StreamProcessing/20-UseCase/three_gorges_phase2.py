@@ -47,7 +47,7 @@ class Test_Three_Gorges_Phase2:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: None
 

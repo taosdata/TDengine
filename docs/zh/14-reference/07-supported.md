@@ -13,36 +13,30 @@ import PlatformSupported from "./05-connector/_platform_supported.mdx";
 注：1) ● 表示经过官方测试验证， ○ 表示非官方测试验证，E 表示仅企业版支持。
    2) 社区版仅支持主流操作系统的较新版本，包括 Ubuntu 18+/CentOS 7+/CentOS Stream/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS 等。如果有其他操作系统及版本的需求，请联系企业版支持。
 
-|                       | **版本**        | **X64 64bit** | **ARM64** |
-| ----------------------|----------------| ------------- | --------- |
-| **CentOS**            | **7.9 以上**    | ●             | ●         |
-| **Ubuntu**            | **18 以上**     | ●             | ●         |
-| **RedHat**            | **RHEL 7 以上** | ●             | ●         |
-| **Debian**            | **6.0 以上**    | ●             | ●         |
-| **FreeBSD**           | **12 以上**     | ●             | ●         |
-| **OpenSUSE**          | **全部版本**     | ●             | ●         |
-| **SUSE Linux**        | **11 以上**     | ●             | ●         |
-| **Fedora**            | **21 以上**     | ●             | ●         |
-| **Windows Server**    | **2016 以上**  | ●/E           |           |
-| **Windows**           | **10/11**      | ●/E           |           |
-| **银河麒麟**           | **V10 以上**     | ●/E           | ●/E      |
-| **中标麒麟**           | **V7.0 以上**    | ●/E           | ●/E      |
-| **统信 UOS**          | **V20 以上**     | ●/E           |           |
-| **凝思磐石**           | **V8.0 以上**    | ●/E           |           |
-| **华为欧拉 openEuler** | **V20.03 以上**  | ●/E           |           |
-| **龙蜥 Anolis OS**     | **V8.6 以上**   | ●/E           |           |
-| **macOS**             | **11.0 以上**   |                | ●         |
+| | **版本** | **X64 64bit** | **ARM64** |
+|---|---|---|---|
+| **CentOS** | **7.9 以上** | ● | ● |
+| **Ubuntu** | **18 以上** | ● | ● |
+| **RedHat** | **RHEL 7 以上** | ● | ● |
+| **Debian** | **6.0 以上** | ● | ● |
+| **FreeBSD** | **12 以上** | ● | ● |
+| **OpenSUSE** | **全部版本** | ● | ● |
+| **SUSE Linux** | **11 以上** | ● | ● |
+| **Fedora** | **21 以上** | ● | ● |
+| **Windows Server** | **2019-2022** | ●/E | |
+| **Windows** | **10/11** | ●/E | |
+| **银河麒麟** | **V10 以上** | ●/E | ●/E |
+| **中标麒麟** | **V7.0 以上** | ●/E | ●/E |
+| **统信 UOS** | **V20 以上** | ●/E | |
+| **凝思磐石** | **V8.0 以上** | ●/E | |
+| **华为欧拉 openEuler** | **V20.03 以上** | ●/E | |
+| **龙蜥 Anolis OS** | **V8.6 以上** | ●/E | |
+| **macOS** | **14.0 以上** | | ● |
 
 ## TDengine TSDB 客户端和连接器支持的平台列表
 
-<PlatformSupported /> 
+<PlatformSupported />
 
 ## TDengine TSDB 支持的网络环境
 
-目前 TSDB 通讯方式 支持 ipv4 和ipv6, 其中 ipv6 内容参见 [ipv6 配置](../08-operation/13-ipv6.md)
-
-
-
-
-
-
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [IPv6 配置](../08-operation/13-network.md)

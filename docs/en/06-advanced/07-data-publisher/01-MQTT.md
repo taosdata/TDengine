@@ -3,11 +3,14 @@ sidebar_label: MQTT
 title: MQTT
 toc_max_heading_level: 4
 ---
+
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 MQTT (Message Queuing Telemetry Transport) is a lightweight, publish/subscribe-based messaging protocol widely used for communication between IoT devices. TDengine supports real-time data push to MQTT servers, enabling efficient data sharing and integration.
 
 By configuring TDengine's MQTT publishing feature, users can easily distribute sensor data, device status, and other information to various endpoints.
-
-> **Note: This feature is only available in TDengine Enterprise Edition.**
 
 Below are the basic steps to configure and use TDengine's MQTT publishing feature:
 

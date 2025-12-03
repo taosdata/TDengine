@@ -92,10 +92,10 @@ You can use any client that supports the HTTP protocol to write data in OpenTSDB
 
 ### OpenMetrics data collection and writing
 
-OpenMetrics is an open standard supported by CNCF (Cloud Native Computing Foundation) that focuses on standardizing the collection and transmission of metric data. 
+OpenMetrics is an open standard supported by CNCF (Cloud Native Computing Foundation) that focuses on standardizing the collection and transmission of metric data.
 It serves as one of the core specifications for monitoring and observability systems in the cloud-native ecosystem.
 
-Starting from version **3.3.7.0**, taosAdapter supports OpenMetrics v1.0.0 data collection and writing, 
+Starting from version **3.3.7.0**, taosAdapter supports OpenMetrics v1.0.0 data collection and writing,
 while maintaining compatibility with Prometheus 0.0.4 protocol to ensure seamless integration with the Prometheus ecosystem.
 
 To enable OpenMetrics data collection and writing, follow these steps:
@@ -361,16 +361,7 @@ The log can be configured with the following parameters:
   **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   SQL log rotation interval (Default: `24h`).
 
-1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
-2. Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
-
-The following is an example of setting the log level to debug through the curl command:
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 
 ### Third-party Data Source Configuration
 
@@ -697,7 +688,7 @@ This configuration affects the following interfaces:
 - **RESTful Interface**
 - **WebSocket SQL Execution Interface**
 
-**Parameter Description**
+#### Parameter Description
 
 - **`request.queryLimitEnable`**
   - **When set to `true`**: Enables the query request concurrency limit feature.
@@ -713,7 +704,7 @@ This configuration affects the following interfaces:
 - **`request.excludeQueryLimitSqlRegex`**
   - Configures a list of regular expressions for SQL statements that are not subject to concurrency limits.
 
-**Customizable per User**
+##### Customizable per User
 
 Configurable only via the configuration file:
 
@@ -724,7 +715,7 @@ Configurable only via the configuration file:
 - **`request.users.<username>.queryMaxWait`**
   - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
 
-**Example**
+##### Example
 
 ```toml
 [request]
@@ -749,13 +740,44 @@ queryMaxWait = 10
 - `request.default` configures the default query request concurrency limit to 200, wait timeout to 900 seconds, and maximum wait requests to 0 (unlimited).
 - `request.users.root` configures the query request concurrency limit for user root to 100, wait timeout to 200 seconds, and maximum wait requests to 10.
 
-When user root initiates a query request, taosAdapter will perform concurrency limit processing based on the above configuration. 
-When the number of query requests exceeds 100, subsequent requests will enter a waiting state until resources are available. 
+When user root initiates a query request, taosAdapter will perform concurrency limit processing based on the above configuration.
+When the number of query requests exceeds 100, subsequent requests will enter a waiting state until resources are available.
 If the wait time exceeds 200 seconds or the number of waiting requests exceeds 10, taosAdapter will directly return an error response.
 
-When other users initiate query requests, the default concurrency limit configuration will be used for processing. 
-Each user's configuration is independent and does not share the concurrency limit of `request.default`. 
+When other users initiate query requests, the default concurrency limit configuration will be used for processing.
+Each user's configuration is independent and does not share the concurrency limit of `request.default`.
 For example, when user user1 initiates 200 concurrent query requests, user user2 can also initiate 200 concurrent query requests simultaneously without blocking.
+
+### Reject Query SQL Configuration
+
+Starting from **version 3.3.6.34 / 3.4.0.0**, taosAdapter supports rejecting specific query SQL statements through configuration, preventing the execution of unsafe or highly resource-consuming queries.  
+When this feature is enabled, taosAdapter checks each SQL statement that does **not** start with `insert` (case-insensitive). If the SQL matches any of the configured reject patterns, an error response is returned indicating that the query is forbidden.
+
+When a rejected SQL query is matched, the RESTful API returns HTTP status code `403`, and the WebSocket interface returns error code `0xFFFD`.  
+Meanwhile, taosAdapter prints a warning log containing details such as the SQL source, for example:
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+This configuration affects the following interfaces:
+
+- **RESTful interface**
+- **WebSocket SQL execution interface**
+
+#### Parameter Description
+
+- **`rejectQuerySqlRegex`**
+  - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
+  - Default: an empty list, meaning no queries are rejected.
+
+##### Example
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+
+The configuration `rejectQuerySqlRegex = ['(?i)^drop\\s+database\\s+.*','(?i)^drop\\s+table\\s+.*','(?i)^alter\\s+table\\s+.*']` rejects all `drop database`, `drop table`, and `alter table` queries, ignoring case.
 
 ### Environment Variables
 
@@ -903,6 +925,27 @@ taosAdapter deployed separately from taosd must be upgraded by upgrading the TDe
 
 Use the command rmtaos to remove the TDengine server software, including taosAdapter.
 
+## Dynamic Configuration
+
+### Dynamically Modify Log Level
+
+Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
+
+The following is an example of setting the log level to debug through the curl command:
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+### Monitor Configuration File Changes
+
+Starting from version **3.3.6.34**/**3.4.0.0**, taosAdapter supports monitoring configuration file changes and automatically updates the following configurations:
+
+- `log.level` log level parameter
+- `rejectQuerySqlRegex` rejected query SQL list configuration parameter
+
 ## IPv6 Support
 
 Starting from **version 3.3.6.13**, taosAdapter supports IPv6. No additional configuration is required.
@@ -914,8 +957,8 @@ taosAdapter supports recording SQL requests to CSV files. Users can enable this 
 
 ### Configuration Parameters
 
-1. New configuration item `log.enableSqlToCsvLogging` (boolean, default: false) determines whether SQL logging is enabled. 
-When set to true, SQL records will be saved to CSV files. 
+1. New configuration item `log.enableSqlToCsvLogging` (boolean, default: false) determines whether SQL logging is enabled.
+When set to true, SQL records will be saved to CSV files.
 The recording start time is the service startup time, and the end time is `2300-01-01 00:00:00`.
 
 2. File naming follows the same rules as logs: `taosadapterSql_{instanceId}_{yyyyMMdd}.csv[.index]`
@@ -942,6 +985,7 @@ curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
 ```
 
 Supported parameters:
+
 - `start_time`: [Optional] Start time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to the current time if not specified.
 - `end_time`: [Optional] End time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to 2300-01-01 00:00:00 if not specified.
 - `location`: [Optional] Timezone for parsing start and end times, using IANA format (e.g., `Asia/Shanghai`). Defaults to the server's timezone.
@@ -978,26 +1022,26 @@ Successful response: HTTP code 200.
 
 1. If a task exists, the response is:
 
-```json
-{
-        "code": 0,
-        "message": "",
-        "start_time": "2025-07-23 17:00:00",
-        "end_time": "2025-07-23 18:00:00"
-}
-```
+   ```json
+   {
+           "code": 0,
+           "message": "",
+           "start_time": "2025-07-23 17:00:00",
+           "end_time": "2025-07-23 18:00:00"
+   }
+   ```
 
-- `start_time`: Configured start time of the canceled task (timezone: server's timezone).
-- `end_time`: Configured end time of the canceled task (timezone: server's timezone).
+   - `start_time`: Configured start time of the canceled task (timezone: server's timezone).
+   - `end_time`: Configured end time of the canceled task (timezone: server's timezone).
 
-2. If no task exists, the response is:
+1. If no task exists, the response is:
 
-```json
-{
-        "code": 0,
-        "message": ""
-}
-```
+   ```json
+   {
+           "code": 0,
+           "message": ""
+   }
+   ```
 
 ### Query Status
 
@@ -1032,39 +1076,39 @@ Successful response: HTTP code 200 with the following structure:
 
 ### Recording Format
 
-Records are written before `taos_free_result` is executed or when the task ends (reaching the end time or being manually stopped). 
+Records are written before `taos_free_result` is executed or when the task ends (reaching the end time or being manually stopped).
 Records are stored in CSV format without headers. Each line includes the following fields:
 
 1. `TS`: Log timestamp (format: yyyy-MM-dd HH:mm:ss.SSSSSS, timezone: server's timezone).
-2. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes. 
-SQL containing special characters cannot be directly copied for use. Example:
+1. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes.
+   SQL containing special characters cannot be directly copied for use. Example:
 
-Original SQL:
+   Original SQL:
 
- ```sql
-   select * from t1
-   where c1 = "ab"
- ```
+    ```sql
+      select * from t1
+      where c1 = "ab"
+    ```
 
-CSV record:
+   CSV record:
 
    ```csv
    "select * from t1
    where c1 = ""ab"""
    ```
 
-3. `IP`: Client IP.
-4. `User`: Username executing the SQL.
-5. `ConnType`: Connection type (HTTP, WS).
-6. `QID`: Request ID (saved as hexadecimal).
-7. `ReceiveTime`: Time when the SQL was received (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
-8. `FreeTime`: Time when the SQL was released (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
-9. `QueryDuration(us)`: Time consumed from taos_query_a to callback completion (microseconds).
-10. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
-11. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
-12. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
-13. `SourcePort`: Client port. (Added in version 3.3.6.26 and above / 3.3.8.0 and above). 
-14. `AppName`: Client application name. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
+1. `IP`: Client IP.
+1. `User`: Username executing the SQL.
+1. `ConnType`: Connection type (HTTP, WS).
+1. `QID`: Request ID (saved as hexadecimal).
+1. `ReceiveTime`: Time when the SQL was received (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+1. `FreeTime`: Time when the SQL was released (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+1. `QueryDuration(us)`: Time consumed from taos_query_a to callback completion (microseconds).
+1. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
+1. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
+1. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
+1. `SourcePort`: Client port. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
+1. `AppName`: Client application name. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
 
 Example:
 

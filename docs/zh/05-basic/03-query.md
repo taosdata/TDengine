@@ -173,7 +173,7 @@ window_clause: {
 
 ### 时间戳伪列
 
-在窗口聚合查询结果中，如果 SQL 中没有指定输出查询结果中的时间戳列，那么最终结果中将不会自动包含窗口的时间列信息。然而，如果你需要在结果中输出聚合查询结果所对应的时间窗口信息，可以在 select 子句中使用与时间戳相关的伪列，如时间窗口起始时间（_wstart）、时间窗口结束时间（_wend）、时间窗口持续时间（_wduration），以及与查询整体窗口相关的伪列，如查询窗口起始时间（_qstart）和查询窗口结束时间（_qend）。需要注意的是，时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间精度是毫秒（ms），那么结果中的 500 表示当前时间窗口的持续时间是 500ms。
+在窗口聚合查询结果中，如果 SQL 中没有指定输出查询结果中的时间戳列，那么最终结果中将不会自动包含窗口的时间列信息。然而，如果你需要在结果中输出聚合查询结果所对应的时间窗口信息，可以在 select 子句中使用与时间戳相关的伪列，如时间窗口起始时间（_wstart）、时间窗口结束时间（_wend）、时间窗口持续时间（_wduration），以及与查询整体窗口相关的伪列，如查询窗口起始时间（_qstart）和查询窗口结束时间（_qend）。需要注意的是，除 INTERVAL 窗口的结束时间为开区间外，其他时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间精度是毫秒（ms），那么结果中的 500 表示当前时间窗口的持续时间是 500ms。
 
 ### 时间窗口
 
@@ -235,7 +235,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 ![时间窗口示意图](./pic/time_window.webp)
 
-**注意**
+###### 注意
 
 1. INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用，因此，下面的 SQL 语句是非法的：
 
@@ -249,7 +249,7 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-**使用时间窗口需要注意**
+###### 使用时间窗口需要注意
 
 1. 聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。
 2. 使用 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
@@ -337,7 +337,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 2. 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
 3. INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
 
-**注意**
+###### 注意
 
 1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。
 2. 针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
@@ -543,6 +543,30 @@ count_window(1000);
 Query OK, 10 row(s) in set (0.062794s)
 ```
 
+## 时间范围表达式
+
+在时序数据库的查询中，经常需要根据主键列的时间范围进行查询，TDengine 提供了一系列函数和表达式来方便用户进行时间范围的表达，这里列出了常见的时间范围表达式及其与 MySQL 和 PostgreSQL 的区别：
+
+| 时间范围          |   MySQL 表达式                                                    |  PostgreSQL 表达式   |   TDengine 表达式   |
+|:------------:|:--------------------------------------------------------------------:|:-----------------------------------:|:--------------------------------:|
+| 昨天​ | CURDATE() - INTERVAL 1 DAY,<br/> CURDATE() | CURRENT_DATE - INTERVAL '1 day',<br/> CURRENT_DATE | TODAY() - 1d,<br/> TODAY() |
+| 今天 |​ CURDATE(),<br/> CURDATE() + INTERVAL 1 DAY | CURRENT_DATE,<br/> CURRENT_DATE + INTERVAL '1 day' | TODAY(),<br/> TODAY() + 1d |
+| 上周​ | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1d) - (7 + WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000 |
+| 本周 | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) + (7 - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000 |
+| 上月​ | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) |TO_TIMESTAMP(TO_CHAR(NOW() -1n, 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM') |
+| 本月​ | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') |TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1n, 'YYYY-MM'), 'YYYY-MM') |
+| 上季度​ | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TO_TIMESTAMP(CASE WHEN TO_CHAR(NOW(), 'MM') < 4 THEN CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') - 1 AS VARCHAR(5)), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') + 8) / 3) &ast; 3 + 1 AS VARCHAR(3))) ELSE CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 4) / 3) &ast; 3 + 1 AS VARCHAR(3))) END, 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM') |
+| 本季度 | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') + CASE WHEN TO_CHAR(NOW(), 'MM') > 9 THEN 1 ELSE 0 END AS VARCHAR), "-", CAST((FLOOR((TO_CHAR(NOW(), 'MM') + 2) / 3) &ast; 3 + 1) % 12 AS VARCHAR)), 'YYYY-MM') |
+| 去年 | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TO_TIMESTAMP(TO_CHAR(NOW() - 1y, 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY') |
+| 今年 | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
+
+### 说明
+
+1. 每个时间范围区间都是左闭右开。
+2. 写法不唯一，这里作为示例仅供参考使用。
+3. 这里以周一作为一周的开始，非周一开始的场景需调整。
+4. 这里 TDengine 示例的时间戳是以毫秒为时间单位。
+
 ## 时序数据特有函数
 
 时序数据特有函数是 TDengine TSDB 针对时序数据查询场景专门设计的一组函数。在通用数据库中，要实现类似的功能通常需要编写复杂的查询语句，而且效率较低。为了降低用户的使用成本和简化查询过程，TDengine TSDB 将这些功能以内置函数的形式提供，从而实现了高效且易于使用的时序数据处理能力。时序数据特有函数如下表所示。
@@ -551,7 +575,7 @@ Query OK, 10 row(s) in set (0.062794s)
 |:------------:|:--------------------------------------------------------------------:|
 |CSUM          | 累加和（Cumulative sum），忽略 NULL 值。|
 |DERIVATIVE    | 统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。|
-|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0|1，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
+|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0\|1，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
 |IRATE         | 计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。|
 |MAVG          | 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。|
 |STATECOUNT    | 返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。|
@@ -588,6 +612,7 @@ TDengine TSDB 的嵌套查询遵循以下规则：
 ## UNION 子句
 
 TDengine 支持 UNION [ALL] 操作符，用于合并多个 SELECT 子句的查询结果。使用该操作符时，多个 SELECT 子句需满足以下两个条件：
+
 1. 各 SELECT 子句返回结果的列数必须一致；
 2. 对应位置的列需保持相同的顺序，且数据类型必须相同或兼容。
 

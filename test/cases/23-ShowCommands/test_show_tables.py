@@ -6,27 +6,7 @@ class TestShowDbTableKind:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_show_db_table_kind(self):
-        """Show Databases and Tables
-
-        1. Testing various show commands for database/table classification
-        2. Verifying filtering capabilities with like clauses
-        3. Checking metadata consistency across different database contexts
-
-        Catalog:
-            - MetaData
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-9 Simon Guan Migrated from tsim/query/show_db_table_kind.sim
-
-        """
-
+    def do_sim_show_db_table_kind(self):
         tdSql.execute(f"drop database if exists db1;")
         tdSql.execute(f"create database db1 vgroups 3;")
         tdSql.error(f"create database db1;")
@@ -117,3 +97,28 @@ class TestShowDbTableKind:
         tdSql.query(f"show normal db2.tables like '%'")
         tdLog.info(f"{tdSql.getRows()})")
         tdSql.checkRows(0)
+
+        print("\n")
+        print("do sim show tables  ................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_show_tables(self):
+        """Show databases & tables
+
+        1. Testing various show commands for database/table classification
+        2. Verifying filtering capabilities with like clauses
+        3. Checking metadata consistency across different database contexts
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-5-9 Simon Guan Migrated from tsim/query/show_db_table_kind.sim
+
+        """
+        self.do_sim_show_db_table_kind()

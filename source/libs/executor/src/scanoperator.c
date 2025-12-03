@@ -475,7 +475,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   pCost->loadBlocks += 1;
 
   SSDataBlock* p = NULL;
-  code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p, NULL);
+  code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p);
   if (p == NULL || code != TSDB_CODE_SUCCESS || p != pBlock) {
     return code;
   }
@@ -627,7 +627,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   // the handling of the null data should be packed in the extracted method
 
   // 1. check if it is existed in meta cache
-  if (pCache == NULL) {
+  if (pCache == NULL || pCache->pTableMetaEntryCache == NULL) {
     pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1306,7 +1306,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     SColIdNameKV* kv = taosArrayGet(pParam->pOrgTbInfo->colMap, i);
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
-        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(j + 1)};
+        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(schema->pSchema[j].colId)};
         QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
         break;
       }
@@ -1905,15 +1905,17 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->ignoreTag = false;
 
   pInfo->base.pTableListInfo = pTableListInfo;
-  pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
-  if (pInfo->base.metaCache.pTableMetaEntryCache == NULL) {
-    code = terrno;
-    QUERY_CHECK_CODE(code, lino, _error);
+  if (readHandle->streamRtInfo == NULL) {
+    pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
+    if (pInfo->base.metaCache.pTableMetaEntryCache == NULL) {
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _error);
+    }
+    taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   }
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
 
@@ -2352,7 +2354,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
 
       SSDataBlock* pBlock = NULL;
-      code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pInfo->dataReader, &pBlock, NULL);
+      code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pInfo->dataReader, &pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (pBlock && pBlock->info.rows > 0) {
@@ -4750,9 +4752,11 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
 
-  pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
-  QUERY_CHECK_NULL(pInfo->base.metaCache.pTableMetaEntryCache, code, lino, _error, terrno);
-
+  if (readHandle->streamRtInfo == NULL) {
+    pInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
+    QUERY_CHECK_NULL(pInfo->base.metaCache.pTableMetaEntryCache, code, lino, _error, terrno);
+  }
+  
   pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   pInfo->base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
   pInfo->base.scanFlag = MAIN_SCAN;
@@ -5074,19 +5078,34 @@ static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountSc
   }
 }
 
-static void buildSysDbFilterTableCount(SOperatorInfo* pOperator, STableCountScanSupp* pSupp, SSDataBlock* pRes,
-                                       size_t infodbTableNum, size_t perfdbTableNum) {
+static void buildSysDbFilterTableCount(SOperatorInfo* pOperator,
+                                       STableCountScanSupp* pSupp,
+                                       SSDataBlock* pRes,
+                                       size_t infodbTableNum,
+                                       size_t perfdbTableNum) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  if (strcmp(pSupp->dbNameFilter, TSDB_INFORMATION_SCHEMA_DB) == 0) {
-    code = fillTableCountScanDataBlock(pSupp, TSDB_INFORMATION_SCHEMA_DB, "", infodbTableNum, pRes);
+  if (strlen(pSupp->stbNameFilter) != 0) {
+    // sys dbs do not contain any stable, so the count is always 0
+    code = fillTableCountScanDataBlock(pSupp, "", "", 0, pRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (strcmp(pSupp->dbNameFilter, TSDB_INFORMATION_SCHEMA_DB) == 0) {
+    code = fillTableCountScanDataBlock(pSupp, TSDB_INFORMATION_SCHEMA_DB,
+                                       "", infodbTableNum, pRes);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (strcmp(pSupp->dbNameFilter, TSDB_PERFORMANCE_SCHEMA_DB) == 0) {
-    code = fillTableCountScanDataBlock(pSupp, TSDB_PERFORMANCE_SCHEMA_DB, "", perfdbTableNum, pRes);
+    code = fillTableCountScanDataBlock(pSupp, TSDB_PERFORMANCE_SCHEMA_DB,
+                                       "", perfdbTableNum, pRes);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (strlen(pSupp->dbNameFilter) == 0) {
-    code = fillTableCountScanDataBlock(pSupp, "", "", infodbTableNum + perfdbTableNum, pRes);
+    code = fillTableCountScanDataBlock(pSupp, "", "",
+                                       infodbTableNum + perfdbTableNum, pRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    // other dbs do not exist in sys dbs, so the count is always 0
+    code = fillTableCountScanDataBlock(pSupp, pSupp->dbNameFilter,
+                                       pSupp->stbNameFilter, 0, pRes);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -5262,27 +5281,37 @@ static int32_t buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountSc
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
-  if (strlen(pSupp->dbNameFilter) != 0) {
-    if (strlen(pSupp->stbNameFilter) != 0) {
-      uint64_t uid = 0;
-      code = pAPI->metaFn.getTableUidByName(pInfo->readHandle.vnode, pSupp->stbNameFilter, &uid);
+  if (strlen(pSupp->dbNameFilter) != 0 &&
+      strcmp(dbName, pSupp->dbNameFilter) != 0) {
+    // db name not match, return count 0
+    code = fillTableCountScanDataBlock(pSupp, dbName,
+                                       pSupp->stbNameFilter, 0, pRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (strlen(pSupp->stbNameFilter) != 0) {
+    uint64_t uid = 0;
+    code = pAPI->metaFn.getTableUidByName(pInfo->readHandle.vnode,
+                                          pSupp->stbNameFilter, &uid);
+    if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      // table not exist, return count 0
+      code = fillTableCountScanDataBlock(pSupp, dbName,
+                                         pSupp->stbNameFilter, 0, pRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
       QUERY_CHECK_CODE(code, lino, _end);
 
       int64_t numOfChildTables = 0;
-      code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables, NULL, NULL);
+      code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid,
+                                              &numOfChildTables, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, numOfChildTables, pRes);
-      QUERY_CHECK_CODE(code, lino, _end);
-    } else {
-      int64_t tbNumVnode = 0;
-      pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &tbNumVnode, NULL);
-      code = fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
+      code = fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter,
+                                         numOfChildTables, pRes);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
     int64_t tbNumVnode = 0;
-    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &tbNumVnode, NULL);
+    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode,
+                              NULL, NULL, &tbNumVnode, NULL);
     code = fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
     QUERY_CHECK_CODE(code, lino, _end);
   }

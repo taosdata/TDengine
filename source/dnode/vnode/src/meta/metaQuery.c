@@ -14,7 +14,6 @@
  */
 
 #include "meta.h"
-#include "osMemory.h"
 #include "tencode.h"
 
 void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI) {
@@ -96,6 +95,13 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
   return metaGetTableEntryByVersion(pReader, version1, uid);
+}
+
+int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
+  if (version < 0) {
+    return metaReaderGetTableEntryByUid(pReader, uid);
+  }
+  return metaGetTableEntryByVersion(pReader, version, uid);
 }
 
 int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
@@ -181,7 +187,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   // query name.idx
   if (tdbTbGet(((SMeta *)pReader->pMeta)->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
     metaReaderClear(&mr);
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
 
   *uid = *(tb_uid_t *)pReader->pBuf;
@@ -1595,73 +1601,26 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  // If len > 0 means there already have uids, and we only want the
-  // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
-  // in the hash map, that may require a lot of memory
-  SHashObj *pSepecifiedUidMap = NULL;
-  size_t    numOfElems = taosArrayGetSize(pUidTagInfo);
-  if (numOfElems > 0) {
-    pSepecifiedUidMap =
-        taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-    for (int i = 0; i < numOfElems; i++) {
-      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
-      int32_t       code = taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
-      if (code) {
-        metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
-        return code;
-      }
+  while (1) {
+    tb_uid_t uid = metaCtbCursorNext(pCur);
+    if (uid == 0) {
+      metaDebug("got uid 0 and uidTagSize:%d", (int32_t)taosArrayGetSize(pUidTagInfo));
+      break;
+    }
+
+    STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+    info.pTagVal = taosMemoryMalloc(pCur->vLen);
+    if (!info.pTagVal) {
+      metaCloseCtbCursor(pCur);
+      return terrno;
+    }
+    memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
+    if (taosArrayPush(pUidTagInfo, &info) == NULL) {
+      taosMemoryFreeClear(info.pTagVal);
+      metaCloseCtbCursor(pCur);
+      return terrno;
     }
   }
-
-  if (numOfElems == 0) {  // all data needs to be added into the pUidTagInfo list
-    while (1) {
-      tb_uid_t uid = metaCtbCursorNext(pCur);
-      if (uid == 0) {
-        break;
-      }
-
-      STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
-      info.pTagVal = taosMemoryMalloc(pCur->vLen);
-      if (!info.pTagVal) {
-        metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
-        return terrno;
-      }
-      memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
-      if (taosArrayPush(pUidTagInfo, &info) == NULL) {
-        taosMemoryFreeClear(info.pTagVal);
-        metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
-        return terrno;
-      }
-    }
-  } else {  // only the specified tables need to be added
-    while (1) {
-      tb_uid_t uid = metaCtbCursorNext(pCur);
-      if (uid == 0) {
-        break;
-      }
-
-      int32_t *index = taosHashGet(pSepecifiedUidMap, &uid, sizeof(uint64_t));
-      if (index == NULL) {
-        continue;
-      }
-
-      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
-      if (pTagInfo->pTagVal == NULL) {
-        pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
-        if (!pTagInfo->pTagVal) {
-          metaCloseCtbCursor(pCur);
-          taosHashCleanup(pSepecifiedUidMap);
-          return terrno;
-        }
-        memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
-      }
-    }
-  }
-
-  taosHashCleanup(pSepecifiedUidMap);
   metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }

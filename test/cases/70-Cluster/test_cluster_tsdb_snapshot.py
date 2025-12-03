@@ -224,7 +224,7 @@ class TestClusterTsdbSnapshot:
         subprocess.run(f'taosBenchmark -f {json_file}', shell=True, check=True)
 
     def test_tsdb_snapshot(self):
-        """Remove wal files to check on cluster
+        """Cluster remove wal files
 
         1. Create 3 dnode cluster environment
         2. taosBenchmark insert 1 stb 100 child tables with 3 replica

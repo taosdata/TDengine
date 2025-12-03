@@ -3396,7 +3396,7 @@ class TestJoin:
         self.total_sql_num += sql_num
 
     def test_join(self):
-        """Join Test Full2
+        """Join primay key
         
         1. Create necessary databases and tables
         2. Insert test data into the tables

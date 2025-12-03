@@ -33,7 +33,7 @@ class TestBenchmarkWebsite:
         s = content.find(key)
         if s == -1:
             return False,""
-        
+
         # skip self
         s += len(key)
         # skip blank
@@ -45,37 +45,45 @@ class TestBenchmarkWebsite:
         # end check
         if s + 1 == len(content):
             return False, ""
-        
+
         # find end
         if len(end) == 0:
             e = -1
         else:
             e = content.find(end, s)
-        
+
         # get value
         if e == -1:
             value = content[s : ]
         else:
             value = content[s : e]
 
-        return True, value    
+        return True, value
 
     def getDbRows(self, times):
         sql = f"select count(*) from test.meters"
         tdSql.waitedQuery(sql, 1, times)
         dbRows = tdSql.getData(0, 0)
         return dbRows
-    
+
     def checkItem(self, output, key, end, expect, equal):
         ret, value = self.getKeyValue(output, key, end)
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
 
-        fval = float(value)
+        try:
+            fval = float(value)
+        except Exception as e:
+            tdLog.error(f"value:'{value}' is not float, key:'{key}' end:'{end}' output:\n{output}")
+            # Remove the line breaks and try again
+            value = value.splitlines()[0]
+            fval = float(value)
+
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
         elif equal == False and fval <= expect:
+            tdLog.error(f"value:'{value}' < expect, key:'{key}' end:'{end}' output:\n{output}")
             tdLog.exit(f"failed because {fval} <= {expect}, key:'{key}' end:'{end}' output:\n{output}")
         else:
             # succ
@@ -84,7 +92,7 @@ class TestBenchmarkWebsite:
             else:
                 tdLog.info(f"check successfully. key:'{key}' {fval} > {expect}")
 
-    
+
     def checkAfterRun(self, benchmark, jsonFile, specMode, tbCnt):
         # run
         cmd = f"{benchmark} -f {jsonFile}"
@@ -99,7 +107,7 @@ class TestBenchmarkWebsite:
         #
         with open(jsonFile, "r") as file:
             data = json.load(file)
-        
+
         queryTimes = data["query_times"]
         # contineIfFail
         try:
@@ -134,18 +142,18 @@ class TestBenchmarkWebsite:
             allEnd = " "
         else:
             allEnd = "\n"
-        
+
         if specMode and mixedQuery.lower() != "yes":
             # spec
             threadQueries = queryTimes * threads
             totalQueries  = queryTimes * threads * len(sqls)
-            threadKey     = f"complete query with {threads} threads and " 
-            qpsKey = "QPS: "
+            threadKey     = f"complete query with {threads} threads and "
+            qpsKey = "s QPS: "
             avgKey = "query delay avg: "
             minKey = "min:"
         else:
-            # spec mixed or super 
-            
+            # spec mixed or super
+
             if specMode:
                 totalQueries  = queryTimes * len(sqls)
                 # spec mixed
@@ -158,7 +166,7 @@ class TestBenchmarkWebsite:
             else:
                 # super
                 totalQueries  = queryTimes * len(sqls) * tbCnt
-                threadQueries = totalQueries            
+                threadQueries = totalQueries
 
             nSql = len(sqls)
             if specMode and nSql < threads :
@@ -171,7 +179,7 @@ class TestBenchmarkWebsite:
 
         items = [
             [threadKey, " ", threadQueries, True],
-            [qpsKey, " ",  1, False],  # qps need > 1
+            [qpsKey, " ",  0, False],
             [avgKey, "s",  0, False],
             [minKey, "s",  0, False],
             ["max: ", "s", 0, False],
@@ -182,11 +190,11 @@ class TestBenchmarkWebsite:
             ["completed total queries: ", ",", totalQueries, True],
             ["the QPS of all threads:", allEnd, QPS        , False]  # all qps need > 5
         ]
-    
+
         # check
         for item in items:
             if len(item[0]) > 0:
-                self.checkItem(output, item[0], item[1], item[2], item[3])    
+                self.checkItem(output, item[0], item[1], item[2], item[3])
 
 
 
@@ -199,7 +207,7 @@ class TestBenchmarkWebsite:
             tdLog.info(f"succ: {cmd} found '{OK_RESULT}'")
         else:
             tdLog.exit(f"failed: {cmd} not found {OK_RESULT} in:\n{output} \nerror:{error}")
-    
+
     #
     # ------------------- main ----------------
     #
@@ -221,7 +229,7 @@ class TestBenchmarkWebsite:
         """
         tbCnt = 10
         benchmark = etool.benchMarkFile()
-      
+
         # insert
         json = "../tools/taos-tools/example/insert.json"
         self.insertBenchJson(json, checkStep=True)

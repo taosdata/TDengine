@@ -34,12 +34,14 @@ class TestStreamNoSnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_no_snode(self):
-        """Stream: check no snode
+        """Stream no snode
 
-        Test that streams cannot be created without snode.
-
-        Catalog:
-            - Streams:Stream
+        1. Test that streams cannot be created without snode.
+        2. Test creating and dropping snodes.
+        3. Test creating streams after snodes are created.
+        4. Test dropping snodes and its impact on existing streams.
+        5. Test stream status after snode failures.
+        6. Test recreating snodes and streams.
 
         Since: v3.3.3.7
 

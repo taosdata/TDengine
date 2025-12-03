@@ -49,12 +49,16 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 在 `/etc/collectd/collectd.conf` 文件中增加如下内容，其中 `host` 和 `port` 请填写 TDengine 和 taosAdapter 配置的实际值：
 
-```
+```conf
 LoadPlugin network
 <Plugin network>
   Server "<TDengine cluster/server host>" "<port for collectd>"
 </Plugin>
+```
 
+### 启动 collectd 服务
+
+```bash
 sudo systemctl start collectd
 ```
 
@@ -62,7 +66,7 @@ sudo systemctl start collectd
 
 在 `config.js` 文件中增加如下内容后启动 StatsD，其中 `host` 和 `port` 请填写 TDengine 和 taosAdapter 配置的实际值：
 
-```
+```conf
 backends 部分添加 "./backends/repeater"
 repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
 ```

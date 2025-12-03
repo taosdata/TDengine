@@ -9,7 +9,7 @@ class TestStreamRecalcWithOptions:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_with_options(self):
-        """Recalc: Manual testing with options
+        """Recalc: manual with options
 
         Test manual recalculation functionality combined with four different stream options:
 
@@ -286,6 +286,7 @@ class TestStreamRecalcWithOptions:
         # In real scenario, the current stream processing time would determine what's expired
         tdSql.execute("insert into tdb.exp1 values ('2025-01-01 02:04:00', 15, 150, 1.75, 'expired');")
         
+        time.sleep(5)
         # Manual recalculation for expired data - should still work since manual recalc bypasses expiry
         tdLog.info("Test EXPIRED_TIME manual recalculation - expired data")
         tdSql.execute("recalculate stream rdb.s_expired_interval from '2025-01-01 02:04:00' to '2025-01-01 02:14:00';")

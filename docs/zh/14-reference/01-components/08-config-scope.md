@@ -48,6 +48,7 @@ toc_max_heading_level: 4
 | **查询相关** | | |
 | countAlwaysReturnValue | both | count/hyperloglog 函数在输入数据为空或者 NULL 的情况下是否返回值 |
 | tagFilterCache | taosd | 是否缓存标签过滤结果 |
+| stableTagFilterCache | taosd | 流计算中，是否缓存标签等值条件的过滤结果，不会因为增删子表、更新标签值或修改超级表标签而失效 |
 | queryBufferSize | taosd | 查询可用的缓存大小 |
 | queryRspPolicy | taosd | 查询响应策略 |
 | queryUseMemoryPool | taosd | 查询是否使用内存池管理内存 |
@@ -184,7 +185,7 @@ toc_max_heading_level: 4
 | cDebugFlag | taosc | 客户端模块的日志开关 |
 | simDebugFlag | taosc | 测试工具的日志开关 |
 | tqClientDebugFlag | taosc | 测试工具的日志开关 |
-| rpcRecvLogThreshold| taosd| rpc模块的警告日志的阈值|
+| rpcRecvLogThreshold| taosd| rpc 模块的警告日志的阈值|
 | **调试相关** | | |
 | enableCoreFile | both | crash 时是否生成 core 文件 |
 | configDir | both | 配置文件所在目录 |

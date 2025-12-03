@@ -9,16 +9,13 @@ class TestStreamEventTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_event_trigger(self):
-        """Event:
+        """Trigger mode stable event
 
-        Verification testing during the development process.
-
-        Catalog:
-            - Streams: 03-TriggerMode
-        Description:
-            - create 14 streams, each stream has 1 source tables
-            - write data to source tables
-            - check stream results
+        1. Create snode and database
+        2. Create super table and sub tables
+        3. Create streams with event_window trigger mode
+        4. Insert data into source tables
+        5. Check stream results
 
         Since: v3.3.3.7
 

@@ -76,7 +76,7 @@ class TestDdlInSysdb:
         self.ddl_sysdb()
         self.ddl_systb()
 
-    def test_ddl_in_sysdb(self):
+    def do_ddl_in_sysdb(self):
         """Meta system db same name check
 
         1. Create/Drop Database with same name as system database
@@ -104,7 +104,7 @@ class TestDdlInSysdb:
     #
     # --------------- test_ins_stables.py ---------------
     #
-    def test_func_sys_tbname(self):
+    def do_func_sys_tbname(self):
         """Meta ins_stables
 
         1. Creating databases with super/child/normal tables for metadata testing
@@ -678,27 +678,14 @@ class TestDdlInSysdb:
         )
 
         tdSql.checkRows(2)
+        
+        tdSql.execute(f"drop database sys_tbname")
+        tdSql.execute(f"drop database test1")        
     
     #
     # --------------- test_ins_tables.py ---------------
     #    
-    def test_table_count(self):
-        """Meta ins_tables
-
-        1. Tests various grouping queries on information_schema.ins_tables
-        2. Verifies accurate row counts for different table categories
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-9 Simon Guan Migrated from tsim/query/tableCount.sim
-            - 2025-5-9 Simon Guan Migrated from tsim/stable/metrics_idx.sim
-
-        """
+    def do_table_count(self):
         self.TableCount()
         tdStream.dropAllStreamsAndDbs()
         self.MetricsIdx()
@@ -866,3 +853,72 @@ class TestDdlInSysdb:
             f'select count(*) from ins_tables where db_name = "m_me_db_idx" and create_time < now();'
         )
         tdSql.checkData(0, 0, doubletbNum)
+
+        print("do table count ........................ [passed]")
+
+    #
+    # ------------------- test_ins_filesets.py ----------------
+    #
+    def do_ins_filesets(self):
+        tdSql.execute('create database db vgroups 1')
+        tdSql.execute('use db')
+        tdSql.execute('create table t1 (ts timestamp, a int, b int)')
+        tdSql.execute('insert into t1 values(\'2024-12-27 14:00:00\', 1, 2)')
+        tdSql.execute('flush database db')
+
+        tdLog.sleep(5)
+
+        rows = tdSql.query('select * from information_schema.ins_filesets')
+        tdSql.checkRows(1)
+        tdSql.checkEqual(tdSql.getData(0, 0), 'db')
+        tdSql.checkEqual(tdSql.getData(0, 1), 2)
+        tdSql.checkEqual(tdSql.getData(0, 2), 2008)
+        # tdSql.CheckEqual(str(tdSql.getData(0, 3)), '2024-12-23 08:00:00.000')
+        # tdSql.CheckEqual(str(tdSql.getData(0, 4)), '2025-01-02 07:59:59.999')
+        # tdSql.CheckEqual(tdSql.getData(0, 6), '1970-01-01 08:00:00.000')
+        # tdSql.CheckEqual(tdSql.getData(0, 7), False)
+
+        #tdDnodes.stopAll()
+        tdSql.execute("drop database db")
+        print("do ins filesets ....................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_meta_sysdb(self):
+        """Meta system database
+
+        1. Creating databases with super/child/normal tables for metadata testing
+        2. Executing comprehensive queries on information_schema tables (ins_databases/ins_stables/ins_tables)
+        3. Testing large-scale stable table creation (70+ stables per database)
+        4. Verifying partition and limit operations on system tables
+        5. Checking table counting and distinct value operations
+        6. Create/Drop Database with same name as system database
+        7. Restart taosd service
+        8. Create/Drop Table with same name as system table
+        9. Check information_schema.ins_tables
+        10. Check information_schema.ins_stables
+        11. Check information_schema.ins_tags
+        12. Check information_schema.ins_databases
+        13. Check information_schema.ins_streams
+        14. Check information_schema.ins_users
+        15. Check information_schema.ins_user_privileges
+        16. Check information_schema.ins_filesets
+        17. Check information_schema.ins_vgroups
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-5-9 Simon Guan Migrated from tsim/query/tableCount.sim
+            - 2025-5-9 Simon Guan Migrated from tsim/stable/metrics_idx.sim
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_ins_filesets.py
+
+        """
+        self.do_ins_filesets()
+        self.do_table_count()
+        self.do_func_sys_tbname()
+        self.do_ddl_in_sysdb()

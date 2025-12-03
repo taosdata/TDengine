@@ -524,7 +524,7 @@ class TestDatabasePreSuf:
             tdLog.exit(f"checkEqual error, stream_data=={stream_data},sql_data={sql_data}") 
                             
     def test_stable_create_presuf(self):
-        """Super Table Create with Random Prefix and Suffix
+        """Stable prefix & suffix
 
         1. Create Database with random vgroups
         2. Create Super Table with random prefix and suffix

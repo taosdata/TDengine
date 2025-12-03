@@ -2248,7 +2248,7 @@ _return2:
 }
 
 int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
-  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+  STrans* pInst = (STrans*)transInstAcquire(transGetInstMgt(), (int64_t)thandle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
@@ -2284,11 +2284,11 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
       break;
     }
   }
-  transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
 
   if (code != 0) {
     tError("ip-white-list update failed since %s", tstrerror(code));
   }
+  transInstRelease((int64_t)thandle);
   return code;
 }
 #else

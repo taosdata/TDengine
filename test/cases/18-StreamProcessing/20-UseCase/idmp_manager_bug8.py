@@ -38,8 +38,7 @@ class Test_IDMP_Meters:
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
-        Catalog:
-            - Streams:UseCases
+        Labels: common,ci,skip
 
         Since: v3.3.7.0
 
@@ -942,6 +941,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power
             [1752574200000, 5,  50], # order
             [1752574205000, 5,  50], # disorder
+            [1752574210000, 5,  50], # disorder
             [1752574215000, 5,  50]  # order
         ]
         result_sql = f"select * from test.result_stream7"

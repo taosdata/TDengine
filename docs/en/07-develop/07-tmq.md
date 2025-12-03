@@ -6,7 +6,7 @@ slug: /developer-guide/manage-consumers
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced-features/data-subscription/)
+TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../../advanced/subscription/)
 
 ## Creating Topics
 
@@ -16,6 +16,7 @@ The above SQL will create a subscription named topic_meters. Each record in the 
 
 **Note**
 In the implementation of TDengine connectors, there are the following limitations for subscription queries.
+
 - Only data subscription is supported, and subscription with `with meta` is not supported.
   - Java(WebSocket connection), Go, and Rust connectors support subscribing to databases, super tables, and `SELECT` queries.
   - Java(Native connection), C#, Python, and Node.js connectors only support subscribing to `SELECT` statements and do not support other types of SQL, such as subscribing to databases or super tables.

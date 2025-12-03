@@ -7,7 +7,7 @@ class TestSelectListBasic:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_selectlist(self):
-        """SelectList
+        """Select basic
 
         1. Projection queries
         2. Aggregation queries

@@ -9,7 +9,13 @@ C/C++ developers can use the TDengine client driver (i.e., C/C++ connector) to d
 
 ## Connection Method
 
-The TDengine client driver provides the taos dynamic library, which supports two connection methods: WebSocket connection and native connection. The difference between the two connection methods is that WebSocket connection does not require the client and server versions to match completely, while native connection requires version matching; in terms of performance, the WebSocket connection method is close to the native connection. **It is generally recommended to use the WebSocket connection method.**
+The TDengine client driver provides the taos dynamic library, which supports two connection methods: WebSocket connection and native connection. The difference between the two connection methods is that WebSocket connection does not require the client and server versions to match completely, while native connection requires version matching; in terms of performance, the WebSocket connection method is close to the native connection.
+
+:::tip
+
+It is generally recommended to use the WebSocket connection method.
+
+:::
 
 ### Header Files and Dynamic Libraries
 
@@ -68,7 +74,7 @@ TDengine client driver supports multiple platforms. For a list of supported plat
 
 ### Native Connection
 
-The version number of the TDengine client driver strictly corresponds to the version number of the TDengine server. **It is strongly recommended to use the client driver with the same version as the TDengine server.** Although the lower version of the client driver can be compatible with the higher version of the server when the first three segments of the version number are the same (that is, only the fourth segment of the version number is different), this is not recommended. **It is strongly not recommended to use the higher version of the client driver to access the lower version of the server.**
+The version number of the TDengine client driver strictly corresponds to the version number of the TDengine server. **It is strongly recommended to use the client driver with the same version as the TDengine server.** Although the lower version of the client driver can be compatible with the higher version of the server when the first three segments of the version number are the same (that is, only the fourth segment of the version number is different), this is not recommended. It is strongly not recommended to use the higher version of the client driver to access the lower version of the server.
 
 ## Error Codes
 
@@ -114,19 +120,18 @@ For more example codes and downloads, please see [GitHub](https://github.com/tao
 
 The following introduces the basic API, synchronous query API, asynchronous query API, parameter binding API, schemaless write API and data subscription API of TDengine client driver respectively.
 
-:::info **Connection method compatibility description**
-TDengine client driver supports WebSocket connection and native connection. Most APIs have the same functions in both connection methods, but a few APIs have functional differences:
+**Connection method compatibility description:** TDengine client driver supports WebSocket connection and native connection. Most APIs have the same functions in both connection methods, but a few APIs have functional differences:
 
-**Native connection**: All APIs provide full functional support.
+**Native connection:** All APIs provide full functional support.
 
-**WebSocket connection**: Most APIs are fully functional, and a few APIs only return a success status but do not perform actual operations.
+**WebSocket connection:** Most APIs are fully functional, and a few APIs only return a success status but do not perform actual operations.
 
-**Usage**:
+Usage:
 
 - **Native connection**: No additional configuration is required, just call the API directly, this is the default connection method.
 - **WebSocket connection**: You need to call `taos_options(TSDB_OPTION_DRIVER, "websocket")` to set the driver type first, and then call other APIs.
 
-**WebSocket connection function difference description:**
+WebSocket connection function difference description:
 
 | API                     | Support Status      | Interface Description             | Usage Restrictions                                                             |
 | ----------------------- | ------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
@@ -138,7 +143,6 @@ TDengine client driver supports WebSocket connection and native connection. Most
 These APIs are fully functional in native connection mode. If you need to use the above functions, it is recommended to choose native connection mode. Future versions will gradually improve the functional support of WebSocket connection.
 
 **Note**: WebSocket connection requires calling `taos_options(TSDB_OPTION_DRIVER, "websocket")` to set the driver type at the beginning of the program, and it can only be called once. Once set, the configuration is valid for the entire program life cycle and cannot be changed.
-:::
 
 ### Basic API
 
@@ -164,7 +168,7 @@ The basic API is used to establish database connections and provide a runtime en
 
 - `int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...)`
 
-  - **description**:Set each connection option on the client side. Currently, it supports character set setting(`TSDB_OPTION_CONNECTION_CHARSET`), time zone setting(`TSDB_OPTION_CONNECTION_TIMEZONE`), user IP setting(`TSDB_OPTION_CONNECTION_USER_IP`), and user APP setting(`TSDB_OPTION_CONNECTION_USER_APP`).
+  - **description**:Set each connection option on the client side. Currently, it supports character set setting(`TSDB_OPTION_CONNECTION_CHARSET`), time zone setting(`TSDB_OPTION_CONNECTION_TIMEZONE`), user IP setting(`TSDB_OPTION_CONNECTION_USER_IP`), and user APP setting(`TSDB_OPTION_CONNECTION_USER_APP`), and connector info setting(`TSDB_OPTION_CONNECTION_CONNECTOR_INFO`).
   - **input**:
     - `taos`: returned by taos_connect.
     - `option`: option name.
@@ -179,7 +183,7 @@ The basic API is used to establish database connections and provide a runtime en
     - If the same parameter is called multiple times, the latter shall prevail and can be used as a modification method.
     - The option of TSDB_OPTION_CONNECTION_CLEAR is used to reset all connection options.
     - After resetting the time zone and character set, using the operating system settings, the user IP and user app will be reset to empty.
-    - The values of the connection options are all string type, and the maximum value of the user app parameter is 23, which will be truncated if exceeded; Error reported when other parameters are illegal.
+    - The values of the connection options are all string type, and the maximum value of the user app parameter is 23, the maximum value of the connector info parameter is 255, which will be truncated if exceeded; Error reported when other parameters are illegal.
     - If time zone value can not be used to find a time zone file or can not be interpreted as a direct specification, UTC is used, which is the same as the operating system time zone rules. Please refer to the tzset function description for details. You can view the current time zone of the connection by sql:select timezone().
     - Time zones and character sets only work on the client side and do not affect related behaviors on the server side.
     - The time zone file uses the operating system time zone file and can be updated by oneself. If there is an error when setting the time zone, please check if the time zone file or path (mac:/var/db/timezone/zoneinfo, Linux:/var/share/zoneinfo) is correct.

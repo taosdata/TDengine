@@ -359,6 +359,9 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
     terrno = TSDB_CODE_INVALID_PARA;
     return (iconv_t)NULL;
   }
+
+  int32_t retryLimit = 100, i = 0;
+
   if (charsetCxt == NULL){
     charsetCxt = tsCharsetCxt;
   }
@@ -381,6 +384,11 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
   }
 
   while (true) {
+    if (i++ >= retryLimit) {
+      uError("taosAcquireConv retry limit reached");
+      return (iconv_t)-1;
+    }
+
     int32_t used = atomic_add_fetch_32(&info->convUsed[type], 1);
     if (used > info->gConvMaxNum[type]) {
       (void)atomic_sub_fetch_32(&info->convUsed[type], 1);
@@ -391,7 +399,7 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
     break;
   }
 
-  int32_t startId = taosGetSelfPthreadId() % info->gConvMaxNum[type];
+  int32_t startId = ((uint32_t)(taosGetSelfPthreadId())) % info->gConvMaxNum[type];
   while (true) {
     if (info->gConv[type][startId].inUse) {
       startId = (startId + 1) % info->gConvMaxNum[type];

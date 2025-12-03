@@ -1071,12 +1071,17 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   SNode*                  pNode = NULL;
   bool                    scanAllCols = true;
   SNode*                  pTagScan = NULL;
+  bool                    useTagScan = false;
 
   // Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
 
   if (LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) {
     scanAllCols = false;
+  }
+  if (((SScanLogicNode*)pRealTableScan)->scanType == SCAN_TYPE_TAG) {
+    useTagScan = true;
+    ((SScanLogicNode*)pRealTableScan)->scanType = SCAN_TYPE_TABLE;
   }
 
   PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
@@ -1135,6 +1140,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
   pDynCtrl->qType = DYN_QTYPE_VTB_SCAN;
   pDynCtrl->vtbScan.scanAllCols = pVtableScan->scanAllCols;
+  pDynCtrl->vtbScan.useTagScan = useTagScan;
   if (pVtableScan->tableType == TSDB_SUPER_TABLE) {
     pDynCtrl->vtbScan.isSuperTable = true;
     pDynCtrl->vtbScan.suid = pVtableScan->stableId;
@@ -2154,60 +2160,83 @@ static bool placeHolderCanMakeExternalWindow(int32_t startType, int32_t endType)
   }
 }
 
-static bool filterHasPlaceHolderRange(SOperatorNode *pStart, SOperatorNode *pEnd) {
-  SNode* pStartLeft = pStart->pLeft;
-  SNode* pStartRight = pStart->pRight;
-  SNode* pEndLeft = pEnd->pLeft;
-  SNode* pEndRight = pEnd->pRight;
+static bool filterHasPlaceHolderRange(SOperatorNode *pOperator) {
+  SNode* pOpLeft = pOperator->pLeft;
+  SNode* pOpRight = pOperator->pRight;
 
-  if (pStartLeft == NULL || pStartRight == NULL || pEndLeft == NULL || pEndRight == NULL) {
+  if (pOpLeft == NULL || pOpRight == NULL) {
     return false;
   }
 
-  if (nodeType(pStartLeft) == QUERY_NODE_COLUMN && nodeType(pEndLeft) == QUERY_NODE_COLUMN) {
-    SColumnNode* pLeftCol = (SColumnNode*)pStartLeft;
-    SColumnNode* pRightCol = (SColumnNode*)pEndLeft;
-    if (pLeftCol->colType != COLUMN_TYPE_COLUMN || pLeftCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID ||
-        pRightCol->colType != COLUMN_TYPE_COLUMN || pRightCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+  if (nodeType(pOpLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pTsCol = (SColumnNode*)pOpLeft;
+    if (pTsCol->colType != COLUMN_TYPE_COLUMN || pTsCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
       return false;
     }
   } else {
     return false;
   }
 
-  SConditionCheckContext startCxt = {.hasNotBasicOp = false,
-                                     .hasNegativeConst = false,
-                                     .hasOtherFunc = false,
-                                     .placeholderAtRight = false,
-                                     .placeholderType = 0};
+  SConditionCheckContext opCxt = {.hasNotBasicOp = false,
+                                  .hasNegativeConst = false,
+                                  .hasOtherFunc = false,
+                                  .placeholderAtRight = false,
+                                  .placeholderType = 0};
 
-  SConditionCheckContext endCxt = {.hasNotBasicOp = false,
-                                   .hasNegativeConst = false,
-                                   .hasOtherFunc = false,
-                                   .placeholderAtRight = false,
-                                   .placeholderType = 0};
-
-  nodesWalkExpr(pStartRight, conditionOnlyPhAndConstImpl, &startCxt);
-  nodesWalkExpr(pEndRight, conditionOnlyPhAndConstImpl, &endCxt);
-  if (startCxt.hasNotBasicOp || startCxt.hasNegativeConst || startCxt.hasOtherFunc || startCxt.placeholderAtRight ||
-    endCxt.hasNotBasicOp || endCxt.hasNegativeConst || endCxt.hasOtherFunc || endCxt.placeholderAtRight ||
-    !placeHolderCanMakeExternalWindow(startCxt.placeholderType, endCxt.placeholderType)) {
+  nodesWalkExpr(pOpRight, conditionOnlyPhAndConstImpl, &opCxt);
+  if (opCxt.hasNotBasicOp || opCxt.hasNegativeConst || opCxt.hasOtherFunc || opCxt.placeholderAtRight) {
     return false;
   }
   return true;
 }
 
+static bool logicConditionSatisfyExternalWindow(SLogicConditionNode *pLogicCond) {
+  if (pLogicCond->condType != LOGIC_COND_TYPE_AND || LIST_LENGTH(pLogicCond->pParameterList) == 0) {
+    return false;
+  }
+  SNode *pOperator = NULL;
+  FOREACH(pOperator, pLogicCond->pParameterList) {
+    if (nodeType(pOperator) != QUERY_NODE_OPERATOR) {
+      return false;
+    }
+    if (!filterHasPlaceHolderRange((SOperatorNode*)pOperator)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+
 static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
-  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd ||
-      nodeType(pTimeRange->pStart) != QUERY_NODE_OPERATOR ||
-      nodeType(pTimeRange->pEnd) != QUERY_NODE_OPERATOR) {
+  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd) {
     return false;
   }
 
-  SOperatorNode *pStart = (SOperatorNode *)(pTimeRange->pStart);
-  SOperatorNode *pEnd = (SOperatorNode *)(pTimeRange->pEnd);
+  if (nodeType(pTimeRange->pStart) == QUERY_NODE_OPERATOR) {
+    if (!filterHasPlaceHolderRange((SOperatorNode*)pTimeRange->pStart)) {
+      return false;
+    }
+  } else if (nodeType(pTimeRange->pStart) == QUERY_NODE_LOGIC_CONDITION) {
+    if (!logicConditionSatisfyExternalWindow((SLogicConditionNode*)pTimeRange->pStart)) {
+      return false;
+    }
+  } else {
+    return false;
+  }
 
-  return filterHasPlaceHolderRange(pStart, pEnd);
+  if (nodeType(pTimeRange->pEnd) == QUERY_NODE_OPERATOR) {
+    if (!filterHasPlaceHolderRange((SOperatorNode*)pTimeRange->pEnd)) {
+      return false;
+    }
+  } else if (nodeType(pTimeRange->pEnd) == QUERY_NODE_LOGIC_CONDITION) {
+    if (!logicConditionSatisfyExternalWindow((SLogicConditionNode*)pTimeRange->pEnd)) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  return true;
 }
 
 static int32_t conditionHasPlaceHolder(SNode* pNode, bool* pHasPlaceHolder) {

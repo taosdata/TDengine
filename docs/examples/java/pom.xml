@@ -22,7 +22,7 @@
     <dependency>
       <groupId>com.taosdata.jdbc</groupId>
       <artifactId>taos-jdbcdriver</artifactId>
-      <version>3.7.6</version>
+      <version>3.7.8</version>
     </dependency>
     <!--    ANCHOR_END: dep-->
 

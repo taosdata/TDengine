@@ -7,13 +7,15 @@ class TestFilterTimestamp:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_filter_timestamp(self):
-        """Timestamp
+        """Filter timestamp
 
         1. Projection queries with arithmetic operations and timestamp filtering conditions
-
-        Catalog:
-            - Query:Filter
-
+        2. Applying mathematical operators in combination
+        3. Verify after server restart
+        4. Verify with different data types
+        5. Verify with addition, subtraction, multiplication, and division
+        6. Verify with complex expressions
+        
         Since: v3.0.0.0
 
         Labels: common,ci

@@ -704,8 +704,8 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   if (index) {
     if (colField[*index].type != kv->type) {
       snprintf(info->msgBuf.buf, info->msgBuf.len,
-               "SML:0x%" PRIx64 ", %s point type and db type mismatch, db type:%s, point type:%s, key:%s", info->id,
-               __FUNCTION__, tDataTypes[colField[*index].type].name, tDataTypes[kv->type].name, kv->key);
+               "SML:0x%" PRIx64 ", %s point type and db type mismatch, index:%d, db type:%s, point type:%s, key:%s", info->id,
+               __FUNCTION__, *index, tDataTypes[colField[*index].type].name, tDataTypes[kv->type].name, kv->key);
       uError("%s", info->msgBuf.buf);
       return TSDB_CODE_SML_INVALID_DATA;
     }
@@ -757,50 +757,25 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   return result;
 }
 
-static int32_t smlProcessSchemaAction(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols,
-                                      SHashObj *schemaHashCheck, ESchemaAction *action, bool isTag) {
-  int32_t code = TSDB_CODE_SUCCESS;
+static int32_t smlBuildFields(SArray **pColumns, SArray **pTags, STableMeta *pTableMeta) {
+  int32_t code = 0;
   int32_t lino = 0;
-  for (int j = 0; j < taosArrayGetSize(cols); ++j) {
-    if (j == 0 && !isTag) continue;
-    SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, j);
-    SML_CHECK_NULL(kv);
-    SML_CHECK_CODE(smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, action, info));
-    if (taosHashGet(schemaHashCheck, kv->key, kv->keyLen) != NULL) {
-      uError("SML:0x%" PRIx64 ", %s duplicated column %s", info->id, __FUNCTION__, kv->key);
-      SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
+  *pColumns = taosArrayInit((pTableMeta)->tableInfo.numOfColumns, sizeof(SField));
+  SML_CHECK_NULL(pColumns);
+  *pTags = taosArrayInit((pTableMeta)->tableInfo.numOfTags, sizeof(SField));
+  SML_CHECK_NULL(pTags);
+  for (uint16_t i = 0; i < (pTableMeta)->tableInfo.numOfColumns + (pTableMeta)->tableInfo.numOfTags; i++) {
+    SField field = {0};
+    field.type = (pTableMeta)->schema[i].type;
+    field.bytes = (pTableMeta)->schema[i].bytes;
+    tstrncpy(field.name, (pTableMeta)->schema[i].name, sizeof(field.name));
+    if (i < (pTableMeta)->tableInfo.numOfColumns) {
+      SML_CHECK_NULL(taosArrayPush(*pColumns, &field));
+    } else {
+      SML_CHECK_NULL(taosArrayPush(*pTags, &field));
     }
   }
-
 END:
-  RETURN
-}
-
-static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
-  SHashObj *hashTmp = taosHashInit(length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  SML_CHECK_NULL(hashTmp);
-  for (int32_t i = 0; i < length; i++) {
-    SML_CHECK_CODE(taosHashPut(hashTmp, schema[i].name, strlen(schema[i].name), &schema[i], sizeof(SSchema)));
-  }
-  for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
-    SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
-    SML_CHECK_NULL(kv);
-    SSchema *sTmp = taosHashGet(hashTmp, kv->key, kv->keyLen);
-    if (sTmp == NULL) {
-      SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
-    }
-    if ((kv->type == TSDB_DATA_TYPE_VARCHAR && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
-        (kv->type == TSDB_DATA_TYPE_NCHAR && kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE > sTmp->bytes)) {
-      uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
-             tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
-      SML_CHECK_CODE(TSDB_CODE_MND_INVALID_SCHEMA_VER);
-    }
-  }
-
-END:
-  taosHashCleanup(hashTmp);
   RETURN
 }
 
@@ -813,32 +788,26 @@ static int32_t getBytes(uint8_t type, int32_t length) {
   }
 }
 
-static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols,
-                                  SArray *results, int32_t numOfCols, bool isTag) {
+static int32_t smlAddMofidyField(SHashObj *schemaHash, ESchemaAction action, SSmlKv *kv,
+                                  SArray *results, int32_t preCols, bool isTag) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  for (int j = 0; j < taosArrayGetSize(cols); ++j) {
-    SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, j);
-    SML_CHECK_NULL(kv);
-    ESchemaAction action = SCHEMA_ACTION_NULL;
-    SML_CHECK_CODE(smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, &action, info));
-    if (action == SCHEMA_ACTION_ADD_COLUMN || action == SCHEMA_ACTION_ADD_TAG) {
-      SField field = {0};
-      field.type = kv->type;
-      field.bytes = getBytes(kv->type, kv->length);
-      (void)memcpy(field.name, kv->key, TMIN(kv->keyLen, sizeof(field.name) - 1));
-      SML_CHECK_NULL(taosArrayPush(results, &field));
-    } else if (action == SCHEMA_ACTION_CHANGE_COLUMN_SIZE || action == SCHEMA_ACTION_CHANGE_TAG_SIZE) {
-      uint16_t *index = (uint16_t *)taosHashGet(schemaHash, kv->key, kv->keyLen);
-      if (index == NULL) {
-        SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
-      }
-      uint16_t newIndex = *index;
-      if (isTag) newIndex -= numOfCols;
-      SField *field = (SField *)taosArrayGet(results, newIndex);
-      SML_CHECK_NULL(field);
-      field->bytes = getBytes(kv->type, kv->length);
+  if (action == SCHEMA_ACTION_ADD_COLUMN || action == SCHEMA_ACTION_ADD_TAG) {
+    SField field = {0};
+    field.type = kv->type;
+    field.bytes = getBytes(kv->type, kv->length);
+    (void)memcpy(field.name, kv->key, TMIN(kv->keyLen, sizeof(field.name) - 1));
+    SML_CHECK_NULL(taosArrayPush(results, &field));
+  } else if (action == SCHEMA_ACTION_CHANGE_COLUMN_SIZE || action == SCHEMA_ACTION_CHANGE_TAG_SIZE) {
+    uint16_t *index = (uint16_t *)taosHashGet(schemaHash, kv->key, kv->keyLen);
+    if (index == NULL) {
+      SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
     }
+    uint16_t newIndex = *index;
+    if (isTag) newIndex -= preCols;
+    SField *field = (SField *)taosArrayGet(results, newIndex);
+    SML_CHECK_NULL(field);
+    field->bytes = getBytes(kv->type, kv->length);
   }
 
   int32_t maxLen = isTag ? TSDB_MAX_TAGS_LEN : TSDB_MAX_BYTES_PER_ROW;
@@ -957,6 +926,132 @@ END:
   RETURN
 }
 
+static int32_t changeMeta(SSmlHandle *info, SHashObj *hashTmp, SRequestConnInfo *conn,
+                             SSmlKv *kv, ESchemaAction action, STableMeta **pTableMeta, bool isTag, SName *pName) {
+  SArray       *pColumns = NULL;
+  SArray       *pTags = NULL;
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  uDebug("SML:0x%" PRIx64 ", %s change table tag, table:%s, action:%d", info->id, __FUNCTION__, pName->tname, action);
+  SML_CHECK_CODE(smlBuildFields(&pColumns, &pTags, *pTableMeta));
+  int32_t preCols = isTag ? (*pTableMeta)->tableInfo.numOfColumns : 0;
+  SArray  *results = isTag ? pTags : pColumns;
+  SML_CHECK_CODE(smlAddMofidyField(hashTmp, action, kv, results, preCols, isTag));
+
+  SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, &pTags, (*pTableMeta), action));
+
+  if (isTag) {
+    info->cost.numOfAlterTagSTables++;
+  } else {
+    info->cost.numOfAlterColSTables++;
+  }
+  taosMemoryFreeClear(*pTableMeta);
+  SML_CHECK_CODE(catalogRefreshTableMeta(info->pCatalog, conn, pName, -1));
+  SML_CHECK_CODE(catalogGetSTableMeta(info->pCatalog, conn, pName, pTableMeta));
+
+END:
+  taosArrayDestroy(pColumns);
+  taosArrayDestroy(pTags);
+  return code;
+}
+
+static int32_t smlProcessSchemaAction(SSmlHandle *info, SHashObj *schemaHash, SArray *cols,
+                                      SHashObj *schemaHashCheck, bool isTag, SRequestConnInfo *conn, STableMeta **tableMeta, SName *pName) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  for (int j = 0; j < taosArrayGetSize(cols); ++j) {
+    if (j == 0 && !isTag) continue;
+    SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, j);
+    SML_CHECK_NULL(kv);
+    if (taosHashGet(schemaHashCheck, kv->key, kv->keyLen) != NULL) {
+      uError("SML:0x%" PRIx64 ", %s duplicated column %s", info->id, __FUNCTION__, kv->key);
+      SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
+    }
+    ESchemaAction action = SCHEMA_ACTION_NULL;
+    SML_CHECK_CODE(smlGenerateSchemaAction((*tableMeta)->schema, schemaHash, kv, isTag, &action, info));
+    if (action == SCHEMA_ACTION_NULL) {
+      continue;
+    }
+    SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, AUTH_TYPE_WRITE));
+
+    SML_CHECK_CODE(changeMeta(info, schemaHash, conn, kv, action, tableMeta, isTag, pName));
+  }
+
+END:
+  RETURN
+}
+
+static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SHashObj *hashTmp = taosHashInit(length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  SML_CHECK_NULL(hashTmp);
+  for (int32_t i = 0; i < length; i++) {
+    SML_CHECK_CODE(taosHashPut(hashTmp, schema[i].name, strlen(schema[i].name), &schema[i], sizeof(SSchema)));
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
+    SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
+    SML_CHECK_NULL(kv);
+    SSchema *sTmp = taosHashGet(hashTmp, kv->key, kv->keyLen);
+    if (sTmp == NULL) {
+      SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+    }
+    if ((kv->type == TSDB_DATA_TYPE_VARCHAR && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
+        (kv->type == TSDB_DATA_TYPE_NCHAR && kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE > sTmp->bytes)) {
+      uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
+             tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
+      SML_CHECK_CODE(TSDB_CODE_MND_INVALID_SCHEMA_VER);
+    }
+  }
+
+END:
+  taosHashCleanup(hashTmp);
+  RETURN
+}
+
+static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols,
+                                  SArray *results, int32_t numOfCols, bool isTag) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  for (int j = 0; j < taosArrayGetSize(cols); ++j) {
+    SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, j);
+    SML_CHECK_NULL(kv);
+    ESchemaAction action = SCHEMA_ACTION_NULL;
+    SML_CHECK_CODE(smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, &action, info));
+    if (action == SCHEMA_ACTION_ADD_COLUMN || action == SCHEMA_ACTION_ADD_TAG) {
+      SField field = {0};
+      field.type = kv->type;
+      field.bytes = getBytes(kv->type, kv->length);
+      (void)memcpy(field.name, kv->key, TMIN(kv->keyLen, sizeof(field.name) - 1));
+      SML_CHECK_NULL(taosArrayPush(results, &field));
+    } else if (action == SCHEMA_ACTION_CHANGE_COLUMN_SIZE || action == SCHEMA_ACTION_CHANGE_TAG_SIZE) {
+      uint16_t *index = (uint16_t *)taosHashGet(schemaHash, kv->key, kv->keyLen);
+      if (index == NULL) {
+        SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+      }
+      uint16_t newIndex = *index;
+      if (isTag) newIndex -= numOfCols;
+      SField *field = (SField *)taosArrayGet(results, newIndex);
+      SML_CHECK_NULL(field);
+      field->bytes = getBytes(kv->type, kv->length);
+    }
+  }
+
+  int32_t maxLen = isTag ? TSDB_MAX_TAGS_LEN : TSDB_MAX_BYTES_PER_ROW;
+  int32_t len = 0;
+  for (int j = 0; j < taosArrayGetSize(results); ++j) {
+    SField *field = taosArrayGet(results, j);
+    SML_CHECK_NULL(field);
+    len += field->bytes;
+  }
+  if (len > maxLen) {
+    return isTag ? TSDB_CODE_PAR_INVALID_TAGS_LENGTH : TSDB_CODE_PAR_INVALID_ROW_LENGTH;
+  }
+
+END:
+  RETURN
+}
+
 static int32_t smlCreateTable(SSmlHandle *info, SRequestConnInfo *conn, SSmlSTableMeta *sTableData, SName *pName,
                               STableMeta **pTableMeta) {
   int32_t code = 0;
@@ -983,86 +1078,23 @@ END:
   RETURN
 }
 
-static int32_t smlBuildFields(SArray **pColumns, SArray **pTags, STableMeta *pTableMeta, SSmlSTableMeta *sTableData) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  *pColumns = taosArrayInit(taosArrayGetSize(sTableData->cols) + (pTableMeta)->tableInfo.numOfColumns, sizeof(SField));
-  SML_CHECK_NULL(pColumns);
-  *pTags = taosArrayInit(taosArrayGetSize(sTableData->tags) + (pTableMeta)->tableInfo.numOfTags, sizeof(SField));
-  SML_CHECK_NULL(pTags);
-  for (uint16_t i = 0; i < (pTableMeta)->tableInfo.numOfColumns + (pTableMeta)->tableInfo.numOfTags; i++) {
-    SField field = {0};
-    field.type = (pTableMeta)->schema[i].type;
-    field.bytes = (pTableMeta)->schema[i].bytes;
-    tstrncpy(field.name, (pTableMeta)->schema[i].name, sizeof(field.name));
-    if (i < (pTableMeta)->tableInfo.numOfColumns) {
-      SML_CHECK_NULL(taosArrayPush(*pColumns, &field));
-    } else {
-      SML_CHECK_NULL(taosArrayPush(*pTags, &field));
-    }
-  }
-END:
-  RETURN
-}
 static int32_t smlModifyTag(SSmlHandle *info, SHashObj *hashTmpCheck, SHashObj *hashTmp, SRequestConnInfo *conn,
                             SSmlSTableMeta *sTableData, SName *pName, STableMeta **pTableMeta) {
-  ESchemaAction action = SCHEMA_ACTION_NULL;
-  SArray       *pColumns = NULL;
-  SArray       *pTags = NULL;
   int32_t       code = 0;
   int32_t       lino = 0;
   SML_CHECK_CODE(
-      smlProcessSchemaAction(info, (*pTableMeta)->schema, hashTmp, sTableData->tags, hashTmpCheck, &action, true));
-
-  if (action != SCHEMA_ACTION_NULL) {
-    SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, AUTH_TYPE_WRITE));
-    uDebug("SML:0x%" PRIx64 ", %s change table tag, table:%s, action:%d", info->id, __FUNCTION__, pName->tname, action);
-    SML_CHECK_CODE(smlBuildFields(&pColumns, &pTags, *pTableMeta, sTableData));
-    SML_CHECK_CODE(smlBuildFieldsList(info, (*pTableMeta)->schema, hashTmp, sTableData->tags, pTags,
-                                      (*pTableMeta)->tableInfo.numOfColumns, true));
-
-    SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, &pTags, (*pTableMeta), action));
-
-    info->cost.numOfAlterTagSTables++;
-    taosMemoryFreeClear(*pTableMeta);
-    SML_CHECK_CODE(catalogRefreshTableMeta(info->pCatalog, conn, pName, -1));
-    SML_CHECK_CODE(catalogGetSTableMeta(info->pCatalog, conn, pName, pTableMeta));
-  }
-
+      smlProcessSchemaAction(info, hashTmp, sTableData->tags, hashTmpCheck, true, conn, pTableMeta, pName));
 END:
-  taosArrayDestroy(pColumns);
-  taosArrayDestroy(pTags);
   RETURN
 }
 
 static int32_t smlModifyCols(SSmlHandle *info, SHashObj *hashTmpCheck, SHashObj *hashTmp, SRequestConnInfo *conn,
                              SSmlSTableMeta *sTableData, SName *pName, STableMeta **pTableMeta) {
-  ESchemaAction action = SCHEMA_ACTION_NULL;
-  SArray       *pColumns = NULL;
-  SArray       *pTags = NULL;
   int32_t       code = 0;
   int32_t       lino = 0;
   SML_CHECK_CODE(
-      smlProcessSchemaAction(info, (*pTableMeta)->schema, hashTmp, sTableData->cols, hashTmpCheck, &action, false));
-
-  if (action != SCHEMA_ACTION_NULL) {
-    SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, AUTH_TYPE_WRITE));
-    uDebug("SML:0x%" PRIx64 ", %s change table col, table:%s, action:%d", info->id, __FUNCTION__, pName->tname, action);
-    SML_CHECK_CODE(smlBuildFields(&pColumns, &pTags, *pTableMeta, sTableData));
-    SML_CHECK_CODE(smlBuildFieldsList(info, (*pTableMeta)->schema, hashTmp, sTableData->cols, pColumns,
-                                      (*pTableMeta)->tableInfo.numOfColumns, false));
-
-    SML_CHECK_CODE(smlSendMetaMsg(info, pName, pColumns, &pTags, (*pTableMeta), action));
-
-    info->cost.numOfAlterColSTables++;
-    taosMemoryFreeClear(*pTableMeta);
-    SML_CHECK_CODE(catalogRefreshTableMeta(info->pCatalog, conn, pName, -1));
-    SML_CHECK_CODE(catalogGetSTableMeta(info->pCatalog, conn, pName, pTableMeta));
-  }
-
+      smlProcessSchemaAction(info, hashTmp, sTableData->cols, hashTmpCheck, false, conn, pTableMeta, pName));
 END:
-  taosArrayDestroy(pColumns);
-  taosArrayDestroy(pTags);
   RETURN
 }
 
@@ -1741,7 +1773,7 @@ void smlSetReqSQL(SRequestObj *request, char *lines[], char *rawLine, char *rawL
       return;
     }
 
-    rlen = TMIN(len, TSDB_MAX_ALLOWED_SQL_LEN);
+    rlen = TMIN(len, tsMaxSQLLength);
     rlen = TMAX(rlen, 0);
 
     char *sql = taosMemoryMalloc(rlen + 1);

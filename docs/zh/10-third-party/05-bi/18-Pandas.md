@@ -3,7 +3,7 @@ sidebar_label: Pandas
 title: 与 Pandas 集成
 ---
 
-Pandas 是 Python 编程语言中最为流行的数据处理和分析库，自2008年由 Wes McKinney 创建以来，已成为数据科学领域不可或缺的核心工具。它专门为解决现实世界中的数据分析任务而设计，使得在 Python 中处理结构化数据变得异常简单。无论是处理商业报表、科学研究数据，还是进行金融分析，Pandas都能提供专业的解决方案。通过简洁的API和丰富的功能，Pandas极大地降低了数据处理的技术门槛，让使用者能够更专注于数据本身的价值挖掘，而非陷入繁琐的技术细节之中。
+Pandas 是 Python 编程语言中最为流行的数据处理和分析库，自 2008 年由 Wes McKinney 创建以来，已成为数据科学领域不可或缺的核心工具。它专门为解决现实世界中的数据分析任务而设计，使得在 Python 中处理结构化数据变得异常简单。无论是处理商业报表、科学研究数据，还是进行金融分析，Pandas 都能提供专业的解决方案。通过简洁的 API 和丰富的功能，Pandas 极大地降低了数据处理的技术门槛，让使用者能够更专注于数据本身的价值挖掘，而非陷入繁琐的技术细节之中。
 
 通过 TDengine TSDB 的 Python 连接器，Pandas 可支持 TDengine TSDB 数据源并提供数据展现、分析等功能。
 
@@ -39,7 +39,7 @@ taos://[username]:[password]@[<host1>:<port1>]/[database_name]
 
 TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 sqlalchemy.types 对应类型转换如下：
 
-|  Sqlalchemy Types       |  TDengine TSDB DataType |       
+|  Sqlalchemy Types       |  TDengine TSDB DataType |
 | ------------------------|-------------------------|
 | sqltypes.Boolean        | BOOL                    |
 | sqltypes.TIMESTAMP      | TIMESTAMP               |
@@ -88,4 +88,3 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 sqlal
 - [Sqlalchemy](https://docs.sqlalchemy.org/en/20/)
 - [Pandas Documentation](https://pandas.pydata.org/docs/)
 - [Connecting Pandas to a Database with SQLAlchemy](https://hackersandslackers.com/connecting-pandas-to-a-sql-database-with-sqlalchemy/)
-

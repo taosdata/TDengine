@@ -7,9 +7,15 @@ class TestJoin:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join(self):
-        """Join Test
+        """Join with tbname
 
-        1.
+        1. Create 1 database and 2 super tables with different schemas
+        2. Create child tables from super tables with different tag values
+        3. Insert data into child tables with same timestamps
+        4. Join left table is child query from first super table and where condition 
+        5. Join right table is child query from second super table and where condition  
+        6. Join on timestamps and tbname tag
+        7. Check the result of join correctly
 
         Catalog:
             - Query:Join

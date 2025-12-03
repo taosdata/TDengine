@@ -33,6 +33,8 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine TSDB 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|        3.7.8        | 解决了 getTables 方法中需要使用转义符的问题。   |   -  |
+|        3.7.7        | 1. 解决了 windows 平台加载配置文件问题<br/> 2. 解决了 WebSocket 连接 Statement 超时设置互相影响问题。   |   -  |
 |        3.7.6        | 优化了 WebSocket 连接负载均衡实现和参数绑定 setObject 接口    |   -  |
 |        3.7.5        | 1. WebSocket 连接支持负载均衡 <br/> 2. 自动重连支持参数绑定 <br/> 3. 优化了高效写入序列化性能 <br/> 4. 优化了 WebSocket 连接 isValid 性能      |   -  |
 |        3.7.3        | 优化了 WebSocket 和 Native 查询实现     |   -  |
@@ -161,13 +163,16 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 其它问题请参考 [FAQ](../../../train-faq/faq)
 
 ## API 参考
+
 ### JDBC 驱动
 
 taos-jdbcdriver 实现了 JDBC 标准的 Driver 接口，提供了 2 个实现类。
+
 - WebSocket 连接使用驱动类 `com.taosdata.jdbc.ws.WebSocketDriver`。
 - 原生连接使用驱动类 `com.taosdata.jdbc.TSDBDriver`。
 
 #### URL 规范
+
 TDengine TSDB 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-WS]://[host1:port1,host2:port2,...,hostN:portN]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
@@ -182,6 +187,7 @@ TDengine TSDB 的 JDBC URL 规范格式为：
 **注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
 
 对于原生连接 url 中支持的常见配置参数如下（所有参数请参考 Properties 一节）：
+
 - user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - cfgdir：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
@@ -194,7 +200,7 @@ JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/
 
 **使用 TDengine TSDB 客户端驱动配置文件建立连接**  
 
-当使用 JDBC 原生连接连接 TDengine TSDB 集群时，可以使用 TDengine TSDB 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `host` 和 `port`。 
+当使用 JDBC 原生连接连接 TDengine TSDB 集群时，可以使用 TDengine TSDB 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `host` 和 `port`。
 配置如 `jdbc:TAOS://:/power?user=root&password=taosdata`。  
 在 TDengine TSDB 客户端驱动配置文件中指定 firstEp 和 secondEp，jdbc 会使用客户端的配置文件，建立连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
 TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
@@ -210,15 +216,16 @@ TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，�
 4. 支持配置多个端点，连接时随机选择实现负载均衡。
 
 对于 WebSocket 连接，url 中的常见配置参数如下（所有参数请参考 Properties 一节）：
+
 - user：登录 TDengine TSDB 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
-- messageWaitTimeout：消息超时时间，单位 ms，默认值为 60000。 
+- messageWaitTimeout：消息超时时间，单位 ms，默认值为 60000。
 - useSSL：连接中是否使用 SSL。
 - timezone：客户端使用的时区，连接上生效，默认值为系统时区。推荐不设置，使用系统时区性能更好。
 - varcharAsString：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
-- connmode：BI模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
+- connmode：BI 模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
 
 **注意**：部分配置项（比如：locale、charset）在 WebSocket 连接中不生效。WebSocket 连接仅支持 UTF-8 字符集。
 
@@ -230,6 +237,7 @@ TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，�
 > **注意**：应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
 
 properties 中的配置参数如下：  
+
 - TSDBDriver.PROPERTY_KEY_USER [`user`]：登录 TDengine TSDB 用户名，默认值 'root'。
 - TSDBDriver.PROPERTY_KEY_PASSWORD [`password`]：用户登录密码，默认值 'taosdata'。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
@@ -237,8 +245,8 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_CHARSET [`charset`]：客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE [`locale`]：仅在使用 JDBC 原生连接时生效。客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE [`timezone`]：
-    - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
-    - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。
+  - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
+  - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT [`messageWaitTimeout`]：消息超时时间，单位 ms，默认值为 60000。仅 WebSocket 连接下有效。
 - TSDBDriver.PROPERTY_KEY_USE_SSL [`useSSL`]：连接中是否使用 SSL。仅在 WebSocket 连接时生效。
 - TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION [`enableCompression`]：传输过程是否启用压缩。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
@@ -249,7 +257,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION [`disableSSLCertValidation`]：关闭 SSL 证书验证。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。
 
-- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]：BI模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
+- TSDBDriver.PROPERTY_KEY_CONNECT_MODE [`conmode`]：BI 模式，仅在 WebSocket 连接时生效，默认 0，可设置为 1。为 1 代表开启 BI 模式，元数据信息不统计子表，主要用在 BI 工具对接场景。
 - TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING [`varcharAsString`]：将 VARCHAR/BINARY 类型映射为 String，仅在使用 WebSocket 连接时生效。默认值为 false。
 - TSDBDriver.PROPERTY_KEY_APP_NAME [`app_name`]：App 名称，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为 java。
 - TSDBDriver.PROPERTY_KEY_APP_IP [`app_ip`]：App IP，可用于 `show connections` 查询结果显示。仅在使用 WebSocket 连接时生效。默认值为空。  
@@ -307,8 +315,8 @@ properties 中的配置参数如下：
   - **接口说明**：获取 JDBC 驱动程序的次版本号。
 
 ### 数据库元数据
-`DatabaseMetaData` 是 JDBC API 的一部分，它提供了关于数据库的元数据的详细信息，元数据意味着关于数据库数据的数据。通过 `DatabaseMetaData` 接口，可以查询数据库服务器的详细信息，比如数据库产品名称、版本、已安装的功能、表、视图、存储过程的列表等。这对于了解和适应不同数据库的特性非常有用。
 
+`DatabaseMetaData` 是 JDBC API 的一部分，它提供了关于数据库的元数据的详细信息，元数据意味着关于数据库数据的数据。通过 `DatabaseMetaData` 接口，可以查询数据库服务器的详细信息，比如数据库产品名称、版本、已安装的功能、表、视图、存储过程的列表等。这对于了解和适应不同数据库的特性非常有用。
 
 - `String getURL() throws SQLException`
   - **接口说明**：获取用于连接数据库的 URL。
@@ -454,7 +462,6 @@ properties 中的配置参数如下：
 | `boolean isCatalogAtStart()` | 判断在数据库中目录名是否出现在完全限定名的开头             |
 | `boolean supportsCatalogsInDataManipulation()` | 判断数据库在数据操作语句中是否支持目录名                  |  
 
-
 ### 连接功能
 
 JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口的对象，还提供了 `AbstractConnection` 接口，扩充了一些无模式写入接口。
@@ -572,7 +579,6 @@ JDBC 驱动支持创建连接，返回支持 JDBC 标准的 `Connection` 接口�
   - **接口说明**：获取所有客户端信息属性。
   - **返回值**：包含所有客户端信息属性的 `Properties` 对象。
   - **异常**：操作失败抛出 `SQLException` 异常。
-
 
 #### 无模式写入
 
@@ -756,6 +762,7 @@ JDBC 驱动提供了符合 JDBC 标准的 `Statement` 接口，支持以下功�
   - **异常**：检查过程中发生数据库访问错误或其他错误，将抛出 `SQLException` 异常。
 
 #### 扩展接口
+
 扩展接口主要用于请求链路跟踪。
 
 - `ResultSet executeQuery(String sql, Long reqId) throws SQLException`
@@ -782,12 +789,14 @@ JDBC 驱动提供了符合 JDBC 标准的 `Statement` 接口，支持以下功�
   - **返回值**：如果第一个结果是 `ResultSet` 对象，则返回 `true`；如果是更新计数或者没有结果，则返回 `false`
   - **异常**：执行语句失败抛出 `SQLException` 异常
 
-
 ### 结果获取
+
 JDBC 驱动支持标准的 ResultSet 接口，以及对应的结果集元数据 ResultSetMetaData 接口，提供了用于读取结果集中元数据和数据的方法。
 
 #### 结果集
+
 JDBC 驱动支持标准的 ResultSet 接口，提供了用于读取结果集中元数据和数据的方法。
+
 - `ResultSetMetaData getMetaData() throws SQLException`
   - **接口说明**：获取此 ResultSet 对象的列的数量、类型和属性。
   - **返回值**：此 ResultSet 对象的数据的 ResultSetMetaData 对象。
@@ -1042,6 +1051,7 @@ JDBC 驱动支持标准的 ResultSet 接口，提供了用于读取结果集中�
 #### 结果集元数据
 
 `ResultSetMetaData` 提供了获取结果集元数据的接口。`ResultSetMetaData` 类型的对象通过 `ResultSet` 类型对象的 `getMetaData` 接口获取。
+
 - `int getColumnCount() throws SQLException`
   - **接口说明**：获取结果集中列的总数。
   - **返回值**：结果集中列的数量。
@@ -1121,10 +1131,11 @@ JDBC 驱动支持标准的 ResultSet 接口，提供了用于读取结果集中�
     - `column`：列的编号（从 1 开始）。
   - **返回值**：列值在 Java 中对应的类名。
 
-
 ### 参数绑定
+
 PreparedStatement 允许使用预编译的 SQL 语句，这可以提高性能并提供参数化查询的能力，从而增加安全性。  
-JDBC 驱动提供了实现 PreparedStatement 接口的两个类： 
+JDBC 驱动提供了实现 PreparedStatement 接口的两个类：
+
 1. 对应原生连接的 TSDBPreparedStatement
 2. 对应 WebSocket 连接的 TSWSPreparedStatement  
 
@@ -1132,6 +1143,7 @@ JDBC 驱动提供了实现 PreparedStatement 接口的两个类：
 > **注意**：由于 PreparedStatement 继承了 Statement 接口，因此对于这部分重复的接口不再赘述，请参考 Statement 接口中对应描述。  
 
 #### 标准接口
+
 - `void setNull(int parameterIndex, int sqlType) throws SQLException`
   - **接口说明**：设置指定参数的 SQL 类型为 NULL。
   - **参数说明**：
@@ -1183,7 +1195,9 @@ JDBC 驱动提供了实现 PreparedStatement 接口的两个类：
   - **异常**：如果预编译语句已关闭，将抛出 SQLException 异常。
 
 #### 参数元数据
+
 ParameterMetaData 提供了参数元数据接口：
+
 - `int getParameterCount() throws SQLException`
   - **接口说明**：获取预编译语句中参数的数量。
   - **返回值**：参数的数量，类型为 `int`。
@@ -1284,7 +1298,7 @@ ParameterMetaData 提供了参数元数据接口：
     - `size`：所有字符串的最大长度，一般为建表语句的限制值。
   - **异常**：
     - 如果操作过程中发生错误，将抛出 SQLException 异常。
-- 下面接口除了要设置的值类型不同外，其余同 setString：   
+- 下面接口除了要设置的值类型不同外，其余同 setString：
   - `void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
   - `void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException`
   - `void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException`
@@ -1295,7 +1309,6 @@ ParameterMetaData 提供了参数元数据接口：
 - `void columnDataExecuteBatch() throws SQLException`
   - **接口说明**：执行当前 PrepareStatement 对象的批处理操作。
   - **异常**：如果操作过程中发生错误，将抛出 SQLException 异常。
-
 
 ### 数据订阅
 
@@ -1310,7 +1323,8 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
   - **返回值**：消费者对象
   - **异常**：如果创建失败，抛出 SQLException 异常。
 
-创建消费者支持属性列表： 
+创建消费者支持属性列表：
+
 - td.connect.type：连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
 - bootstrap.servers：
   1. 如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。支持多个端点，逗号分割，如 `ip1:port1,ip2:port2`，若 poll 过程中连接断开可以切换到其他节点（需设置自动重连参数 `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 `true`）。
@@ -1462,9 +1476,7 @@ ReferenceDeserializer 用来将消费到的一条记录反序列化为一个对�
 MapDeserializer 则会将消费到的一行数据反序列化为一个 `Map<String, Object>` 对象，其 key 为列名，值为 Java 对象。
 ReferenceDeserializer 和 MapDeserializer 的接口不会被用户直接调用，请参考使用样例。  
 
-
 ## 附录
 
 taos-jdbcdriver Javadoc:[taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)  
 JDBC Javadoc:[JDBC Reference doc](https://docs.oracle.com/javase/8/docs/api/java/sql/package-summary.html)
-

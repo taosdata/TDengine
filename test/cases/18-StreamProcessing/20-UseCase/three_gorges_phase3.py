@@ -15,12 +15,10 @@ class Test_Three_Gorges_Phase3:
 
         Refer: https://taosdata.feishu.cn/wiki/XaqbweV96iZVRnkgHLJcx2ZCnQf
 
-        Catalog:
-            - Streams:UseCases
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: None
 

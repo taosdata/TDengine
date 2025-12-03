@@ -329,7 +329,7 @@ class TestClusterDropTableByUid:
             tdSql.execute("drop user test;")
 
     def test_drop_table_by_uid(self):
-        """Verify drop table by uid on cluster
+        """Cluster drop table by uid
 
         1. Create cluster with 3 dnodes
         2. Verify the feature of 'drop table by uid' for TS-5111 on cluster

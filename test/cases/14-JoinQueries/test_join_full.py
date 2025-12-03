@@ -7,7 +7,7 @@ class TestJoinFull:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_full(self):
-        """Join Test Full
+        """Join mode
 
         1. test full_join
         2. test inner_join

@@ -365,6 +365,7 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.uid = pHandle->uid;
   pScanBaseInfo->readHandle.winRangeValid = pHandle->winRangeValid;
   pScanBaseInfo->readHandle.winRange = pHandle->winRange;
+  pScanBaseInfo->readHandle.cacheSttStatis = pHandle->cacheSttStatis;
 }
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
@@ -416,12 +417,24 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   return code;
 }
 
+typedef struct {
+  tb_uid_t tableUid;
+  tb_uid_t childUid;
+  int8_t   check;
+} STqPair;
+
 static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,
                                        SStorageAPI* pAPI, SArray** ppArrayRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int8_t  locked = 0;
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
+
   QUERY_CHECK_NULL(qa, code, lino, _error, terrno);
+
+  SArray* tUid = taosArrayInit(4, sizeof(STqPair));
+  QUERY_CHECK_NULL(tUid, code, lino, _error, terrno);
+
   int32_t numOfUids = taosArrayGetSize(tableIdList);
   if (numOfUids == 0) {
     (*ppArrayRes) = qa;
@@ -438,6 +451,8 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
   pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+
+  locked = 1;
   for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
     QUERY_CHECK_NULL(id, code, lino, _end, terrno);
@@ -467,9 +482,28 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
     }
 
+    STqPair item = {.tableUid = *id, .childUid = mr.me.uid, .check = 0};
     if (pScanInfo->pTagCond != NULL) {
-      bool          qualified = false;
-      STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid};
+      // tb_uid_t id = mr.me.uid;
+      item.check = 1;
+    }
+    if (taosArrayPush(tUid, &item) == NULL) {
+      QUERY_CHECK_NULL(NULL, code, lino, _end, terrno);
+    }
+  }
+
+  pAPI->metaReaderFn.clearReader(&mr);
+  locked = 0;
+
+  for (int32_t j = 0; j < taosArrayGetSize(tUid); ++j) {
+    bool     qualified = false;
+    STqPair* t = (STqPair*)taosArrayGet(tUid, j);
+    if (t == NULL) {
+      continue;
+    }
+
+    if (t->check == 1) {
+      STableKeyInfo info = {.groupId = 0, .uid = t->childUid};
       code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
@@ -481,17 +515,21 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
     }
 
-    // handle multiple partition
-    void* tmp = taosArrayPush(qa, id);
+    void* tmp = taosArrayPush(qa, &t->tableUid);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
+  // handle multiple partition
+
 _end:
 
-  pAPI->metaReaderFn.clearReader(&mr);
+  if (locked) {
+    pAPI->metaReaderFn.clearReader(&mr);
+  }
   (*ppArrayRes) = qa;
-
 _error:
+
+  taosArrayDestroy(tUid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1738,75 +1776,110 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* usec
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                         SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap) {
+  int32_t code = 0;                                        
+  if (*pTableListInfo != NULL) {
+    qDebug("table list already exists, no need to create again");
+    goto end;
+  }
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return terrno;
+    code = terrno;
+    goto end;
   }
 
   SScanPhysiNode pScanNode = {.suid = suid, .uid = uid, .tableType = tableType};
   SReadHandle    pHandle = {.vnode = pVnode};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
+  code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
-    return code;
+    goto end;
   }
   *pTableListInfo = pList;
+
+end:
   return 0;
 }
 
-int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size) {
-  if (pTableListInfo == NULL || pKeyInfo == NULL || size == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList) == 0) {
-    *size = 0;
-    *pKeyInfo = NULL;
-    return 0;
-  }
-  if (currentGroupId == -1) {
-    *size = taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList);
-    *pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, 0);
-    return 0;
-  }
-  return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
-}
+static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
+  bool   listAdded = false;
+  int32_t code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, true, &listAdded, NULL);
+  if (code == 0 && !listAdded) {
+    int32_t numOfTables = taosArrayGetSize(pUidList);
+    for (int i = 0; i < numOfTables; i++) {
+      void* tmp = taosArrayGet(pUidList, i);
+      if (tmp == NULL) {
+        return terrno;
+      }
+      STableKeyInfo info = {.uid = *(uint64_t*)tmp, .groupId = 0};
 
-int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid){
-  if (*pTableListInfo == NULL) {
-    *pTableListInfo = tableListCreate();
-    if (*pTableListInfo == NULL) {
-      return terrno;
+      void* p = taosArrayPush(((STableListInfo*)pListInfo)->pTableList, &info);
+      if (p == NULL) {
+        return terrno;
+      }
     }
   }
-  return tableListAddTableInfo(*pTableListInfo, uid, gid);
+  return code;
 }
 
-int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
-  if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
-    return 0;
+int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
+                                        SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
+                                        SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STableListInfo* pList = tableListCreate();
+  if (pList == NULL) {
+    code = terrno;
+    goto end;
   }
-  for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
-    int32_t offset = ((STableListInfo*)pTableListInfo)->groupOffset[i];
+  SArray* uidListCopy = taosArrayDup(uidList, NULL);
+  if (uidListCopy == NULL) {
+    code = terrno;
+    goto end;
+  }
+  SScanPhysiNode pScanNode = {.suid = suid, .tableType = TD_SUPER_TABLE};
+  SReadHandle    pHandle = {.vnode = pVnode};
 
-    STableKeyInfo* pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, offset);
-    if (pKeyInfo != NULL && pKeyInfo->groupId == gid) {
-      return i;
+  pList->idInfo.suid = suid;
+  pList->idInfo.tableType = TD_SUPER_TABLE;
+  code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, storageAPI);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }                                              
+  code = buildGroupIdMapForAllTables(pList, &pHandle, &pScanNode, pGroupTags, false, NULL, storageAPI, groupIdMap);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+  *tableList = pList->pTableList;
+  pList->pTableList = NULL;
+
+  taosArrayClear(uidList);
+  for (int32_t i = 0; i < taosArrayGetSize(uidListCopy); i++){
+    void* tmp = taosArrayGet(uidListCopy, i);
+    if (tmp == NULL) {
+      continue;
+    }
+    int32_t* slot = taosHashGet(pList->map, tmp, LONG_BYTES);
+    if (slot == NULL) {
+      if (taosArrayPush(uidList, tmp) == NULL) {
+        code = terrno;
+        goto end;
+      }
     }
   }
-  return -1;
+end:
+  taosArrayDestroy(uidListCopy);
+  tableListDestroy(pList);
+  return code;
 }
 
 void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
-
-uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) { return tableListGetTableGroupId(pTableListInfo, uid); }
-
-int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableListInfo*)pTableList)->numOfOuputGroups; }
-void    qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum) {((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; }
-SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListInfo*)pTableList)->pTableList; }
+SArray*  qStreamGetTableListArray(void* pTableListInfo) {
+  STableListInfo* pList = pTableListInfo;
+  return pList->pTableList;
+}
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
 

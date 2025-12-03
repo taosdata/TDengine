@@ -105,6 +105,14 @@ int32_t tsReadTimeout = 900;
 int32_t tsTimeToGetAvailableConn = 500000;
 int8_t  tsEnableIpv6 = 0;
 
+#ifdef TD_ENTERPRISE
+bool    tsAuthServer = 0;
+bool    tsAuthReq = 0;
+int32_t tsAuthReqInterval = 2592000;
+int32_t tsAuthReqHBInterval = 5;
+char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
+#endif
+
 int32_t tsNumOfQueryThreads = 0;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 16;
@@ -297,9 +305,13 @@ int32_t tsMinIntervalTime = 1;
 // maximum batch rows numbers imported from a single csv load
 int32_t tsMaxInsertBatchRows = 1000000;
 
+// maximum length of a SQL statement
+int32_t tsMaxSQLLength = (1 * 1024 * 1024);  // 1MB
+
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
 char    tsTagFilterCache = 0;
+char    tsStableTagFilterCache = 0;
 
 int32_t tsBypassFlag = 0;
 
@@ -353,6 +365,7 @@ bool    tsStartUdfd = true;
 // wal
 int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);
 bool    tsWalForceRepair = 0;
+bool    tsWalDeleteOnCorruption = false;
 
 // ttl
 bool    tsTtlChangeOnWrite = false;  // if true, ttl delete time changes on last write
@@ -378,6 +391,7 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int32_t tsStreamBufferSize = 0;       // MB
 int64_t tsStreamBufferSizeBytes = 0;  // bytes
+bool    tsStreamPerfLogEnabled = false;
 bool    tsFilterScalarMode = false;
 
 bool tsUpdateCacheBatch = true;
@@ -592,8 +606,12 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
   int32_t defaultMqttPort = 6083;
-  if (taosGetFqdn(defaultFqdn) != 0) {
+  int64_t cost = 0;
+  if (taosGetFqdnWithTimeCost(defaultFqdn, &cost) != 0) {
     tstrncpy(defaultFqdn, "localhost", TSDB_FQDN_LEN);
+  }
+  if (cost >= 1000) {
+    printf("warning: get fqdn cost %" PRId64 " ms\n", cost);
   }
 
   TAOS_CHECK_RETURN(
@@ -707,6 +725,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxSQLLength", tsMaxSQLLength, 1024 * 1024, 64 * 1024 * 1024, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -725,6 +745,9 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "AVX512Enable", tsAVX512Enable, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "tagFilterCache", tsTagFilterCache, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "stableTagFilterCache", tsStableTagFilterCache,
+        CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(
       cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
@@ -793,7 +816,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfStreamMgmtThreads = TRANGE(tsNumOfStreamMgmtThreads, 2, 5);
 
   tsNumOfVnodeStreamReaderThreads = tsNumOfCores / 2;
-  tsNumOfVnodeStreamReaderThreads = TMAX(tsNumOfVnodeStreamReaderThreads, 4);
+  tsNumOfVnodeStreamReaderThreads = TMAX(tsNumOfVnodeStreamReaderThreads, 2);
 
   tsNumOfStreamTriggerThreads = tsNumOfCores;
   tsNumOfStreamTriggerThreads = TMAX(tsNumOfStreamTriggerThreads, 4);
@@ -855,7 +878,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeStreamMgmtThreads", tsNumOfMnodeStreamMgmtThreads, 2, 5, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamMgmtThreads", tsNumOfStreamMgmtThreads, 2, 5, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeStreamReaderThreads", tsNumOfVnodeStreamReaderThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeStreamReaderThreads", tsNumOfVnodeStreamReaderThreads, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamTriggerThreads", tsNumOfStreamTriggerThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamRunnerThreads", tsNumOfStreamRunnerThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * RPC_MEMORY_USAGE_RATIO * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
@@ -871,6 +894,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncApplyQueueSize", tsSyncApplyQueueSize, 32, 2048, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncRoutineReportInterval", tsRoutineReportInterval, 5, 600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "syncLogHeartbeat", tsSyncLogHeartbeat, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "walDeleteOnCorruption", tsWalDeleteOnCorruption, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncTimeout", tsSyncTimeout, 0, 60 * 24 * 2 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
 
@@ -971,7 +995,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamBatchRequestWaitMs", tsStreamBatchRequestWaitMs, 0, 30 * 60 * 1000, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "rpcRecvLogThreshold", tsRpcRecvLogThreshold, 1, 1024*1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "rpcRecvLogThreshold", tsRpcRecvLogThreshold, 1, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+
+#ifdef TD_ENTERPRISE
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authServer", tsAuthServer, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authReq", tsAuthReq, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "authReqInterval", tsAuthReqInterval, 1, 86400 * 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "authReqUrl", tsAuthReqUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
+#endif
   // clang-format on
 
   // GRANT_CFG_ADD;
@@ -1497,6 +1528,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
   tsEnableTLS = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxSQLLength");
+  tsMaxSQLLength = pItem->i32;
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1604,6 +1638,21 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
 
+#ifdef TD_ENTERPRISE
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authServer");
+  tsAuthServer = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authReq");
+  tsAuthReq = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authReqInterval");
+  tsAuthReqInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authReqUrl");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
+#endif
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
   tsRetentionSpeedLimitMB = pItem->i32;
 
@@ -1634,6 +1683,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tagFilterCache");
   tsTagFilterCache = (bool)pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "stableTagFilterCache");
+  tsStableTagFilterCache = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogExceptDb");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
@@ -1988,6 +2040,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsRpcRecvLogThreshold = pItem->i32;
 
   // GRANT_CFG_GET;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walDeleteOnCorruption");
+  tsWalDeleteOnCorruption = pItem->bval;
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2651,6 +2707,25 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 #endif
     goto _exit;
   }
+#ifdef TD_ENTERPRISE
+  if (strcasecmp(name, "authServer") == 0) {
+    tsAuthServer = pItem->bval;
+    goto _exit;
+  }
+  if (strcasecmp(name, "authReq") == 0) {
+    tsAuthReq = pItem->bval;
+    goto _exit;
+  }
+  if (strcasecmp(name, "authReqInterval") == 0) {
+    tsAuthReqInterval = pItem->i32;
+    goto _exit;
+  }
+  if (strcasecmp(name, "authReqUrl") == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
+    tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
+    goto _exit;
+  }
+#endif
 
   if (strcasecmp(name, "minReservedMemorySize") == 0) {
     tsMinReservedMemorySize = pItem->i32;
@@ -2679,6 +2754,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
                                          {"asynclog", &tsAsyncLog},
+                                         {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"enableWhiteList", &tsEnableWhiteList},
                                          {"statusInterval", &tsStatusInterval},
                                          {"statusIntervalMs", &tsStatusIntervalMs},
@@ -2780,7 +2856,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"forceKillTrans", &tsForceKillTrans},
                                          {"enableTLS", &tsEnableTLS},
                                          {"rpcRecvLogThreshold", &tsRpcRecvLogThreshold},
-                                         {"tagFilterCache", &tsTagFilterCache}};
+                                         {"tagFilterCache", &tsTagFilterCache},
+                                         {"stableTagFilterCache", &tsStableTagFilterCache}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2916,6 +2993,10 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       } else if (strcasecmp("minimalLogDirGB", name) == 0) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsLogSpace.reserved);
+        matched = true;
+      } else if (strcasecmp("maxSQLLength", name) == 0) {
+        tsMaxSQLLength = pItem->i32;
+        uInfo("%s set to %d", name, tsMaxSQLLength);
         matched = true;
       }
       break;

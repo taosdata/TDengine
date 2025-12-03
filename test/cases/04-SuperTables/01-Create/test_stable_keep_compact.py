@@ -663,7 +663,7 @@ class TestStbKeepCompact:
         tdSql.checkEqual(tdSql.getData(0, 0), expected_preserved_count)
 
     def test_super_table_keep_compact(self):
-        """Verify super table keep parameter
+        """Stable keep options
     
         1. Super table keep parameter only takes effect during compaction
         2. Before compaction, all historical data is visible regardless of keep settings

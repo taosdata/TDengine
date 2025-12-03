@@ -103,7 +103,7 @@ class TestDbTbNameCheck:
         tdSql.execute(f'drop database `{dbname}`')
 
     def test_db_tb_name_check(self):
-        """ Check Database/Table Name validation
+        """Name table
 
         1. Database name validation
         2. Table name validation
