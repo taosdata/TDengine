@@ -306,6 +306,7 @@ typedef struct STableScanInfo {
   bool            virtualStableScan;
   SHashObj*       readerCache;
   bool            newReader;
+  SArray*         pBlockColMap;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
