@@ -21,7 +21,7 @@ fi
 export ASAN_OPTIONS=detect_odr_violation=0
 
 # Get script directory
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # set test code directory
 TEST_CODE_DIR="$(dirname "$SCRIPT_DIR")"
 
