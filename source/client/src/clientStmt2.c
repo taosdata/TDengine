@@ -2425,8 +2425,7 @@ _return:
 
   if (code != TSDB_CODE_SUCCESS) {
     STMT2_ELOG("stmt get fileds parse failed, code:%d", code);
-    taos_free_result(pStmt->exec.pRequest);
-    pStmt->exec.pRequest = NULL;
+    resetRequest(pStmt);
   }
 
   pStmt->errCode = preCode;
@@ -2482,6 +2481,11 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
 _return:
 
   pStmt->errCode = preCode;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    STMT2_ELOG("stmt get fileds parse failed, code:%d", code);
+    resetRequest(pStmt);
+  }
 
   return code;
 }
