@@ -41,11 +41,10 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 
 <TabItem label="tar.gz 安装" value="tarinst">
 1. 从列表中下载获得 tar.gz 安装包：
-    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.8" platform="Linux-Generic" pkgType="Server"/>
     <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.8" platform="Linux-Generic" pkgType="Server"/>
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
     ```bash
-    tar -zxvf tdengine-tsdb-enterprise-3.3.8.8-linux-x64.tar.gz
+    tar -zxvf tdengine-tsdb-oss-3.3.8.8-linux-x64.tar.gz
     ```
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
     ```bash
@@ -107,14 +106,15 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 <TabItem label="Windows 安装" value="windows">
 1. 从列表中下载获得最新 Windows 安装程序：
-    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.8" platform="Windows" pkgType="Server"/>
+    <PkgListV37 productName="TDengine TSDB-OSS Client" version="3.3.8.8" platform="Windows" pkgType="Client"/>
 2. 运行可执行程序来安装 TDengine。
 
 :::note
 
-- 从 3.0.1.7 版本开始，只提供 TDengine TSDB 客户端的 Windows 客户端的下载。想要使用 TDengine TSDB 服务端的 Windows 版本，请联系 TDengine TSDB 销售团队升级为企业版。
-- 目前 TDengine TSDB 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
 - 从 TDengine TSDB 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine TSDB 销售团队升级为企业版。
+
+- 目前 TDengine TSDB 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
+
 - Windows 上需要安装 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)，如果已经安装此运行库可忽略。
 
 :::
