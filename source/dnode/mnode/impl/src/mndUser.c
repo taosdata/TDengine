@@ -1789,6 +1789,27 @@ int32_t mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
     char  *key = taosHashGetKey(policies, &klen);
     size_t vlen = taosHashGetValueSize(policies);
 
+    SPrivObjPolicies *pNewPolicies = taosHashGet(pNew, key, klen);
+    if (pNewPolicies) {
+      // merge policies
+      for (int32_t i = 0; i < TSDB_PRIV_OBJ_POLICY_TYPE_MAX; ++i) {
+        if (policies->policy[i]) {
+          if (pNewPolicies->policy[i]) {
+            taosArrayMerge(pNewPolicies->policy[i], policies->policy[i], NULL);
+          } else {
+            pNewPolicies->policy[i] = taosArrayDup(policies->policy[i], NULL);
+            if (pNewPolicies->policy[i] == NULL) {
+              code = terrno;
+              taosHashCancelIterate(pOld, policies);
+              taosHashCleanup(pNew);
+              TAOS_RETURN(code);
+            }
+          }
+        }
+      }
+      continue;
+    }
+
     if ((code = taosHashPut(pNew, key, klen, vlen ? policies : NULL, vlen)) != 0) {
       taosHashCancelIterate(pOld, policies);
       taosHashCleanup(pNew);
