@@ -293,6 +293,16 @@ static int32_t mndCountUserConns(SMnode *pMnode, const char *user) {
 
 
 
+static bool constTimeEq(const char *a, const char *b, size_t len) {
+  volatile uint8_t res = 0;
+  for (size_t i = 0; i < len; i++) {
+    res |= a[i] ^ b[i];
+  }
+  return res == 0;
+}
+
+
+
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SUserObj       *pUser = NULL;
@@ -367,7 +377,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   char tmpPass[TSDB_PASSWORD_LEN] = {0};
-  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+  (void)memcpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+  tmpPass[TSDB_PASSWORD_LEN - 1] = 0;
 
   if (pUser->passEncryptAlgorithm != 0) {
     if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
@@ -377,7 +388,12 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, pUser->salt, NULL), NULL, _OVER);
   }
 
-  if (strncmp(tmpPass, pUser->passwords[0].pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
+  if (tsMndSkipGrant) {
+    pUser->lastLoginTime = now;
+  } else if (constTimeEq(tmpPass, pUser->passwords[0].pass, sizeof(tmpPass) - 1)) {
+    pUser->failedLoginCount = 0;
+    pUser->lastLoginTime = now;
+  } else {
     mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     if (pUser->failedLoginAttempts >= 0) {
       if (pUser->failedLoginCount >= pUser->failedLoginAttempts) {
@@ -386,14 +402,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
       }
       pUser->failedLoginCount++;
       pUser->lastFailedLoginTime = now;
-      mndUpdateUser(pMnode, pUser, NULL);
     }
     code = TSDB_CODE_MND_AUTH_FAILURE;
+  }
+
+  mndUpdateUser(pMnode, pUser, NULL);
+  if (code != 0) {
     goto _OVER;
-  } else {
-    pUser->failedLoginCount = 0;
-    pUser->lastLoginTime = now;
-    mndUpdateUser(pMnode, pUser, NULL);
   }
 
   if (connReq.db[0]) {

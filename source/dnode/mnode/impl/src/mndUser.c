@@ -2100,9 +2100,10 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   }
 
   if (salt[0] != 0) {
-    char passWithSalt[TSDB_PASSWORD_LEN + TSDB_PASSWORD_SALT_LEN + 1];
-    snprintf(passWithSalt, sizeof(passWithSalt), "%s%s", pass, salt);
-    taosEncryptPass_c((uint8_t *)passWithSalt, strlen(passWithSalt), pass);
+    char passAndSalt[TSDB_PASSWORD_LEN - 1 + TSDB_PASSWORD_SALT_LEN];
+    (void)memcpy(passAndSalt, pass, TSDB_PASSWORD_LEN - 1);
+    (void)memcpy(passAndSalt + TSDB_PASSWORD_LEN - 1, salt, TSDB_PASSWORD_SALT_LEN);
+    taosEncryptPass_c((uint8_t *)passAndSalt, sizeof(passAndSalt), pass);
   }
 
   unsigned char packetData[TSDB_PASSWORD_LEN] = {0};
