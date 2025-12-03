@@ -298,10 +298,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if (pShow->type == TSDB_MGMT_TABLE_COL) {  // expend capacity for ins_columns
+  // expend capacity for ins_columns and privileges
+  if (pShow->type == TSDB_MGMT_TABLE_COL || TSDB_MGMT_TABLE_PRIVILEGES ||
+      pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
-  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
-    rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {

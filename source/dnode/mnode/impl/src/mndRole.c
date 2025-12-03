@@ -145,7 +145,7 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleTyp
   roleObj.enable = 1;
   roleObj.sys = 1;
 
-  TAOS_CHECK_EXIT(mndFillSystemRolePrivileges(pMnode, &roleObj, role));
+  TAOS_CHECK_EXIT(mndFillSystemRolePrivileges(pMnode, &roleObj, roleType));
 
   SSdbRaw *pRaw = mndRoleActionEncode(&roleObj);
   if (pRaw == NULL) goto _exit;
