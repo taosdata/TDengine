@@ -4,7 +4,7 @@
 
 To easily check the status of TDengine TSDB and perform various ad-hoc database queries, TDengine TSDB provides a command-line interface. To enter the TDengine CLI, simply execute `taos` (on Linux/Mac) or `taos.exe` (on Windows) in your terminal. The prompt appears as:
 
-```text
+```sql
 taos>
 ```
 
@@ -19,7 +19,7 @@ INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
 SELECT * FROM t;
 ```
 
-```text
+```sql
            ts            |    speed    |
 ========================================
  2019-07-15 00:00:00.000 |          10 |
