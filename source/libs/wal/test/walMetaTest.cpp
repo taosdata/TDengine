@@ -128,7 +128,7 @@ class WalRetentionEnv : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg cfg;
+    SWalCfg cfg = {0};
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
     cfg.committed = -1;

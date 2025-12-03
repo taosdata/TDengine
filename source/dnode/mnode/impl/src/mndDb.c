@@ -867,19 +867,23 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .compactTimeOffset = pCreate->compactTimeOffset,
   };
   if (strlen(pCreate->encryptAlgrName) > 0) {
-    SEncryptAlgrObj *pEncryptAlgr = mndAcquireEncryptAlgrByAId(pMnode, pCreate->encryptAlgrName);
-    if (pEncryptAlgr != NULL) {
-      if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
-        code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
-        mError("db:%s, faile to create, encrypt algorithm not match, %s, expect type %d", pCreate->db,
-               pCreate->encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
+    if (strncasecmp(pCreate->encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
+      dbObj.cfg.encryptAlgorithm = 0;
+    } else {
+      SEncryptAlgrObj *pEncryptAlgr = mndAcquireEncryptAlgrByAId(pMnode, pCreate->encryptAlgrName);
+      if (pEncryptAlgr != NULL) {
+        if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
+          code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
+          mError("db:%s, failed to create, encrypt algorithm not match, %s, expect type %d", pCreate->db,
+                 pCreate->encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
+          TAOS_RETURN(code);
+        }
+        dbObj.cfg.encryptAlgorithm = pEncryptAlgr->id;
+      } else {
+        code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
+        mError("db:%s, failed to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
         TAOS_RETURN(code);
       }
-      dbObj.cfg.encryptAlgorithm = pEncryptAlgr->id;
-    } else {
-      code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
-      mError("db:%s, faile to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
-      TAOS_RETURN(code);
     }
   }
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -1394,7 +1398,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSAlterDbReq(pReq->pCont, pReq->contLen, &alterReq), NULL, _OVER);
 
-  mInfo("db:%s, start to alter", alterReq.db);
+  mInfo("db:%s, start to alter, encryt_algr:%s", alterReq.db, alterReq.encryptAlgrName);
 
   pDb = mndAcquireDb(pMnode, alterReq.db);
   if (pDb == NULL) {
@@ -1428,6 +1432,37 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) goto _OVER;
+  }
+
+  if (strlen(alterReq.encryptAlgrName) > 0) {
+    mInfo("db:%s, check encryt algr:%s", alterReq.db, alterReq.encryptAlgrName);
+
+    if (strncasecmp(alterReq.encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
+      if (pDb->cfg.encryptAlgorithm != 0) {
+        code = TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE;
+        mError("db:%s, failed to alter, not allowed to change, %s", alterReq.db, alterReq.encryptAlgrName);
+        goto _OVER;
+      }
+    } else {
+      SEncryptAlgrObj *pEncryptAlgr = mndAcquireEncryptAlgrByAId(pMnode, alterReq.encryptAlgrName);
+      if (pEncryptAlgr != NULL) {
+        if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
+          code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
+          mError("db:%s, failed to alter, encrypt algorithm not match, %s, expect type %d", alterReq.db,
+                 alterReq.encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
+          goto _OVER;
+        }
+        if (pEncryptAlgr->id != pDb->cfg.encryptAlgorithm) {
+          code = TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE;
+          mError("db:%s, failed to alter, not allowed to change, %s", alterReq.db, alterReq.encryptAlgrName);
+          goto _OVER;
+        }
+      } else {
+        code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
+        mError("db:%s, failed to alter, encrypt algorithm not exist, %s", alterReq.db, alterReq.encryptAlgrName);
+        goto _OVER;
+      }
+    }
   }
 
   code = mndSetDbCfgFromAlterDbReq(&dbObj, &alterReq);

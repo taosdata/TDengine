@@ -607,7 +607,7 @@ SEncryptAlgrObj *mndAcquireEncryptAlgrByAId(SMnode *pMnode, char* algorithm_id) 
     pIter = sdbFetch(pSdb, SDB_ENCRYPT_ALGORITHMS, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
-    if(strncmp(pObj->algorithm_id, algorithm_id, TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
+    if (strncasecmp(pObj->algorithm_id, algorithm_id, TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
       sdbCancelFetch(pSdb, pIter);
       break;
     }
