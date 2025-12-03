@@ -1835,7 +1835,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   stmt = taos_stmt2_init(taos, &option);
   code =
       taos_stmt2_prepare(stmt, "INSERT INTO `stmt2_testdb_18`.`stb2` (ts,int_col,int_tag,tbname)  VALUES (?,?,?,?)", 0);
-      checkError(stmt, code, __FILE__, __LINE__);
+  checkError(stmt, code, __FILE__, __LINE__);
   char*            tbname3[2] = {"tb1", "tb10"};
   TAOS_STMT2_BIND  tag = {TSDB_DATA_TYPE_INT, &tag_i[0], &tag_l[0], NULL, 1};
   TAOS_STMT2_BIND* pTag[2] = {&tag, &tag};
@@ -4237,6 +4237,142 @@ TEST(stmt2Case, no_tag) {
     taos_stmt2_close(stmt);
   }
   do_query(taos, "drop database if exists stmt2_testdb_23");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, vtable) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  // Drop database if exists
+  do_query(taos, "drop database if exists test_vtable_query_after_alter_origin_table");
+
+  // Create database
+  do_query(taos, "create database test_vtable_query_after_alter_origin_table");
+  do_query(taos, "use test_vtable_query_after_alter_origin_table");
+
+  // Create normal table
+  do_query(taos, "create table ntb_0(ts timestamp, c1 int, c2 int, c3 int)");
+
+  // Create super table and child table
+  do_query(taos, "create stable stb (ts timestamp, c1 int, c2 int, c3 int) tags (t1 int)");
+  do_query(taos, "create table ctb_0 using stb tags (1)");
+
+  // Insert data
+  do_query(taos, "insert into ntb_0 values(1591060628000, 1, 1, 1)");
+  do_query(taos, "insert into ntb_0 values(1591060628100, 2, 2, 2)");
+  do_query(taos, "insert into ntb_0 values(1591060628200, 3, 3, 3)");
+
+  do_query(taos, "insert into ctb_0 values(1591060628000, 1, 1, 1)");
+  do_query(taos, "insert into ctb_0 values(1591060628100, 2, 2, 2)");
+  do_query(taos, "insert into ctb_0 values(1591060628200, 3, 3, 3)");
+
+  // Create virtual tables
+  do_query(taos, "create stable vstb (ts timestamp, c1 int, c2 int, c3 int) tags (t1 int) virtual 1");
+  do_query(taos, "create vtable vtb_0 (c1 from ntb_0.c1, c2 from ntb_0.c2, c3 from ntb_0.c3) using vstb tags (1)");
+  do_query(taos, "create vtable vtb_1 (c1 from ctb_0.c1, c2 from ctb_0.c2, c3 from ctb_0.c3) using vstb tags (2)");
+
+  do_query(taos, "select tbname from vstb where ts = 1591060628000 order by tbname");
+  // 0. Query vstable before alter origin table
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+  TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  const char* sql = "select tbname from vstb where ts = ? order by tbname";
+  int         code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(fieldNum, 1);
+
+  int              t64_len = sizeof(int64_t);
+  int64_t          ts = 1591060628000;
+  TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1};
+  TAOS_STMT2_BIND* paramv = &params;
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  TAOS_RES* pRes = taos_stmt2_result(stmt);
+  ASSERT_NE(pRes, nullptr);
+  TAOS_ROW row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  ASSERT_EQ(strncmp((char*)row[0], "vtb_0", 5), 0);
+  row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  ASSERT_EQ(strncmp((char*)row[0], "vtb_1", 5), 0);
+  taos_stmt2_close(stmt);
+
+  stmt = taos_stmt2_init(taos, &option);
+  code = taos_stmt2_prepare(stmt, "select c1 from vtb_0 where ts = ? order by c1", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+  int t2_len = 5;
+  // TAOS_STMT2_BIND  params2 = {TSDB_DATA_TYPE_BINARY, (void*)"vtb_0", &t2_len, NULL, 1};
+  // TAOS_STMT2_BIND* paramv2[2] = {&params2, &params};
+  // bindv = {1, NULL, NULL, &paramv2[0]};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code, __FILE__, __LINE__);
+  pRes = taos_stmt2_result(stmt);
+  ASSERT_NE(pRes, nullptr);
+  row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  ASSERT_EQ(strncmp((char*)row[0], "1", 1), 0);
+
+  taos_stmt2_close(stmt);
+
+  // // 1. Alter origin table (normal table), drop column and add new column with same name, then query vstable
+  // do_query(taos, "alter table ntb_0 drop column c3");
+  // do_query(taos, "alter table ntb_0 add column c3 int");
+
+  // pRes = taos_query(taos, "select * from vstb");
+  // ASSERT_NE(pRes, nullptr);
+  // code = taos_errno(pRes);
+  // while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+  //   taosMsleep(2000);
+  //   pRes = taos_query(taos, "select * from vstb");
+  //   code = taos_errno(pRes);
+  // }
+  // ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  // getRecordCounts = 0;
+  // while ((taos_fetch_row(pRes))) {
+  //   getRecordCounts++;
+  // }
+  // ASSERT_EQ(getRecordCounts, 6);
+  // taos_free_result(pRes);
+
+  // // 2. Alter origin table (child table), drop column and add new column with same name, then query vstable
+  // do_query(taos, "alter table stb drop column c3");
+  // do_query(taos, "alter table stb add column c3 int");
+
+  // pRes = taos_query(taos, "select * from vstb");
+  // ASSERT_NE(pRes, nullptr);
+  // code = taos_errno(pRes);
+  // while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+  //   taosMsleep(2000);
+  //   pRes = taos_query(taos, "select * from vstb");
+  //   code = taos_errno(pRes);
+  // }
+  // ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  // getRecordCounts = 0;
+  // while ((taos_fetch_row(pRes))) {
+  //   getRecordCounts++;
+  // }
+  // ASSERT_EQ(getRecordCounts, 6);
+  // taos_free_result(pRes);
+
+  // Cleanup
+  do_query(taos, "drop database if exists test_vtable_query_after_alter_origin_table");
   taos_close(taos);
 }
 

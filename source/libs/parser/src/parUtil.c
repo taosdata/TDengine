@@ -1561,8 +1561,22 @@ int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
+
+  if (NULL == pMetaCache->pVStbRefDbs) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   SArray* pRefs = NULL;
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pVStbRefDbs, (void**)&pRefs);
+
+  // Special handling for stmt scenario where slot is reserved but data is not filled
+  // In this case, getMetaDataFromHash returns INTERNAL_ERROR because value is nullPointer
+  if (TSDB_CODE_PAR_INTERNAL_ERROR == code) {
+    // Data not filled in cache (stmt scenario without putMetaDataToCache)
+    // Return table not exist to indicate VStbRefDbs is not available
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   if (TSDB_CODE_SUCCESS == code && NULL != pRefs) {
     *pOutput = pRefs;
   }

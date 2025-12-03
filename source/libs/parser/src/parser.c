@@ -833,9 +833,21 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
 }
 
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery) {
-  int32_t code = translate(pCxt, pQuery, NULL);
+  SParseMetaCache metaCache = {0};
+  int32_t         code = TSDB_CODE_SUCCESS;
+
+  if (pQuery->pRoot) {
+    code = collectMetaKey(pCxt, pQuery, &metaCache);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translate(pCxt, pQuery, &metaCache);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
   }
+
+  destoryParseMetaCache(&metaCache, true);
   return code;
 }
