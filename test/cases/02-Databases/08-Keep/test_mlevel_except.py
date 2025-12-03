@@ -97,7 +97,8 @@ class TestMultilevel:
         tdDnodes.stop(1)
         time.sleep(3)
         # delete dirs
-        os.system('rm -rf /mnt/data*')
+        for i in range(1, 5):
+            shutil.rmtree(f'/mnt/data{i}', ignore_errors=True)
         
     def dir_not_exist(self):
         tdLog.info("============== dir_not_exist test ===============")
