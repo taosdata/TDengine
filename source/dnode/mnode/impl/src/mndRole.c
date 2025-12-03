@@ -109,18 +109,13 @@ bool mndNeedRetrieveRole(SUserObj *pUser) {
   return result;
 }
 
-// typedef struct {
-//   int32_t nPolicies;
-//   SArray* policy[PRIV_TBL_POLICY_MAX];  // element of SArray: SPrivTblPolicy
-// } SPrivTblPolicies;
-
 static int32_t mndFillSystemRoleTblPrivileges(SHashObj **ppHash) {
   int32_t code = 0, lino = 0;
   char    objKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
   int32_t keyLen = privTblKey("1.*", "*", objKey, sizeof(objKey));
 
   if (!(*ppHash) &&
-      ((*ppHash) = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+      !((*ppHash) = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
     TAOS_CHECK_EXIT(terrno);
   }
 
@@ -162,7 +157,7 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
         }
         default: {
           int32_t keyLen = privObjKey(pPrivInfo->objType, "1.*", "*", objKey, sizeof(objKey));
-          if (!pObj->objPrivs && (pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+          if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
                                                                 true, HASH_ENTRY_LOCK))) {
             TAOS_CHECK_EXIT(terrno);
           }
@@ -180,6 +175,9 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
     }
   }
 _exit:
+  if (code != 0) {
+    mError("role, %s failed at line %d for %s since %s", __func__, lino, pObj->name, tstrerror(code));
+  }
   TAOS_RETURN(code);
 }
 
@@ -248,7 +246,7 @@ _exit:
 
 static int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, const SHashObj *pHash) {
   int32_t code = 0, lino = 0;
-  size_t  klen = 0;
+  size_t  klen = 0, vlen = 0;
   int32_t nPolicies = taosHashGetSize((SHashObj *)pHash);
   TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nPolicies));
   if (nPolicies > 0) {
@@ -256,6 +254,10 @@ static int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, const SHashObj *pHa
     while (pIter = taosHashIterate((SHashObj *)pHash, pIter)) {
       char *tbKey = taosHashGetKey(pIter, &klen);
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, tbKey));
+      if ((vlen = taosHashGetValueSize(pIter)) == 0) {
+        TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, 0));
+        continue;  // 1.*.* or 1.db.*
+      }
       SPrivTblPolicies *pTblPolicies = (SPrivTblPolicies *)pIter;
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTblPolicies->nPolicies));
       for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {

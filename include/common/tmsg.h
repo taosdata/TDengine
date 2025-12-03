@@ -3499,7 +3499,7 @@ typedef struct SColIdNameKV {
   char     colName[TSDB_COL_NAME_LEN];
 } SColIdNameKV;
 
-typedef struct SColIdNameKV {
+typedef struct SColNameFlag {
   col_id_t colId;
   char     colName[TSDB_COL_NAME_LEN];
   int8_t   flag;

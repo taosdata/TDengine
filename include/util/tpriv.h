@@ -267,23 +267,23 @@ typedef enum {
 
 typedef enum {
   PRIV_OBJ_UNKNOWN = -1,
-  PRIV_OBJ_CLUSTER,
-  PRIV_OBJ_NODE,
-  PRIV_OBJ_DB,
-  PRIV_OBJ_TABLE,
-  PRIV_OBJ_FUNCTION,
-  PRIV_OBJ_INDEX,
-  PRIV_OBJ_VIEW,
-  PRIV_OBJ_USER,
-  PRIV_OBJ_ROLE,
-  PRIV_OBJ_RSMA,
-  PRIV_OBJ_TSMA,
-  PRIV_OBJ_TOPIC,
-  PRIV_OBJ_STREAM,
-  PRIV_OBJ_MOUNT,
-  PRIV_OBJ_AUDIT,
-  PRIV_OBJ_TOKEN,
-  PRIV_OBJ_MAX,
+  PRIV_OBJ_CLUSTER = 0,
+  PRIV_OBJ_NODE = 1,
+  PRIV_OBJ_DB = 2,
+  PRIV_OBJ_TABLE = 3,
+  PRIV_OBJ_FUNCTION = 4,
+  PRIV_OBJ_INDEX = 5,
+  PRIV_OBJ_VIEW = 6,
+  PRIV_OBJ_USER = 7,
+  PRIV_OBJ_ROLE = 8,
+  PRIV_OBJ_RSMA = 9,
+  PRIV_OBJ_TSMA = 10,
+  PRIV_OBJ_TOPIC = 11,
+  PRIV_OBJ_STREAM = 12,
+  PRIV_OBJ_MOUNT = 13,
+  PRIV_OBJ_AUDIT = 14,
+  PRIV_OBJ_TOKEN = 15,
+  PRIV_OBJ_MAX = 16,
 } EPrivObjType;
 
 typedef struct {
@@ -310,11 +310,18 @@ typedef struct {
   uint32_t colHash;  // MurmurHash3_32 of cols, 0 means all columns
 } SPrivTblPolicy;
 
+/**
+ * Table Privilege Policies:
+ * - PRIV_TBL_POLICY_TBL: examples
+ * select count(c3) from ctb0; => normal output
+ * select count(c3) from ctb1; => 0
+ * select c0,c1,c2 from stb0;  => t1: 1,0,NULL
+ */
 typedef enum {
   PRIV_TBL_POLICY_TBL = 0,       // no tag, all columns
-  PRIV_TBL_POLICY_TBL_COLS = 1,  // no tag, specific columns
-  PRIV_TBL_POLICY_TAG = 2,       // tag condition, all columns
-  PRIV_TBL_POLICY_TAG_COLS = 3,  // tag condition, specific columns
+  PRIV_TBL_POLICY_TBL_COLS = 1,  // no tag, specific columns, e.g. (c0,c1)
+  PRIV_TBL_POLICY_TAG = 2,       // tag condition, all columns, e.g. t1 = 0
+  PRIV_TBL_POLICY_TAG_COLS = 3,  // tag condition, specific columns, e.g. t1 = 1, c1,c2;  t1 = 2, c2,c3
   PRIV_TBL_POLICY_MAX
 } SPrivTblPolicyType;
 
