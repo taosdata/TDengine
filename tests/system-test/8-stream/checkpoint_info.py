@@ -127,7 +127,7 @@ class TDTestCase:
                 time.sleep(5)
                 continue
     def check_vnodestate(self):
-        sql = 'select distinct restored from information_schema.ins_vnodes'
+        sql = 'select distinct applied from information_schema.ins_vnodes'
         if tdSql.getResult(sql) != [(True,)]:
             tdLog.debug(f"vnode not restored, wait 5s")
             time.sleep(5)
