@@ -145,7 +145,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
     - sasl.username (string): The username for SASL authentication. Required for "PLAIN" or "SCRAM" mechanisms.
     - sasl.password (string): The password for SASL authentication.
 
-    For more parameters, refer to the librdkafka configuration documentation: https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
+    For more parameters, refer to the [librdkafka configuration documentation](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md).
 
 #### schema Parameters
 
@@ -481,6 +481,7 @@ This configuration is designed for publishing simulated device data to an MQTT m
 This example demonstrates how to use taosgen to simulate 10,000 smart meters, each collecting current, voltage, phase, and location. Each meter generates a record every 5 minutes, with current data generated randomly, voltage simulated using a sine wave, and the generated data published to Kafka.
 
 Configuration details:
+
 - Kafka configuration
   - Connection info: Use `bootstrap_servers` to describe the connection to the Kafka Broker.
   - Topic configuration: Use the topic `factory-electric-meter`.

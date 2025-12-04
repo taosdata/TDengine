@@ -144,7 +144,7 @@ taosgen -h 127.0.0.1 -c config.yaml
     - sasl.username (字符串)：SASL 身份验证的用户名。当使用 "PLAIN" 或 "SCRAM" 机制时需要提供。
     - sasl.password (字符串)：SASL 身份验证的密码。
 
-    更多参数请参考 librdkafka 库的配置说明：https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
+    更多参数请参考 [librdkafka 配置文档](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md)。
 
 #### schema 参数
 
@@ -489,6 +489,7 @@ d1,1700000310000,4.98,220.9,147.9
 该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位、位置四个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据发布到 Kafka。
 
 配置详解：
+
 - Kafka 配置参数
   - 连接信息：使用 bootstrap_servers 描述连接 Kafka Broker 的信息。
   - 主题配置 (topic)：使用主题 factory-electric-meter。
