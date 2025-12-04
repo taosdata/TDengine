@@ -72,24 +72,26 @@ else
   if [ "$verMode" == "cloud" ]; then
     taostools_bin_files=" ${build_dir}/bin/taosBenchmark"
   else
-    wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
-      && echo "TDinsight.sh downloaded!" \
-      || echo "failed to download TDinsight.sh"
-    # download TDinsight caches
-    orig_pwd=$(pwd)
-    tdinsight_caches=""
-    cd ${build_dir}/bin/ && \
-      chmod +x TDinsight.sh
-    ./TDinsight.sh --download-only ||:
-    #  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
-    cd $orig_pwd
-    echo "TDinsight caches: $tdinsight_caches"
+    # wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
+    #   && echo "TDinsight.sh downloaded!" \
+    #   || echo "failed to download TDinsight.sh"
+    # # download TDinsight caches
+    # orig_pwd=$(pwd)
+    # tdinsight_caches=""
+    # cd ${build_dir}/bin/ && \
+    #   chmod +x TDinsight.sh
+    # ./TDinsight.sh --download-only ||:
+    # #  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
+    # cd $orig_pwd
+    # echo "TDinsight caches: $tdinsight_caches"
 
-    taostools_bin_files=" ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/taosBenchmark \
-      ${build_dir}/bin/TDinsight.sh \
-      ${build_dir}/bin/tdengine-datasource.zip \
-      ${build_dir}/bin/tdengine-datasource.zip.md5"
+    # taostools_bin_files=" ${build_dir}/bin/taosdump \
+    #   ${build_dir}/bin/taosBenchmark \
+    #   ${build_dir}/bin/TDinsight.sh \
+    #   ${build_dir}/bin/tdengine-datasource.zip \
+    #   ${build_dir}/bin/tdengine-datasource.zip.md5"
+    # taostools only includes taosBenchmark and taosdump, as the branch is intended solely for full_long_time_test and will not be actively maintained
+    taostools_bin_files="${build_dir}/bin/taosBenchmark ${build_dir}/bin/taosdump"
   fi
 
 
