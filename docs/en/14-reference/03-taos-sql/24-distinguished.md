@@ -107,7 +107,7 @@ Time windows can be divided into sliding time windows and tumbling time windows.
 
 The INTERVAL clause is used to generate windows of equal time periods, and SLIDING is used to specify the time the window slides forward. Each executed query is a time window, and the time window slides forward as time flows. When defining continuous queries, it is necessary to specify the size of the time window (time window) and the forward sliding times for each execution. As shown, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three continuous queries, and the sliding time range is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window becomes a tumbling window. By default, windows begin at Unix time 0 (1970-01-01 00:00:00 UTC). If interval_offset is specified, the windows start from "Unix time 0 + interval_offset".
 
-![](./assets/time-series-extensions-01-time-window.png)
+![Time window](./assets/time-series-extensions-01-time-window.png)
 
 The INTERVAL and SLIDING clauses need to be used in conjunction with aggregation and selection functions. The following SQL statement is illegal:
 
@@ -146,7 +146,7 @@ When using time windows, note:
 
 Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes after the value changes. As shown in the diagram below, the state windows determined by the state value are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
-![](./assets/time-series-extensions-02-state-window.png)
+![State windows](./assets/time-series-extensions-02-state-window.png)
 
 Use STATE_WINDOW to determine the column that divides the state window. For example:
 
@@ -166,7 +166,7 @@ TDengine also supports using CASE expressions in state quantities, which can exp
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
 
-The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2. 
+The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2.
 
 - By default, the start and end times of the window are the timestamps corresponding to the first and last piece of data in that state.
 - When the `extend` value is 1, the window start time remains unchanged, and the window end time is extended backward to just before the start of the next window.
@@ -174,7 +174,7 @@ The `Extend` parameter can set the extension strategy for the start and end of a
 
 Data with a NULL status value at the start of the entire query result set will be included in the first window. Similarly, data with a NULL status value at the end of the entire query result set will be included in the last window. Take the following data as an example:
 
-```
+```text
 taos> select * from state_window_example;
            ts            |   status    |
 ========================================
@@ -190,7 +190,8 @@ taos> select * from state_window_example;
 ```
 
 When `extend` is 0:
-```
+
+```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
@@ -200,7 +201,8 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
 ```
 
 When `extend` is 1:
-```
+
+```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 1);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
@@ -210,7 +212,8 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
 ```
 
 When `extend` is 2:
-```
+
+```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
@@ -221,7 +224,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
 
 The zeroth_state parameter specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted. Take previous data as an example:
 
-```
+```text
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
@@ -239,7 +242,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 The session window is determined based on the timestamp primary key values of the records. As shown in the diagram below, if the continuous interval of the timestamps is set to be less than or equal to 12 seconds, the following 6 records form 2 session windows, which are: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, exceeding the continuous interval (12 seconds).
 
-![](./assets/time-series-extensions-03-session-window.png)
+![Session windows](./assets/time-series-extensions-03-session-window.png)
 
 Results within the tol_value time interval are considered to belong to the same window; if the time between two consecutive records exceeds tol_val, the next window automatically starts.
 
@@ -264,7 +267,7 @@ Take the following SQL statement as an example, the event window segmentation is
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![](./assets/time-series-extensions-04-event-window.png)
+![Event windows](./assets/time-series-extensions-04-event-window.png)
 
 The event window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
 
@@ -282,7 +285,7 @@ Take the following SQL statement as an example, the count window segmentation is
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-![](./assets/time-series-extensions-05-count-window.png)
+![Count windows](./assets/time-series-extensions-05-count-window.png)
 
 ### Timestamp Pseudo Columns
 

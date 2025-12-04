@@ -174,9 +174,11 @@ typedef struct SExchangeOperatorBasicParam {
   int32_t               srcOpType;
   bool                  tableSeq;
   SArray*               uidList;
+  bool                  isVtbWinScan;
   bool                  isVtbRefScan;
   bool                  isVtbTagScan;
   bool                  isNewDeployed; // used with newDeployedSrc
+  bool                  isNewParam;
   SOrgTbInfo*           colMap;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
@@ -306,6 +308,7 @@ typedef struct STableScanInfo {
   bool            virtualStableScan;
   SHashObj*       readerCache;
   bool            newReader;
+  SArray*         pBlockColMap;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -464,11 +467,6 @@ typedef struct SPartitionDataInfo {
 } SPartitionDataInfo;
 
 typedef struct STimeWindowAggSupp {
-  int8_t          calTrigger;
-  int8_t          calTriggerSaved;
-  int64_t         deleteMark;
-  int64_t         deleteMarkSaved;
-  int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
@@ -942,7 +940,7 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
-int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);

@@ -3519,6 +3519,11 @@ typedef struct SColIdPair {
   col_id_t orgColId;
 } SColIdPair;
 
+typedef struct SColIdSlotIdPair {
+  int32_t  vtbSlotId;
+  col_id_t orgColId;
+} SColIdSlotIdPair;
+
 typedef struct SOrgTbInfo {
   int32_t vgId;
   char    tbName[TSDB_TABLE_FNAME_LEN];
@@ -3527,6 +3532,7 @@ typedef struct SOrgTbInfo {
 
 typedef struct STableScanOperatorParam {
   bool        tableSeq;
+  bool        isNewParam;
   SArray*     pUidList;
   SOrgTbInfo* pOrgTbInfo;
   STimeWindow window;
@@ -3538,9 +3544,22 @@ typedef struct STagScanOperatorParam {
 
 typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
+  STimeWindow     window;
   SOperatorParam* pTagScanOp;
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
 } SVTableScanOperatorParam;
+
+typedef struct SMergeOperatorParam {
+  int32_t         winNum;
+} SMergeOperatorParam;
+
+typedef struct SExternalWindowOperatorParam {
+  SArray*         ExtWins;  // SArray<SExtWinTimeWindow>
+} SExternalWindowOperatorParam;
+
+typedef struct SDynQueryCtrlOperatorParam {
+  STimeWindow    window;
+} SDynQueryCtrlOperatorParam;
 
 struct SStreamRuntimeFuncInfo;
 typedef struct {

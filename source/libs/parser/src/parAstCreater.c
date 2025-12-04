@@ -808,6 +808,12 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     case HINT_HASH_JOIN:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
       break;
+    case HINT_WIN_OPTIMIZE_BATCH:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
+      break;
+    case HINT_WIN_OPTIMIZE_SINGLE:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_SINGLE)) return true;
+      break;
     default:
       return true;
   }
@@ -924,6 +930,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_SKIP_TSMA;
+        break;
+      case TK_WIN_OPTIMIZE_BATCH:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_BATCH;
+        break;
+      case TK_WIN_OPTIMIZE_SINGLE:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_SINGLE;
         break;
       case TK_NK_LP:
         lastComma = false;

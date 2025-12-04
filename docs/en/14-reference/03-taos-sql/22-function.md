@@ -1849,6 +1849,7 @@ DATE(expr)
 **Example**:
 
 (note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
+
 ```sql
 taos> select date(946656000000);
        date(946656000000)       |
