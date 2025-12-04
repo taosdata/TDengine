@@ -14,8 +14,7 @@
 import sys
 import time
 import datetime
-import warnings
-printf = warnings.warn
+from warnings import warn as printf
 
 class TDLog:
     def __init__(self):
