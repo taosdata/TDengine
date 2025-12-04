@@ -10,7 +10,6 @@
     "MD029": false, // ol-prefix 列表前缀可以任意设置
     "MD025": false, // single-title 同一文档只能有一个一级标题
     "MD033": false, // no-inline-html 禁止行内HTML
-    "MD037": true,
     "MD060": false, // ul-style 列表前缀不强制使用统一样式
     "MD041": false, // first-line-heading 禁止第一行必须是标题
     "MD046": {"style": "fenced"}, // code-fence-style 代码块使用围栏样式
@@ -18,7 +17,10 @@
     "MD052": false  // reference-links-image: 禁止引用链接和图片
     // "no-space-after-emphasis": {"severity": "error"}
   },
-  "customRules": ["./custom-rules/space-after-punctuation-in-emphasis.js"],
+  "customRules": [
+    "./custom-rules/space-after-punctuation-in-emphasis.js",
+     "./custom-rules/no-angle-bracket-url.js"
+  ],
   "ignores": ["node_modules/**", "dist/**"] // 忽略路径
 // Fix any fixable errors
 //   "fix": true
