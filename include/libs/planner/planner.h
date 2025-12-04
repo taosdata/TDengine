@@ -60,8 +60,8 @@ typedef struct SPlanContext {
   int64_t     recalculateInterval;
   bool        streamVtableCalc;
   SNode*      streamTriggerScanSubplan;
-  SArray*     pStreamCalcVgArray;
-  ENodeType  streamTriggerWinType;
+  SArray*     streamCalcScanPlanArray;
+  ENodeType   streamTriggerWinType;
   SNodeList*  streamTriggerScanList;
 } SPlanContext;
 
