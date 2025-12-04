@@ -78,8 +78,8 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 
 由于目前 Python 对 nanosecond 支持的不完善 (见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
 
-1. <https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds>
-2. <https://www.python.org/dev/peps/pep-0564/>
+1. [parsing-datetime-strings-containing-nanoseconds](https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds)
+2. [PEP 564 -- Support for the Python nanosecond timestamp](https://www.python.org/dev/peps/pep-0564/)
 
 ## 重要更新
 

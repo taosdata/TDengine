@@ -51,7 +51,7 @@ sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab serve
 
 ## TDengine Cloud 访问方法
 
-如果使用 Seeq 连接 TDengine Cloud，请在 <https://cloud.taosdata.com> 申请帐号并登录查看如何访问 TDengine Cloud。
+如果使用 Seeq 连接 TDengine Cloud，请在 [TDengine Cloud](https://cloud.taosdata.com) 申请帐号并登录查看如何访问 TDengine Cloud。
 
 ## 如何配置 Seeq 访问 TDengine
 

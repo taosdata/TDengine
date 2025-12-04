@@ -80,7 +80,8 @@ dotnet add package TDengine.Connector
 
 `Taos` is an ADO.NET client library for TDengine, supporting Linux and Windows platforms. Community contributor `Maikebing@@maikebing contributes the library`. Please refer to:
 
-* Interface download: [https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
+* [Interface download](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
+* [usage documentation](https://www.python.org/dev/peps/pep-0564/)
 
 ## Frequently Asked Questions
 
