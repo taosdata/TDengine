@@ -616,6 +616,7 @@ int32_t mndInitUser(SMnode *pMnode) {
       .sdbType = SDB_USER,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
+      // .redeployFp = (SdbDeployFp)mndCreateDefaultUsers, // TODO: upgrade user table(uid should be created)
       .encodeFp = (SdbEncodeFp)mndUserActionEncode,
       .decodeFp = (SdbDecodeFp)mndUserActionDecode,
       .insertFp = (SdbInsertFp)mndUserActionInsert,
@@ -909,6 +910,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
+  userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
   userObj.sysInfo = 1;
   userObj.enable = 1;
   userObj.ipWhiteListVer = taosGetTimestampMs();
@@ -965,12 +967,25 @@ static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
+
+  TAOS_CHECK_EXIT(tSerializePrivSysObjPolicies(&encoder, &pObj->sysPrivs, pObj->objPrivs));
+
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteRows));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteTbs));
+
   int32_t nRoles = taosHashGetSize(pObj->roles);
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nRoles));
 
   while ((pIter = taosHashIterate(pObj->roles, pIter))) {
     size_t keyLen = 0;
-    char  *key = taosHashGetKey(pIter, &keyLen); // key: role name
+    char  *key = taosHashGetKey(pIter, &keyLen);  // key: role name
     TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, key, (int32_t)keyLen));
 
     uint8_t flag = *(int8_t *)pIter;
@@ -995,6 +1010,16 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
+  TAOS_CHECK_EXIT(tDeserializePrivObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteRows));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteTbs));
   int32_t nRoles = 0;
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nRoles));
   if (nRoles > 0) {
@@ -1026,10 +1051,10 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t lino = 0;
   int32_t ipWhiteReserve =
       pUser->pIpWhiteListDual ? (sizeof(SIpRange) * pUser->pIpWhiteListDual->num + sizeof(SIpWhiteListDual) + 4) : 16;
-  int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
-  int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
-  int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
-  int32_t numOfWriteTbs = taosHashGetSize(pUser->writeTbs);
+  int32_t numOfReadDbs = 0; //taosHashGetSize(pUser->readDbs);
+  int32_t numOfWriteDbs = 0; //taosHashGetSize(pUser->writeDbs);
+  int32_t numOfReadTbs = 0; //taosHashGetSize(pUser->readTbs);
+  int32_t numOfWriteTbs = 0; // taosHashGetSize(pUser->writeTbs);
   int32_t numOfAlterTbs = taosHashGetSize(pUser->alterTbs);
   int32_t numOfReadViews = taosHashGetSize(pUser->readViews);
   int32_t numOfWriteViews = taosHashGetSize(pUser->writeViews);
@@ -1047,7 +1072,9 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   }
   size += sizeExt;
 
-  char *stb = taosHashIterate(pUser->readTbs, NULL);
+  char *stb = NULL;
+#if 0
+  stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;
     void  *key = taosHashGetKey(stb, &keyLen);
@@ -1074,7 +1101,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size += valueLen;
     stb = taosHashIterate(pUser->writeTbs, stb);
   }
-
+#endif
   stb = taosHashIterate(pUser->alterTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;
@@ -1188,6 +1215,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, numOfAlterViews, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfUseDbs, _OVER)
 
+#if 0
   stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;
@@ -1215,7 +1243,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_BINARY(pRaw, dataPos, stb, valueLen, _OVER);
     stb = taosHashIterate(pUser->writeTbs, stb);
   }
-
+#endif
   stb = taosHashIterate(pUser->alterTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;

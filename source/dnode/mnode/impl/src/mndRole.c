@@ -267,7 +267,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pObj) {
+static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   int32_t  code = 0, lino = 0;
   int32_t  tlen = 0;
   SEncoder encoder = {0};
@@ -297,7 +297,7 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pOb
   if (nParentUsers > 0) {
     void *pIter = NULL;
     while (pIter = taosHashIterate(pObj->parentUsers, pIter)) {
-      char *userName = taosHashGetKey(pIter, &klen);
+      char *userName = taosHashGetKey(pIter, NULL);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, userName));
     }
   }
@@ -306,7 +306,7 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pOb
   if (nParentRoles > 0) {
     void *pIter = NULL;
     while (pIter = taosHashIterate(pObj->parentRoles, pIter)) {
-      char *roleName = taosHashGetKey(pIter, &klen);
+      char *roleName = taosHashGetKey(pIter, NULL);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
     }
   }
@@ -315,7 +315,7 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pOb
   if (nSubRoles > 0) {
     void *pIter = NULL;
     while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
-      char *roleName = taosHashGetKey(pIter, &klen);
+      char *roleName = taosHashGetKey(pIter, NULL);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
     }
   }

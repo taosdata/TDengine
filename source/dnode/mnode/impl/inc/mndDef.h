@@ -421,6 +421,7 @@ typedef struct {
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
+  int64_t uid;
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
