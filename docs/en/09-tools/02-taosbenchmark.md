@@ -216,7 +216,7 @@ The parameters listed in this section apply to all function modes.
 
 - **keep_trying** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
-- **trying_interval** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+- **trying_interval** : Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 #### Stream processing related configuration parameters
 

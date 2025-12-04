@@ -62,7 +62,7 @@ TDengine can be added as a data source into Seeq via JDBC client library. Once d
    }
    ```
 
-Note: You need to replace DatabaseJdbcUrl with your setting. Please login TDengine cloud, click programming -> Java to find yours. For the "QueryDefintions", please follow the examples below to write your own.  
+Note: You need to replace DatabaseJdbcUrl with your setting. Please login TDengine cloud, click programming -> Java to find yours. For the "QueryDefinitions", please follow the examples below to write your own.  
 
 ## Use Seeq to analyze time-series data stored inside TDengine
 

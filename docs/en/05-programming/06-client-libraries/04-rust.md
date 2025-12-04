@@ -19,7 +19,7 @@ Please refer to [version support list and history](https://docs.tdengine.com/ref
 
 `taos` provides Native Connection and WebSocket connection
 
-More details about establishing a connection, please check[Developer Guide - Connectd - Rust](../01-connect/04-rust.md)
+More details about establishing a connection, please check[Developer Guide - Connected - Rust](../01-connect/04-rust.md)
 
 ## Installation
 

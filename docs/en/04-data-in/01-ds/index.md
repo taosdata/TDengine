@@ -12,13 +12,13 @@ This part of the data writing content is divided into two parts, the management 
 
 Users can add a new data source by clicking **Add Data Source** in the upper right corner. When the creation is complete, users can manage the created data sources in the **Operation** column of the data source list. For each created data source, you can modify, start, pause, refresh and delete the data source.
 
-For each existed data source, customers can click the expand icon at the beginning of it to view its activies. And also customers can click the **View** button in the **Current Metrics** column to get the current metrics of the data source.
+For each existed data source, customers can click the expand icon at the beginning of it to view its activities. And also customers can click the **View** button in the **Current Metrics** column to get the current metrics of the data source.
 
 ## Connection Agents
 
 Customers can add a new connection agent by clicking the **Create New Agent** button at the top right corner of the connection agent list. Follow the step-by-step instructions to create a new proxy. Once created, customers can edit the connection agent in the action area of the connection agent, such as modifying its name, refreshing the generated agent token, and deleting the connection agent.
 
-For each connection agent, customers can click the expand icon at the beginning of it to view its activies.
+For each connection agent, customers can click the expand icon at the beginning of it to view its activities.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
