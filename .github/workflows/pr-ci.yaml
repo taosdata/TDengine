@@ -80,18 +80,62 @@ jobs:
       - name: Unit Test
         run: |
           cargo make test
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+      
+      - name: Artifact Upload
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/llvm-cov-merged.lcov
-          fail_ci_if_error: true
-          verbose: true
+          name: taosx-ci-coverage-report
+          path: target/llvm-cov-merged.lcov
       - name: upload taosx-unit-test.xml
         uses: actions/upload-artifact@v4
         with:
           name: taosx-unit-test.xml
           path: target/nextest/ci/taosx-unit-tests.xml
+
+  # Upload coverage for unit test
+  upload-coverage:
+    needs: unit-test
+    name: Upload Coverage Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: taosx-ci-coverage-report
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: llvm-cov-merged.lcov
+          fail_ci_if_error: false
+          verbose: true
+      - name: Install lcov
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+      - name: Send coverage to Feishu
+        run: |
+          coverage=$(lcov --summary llvm-cov-merged.lcov |grep "[0-9].*lines.*" -o)
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                  "text": "$text"
+                }
+            }
+          EOF
+          }
+
+          PR_INFO="${{ github.workflow }} Coverage Report:\n
+          PR Title: ${{ github.event.pull_request.title }}\n
+          PR Owner: @${{ github.actor }}\n
+          PR Page: ${{ github.event.pull_request.html_url }}\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          Code Coverage Summary:\n
+          $coverage\n"
+          post_to_feishu "$PR_INFO"
 
   # need install qemu support for host: apt-get install qemu binfmt-support qemu-user-static
   check-arm:
