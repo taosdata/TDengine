@@ -1,4 +1,5 @@
 //ANCHOR: tdengine_gen_stmt_insert_config
+
 ```yaml
 tdengine:
   dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
@@ -67,9 +68,11 @@ jobs:
         with:
           concurrency: 8
 ```
+
 //ANCHOR_END: tdengine_gen_stmt_insert_config
 
 //ANCHOR: tdengine_gen_stmt_insert_simple
+
 ```yaml
 schema:
   columns:
@@ -101,9 +104,11 @@ jobs:
       - uses: tdengine/create-child-table
       - uses: tdengine/insert
 ```
+
 //ANCHOR_END: tdengine_gen_stmt_insert_simple
 
 //ANCHOR: tdengine_csv_stmt_insert_config
+
 ```yaml
 tdengine:
   dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
@@ -162,9 +167,11 @@ jobs:
         with:
           concurrency: 8
 ```
+
 //ANCHOR_END: tdengine_csv_stmt_insert_config
 
 //ANCHOR: mqtt_publish_config
+
 ```yaml
 mqtt:
   uri: tcp://localhost:1883
@@ -220,9 +227,11 @@ jobs:
           topic: factory/{table}/{location}
           qos: 1
 ```
+
 //ANCHOR_END: mqtt_publish_config
 
 //ANCHOR: kafka_produce_config
+
 ```yaml
 kafka:
   bootstrap_servers: localhost:9092
@@ -276,4 +285,5 @@ jobs:
           concurrency: 8
           acks: 1
 ```
+
 //ANCHOR_END: kafka_produce_config
