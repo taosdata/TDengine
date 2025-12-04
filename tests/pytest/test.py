@@ -17,7 +17,6 @@ import sys
 import getopt
 import subprocess
 import time
-from distutils.log import warn as printf
 import platform
 import ast
 
