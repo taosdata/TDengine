@@ -376,15 +376,11 @@ This configuration is designed for TDengine database performance benchmarking. I
 - Verifying database schema design, resource planning, and performance under different hardware configurations.
 - Providing data support for capacity planning in industrial IoT and related fields.
 
-```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
-```
 
 The parameters tdengine, schema::name, schema::tbname, schema::tags, tdengine/create-child-table::batch, and tdengine/insert::concurrency can use their default values to further simplify the configuration.
 
-```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
-```
 
 ### CSV-Based Data Generation, STMT Write to TDengine Example
 
@@ -415,9 +411,7 @@ This configuration is designed for importing device metadata and historical data
 - System initialization: Initializing a batch of devices and historical data for a new monitoring system, for testing, demonstration, or retrospective analysis.
 - Data replay: Simulating real-time data streams by reinjecting historical data, for testing system processing or reproducing specific historical scenarios.
 
-```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_csv_stmt_insert_config}}
-```
 
 Where:
 
@@ -472,9 +466,7 @@ This configuration is designed for publishing simulated device data to an MQTT m
 - Rule engine testing: Test MQTT topic subscription and message routing rules using dynamic topics (e.g., routing by device location).
 - Real-time data stream simulation: Simulate real-time device data streams for testing stream processing frameworks.
 
-```yaml
 {{#include docs/doxgen/taosgen_config.md:mqtt_publish_config}}
-```
 
 ### Generator-Based Data Generation and Publishing to Kafka Broker Example
 
@@ -517,6 +509,4 @@ Use JSON or InfluxDB Line Protocol to serialize message bodies to verify the par
 - Disaster Recovery and High Availability Drills:
 In a multi-broker cluster, use high-concurrency writes to test Kafka's replica synchronization, leader election, and broker failover mechanisms.
 
-```yaml
 {{#include docs/doxgen/taosgen_config.md:kafka_produce_config}}
-```

@@ -1,4 +1,5 @@
 //ANCHOR: tdengine_gen_stmt_insert_config
+```yaml
 tdengine:
   dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
   drop_if_exists: true
@@ -22,7 +23,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220*math.sqrt(2)*math.sin(_i)'
+      expr: '220 * math.sqrt(2) * math.sin(_i)'
     - name: phase
       type: float
       min: 0
@@ -65,9 +66,11 @@ jobs:
       - uses: tdengine/insert
         with:
           concurrency: 8
+```
 //ANCHOR_END: tdengine_gen_stmt_insert_config
 
 //ANCHOR: tdengine_gen_stmt_insert_simple
+```yaml
 schema:
   columns:
     - name: ts
@@ -81,7 +84,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220*math.sqrt(2)*math.sin(_i)'
+      expr: '220 * math.sqrt(2) * math.sin(_i)'
     - name: phase
       type: float
       min: 0
@@ -97,9 +100,11 @@ jobs:
       - uses: tdengine/create-super-table
       - uses: tdengine/create-child-table
       - uses: tdengine/insert
+```
 //ANCHOR_END: tdengine_gen_stmt_insert_simple
 
 //ANCHOR: tdengine_csv_stmt_insert_config
+```yaml
 tdengine:
   dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
   drop_if_exists: true
@@ -156,9 +161,11 @@ jobs:
       - uses: tdengine/insert
         with:
           concurrency: 8
+```
 //ANCHOR_END: tdengine_csv_stmt_insert_config
 
 //ANCHOR: mqtt_publish_config
+```yaml
 mqtt:
   uri: tcp://localhost:1883
   user: root
@@ -182,7 +189,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220*math.sqrt(2)*math.sin(_i)'
+      expr: '220 * math.sqrt(2) * math.sin(_i)'
     - name: phase
       type: float
       min: 0
@@ -212,10 +219,11 @@ jobs:
           concurrency: 8
           topic: factory/{table}/{location}
           qos: 1
-
+```
 //ANCHOR_END: mqtt_publish_config
 
 //ANCHOR: kafka_produce_config
+```yaml
 kafka:
   bootstrap_servers: localhost:9092
   topic: factory-electric-meter
@@ -238,7 +246,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220*math.sqrt(2)*math.sin(_i)'
+      expr: '220 * math.sqrt(2) * math.sin(_i)'
     - name: phase
       type: float
       min: 0
@@ -267,5 +275,5 @@ jobs:
         with:
           concurrency: 8
           acks: 1
-
+```
 //ANCHOR_END: kafka_produce_config
