@@ -164,6 +164,15 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
 }
 
+TAOS *taos_connect_with_dsn(const char *dsn) {
+  if (taos_init() != 0) {
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_with_dsn);
+  return (*fp_taos_connect_with_dsn)(dsn);
+}
+
 void taos_close(TAOS *taos) {
   CHECK_VOID(fp_taos_close);
   (*fp_taos_close)(taos);

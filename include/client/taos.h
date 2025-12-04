@@ -193,6 +193,7 @@ DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT int   taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_with_dsn(const char *dsn);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
