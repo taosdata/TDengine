@@ -1882,3 +1882,33 @@ int32_t transReloadTlsConfig(void* handle, int8_t type) {
   }
   return code;
 }
+
+int8_t transDoReloadTlsConfig(STrans *pInst) {
+  if (pInst == NULL) {
+    return 0;
+  }
+
+  if (atomic_load_8(&pInst->doLoad)) {
+    return 0;
+  } 
+  if (atomic_add_fetch_32(&pInst->loadTlsCount, 1) >=pInst->numOfThreads) {
+    atomic_store_8(&pInst->doLoad, 0);  
+
+    TSWAP(pInst->pNewSSLContext, pInst->pSSLContext);
+    atomic_store_32(&pInst->loadTlsCount, 0); 
+    return 1;
+  }
+  return 0;
+}
+
+int8_t transShouldDoReloadTlsConfig(STrans* pInst) {
+  if (pInst == NULL) { return 0;} 
+  
+  int8_t ready = atomic_load_8(&pInst->doLoad) ? 0 : 1;
+  if (ready) {
+    tInfo("transport instance %s is ready to reload tls config", transLabel(pInst));
+  } else {
+    tInfo("transport instance %s is not ready to reload tls config", transLabel(pInst));
+  }
+  return ready;
+}

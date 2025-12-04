@@ -2040,7 +2040,19 @@ static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq) {
   // placeholder function 
   return;
 }
-static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq) { return; }
+static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq) {
+  STrans *pInst = pThrd->pInst;
+  
+  int8_t result = transDoReloadTlsConfig(pInst);
+  if (result == 0) {
+    tInfo("%s successfully reloaded TLS config", transLabel(pInst));
+  } else {
+    tDebug("%s not ready to  to reload TLS config", transLabel(pInst));
+  }
+
+  taosMemoryFree(pReq);
+  return;
+}
 
 FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr* pCvtAddr) {
   if (pEpSet == NULL || pCvtAddr == NULL) {
@@ -3781,11 +3793,17 @@ int32_t transSetDefaultAddr(void* pInstRef, const char* ip, const char* fqdn) {
 int32_t transReloadClientTlsConfig(void* handle) {
   int32_t code = 0;
   int32_t lino = 0;
+   
 
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
+
+  if (!transShouldDoReloadTlsConfig(pInst)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_CFG, &lino, _error);
+  }
+  
 
   code = transTlsCtxCreateFromOld(pInst->pSSLContext, TAOS_CONN_CLIENT, (SSslCtx **)&pInst->pNewSSLContext);
   TAOS_CHECK_GOTO(code, &lino, _error);

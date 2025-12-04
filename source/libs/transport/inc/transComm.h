@@ -408,6 +408,10 @@ int32_t transReloadClientTlsConfig(void* handle);
 
 int32_t transReloadServerTlsConfig(void* handle);
 
+int8_t transDoReloadTlsConfig(STrans *pInst);
+
+int8_t transShouldDoReloadTlsConfig(STrans *pInst);
+
 #endif
 
 #ifndef TD_ASTRA_RPC

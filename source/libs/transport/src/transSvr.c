@@ -2399,7 +2399,19 @@ void uvHandleFreeById(SSvrRespMsg* msg, SWorkThrd* thrd) {
   return;
 }
 
-void uvHandleReloadTlsConfig(SSvrRespMsg* msg, SWorkThrd* thrd) { return; }
+void uvHandleReloadTlsConfig(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  STrans* pInst = thrd->pInst;
+
+  int8_t result = transDoReloadTlsConfig(pInst);
+  if (result == 0) {
+    tInfo("%s successfully reloaded TLS config", transLabel(pInst));
+  } else {
+    tDebug("%s not ready to  to reload TLS config", transLabel(pInst));
+  }
+
+  taosMemoryFree(msg);
+  return;
+}
 
 void destroyWorkThrdObj(SWorkThrd* pThrd) {
   if (pThrd == NULL) {
@@ -2743,6 +2755,10 @@ int32_t transReloadServerTlsConfig(void* handle) {
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  if (!transShouldDoReloadTlsConfig(pInst)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_CFG, &lino, _error);
   }
 
   code = transTlsCtxCreateFromOld(pInst->pSSLContext, TAOS_CONN_SERVER, (SSslCtx **)&pInst->pNewSSLContext);
