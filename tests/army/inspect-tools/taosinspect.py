@@ -98,7 +98,7 @@ class TDTestCase(TBase):
         self.check_column(result, "db_name", "information_schema.ins_vnodes")
         self.check_column(result, "status", "information_schema.ins_vnodes")
         self.check_column(result, "start_time", "information_schema.ins_vnodes")
-        self.check_column(result, "restored", "information_schema.ins_vnodes")
+        self.check_column(result, "applied", "information_schema.ins_vnodes")
         self.check_column(result, "role_time", "information_schema.ins_vnodes")
         # tdSql.query("select dnode_id, vgroup_id,db_name,status,start_time,restored from information_schema.ins_vnodes order by dnode_id, vgroup_id")
         # tdSql.query("select dnode_id,count(*) from information_schema.ins_vnodes where db_name='{db_name}' and status='leader' group by dnode_id order by dnode_id")
