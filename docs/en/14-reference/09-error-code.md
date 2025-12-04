@@ -260,11 +260,18 @@ Below are the business error codes for each module.
 | 0x800003F5 | Stream temporarily does not support source db having replica > 1 | Exceeding limit                                              | Operation not allowed                                        |
 | 0x800003F6 | Too many streams                                             | Exceeding limit                                              | Cannot be modified, code-level restriction                   |
 | 0x800003F7 | Cannot write the same stable as other stream                 | Internal error                                               | Report issue                                                 |
+| 0x8000042E | Failed to load encryption provider   | Failed to load                                               | Confirm if encryptExtDir is configured correctly                          |
 | 0x80000480 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000481 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x80000482 | Invalid sma index option                                     | Internal error                                               | Report issue                                                 |
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E0 | Encrypt algorithm not exists in list                         | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E1 | Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode, Digests, Asymmetric_Ciphers now| Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E2 | Encryption algorithm already exists, please keep algorithm_id unique| Already exists                                               | Confirm if the operation is correct                          |
+| 0x800004E3 | Encryption algorithm type not match                          | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E4 | Invalid encryption algorithm format                          | Input algorithm id is empty                                               | Confirm if the operation is correct                          |
+| 0x800004E5 | Encryption algorithm in use                                  | Still in use                                                  | Remove all object which use this algorithm                          |
 
 #### Bnode
 
@@ -531,6 +538,11 @@ Below are the business error codes for each module.
 | 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement           |
 | 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement           |
 | 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement           |
+| 0x80002699 | Algorithm ID too long, max lenght is 63 character                                                      | Invalid algorithm id value                                                      | Check and correct the SQL statement           |
+| 0x8000269A | Algorithm name too long, max lenght is 63 character                                                    | Invalid algorithm name value                                                      | Check and correct the SQL statement           |
+| 0x8000269B | Algorithm description too long, max lenght is 127 character                                            | Invalid algorithm description value                                                      | Check and correct the SQL statement           |
+| 0x8000269C | Algorithm type too long, max lenght is 63 character                                                    | Invalid algorithm type value                                                      | Check and correct the SQL statement           |
+| 0x8000269D | Algorithm OpenSSL name too long, max lenght is 63 character                                            | Invalid algorithm OpenSSL name value                                                      | Check and correct the SQL statement           |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
