@@ -20,13 +20,13 @@ taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数�
 
 ## 安装
 
-taosdump 有两种安装方式:
+taosdump 有两种安装方式：
 
 - 安装 TDengine 官方[TDengine 客户端安装包](https://docs.taosdata.com/releases/tdengine/)的同时会自动安装 taosdump。
 
-- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+- 单独编译 taos-tools 并安装，详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
-运行下面命令来设置TDengine Cloud 的 DSN 环境变量：
+运行下面命令来设置 TDengine Cloud 的 DSN 环境变量：
 
 ```bash
 export TDENGINE_CLOUD_DSN="<DSN>"

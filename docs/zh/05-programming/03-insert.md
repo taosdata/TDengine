@@ -44,7 +44,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 :::note IMPORTANT
 
 1. 在执行下面样例代码的之前，您必须先在 [TDengine Cloud - 数据浏览器](https://cloud.taosdata.com/explorer) 页面创建一个名为 power 的数据库
-2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../connect/)。
+2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南 - 建立连接](../connect/)。
 
 :::
 <Tabs>
@@ -73,7 +73,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 </TabItem>
 <TabItem value="rust" label="Rust">
 
-在这个例子中，我们使用 `exec` 方法来执行 SQL 。`exec` 是为非查询的 SQL 语句设计的，所有返回的数据都会被忽略。
+在这个例子中，我们使用 `exec` 方法来执行 SQL。`exec` 是为非查询的 SQL 语句设计的，所有返回的数据都会被忽略。
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/tutorial.rs:insert}}
@@ -104,7 +104,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 
 :::note IMPORTANT
 
-由于 RESTful 接口无状态， 不能使用 `USE db;` 语句来切换数据库, 所以在上面示例中使用了`dbName.tbName`指定表名。
+由于 RESTful 接口无状态，不能使用 `USE db;` 语句来切换数据库，所以在上面示例中使用了`dbName.tbName`指定表名。
 
 :::
 

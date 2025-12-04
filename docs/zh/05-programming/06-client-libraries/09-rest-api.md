@@ -20,7 +20,7 @@ RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安�
 
 下面以 Ubuntu 环境中使用 `curl` 工具（请确认已经安装）来验证 RESTful 接口是否工作正常，验证前请确认 taosAdapter 服务已开启，在 Linux 系统上此服务默认由 systemd 管理，使用命令 `systemctl start taosadapter` 启动。
 
-下面示例是列出所有的数据库都在 `TDengine Cloud URL` 主机上面。如果您正在访问 TDengine Cloud ，您必须使用云服务的令牌。
+下面示例是列出所有的数据库都在 `TDengine Cloud URL` 主机上面。如果您正在访问 TDengine Cloud，您必须使用云服务的令牌。
 
 ```bash
 curl -L \
@@ -76,7 +76,7 @@ https://<TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD_TOKEN>
 
 - TDENGINE_CLOUD_URL: TDengine Cloud 的地址。
 - db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
-- TDENGINE_CLOUD_TOKEN: 用来访问 TDengine Cloud 。
+- TDENGINE_CLOUD_TOKEN: 用来访问 TDengine Cloud。
 
 例如：`https://gw.cloud.taosdata.com/rest/sql/test?token=xxxxxxxxx` 是指向地址为 `gw.cloud.taosdata.com` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
@@ -184,7 +184,7 @@ curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD
 说明：
 
 - code：（`int`）0 代表成功。
-- column_meta：（`[][3]any`） 列信息，每个列会用三个值来说明，分别为：列名（string）、列类型（string）、类型长度（int）。
+- column_meta：（`[][3]any`）列信息，每个列会用三个值来说明，分别为：列名（string）、列类型（string）、类型长度（int）。
 - rows：（`int`）数据返回行数。
 - data：（`[][]any`）具体数据内容（时间格式仅支持 RFC3339，结果集为 0 时区）。
 

@@ -10,7 +10,7 @@ Telegraf 是一款十分流行的指标采集开源软件。在数据采集和�
 
 ## 前置条件
 
-要将 Telegraf 数据写入 TDengine Cloud ，需要首先手动创建一个数据库。登录到 TDengine Cloud ，在左边的菜单点击”数据浏览器“，然后再点击”数据库“标签旁边的”+“按钮添加一个名称是”telegraf“使用默认参数的数据库。
+要将 Telegraf 数据写入 TDengine Cloud，需要首先手动创建一个数据库。登录到 TDengine Cloud，在左边的菜单点击”数据浏览器“，然后再点击”数据库“标签旁边的” + “按钮添加一个名称是”telegraf“使用默认参数的数据库。
 
 ## 安装 Telegraf
 
@@ -31,7 +31,7 @@ sudo systemctl stop telegraf
 
 ## 配置环境变量
 
-在您的终端命令行里面执行下面的命令来保存 TDengine Cloud 的令牌和URL为环境变量：
+在您的终端命令行里面执行下面的命令来保存 TDengine Cloud 的令牌和 URL 为环境变量：
 
 ```bash
 export TDENGINE_CLOUD_URL="<url>"
@@ -39,7 +39,7 @@ export TDENGINE_CLOUD_TOKEN="<token>"
 ```
 
 <!-- exclude -->
-您可以使用真实的 TDengine Cloud 的URL和令牌来替换上面的`<url>`和`<token>`。可以通过访问[TDengine Cloud](https://cloud.taosdata.com)来获取真实的值。
+您可以使用真实的 TDengine Cloud 的 URL 和令牌来替换上面的`<url>`和`<token>`。可以通过访问[TDengine Cloud](https://cloud.taosdata.com)来获取真实的值。
 <!-- exclude-end -->
 
 然后运行下面的命令来生成 telegraf.conf 文件。
@@ -59,7 +59,7 @@ telegraf --sample-config --input-filter cpu:mem --output-filter http > telegraf.
   influx_max_line_bytes = 250
 ```
 
-配置完成后 Telegraf 会开始收集CPU和内容的数据并发送到 TDengine 的数据库”telegraf“。”telegraf“数据库必须先通过 TDengine Cloud 创建。
+配置完成后 Telegraf 会开始收集 CPU 和内容的数据并发送到 TDengine 的数据库”telegraf“。”telegraf“数据库必须先通过 TDengine Cloud 创建。
 
 ## 启动 Telegraf
 

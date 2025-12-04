@@ -19,8 +19,8 @@ Kafka 数据写入，是通过连接代理把数据从 Kafka 服务器写入到�
 4. 在 **SSL 证书**栏目中，如果开启了 SSL 认证，请上传对应的客户端证书和客户端私钥文件。
 5. 在 **采集配置** 栏目中，需要配置消费者的超时时间，消费者组的 ID 等参数，
    - **超时时间** 中填写超时时间。当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。
-   - **主题** 中填写要消费的 Topic 名称。可以配置多个 Topic ， Topic 之间用逗号分隔。例如：`tp1,tp2`。
-   - **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。 默认值为 Earliest，Earliest：用于请求最早的 offset，Latest：用于请求最晚的 offset，ByTime：用于请求在特定时间（毫秒）之前的所有消息; 时间戳为毫秒精度。
+   - **主题** 中填写要消费的 Topic 名称。可以配置多个 Topic，Topic 之间用逗号分隔。例如：`tp1,tp2`。
+   - **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。默认值为 Earliest，Earliest：用于请求最早的 offset，Latest：用于请求最晚的 offset，ByTime：用于请求在特定时间（毫秒）之前的所有消息; 时间戳为毫秒精度。
    - **获取数据的最大时长** 中设置获取消息时等待数据不足的最长时间（以毫秒为单位），默认值为 100ms。
 6. 可以点击**连通性检查**, 检查 Cloud 实例 与 Kafka 服务之间是否可以连通。
 7. 如果消费的 Kafka 数据是 JSON 格式，可以配置 **Payload 解析**卡片，对数据进行解析转换。

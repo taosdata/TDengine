@@ -20,7 +20,7 @@ title: TDengine Rust Connector
 `taos` 提供**原生连接**和**WebSocket 连接**两种方式，我们使用 **WebSocket 连接**方式访问 TDengine Cloud 实例。
 它通过 taosAdapter 的 WebSocket 接口连接实例
 
-关于如何建立连接的详细介绍请参考：[开发指南-建立连接-Rust](../01-connect/04-rust.md)
+关于如何建立连接的详细介绍请参考：[开发指南 - 建立连接-Rust](../01-connect/04-rust.md)
 
 ## 安装
 
@@ -30,7 +30,7 @@ title: TDengine Rust Connector
 
 ### 添加 taos 依赖
 
-`taos` 连接器使用WebSocket 方式连接TDengine Cloud 实例。需要在 [Rust](https://rust-lang.org) 项目中添加 [taos][taos] 依赖，并启用`ws`和`ws-rustls`特性。
+`taos` 连接器使用 WebSocket 方式连接 TDengine Cloud 实例。需要在 [Rust](https://rust-lang.org) 项目中添加 [taos][taos] 依赖，并启用`ws`和`ws-rustls`特性。
 
 在 `Cargo.toml` 文件中添加 [taos][taos] 并启用特性，以下两种方式都可以：
 
@@ -93,7 +93,7 @@ let conn2 = builder.build()?;
 
 `query` 方法执行查询语句，返回 [ResultSet] 对象。
 
-在这个例子里面，我们使用查询方法来执行 SQL ，然后获取到 [ResultSet] 对象。
+在这个例子里面，我们使用查询方法来执行 SQL，然后获取到 [ResultSet] 对象。
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/query.rs:query:nrc}}
@@ -101,13 +101,13 @@ let conn2 = builder.build()?;
 
 获取列的元数据。
 
-[ResultSet] 对象存储了查询结果数据和返回的列的基本信息（列名，类型，长度, 列信息使用 [.fields()] 方法获取：
+[ResultSet] 对象存储了查询结果数据和返回的列的基本信息（列名，类型，长度，列信息使用 [.fields()] 方法获取：
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/query.rs:meta:nrc}}
 ```
 
-获取前5行数据并输出每一行数据：
+获取前 5 行数据并输出每一行数据：
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/query.rs:iter}}

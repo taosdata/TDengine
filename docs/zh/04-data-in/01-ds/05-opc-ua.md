@@ -45,7 +45,7 @@ OPC UA 数据写入，是通过连接代理把数据从 OPC UA 系统写入到�
 | 接收时间戳列名称 | received_time_col |   否   | 使用 taosx 收集时间作为主时间戳值。如果同时定义 ts_col 和 received_time_col，recieved_time_col 将会被用作时间戳索引。                                                                                   |
 | 值列名           | value_col         |   否   | 在一个超级表下面的每个节点的值的列名称。                                                                                                                                                                |
 | 量列名           | quality_col       |   否   | 在一个超级表下面的每个节点的量的列名称，类似于值列名。                                                                                                                                                  |
-| 额外标签         | tag::type::name   |   否   | 标签定义, “tag”是标识前缀，“type”是 TDengine 数据类型，经常使用 VARCHAR 作为字符串类型，“name”是超级表的标签名称。一个完整的字符串示例如：tag::varchar(64)::note 。您可以添加更多的标签如果您愿意的话。 |
+| 额外标签         | tag::type::name   |   否   | 标签定义，“tag”是标识前缀，“type”是 TDengine 数据类型，经常使用 VARCHAR 作为字符串类型，“name”是超级表的标签名称。一个完整的字符串示例如：tag::varchar(64)::note。您可以添加更多的标签如果您愿意的话。 |
 
 :::note 非常重要
 

@@ -14,7 +14,7 @@ import TabItem from '@theme/TabItem';
 
 ## 配置
 
-在您的终端命令行运行下面的命令来设置 TDengine Cloud 的令牌和URL为环境变量：
+在您的终端命令行运行下面的命令来设置 TDengine Cloud 的令牌和 URL 为环境变量：
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">

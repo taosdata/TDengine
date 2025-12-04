@@ -16,11 +16,11 @@ import TabItem from '@theme/TabItem';
 您必须先安装 Python3 和 Pip3。
 
 * 安装 Python。新版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
-* 安装 Pip3。大部分情况下 Python 的安装包都自带了 pip 工具， 如果没有请参考 [pip documentation](https://pypi.org/project/pip/) 安装。
+* 安装 Pip3。大部分情况下 Python 的安装包都自带了 pip 工具，如果没有请参考 [pip documentation](https://pypi.org/project/pip/) 安装。
 
 ### 用 Pip 安装
 
-如果以前安装过旧版本的 Python 连接器, 请提前卸载。
+如果以前安装过旧版本的 Python 连接器，请提前卸载。
 
 <Tabs defaultValue="rest" groupID="package">
 <TabItem value="rest" label="REST">
@@ -123,11 +123,11 @@ $env:TDENGINE_CLOUD_TOKEN='<token>'
 
 <!-- exclude -->
 :::note IMPORTANT
-替换 \<token> 和 \<url> 为您的 TDengine Cloud 实例的令牌和 URL 。
+替换 \<token> 和 \<url> 为您的 TDengine Cloud 实例的令牌和 URL。
 
 获取 TDengine Cloud 的令牌和 URL，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Python“。
 
-请注意区分 REST 连接和  WebSocket 连接的URL。
+请注意区分 REST 连接和  WebSocket 连接的 URL。
 :::
 <!-- exclude-end -->
 
@@ -144,9 +144,9 @@ $env:TDENGINE_CLOUD_TOKEN='<token>'
 
 `connect()` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
 
-* `url`： TDengine Cloud 的URL。
-* `token`: TDengine Cloud 的令牌.
-* `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
+* `url`：TDengine Cloud 的 URL。
+* `token`: TDengine Cloud 的令牌。
+* `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
 
 </TabItem>
 <TabItem value="websocket" label="WebSocket">

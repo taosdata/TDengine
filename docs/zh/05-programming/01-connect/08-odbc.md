@@ -14,7 +14,7 @@ TDengine ODBC 提供了两种连接方式，原生连接和 WebSocket 连接。�
 
 ## 安装
 
-1. 仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 [VC运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)。如果已经安装 VS 开发工具可忽略。
+1. 仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)。如果已经安装 VS 开发工具可忽略。
 2. 下载和安装 TDengine Windows 客户端安装包，请参考下面的注意内容。
 
 :::note 非常重要
@@ -23,11 +23,11 @@ TDengine ODBC 提供了两种连接方式，原生连接和 WebSocket 连接。�
 
 ## 配置 ODBC 数据源
 
-1. Windows 操作系统的【开始】菜单搜索打开【ODBC 数据源(64 位)】管理工具（注意不要选择ODBC 数据源(32 位)）。
-2. 选中【用户 DSN】标签页，通过【添加(D)】按钮进入“创建数据源”界面。
+1. Windows 操作系统的【开始】菜单搜索打开【ODBC 数据源 (64 位)】管理工具（注意不要选择 ODBC 数据源 (32 位)）。
+2. 选中【用户 DSN】标签页，通过【添加 (D)】按钮进入“创建数据源”界面。
 3. 选择想要添加的数据源，然后选择【TDengine】，点击完成，进入 TDengine ODBC 数据源配置页面，填写如下必要信息：
     - 【DSN】：数据源名称，必填，比如“MyTDengine”
-    - 【接类型】：选中 【Websocket】
+    - 【接类型】：选中【Websocket】
     - 【URL】：获取实际的 URL，请参考下面的注意内容
     - 【数据库】：可选，填写需要连接的数据库，比如“test”
 4. 点击【测试连接】按钮测试连接情况，如果成功，会提示“成功连接到该 URL”。

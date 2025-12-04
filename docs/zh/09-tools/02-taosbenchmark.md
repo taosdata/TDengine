@@ -15,11 +15,11 @@ taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能�
 
 ## 安装
 
-taosBenchmark 有两种安装方式:
+taosBenchmark 有两种安装方式：
 
 - 安装 TDengine 官方[TDengine 安装包](https://docs.taosdata.com/releases/tdengine/)的同时会自动安装 taosBenchmark
 
-- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+- 单独编译 taos-tools 并安装，详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
 
 ## 运行
 
@@ -195,7 +195,7 @@ taosBenchmark -f <json file>
 本节所列参数适用于所有功能模式。
 
 - **filetype** ：要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
-- **cfgdir** ：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
+- **cfgdir** ：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos。
 
 <!-- - **host** ：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
 
@@ -221,7 +221,7 @@ taosBenchmark -f <json file>
 
 - **stream_stb** ：流式计算对应的超级表名称，必填项。
 
-- **stream_sql** ：流式计算的sql语句，必填项。
+- **stream_sql** ：流式计算的 sql 语句，必填项。
 
 - **trigger_mode** ：流式计算的触发模式，可选项。
 
@@ -249,7 +249,7 @@ taosBenchmark -f <json file>
 
 - **data_source** ：数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"。为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
-- **insert_mode** ：插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc 。
+- **insert_mode** ：插入模式，可选项有 taosc, rest, stmt, sml, sml-rest, 分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
 
 - **non_stop_mode** ：指定是否持续写入，若为 "yes" 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。默认值为 "no"，即写入指定数量的记录后停止。注：即使在持续写入模式下 insert_rows 失效，但其也必须被配置为一个非零正整数。
 
@@ -257,17 +257,17 @@ taosBenchmark -f <json file>
 
 - **tcp_transfer** ：telnet 模式下的通信协议，仅当 insert_mode 为 sml-rest 并且 line_protocol 为 telnet 时生效。如果不配置，则默认为 http 协议。
 
-- **insert_rows** ：每个子表插入的记录数，默认为 0 。
+- **insert_rows** ：每个子表插入的记录数，默认为 0。
 
 - **childtable_offset** ：仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表时的偏移量，即从第几个子表开始。
 
 - **childtable_limit** ：仅当 childtable_exists 为 yes 时生效，指定从超级表获取子表列表的上限。
 
-- **interlace_rows** ：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
+- **interlace_rows** ：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入。
 
-- **insert_interval** ：指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
+- **insert_interval** ：指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
 
-- **partial_col_num** ：若该值为正数 n 时， 则仅向前 n 列写入，仅当 insert_mode 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
+- **partial_col_num** ：若该值为正数 n 时，则仅向前 n 列写入，仅当 insert_mode 为 taosc 和 rest 时生效，如果 n 为 0 则是向全部列写入。
 
 - **disorder_ratio** ：指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据。
 
@@ -281,13 +281,13 @@ taosBenchmark -f <json file>
 
 - **sample_file** ：指定 csv 格式的文件作为数据源，仅当 data_source 为 sample 时生效。若 csv 文件内的数据行数小于等于 prepared_rand，那么会循环读取 csv 文件数据直到与 prepared_rand 相同；否则则会只读取 prepared_rand 个数的行的数据。也即最终生成的数据行数为二者取小。
 
-- **use_sample_ts** ：仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。 若设置为 yes， 则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
+- **use_sample_ts** ：仅当 data_source 为 sample 时生效，表示 sample_file 指定的 csv 文件内是否包含第一列时间戳，默认为 no。若设置为 yes，则使用 csv 文件第一列作为时间戳，由于同一子表时间戳不能重复，生成的数据量取决于 csv 文件内的数据行数相同，此时 insert_rows 失效。
 
-- **tags_file** ：仅当 insert_mode 为 taosc, rest 的模式下生效。 最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
+- **tags_file** ：仅当 insert_mode 为 taosc, rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
-#### tsma配置参数
+#### tsma 配置参数
 
-指定tsma的配置参数在 `super_tables` 中的 `tsmas` 中，具体参数如下。
+指定 tsma 的配置参数在 `super_tables` 中的 `tsmas` 中，具体参数如下。
 
 - **name** ：指定 tsma 的名字，必选项。
 
@@ -308,7 +308,7 @@ taosBenchmark -f <json file>
 - **type** ：指定列类型，可选值请参考 TDengine 支持的数据类型。
   注：JSON 数据类型比较特殊，只能用于标签，当使用 JSON 类型作为 tag 时有且只能有这一个标签，此时 count 和 len 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
 
-- **len** ：指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0 ， 则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
+- **len** ：指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0，则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
 
 - **count** ：指定该类型列连续出现的数量，例如 "count"：4096 即可生成 4096 个指定类型的列。
 
@@ -332,23 +332,23 @@ taosBenchmark -f <json file>
 
 - **result_file** ：结果输出文件的路径，默认值为 ./output.txt。
 
-- **confirm_parameter_prompt** ：开关参数，要求用户在提示后确认才能继续。默认值为 false 。
+- **confirm_parameter_prompt** ：开关参数，要求用户在提示后确认才能继续。默认值为 false。
 
-- **interlace_rows** ：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
+- **interlace_rows** ：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入。
   在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
 
-- **insert_interval** ：指定交错插入模式的插入间隔，单位为 ms，默认值为 0。 只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
+- **insert_interval** ：指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用。意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入。
   在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
 
-- **num_of_records_per_req** ：每次向 TDengine 请求写入的数据行数，默认值为 30000 。当其设置过大时，TDengine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
+- **num_of_records_per_req** ：每次向 TDengine 请求写入的数据行数，默认值为 30000。当其设置过大时，TDengine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
 
-- **prepare_rand** ：生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
+- **prepare_rand** ：生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000。
 
 ### 查询场景配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
 
-查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
+查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；interval 控制休眠时间，避免持续查询慢查询消耗 CPU，单位为秒。
 
 其它通用参数详见[通用配置参数](#通用配置参数)。
 

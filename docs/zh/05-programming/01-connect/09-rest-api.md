@@ -42,7 +42,7 @@ $env:TDENGINE_CLOUD_TOKEN='<token>'
 
 <!-- exclude -->
 :::note IMPORTANT
-替换 \<token> 和 \<url> 为 TDengine Cloud 的令牌和 URL 。
+替换 \<token> 和 \<url> 为 TDengine Cloud 的令牌和 URL。
 获取 TDengine Cloud 的令牌和 URL，可以登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”REST API“。
 :::
 <!-- exclude-end -->

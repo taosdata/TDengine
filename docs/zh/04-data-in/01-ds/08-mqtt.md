@@ -23,7 +23,7 @@ MQTT 数据写入，是通过连接代理把数据从 MQTT 服务器写入到当
    - Client ID: MQTT 连接器连接 MQTT 服务器时所使用的客户端 ID, 用于标识客户端的身份；
    - Keep Alive: 用于配置 MQTT 连接器与 MQTT 服务器之间的 Keep Alive 时间，默认值为 60 秒；
    - Clean Session: 用于配置 MQTT 连接器是否以 Clean Session 的方式连接至 MQTT 服务器，默认值为 True;
-   - 订阅主题及 QoS 配置：这里用来配置监听的 MQTT 主题，以及该主题支持的最大 QoS, 主题和 QoS 的配置之间用::分隔，多个主题之间用,分隔，主题的配置可以支持 MQTT 协议的通配符#和+;
+   - 订阅主题及 QoS 配置：这里用来配置监听的 MQTT 主题，以及该主题支持的最大 QoS, 主题和 QoS 的配置之间用::分隔，多个主题之间用，分隔，主题的配置可以支持 MQTT 协议的通配符#和+;
 7. 可以点击**连通性检查**, 检查 Cloud 实例 与 MQTT 服务之间是否可以连通。
 8. 在**MQTT Payload 解析**卡片，用于配置如何解析 MQTT 消息：
    - 在 **消息体** 中填写 MQTT 消息体中的示例数据，例如：`{"id": 1, "message": "hello-word"}{"id": 2, "message": "hello-word"}`。之后会使用这条示例数据来配置提取和过滤条件。点击 **放大镜图标** 可查看预览解析结果。

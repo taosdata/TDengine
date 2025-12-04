@@ -68,22 +68,22 @@ dotnet add package TDengine.Connector
 |--------------------|--------------------------------|
 |        3.0.2       | 支持 .NET Framework 4.5 及以上，支持 .NET standard 2.0。Nuget Package 包含 WebSocket 动态库。 |
 |        3.0.1       | 支持 WebSocket 和 Cloud，查询，插入，参数绑定。 |
-|        3.0.0       | 支持 TDengine 3.0.0.0，不兼容 2.x。新增接口TDengine.Impl.GetData()，解析查询结果。 |
-|        1.0.7       | 修复 TDengine.Query()内存泄露。 |
+|        3.0.0       | 支持 TDengine 3.0.0.0，不兼容 2.x。新增接口 TDengine.Impl.GetData()，解析查询结果。 |
+|        1.0.7       | 修复 TDengine.Query() 内存泄露。 |
 |        1.0.6       | 修复 schemaless 在 1.0.4 和 1.0.5 中失效 bug。 |
 |        1.0.5       | 修复 Windows 同步查询中文报错 bug。   |
 |        1.0.4       | 新增异步查询，订阅等功能。修复绑定参数 bug。    |
-|        1.0.3       | 新增参数绑定、schemaless、 json tag等功能。 |
+|        1.0.3       | 新增参数绑定、schemaless、json tag 等功能。 |
 |        1.0.2       | 新增连接管理、同步查询、错误信息等功能。   |
 
 ## 其他说明
 
 ### 第三方驱动
 
-[`IoTSharp.Data.Taos`](https://github.com/IoTSharp/EntityFrameworkCore.Taos) 是一个 TDengine 的 ADO.NET 连接器,其中包含了用于EntityFrameworkCore 的提供程序 IoTSharp.EntityFrameworkCore.Taos 和健康检查组件 IoTSharp.HealthChecks.Taos ，支持 Linux，Windows 平台。该连接器由社区贡献者`麦壳饼@@maikebing` 提供，具体请参考:
+[`IoTSharp.Data.Taos`](https://github.com/IoTSharp/EntityFrameworkCore.Taos) 是一个 TDengine 的 ADO.NET 连接器，其中包含了用于 EntityFrameworkCore 的提供程序 IoTSharp.EntityFrameworkCore.Taos 和健康检查组件 IoTSharp.HealthChecks.Taos，支持 Linux，Windows 平台。该连接器由社区贡献者`麦壳饼@@maikebing` 提供，具体请参考：
 
-* 接口下载: \<<https://github.com/IoTSharp/EntityFrameworkCore.Taos>>
-* 用法说明: \<<https://www.taosdata.com/blog/2020/11/02/1901.html>>
+* 接口下载：\<<https://github.com/IoTSharp/EntityFrameworkCore.Taos>>
+* 用法说明：\<<https://www.taosdata.com/blog/2020/11/02/1901.html>>
 
 ## 常见问题
 
