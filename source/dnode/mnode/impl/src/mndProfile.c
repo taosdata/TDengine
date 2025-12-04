@@ -353,14 +353,16 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (pUser->inactiveAccountTime >= 0 && (now - pUser->lastLoginTime >= pUser->inactiveAccountTime)) {
+  SLoginInfo loginInfo = {0};
+  mndGetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+  if (pUser->inactiveAccountTime >= 0 && (now - loginInfo.lastLoginTime >= pUser->inactiveAccountTime)) {
     mGError("user:%s, failed to login from %s since inactive account", pReq->info.conn.user, ip);
     code = TSDB_CODE_MND_USER_DISABLED;
     goto _OVER;
   }
 
-  if (pUser->failedLoginAttempts >= 0 & pUser->failedLoginCount >= pUser->failedLoginAttempts) {
-    if(now - pUser->lastFailedLoginTime < pUser->passwordLockTime) {
+  if (pUser->failedLoginAttempts >= 0 & loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
+    if(now - loginInfo.lastFailedLoginTime < pUser->passwordLockTime) {
       mGError("user:%s, failed to login from %s since too many login failures", pReq->info.conn.user, ip);
       code = TSDB_CODE_MND_USER_DISABLED;
       goto _OVER;
@@ -389,24 +391,24 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   if (tsMndSkipGrant) {
-    pUser->lastLoginTime = now;
+    loginInfo.lastLoginTime= now;
   } else if (constTimeEq(tmpPass, pUser->passwords[0].pass, sizeof(tmpPass) - 1)) {
-    pUser->failedLoginCount = 0;
-    pUser->lastLoginTime = now;
+    loginInfo.failedLoginCount = 0;
+    loginInfo.lastLoginTime= now;
   } else {
     mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     if (pUser->failedLoginAttempts >= 0) {
-      if (pUser->failedLoginCount >= pUser->failedLoginAttempts) {
+      if (loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
         // if we can get here, it means the lock time has passed, so reset the counter
-        pUser->failedLoginCount = 0;
+        loginInfo.failedLoginCount = 0;
       }
-      pUser->failedLoginCount++;
-      pUser->lastFailedLoginTime = now;
+      loginInfo.failedLoginCount++;
+      loginInfo.lastFailedLoginTime = now;
     }
     code = TSDB_CODE_MND_AUTH_FAILURE;
   }
 
-  mndUpdateUser(pMnode, pUser, NULL);
+  mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
   if (code != 0) {
     goto _OVER;
   }

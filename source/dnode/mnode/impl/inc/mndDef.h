@@ -401,6 +401,14 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
+
+typedef struct {
+  int64_t lastLoginTime;        // in seconds
+  int64_t lastFailedLoginTime;  // in seconds
+  int32_t failedLoginCount;
+} SLoginInfo;
+
+
 typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
@@ -429,9 +437,6 @@ typedef struct {
   char    totpsecret[TSDB_TOTP_SECRET_LEN];
   int64_t createdTime;          // in milliseconds
   int64_t updateTime;           // in milliseconds
-  int64_t lastLoginTime;        // in seconds
-  int64_t lastFailedLoginTime;  // in seconds
-  int32_t failedLoginCount;
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;

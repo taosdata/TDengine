@@ -53,6 +53,10 @@ int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int64_t mndGetTimeWhiteListVersion(SMnode *pMnode);
 int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
 int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
+
+void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
+void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
+
 #ifdef __cplusplus
 }
 #endif

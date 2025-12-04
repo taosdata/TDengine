@@ -22,7 +22,25 @@
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 void    mndCleanupPrivilege(SMnode *pMnode) {}
 bool    mndMustChangePassword(SUserObj* pUser) { return false; }
-int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) { return 0; }
+
+
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) {
+  int32_t   code = 0;
+  SUserObj *pUser = NULL;
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
+
+  if ((!pUser->superUser) && (!pUser->enable)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
+  }
+
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  TAOS_RETURN(code);
+}
+
+
+
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) { return 0; }
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) { return 0; }
