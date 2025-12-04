@@ -49,28 +49,28 @@ typedef struct {
 } SSslCtx;
 
 int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
-
-void transTlsCtxDestroy(SSslCtx* pCtx);
+void    transTlsCtxDestroy(SSslCtx* pCtx);
+int32_t transTlsCtxCreateFromOld(SSslCtx *pOld, int8_t cliMode, SSslCtx** pNew);
 typedef struct {
   int32_t  cap;
   int32_t  len;
   int8_t   invalid;  // whether the buffer is invalid
   int8_t   ref;
-  uint8_t* buf;      // buffer for encrypted data
+  uint8_t* buf;  // buffer for encrypted data
 } SSslBuffer;
 
 typedef struct {
   SSslCtx* pTlsCtx;   // pointer to TLS context
-  SSL*    ssl;       // SSL connection
-  int32_t refCount;  // reference count
-  int32_t status;    // connection status
-  int8_t inited;
+  SSL*     ssl;       // SSL connection
+  int32_t  refCount;  // reference count
+  int32_t  status;    // connection status
+  int8_t   inited;
 
   BIO* readBio;
   BIO* writeBio;  // BIO for reading and writing data
 
   void* pStream;
-  void *pConn;
+  void* pConn;
 
   SSslBuffer readBuf;  // buffer for reading data
   SSslBuffer sendBuf;  // buffer for sending data
@@ -79,7 +79,7 @@ typedef struct {
   void (*readCb)(uv_stream_t* pStream, ssize_t nread, const uv_buf_t* buffer);  // callback for read events
   void (*writeCb)(uv_write_t* pReq, int32_t status);                            // callback for write events
 
-  char certDn[512]; 
+  char certDn[512];
 } STransTLS;
 
 int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs);
@@ -95,7 +95,7 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
 int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 
 int32_t sslGetCertificate(STransTLS* pTls, char buf[]);
-int8_t sslIsInited(STransTLS* pTls);
+int8_t  sslIsInited(STransTLS* pTls);
 
 int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
 void    sslBufferDestroy(SSslBuffer* buf);

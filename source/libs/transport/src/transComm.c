@@ -1871,6 +1871,8 @@ bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
 
 int32_t transReloadTlsConfig(void* handle, int8_t type) {
   int32_t code = 0;
+
+   
   if (type == TAOS_CONN_CLIENT) {
     code = transReloadClientTlsConfig(handle);
   } else if (type == TAOS_CONN_SERVER) {

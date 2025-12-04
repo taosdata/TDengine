@@ -3780,11 +3780,16 @@ int32_t transSetDefaultAddr(void* pInstRef, const char* ip, const char* fqdn) {
 
 int32_t transReloadClientTlsConfig(void* handle) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
+
+  code = transTlsCtxCreateFromOld(pInst->pSSLContext, TAOS_CONN_CLIENT, (SSslCtx **)&pInst->pNewSSLContext);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+  
   for (int8_t i = 0; i < pInst->numOfThreads; i++) {
     SCliReq* pReq = taosMemoryCalloc(1, sizeof(SCliReq));
     if (pReq == NULL) {
@@ -3804,6 +3809,11 @@ int32_t transReloadClientTlsConfig(void* handle) {
       break;
     }
   }
+
+_error:
+  if (code != 0) {
+    tError("%s failed to reload tls config at line:%d since %s", pInst->label, lino, tstrerror(code));
+  } 
 
   transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
   return code;

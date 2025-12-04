@@ -19,7 +19,10 @@
 #define DEFALUT_SSL_DIR "/etc/ssl/ssls"
 
 extern int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx);
+//extern int32_t transTlsCtxCreateNewImpl(const SRpcInit* pInit, SSslCtx** ppCtx);
 extern void    transTlsCtxDestroyImpl(SSslCtx* pCtx);
+
+extern int32_t transTlsCtxCreateTlsFromOldImpl(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx);
 
 extern int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs);
 extern void    sslDestroyImpl(STransTLS* pTLs);
@@ -47,7 +50,10 @@ extern void sslBufferUnrefImpl(SSslBuffer* buf);
 
 int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
 
+int32_t transTlsCtxCreateFromOld(SSslCtx *pOld, int8_t cliMode, SSslCtx** pNew) { return transTlsCtxCreateTlsFromOldImpl(pOld, cliMode, pNew); }
+
 void transTlsCtxDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }
+
 
 int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) { return sslInitImpl(pCtx, ppTLs); }
 void    sslDestroy(STransTLS* pTLs) { sslDestroyImpl(pTLs); }
@@ -94,7 +100,14 @@ void sslBufferUnref(SSslBuffer* buf) { sslBufferUnrefImpl(buf);}
 #if !defined(TD_ENTERPRISE) 
 
 int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
+
+//int32_t transTlsCtxCreateNewImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; } 
+
 void    transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
+
+int32_t transTlsCtxCreateTlsFromOldImpl(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx) {
+return TSDB_CODE_INVALID_CFG;
+}
 
 int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
 

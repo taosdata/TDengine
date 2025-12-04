@@ -2739,10 +2739,15 @@ int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
 
 int32_t transReloadServerTlsConfig(void* handle) {
   int32_t code = 0;
+  int32_t lino = 0;
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
+
+  code = transTlsCtxCreateFromOld(pInst->pSSLContext, TAOS_CONN_SERVER, (SSslCtx **)&pInst->pNewSSLContext);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+  
 
   SServerObj* svrObj = pInst->tcphandle;
   for (int i = 0; i < svrObj->numOfThreads; i++) {
@@ -2762,8 +2767,9 @@ int32_t transReloadServerTlsConfig(void* handle) {
     }
   }
 
-  transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
+_error:
 
+  transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
   if (code != 0) {
     tError("ip-white-list update failed since %s", tstrerror(code));
   }
