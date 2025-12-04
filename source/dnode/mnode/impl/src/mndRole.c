@@ -360,7 +360,7 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->version));
   TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pObj->flag));
 
-  TAOS_CHECK_EXIT(tDeserializePrivObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
+  TAOS_CHECK_EXIT(tDeserializePrivSysObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
 
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectRows));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertRows));
@@ -503,30 +503,30 @@ _exit:
 
 void mndRoleFreeObj(SRoleObj *pObj) {
   if (pObj) {
-    if (pObj->objPrivs) {
-      taosHashCleanup(pObj->objPrivs);
-      pObj->objPrivs = NULL;
-    }
-    taosHashCleanup(&pObj->selectRows);
-    taosHashCleanup(&pObj->insertRows);
-    taosHashCleanup(&pObj->updateRows);
-    taosHashCleanup(&pObj->deleteRows);
-    taosHashCleanup(&pObj->selectTbs);
-    taosHashCleanup(&pObj->insertTbs);
-    taosHashCleanup(&pObj->updateTbs);
-    taosHashCleanup(&pObj->deleteTbs);
-    if (pObj->parentUsers) {
-      taosHashCleanup(pObj->parentUsers);
-      pObj->parentUsers = NULL;
-    }
-    if (pObj->parentRoles) {
-      taosHashCleanup(pObj->parentRoles);
-      pObj->parentRoles = NULL;
-    }
-    if (pObj->subRoles) {
-      taosHashCleanup(pObj->subRoles);
-      pObj->subRoles = NULL;
-    }
+    taosHashCleanup(pObj->objPrivs);
+    taosHashCleanup(pObj->selectRows);
+    taosHashCleanup(pObj->insertRows);
+    taosHashCleanup(pObj->updateRows);
+    taosHashCleanup(pObj->deleteRows);
+    taosHashCleanup(pObj->selectTbs);
+    taosHashCleanup(pObj->insertTbs);
+    taosHashCleanup(pObj->updateTbs);
+    taosHashCleanup(pObj->deleteTbs);
+    taosHashCleanup(pObj->parentUsers);
+    taosHashCleanup(pObj->parentRoles);
+    taosHashCleanup(pObj->subRoles);
+    pObj->objPrivs = NULL;
+    pObj->selectRows = NULL;
+    pObj->insertRows = NULL;
+    pObj->updateRows = NULL;
+    pObj->deleteRows = NULL;
+    pObj->selectTbs = NULL;
+    pObj->insertTbs = NULL;
+    pObj->updateTbs = NULL;
+    pObj->deleteTbs = NULL;
+    pObj->parentUsers = NULL;
+    pObj->parentRoles = NULL;
+    pObj->subRoles = NULL;    
   }
 }
 

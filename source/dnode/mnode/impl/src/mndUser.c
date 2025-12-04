@@ -1011,7 +1011,7 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
-  TAOS_CHECK_EXIT(tDeserializePrivObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
+  TAOS_CHECK_EXIT(tDeserializePrivSysObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectRows));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertRows));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateRows));
@@ -1188,7 +1188,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfWriteDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfTopics, _OVER)
-
+#if 0
   char *db = taosHashIterate(pUser->readDbs, NULL);
   while (db != NULL) {
     SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER);
@@ -1200,7 +1200,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER);
     db = taosHashIterate(pUser->writeDbs, db);
   }
-
+#endif
   char *topic = taosHashIterate(pUser->topics, NULL);
   while (topic != NULL) {
     SDB_SET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER);
@@ -1379,7 +1379,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   if (pUser == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-
+#if 0
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, _OVER)
@@ -1691,7 +1691,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
   }
   taosInitRWLatch(&pUser->lock);
-
+#endif
 _OVER:
   taosMemoryFree(key);
   taosMemoryFree(value);
@@ -1700,16 +1700,25 @@ _OVER:
     mError("user:%s, failed to decode at line %d from raw:%p since %s", pUser == NULL ? "null" : pUser->user, lino,
            pRaw, tstrerror(code));
     if (pUser != NULL) {
-      taosHashCleanup(pUser->readDbs);
-      taosHashCleanup(pUser->writeDbs);
+      // taosHashCleanup(pUser->readDbs);
+      // taosHashCleanup(pUser->writeDbs);
       taosHashCleanup(pUser->topics);
-      taosHashCleanup(pUser->readTbs);
-      taosHashCleanup(pUser->writeTbs);
+      // taosHashCleanup(pUser->readTbs);
+      // taosHashCleanup(pUser->writeTbs);
       taosHashCleanup(pUser->alterTbs);
       taosHashCleanup(pUser->readViews);
       taosHashCleanup(pUser->writeViews);
       taosHashCleanup(pUser->alterViews);
       taosHashCleanup(pUser->useDbs);
+      taosHashCleanup(pUser->objPrivs);
+      taosHashCleanup(pUser->selectRows);
+      taosHashCleanup(pUser->insertRows);
+      taosHashCleanup(pUser->updateRows);
+      taosHashCleanup(pUser->deleteRows);
+      taosHashCleanup(pUser->selectTbs);
+      taosHashCleanup(pUser->insertTbs);
+      taosHashCleanup(pUser->updateTbs);
+      taosHashCleanup(pUser->deleteTbs);
       taosMemoryFreeClear(pUser->pIpWhiteListDual);
     }
     taosMemoryFreeClear(pRow);
@@ -1786,7 +1795,7 @@ int32_t mndDupUseDbHash(SHashObj *pOld, SHashObj **ppNew) {
 
 int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
   if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
-                              HASH_ENTRY_LOCK);)) {
+                              HASH_ENTRY_LOCK))) {
     TAOS_RETURN(terrno);
   }
 
@@ -1819,21 +1828,9 @@ int32_t mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
 
     SPrivObjPolicies *pNewPolicies = taosHashGet(pNew, key, klen);
     if (pNewPolicies) {
-      // merge policies
-      for (int32_t i = 0; i < TSDB_PRIV_OBJ_POLICY_TYPE_MAX; ++i) {
-        if (policies->policy[i]) {
-          if (pNewPolicies->policy[i]) {
-            taosArrayMerge(pNewPolicies->policy[i], policies->policy[i], NULL);
-          } else {
-            pNewPolicies->policy[i] = taosArrayDup(policies->policy[i], NULL);
-            if (pNewPolicies->policy[i] == NULL) {
-              code = terrno;
-              taosHashCancelIterate(pOld, policies);
-              taosHashCleanup(pNew);
-              TAOS_RETURN(code);
-            }
-          }
-        }
+      size_t newVlen = taosHashGetValueSize(pNewPolicies);
+      if (newVlen > 0 && vlen > 0) {
+        privAddSet(&pNewPolicies->policy, &policies->policy);
       }
       continue;
     }
@@ -1841,6 +1838,7 @@ int32_t mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
     if ((code = taosHashPut(pNew, key, klen, vlen ? policies : NULL, vlen)) != 0) {
       taosHashCancelIterate(pOld, policies);
       taosHashCleanup(pNew);
+      *ppNew = NULL;
       TAOS_RETURN(code);
     }
   }

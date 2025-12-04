@@ -359,6 +359,12 @@ static FORCE_INLINE void privAddType(SPrivSet* privSet, EPrivType type) {
   privSet->set[PRIV_GROUP(type)] |= 1ULL << PRIV_OFFSET(type);
 }
 
+static FORCE_INLINE void privRemoveSet(SPrivSet* privSet1, const SPrivSet* privSet2) {
+  for (int i = 0; i < PRIV_GROUP_CNT; i++) {
+    privSet1->set[i] &= ~privSet2->set[i];
+  }
+}
+
 static FORCE_INLINE int32_t privTblPolicyGetIndex(SPrivTblPolicy* policy) {
   int32_t nCols = taosArrayGetSize(policy->cols);
   return policy->tagCond ? (nCols > 0 ? PRIV_TBL_POLICY_TAG_COLS : PRIV_TBL_POLICY_TAG)

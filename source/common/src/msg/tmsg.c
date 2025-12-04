@@ -3641,7 +3641,7 @@ _exit:
   return code;
 }
 
-int32_t tDeserializePrivObjPolicies(SDecoder *pDecoder, SPrivSet *sysPriv, SHashObj **pHash) {
+int32_t tDeserializePrivSysObjPolicies(SDecoder *pDecoder, SPrivSet *sysPriv, SHashObj **pHash) {
   int32_t code = 0, lino = 0;
 
   uint8_t nPrivGroups = 0;
@@ -4164,7 +4164,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
     }
     // since 3.4.0.0
     if (!tDecodeIsEnd(pDecoder)) {
-      TAOS_CHECK_EXIT(tDeserializePrivObjPolicies(pDecoder, &pRsp->sysPrivs, &pRsp->objPrivs));
+      TAOS_CHECK_EXIT(tDeserializePrivSysObjPolicies(pDecoder, &pRsp->sysPrivs, &pRsp->objPrivs));
 
       TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->selectRows));
       TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->insertRows));
