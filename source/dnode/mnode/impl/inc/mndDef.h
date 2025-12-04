@@ -756,6 +756,7 @@ typedef struct {
   SSchemaWrapper schema;
   int64_t        stbUid;
   char           stbName[TSDB_TABLE_FNAME_LEN];
+  SRWLatch       lock;        // lock must be at the end for topic update
 } SMqTopicObj;
 
 typedef struct {
@@ -769,6 +770,7 @@ typedef struct {
   int32_t  status;
   int32_t  hbStatus;          // hbStatus is not applicable to serialization
   int32_t  pollStatus;        // pollStatus is not applicable to serialization
+  SRWLatch lock;              // lock is used for topics update
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
@@ -828,10 +830,11 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<SMqVgEp>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
+  SRWLatch  lock;
 } SMqSubscribeObj;
 
 int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
-int32_t tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
+int32_t tCloneSubscribeObj(SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
 void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
 void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);

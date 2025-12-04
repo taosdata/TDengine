@@ -61,6 +61,15 @@ const char *mndConsumerStatusName(int status);
     }                           \
   } while (0)
 
+#define MND_TMQ_CONDITION_CHECK(c,ret) \
+  do {                          \
+    if (!(c)) {                 \
+      code = ret;               \
+      lino = __LINE__;          \
+      goto END;                 \
+    }                           \
+  } while (0)
+
 #define PRINT_LOG_END                                               \
   if (code != 0) {                                                        \
     mError("%s failed at line:%d since:%s", __func__, lino, tstrerror(code)); \

@@ -31,9 +31,9 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery;
 This SQL query subscribes to data using a SELECT statement (for example, SELECT * or SELECT ts, c1), and may include filter conditions and scalar function calculations. However, aggregate functions and time-window aggregations are not supported.
 
 1. Once this type of topic is created, the structure of the subscribed data is fixed.
-1. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`).
-1. If the table schema changes, any newly added columns will not appear in the subscription result.
-1. For SELECT \*, the subscription expands to include all columns present at creation time. For subtables and normal tables, these are data columns; for supertables, they include both data and tag columns.
+2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`).From 3.3.9, you can modify and delete, but you need to reload the topic.
+3. If the table schema changes, any newly added columns will not appear in the subscription result.
+4. For SELECT \*, the subscription expands to include all columns present at creation time. For subtables and normal tables, these are data columns; for supertables, they include both data and tag columns.
 
 For example, if you need to subscribe to all smart meter records where the voltage is greater than 200, and only return the timestamp, current, and voltage (excluding the phase), you can create a topic named `power_topic` with the following SQL statement:
 
@@ -86,6 +86,14 @@ DROP TOPIC [IF EXISTS] [FORCE] topic_name;
 ```sql
 SHOW TOPICS;
 ```
+
+## Reload Topic
+
+```sql
+RELOAD TOPIC IF EXISTS topic_name as subquery;
+```
+1. This syntax is supported since version 3.3.9 and is used to reload topics. It primarily addresses issues where the output results do not take effect after deleting or adding columns and tags in queries involving topic changes or tag lengths, as well as when selecting * to query subscriptions.
+2. When it is necessary to change the schema of the subscription table structure, first stop consuming, then make the change, execute "reload topic", and then restart the subscription.
 
 The above SQL statement displays information about all topics in the current database.
 

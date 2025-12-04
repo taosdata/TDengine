@@ -27,7 +27,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 该 SQL 通过 SELECT 语句订阅（包括 SELECT *，或 SELECT ts, c1 等指定查询订阅，可以带条件过滤、标量函数计算，但不支持聚合函数、不支持时间窗口聚合）。需要注意的是：
 
 1. 该类型 TOPIC 一旦创建则订阅数据的结构确定。
-2. 被订阅或用于计算的列或标签不可被删除（ALTER table DROP）、修改（ALTER table MODIFY）。
+2. 被订阅或用于计算的列或标签不可被删除（ALTER table DROP）、修改（ALTER table MODIFY）。（从3.3.9 可以修改，删除，但是需要重新 reload topic）。
 3. 若发生表结构变更，新增的列不出现在结果中。
 4. 对于 select *，则订阅展开为创建时所有的列（子表、普通表为数据列，超级表为数据列加标签列）
 
@@ -79,6 +79,14 @@ DROP TOPIC [IF EXISTS] [FORCE] topic_name;
 ```sql
 SHOW TOPICS;
 ```
+
+## 加载主题
+
+```sql
+RELOAD TOPIC IF EXISTS topic_name as subquery;
+```
+1. 该语法从 3.3.9 版本开始支持，用于重新加载主题，主要解决查询主题里变更列或 tag 长度，以及 select * 查询订阅时，删除增加列和 tag 后，输出结果不生效问题。
+2. 需要变更订阅表结构的 schema 时，先停止消费，然后变更，然后执行 reload topic，接着重新开始订阅即可
 
 上面的 SQL 会显示当前数据库下的所有主题的信息。
 

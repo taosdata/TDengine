@@ -449,13 +449,14 @@ END:
   return code;
 }
 
-int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub) {
+int32_t tCloneSubscribeObj(SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub) {
   int32_t          code = 0;
+  int32_t          lino = 0;
+  PRINT_LOG_START
+  taosRLockLatch(&pSub->lock);
+
   SMqSubscribeObj *pSubNew = taosMemoryMalloc(sizeof(SMqSubscribeObj));
-  if (pSubNew == NULL) {
-    code = terrno;
-    goto END;
-  }
+  MND_TMQ_NULL_CHECK(pSubNew);
   *ppSub = pSubNew;
 
   (void)memcpy(pSubNew->key, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
@@ -467,10 +468,7 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
 
   pSubNew->vgNum = pSub->vgNum;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  if (pSubNew->consumerHash == NULL) {
-    code = terrno;
-    goto END;
-  }
+  MND_TMQ_NULL_CHECK(pSubNew->consumerHash);
   taosHashSetFreeFp(pSubNew->consumerHash, freeSMqConsumerEp);
 
   void          *pIter = NULL;
@@ -483,22 +481,17 @@ int32_t tCloneSubscribeObj(const SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub)
         .consumerId = pConsumerEp->consumerId,
         .vgs = taosArrayDup(pConsumerEp->vgs, NULL),
     };
-    if ((code = taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp,
-                            sizeof(SMqConsumerEp))) != 0)
-      goto END;
+    MND_TMQ_RETURN_CHECK(taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp)));
   }
   pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, NULL);
-  if (pSubNew->unassignedVgs == NULL) {
-    code = terrno;
-    goto END;
-  }
+  MND_TMQ_NULL_CHECK(pSubNew->unassignedVgs);
+  
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
-  if (pSub->offsetRows != NULL && pSubNew->offsetRows == NULL) {
-    code = terrno;
-    goto END;
-  }
+  MND_TMQ_CONDITION_CHECK(pSub->offsetRows == NULL || pSubNew->offsetRows != NULL, terrno);
   (void)memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
+
 END:
+  taosRUnLockLatch(&pSub->lock);
   return code;
 }
 

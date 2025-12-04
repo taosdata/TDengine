@@ -134,7 +134,9 @@ class TestCase:
                             print(element)
                             if element[4] != 'i22' or element[-1] != 20:
                                 tdLog.exit(f"error: {element[4]} {element[-1]}")
-                        tdSql.execute(f"reload topic {func_name} as select * from {func_name}")
+                        tdSql.execute(f"reload topic if exists {func_name} as select * from {func_name}")
+                        tdSql.execute(f"reload topic if exists aaa as select * from {func_name}")
+                        tdSql.error(f"reload topic aaa as select * from {func_name}")
                         tdSql.execute(f"INSERT INTO {func_name}_3 USING {func_name} TAGS(2)  VALUES('2018-10-05 14:00:00.000',1.3,219,0.31000,'i3')")
                         time.sleep(3)
 
