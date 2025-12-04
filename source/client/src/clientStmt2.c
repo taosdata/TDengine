@@ -2554,11 +2554,6 @@ _return:
 
   pStmt->errCode = preCode;
 
-  if (code != TSDB_CODE_SUCCESS) {
-    STMT2_ELOG("stmt get fileds parse failed, code:%d", code);
-    resetRequest(pStmt);
-  }
-
   return code;
 }
 
