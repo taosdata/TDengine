@@ -1000,7 +1000,7 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
     if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
       pStreamCalcScan.readFromCache = true;
     }
-    if (NULL == taosArrayPush(pCxt->pPlanCxt->pStreamCalcVgArray, &pStreamCalcScan)) {
+    if (NULL == taosArrayPush(pCxt->pPlanCxt->streamCalcScanPlanArray, &pStreamCalcScan)) {
       PLAN_ERR_RET(terrno);
     }
   }
