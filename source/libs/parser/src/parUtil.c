@@ -1562,7 +1562,7 @@ int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
     return code;
   }
 
-  if (NULL == pMetaCache->pVStbRefDbs) {
+  if (NULL == pMetaCache || NULL == pMetaCache->pVStbRefDbs) {
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 

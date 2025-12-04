@@ -4272,7 +4272,6 @@ TEST(stmt2Case, vtable) {
   do_query(taos, "create vtable vtb_0 (c1 from ntb_0.c1, c2 from ntb_0.c2, c3 from ntb_0.c3) using vstb tags (1)");
   do_query(taos, "create vtable vtb_1 (c1 from ctb_0.c1, c2 from ctb_0.c2, c3 from ctb_0.c3) using vstb tags (2)");
 
-  do_query(taos, "select tbname from vstb where ts = 1591060628000 order by tbname");
   // 0. Query vstable before alter origin table
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
@@ -4310,13 +4309,11 @@ TEST(stmt2Case, vtable) {
   ASSERT_EQ(strncmp((char*)row[0], "vtb_1", 5), 0);
   taos_stmt2_close(stmt);
 
+  do_query(taos, "select c1 from vtb_0 where ts = 1591060628000 order by c1");
   stmt = taos_stmt2_init(taos, &option);
   code = taos_stmt2_prepare(stmt, "select c1 from vtb_0 where ts = ? order by c1", 0);
   checkError(stmt, code, __FILE__, __LINE__);
   int t2_len = 5;
-  // TAOS_STMT2_BIND  params2 = {TSDB_DATA_TYPE_BINARY, (void*)"vtb_0", &t2_len, NULL, 1};
-  // TAOS_STMT2_BIND* paramv2[2] = {&params2, &params};
-  // bindv = {1, NULL, NULL, &paramv2[0]};
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
   checkError(stmt, code, __FILE__, __LINE__);
   code = taos_stmt2_exec(stmt, NULL);
