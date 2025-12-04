@@ -4278,7 +4278,7 @@ TEST(stmt2Case, vtable) {
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
 
-  const char* sql = "select tbname from vstb where ts = ? order by tbname";
+  const char* sql = "select tbname,c1 from vstb where ts = ? order by tbname";
   int         code = taos_stmt2_prepare(stmt, sql, 0);
   checkError(stmt, code, __FILE__, __LINE__);
 
@@ -4304,9 +4304,11 @@ TEST(stmt2Case, vtable) {
   TAOS_ROW row = taos_fetch_row(pRes);
   ASSERT_NE(row, nullptr);
   ASSERT_EQ(strncmp((char*)row[0], "vtb_0", 5), 0);
+  ASSERT_EQ(*(int*)row[1], 1);
   row = taos_fetch_row(pRes);
   ASSERT_NE(row, nullptr);
   ASSERT_EQ(strncmp((char*)row[0], "vtb_1", 5), 0);
+  ASSERT_EQ(*(int*)row[1], 1);
   taos_stmt2_close(stmt);
 
   do_query(taos, "select c1 from vtb_0 where ts = 1591060628000 order by c1");
@@ -4322,7 +4324,7 @@ TEST(stmt2Case, vtable) {
   ASSERT_NE(pRes, nullptr);
   row = taos_fetch_row(pRes);
   ASSERT_NE(row, nullptr);
-  ASSERT_EQ(strncmp((char*)row[0], "1", 1), 0);
+  ASSERT_EQ(*(int*)row[0], 1);
 
   taos_stmt2_close(stmt);
 
