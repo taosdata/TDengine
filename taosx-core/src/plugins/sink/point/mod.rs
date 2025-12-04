@@ -11,10 +11,14 @@ use model::PointModelConfig;
 use model::TableConfig;
 use model::TagConfig;
 use rhai::{Dynamic, Scope, AST};
+use serde::Deserialize;
+use serde::Serialize;
 use std::borrow::Borrow;
 use std::cmp;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Instant;
 use taosx_ipc::prelude::{record_batch_to_column_view, IpcDataType};
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 
@@ -22,6 +26,31 @@ use crate::utils::sql::sql_value_escaped_fmt;
 
 pub mod csv;
 pub mod model;
+
+/// 动态点位更新的模式
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateMode {
+    None,
+    Append,
+    Update,
+}
+
+impl FromStr for UpdateMode {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "none" => Ok(UpdateMode::None),
+            "append" => Ok(UpdateMode::Append),
+            "update" => Ok(UpdateMode::Update),
+            _ => Err(anyhow::anyhow!(
+                "invalid update mode: {}, must be none/append/update",
+                s
+            )),
+        }
+    }
+}
 
 static OPC_PARSER_ID_PATH_DEVICE: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
     std::env::var("OPC_PARSER_ID_PATH_DEVICE")
@@ -36,6 +65,7 @@ pub async fn handle_transform(
     message: &RecordMessage,
     config: &PointModelConfig,
 ) -> anyhow::Result<RecordMessage> {
+    let instant = Instant::now();
     let transform_columns: [&str; 4] = [
         ColumnConfig::VALUE,
         ColumnConfig::ORIGINAL_TS,
@@ -131,6 +161,8 @@ pub async fn handle_transform(
     let schema = Schema::new(fields);
 
     let transformed_record = RecordBatch::try_new(Arc::new(schema), columns)?;
+
+    tracing::debug!(elapsed = ?instant.elapsed(), "handle point record transform done");
 
     Ok(RecordMessage::from_record(transformed_record))
 }
@@ -559,6 +591,7 @@ pub async fn point_records_to_sql(
     HashMap<String, Vec<SqlInsertion>>,
     HashMap<String, HashMap<String, String>>,
 )> {
+    let instant = Instant::now();
     // Avoid cloning entire config maps; cache only generated mappings locally when needed
     let mut generated_point_configs: HashMap<String, model::PointConfig> = HashMap::new();
     let mut generated_table_configs: HashMap<String, model::TableConfig> = HashMap::new();
@@ -990,6 +1023,7 @@ pub async fn point_records_to_sql(
         }
     }
 
+    tracing::debug!(elapsed = ?instant.elapsed(), "point_records_to_sql done");
     Ok((stable_insert_map, child_table_create_sql_map))
 }
 

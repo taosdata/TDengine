@@ -71,7 +71,7 @@ impl OPCConfig {
 
         let points_mode = PointsMode::from_dsn(dsn)?;
         // OPC model config
-        let model_config = match points_mode {
+        let mut model_config = match points_mode {
             PointsMode::ByCsv => {
                 // 上传 csv 配置文件
                 let mut parser = CsvParser::from_dsn(dsn)?;
@@ -92,15 +92,17 @@ impl OPCConfig {
                     generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
                     point_config_map: point_map,
                     table_config_map: table_map,
+                    update_mode: None,
                 }
             }
         };
 
         // points config
         let points_config = PointsConfig::from_dsn(dsn)?;
+        // 设置动态点位更新的模式
+        model_config.update_mode = points_config.update_mode;
 
         // 这里把 model_config 中的点位写到 dsn 中，是为了在 collect 中使用。
-        // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
         let mut dsn_clone = dsn.clone();
         let points = model_config
             .point_config_map
@@ -361,8 +363,6 @@ batch_timeout = 1
 
 [points]
 limit = 0
-update_mode = "Append"
-update_interval = 60
 
 [points.ua]
 

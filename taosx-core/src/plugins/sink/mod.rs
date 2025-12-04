@@ -3816,6 +3816,7 @@ mod tests {
             generate_rule: None,
             point_config_map,
             table_config_map,
+            update_mode: None,
         };
         let taos = TaosBuilder::from_dsn(format!("{}/{}", &dsn, &db))
             .unwrap()
