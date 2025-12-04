@@ -13,6 +13,7 @@ use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
 
 use crate::plugins::sink::point::csv::{CsvColumn, CsvHeader, CsvParser};
+use crate::sink::point::UpdateMode;
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::table_meta::{TableMeta, TableMetaQuerier, TableMetaQueryBuilder};
 use crate::utils::validate_table_column_name;
@@ -77,15 +78,12 @@ impl TryFrom<&str> for SourceType {
 /// generate_rule 用来处理未定义的点位，即：动态发现的点位
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PointModelConfig {
-    /// point model 对应的数据源类型
     #[serde(alias = "opc_type", alias = "sourceType", alias = "opcType")]
-    pub source_type: SourceType,
-    /// 生成点位映射规则的方式
-    pub generate_rule: Option<GeneratePointMappingBy>,
-    /// key: point_id, value: PointConfig
-    pub point_config_map: LinkedHashMap<String, PointConfig>,
-    /// key: point_id, value: TableConfig
-    pub table_config_map: LinkedHashMap<String, TableConfig>,
+    pub source_type: SourceType, // point model 对应的数据源类型
+    pub update_mode: Option<UpdateMode>, // OPC 点位更新模式：none/append/update
+    pub generate_rule: Option<GeneratePointMappingBy>, // 生成点位映射规则的方式
+    pub point_config_map: LinkedHashMap<String, PointConfig>, // key: point_id, value: PointConfig
+    pub table_config_map: LinkedHashMap<String, TableConfig>, // key: point_id, value: TableConfig
 }
 
 impl PointModelConfig {
@@ -827,6 +825,26 @@ impl PointModelConfig {
         &self,
         columns: &[&str],
     ) -> anyhow::Result<HashMap<String, HashMap<String, ColumnConfig>>> {
+        // 如果 update_mode 为 None 或 update_mode=none，优先使用内存中的 table_config_map 构建 transform_map
+        if matches!(self.update_mode, None | Some(UpdateMode::None)) {
+            let mut result: HashMap<String, HashMap<String, ColumnConfig>> = HashMap::new();
+
+            for &col in columns {
+                let mut per_point: HashMap<String, ColumnConfig> = HashMap::new();
+                for (point_id, table_cfg) in &self.table_config_map {
+                    if let Some(col_cfg) = table_cfg.column_config(col) {
+                        per_point.insert(point_id.clone(), col_cfg.clone());
+                    }
+                }
+                if !per_point.is_empty() {
+                    result.insert(col.to_string(), per_point);
+                }
+            }
+            tracing::debug!("get transform map from table_config_map");
+            return Ok(result);
+        }
+
+        // table_config_map 为空：需要从 CSV 中解析（动态点位更新或首次加载）。
         match &self.generate_rule {
             None => Ok(HashMap::new()),
             Some(GeneratePointMappingBy::Rule(_rule)) => {
@@ -837,10 +855,12 @@ impl PointModelConfig {
             }
             Some(GeneratePointMappingBy::Csv((csv, csv_origin))) => match csv_origin {
                 None => {
+                    tracing::debug!("get transform map from csv files");
                     let rdr = CsvParser::open_csv_many(csv.clone()).await?;
                     CsvParser::parse_transform_map(self.source_type, rdr, columns).await
                 }
                 Some(csv_origin) => {
+                    tracing::debug!("get transform map from csv origin");
                     let rdr = CsvParser::open_csv_many(vec![format!("@{}", csv_origin)]).await?;
                     CsvParser::parse_transform_map(self.source_type, rdr, columns).await
                 }
@@ -2793,6 +2813,7 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         // given
         let cfg = PointModelConfig {
             source_type: SourceType::OPCDA,
+            update_mode: None,
             generate_rule: None,
             point_config_map: LinkedHashMap::new(),
             table_config_map: LinkedHashMap::new(),

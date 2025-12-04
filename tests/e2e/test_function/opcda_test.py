@@ -82,7 +82,9 @@ def test_sanity_2(input_data):
         input_data, "opcda/test_opcda_csv_config_base.yaml", files_to_upload
     )
     stables = TaosAdapter.show_stables_or_tables(case_data["to"]["target_dbname"], True)
-    assert len(stables) > 0, f"库 {case_data['to']['target_dbname']} 中的 stable 不应为空"
+    assert (
+        len(stables) > 0
+    ), f"库 {case_data['to']['target_dbname']} 中的 stable 不应为空"
     stable1 = stables[0]
     column_data_with_meta = TaosAdapter.desc_table_or_stable(
         case_data["to"]["target_dbname"], stable1
@@ -122,7 +124,9 @@ def test_sanity_3(input_data):
         case_data["to"]["target_dbname"], stable1
     )
     assert "rts::TIMESTAMP(8)::" == column_data_with_meta[0], "rts 列应当是主键列"
-    assert "original_ts::TIMESTAMP(8)::" in column_data_with_meta, "original_ts 列应当存在"
+    assert (
+        "original_ts::TIMESTAMP(8)::" in column_data_with_meta
+    ), "original_ts 列应当存在"
     assert "quality11::INT(4)::" in column_data_with_meta, "quality11 列应当存在"
 
 
@@ -283,7 +287,9 @@ def test_check_connectivity(input_data):
     json_result = Util.check_connectivity(
         input_data, dsn, ENV.choose_platform_agent(task_type)
     )
-    assert json_result["valid"], f"OPC DA 连通性校验失败，result: {json_result} dsn: {dsn}"
+    assert json_result[
+        "valid"
+    ], f"OPC DA 连通性校验失败，result: {json_result} dsn: {dsn}"
 
 
 from testng_taosx.requests_wrapper import http
@@ -310,8 +316,12 @@ def test_task_add_points_8(input_data):
         "opcda/test_opcda_csv_config_base.yaml", task_type
     )
     via = case_data["via"]
+    # 新增点位动态更新相关参数：追加更新模式与更新间隔
+    case_data["from"]["update_mode"] = "append"
+    case_data["from"]["update_interval"] = "10"
     task = Task(env_data, case_data)
     file = File(env_data, task_type)
+    # 构造 payload 必须在设置 update_* 参数之后，否则 from DSN 不包含动态更新配置
     payload = Util.get_task_payload(case_data, env_data)
     payload = File.add_file_param(
         payload, File.file_key["opcda"][0], file.upload("opcda/opcda_sanity_8.csv")
@@ -322,7 +332,9 @@ def test_task_add_points_8(input_data):
         env_data["taosadapter_host"], case_data["to"]["target_dbname"]
     )
     metrics = task.get_task_metrics(task_info["id"])
-    assert rows_count > 0, f"库{OPCDA_CI_DBNAME}中的数据行数应大于 0, 实际为 {rows_count}"
+    assert (
+        rows_count > 0
+    ), f"库{OPCDA_CI_DBNAME}中的数据行数应大于 0, 实际为 {rows_count}"
     assert (
         metrics["current"]["written_rows"] > 0
     ), f"任务 metrics 中的 written_rows 应大于 0, 实际为 {metrics}"
@@ -332,7 +344,9 @@ def test_task_add_points_8(input_data):
         "GET",
         f"{env_data['taos_explorer_root_endpoint']}{TAOSX_BASE_URL}/ds/in/opc/csv/points/header?task_id={task_info['id']}",
     )
-    assert response.status_code == 200, f"获取任务 ID {task_info['id']} 失败: {response.text}"
+    assert (
+        response.status_code == 200
+    ), f"获取任务 ID {task_info['id']} 失败: {response.text}"
     # 添加点位 A
     point_a_tag = "device0.tagd0_2"
     point_a_tbname = "t_tagd0_2"
@@ -444,7 +458,9 @@ def test_task_add_points_8(input_data):
     ), f"点位 A 数据写入失败:  {OPCDA_CI_DBNAME}.`{point_a_tbname}` {response}"
     now_resp = TaosAdapter.run_sql(env_data["taosadapter_host"], f"select now()")
     now = int(parser.parse(now_resp["data"][0][0]).timestamp())
-    sleep(5)  # 实际测试中发现 OPC DA 数据源的时间戳比北京时间可能稍微慢，所以这里采用休眠较长的时间来确保 ts_transform 之后的验证是通过的
+    sleep(
+        5
+    )  # 实际测试中发现 OPC DA 数据源的时间戳比北京时间可能稍微慢，所以这里采用休眠较长的时间来确保 ts_transform 之后的验证是通过的
     response = TaosAdapter.run_sql(
         env_data["taosadapter_host"],
         f"select LAST_ROW(ts,rts) from {OPCDA_CI_DBNAME}.`{point_b_tbname}`",

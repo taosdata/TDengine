@@ -4,8 +4,8 @@ use std::time::Duration;
 use taos::Dsn;
 use taosx_core::runners::opc::config::collect::da::DaNodeConfig;
 use taosx_core::runners::opc::config::collect::ua::UANodeConfig;
-use taosx_core::runners::opc::config::points::UpdateMode;
 use taosx_core::runners::opc::config::{OPCConfig, PointsMode};
+use taosx_core::sink::point::UpdateMode;
 use taosx_core::sink::point::csv::parse_csv_config_files;
 use tokio_util::sync::CancellationToken;
 
@@ -61,7 +61,7 @@ impl PointsUpdater {
         let update_mode = opc_config
             .clone()
             .points
-            .map(|p| p.update_mode.clone().unwrap_or(UpdateMode::None))
+            .map(|p| p.update_mode.unwrap_or(UpdateMode::None))
             .unwrap_or(UpdateMode::None);
         let update_interval = opc_config
             .clone()

@@ -13,6 +13,7 @@ sanity 用例设计：
 10.宽表模式
 11.批量操作任务
 """
+
 import copy
 import logging
 import os
@@ -212,7 +213,9 @@ def test_sanity_4(input_data):
         env_data["taosadapter_host"], case_data["to"]["target_dbname"]
     )
     assert rows_count > 0, f"库{case_data['to']['target_dbname']}中的数据行数应大于 0"
-    assert metrics["current"]["written_rows"] > 0, "任务 metrics 中的 written_rows 应大于 0"
+    assert (
+        metrics["current"]["written_rows"] > 0
+    ), "任务 metrics 中的 written_rows 应大于 0"
 
 
 @pytest.mark.sanity
@@ -347,7 +350,9 @@ def test_check_connectivity_9(input_data):
     )
     dsn = Util.get_task_payload(case_data, input_data)["from"]
     json_result = Util.check_connectivity(input_data, dsn)
-    assert json_result["valid"], f"OPC UA 连通性校验失败，result: {json_result} dsn: {dsn}"
+    assert json_result[
+        "valid"
+    ], f"OPC UA 连通性校验失败，result: {json_result} dsn: {dsn}"
     # 证书相关文件上传
     file = File(input_data, task_type)
     certificate_path = file.upload("opcua/certificate.crt")
@@ -365,7 +370,9 @@ def test_check_connectivity_9(input_data):
     # 这里通过 linux 部署的 agent 校验 OPC UA Server 的连通性
     linux_agent = ENV.choose_platform_agent(task_type)
     json_result = Util.check_connectivity(input_data, dsn, linux_agent)
-    assert json_result["valid"], f"OPC UA 连通性校验失败，result: {json_result} dsn: {dsn}"
+    assert json_result[
+        "valid"
+    ], f"OPC UA 连通性校验失败，result: {json_result} dsn: {dsn}"
 
     case_data["from"]["certificate"] = f"@{certificate_path}"
     case_data["from"]["private_key"] = f"@{private_key_path}"
@@ -377,7 +384,9 @@ def test_check_connectivity_9(input_data):
     # 这里通过 windows 部署的 agent 校验 OPC UA Server 的连通性
     windows_agent = ENV.choose_platform_agent(TaskType.OPCDA)
     json_result = Util.check_connectivity(input_data, dsn, windows_agent)
-    assert json_result["valid"], f"OPC UA 连通性校验失败，result: {json_result} dsn: {dsn}"
+    assert json_result[
+        "valid"
+    ], f"OPC UA 连通性校验失败，result: {json_result} dsn: {dsn}"
 
 
 @pytest.mark.sanity
@@ -522,8 +531,12 @@ def test_task_add_points_12(with_agent, input_data):
         # 删除 agent 信息，即创建任务不通过 agent
         case_data.pop("via")
         via = None
+    # 新增点位动态更新相关参数：追加更新模式与更新间隔
+    case_data["from"]["update_mode"] = "append"
+    case_data["from"]["update_interval"] = "60"
     task = Task(env_data, case_data)
     file = File(env_data, task_type)
+    # 构造 payload 必须在设置 update_* 参数之后，否则 from DSN 不包含动态更新配置
     payload = Util.get_task_payload(case_data, env_data)
     payload = File.add_file_param(
         payload, File.file_key["opcua"][0], file.upload("opcua/opcua_sanity_12.csv")
@@ -535,14 +548,18 @@ def test_task_add_points_12(with_agent, input_data):
     )
     metrics = task.get_task_metrics(task_info["id"])
     assert rows_count > 0, f"库{OPCUA_CI_DBNAME}中的数据行数应大于 0"
-    assert metrics["current"]["written_rows"] > 0, f"任务 metrics 中的 written_rows 应大于 0"
+    assert (
+        metrics["current"]["written_rows"] > 0
+    ), f"任务 metrics 中的 written_rows 应大于 0"
     # 接口调用获取要填的参数，这里只做调用不实际使用
     # 接口地址：GET /ds/in/opc/csv/points/header?task_id=169
     response = http.request(
         "GET",
         f"{env_data['taos_explorer_root_endpoint']}{TAOSX_BASE_URL}/ds/in/opc/csv/points/header?task_id={task_info['id']}",
     )
-    assert response.status_code == 200, f"获取任务 ID {task_info['id']} 失败: {response.text}"
+    assert (
+        response.status_code == 200
+    ), f"获取任务 ID {task_info['id']} 失败: {response.text}"
     # 添加点位 A
     point_a_point_id = "ns=3;i=1003"
     point_a_tbname = "t_3_1003"
