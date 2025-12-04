@@ -1137,3 +1137,4 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py
