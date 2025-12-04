@@ -336,7 +336,7 @@ The `kafka/produce` action publishes data to the specified topic. It supports ob
   - `{column}`: Column data, where column is the column field name
 - key_serializer (string): The serialization method for the message key. Supported values: "string-utf8", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64". Default is "string-utf8". Controls how the result of key_pattern is serialized into the key's byte stream.
   - "string-utf8": Treats the template result as a string and encodes it directly to a UTF-8 byte stream.
-  - Integer types: Parses the template result as an integer. Only single field placeholders (e.g., `{device_id}`) are supported, not combinations (e.g., `{table}_{id}`) or expressions (e.g., `{id+1}`). The integer is serialized in big-endian format.
+  - Integer types: Parses the template result as an integer. Only single field placeholders, the integer is serialized in big-endian format.
 - value_serializer (string): The serialization method for the message value. Supported values: "json", "influx". Default is "json".
 - acks (string): Producer acknowledgment setting. Options: "all", "1", "0". Default is "0".
   - "all": The producer waits for all in-sync replicas (ISR) to acknowledge the message.

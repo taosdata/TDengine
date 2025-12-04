@@ -341,9 +341,9 @@ taosgen -h 127.0.0.1 -c config.yaml
 - key_pattern (字符串)：消息 Key 的组成模式，支持通过占位符语法生成动态 key，默认值为 `{table}`，占位符语法如下：
   - `{table}`：表示表名数据
   - `{column}`：表示列数据，column 是列字段名称
-- key_serializer (字符串)：消息 Key 的序列化方式，支持 "string-utf8"、"int8"、"uint8"、"int16"、"uint16"、"int32"、"uint32"、"int64"、"uint64"，默认为 "string-utf8"；控制如何将 key_pattern 解析后的结果序列化为 Kafka 消息的 key 字节流。
+- key_serializer (字符串)：消息 Key 的序列化方式，支持 "string-utf8"、"int8"、"uint8"、"int16"、"uint16"、"int32"、"uint32"、"int64"、"uint64"，默认为 "string-utf8"，控制如何将 key_pattern 解析后的结果序列化为 Kafka 消息的 key 字节流。
   - "string-utf8":  将模板替换后的结果视为字符串，直接以 UTF-8 编码生成字节流。
-  - 整数：将字段模板替换后的结果解析为整数。仅支持单个字段占位符（如 `{device_id}`），不支持多字段组合（如 `{table}_{id}`）或表达式运算（如 `{id+1}`）。序列化时使用该整数类型，并以大端序（big-endian） 格式编码为二进制数据发送。
+  - 整数：将字段模板替换后的结果解析为整数。仅支持单个字段占位符，序列化时使用该整数类型，并以大端序（big-endian）格式编码为二进制数据发送。
 - value_serializer (字符串)：消息 Value 的序列化方式，支持 "json"、"influx"，默认为 "json"。
 - acks (字符串)：生产者确认机制设置，如 "all"、"1"、"0"，默认为 "0"；
   - "all"：生产者必须等待 ISR（In-Sync Replicas，同步副本集）中的所有副本都成功接收到消息并将其写入本地日志后，才会认为消息发送成功。

@@ -22,7 +22,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220 * math.sqrt(2) * math.sin(_i)'
+      expr: '220*math.sqrt(2)*math.sin(_i)'
     - name: phase
       type: float
       min: 0
@@ -81,7 +81,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220 * math.sqrt(2) * math.sin(_i)'
+      expr: '220*math.sqrt(2)*math.sin(_i)'
     - name: phase
       type: float
       min: 0
@@ -182,7 +182,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220 * math.sqrt(2) * math.sin(_i)'
+      expr: '220*math.sqrt(2)*math.sin(_i)'
     - name: phase
       type: float
       min: 0
@@ -238,7 +238,7 @@ schema:
       max: 100
     - name: voltage
       type: int
-      expr: '220 * math.sqrt(2) * math.sin(_i)'
+      expr: '220*math.sqrt(2)*math.sin(_i)'
     - name: phase
       type: float
       min: 0
