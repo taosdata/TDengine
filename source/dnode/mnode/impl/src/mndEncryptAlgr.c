@@ -17,7 +17,9 @@
 
 #include "mndEncryptAlgr.h"
 #include "audit.h"
+#include "mndMnode.h"
 #include "mndShow.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 
 static void tFreeEncryptAlgrObj(SEncryptAlgrObj *pEncryptAlgr) {}
@@ -277,11 +279,31 @@ static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
   return pRaw;
 }
 
-static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
+int32_t mndSendCreateBuiltinReq(SMnode *pMnode) {
+  int32_t code = 0;
+
+  SRpcMsg rpcMsg = {.pCont = NULL,
+                    .contLen = 0,
+                    .msgType = TDMT_MND_BUILTIN_ENCRYPT_ALGR,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1,
+                    .info.refId = 0,
+                    .info.noResp = 0,
+                    .info.handle = 0};
+  SEpSet  epSet = {0};
+
+  mndGetMnodeEpSet(pMnode, &epSet);
+
+  code = tmsgSendReq(&epSet, &rpcMsg);
+  if (code != 0) {
+    mError("failed to send builtin encrypt algr req, since %s", tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode) {
   int32_t code = 0;
   STrans *pTrans = NULL;
-
-  if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
 
   mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr, mndSetAESEncryptAlgr, mndSetSM3EncryptAlgr,
                                     mndSetSHAEncryptAlgr, mndSetSM2EncryptAlgr, mndSetRSAEncryptAlgr};
@@ -321,6 +343,26 @@ static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
 _OVER:
   mndTransDrop(pTrans);
   return code;
+}
+
+static int32_t mndProcessBuiltinReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  if (!mndIsLeader(pMnode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return mndCreateBuiltinEncryptAlgr(pMnode);
+}
+
+static int32_t mndProcessBuiltinRsp(SRpcMsg *pRsp) {
+  mInfo("builtin rsp");
+  return 0;
+}
+
+static int32_t mndUpgradeBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
+  if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
+
+  return mndSendCreateBuiltinReq(pMnode);
 }
 
 #define SYMCBC "Symmetric Ciphers CBC mode"
@@ -565,11 +607,13 @@ int32_t mndInitEncryptAlgr(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_ALGR, mndProcessCreateEncryptAlgrReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS, mndRetrieveEncryptAlgr);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ENCRYPT_ALGR, mndProcessDropEncryptAlgrReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_BUILTIN_ENCRYPT_ALGR, mndProcessBuiltinReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_BUILTIN_ENCRYPT_ALGR_RSP, mndProcessBuiltinRsp);
 
   SSdbTable table = {
       .sdbType = SDB_ENCRYPT_ALGORITHMS,
       .keyType = SDB_KEY_INT32,
-      .upgradeFp = (SdbUpgradeFp)mndCreateBuiltinEncryptAlgr,
+      .upgradeFp = (SdbUpgradeFp)mndUpgradeBuiltinEncryptAlgr,
       .encodeFp = (SdbEncodeFp)mndEncryptAlgrActionEncode,
       .decodeFp = (SdbDecodeFp)mndEncryptAlgrActionDecode,
       .insertFp = (SdbInsertFp)mndEncryptAlgrActionInsert,
