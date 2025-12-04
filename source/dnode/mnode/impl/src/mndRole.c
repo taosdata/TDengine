@@ -507,14 +507,14 @@ void mndRoleFreeObj(SRoleObj *pObj) {
       taosHashCleanup(pObj->objPrivs);
       pObj->objPrivs = NULL;
     }
-    tFreePrivTblPolicies(&pObj->selectRows);
-    tFreePrivTblPolicies(&pObj->insertRows);
-    tFreePrivTblPolicies(&pObj->updateRows);
-    tFreePrivTblPolicies(&pObj->deleteRows);
-    tFreePrivTblPolicies(&pObj->selectTbs);
-    tFreePrivTblPolicies(&pObj->insertTbs);
-    tFreePrivTblPolicies(&pObj->updateTbs);
-    tFreePrivTblPolicies(&pObj->deleteTbs);
+    taosHashCleanup(&pObj->selectRows);
+    taosHashCleanup(&pObj->insertRows);
+    taosHashCleanup(&pObj->updateRows);
+    taosHashCleanup(&pObj->deleteRows);
+    taosHashCleanup(&pObj->selectTbs);
+    taosHashCleanup(&pObj->insertTbs);
+    taosHashCleanup(&pObj->updateTbs);
+    taosHashCleanup(&pObj->deleteTbs);
     if (pObj->parentUsers) {
       taosHashCleanup(pObj->parentUsers);
       pObj->parentUsers = NULL;

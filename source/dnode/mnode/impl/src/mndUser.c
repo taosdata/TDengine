@@ -1984,28 +1984,46 @@ _OVER:
 }
 
 void mndUserFreeObj(SUserObj *pUser) {
-  taosHashCleanup(pUser->readDbs);
-  taosHashCleanup(pUser->writeDbs);
+  // taosHashCleanup(pUser->readDbs);
+  // taosHashCleanup(pUser->writeDbs);
   taosHashCleanup(pUser->topics);
-  taosHashCleanup(pUser->readTbs);
-  taosHashCleanup(pUser->writeTbs);
+  // taosHashCleanup(pUser->readTbs);
+  // taosHashCleanup(pUser->writeTbs);
   taosHashCleanup(pUser->alterTbs);
   taosHashCleanup(pUser->readViews);
   taosHashCleanup(pUser->writeViews);
   taosHashCleanup(pUser->alterViews);
   taosHashCleanup(pUser->useDbs);
+  taosHashCleanup(pUser->objPrivs);
+  taosHashCleanup(pUser->selectRows);
+  taosHashCleanup(pUser->insertRows);
+  taosHashCleanup(pUser->updateRows);
+  taosHashCleanup(pUser->deleteRows);
+  taosHashCleanup(pUser->selectTbs);
+  taosHashCleanup(pUser->insertTbs);
+  taosHashCleanup(pUser->updateTbs);
+  taosHashCleanup(pUser->deleteTbs);
   taosHashCleanup(pUser->roles);
   taosMemoryFreeClear(pUser->pIpWhiteListDual);
-  pUser->readDbs = NULL;
-  pUser->writeDbs = NULL;
+  // pUser->readDbs = NULL;
+  // pUser->writeDbs = NULL;
   pUser->topics = NULL;
-  pUser->readTbs = NULL;
-  pUser->writeTbs = NULL;
+  // pUser->readTbs = NULL;
+  // pUser->writeTbs = NULL;
   pUser->alterTbs = NULL;
   pUser->readViews = NULL;
   pUser->writeViews = NULL;
   pUser->alterViews = NULL;
   pUser->useDbs = NULL;
+  pUser->objPrivs = NULL;
+  pUser->selectRows = NULL;
+  pUser->insertRows = NULL;
+  pUser->updateRows = NULL;
+  pUser->deleteRows = NULL;
+  pUser->selectTbs = NULL;
+  pUser->insertTbs = NULL;
+  pUser->updateTbs = NULL;
+  pUser->deleteTbs = NULL;
   pUser->roles = NULL;
 }
 
@@ -2025,15 +2043,24 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->enable = pNew->enable;
   pOld->flag = pNew->flag;
   (void)memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
-  TSWAP(pOld->readDbs, pNew->readDbs);
-  TSWAP(pOld->writeDbs, pNew->writeDbs);
+  pOld->sysPrivs = pNew->sysPrivs;
+  // TSWAP(pOld->readDbs, pNew->readDbs);
+  // TSWAP(pOld->writeDbs, pNew->writeDbs);
   TSWAP(pOld->topics, pNew->topics);
-  TSWAP(pOld->readTbs, pNew->readTbs);
-  TSWAP(pOld->writeTbs, pNew->writeTbs);
+  // TSWAP(pOld->readTbs, pNew->readTbs);
+  // TSWAP(pOld->writeTbs, pNew->writeTbs);
   TSWAP(pOld->alterTbs, pNew->alterTbs);
   TSWAP(pOld->readViews, pNew->readViews);
   TSWAP(pOld->writeViews, pNew->writeViews);
   TSWAP(pOld->alterViews, pNew->alterViews);
+  TSWAP(pOld->objPrivs, pNew->objPrivs);
+  TSWAP(pOld->selectRows, pNew->selectRows);
+  TSWAP(pOld->insertRows, pNew->insertRows);
+  TSWAP(pOld->updateRows, pNew->updateRows);
+  TSWAP(pOld->deleteRows, pNew->deleteRows);
+  TSWAP(pOld->selectTbs, pNew->selectTbs);
+  TSWAP(pOld->insertTbs, pNew->insertTbs);
+  TSWAP(pOld->updateTbs, pNew->updateTbs);
   TSWAP(pOld->useDbs, pNew->useDbs);
   TSWAP(pOld->roles, pNew->roles);
 
@@ -2645,6 +2672,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
   int32_t code = 0;
   int32_t lino = 0;
 
+#if 0
   if (ALTER_USER_ADD_READ_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
@@ -2744,9 +2772,9 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       taosHashClear(pNewUser->writeDbs);
     }
   }
-
-  SHashObj *pReadTbs = pNewUser->readTbs;
-  SHashObj *pWriteTbs = pNewUser->writeTbs;
+#endif
+  SHashObj *pReadTbs = pNewUser->selectTbs;
+  SHashObj *pWriteTbs = pNewUser->insertTbs;
   SHashObj *pAlterTbs = pNewUser->alterTbs;
 
 #ifdef TD_ENTERPRISE
@@ -3547,11 +3575,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
-    int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
-    int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
+    int32_t numOfReadDbs = 0; //taosHashGetSize(pUser->readDbs);
+    int32_t numOfWriteDbs = 0; //taosHashGetSize(pUser->writeDbs);
     int32_t numOfTopics = taosHashGetSize(pUser->topics);
-    int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
-    int32_t numOfWriteTbs = taosHashGetSize(pUser->writeTbs);
+    int32_t numOfReadTbs = taosHashGetSize(pUser->selectTbs);
+    int32_t numOfWriteTbs = taosHashGetSize(pUser->insertTbs);
     int32_t numOfAlterTbs = taosHashGetSize(pUser->alterTbs);
     int32_t numOfReadViews = taosHashGetSize(pUser->readViews);
     int32_t numOfWriteViews = taosHashGetSize(pUser->writeViews);
@@ -3607,7 +3635,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
       numOfRows++;
     }
-
+#if 0
     char *db = taosHashIterate(pUser->readDbs, NULL);
     while (db != NULL) {
       cols = 0;
@@ -3707,10 +3735,10 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       numOfRows++;
       db = taosHashIterate(pUser->writeDbs, db);
     }
+#endif
+    TAOS_CHECK_EXIT(mndLoopHash(pUser->selectTbs, "select", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
 
-    TAOS_CHECK_EXIT(mndLoopHash(pUser->readTbs, "read", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
-
-    TAOS_CHECK_EXIT(mndLoopHash(pUser->writeTbs, "write", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
+    TAOS_CHECK_EXIT(mndLoopHash(pUser->insertTbs, "insert", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
 
     TAOS_CHECK_EXIT(mndLoopHash(pUser->alterTbs, "alter", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
 
@@ -3946,11 +3974,11 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
     if (pIter == NULL) break;
 
     bool update = false;
-    bool inReadDb = (taosHashGet(pUser->readDbs, pDb->name, dbLen + 1) != NULL);
-    bool inWriteDb = (taosHashGet(pUser->writeDbs, pDb->name, dbLen + 1) != NULL);
+    bool inReadDb = false; //(taosHashGet(pUser->readDbs, pDb->name, dbLen + 1) != NULL);
+    bool inWriteDb = false; //(taosHashGet(pUser->writeDbs, pDb->name, dbLen + 1) != NULL);
     bool inUseDb = (taosHashGet(pUser->useDbs, pDb->name, dbLen + 1) != NULL);
-    bool inReadTbs = taosHashGetSize(pUser->readTbs) > 0;
-    bool inWriteTbs = taosHashGetSize(pUser->writeTbs) > 0;
+    bool inReadTbs = taosHashGetSize(pUser->selectTbs) > 0;
+    bool inWriteTbs = taosHashGetSize(pUser->insertTbs) > 0;
     bool inAlterTbs = taosHashGetSize(pUser->alterTbs) > 0;
     bool inReadViews = taosHashGetSize(pUser->readViews) > 0;
     bool inWriteViews = taosHashGetSize(pUser->writeViews) > 0;
@@ -3983,10 +4011,10 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
       TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
     }
     if (inReadDb) {
-      TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->readDbs, pDb->name, dbLen + 1));
+      // TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->readDbs, pDb->name, dbLen + 1));
     }
     if (inWriteDb) {
-      TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->writeDbs, pDb->name, dbLen + 1));
+      // TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->writeDbs, pDb->name, dbLen + 1));
     }
     if (inUseDb) {
       TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->useDbs, pDb->name, dbLen + 1));
@@ -3997,8 +4025,8 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
     int32_t nRemovedWriteTbs = 0;
     int32_t nRemovedAlterTbs = 0;
     if (inReadTbs || inWriteTbs || inAlterTbs) {
-      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->readTbs, pDb->name, dbLen, &nRemovedReadTbs));
-      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->writeTbs, pDb->name, dbLen, &nRemovedWriteTbs));
+      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->selectTbs, pDb->name, dbLen, &nRemovedReadTbs));
+      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->insertTbs, pDb->name, dbLen, &nRemovedWriteTbs));
       TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->alterTbs, pDb->name, dbLen, &nRemovedAlterTbs));
       if (!update) update = nRemovedReadTbs > 0 || nRemovedWriteTbs > 0 || nRemovedAlterTbs > 0;
     }
@@ -4054,17 +4082,17 @@ int32_t mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb) {
       break;
     }
 
-    bool inRead = (taosHashGet(newUser.readTbs, stb, len) != NULL);
-    bool inWrite = (taosHashGet(newUser.writeTbs, stb, len) != NULL);
+    bool inRead = (taosHashGet(newUser.selectTbs, stb, len) != NULL);
+    bool inWrite = (taosHashGet(newUser.insertTbs, stb, len) != NULL);
     bool inAlter = (taosHashGet(newUser.alterTbs, stb, len) != NULL);
     if (inRead || inWrite || inAlter) {
-      code = taosHashRemove(newUser.readTbs, stb, len);
+      code = taosHashRemove(newUser.selectTbs, stb, len);
       if (code < 0) {
-        mError("failed to remove readTbs:%s from user:%s", stb, pUser->user);
+        mError("failed to remove selectTbs:%s from user:%s", stb, pUser->user);
       }
-      code = taosHashRemove(newUser.writeTbs, stb, len);
+      code = taosHashRemove(newUser.insertTbs, stb, len);
       if (code < 0) {
-        mError("failed to remove writeTbs:%s from user:%s", stb, pUser->user);
+        mError("failed to remove insertTbs:%s from user:%s", stb, pUser->user);
       }
       code = taosHashRemove(newUser.alterTbs, stb, len);
       if (code < 0) {
