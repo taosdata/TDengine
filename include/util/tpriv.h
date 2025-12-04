@@ -370,12 +370,13 @@ static FORCE_INLINE void privTblPolicyFree(void* policy) {
   taosArrayDestroy(((SPrivTblPolicy*)policy)->cols);
 }
 
-static FORCE_INLINE void privTblPoliciesFree(SPrivTblPolicies* pTblPolicies) {
-  pTblPolicies->nPolicies = 0;
+static FORCE_INLINE void privTblPoliciesFree(void* pTblPolicies) {
+  SPrivTblPolicies* tbPolicies = (SPrivTblPolicies*)pTblPolicies;
+  tbPolicies->nPolicies = 0;
   for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
-    if (pTblPolicies->policy[i]) {
-      taosArrayDestroyEx(pTblPolicies->policy[i], privTblPolicyFree);
-      pTblPolicies->policy[i] = NULL;
+    if (tbPolicies->policy[i]) {
+      taosArrayDestroyEx(tbPolicies->policy[i], privTblPolicyFree);
+      tbPolicies->policy[i] = NULL;
     }
   }
 }

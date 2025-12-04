@@ -1553,6 +1553,11 @@ int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pR
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
+int32_t tSerializePrivSysObjPolicies(SEncoder* pEncoder, SPrivSet* sysPriv, SHashObj* pHash);
+int32_t tDeserializePrivSysObjPolicies(SDecoder* pDecoder, SPrivSet* sysPriv, SHashObj** pHash);
+int32_t tSerializePrivTblPolicies(SEncoder* pEncoder, SHashObj* pHash);
+int32_t tDeserializePrivTblPolicies(SDecoder* pDecoder, SHashObj** pHash);
+
 int32_t tSerializeIpRange(SEncoder* encoder, SIpRange* pRange);
 int32_t tDeserializeIpRange(SDecoder* decoder, SIpRange* pRange);
 typedef struct {

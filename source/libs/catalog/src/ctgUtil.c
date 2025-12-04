@@ -212,15 +212,22 @@ void ctgFreeSMetaData(SMetaData* pData) {
 
 void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) {
   taosHashCleanup(userCache->userAuth.createdDbs);
-  taosHashCleanup(userCache->userAuth.readDbs);
-  taosHashCleanup(userCache->userAuth.writeDbs);
-  taosHashCleanup(userCache->userAuth.readTbs);
-  taosHashCleanup(userCache->userAuth.writeTbs);
-  taosHashCleanup(userCache->userAuth.alterTbs);
+  // taosHashCleanup(userCache->userAuth.readDbs);
+  // taosHashCleanup(userCache->userAuth.writeDbs);
+  // taosHashCleanup(userCache->userAuth.readTbs);
+  // taosHashCleanup(userCache->userAuth.writeTbs);
+  // taosHashCleanup(userCache->userAuth.alterTbs);
   taosHashCleanup(userCache->userAuth.readViews);
   taosHashCleanup(userCache->userAuth.writeViews);
   taosHashCleanup(userCache->userAuth.alterViews);
   taosHashCleanup(userCache->userAuth.useDbs);
+  taosHashCleanup(userCache->userAuth.objPrivs);
+  taosHashCleanup(userCache->userAuth.selectRows);
+  taosHashCleanup(userCache->userAuth.insertRows);
+  taosHashCleanup(userCache->userAuth.deleteRows);
+  taosHashCleanup(userCache->userAuth.selectTbs);
+  taosHashCleanup(userCache->userAuth.insertTbs);
+  taosHashCleanup(userCache->userAuth.deleteTbs);
 }
 
 void ctgFreeMetaRent(SCtgRentMgmt* mgmt) {
@@ -625,15 +632,22 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_MND_GET_USER_AUTH: {
       SGetUserAuthRsp* pOut = (SGetUserAuthRsp*)pCtx->out;
       taosHashCleanup(pOut->createdDbs);
-      taosHashCleanup(pOut->readDbs);
-      taosHashCleanup(pOut->writeDbs);
-      taosHashCleanup(pOut->readTbs);
-      taosHashCleanup(pOut->writeTbs);
-      taosHashCleanup(pOut->alterTbs);
+      // taosHashCleanup(pOut->readDbs);
+      // taosHashCleanup(pOut->writeDbs);
+      // taosHashCleanup(pOut->readTbs);
+      // taosHashCleanup(pOut->writeTbs);
+      // taosHashCleanup(pOut->alterTbs);
       taosHashCleanup(pOut->readViews);
       taosHashCleanup(pOut->writeViews);
       taosHashCleanup(pOut->alterViews);
       taosHashCleanup(pOut->useDbs);
+      taosHashCleanup(pOut->objPrivs);
+      taosHashCleanup(pOut->selectRows);
+      taosHashCleanup(pOut->insertRows);
+      taosHashCleanup(pOut->deleteRows);
+      taosHashCleanup(pOut->selectTbs);
+      taosHashCleanup(pOut->insertTbs);
+      taosHashCleanup(pOut->deleteTbs);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -2113,8 +2127,9 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
-  SHashObj*        pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->readTbs : pInfo->writeTbs;
-  char*            stbName = NULL;
+  SHashObj*        pTbs =
+      (AUTH_TYPE_READ == req->singleType) ? pInfo->selectTbs : pInfo->insertTbs;  // pInfo->readTbs : pInfo->writeTbs;
+  char* stbName = NULL;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
   char dbFName[TSDB_DB_FNAME_LEN];
