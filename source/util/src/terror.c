@@ -848,11 +848,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max lenght is 63 character")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max lenght is 63 character")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max lenght is 127 character")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG,         "Algorithm type too long, max lenght is 63 character")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG,    "Algorithm OpenSSL name too long, max lenght is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max length is 127 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG,         "Algorithm type too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG,    "Algorithm OpenSSL name too long, max length is 63 character")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
