@@ -7,7 +7,7 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 
 ## 安装 Grafana
 
-目前 TDengine 支持 Grafana 7.5 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：<https://grafana.com/grafana/download>
+目前 TDengine 支持 Grafana 7.5 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。[下载地址](https://grafana.com/grafana/download)
 
 ## 安装 TDengine 插件
 
