@@ -1066,11 +1066,6 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
                  numOfTopics * TSDB_TOPIC_FNAME_LEN + ipWhiteReserve;
   char    *buf = NULL;
   SSdbRaw *pRaw = NULL;
-  int32_t  sizeExt = tSerializeUserObjExt(NULL, 0, pUser);
-  if (sizeExt < 0) {
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
-  size += sizeExt;
 
   char *stb = NULL;
 #if 0
@@ -1167,6 +1162,12 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size += sizeof(int32_t);
     useDb = taosHashIterate(pUser->useDbs, useDb);
   }
+
+  int32_t sizeExt = tSerializeUserObjExt(NULL, 0, pUser);
+  if (sizeExt < 0) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  size += sizeExt;
 
   pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
   if (pRaw == NULL) {
@@ -1361,6 +1362,11 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   char     *key = NULL;
   char     *value = NULL;
 
+  SHashObj *pReadDbs = NULL;
+  SHashObj *pWriteDbs = NULL;
+  SHashObj *pReadTbs = NULL;
+  SHashObj *pWriteTbs = NULL;
+
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PTR, &lino, _OVER);
@@ -1379,7 +1385,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   if (pUser == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-#if 0
+
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, _OVER)
@@ -1405,27 +1411,36 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &numOfTopics, _OVER)
   }
 
-  pUser->readDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  pUser->writeDbs =
-      taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  pUser->topics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pUser->readDbs == NULL || pUser->writeDbs == NULL || pUser->topics == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-    goto _OVER;
+  if (numOfReadDbs > 0) {
+    pReadDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pReadDbs == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
   }
-
+  if (numOfWriteDbs > 0) {
+    pWriteDbs = taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pWriteDbs == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
+  }
+  if (numOfTopics > 0) {
+    pUser->topics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pUser->topics == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
+  }
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(pUser->readDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(pReadDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(pUser->writeDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(pWriteDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   if (sver >= 2) {
@@ -1455,10 +1470,18 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_INT32(pRaw, dataPos, &numOfUseDbs, _OVER)
 
-    pUser->readTbs =
-        taosHashInit(numOfReadTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pUser->writeTbs =
-        taosHashInit(numOfWriteTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (numOfReadTbs > 0) {
+      pReadTbs = taosHashInit(numOfReadTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pReadTbs == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
+    if (numOfWriteTbs > 0) {
+      pWriteTbs = taosHashInit(numOfWriteTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pWriteTbs == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
     pUser->alterTbs =
         taosHashInit(numOfAlterTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
@@ -1471,8 +1494,8 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
     pUser->useDbs = taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
-    if (pUser->readTbs == NULL || pUser->writeTbs == NULL || pUser->alterTbs == NULL || pUser->readViews == NULL ||
-        pUser->writeViews == NULL || pUser->alterViews == NULL || pUser->useDbs == NULL) {
+    if (pUser->alterTbs == NULL || pUser->readViews == NULL || pUser->writeViews == NULL || pUser->alterViews == NULL ||
+        pUser->useDbs == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       goto _OVER;
     }
@@ -1497,7 +1520,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(pUser->readTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pReadTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     for (int32_t i = 0; i < numOfWriteTbs; ++i) {
@@ -1520,7 +1543,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pWriteTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     if (sver >= 6) {
@@ -1691,7 +1714,6 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
   }
   taosInitRWLatch(&pUser->lock);
-#endif
 _OVER:
   taosMemoryFree(key);
   taosMemoryFree(value);
