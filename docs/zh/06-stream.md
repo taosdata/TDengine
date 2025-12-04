@@ -12,7 +12,7 @@ TDengine 3.0 的流式计算引擎提供了实时处理写入的数据流的能�
 
 TDengine 的流式计算能够支持分布在多个 vnode 中的超级表聚合；还能够处理乱序数据的写入：它提供了 watermark 机制以度量容忍数据乱序的程度，并提供了 ignore expired 配置项以决定乱序数据的处理策略——丢弃或者重新计算。
 
-详见 [流式计算](../taos-sql/stream)
+详见 [流式计算](/reference/taos-sql/stream)
 
 ## 流式计算的创建
 
@@ -24,7 +24,7 @@ stream_options: {
 }
 ```
 
-详细的语法规则参考 [流式计算](../taos-sql/stream)
+详细的语法规则参考 [流式计算](/reference/taos-sql/stream)
 
 ## 示例一
 
