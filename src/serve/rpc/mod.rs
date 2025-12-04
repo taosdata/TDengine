@@ -614,6 +614,7 @@ impl FlightService for FlightServiceImpl {
 
     type DoPutStream = Pin<Box<dyn Stream<Item = Result<PutResult, Status>> + Send + 'static>>;
 
+    #[instrument(skip_all)]
     async fn do_put(
         &self,
         req: Request<Streaming<FlightData>>,

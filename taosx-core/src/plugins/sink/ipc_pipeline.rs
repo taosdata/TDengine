@@ -11,7 +11,7 @@ use futures::future::Either;
 use futures::StreamExt;
 use ring_channel::{ring_channel, RingReceiver};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, trace, warn, Span as TracingSpan};
+use tracing::{debug, info, instrument, trace, warn, Span as TracingSpan};
 use zerocopy::FromBytes;
 
 use arrow_flight::{
@@ -41,7 +41,7 @@ pub struct IpcSinkPipeline {
     schema: Arc<Schema>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    batch_counter: BatchCounter,
+    batch_counter: Arc<BatchCounter>,
     config: Option<Arc<crate::plugins::sink::point::model::PointModelConfig>>,
     persist_component: Option<PersistComponent>,
 }
@@ -53,7 +53,7 @@ impl IpcSinkPipeline {
         schema: Arc<Schema>,
         cancel: CancellationToken,
         with_agent: (i64, String, String),
-        batch_counter: BatchCounter,
+        batch_counter: Arc<BatchCounter>,
         config: Option<Arc<crate::plugins::sink::point::model::PointModelConfig>>,
         persist_component: Option<PersistComponent>,
     ) -> Self {
@@ -69,6 +69,7 @@ impl IpcSinkPipeline {
         }
     }
 
+    #[instrument(skip_all)]
     pub async fn run(self) -> anyhow::Result<()> {
         let Self {
             input_stream,
@@ -305,8 +306,7 @@ impl IpcSinkPipeline {
             use taoslog::QidManager;
 
             let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
-            let cur_batch_number = batch_counter.next().await?;
-            qid.set_batch_id(cur_batch_number);
+            qid.set_task_id(task_id as _);
             let data = FlightDataEncoderBuilder::new()
                 .with_schema(schema.clone())
                 .with_options(
@@ -319,8 +319,11 @@ impl IpcSinkPipeline {
                 )
                 .build(data_stream)
                 .map({
-                    let qid = qid.clone();
+                    let mut qid = qid.clone();
+                    let batch_counter = batch_counter.clone();
                     move |v| {
+                        qid.set_batch_id(batch_counter.next());
+                        tracing::trace!("agent sink pipeline send batch");
                         v.map(|message| {
                             message.with_app_metadata(Bytes::copy_from_slice(
                                 MessageMetadata::new(qid.get()).as_bytes(),

@@ -2645,7 +2645,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     cancel: CancellationToken,
     archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
@@ -2701,7 +2701,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                 while let Ok(record) = msg_rx.recv_async().await {
                     let raw_rows = record.num_rows();
                     let batch_number = if let Some(batch_counter) = batch_counter.as_ref() {
-                        let batch_number = batch_counter.next().await?;
+                        let batch_number = batch_counter.next();
                         qid.set_batch_id(batch_number);
                         Some(batch_number)
                     } else {
@@ -2833,7 +2833,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     cancel: CancellationToken,
     archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
@@ -2875,11 +2875,9 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                     .ipc()
                     .add_received_messages(record.num_rows() as u64);
                 // msg_tx.send_async(record).await?;
-                let batch_number = if let Some(batch_counter) = batch_counter.clone() {
-                    Some(batch_counter.next().await?)
-                } else {
-                    None
-                };
+                let batch_number = batch_counter
+                    .as_ref()
+                    .map(|batch_counter| batch_counter.next());
                 trace!(batch_number, "Writing batch");
                 let mut written = 0;
                 let res = consume_flat_record_with_sink(
@@ -2978,7 +2976,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     archive_tx: Option<&Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
@@ -3062,7 +3060,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 while let Ok((record, ack_wait_tx)) = msg_rx.recv_async().await {
                     let raw_rows = record.num_rows();
                     if let Some(batch_counter) = batch_counter.as_ref() {
-                        let batch_number = batch_counter.next().await?;
+                        let batch_number = batch_counter.next();
                         qid.set_batch_id(batch_number);
                     }
                     tracing::trace!("Writing batch");

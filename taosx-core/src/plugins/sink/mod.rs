@@ -152,7 +152,7 @@ async fn ipc_tcp_forward(
     stream: std::net::TcpStream, // socket2::Socket,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    batch_counter: BatchCounter,
+    batch_counter: Arc<BatchCounter>,
     config: Option<Arc<PointModelConfig>>,
     persist_components: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
@@ -221,13 +221,14 @@ async fn ipc_tcp_forward(
     .await
 }
 
+#[instrument(skip_all)]
 pub async fn ipc_forward(
     input_stream: flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>,
     ack_tx: Option<flume::Sender<LushAck>>,
     schema: Arc<Schema>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    batch_counter: BatchCounter,
+    batch_counter: Arc<BatchCounter>,
     config: Option<Arc<PointModelConfig>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
@@ -256,7 +257,7 @@ async fn ipc_tcp_read(
     parser: Option<Parser>,
     connector: Option<&'static str>,
     task_id: Option<i64>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
     breakpoint_db: Option<BreakpointDb>,
@@ -2072,7 +2073,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
     notifier: crate::TaskNotifySender,
     _ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     persist_component: Option<PersistComponent>,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
@@ -2155,7 +2156,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
             let metrics_arc_clone = metrics_arc.clone();
             async move {
                 if let Some(batch_counter) = batch_counter {
-                    let batch_number = batch_counter.next().await.unwrap_or_default();
+                    let batch_number = batch_counter.next();
                     qid.set_batch_id(batch_number);
                 }
                 let metrics = metrics_arc_clone.ipc();
@@ -2232,7 +2233,7 @@ async fn ipc_flat_stream_worker(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     archive_tx: Option<&Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
@@ -2320,7 +2321,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     archive_tx: Option<&Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
@@ -2487,7 +2488,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     parser: Option<Parser>,
     connector: Option<&str>,
     task_id: Option<i64>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
     breakpoint_db: Option<BreakpointDb>,
