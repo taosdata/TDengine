@@ -31,6 +31,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
+use taos::Precision;
 use taos::{
     taos_query::{common::Describe, Manager},
     Itertools, Taos, TaosPool, Value,
@@ -350,6 +351,7 @@ async fn consume_lush_record(
     task: Option<i64>,
     metrics: &IpcMetrics,
     breakpoint_db: Option<BreakpointDb>,
+    target_precision: Precision,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode");
@@ -541,7 +543,7 @@ async fn consume_lush_record(
                 }
                 *count += record.num_rows();
                 metrics.add_processed_rows(record.num_rows() as u64);
-                let data = record.to_column_views();
+                let data = record.to_column_views(target_precision);
                 let cols = columns.len();
                 // RawBlock
                 // taos.write_raw_block()
@@ -1949,6 +1951,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     metrics_arc: &Arc<CoreMetrics>,
     archive_tx: Option<&Sender<ArchiveType>>,
     breakpoint_db: Option<BreakpointDb>,
+    target_precision: Precision,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2003,6 +2006,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 task_id,
                 metrics,
                 breakpoint_db.clone(),
+                target_precision,
             )
             .await
         };
@@ -2654,6 +2658,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 &metrics_arc_clone,
                 archive_tx.as_ref(),
                 breakpoint_db,
+                target_precision,
             )
             .await
             .inspect_err(|err| {
@@ -2976,6 +2981,7 @@ impl IpcStreamWorker {
                         task,
                         metrics,
                         self.breakpoint_db.clone(),
+                        self.target_precision,
                     )
                     .await?;
                 }

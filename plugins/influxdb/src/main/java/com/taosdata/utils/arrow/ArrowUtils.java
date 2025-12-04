@@ -87,6 +87,11 @@ public class ArrowUtils {
         influxdbMeasurementEntity.getTagSet().forEach(tag -> {
             tags.add(arrowInitDto.new Tag(tag, "string"));
         });
+        if (tags.size() == 0) {
+            // 为了保证结构完整性，tag为空时也要添加一个占位符，名称为_tag_null，与 taosc 保持一致
+            logger.warn("No tags found in measurement {}, adding placeholder _tag_null", influxdbMeasurementEntity.getMeasurement());
+            tags.add(arrowInitDto.new Tag("_tag_null", "string"));
+        }
         arrowInitDto.setTags(tags);
         // 返回实体类
         return arrowInitDto;
@@ -119,6 +124,11 @@ public class ArrowUtils {
         List<Field> tagFieldList = new ArrayList<>();
         for (ArrowInitDto.Tag tag : arrowInitDto.getTags()) {
             tagFieldList.add(new Field(tag.getName(), FieldType.nullable(getArrowType(tag.getType())), null));
+        }
+        if (tagFieldList.size() == 0) {
+            // 为了保证结构完整性，tag为空时也要添加一个占位符，名称为_tag_null，与 taosc 保持一致
+            logger.warn("No tags found in measurement {}, adding placeholder _tag_null", arrowInitDto.getName());
+            tagFieldList.add(new Field("_tag_null", FieldType.nullable(new ArrowType.Binary()), null));
         }
         // column fields
         List<Field> columnFieldList = new ArrayList<>();
