@@ -538,4 +538,3 @@ CREATE VTABLE current_v (
 | 1538548697200  |     NULL      |     12.2      |     NULL      |     11.7      |
 | 1538548697700  |     11.8      |     11.4      |     NULL      |     NULL      |
 | 1538548697800  |     NULL      |     NULL      |     12.1      |     12.6      |
-
