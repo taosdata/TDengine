@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tpriv.h"
+#include "tmsg.h"
+#include "tutil.h"
 
 static TdThreadOnce privInit = PTHREAD_ONCE_INIT;
 
@@ -385,6 +387,65 @@ uint32_t getSysRoleType(const char* roleName) {
     return ROLE_SYSINFO_0;
   } else if (strcmp(roleName, TSDB_ROLE_SYSINFO_1) == 0) {
     return ROLE_SYSINFO_1;
+  }
+  return 0;
+}
+
+int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {
+  dest->policyId = src->policyId;
+  dest->span[0] = src->span[0];
+  dest->span[1] = src->span[1];
+  if (src->tagCond) {
+    if (!(dest->tagCond = taosStrdup(src->tagCond))) {
+      return terrno;
+    }
+  } else {
+    dest->tagCond = NULL;
+  }
+  dest->taghash = src->taghash;
+  dest->colHash = src->colHash;
+  if (src->cols) {
+    dest->cols = taosArrayInit_s(sizeof(SColNameFlag), taosArrayGetSize(src->cols));
+    if (dest->cols == NULL) {
+      return terrno;
+    }
+
+    for (int32_t i = 0; i < TARRAY_SIZE(src->cols); ++i) {
+      SColNameFlag* pSrcCol = (SColNameFlag*)TARRAY_GET_ELEM(src->cols, i);
+      SColNameFlag* destCol = (SColNameFlag*)TARRAY_GET_ELEM(dest->cols, i);
+      destCol->colId = pSrcCol->colId;
+      (void)snprintf(destCol->colName, TSDB_COL_NAME_LEN, "%s", pSrcCol->colName);
+    }
+  } else {
+    dest->cols = NULL;
+  }
+  return 0;
+}
+
+int32_t privTblPoliciesCopy(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy) {
+  int32_t code = 0;
+  dest->nPolicies = src->nPolicies;
+  for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
+    if (taosArrayGetSize(src->policy[i]) > 0) {
+      if (deepCopy) {
+        dest->policy[i] = taosArrayInit_s(sizeof(SPrivTblPolicy), TARRAY_SIZE(src->policy[i]));
+        for (int32_t j = 0; j < TARRAY_SIZE(src->policy[i]); ++j) {
+          SPrivTblPolicy* pSrcPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(src->policy[i], j);
+          SPrivTblPolicy* destPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(dest->policy[i], j);
+          if ((code = privTblPolicyCopy(destPolicy, pSrcPolicy))) {
+            goto _exit;
+          }
+        }
+      } else {
+        dest->policy[i] = src->policy[i];
+      }
+    } else {
+      dest->policy[i] = NULL;
+    }
+  }
+_exit:
+  if (code != 0) {
+    privTblPoliciesFree(dest);
   }
   return 0;
 }

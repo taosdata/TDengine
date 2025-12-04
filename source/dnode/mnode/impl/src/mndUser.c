@@ -1859,10 +1859,11 @@ int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
   int32_t           code = 0;
   SPrivObjPolicies *policies = NULL;
   while ((policies = taosHashIterate(pOld, policies))) {
-    size_t keyLen = 0;
-    char  *key = taosHashGetKey(policies, &keyLen);
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
 
-    if ((code = taosHashPut(*ppNew, key, keyLen, policies, sizeof(*policies))) != 0) {
+    if ((code = taosHashPut(*ppNew, key, klen, vlen > 0 ? policies : NULL, vlen)) != 0) {
       taosHashCancelIterate(pOld, policies);
       taosHashCleanup(*ppNew);
       TAOS_RETURN(code);
@@ -1877,31 +1878,28 @@ int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
                               HASH_ENTRY_LOCK))) {
     TAOS_RETURN(terrno);
   }
-  int32_t           code = 0;
+  taosHashSetFreeFp(*ppNew, privTblPoliciesFree);
+
+  int32_t           code = 0, lino = 0;
   SPrivTblPolicies *policies = NULL;
   while ((policies = taosHashIterate(pOld, policies))) {
-    size_t keyLen = 0;
-    char  *key = taosHashGetKey(policies, &keyLen);
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
 
-    SPrivTblPolicies tmpPolicies = {.nPolicies = policies->nPolicies};
-
-    for (int32_t i = 0; i < policies->nPolicies; ++i) {
-      if (policies->policy[i] && !(tmpPolicies.policy[i] = taosArrayDup(policies->policy[i], NULL))) {
-        code = terrno;
-        privTblPoliciesFree(&tmpPolicies);
-        taosHashCancelIterate(pOld, policies);
-        taosHashCleanup(*ppNew);
-        TAOS_RETURN(code);
-      }
+    SPrivTblPolicies tmpPolicies = {0};
+    if (vlen > 0) {
+      TAOS_CHECK_EXIT(privTblPoliciesCopy(&tmpPolicies, policies, true));
     }
-
-    if ((code = taosHashPut(*ppNew, key, keyLen, &tmpPolicies, sizeof(*policies))) != 0) {
-      taosHashCancelIterate(pOld, policies);
-      taosHashCleanup(*ppNew);
-      TAOS_RETURN(code);
-    }
+    TAOS_CHECK_EXIT(taosHashPut(*ppNew, key, klen, vlen > 0 ? &tmpPolicies : NULL, vlen));
   }
 
+_exit:
+  if (code != 0) {
+    if (policies) taosHashCancelIterate(pOld, policies);
+    taosHashCleanup(*ppNew);
+    *ppNew = NULL;
+  }
   TAOS_RETURN(code);
 }
 
@@ -1910,12 +1908,36 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   (void)memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
   pNew->updateTime = taosGetTimestampMs();
+  pNew->pIpWhiteListDual = NULL;
+  pNew->objPrivs = NULL;
+  pNew->selectRows = NULL;
+  pNew->insertRows = NULL;
+  pNew->updateRows = NULL;
+  pNew->deleteRows = NULL;
+  pNew->topics = NULL;
+  pNew->selectTbs = NULL;
+  pNew->insertTbs = NULL;
+  pNew->updateTbs = NULL;
+  pNew->deleteTbs = NULL;
+  pNew->alterTbs = NULL;
+  pNew->readViews = NULL;
+  pNew->writeViews = NULL;
+  pNew->alterViews = NULL;
+  pNew->useDbs = NULL;
+  pNew->roles = NULL;
 
   taosRLockLatch(&pUser->lock);
-  TAOS_CHECK_GOTO(mndDupDbHash(pUser->readDbs, &pNew->readDbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupDbHash(pUser->writeDbs, &pNew->writeDbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->readTbs, &pNew->readTbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeTbs, &pNew->writeTbs), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndDupDbHash(pUser->readDbs, &pNew->readDbs), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndDupDbHash(pUser->writeDbs, &pNew->writeDbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivObjHash(pUser->objPrivs, &pNew->objPrivs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectRows, &pNew->selectRows), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertRows, &pNew->insertRows), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateRows, &pNew->updateRows), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteRows, &pNew->deleteRows), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectTbs, &pNew->selectTbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertTbs, &pNew->insertTbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateTbs, &pNew->updateTbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteTbs, &pNew->deleteTbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterTbs, &pNew->alterTbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->readViews, &pNew->readViews), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeViews, &pNew->writeViews), NULL, _OVER);

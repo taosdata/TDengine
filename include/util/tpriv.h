@@ -371,6 +371,7 @@ static FORCE_INLINE void privTblPolicyFree(void* policy) {
 }
 
 static FORCE_INLINE void privTblPoliciesFree(SPrivTblPolicies* pTblPolicies) {
+  pTblPolicies->nPolicies = 0;
   for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
     if (pTblPolicies->policy[i]) {
       taosArrayDestroyEx(pTblPolicies->policy[i], privTblPolicyFree);
@@ -384,6 +385,9 @@ void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 void    privInfoIterInit(SPrivInfoIter* pIter);
 bool    privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo);
+
+int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src);
+int32_t privTblPoliciesCopy(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy);
 
 int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen);
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen);
