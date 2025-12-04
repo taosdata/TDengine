@@ -541,6 +541,17 @@ Starting from version 3.3.4.0, taosAdapter supports setting the number of concur
 
   Sets the maximum number of concurrent calls for C synchronous methods (`0` means using the number of CPU cores).
 
+### Registration Configuration
+
+Starting from version **3.4.0.0**, taosAdapter will register itself to the TDengine TSDB. It can be queried using the SQL statement `select * from performance_schema.perf_instances where type = 'taosadapter'`.
+
+The registration configuration parameters are as follows:
+
+- **`register.instance`**: The address of the taosAdapter instance, with a maximum length of 255 bytes. If not set or set to an empty string, the system will automatically generate it by concatenating the hostname and port number. If `ssl.enable` is true, a `https` protocol header will be prepended.
+- **`register.description`**: The description of the taosAdapter instance, with a maximum length of 511 bytes. The default value is an empty string.
+- **`register.duration`**: The registration interval for the taosAdapter instance, in seconds. The default value is 10 seconds. Every time this interval elapses, the instance will re-register to refresh its expiration time. This value must be greater than 0 and less than `register.expire`.
+- **`register.expire`**: The expiration time for the taosAdapter instance registration, in seconds. The default value is 30 seconds. If no registration refresh request is received within this time, the registration information will be deleted. This value must be greater than `register.duration`.
+
 ### Cross-Origin Configuration
 
 When making API calls from the browser, please configure the following Cross-Origin Resource Sharing (CORS) parameters based on your actual situation:
@@ -576,6 +587,7 @@ taosAdapter uses a connection pool to manage connections to TDengine, improving 
 - node_exporter data collection writing
 - OpenMetrics data collection and writing
 - Prometheus remote_read and remote_write
+- JSON data writing
 
 The configuration parameters for the connection pool are as follows:
 
@@ -1069,7 +1081,7 @@ This configuration affects the following interfaces:
 - **RESTful Interface**
 - **WebSocket SQL Execution Interface**
 
-#### Parameter Description
+Parameter Description
 
 - **`request.queryLimitEnable`**
   - **When set to `true`**: Enables the query request concurrency limit feature.
@@ -1085,7 +1097,7 @@ This configuration affects the following interfaces:
 - **`request.excludeQueryLimitSqlRegex`**
   - Configures a list of regular expressions for SQL statements that are not subject to concurrency limits.
 
-##### Customizable per User
+Customizable per User
 
 Configurable only via the configuration file:
 
@@ -1096,7 +1108,7 @@ Configurable only via the configuration file:
 - **`request.users.<username>.queryMaxWait`**
   - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
 
-##### Example
+Example
 
 ```toml
 [request]
@@ -1146,13 +1158,13 @@ This configuration affects the following interfaces:
 - **RESTful interface**
 - **WebSocket SQL execution interface**
 
-#### Parameter Description
+Parameter Description
 
 - **`rejectQuerySqlRegex`**
   - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
   - Default: an empty list, meaning no queries are rejected.
 
-##### Example
+Example
 
 ```toml
 rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
@@ -1257,6 +1269,10 @@ Configuration Parameters and their corresponding environment variables:
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
+| `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
+| `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |
+| `register.instance`                   | `TAOS_ADAPTER_REGISTER_INSTANCE`                      |
 | `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
 | `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
 | `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |

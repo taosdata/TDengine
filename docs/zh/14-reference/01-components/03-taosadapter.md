@@ -539,6 +539,17 @@ taosAdapter 的基础配置参数如下：
 
   设置 C 同步方法的最大并发调用数（0 表示使用 CPU 核心数）。
 
+### 注册配置
+
+从 **3.4.0.0** 版本开始，taosAdapter 将注册到 TDengine TSDB 中，可以通过 SQL 语句 `select * from performance_schema.perf_instances where type = 'taosadapter'` 进行查询。
+
+注册配置参数如下：
+
+- **`register.instance`**：taosAdapter 实例的地址，长度不超过 255 个字节。如未设置或设置为空字符串，系统将使用主机名与端口号自动拼接生成，若 `ssl.enable` 为 true，将拼接 https 协议头。
+- **`register.description`**：taosAdapter 实例的描述信息，长度不超过 511 个字节，默认值为空字符串。
+- **`register.duration`**：taosAdapter 实例注册的时间间隔，单位为秒，默认值为 10 秒。每隔此时间间隔，将重新注册以刷新其超时时间。必须大于 0 且小于 `register.expire`。
+- **`register.expire`**：taosAdapter 实例注册的过期时间，单位为秒，默认值为 30 秒。若在此时间内未收到注册刷新请求，注册信息将被删除。必须大于 `register.duration`。
+
 ### 跨域配置
 
 使用浏览器进行接口调用时，请根据实际情况设置如下跨域（CORS）参数：
@@ -574,6 +585,7 @@ taosAdapter 使用连接池管理与 TDengine TSDB 的连接，以提高并发�
 - node_exporter 数据写入
 - OpenMetrics 数据写入
 - Prometheus remote_read 和 remote_write
+- JSON 数据写入
 
 连接池的配置参数如下：
 
@@ -1253,6 +1265,10 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
+| `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
+| `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |
+| `register.instance`                   | `TAOS_ADAPTER_REGISTER_INSTANCE`                      |
 | `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
 | `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
 | `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
