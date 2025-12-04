@@ -1,0 +1,11 @@
+[default.extend-identifiers]
+DEFOMMNL049ba = "DEFOMMNL049ba"
+4c71ba2 = "4c71ba2"
+ine = "ine"
+datas = "datas"
+
+[default.extend-words]
+OT = "OT"
+MAPE = "MAPE"
+mosquitto = "mosquitto"
+Sur = "Sur"

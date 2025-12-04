@@ -16,7 +16,7 @@ taosdump 可以用数据库、超级表或普通表作为逻辑数据单元进�
 
 taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数据、环境设置、
 硬件信息、服务端配置或集群的拓扑结构。taosdump 使用
-[ Apache AVRO ](https://avro.apache.org/)作为数据文件格式来存储备份数据。
+[Apache AVRO](https://avro.apache.org/)作为数据文件格式来存储备份数据。
 
 ## 安装
 
@@ -45,10 +45,11 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 1. 备份所有数据库：指定 `-A` 或 `--all-databases` 参数；
 2. 备份多个指定数据库：使用 `-D db1,db2,...` 参数；
 3. 备份指定数据库中的某些超级表或普通表：使用 `dbname stbname1 stbname2 tbname1 tbname2 ...` 参数，注意这种输入序列第一个参数为数据库名称，且只支持一个数据库，第二个和之后的参数为该数据库中的超级表或普通表名称，中间以空格分隔；
-4.  备份系统 log 库：TDengine 集群通常会包含一个系统数据库，名为 `log`，这个数据库内的数据为 TDengine 自我运行的数据，taosdump 默认不会对 log 库进行备份。如果有特定需求对 log 库进行备份，可以使用 `-a` 或 `--allow-sys` 命令行参数。
-5.  “宽容”模式备份：taosdump 1.4.1 之后的版本提供 `-n` 参数和 `-L` 参数，用于备份数据时不使用转义字符和“宽容”模式，可以在表名、列名、标签名没使用转义字符的情况下减少备份数据时间和备份数据占用空间。如果不确定符合使用 `-n` 和 `-L` 条件时请使用默认参数进行“严格”模式进行备份。转义字符的说明请参考[官方文档](../../taos-sql/escape)。
+4. 备份系统 log 库：TDengine 集群通常会包含一个系统数据库，名为 `log`，这个数据库内的数据为 TDengine 自我运行的数据，taosdump 默认不会对 log 库进行备份。如果有特定需求对 log 库进行备份，可以使用 `-a` 或 `--allow-sys` 命令行参数。
+5. “宽容”模式备份：taosdump 1.4.1 之后的版本提供 `-n` 参数和 `-L` 参数，用于备份数据时不使用转义字符和“宽容”模式，可以在表名、列名、标签名没使用转义字符的情况下减少备份数据时间和备份数据占用空间。如果不确定符合使用 `-n` 和 `-L` 条件时请使用默认参数进行“严格”模式进行备份。转义字符的说明请参考[官方文档](../../taos-sql/escape)。
 
 :::tip
+
 - taosdump 1.4.1 之后的版本提供 `-I` 参数，用于解析 avro 文件 schema 和数据，如果指定 `-s` 参数将只解析 schema。
 - taosdump 1.4.2 之后的备份使用 `-B` 参数指定的批次数，默认值为 16384，如果在某些环境下由于网络速度或磁盘性能不足导致 "Error actual dump .. batch .." 可以通过 `-B` 参数调整为更小的值进行尝试。
 - taosdump 的导出不支持中断恢复，所以当进程意外终止后，正确的处理方式是删除当前已导出或生成的所有相关文件。
@@ -69,7 +70,7 @@ taosdump 内部使用 TDengine stmt binding API 进行恢复数据的写入，�
 
 以下为 taosdump 详细命令行参数列表：
 
-```
+```bash
 Usage: taosdump [OPTION...] dbname [tbname ...]
   or:  taosdump [OPTION...] --databases db1,db2,... 
   or:  taosdump [OPTION...] --all-databases

@@ -70,13 +70,13 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 
 如果您已经设置了环境变量，您只需要立即执行 `taos` 命令就可以访问 TDengine Cloud 实例。
 
-```
+```bash
 taos
 ```
 
 如果您没有设置 TDengine Cloud 实例的环境变量，或者您想访问其他 TDengine Cloud 实例，您可以使用下面的命令 `taos -E <DSN>`来执行：
 
-```
+```bash
 taos -E $TDENGINE_CLOUD_DSN
 ```
 

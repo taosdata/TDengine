@@ -50,6 +50,7 @@ create stream current_stream into power.current_stream_output_stb as select _wst
 ```
 
 ### 写入数据
+
 ```sql
 insert into power.d101 values("2018-10-03 14:38:05.000", 10.30000, 219, 0.31000);
 insert into power.d101 values("2018-10-03 14:38:15.000", 12.60000, 218, 0.33000);
@@ -94,9 +95,11 @@ create stream power_stream into power.power_stream_output_stb as select ts, conc
 参考示例一的方式来写入数据。
 
 ### 查询以观察结果
+
 ```sql title="SQL"
 select ts, meter_location, active_power, reactive_power from power.power_stream_output_stb;
 ```
+
 ```txt title="output"
            ts            |         meter_location         |       active_power        |      reactive_power       |
 ===================================================================================================================

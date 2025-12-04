@@ -332,7 +332,7 @@ public static void main(String[] args) throws Exception {
 
 **原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
 
-**解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+**解决方法**： 使用 taos-jdbcdriver 2.*版本连接 TDengine 2.* 版本。
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 

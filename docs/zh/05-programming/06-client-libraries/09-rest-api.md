@@ -232,18 +232,22 @@ curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD
 :::
 
 - 配置 URL 和 Token
+
   ```bash
   export TDENGINE_CLOUD_URL="<url>"
   export TDENGINE_CLOUD_TOKEN="<token>"
   ```
 
 - 创建 meters 超级表
+
   ```bash
   curl -L -d \
   "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)" \
   $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
   ```
+
     返回值
+
   ```bash
   {
     "code": 0,
@@ -263,14 +267,16 @@ curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD
   }
   ```
 
-
 - 向 meters 中插入数据
+
   ```bash
   curl -L -d \
   "INSERT INTO power.d1001 USING power.meters TAGS('California.SanFrancisco', 2) VALUES ('2018-10-03 14:38:05.000', 10.30000, 219, 0.31000) ('2018-10-03 14:38:15.000', 12.60000, 218, 0.33000)" \
   $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
   ```
+
   返回值
+
   ```bash
   {
   "code": 0,
@@ -291,6 +297,7 @@ curl -L -d "<SQL>" <TDENGINE_CLOUD_URL>/rest/sql/[db_name]?token=<TDENGINE_CLOUD
   ```
 
 - 在 power 库里查询表 d1001 的所有记录：
+
   ```bash
   curl -L -d "select * from power.d1001" $TDENGINE_CLOUD_URL/rest/sql\?token=$TDENGINE_CLOUD_TOKEN
   ```

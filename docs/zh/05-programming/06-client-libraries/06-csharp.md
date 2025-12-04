@@ -82,8 +82,8 @@ dotnet add package TDengine.Connector
 
 [`IoTSharp.Data.Taos`](https://github.com/IoTSharp/EntityFrameworkCore.Taos) 是一个 TDengine 的 ADO.NET 连接器,其中包含了用于EntityFrameworkCore 的提供程序 IoTSharp.EntityFrameworkCore.Taos 和健康检查组件 IoTSharp.HealthChecks.Taos ，支持 Linux，Windows 平台。该连接器由社区贡献者`麦壳饼@@maikebing` 提供，具体请参考:
 
-* 接口下载: \<https://github.com/IoTSharp/EntityFrameworkCore.Taos>
-* 用法说明: \<https://www.taosdata.com/blog/2020/11/02/1901.html>
+* 接口下载: \<<https://github.com/IoTSharp/EntityFrameworkCore.Taos>>
+* 用法说明: \<<https://www.taosdata.com/blog/2020/11/02/1901.html>>
 
 ## 常见问题
 
@@ -93,7 +93,7 @@ dotnet add package TDengine.Connector
 
 2. Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: 找不到指定的模块。
 
-  一般是因为程序没有找到依赖的客户端驱动。解决方法为：Windows 下可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\Windows\System32\ ` 目录下，Linux 下建立如下软链接 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
+  一般是因为程序没有找到依赖的客户端驱动。解决方法为：Windows 下可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\Windows\System32\` 目录下，Linux 下建立如下软链接 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
 
 ## API 参考
 

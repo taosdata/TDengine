@@ -31,6 +31,7 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 下面以智能电表为例，展示如何使用 Python 连接器在名为 power 的数据库中，创建一个名为 meters 的超级表（STABLE），插入并查询数据。meters 表结构包含时间戳、电流、电压、相位等列，以及分组 ID 和位置作为标签。
 
 :::note IMPORTANT
+
 1. 在执行下面样例代码的之前，您必须先在 [TDengine Cloud - 数据浏览器](https://cloud.taosdata.com/explorer) 页面创建一个名为 power 的数据库
 2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../../connect/)。
 :::
@@ -49,9 +50,9 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 {{#include docs/examples/python/reference_cursor.py:basic}}
 ```
 
-- `cursor.execute` ： 用来执行任意 SQL 语句。
-- `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
-- `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
+* `cursor.execute` ： 用来执行任意 SQL 语句。
+* `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
+* `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
 
 #### 使用 RestClient 类
 
@@ -77,8 +78,8 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 
 由于目前 Python 对 nanosecond 支持的不完善(见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
 
-1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
-2. https://www.python.org/dev/peps/pep-0564/
+1. <https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds>
+2. <https://www.python.org/dev/peps/pep-0564/>
 
 ## 重要更新
 
@@ -86,9 +87,9 @@ Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-con
 
 ## API 参考
 
-- [连接器-Python-Api 参考](https://docs.taosdata.com/reference/connector/python/#api-参考)
-- [taos](https://docs.taosdata.com/api/taospy/taos/)
-- [taosrest](https://docs.taosdata.com/api/taospy/taosrest)
+* [连接器-Python-Api 参考](https://docs.taosdata.com/reference/connector/python/#api-参考)
+* [taos](https://docs.taosdata.com/api/taospy/taos/)
+* [taosrest](https://docs.taosdata.com/api/taospy/taosrest)
 
 更多关于 Python 连接器的详细介绍请参考[连接器-Python](https://docs.taosdata.com/reference/connector/python)
 

@@ -17,20 +17,19 @@ DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数
 
 ## 使用 DBeaver 访问 TDengine Cloud
 
-1. 登录 TDengine Cloud 服务，在管理界面中选择“编程”和“Java”，然后复制 TDENGINE_JDBC_URL 的字符串值。 
+1. 登录 TDengine Cloud 服务，在管理界面中选择“编程”和“Java”，然后复制 TDENGINE_JDBC_URL 的字符串值。
 
  ![复制 TDengine Cloud JDBC_URL](./dbeaver/tdengine-cloud-jdbc-dsn-zh.webp)
 
 也可以登录后直接复制 TDENGINE_JDBC_URL 的字符串值。
 
-```
+```bash
  <jdbcURL>
 ```
 
 2. 启动 DBeaver 应用，点击按钮或菜单项选择“连接到数据库”，然后在时间序列分类栏中选择 TDengine Cloud。
 
  ![DBeaver 连接 TDengine Cloud](./dbeaver/dbeaver-connect-tdengine-cloud-zh.webp)
-
 
 3. 配置 TDengine Cloud 连接，填入 JDBC_URL 值。点击“测试连接”，如果本机没有安装 TDengine Java
  连接器，DBeaver 会提示下载安装。连接成功将显示如下图所示。如果显示连接失败，请检查 TDengine Cloud 服务是否启动，JDBC_URL 是否正确。

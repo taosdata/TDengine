@@ -76,6 +76,7 @@ telegraf --config telegraf.conf
 ```sql
 show databases;
 ```
+
 ![TDengine show telegraf databases](./telegraf-show-databases.webp)
 
 检查 `weather` 超级表 cpu 和 mem 被创建出来：
@@ -92,5 +93,3 @@ show telegraf.stables;
 用户如需指定生成的表名，可以通过在 taos.cfg 里配置 smlChildTableName 参数来指定。如果通过控制输入数据格式，即可利用 TDengine 这个功能指定生成的表名。
 举例如下：配置 smlChildTableName=tname 插入数据为 st,tname=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1。如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。[TDengine 无模式写入参考指南](/develop/schemaless)
 :::
-
-

@@ -17,16 +17,22 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 ## 安装 Prometheus
 
 假设您使用的是 amd64 架构的 Linux 操作系统：
+
 1. 下载
-    ```
+
+    ```bash
     wget https://github.com/prometheus/prometheus/releases/download/v2.37.0/prometheus-2.37.0.linux-amd64.tar.gz
     ```
+
 2. 解压和重命名
-   ```
+
+   ```bash
    tar xvfz prometheus-*.tar.gz && mv prometheus-2.37.0.linux-amd64 prometheus
    ```  
+
 3. 改变目录为 prometheus
-   ```
+
+   ```bash
    cd prometheus
    ```
 
@@ -54,7 +60,7 @@ remote_read:
 
 ## 启动 Prometheus
 
-```
+```bash
 ./prometheus --config.file prometheus.yml
 ```
 

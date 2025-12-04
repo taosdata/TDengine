@@ -17,7 +17,7 @@ title: TDengine Rust Connector
 
 ## 连接方式
 
-`taos` 提供**原生连接**和**WebSocket连接**两种方式，我们使用 **WebSocket 连接**方式访问 TDengine Cloud 实例。 
+`taos` 提供**原生连接**和**WebSocket 连接**两种方式，我们使用 **WebSocket 连接**方式访问 TDengine Cloud 实例。
 它通过 taosAdapter 的 WebSocket 接口连接实例
 
 关于如何建立连接的详细介绍请参考：[开发指南-建立连接-Rust](../01-connect/04-rust.md)
@@ -35,11 +35,14 @@ title: TDengine Rust Connector
 在 `Cargo.toml` 文件中添加 [taos][taos] 并启用特性，以下两种方式都可以：
 
 * 启用默认特性
+
     ```toml
     [dependencies]
     taos = { version = "*"}
     ```
+
 * 禁用默认特性，并启用 ws 和 ws-rustls 特性
+
     ```toml
     [dependencies]
     taos = { version = "*", default-features = false, features = ["ws", "ws-rustls"] }
@@ -87,6 +90,7 @@ let conn2 = builder.build()?;
 ```
 
 ### 查询数据
+
 `query` 方法执行查询语句，返回 [ResultSet] 对象。
 
 在这个例子里面，我们使用查询方法来执行 SQL ，然后获取到 [ResultSet] 对象。
@@ -116,6 +120,7 @@ let conn2 = builder.build()?;
 ```
 
 使用 [serde](https://serde.rs) 序列化框架
+
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/serde.rs}}
 ```
@@ -138,13 +143,10 @@ let taos = pool.get()?;
 
 ## API 参考
 
-- [连接器-Rust-Api 参考](https://docs.taosdata.com/reference/connector/rust/#api-参考)
-- [taos](https://docs.rs/taos)
+* [连接器-Rust-Api 参考](https://docs.taosdata.com/reference/connector/rust/#api-参考)
+* [taos](https://docs.rs/taos)
 
 [taos]: https://github.com/taosdata/rust-connector-taos
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
-[TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
-[struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
-[Stmt]: https://docs.rs/taos/latest/taos/struct.Stmt.html
 [ResultSet]: https://docs.rs/taos/latest/taos/struct.ResultSet.html

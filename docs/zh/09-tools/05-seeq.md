@@ -18,7 +18,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 ### Seeq Server 安装和启动
 
-```
+```bash
 tar xvzf seeq-server-xxx.tar.gz
 cd seeq-server-installer
 sudo ./install
@@ -31,7 +31,7 @@ sudo seeq start
 
 Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 官方文档](https://support.seeq.com/space/KB/1034059842)。
 
-```
+```bash
 tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
 sudo seeq-data-lab-installer/install -f /opt/seeq/seeq-data-lab -g /var/opt/seeq -u seeq
 sudo seeq config set Network/DataLab/Hostname localhost
@@ -50,13 +50,14 @@ sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab serve
 ```
 
 ## TDengine Cloud 访问方法
-如果使用 Seeq 连接 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。
+
+如果使用 Seeq 连接 TDengine Cloud，请在 <https://cloud.taosdata.com> 申请帐号并登录查看如何访问 TDengine Cloud。
 
 ## 如何配置 Seeq 访问 TDengine
 
 1. 查看 data 存储位置
 
-```
+```bash
 sudo seeq config get Folders/Data
 ```
 
@@ -64,7 +65,7 @@ sudo seeq config get Folders/Data
 
 3. 重新启动 seeq server
 
-```
+```bash
 sudo seeq restart
 ```
 
@@ -82,7 +83,7 @@ sudo seeq restart
 
 ### 数据 Schema
 
-```
+```sql
 CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
@@ -91,7 +92,7 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 
 ### 构造数据方法
 
-```
+```bash
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
@@ -110,7 +111,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Power
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -169,7 +170,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Goods
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -229,7 +230,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Temperature
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -360,7 +361,6 @@ plt.show()
 运行程序输出结果：
 
 ![Seeq forecast result](./seeq/seeq-forecast-result.webp)
-
 
 ## 方案总结
 

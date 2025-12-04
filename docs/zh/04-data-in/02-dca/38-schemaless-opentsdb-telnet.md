@@ -52,13 +52,16 @@ $env:TDENGINE_CLOUD_URL="<url>"
 ```
 
 ### 写入样例
+
 ```bash
 curl --request POST "$TDENGINE_CLOUD_URL/opentsdb/v1/put/telnet/<db_name>?token=$TDENGINE_CLOUD_TOKEN" --data-binary "sys  1479496100 1.3E0 host=web01 interface=eth0"
 ```
 
 ## 使用 SQL 查询样例
+
 - `sys` 是超级表名。
 - 您可以像这样通过标签过滤数据：`where host="web01"`.
+
 ```bash
 curl -L -d "select * from <db_name>.sys where host=\"web01\"" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```

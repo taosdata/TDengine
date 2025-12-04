@@ -18,7 +18,7 @@ This is the documentation structure for TDengine Cloud.
 8. [Management](./mgmt/), the management of the resources in the specified TDengine instance.
 9. [Instances](./instances/), the management of the instance list of the current organization.
 10. [Users](./user-mgmt/), the management of the users in the specified TDengine Cloud organization.
-11. [Organizations](./orgs/), the management of the organizaiton list of the specifeid user.
+11. [Organizations](./orgs/), the management of the organization list of the specified user.
 12. [DBMart](./dbmarts/), TDengine Cloud provides the database mart for the user to access the Public/Private database and easy to use these databases.
 
 We are very excited that you have chosen TDengine Cloud to be part of your time series platform and look forward to hearing your feedback and ways in which we can improve and be a small part of your success.

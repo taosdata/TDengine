@@ -24,13 +24,12 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 
 ## 验证远程读取
 
-通过 Prometheus 服务器可以获取 TDengine Cloud 上面的多个指标。请在浏览器打开 \<http://localhost:9090/graph> 并点击 “Graph” 标签页。
+通过 Prometheus 服务器可以获取 TDengine Cloud 上面的多个指标。请在浏览器打开 <http://localhost:9090/graph> 并点击 “Graph” 标签页。
 
 输入下面的表达式来画出 Prometheus 每秒在创建数据块数量的趋势图：
 
-```
+```sql
 rate(prometheus_tsdb_head_chunks_created_total[1m])
 ```
 
 ![TDengine prometheus remote_read](prometheus/prometheus_read.webp)
-

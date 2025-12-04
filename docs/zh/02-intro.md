@@ -26,7 +26,7 @@ TDengine Cloud 的主要功能如下：
    - 提供一个数据备份和导入工具 [taodump](../tools/taosdump/)。
    - 支持 [Grafana](../tools/grafana/)。
    - 支持 [Google Data Studio](../tools/gds/)。
-   - 支持 [Promethues](../tools/prometheus/)。
+   - 支持 [Prometheus](../tools/prometheus/)。
    - 支持 [DBeaver](../tools/dbeaver/)。
 7. [管理](../mgmt)
    - 管理实例的 [用户和用户组](../mgmt/user-mgmt)

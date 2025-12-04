@@ -53,93 +53,94 @@ taosBenchmark 安装包中提供了配置文件的示例，位于 `<install_dire
 taosBenchmark -f <json file>
 ```
 
-**下面是几个配置文件的示例：**
+### **下面是几个配置文件的示例**
 
 #### 插入场景 JSON 配置文件示例
+
 ```json
 {
-	"filetype": "insert",
-	"cfgdir": "/etc/taos",
-	"connection_pool_size": 8,
-	"thread_count": 4,
-	"create_table_thread_count": 7,
-	"result_file": "./insert_res.txt",
-	"confirm_parameter_prompt": "no",
-	"insert_interval": 0,
-	"interlace_rows": 100,
-	"num_of_records_per_req": 100,
-	"prepared_rand": 10000,
-	"chinese": "no",
-	"databases": [
-		{
-			"dbinfo": {
-				"name": "test",
-				"drop": "no",
-				"replica": 1,
-				"precision": "ms",
-				"keep": 3650,
-				"minRows": 100,
-				"maxRows": 4096,
-				"comp": 2
-			},
-			"super_tables": [
-				{
-					"name": "meters",
-					"child_table_exists": "no",
-					"childtable_count": 10000,
-					"childtable_prefix": "d",
-					"escape_character": "yes",
-					"auto_create_table": "no",
-					"batch_create_tbl_num": 5,
-					"data_source": "rand",
-					"insert_mode": "taosc",
-					"non_stop_mode": "no",
-					"line_protocol": "line",
-					"insert_rows": 10000,
-					"childtable_limit": 10,
-					"childtable_offset": 100,
-					"interlace_rows": 0,
-					"insert_interval": 0,
-					"partial_col_num": 0,
-					"disorder_ratio": 0,
-					"disorder_range": 1000,
-					"timestamp_step": 10,
-					"start_timestamp": "2020-10-01 00:00:00.000",
-					"sample_format": "csv",
-					"sample_file": "./sample.csv",
-					"use_sample_ts": "no",
-					"tags_file": "",
-					"columns": [
-						{
-							"type": "FLOAT",
-							"name": "current",
-							"count": 1,
-							"max": 12,
-							"min": 8
-						},
-						{ "type": "INT", "name": "voltage", "max": 225, "min": 215 },
-						{ "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
-					],
-					"tags": [
-						{
-							"type": "TINYINT",
-							"name": "groupid",
-							"max": 10,
-							"min": 1
-						},
-						{
-							"name": "location",
-							"type": "BINARY",
-							"len": 16,
-							"values": ["San Francisco", "Los Angles", "San Diego",
-								"San Jose", "Palo Alto", "Campbell", "Mountain View",
-								"Sunnyvale", "Santa Clara", "Cupertino"]
-						}
-					]
-				}
-			]
-		}
-	]
+ "filetype": "insert",
+ "cfgdir": "/etc/taos",
+ "connection_pool_size": 8,
+ "thread_count": 4,
+ "create_table_thread_count": 7,
+ "result_file": "./insert_res.txt",
+ "confirm_parameter_prompt": "no",
+ "insert_interval": 0,
+ "interlace_rows": 100,
+ "num_of_records_per_req": 100,
+ "prepared_rand": 10000,
+ "chinese": "no",
+ "databases": [
+  {
+   "dbinfo": {
+    "name": "test",
+    "drop": "no",
+    "replica": 1,
+    "precision": "ms",
+    "keep": 3650,
+    "minRows": 100,
+    "maxRows": 4096,
+    "comp": 2
+   },
+   "super_tables": [
+    {
+     "name": "meters",
+     "child_table_exists": "no",
+     "childtable_count": 10000,
+     "childtable_prefix": "d",
+     "escape_character": "yes",
+     "auto_create_table": "no",
+     "batch_create_tbl_num": 5,
+     "data_source": "rand",
+     "insert_mode": "taosc",
+     "non_stop_mode": "no",
+     "line_protocol": "line",
+     "insert_rows": 10000,
+     "childtable_limit": 10,
+     "childtable_offset": 100,
+     "interlace_rows": 0,
+     "insert_interval": 0,
+     "partial_col_num": 0,
+     "disorder_ratio": 0,
+     "disorder_range": 1000,
+     "timestamp_step": 10,
+     "start_timestamp": "2020-10-01 00:00:00.000",
+     "sample_format": "csv",
+     "sample_file": "./sample.csv",
+     "use_sample_ts": "no",
+     "tags_file": "",
+     "columns": [
+      {
+       "type": "FLOAT",
+       "name": "current",
+       "count": 1,
+       "max": 12,
+       "min": 8
+      },
+      { "type": "INT", "name": "voltage", "max": 225, "min": 215 },
+      { "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
+     ],
+     "tags": [
+      {
+       "type": "TINYINT",
+       "name": "groupid",
+       "max": 10,
+       "min": 1
+      },
+      {
+       "name": "location",
+       "type": "BINARY",
+       "len": 16,
+       "values": ["San Francisco", "Los Angles", "San Diego",
+        "San Jose", "Palo Alto", "Campbell", "Mountain View",
+        "Sunnyvale", "Santa Clara", "Cupertino"]
+      }
+     ]
+    }
+   ]
+  }
+ ]
 }
 
 ```
@@ -208,9 +209,9 @@ taosBenchmark -f <json file>
 
 插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
-- ** keep_trying ** ：失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+- **keep_trying** ：失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
-- ** trying_interval ** ：失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
+- **trying_interval** ：失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
 
 #### 流式计算相关配置参数
 
@@ -375,7 +376,7 @@ taosBenchmark -f <json file>
 
 - **sql** ：执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
     替换为超级表中所有的子表名。
-		
+  
 - **result** ：保存查询结果的文件，未指定则不保存。
 
 ### 订阅场景配置参数
