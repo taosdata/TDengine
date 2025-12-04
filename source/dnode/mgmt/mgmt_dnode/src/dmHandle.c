@@ -743,10 +743,13 @@ int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   void *pTransSync = msgCb->syncRpc; 
   void *pTransServer = msgCb->serverRpc;
 
+  code = rpcReloadTlsConfig(pTransCli, TAOS_CONN_CLIENT);
 
-  
+  code = rpcReloadTlsConfig(pTransStatus, TAOS_CONN_CLIENT);
+  code = rpcReloadTlsConfig(pTransSync, TAOS_CONN_CLIENT);
+  code = rpcReloadTlsConfig(pTransServer, TAOS_CONN_SERVER);
 
-   return code;
+  return code;
 }
 
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {

@@ -2746,8 +2746,7 @@ int32_t transReloadServerTlsConfig(void* handle) {
 
   SServerObj* svrObj = pInst->tcphandle;
   for (int i = 0; i < svrObj->numOfThreads; i++) {
-    SWorkThrd* pThrd = svrObj->pThreadObj[i];
-
+    SWorkThrd*   pThrd = svrObj->pThreadObj[i];
     SSvrRespMsg* msg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     if (msg == NULL) {
       code = terrno;

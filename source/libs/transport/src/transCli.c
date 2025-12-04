@@ -238,6 +238,7 @@ static void doNotifyCb(SCliReq* pReq, SCliThrd* pThrd, int32_t code);
 static void cliHandleReq(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleQuit(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleRelease(SCliThrd* pThrd, SCliReq* pReq);
+static void cliHandleRegister(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleUpdate(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq);
 static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq);
@@ -247,7 +248,8 @@ static void cliDoBatchReq(queue* h, SCliThrd* pThrd);
 static void (*cliDealFunc[])(queue* h, SCliThrd* pThrd) = {cliDoReq, cliDoBatchReq};
 
 static void (*cliAsyncHandle[])(SCliThrd* pThrd, SCliReq* pReq) = {
-    cliHandleReq, cliHandleQuit, cliHandleRelease, NULL, cliHandleUpdate, cliHandleFreeById, cliHandleReloadTlsConfig};
+    cliHandleReq,    cliHandleQuit,     cliHandleRelease,        cliHandleRegister,
+    cliHandleUpdate, cliHandleFreeById, cliHandleReloadTlsConfig};
 
 static FORCE_INLINE void destroyReq(void* cmsg);
 
@@ -2016,7 +2018,15 @@ static void cliHandleQuit(SCliThrd* pThrd, SCliReq* pReq) {
   TAOS_UNUSED(destroyConnPool(pThrd));
   TAOS_UNUSED(uv_walk(pThrd->loop, cliWalkCb, NULL));
 }
-static void cliHandleRelease(SCliThrd* pThrd, SCliReq* pReq) { return; }
+static void cliHandleRelease(SCliThrd* pThrd, SCliReq* pReq) {
+  // placeholder function
+  return;
+}
+
+static void cliHandleRegister(SCliThrd* pThrd, SCliReq* pReq) {
+  // placeholder function
+  return;
+}
 static void cliHandleUpdate(SCliThrd* pThrd, SCliReq* pReq) {
   SReqCtx* pCtx = pReq->ctx;
   if (pThrd->pCvtAddr != NULL) {
