@@ -37,7 +37,7 @@ For steps on installing the Grafana TDengine data source plugin and configuring 
 
 ## Import TDinsightV3 Dashboard
 
-In the TDengine data source configuration interface, click the "Dashboards" tab, then click "import" to import the "TDengine for 3.x" dashboard.
+On the TDengine TSDB data source configuration page, click the "Dashboards" tab, then click "New" and select "Import" in the upper-right corner. Enter the Dashboard ID `18180` for the "TDengine for 3.x" dashboard, and proceed with the import.
 After successful import, you can access this dashboard. In the "Log from" option in the top left corner, select the database set in taosKeeper for recording monitoring metrics to view the monitoring results.
 
 ## TDinsightV3 Dashboard Details
