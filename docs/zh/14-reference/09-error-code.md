@@ -13,7 +13,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 ### 错误码结构
 
-错误码由 0x 开头的 8 位 16 进制数表示，格式如下:
+错误码由 0x 开头的 8 位 16 进制数表示，格式如下：
 
 错误码 = 分类前缀（前 4 位）+ 具体错误码（后 4 位）
 
@@ -29,10 +29,12 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 #### 示例说明
 
 以错误码 `0x80000216` 为例：
+
 - **前缀**: `0x8000` → TDengine 业务错误。
 - **具体错误码**: `0x0216` → 对应 TSC 模块的 "Syntax error in SQL"。
 
 以错误码 `0x80FF0002` 为例：
+
 - **前缀**: `0x80FF` → Linux 系统错误。
 - **具体错误码**: `0x0002` → 对应 Linux errno 2，即 "No such file or directory"。
 
@@ -470,7 +472,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002635 | Incorrect TIMESTAMP value                                                                              | 主键时间戳列值非法                                      | 检查并修正 SQL 语句                    |
 | 0x80002637 | soffset/offset can not be less than 0                                                                  | soffset/offset 值非法                                   | 检查并修正 SQL 语句                    |
 | 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query                                             | slimit/soffset 只支持 PARTITION BY/GROUP BY 语句        | 检查并修正 SQL 语句                    |
-| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                                 |
+| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                                  | 检查并修正 SQL 语句                    |
 | 0x8000263A | Cannot drop super table in batch                                                                       | 不支持批量删除超级表                                    | 检查并修正 SQL 语句                    |
 | 0x8000263B | Start(end) time of query range required or time range too large                                        | 窗口个数超出限制                                        | 检查并修正 SQL 语句                    |
 | 0x8000263C | Duplicated column names                                                                                | 列名称重复                                              | 检查并修正 SQL 语句                    |
@@ -512,7 +514,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                                        | 检查并修正 SQL 语句                    |
 | 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询            | 检查并修正 SQL 语句                    |
 | 0x80002665 | The _TAGS pseudo column can only be used for subtable and supertable queries                           | 非法 TAG 列查询                                         | 检查并修正 SQL 语句                    |
-| 0x80002666 | 子查询不含主键时间戳列输出                                                                             | 检查并修正 SQL 语句                                     |
+| 0x80002666 | Subquery does not output primary timestamp column                                                      | 子查询不含主键时间戳列输出                              | 检查并修正 SQL 语句                    |
 | 0x80002667 | Invalid usage of expr: %s                                                                              | 非法表达式                                              | 检查并修正 SQL 语句                    |
 | 0x80002687 | True_for duration cannot be negative                                                                   | true_for 的值不能是负数                                 | 检查并修正 SQL 语句                    |
 | 0x80002688 | Cannot use 'year' or 'month' as true_for duration                                                      | 不能使用 n(月), y(年) 作为 true_for 的时间单位          | 检查并修正 SQL 语句                    |
@@ -534,13 +536,14 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002704 | Planner slot key not found                                                                             | 生成物理计划时查找不到 slotId                           | 保留现场和日志，github 上报 issue      |
 | 0x80002705 | Planner invalid table type                                                                             | 计划器生成计划时得到了错误的表类型                      | 保留现场和日志，github 上报 issue      |
 | 0x80002706 | Planner invalid query control plan type                                                                | 计划器生成 dynamic query control 计划时得到的类型不正确 | 保留现场和日志，github 上报 issue      |
+| 0x80002707 | Planner invalid window type                                                                            | 计划器生成物理计划时得到了错误的窗口类型                        | 保留现场和日志，github 上报 issue     |
 
 #### function
 
-| 错误码     | 错误描述                                     | 可能的出错场景或者可能的原因                                                                                                                                                                                                                                                          | 建议用户采取的措施                                                                                           |
-| ---------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 0x80002800 | Function internal error                      | 函数参数输入不合理造成的错误，随错误码会返回具体错误描述信息。比如 APERCENTILE 函数第三个参数指定算法时只能使用字符串"default"                                                                                                                                                        | "t-digest", 使用其他输入会报此类错误。或者 TO_ISO8601 函数第二个参数指定时区时，字符串不符合时区格式规范等。 | 根据具体错误描述信息，调整函数输入。 |
-| 0x80002801 | Invalid function para number                 | 函数输入参数个数不正确。函数规定必须要使用 n 个参数，而用户给定参数个数不为 n。比如 COUNT(col1, col2)。                                                                                                                                                                               | 调整函数输入参数为正确个数。                                                                                 |
+| 错误码     | 错误描述    | 可能的出错场景或者可能的原因    | 建议用户采取的措施        |
+| ---------- | ----- | ------------ | -------- |
+| 0x80002800 | Function internal error     | 函数参数输入不合理造成的错误，随错误码会返回具体错误描述信息。比如 APERCENTILE 函数第三个参数指定算法时只能使用字符串"default"、"t-digest", 使用其他输入会报此类错误。或者 TO_ISO8601 函数第二个参数指定时区时，字符串不符合时区格式规范等。 | 根据具体错误描述信息，调整函数输入。 |
+| 0x80002801 | Invalid function para number                 | 函数输入参数个数不正确。函数规定必须要使用 n 个参数，而用户给定参数个数不为 n。比如 COUNT(col1, col2)。    | 调整函数输入参数为正确个数。 |
 | 0x80002802 | Invalid function para type                   | 函数输入参数类型不正确。函数输入参数要求为数值类型，但是用户所给参数为字符串。比如 SUM("abc")。                                                                                                                                                                                       | 调整函数参数输入为正确类型                                                                                   |
 | 0x80002803 | Invalid function para value                  | 函数输入参数取值不正确。函数输入参数范围不正确。比如 SAMPLE 函数第二个参数指定采样个数范围为 [1, 1000], 如果不在这个范围内会会报错。                                                                                                                                                  | 调整函数参数输入为正确取值。                                                                                 |
 | 0x80002804 | Not builtin function                         | 函数非内置函数。内置函数不在的哈希表中会报错，用户应该很少遇见这个问题，否则是内部内置函数哈希初始化的时候出错或者写坏。                                                                                                                                                              | 客户应该不会遇到，如果遇到，说明程序有 bug，咨询开发人员。                                                   |
@@ -640,7 +643,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少     | 增加输入数据规模（预测至少 10 行记录）       |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测      | 更换使用的预测模型                           |
 
-
 #### STREAM
 
 | 错误码     | 错误描述                              | 可能的出错场景或者可能的原因             | 建议用户采取的措施                                     |
@@ -653,12 +655,14 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
 
 ## 连接器
+
 下面是各语言连接器自身的错误码。连接器除了返回自身错误码外，也会返回上文中 TSDB 的错误码。
 
 ### C
 
 在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其他是代表失败原因的错误码，当返回值是指针时，_NULL_ 表示失败。  
 C 连接器的错误码分为两种：  
+
 - 通用错误码  
     所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
     详细的错误码说明参考：[TSDB 错误码](./#tsdb)
@@ -676,7 +680,7 @@ C 连接器的错误码分为两种：
     | 0xE006 | 认证失败   | 用户名密码错误或权限不足     | 检查用户名密码，确认用户权限            |
     | 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
     | 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
-        
+
 ### Java
 
 Java 连接器可能报错的错误码包括 4 种：
@@ -684,7 +688,7 @@ Java 连接器可能报错的错误码包括 4 种：
 - JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
 - 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
 - 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
-- TDengine TSDB 其他功能模块的报错，请参考本页面 TSDB 错误码。   
+- TDengine TSDB 其他功能模块的报错，请参考本页面 TSDB 错误码。
 
 具体的错误码请参考：
 
@@ -709,7 +713,7 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0x231D | can't create connection with server within                      | 连接失败                                       | 请检查与 taosAdapter 之间的连接情况                                                      |
 | 0x231E | failed to complete the task within the specified time           | 请求处理超时                                   | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况    |
 | 0x2320 | type convert exception                                          | 类型转换错误                                   | 检查是否没有使用正确的类型                                                               |
-| 0x2321 | TDengine TSDB version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine TSDB 版本不匹配，请升级至对应版本。 或者采用 WebSocket 连接方式                 |
+| 0x2321 | TDengine TSDB version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine TSDB 版本不匹配，请升级至对应版本。或者采用 WebSocket 连接方式                 |
 | 0x2322 | resource has been freed                                         | 资源已经释放                                   | 资源已经释放，请确认操作正确                                                             |
 | 0x2323 | BLOB is unsupported on the server                               | 服务端版本低                                   | 服务端不支持 BLOB 类型，需要升级                                                         |
 | 0x2324 | line bind mode is unsupported on the server                     | 服务端版本低                                   | 服务端不支持行绑定模式，需要升级                                                         |
@@ -734,7 +738,6 @@ Java 连接器可能报错的错误码包括 4 种：
 
 - [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
-
 ### Rust
 
 | 错误码 | 错误描述   | 可能的出错场景或者可能的原因 | 建议用户采取的措施                      |
@@ -748,7 +751,6 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0xE006 | 认证失败   | 用户名密码错误或权限不足     | 检查用户名密码，确认用户权限            |
 | 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
 | 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
-
 
 ### Node.js
 
@@ -773,9 +775,10 @@ Java 连接器可能报错的错误码包括 4 种：
 | 110    | websocket connection has reached its maximum limit                      | 连接数达到上限                                 | WebSocket 连接达到上限，请上报 github issue                                                         |
 | 111    | topic partitions and positions are not equal in length                  | 获取给定分区当前的偏移量的数据与主题分区不匹配 |   重新订阅                                                                               |
 | 112    | version mismatch. The minimum required TDengine TSDB version is 3.3.2.0 | 版本不匹配                                     | TDengine TSDB 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。 |
+
 - [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
-### C#
+### C\#
 
 | 错误码 | 错误描述                         | 可能的出错场景或者可能的原因              | 建议用户采取的措施                                           |
 | ------ | -------------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
@@ -788,7 +791,8 @@ Java 连接器可能报错的错误码包括 4 种：
 
 ### taosAdapter
 
-| 错误码    | 错误描述                                           | 可能的出错场景或者可能的原因        | 建议用户采取的措施    |
-|--------|------------------------------------------------|-----------------------|--------------|
-| 0xFFFF | taosAdapter request parameter or process error | taosAdapter 请求参数或流程错误 | 根据错误消息检查错误原因 |
-| 0xFFFE | taosAdapter query request exceeded the limit   | taosAdapter 查询请求超过限制  | 降低查询请求并发     |
+| 错误码    | 错误描述                                           | 可能的出错场景或者可能的原因        | 建议用户采取的措施                 |
+|--------|------------------------------------------------|-----------------------|---------------------------|
+| 0xFFFF | taosAdapter request parameter or process error | taosAdapter 请求参数或流程错误 | 根据错误消息检查错误原因              |
+| 0xFFFE | taosAdapter query request exceeded the limit   | taosAdapter 查询请求超过限制  | 降低查询请求并发                  |
+| 0xFFFD | Query SQL has been rejected                    | 查询 SQL 被拒绝            | 如果不希望被拦截排查 taosAdapter 配置 |

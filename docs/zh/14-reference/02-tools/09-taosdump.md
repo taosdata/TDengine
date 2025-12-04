@@ -30,7 +30,7 @@ taosdump -h my-server -i /root/test/
 
 以下为 taosdump 详细命令行参数列表：
 
-```
+```bash
 Usage: taosdump [OPTION...] dbname [tbname ...]
   or:  taosdump [OPTION...] --databases db1,db2,...
   or:  taosdump [OPTION...] --all-databases

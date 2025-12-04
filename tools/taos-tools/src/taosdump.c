@@ -2966,8 +2966,8 @@ int64_t queryDbForDumpOutCountNative(
     TAOS_ROW row = taos_fetch_row(res);
     if (NULL == row) {
         if (0 == taos_errno(res)) {
-            count = 0;
-            debugPrint("%s fetch row, count: %" PRId64 "\n",
+            count = -1;
+            debugPrint("%s fetch row null, count: %" PRId64 "\n",
                     command, count);
         } else {
             count = -1;
@@ -2978,7 +2978,7 @@ int64_t queryDbForDumpOutCountNative(
         }
     } else {
         count = *(int64_t*)row[TSDB_SHOW_TABLES_NAME_INDEX];
-        debugPrint("%s fetch row, count: %" PRId64 "\n",
+        debugPrint("%s fetch row successfully, count: %" PRId64 "\n",
                 command, count);
     }
 
@@ -2992,26 +2992,46 @@ int64_t queryDbForDumpOutCount(
         const char *dbName,
         const char *tbName,
         const int precision) {
-    char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
-    if (NULL == command) {
-        errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
-        return -1;
+    int64_t count = -1;
+
+    for (int32_t i = 0; i <= g_args.retryCount; i++) {
+        char *command = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+        if (NULL == command) {
+            errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
+            return -1;
+        }
+
+        int64_t startTime = getStartTime(precision);
+        int64_t endTime = getEndTime(precision);
+
+        snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
+                g_args.db_escape_char
+                ? "SELECT COUNT(*) FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
+                "AND _c0 <= %" PRId64 ""
+                : "SELECT COUNT(*) FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
+                "AND _c0 <= %" PRId64,
+                dbName, g_escapeChar, tbName, g_escapeChar,
+                startTime, endTime);
+
+        count = queryDbForDumpOutCountNative(
+                    command, *taos_v, dbName, tbName, precision);
+
+        if (count >= 0) {
+            if (i > 0) {
+                debugPrint("Retry %d to execute queryDbForDumpOutCount successfully, dbName: %s, tbName: %s\n", i, dbName, tbName);
+            }
+            return count;
+        }
+
+        // fail
+        errorPrint("Failed to execute queryDbForDumpOutCount, dbName: %s, tbName: %s\n", dbName, tbName);
+
+        // retry again
+        debugPrint("Retry to execute queryDbForDumpOutCount for %d time(s) after sleep %dms, dbName: %s, tbName: %s\n", i, g_args.retrySleepMs, dbName, tbName);
+        toolsMsleep(g_args.retrySleepMs);
     }
 
-    int64_t startTime = getStartTime(precision);
-    int64_t endTime = getEndTime(precision);
-
-    snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-            g_args.db_escape_char
-            ? "SELECT COUNT(*) FROM `%s`.%s%s%s WHERE _c0 >= %" PRId64 " "
-            "AND _c0 <= %" PRId64 ""
-            : "SELECT COUNT(*) FROM %s.%s%s%s WHERE _c0 >= %" PRId64 " "
-            "AND _c0 <= %" PRId64,
-            dbName, g_escapeChar, tbName, g_escapeChar,
-            startTime, endTime);
-
-    int64_t count = queryDbForDumpOutCountNative(
-                command, *taos_v, dbName, tbName, precision);
+    errorPrint("Retry count exceeds %d, give up retry.\n", g_args.retryCount);
     return count;
 }
 
@@ -3350,7 +3370,7 @@ static int64_t writeResultToAvro(
 
     do {
         if (queryCount > limit) {
-            if (limit < (queryCount - offset )) {
+            if (limit > (queryCount - offset )) {
                 limit = queryCount - offset;
             }
         } else {
@@ -3422,13 +3442,14 @@ static int64_t writeResultToAvro(
         }
 
         if (countInBatch != limit) {
-            errorPrint("%s() LN%d, table rows is zero. actual dump out: %d, batch %" PRId64 " dbName=%s tbName=%s\n",
+            errorPrint("%s() LN%d, actual dump out rows not equal to batch size. actual dump out: %d, batch %" PRId64 " dbName=%s tbName=%s\n",
                     __func__, __LINE__,
                     countInBatch, limit, dbName, tbName);
         }
+
         taos_free_result(res);
         printDotOrX(offset, &printDot);
-        offset += limit;
+        offset += countInBatch;
 
         currentPercent = ((offset) * 100 / queryCount);
         if (currentPercent > percentComplete) {

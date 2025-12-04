@@ -268,12 +268,22 @@ typedef struct SDynQueryCtrlVtbScan {
   SVgroupsInfo* pVgroupList;
 } SDynQueryCtrlVtbScan;
 
+typedef struct SDynQueryCtrlVtbWindow {
+  int32_t               wstartSlotId;
+  int32_t               wendSlotId;
+  int32_t               wdurationSlotId;
+  bool                  isVstb;
+  bool                  singleWinMode;
+  EStateWinExtendOption extendOption;
+} SDynQueryCtrlVtbWindow;
+
 typedef struct SDynQueryCtrlLogicNode {
-  SLogicNode           node;
-  EDynQueryType        qType;
-  SDynQueryCtrlStbJoin stbJoin;
-  SDynQueryCtrlVtbScan vtbScan;
-  bool                 dynTbname;
+  SLogicNode             node;
+  EDynQueryType          qType;
+  SDynQueryCtrlStbJoin   stbJoin;
+  SDynQueryCtrlVtbScan   vtbScan;
+  SDynQueryCtrlVtbWindow vtbWindow;
+  bool                   dynTbname;
 } SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
@@ -329,42 +339,49 @@ typedef enum EWindowAlgorithm {
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
-  SLogicNode       node;
-  EWindowType      winType;
-  SNodeList*       pFuncs;
-  int64_t          interval;
-  int64_t          offset;
-  int64_t          sliding;
-  int8_t           intervalUnit;
-  int8_t           slidingUnit;
-  STimeWindow      timeRange;
-  SNode*           pTimeRange;
-  int64_t          sessionGap;
-  SNode*           pTspk;
-  SNode*           pTsEnd;
-  SNode*           pStateExpr;
-  SNode*           pStartCond;
-  SNode*           pEndCond;
-  int64_t          trueForLimit;
-  int8_t           triggerType;
-  int64_t          watermark;
-  int64_t          deleteMark;
-  int8_t           igExpired;
-  int8_t           igCheckUpdate;
-  int8_t           indefRowsFunc;
-  EWindowAlgorithm windowAlgo;
-  bool             isPartTb;
-  int64_t          windowCount;
-  int64_t          windowSliding;
-  SNodeList*       pTsmaSubplans;
-  SNode*           pAnomalyExpr;
-  char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
-  int64_t          recalculateInterval;
-  SNodeList*       pColList;  // use for count window
-  SNodeList*       pProjs;  // for external window
-  bool             isSingleTable; // for external window
-  bool             inputHasOrder; // for external window, whether input data is ordered
+  // for all window types
+  SLogicNode            node;
+  EWindowType           winType;
+  SNodeList*            pFuncs;
+  STimeWindow           timeRange;
+  SNode*                pTimeRange;
+  SNode*                pTspk;
+  EWindowAlgorithm      windowAlgo;
+  SNodeList*            pTsmaSubplans;
+  // for interval window
+  int64_t               interval;
+  int64_t               offset;
+  int64_t               sliding;
+  int8_t                intervalUnit;
+  int8_t                slidingUnit;
+  // for session window
+  int64_t               sessionGap;
+  SNode*                pTsEnd;
+  // for state window
+  SNode*                pStateExpr;
   EStateWinExtendOption extendOption;
+  // for event window
+  SNode*                pStartCond;
+  SNode*                pEndCond;
+  // for event and state window
+  int64_t               trueForLimit;
+  // for count window
+  int64_t               windowCount;
+  int64_t               windowSliding;
+  SNodeList*            pColList;
+  // for external window
+  int8_t                indefRowsFunc; // for external window
+  SNodeList*            pProjs;        // for external window
+  bool                  isSingleTable; // for external window
+  bool                  inputHasOrder; // for external window, whether input data is ordered
+  int32_t               orgTableVgId;
+  tb_uid_t              orgTableUid;
+
+  // for external and interval window
+  bool                  isPartTb;
+  // for anomaly window
+  SNode*                pAnomalyExpr;
+  char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -667,13 +684,24 @@ typedef struct SVtbScanDynCtrlBasic {
   SNodeList *pOrgVgIds;
 } SVtbScanDynCtrlBasic;
 
+typedef struct SVtbWindowDynCtrlBasic {
+  int32_t               wstartSlotId;
+  int32_t               wendSlotId;
+  int32_t               wdurationSlotId;
+  bool                  isVstb;
+  bool                  singleWinMode;
+  SNodeList*            pTargets;
+  EStateWinExtendOption extendOption;
+} SVtbWindowDynCtrlBasic;
+
 typedef struct SDynQueryCtrlPhysiNode {
   SPhysiNode    node;
   EDynQueryType qType;
   bool          dynTbname;
   union {
-    SStbJoinDynCtrlBasic stbJoin;
-    SVtbScanDynCtrlBasic vtbScan;
+    SStbJoinDynCtrlBasic   stbJoin;
+    SVtbScanDynCtrlBasic   vtbScan;
+    SVtbWindowDynCtrlBasic vtbWindow;
   };
 } SDynQueryCtrlPhysiNode;
 
@@ -727,17 +755,17 @@ typedef struct SMergePhysiNode {
 typedef struct SWindowPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
-  SNodeList* pFuncs;
-  SNodeList* pProjs;  // only for external window
-  SNode*     pTspk;   // timestamp primary key
-  SNode*     pTsEnd;  // window end timestamp
-  int8_t     triggerType;
-  int64_t    watermark;
-  int64_t    deleteMark;
-  int8_t     igExpired;
-  int8_t     indefRowsFunc;
-  bool       mergeDataBlock;
-  int64_t    recalculateInterval;
+  SNodeList* pFuncs;  // [all window]
+  SNodeList* pProjs;  // [external window] only for external window
+  SNode*     pTspk;   // [all window]      timestamp primary key
+  SNode*     pTsEnd;  // [session window]  window end timestamp
+  int8_t     unusedParam1;
+  int64_t    unusedParam2;
+  int64_t    unusedParam3;
+  int8_t     unusedParam4;
+  int8_t     indefRowsFunc; // [external window] identify whether the window has infinite rows
+  bool       mergeDataBlock;// [interval window]
+  int64_t    unusedParam5; // useless
 } SWindowPhysiNode;
 
 typedef struct SIntervalPhysiNode {
@@ -807,6 +835,8 @@ typedef struct SExternalWindowPhysiNode {
   SNode*           pTimeRange;
   bool             isSingleTable;
   bool             inputHasOrder;
+  int32_t          orgTableVgId; // for vtable window query
+  tb_uid_t         orgTableUid;  // for vtable window query
 } SExternalWindowPhysiNode;
 
 typedef struct SSortPhysiNode {

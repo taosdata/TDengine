@@ -158,8 +158,8 @@ Fail to get table info
 | **No** | **巡检项目** | **详细说明** |
 |:-------|:------------|:-----------|
 | 1 | **操作系统信息**   | 系统名称、系统版本号、内核版本、系统启动时间 |
-| 2 | **CPU 信息** | CPU 型号、CPU 架构、CPU核数 |
-| 3 | **网卡信息** | FQDN对应网卡名称和带宽数据 |
+| 2 | **CPU 信息** | CPU 型号、CPU 架构、CPU 核数 |
+| 3 | **网卡信息** | FQDN 对应网卡名称和带宽数据 |
 | 4 | **数据库数据目录使用情况**  | 数据目录的挂载路径，文件系统，存储类型，已用空间，可用空间和空间使用率 |
 | 5 | **/etc/hosts 配置**   | hosts 中缺少集群节点 FQDN 对应的 ip-address 信息 |
 | 6 | **数据库 dnode 信息**   | 每个 Dnode 分配的 vnodes 数量，dnode 状态，dnode 启动时间和最近一次重启时间 |
@@ -177,11 +177,11 @@ Fail to get table info
 | **No** | **巡检项目** | **告警规则** |
 |:-------|:------------|:-----------|
 | 1 | **磁盘使用情况**   | 磁盘已用空间低于 15% |
-| 2 | **CPU 使用情况** | CPU 使用率超过80%持续时间超过 30 分钟 |
+| 2 | **CPU 使用情况** | CPU 使用率超过 80% 持续时间超过 30 分钟 |
 | 3 | **防火墙状态**   | 防火墙服务未关闭 |
 | 4 | **SELinux 服务状态**   | SElinux 服务未关闭 |
 | 5 | **/etc/hosts 配置** | hosts 中缺少集群节点 FQDN 对应的 ip-address 信息 |
-| 6 | **系统内核错误**   | 存在包含关键字 memory、error或killed 的内核错误日志 |
+| 6 | **系统内核错误**   | 存在包含关键字 memory、error 或 killed 的内核错误日志 |
 | 7 | **SWAPNESS 配置**   | SWAPNESS 服务未关闭或配置值大于 10 |
 | 8 | **Coredump 配置** | 1. coredump 未配置；2. coredump 挂载目录为系统根目录；3. coredump 文件个数大于 0 |
 | 9 | **数据库服务版本**   | taos 和 taosd 的版本不一致 |
@@ -199,19 +199,19 @@ Fail to get table info
 
 > **💡 Note**  
 >
-> 1. 该巡检功能支持版本: TDengine TSDB v3.3.6.25+ 或 v3.3.7.8+
+> 1. 该巡检功能支持版本：TDengine TSDB v3.3.6.25+ 或 v3.3.7.8+
 > 2. 数据统计时间段按天为单位，可通过参数 --lookback 配置，默认为过去 30 天
 >
 
 | **No** | **巡检项目** | **详细说明** |
 |:-------|:------------|:-----------|
-| 1 | **CPU 使用率** | 指定时间段的 CPU 使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
-| 2 | **CPU 每日使用率** | 指定时间段的 每日 CPU 使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
-| 3 | **CPU 使用率分布情况** | 指定时间段的 CPU 使用率按照百分比区间的分布统计, 包括 taosd、taosAdapter、taos-explorer 和 system |
-| 4 | **内存使用率** | 指定时间段的内存使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
-| 5 | **内存每日使用率** | 指定时间段的每日内存使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
-| 6 | **内存使用率分布情况** | 指定时间段的内存使用率按照百分比区间的分布统计, 包括 taosd、taosAdapter、taos-explorer 和 system |
-| 7 | **异常状态统计** | 指定时间段的服务异常时间统计, 包括 taosd、taosAdapter、taos-explorer |
+| 1 | **CPU 使用率** | 指定时间段的 CPU 使用率的最大、最小、平均值，包括 taosd、taosAdapter、taos-explorer 和 system |
+| 2 | **CPU 每日使用率** | 指定时间段的 每日 CPU 使用率的最大、最小、平均值，包括 taosd、taosAdapter、taos-explorer 和 system |
+| 3 | **CPU 使用率分布情况** | 指定时间段的 CPU 使用率按照百分比区间的分布统计，包括 taosd、taosAdapter、taos-explorer 和 system |
+| 4 | **内存使用率** | 指定时间段的内存使用率的最大、最小、平均值，包括 taosd、taosAdapter、taos-explorer 和 system |
+| 5 | **内存每日使用率** | 指定时间段的每日内存使用率的最大、最小、平均值，包括 taosd、taosAdapter、taos-explorer 和 system |
+| 6 | **内存使用率分布情况** | 指定时间段的内存使用率按照百分比区间的分布统计，包括 taosd、taosAdapter、taos-explorer 和 system |
+| 7 | **异常状态统计** | 指定时间段的服务异常时间统计，包括 taosd、taosAdapter、taos-explorer |
 
 #### 磁盘巡检范围
 
@@ -227,8 +227,8 @@ Fail to get table info
 | **No** | **巡检项目** | **详细说明** |
 |:-------|:------------|:-----------|
 | 1 | **操作系统信息**   | 系统名称、系统版本号、内核版本、系统启动时间 |
-| 2 | **CPU 信息** | CPU 型号、CPU 架构、CPU核数 |
-| 3 | **网卡信息** | FQDN对应网卡名称和带宽数据 |
+| 2 | **CPU 信息** | CPU 型号、CPU 架构、CPU 核数 |
+| 3 | **网卡信息** | FQDN 对应网卡名称和带宽数据 |
 | 4 | **系统资源统计** | 内存总空间、内存已用空间、内存使用率、SWAP 总空间、SWAP 已用空间、SWAP 使用率、硬盘总空间、硬盘已用空间、硬盘使用率 |
 | 5 | **域名解析配置** | FQDN 和 IP 信息是否配置到/etc/hosts 文件 |
 | 6 | **预安装软件** | 指定的原装软件是否已安装，若安装记录其版本 |
@@ -265,18 +265,18 @@ Fail to get table info
 | 1 | **数据库版本**  | 数据库各服务的版本信息 |
 | 2 | **数据库逻辑单元信息**  | dnode、mnode 和 vnode 相关数据 |
 | 3 | **数据库列表信息**  | 列出所有已定义数据库名称，包含 log 和 audit 库 |
-| 4 | **服务端打开文件数配置**  | Soft Limit 和 Hard Limit的当前配置 |
+| 4 | **服务端打开文件数配置**  | Soft Limit 和 Hard Limit 的当前配置 |
 | 5 | **数据库服务详细信息**  | 数据库各服务的详细信息，包括自启动配置、运行状态、启动时间、运行时间、内存占用空间和 CPU 使用率 |
 | 6 | **数据库参数信息**  | 各节点对应的数据库参数信息 |
-| 7 | **数据库错误日志信息**  | 统计taos、taosd 和 taosAdapter的错误日志数量 |
+| 7 | **数据库错误日志信息**  | 统计 taos、taosd 和 taosAdapter 的错误日志数量 |
 | 8 | **数据库用户信息**  | 数据库用户及其权限配置信息 |
 | 9 | **数据库授权信息**  | 数据库授权信息 |
 | 10 | **测点数统计**  | 基于数据库的测点使用量 |
 | 11 | **vgroup 按库分布情况**  | 基于数据库的 vgroup 分布情况 |
-| 12 | **vgroup leader 按节点分布情况**  | 基于dnode节点的 vgroup leader 分布情况 |
-| 13 | **vnodes 按节点分布情况**  | 基于dnode节点的 vnode 分布情况 |
+| 12 | **vgroup leader 按节点分布情况**  | 基于 dnode 节点的 vgroup leader 分布情况 |
+| 13 | **vnodes 按节点分布情况**  | 基于 dnode 节点的 vnode 分布情况 |
 | 14 | **各库在各节点上的分布情况**  | 每个数据库基于 dnode 节点的 vnode 分布情况 |
-| 15 | **基于单数据库的分布情况**  | 基于单数据库的vnode 和 vgroup 详情 |
+| 15 | **基于单数据库的分布情况**  | 基于单数据库的 vnode 和 vgroup 详情 |
 | 16 | **数据库副本数统计信息**  | 数据库副本数统计信息 |
 | 17 | **慢查询信息**  | 过去 30 天的慢查询记录 |
 | 18 | **库表占用空间**  | 数据库本地占用磁盘空间 |
@@ -304,8 +304,8 @@ Fail to get table info
 
 | **No** | **巡检项目** | **详细说明** |
 |:-------|:------------|:-----------|
-| 1 | **Topic 定义**  | Topic的创建语句 |
-| 2 | **Topic 明细**  | 包括 topic_name、db_name、create_time等信息 |
+| 1 | **Topic 定义**  | Topic 的创建语句 |
+| 2 | **Topic 明细**  | 包括 topic_name、db_name、create_time 等信息 |
 | 3 | **Consumers 信息**  | 包括 consumer_id、consumer_group、client_id 等信息 |
 | 3 | **subscriptions 信息**  | 包括 topic_name、consumer_group、vgroup_id 等信息|
 
@@ -323,10 +323,10 @@ Fail to get table info
 |:-------|:------------|:-----------|
 | 1 | **inspect_report.md**  | 巡检报告文件 |
 | 2 | **inspect.json**  | 巡检结果结构化数据 |
-| 3 | **table_schemas.md**  | 存储超级表 schema 文件，仅当超级表 schema 信息长度查过2000字符时存在此文件 |
+| 3 | **table_schemas.md**  | 存储超级表 schema 文件，仅当超级表 schema 信息长度查过 2000 字符时存在此文件 |
 | 4 | **xxxx_error.log**  | 各节点 taos、taosd、taosAdapter 和 taosKeeper 对应的错误日志文件 |
 | 5 | **xxxx.cfg(or toml)**  | 各节点 taos、taosd、taosAdapter 和 taosKeeper 对应的配置文件 |
-| 6 | **results.zip**  | 最后会将出去错误日志文件以外的其它所有文件压缩为results.zip |
+| 6 | **results.zip**  | 最后会将出去错误日志文件以外的其它所有文件压缩为 results.zip |
 
 ## 应用示例
 

@@ -742,16 +742,7 @@ The log can be configured with the following parameters:
   **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   SQL log rotation interval (Default: `24h`).
 
-1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
-2. Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
-
-The following is an example of setting the log level to debug through the curl command:
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 
 ### Third-party Data Source Configuration
 
@@ -1138,6 +1129,35 @@ When other users initiate query requests, the default concurrency limit configur
 Each user's configuration is independent and does not share the concurrency limit of `request.default`. 
 For example, when user user1 initiates 200 concurrent query requests, user user2 can also initiate 200 concurrent query requests simultaneously without blocking.
 
+### Reject Query SQL Configuration
+
+Starting from **version 3.3.6.34 / 3.4.0.0**, taosAdapter supports rejecting specific query SQL statements through configuration, preventing the execution of unsafe or highly resource-consuming queries.  
+When this feature is enabled, taosAdapter checks each SQL statement that does **not** start with `insert` (case-insensitive). If the SQL matches any of the configured reject patterns, an error response is returned indicating that the query is forbidden.
+
+When a rejected SQL query is matched, the RESTful API returns HTTP status code `403`, and the WebSocket interface returns error code `0xFFFD`.  
+Meanwhile, taosAdapter prints a warning log containing details such as the SQL source, for example:
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+This configuration affects the following interfaces:
+- **RESTful interface**
+- **WebSocket SQL execution interface**
+
+**Parameter Description**
+
+- **`rejectQuerySqlRegex`**
+  - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
+  - Default: an empty list, meaning no queries are rejected.
+
+**Example**
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+The configuration `rejectQuerySqlRegex = ['(?i)^drop\\s+database\\s+.*','(?i)^drop\\s+table\\s+.*','(?i)^alter\\s+table\\s+.*']` rejects all `drop database`, `drop table`, and `alter table` queries, ignoring case.
+
 ### Environment Variables
 
 Configuration Parameters and their corresponding environment variables:
@@ -1283,6 +1303,27 @@ taosAdapter deployed separately from taosd must be upgraded by upgrading the TDe
 ### Removing taosAdapter
 
 Use the command rmtaos to remove the TDengine server software, including taosAdapter.
+
+## Dynamic Configuration
+
+### Dynamically Modify Log Level
+
+Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
+
+The following is an example of setting the log level to debug through the curl command:
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+### Monitor Configuration File Changes
+
+Starting from version **3.3.6.34**/**3.4.0.0**, taosAdapter supports monitoring configuration file changes and automatically updates the following configurations:
+
+- `log.level` log level parameter
+- `rejectQuerySqlRegex` rejected query SQL list configuration parameter
 
 ## IPv6 Support
 

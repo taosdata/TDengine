@@ -391,6 +391,17 @@ class TestViewBasic:
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_all_view_all'")
 
+    def check_result_rows(self, conn, sql, expected_rows, retry = 10):
+        """This function is used to check the query sql result rows
+        """
+        conn.query(sql)
+        actual_rows = len(conn.queryResult)
+        while actual_rows != expected_rows and retry > 0:
+            time.sleep(1)
+            conn.query(sql)
+            actual_rows = len(conn.queryResult)
+            retry -= 1
+
     def run_view_permission_db_write_view_all(self):
         """This test case is used to verify the view permission with db write and view all
         """
@@ -402,6 +413,7 @@ class TestViewBasic:
         conn.execute("create view v1 as select * from stb;")
         tdSql.execute("revoke read on view_db.* from view_test;")
         self.check_permissions("view_test", "view_db", {"db": ["write"], "view": ["read", "write", "alter"]}, "v1")
+        self.check_result_rows(tdSql, "select * from information_schema.ins_user_privileges where user_name='view_test' and privilege='read' and db_name='view_db' and table_name =''", 0)
         # create view permission error
         try:
             conn.execute("create view v2 as select * from v1;")

@@ -798,6 +798,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1829,7 +1830,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:
-    case QUERY_NODE_SHOW_RETENTIONS_STMT: {
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
+    case QUERY_NODE_SHOW_INSTANCES_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -2350,6 +2352,9 @@ void nodesDestroyNode(SNode* pNode) {
       if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
         nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
+      }
+      if (pPhyNode->qType == DYN_QTYPE_VTB_WINDOW) {
+        nodesDestroyList(pPhyNode->vtbWindow.pTargets);
       }
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       break;

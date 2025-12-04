@@ -67,7 +67,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
 
 - 删除指定名称的用户定义函数。
 
-```
+```sql
 DROP FUNCTION function_name;
 ```
 
