@@ -211,7 +211,7 @@ jobs:
         with:
           concurrency: 8
           topic: factory/{table}/{location}
-          qos: 0
+          qos: 1
 
 //ANCHOR_END: mqtt_publish_config
 
@@ -266,6 +266,6 @@ jobs:
       - uses: kafka/produce
         with:
           concurrency: 8
-          acks: 0
+          acks: 1
 
 //ANCHOR_END: kafka_produce_config

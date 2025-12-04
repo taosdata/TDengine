@@ -125,9 +125,9 @@ taosgen -h 127.0.0.1 -c config.yaml
 #### Kafka 参数
 
 - kafka：描述 Kafka Broker 的相关配置参数，它包括以下属性：
-  - bootstrap_servers (字符串)： Kafka 集群地址列表，格式为 "host:port"，多个地址用逗号分隔。
+  - bootstrap_servers (字符串)：Kafka 集群地址列表，格式为 "host:port"，多个地址用逗号分隔。
   - client_id（字符串）：客户端唯一标识符前缀，默认值为 taosgen。
-  - topic (字符串)： 指定要写入的 Kafka Topic 名称。
+  - topic (字符串)：指定要写入的 Kafka Topic 名称。
   - rdkafka_options（映射）：可指定底层 librdkafka 库支持的可选参数，如：security.protocol、sasl.mechanisms、sasl.username、sasl.password。
     - security.protocol (字符串)：指定客户端与 Kafka 集群之间通信的安全协议。可选值：
       - "plaintext"：明文传输，无加密（默认，若未配置）。
@@ -137,7 +137,7 @@ taosgen -h 127.0.0.1 -c config.yaml
       - 默认值：未设置（即等效于 "plaintext"）。
     - sasl.mechanism (字符串)：当 security.protocol 设置为 "sasl_plaintext" 或 "sasl_ssl" 时，指定使用的 SASL 身份验证机制。常见可选值：
       - "PLAIN"：简单的用户名/密码验证，常用于外部身份提供商或基本认证。
-      - "SCRAM-SHA-256"：基于挑战-响应的更安全机制，比 PLAIN 更安全。
+      - "SCRAM-SHA-256"：基于挑战 - 响应的更安全机制，比 PLAIN 更安全。
       - "SCRAM-SHA-512"：比 SHA-256 更强的哈希算法。
       - "GSSAPI"：用于 Kerberos 认证。
     注意：此字段必须与 security.protocol 同时配置，且其值取决于 Kafka Broker 端启用的 SASL 机制。
@@ -328,7 +328,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 - qos（整数）：QoS 等级，取值范围为 0、1、2，默认为 0。
 - retain（布尔）：MQTT Broker 是否保留最后一条消息，默认值为 false。
 - tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
-- records_per_message（整数）：每条消息包含的记录数，默认为1。
+- records_per_message（整数）：每条消息包含的记录数，默认为 1。
 
 ### 发布 Kafka 数据行动的格式
 
@@ -341,17 +341,17 @@ taosgen -h 127.0.0.1 -c config.yaml
 - key_pattern (字符串)：消息 Key 的组成模式，支持通过占位符语法生成动态 key，默认值为 `{table}`，占位符语法如下：
   - `{table}`：表示表名数据
   - `{column}`：表示列数据，column 是列字段名称
-- key_serializer (字符串)： 消息 Key 的序列化方式，支持 "string-utf8"、"int8"、"uint8"、"int16"、"uint16"、"int32"，"uint32", "int64", "uint64"，默认为 "string-utf8"；控制如何将 key_pattern 解析后的结果序列化为 Kafka 消息的 key 字节流。
+- key_serializer (字符串)：消息 Key 的序列化方式，支持 "string-utf8"、"int8"、"uint8"、"int16"、"uint16"、"int32"、"uint32"、"int64"、"uint64"，默认为 "string-utf8"；控制如何将 key_pattern 解析后的结果序列化为 Kafka 消息的 key 字节流。
   - "string-utf8":  将模板替换后的结果视为字符串，直接以 UTF-8 编码生成字节流。
-  - 整数: 将字段模板替换后的结果解析为整数。仅支持单个字段占位符（如 `{device_id}`），不支持多字段组合（如 `{table}_{id}`）或表达式运算（如 `{id+1}`）。序列化时使用该整数类型，并以大端序（big-endian） 格式编码为二进制数据发送。
-- value_serializer (字符串)： 消息 Value 的序列化方式，支持 "json"、"influx"，默认为 "json"。
-- acks (字符串)： 生产者确认机制设置，如 "all"、"1"、"0"，默认为 "0"；
-  - "all"：生产者必须等待ISR（In-Sync Replicas，同步副本集）中的所有副本都成功接收到消息并将其写入本地日志后，才会认为消息发送成功。
+  - 整数：将字段模板替换后的结果解析为整数。仅支持单个字段占位符（如 `{device_id}`），不支持多字段组合（如 `{table}_{id}`）或表达式运算（如 `{id+1}`）。序列化时使用该整数类型，并以大端序（big-endian） 格式编码为二进制数据发送。
+- value_serializer (字符串)：消息 Value 的序列化方式，支持 "json"、"influx"，默认为 "json"。
+- acks (字符串)：生产者确认机制设置，如 "all"、"1"、"0"，默认为 "0"；
+  - "all"：生产者必须等待 ISR（In-Sync Replicas，同步副本集）中的所有副本都成功接收到消息并将其写入本地日志后，才会认为消息发送成功。
   - "1"：生产者只需要等待分区 Leader 副本成功接收到消息并将其写入本地日志（Log），就会认为消息发送成功，并立即向应用程序返回确认。
   - "0"：生产者完全不等待任何确认。一旦消息被成功发送到网络（甚至只是放入了生产者的发送缓冲区），就立即认为发送成功。
-- compression (字符串)： 消息压缩类型，支持 "none"、"gzip"、"snappy"、"lz4"、"zstd"，默认为 "none"。
+- compression (字符串)：消息压缩类型，支持 "none"、"gzip"、"snappy"、"lz4"、"zstd"，默认为 "none"。
 - tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
-- records_per_message（整数）：每条消息包含的记录数，默认为1。
+- records_per_message（整数）：每条消息包含的记录数，默认为 1。
 
 ## 配置文件示例
 
@@ -387,7 +387,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
 ```
 
-其中，tdengine、schema::name、sschema::tbname、schema::tags、tdengine/create-child-table::batch、tdengine/insert::concurrency 可以使用默认值，进一步简化配置。
+其中，tdengine、schema::name、schema::tbname、schema::tags、tdengine/create-child-table::batch、tdengine/insert::concurrency 可以使用默认值，进一步简化配置。
 
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
@@ -469,7 +469,7 @@ d1,1700000310000,4.98,220.9,147.9
   - 主题配置 (topic): 使用动态主题 factory/`{table}`/`{location}`，其中：
     - `{table}` 占位符将被实际生成的子表名称替换。
     - `{location}` 占位符将被生成的 location 列值替换，实现按设备位置发布到不同主题。
-  - qos: 服务质量等级设置为 1（至少交付一次）。
+  - qos：服务质量等级设置为 1（至少交付一次）。
 
 场景说明：
 
@@ -490,18 +490,18 @@ d1,1700000310000,4.98,220.9,147.9
 
 配置详解：
 - Kafka 配置参数
-  - 连接信息: 使用 bootstrap_servers 描述连接 Kafka Broker 的信息。
-  - 主题配置 (topic): 使用主题 factory-electric-meter。
+  - 连接信息：使用 bootstrap_servers 描述连接 Kafka Broker 的信息。
+  - 主题配置 (topic)：使用主题 factory-electric-meter。
 
 - schema 配置参数
   - 名称：指定 schema 的名称。
   - 表名称：定义生成一万张表名称的规则，格式为 d0 到 d9999。虽然不直接创建数据库表，此处表作为逻辑概念用来组织数据。
-  - 表字段结构信息: 定义数据表结构，包含4个普通列（电流、电压、相位、设备位置）。
-    - 时间戳: 配置了时间戳生成策略，从指定时间戳 1700000000000 (2023-11-14 22:13:20 UTC) 开始，以 5 分钟的步长递增。
-    - 时序数据: current、phase 和 location 使用指定范围的随机数，voltage 使用正弦波模拟。
+  - 表字段结构信息：定义数据表结构，包含 4 个普通列（电流、电压、相位、设备位置）。
+    - 时间戳：配置了时间戳生成策略，从指定时间戳 1700000000000 (2023-11-14 22:13:20 UTC) 开始，以 5 分钟的步长递增。
+    - 时序数据：current、phase 和 location 使用指定范围的随机数，voltage 使用正弦波模拟。
   - 数据生成行为：使用交错模式写入，每张表写入 1 万条记录，每批写入请求最大行数为 10000 行。
-- 数据发布：使用 8 线程并发向Kafka Broker 发布数据，提高吞吐量。
-  - acks: 消息确认等级，此示例设为 '1'，表示仅需 Leader 确认。
+- 数据发布：使用 8 线程并发向 Kafka Broker 发布数据，提高吞吐量。
+  - acks：消息确认等级，此示例设为 '1'，表示仅需 Leader 确认。
 
 场景说明：
 
