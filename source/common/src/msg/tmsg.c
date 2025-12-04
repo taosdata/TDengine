@@ -3794,8 +3794,8 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->version));
 
   int32_t numOfCreatedDbs = taosHashGetSize(pRsp->createdDbs);
-  int32_t numOfReadDbs = 0; //taosHashGetSize(pRsp->readDbs);
-  int32_t numOfWriteDbs = 0; //taosHashGetSize(pRsp->writeDbs);
+  int32_t numOfReadDbs = 0;   // taosHashGetSize(pRsp->readDbs);
+  int32_t numOfWriteDbs = 0;  // taosHashGetSize(pRsp->writeDbs);
 
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, numOfCreatedDbs));
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, numOfReadDbs));
@@ -3819,9 +3819,9 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   //   db = taosHashIterate(pRsp->writeDbs, db);
   // }
 
-  int32_t numOfReadTbs = 0; //taosHashGetSize(pRsp->readTbs);
-  int32_t numOfWriteTbs = 0; // taosHashGetSize(pRsp->writeTbs);
-  int32_t numOfAlterTbs = 0; // taosHashGetSize(pRsp->alterTbs);
+  int32_t numOfReadTbs = 0;   // taosHashGetSize(pRsp->readTbs);
+  int32_t numOfWriteTbs = 0;  // taosHashGetSize(pRsp->writeTbs);
+  int32_t numOfAlterTbs = 0;  // taosHashGetSize(pRsp->alterTbs);
   int32_t numOfReadViews = taosHashGetSize(pRsp->readViews);
   int32_t numOfWriteViews = taosHashGetSize(pRsp->writeViews);
   int32_t numOfAlterViews = taosHashGetSize(pRsp->alterViews);

@@ -2249,6 +2249,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
+#ifdef PRIV_TODO
   switch (pReq->type) {
     case AUTH_TYPE_READ: {
       if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
@@ -2295,7 +2296,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     default:
       break;
   }
-
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2517,6 +2518,54 @@ uint64_t ctgGetDbVgroupCacheSize(SDBVgInfo* pVg) {
          taosArrayGetSize(pVg->vgArray) * sizeof(SVgroupInfo);
 }
 
+static uint64_t tGetPrivObjPoliciesSize(SHashObj* pHash) {
+  uint64_t totalSize = 0;
+  int32_t  nPolicies = taosHashGetSize((SHashObj*)pHash);
+  if (nPolicies > 0) {
+    void* pIter = NULL;
+    while (pIter = taosHashIterate((SHashObj*)pHash, pIter)) {
+      size_t klen = 0;
+      char*  tbKey = taosHashGetKey(pIter, &klen);
+      totalSize += klen;
+      totalSize += taosHashGetValueSize(pIter);
+    }
+  }
+  return totalSize;
+}
+
+static uint64_t tGetPrivTblPoliciesSize(SHashObj *pHash) {
+  uint64_t totalSize = 0;
+  int32_t nPolicies = taosHashGetSize((SHashObj *)pHash);
+  if (nPolicies > 0) {
+    void *pIter = NULL;
+    while (pIter = taosHashIterate((SHashObj *)pHash, pIter)) {
+      size_t klen = 0, vlen = 0;
+      char  *tbKey = taosHashGetKey(pIter, &klen);
+      totalSize += klen;
+      vlen = taosHashGetValueSize(pIter);
+      if (vlen == 0) {
+        continue;  // 1.*.* or 1.db.*
+      }
+      SPrivTblPolicies *pTblPolicies = (SPrivTblPolicies *)pIter;
+      for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
+        SArray *pPolicies = pTblPolicies->policy[i];
+        if (!pPolicies) continue;
+        int32_t nTblPolicies = taosArrayGetSize(pPolicies);
+        totalSize += nTblPolicies * sizeof(SPrivTblPolicy);
+        for (int32_t j = 0; j < nTblPolicies; ++j) {
+          SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(pPolicies, j);
+          int32_t         nCols = taosArrayGetSize(pPolicy->cols);
+          if (nCols) totalSize += nCols * sizeof(SColNameFlag);
+          if (pPolicy->tagCond) {
+            totalSize += (int32_t)strlen(pPolicy->tagCond);
+          }
+        }
+      }
+    }
+  }
+  return totalSize;
+}
+
 uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
   if (NULL == pAuth) {
     return 0;
@@ -2531,7 +2580,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     p = taosHashIterate(pAuth->createdDbs, p);
   }
-
+#if 0
   p = taosHashIterate(pAuth->readDbs, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2576,7 +2625,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     p = taosHashIterate(pAuth->alterTbs, p);
   }
-
+#endif
   p = taosHashIterate(pAuth->readViews, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2612,6 +2661,14 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     ref = taosHashIterate(pAuth->useDbs, ref);
   }
+
+  cacheSize += tGetPrivObjPoliciesSize(pAuth->objPrivs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->selectRows);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->insertRows);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->deleteRows);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->selectTbs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->insertTbs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->deleteTbs);
 
   return cacheSize;
 }
