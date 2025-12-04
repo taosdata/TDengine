@@ -199,11 +199,15 @@ static void userCacheRemoveUser(const char *user) {
   (void)taosThreadRwlockWrlock(&userCache.rw);
 
   SCachedUserInfo **ppInfo = taosHashGet(userCache.users, user, userLen);
-  if (ppInfo != NULL && *ppInfo != NULL) {
-    taosMemoryFree((*ppInfo)->wlIp);
-    taosMemoryFree((*ppInfo)->wlTime);
-    taosMemoryFree(*ppInfo);
-    (void)taosHashRemove(userCache.users, user, userLen);
+  if (ppInfo != NULL) {
+    if (*ppInfo != NULL) {
+      taosMemoryFree((*ppInfo)->wlIp);
+      taosMemoryFree((*ppInfo)->wlTime);
+      taosMemoryFree(*ppInfo);
+    }
+    if (taosHashRemove(userCache.users, user, userLen) != 0) {
+      mDebug("failed to remove user %s from user cache", user);
+    }
     userCache.verIp++;
     userCache.verTime++;
   }
