@@ -1,13 +1,16 @@
-name: TDengine Doc Build
+name: TDengine Doc Build and Check
 
 on:
   pull_request:
     branches:
       - 'main'
       - '3.0'
+      - '3.3.6'
       - 'docs-cloud'
     paths:
       - 'docs/**'
+      - '.github/workflows/tdengine-docs-ci.yml'
+      - '**/*.md'
 
 env:
   DOC_WKC: '/root/doc_ci_work'
@@ -15,12 +18,86 @@ env:
   EN_DOC_REPO: 'docs.tdengine.com'
   TD_REPO: 'TDengine'
   TOOLS_REPO: 'taos-tools'
-
+  
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 jobs:
+  check-with-typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+
+      - name: Use custom zh config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/zh/'
+          config: docs/typos.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: 'docs/en/'
+          config: docs/typos.toml
+
+      - name: Use custom en config file
+        uses: crate-ci/typos@v1.31.1
+        with:
+          files: './*.md'
+          config: docs/typos.toml
+
+  check-with-autocorrect:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: AutoCorrect
+        uses: huacnlee/autocorrect-action@v2
+        with:
+          args: --lint docs/zh/* docs/en/*
+        continue-on-error: true
+      - name: Report ReviewDog
+        if: failure() && steps.autocorrect.conclusion == 'failure'
+        uses: tomchon/autocorrect-action@fix/review-dog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          reviewdog: true
+          args: ./docs/zh/*  ./docs/en/*  **/*.md
+
+  check-with-markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       
+      - name: Detect changed files
+        uses: tj-actions/changed-files@v46
+        id: changed-files
+        with:
+          files: |
+            **/*.md
+            **/*.mdx
+          separator: ","
+      - name: Check with Markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v20
+        if: steps.changed-files.outputs.any_changed == 'true'        
+        with:
+          config: 'docs/.markdownlint-cli2.jsonc'
+          globs: ${{ steps.changed-files.outputs.all_changed_files }}
+
   build-doc:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
+    needs: 
+        - check-with-typos
+        - check-with-autocorrect
+        - check-with-markdownlint
     steps:
       - name: Get the latest document contents
         run: |
@@ -34,7 +111,6 @@ jobs:
           git pull >/dev/null
           git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
           git checkout -qf FETCH_HEAD
-  
       - name: Check document changes
         id: changed-doc-files
         uses: tj-actions/changed-files@v46
@@ -74,17 +150,19 @@ jobs:
           echo "en_doc_changed=$en_doc_changed"
           echo "zh_doc_changed=$zh_doc_changed" >> $GITHUB_OUTPUT
           echo "en_doc_changed=$en_doc_changed" >> $GITHUB_OUTPUT
-
       - name: Build the chinese document
         if: ${{ steps.check-doc-lang.outputs.zh_doc_changed == 'true'}}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
-          yarn ass localCloud 
+          rm -rf docs/* && git restore docs/ 
+          git checkout -f master && git pull origin master 
+          yarn ass local
           yarn build
-
       - name: Build the english document
         if: ${{ steps.check-doc-lang.outputs.en_doc_changed == 'true'}}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
-          yarn ass localCloud 
+          rm -rf docs/* && git restore docs/
+          git checkout -f main && git pull origin main 
+          yarn ass local
           yarn build
