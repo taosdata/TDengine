@@ -12,10 +12,9 @@ import TabItem from '@theme/TabItem';
 
 这个部分我们会介绍如何通过无服务 OpenTSDB JSON 协议的 REST 接口往 TDengine Cloud 写入数据。
 
-
 ## 配置
 
-在您的终端命令行运行下面的命令来设置 TDengine Cloud 的令牌和URL为环境变量：
+在您的终端命令行运行下面的命令来设置 TDengine Cloud 的令牌和 URL 为环境变量：
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
@@ -51,13 +50,18 @@ $env:TDENGINE_CLOUD_URL="<url>"
 ```text
 /opentsdb/v1/put/json/<db>?token=<cloud_token>
 ```
+
 ### 写入样例
+
 ```bash
 curl --request POST "$TDENGINE_CLOUD_URL/opentsdb/v1/put/json/<db_name>?token=$TDENGINE_CLOUD_TOKEN" --data-binary "{\"metric\":\"meter_current\",\"timestamp\":1646846400,\"value\":10.3,\"tags\":{\"groupid\":2,\"location\":\"Beijing\",\"id\":\"d1001\"}}"
 ```
+
 ## 使用 SQL 查询样例
+
 - `meter_current` 是超级表名。
 - 您可以像这样通过标签过滤数据：`where groupid=2`.
+
 ```bash
 curl -L -d "select * from <db_name>.meter_current where groupid=2" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```

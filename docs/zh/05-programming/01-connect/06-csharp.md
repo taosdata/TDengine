@@ -38,6 +38,7 @@ vim example.csproj
 ```bash
 dotnet add package TDengine.Connector
 ```
+
 ## 配置
 
 在您的终端里面执行下面的命令设置 TDengine Cloud 的网关地址和令牌为环境变量。

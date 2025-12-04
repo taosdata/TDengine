@@ -42,7 +42,11 @@ Users can use `-f <json file>` to specify a configuration file.
 
 taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.
 
-**Make sure that the TDengine cluster is running correctly before running taosBenchmark.**
+:::important
+
+Make sure that the TDengine cluster is running correctly before running taosBenchmark.
+
+:::
 
 ### Run with the configuration file
 
@@ -212,7 +216,7 @@ The parameters listed in this section apply to all function modes.
 
 - **keep_trying** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
-- **trying_interval** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+- **trying_interval** : Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 #### Stream processing related configuration parameters
 

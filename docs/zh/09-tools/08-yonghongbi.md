@@ -21,7 +21,7 @@ description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 2. 点击“选择自定义驱动”，在“驱动管理”对话框中，点击“驱动列表”旁边的“+”，输入名称“MyTDengine”。然后点击“上传文件”按钮上传刚刚下载的 TDengine JDBC 连接器文件"taos-jdbcdriver-3.2.7-dist.jar"，并选择“com.taosdata.jdbc.rs.RestfulDriver”驱动，最后点击“确定”按钮完成驱动添加。
 3. 在“URL”输入框填入正确的 URL 值，详情请参考下面的注意部分
 4. 在“认证方式”中选择“无身份认证”。
-5. 在数据源的高级设置中，修改“Quote符号”的值为反引号“`”。
+5. 在数据源的高级设置中，修改“Quote 符号”的值为反引号“`”。
 6. 点击“测试连接”，弹出“测试成功”的对话框。
 7. 点击“保存”按钮，输入“MyTDengine”来保存 TDengine 数据源。
 
@@ -37,7 +37,7 @@ description: 使用永洪 BI 获取 TDengine Cloud 实例的数据
 
 当导入数据后，BI 工具会自动将数值类型设置为“度量”列，将文本类型设置为“维度”列。而在 TDengine 的超级表中，采用普通列作为数据的度量，采用标签列作为数据的维度，因此您可能需要在创建数据集时更改部分列的属性。TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，例如数据切分查询、窗口切分查询等，具体参考 [TDengine 特色查询功能介绍](https://docs.taosdata.com/taos-sql/distinguished/)。通过使用这些特色查询，当 BI 工具将 SQL 查询发送到 TDengine 数据库时，可以大大提高数据访问速度，减少网络传输带宽。
 
-在 BI 工具中，您可以创建“参数”并在 SQL 语句中使用，通过手动、定时的方式动态执行这些 SQL 语句，即可实现可视化报告的刷新效果。如下 SQL 语句   select _wstart ws, count(*) cnt from supertable where tbname=?\{metric} and ts >= ?\{from} and ts < ?\{to} interval(?\{interval})    可以从 TDengine 实时读取数据，其中:
+在 BI 工具中，您可以创建“参数”并在 SQL 语句中使用，通过手动、定时的方式动态执行这些 SQL 语句，即可实现可视化报告的刷新效果。如下 SQL 语句   select _wstart ws, count(*) cnt from supertable where tbname=?\{metric} and ts >= ?\{from} and ts < ?\{to} interval(?\{interval})    可以从 TDengine 实时读取数据，其中：
 
 - \_wstart 表示时间窗口起始时间。
 - count(*) 表示时间窗口内的聚合值。

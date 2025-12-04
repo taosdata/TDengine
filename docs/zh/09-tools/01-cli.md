@@ -1,5 +1,5 @@
 ---
-title: TDengine 命令行(CLI)
+title: TDengine 命令行 (CLI)
 sidebar_label: TDengine CLI
 description: TDengine CLI 的使用说明和技巧
 ---
@@ -15,12 +15,12 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 
 ## 安装
 
-运行 TDengine CLI 来访问 TDengine Cloud ，请首先下载和安装最新的 [TDengine 客户端安装包](https://docs.taosdata.com/releases/tdengine/)。
+运行 TDengine CLI 来访问 TDengine Cloud，请首先下载和安装最新的 [TDengine 客户端安装包](https://docs.taosdata.com/releases/tdengine/)。
 
 ## 配置
 
 <Tabs defaultValue="linux" groupId="sys">
-<TabItem value="linux" label="在Linux上面配置">
+<TabItem value="linux" label="在 Linux 上面配置">
 
 在您的 Linux 终端里面执行下面的命令设置 TDengine Cloud 的 DSN 为环境变量：
 
@@ -70,13 +70,13 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 
 如果您已经设置了环境变量，您只需要立即执行 `taos` 命令就可以访问 TDengine Cloud 实例。
 
-```
+```bash
 taos
 ```
 
 如果您没有设置 TDengine Cloud 实例的环境变量，或者您想访问其他 TDengine Cloud 实例，您可以使用下面的命令 `taos -E <DSN>`来执行：
 
-```
+```bash
 taos -E $TDENGINE_CLOUD_DSN
 ```
 

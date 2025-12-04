@@ -14,7 +14,7 @@ import TabItem from '@theme/TabItem';
 
 ## 配置
 
-在您的终端命令行运行下面的命令来设置 TDengine Cloud 的令牌和URL为环境变量：
+在您的终端命令行运行下面的命令来设置 TDengine Cloud 的令牌和 URL 为环境变量：
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">
@@ -55,21 +55,24 @@ $env:TDENGINE_CLOUD_URL="<url>"
 
 - `db` 指定 TDengine 使用的数据库名
 - `precision` TDengine 使用的时间精度
-    - ns - 纳秒
-    - u - 微妙
-    - ms - 毫秒
-    - s - 秒
-    - m - 分
-    - h - 小时
+  - ns - 纳秒
+  - u - 微妙
+  - ms - 毫秒
+  - s - 秒
+  - m - 分
+  - h - 小时
 
 ## 写入样例
+
 ```bash
 curl --request POST "$TDENGINE_CLOUD_URL/influxdb/v1/write?db=<db_name>&token=$TDENGINE_CLOUD_TOKEN&precision=ns" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577846800001000001"
 ```
   
 ## 使用 SQL 查询样例
+
 - `measurement` 是超级表名。
 - 您可以像这样通过标签过滤数据：`where host="host1"`。
+
 ```bash
 curl -L -d "select * from <db_name>.measurement where host=\"host1\"" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```

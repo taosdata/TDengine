@@ -14,19 +14,19 @@ TDengine Cloud 的主要功能如下：
 1. [数据写入](../data-in/)
    - 支持 [数据源](../data-in/ds/)。
    - 支持 [数据采集代理](../data-in/dca/)。
-2. 数据浏览器： 可以浏览数据库和各种表，如果您已经登录，还可以直接执行 SQL 查询语句，创建数据库，修改数据库属性，创建和修改超级表以及子表等等。
+2. 数据浏览器：可以浏览数据库和各种表，如果您已经登录，还可以直接执行 SQL 查询语句，创建数据库，修改数据库属性，创建和修改超级表以及子表等等。
 3. [编程](../programming/)
     - 提供各种[连接器](../programming/client-libraries/)，比如 Java，Python，Go，Rust，Node.js，R 等编程语言。
     - 提供了[REST API](../programming/client-libraries/rest-api/)。
-4. [流计算](../stream/)：不仅支持连续查询，TDengine还支持基于事件驱动的流计算，无需安装 Flink/Spark 就可以处理时序数据。
-5. [数据订阅](../data-subscription/)： 用户的应用可以订阅一个数据库，一张表或者一组表。使用的 API 跟 Kafka 基本一致，但是您必须设置具体的过滤条件来定义一个主题，然后您可以和 TDengine Cloud 的其他用户或者用户组分享这个主题。
+4. [流计算](../stream/)：不仅支持连续查询，TDengine 还支持基于事件驱动的流计算，无需安装 Flink/Spark 就可以处理时序数据。
+5. [数据订阅](../data-subscription/)：用户的应用可以订阅一个数据库，一张表或者一组表。使用的 API 跟 Kafka 基本一致，但是您必须设置具体的过滤条件来定义一个主题，然后您可以和 TDengine Cloud 的其他用户或者用户组分享这个主题。
 6. [工具](../tools)
    - 提供一个交互式 [命令行工具 (CLI)](../tools/cli/) 管理和实时查询。
    - 提供一个性能检测工具 [taosBenchmark](../tools/taosbenchmark/) 来测试 TDengine 的性能。
    - 提供一个数据备份和导入工具 [taodump](../tools/taosdump/)。
    - 支持 [Grafana](../tools/grafana/)。
    - 支持 [Google Data Studio](../tools/gds/)。
-   - 支持 [Promethues](../tools/prometheus/)。
+   - 支持 [Prometheus](../tools/prometheus/)。
    - 支持 [DBeaver](../tools/dbeaver/)。
 7. [管理](../mgmt)
    - 管理实例的 [用户和用户组](../mgmt/user-mgmt)
@@ -52,9 +52,9 @@ TDengine Cloud 的主要功能如下：
 
 由于 TDengine Cloud 充分利用了[时序数据特点](https://www.taosdata.com/blog/2019/07/09/105.html)，比如结构化、无需事务、很少删除或更新、写多读少等等，还有它云原生的设计使 TDengine Cloud 区别于其他时序数据云服务，具有以下特点：
 
-- **[极简时序数据平台](https://www.taosdata.com/tdengine/simplified_solution_for_time-series_data_processing)**：全托管的云服务，用户无需担心繁琐的部署、优化、扩容、备份、异地容灾等事务，可全心关注核心业务，减少对DBA的要求，大幅节省人力成本。
+- **[极简时序数据平台](https://www.taosdata.com/tdengine/simplified_solution_for_time-series_data_processing)**：全托管的云服务，用户无需担心繁琐的部署、优化、扩容、备份、异地容灾等事务，可全心关注核心业务，减少对 DBA 的要求，大幅节省人力成本。
 
-   除高性能、具有水平扩展能力的时序数据库外, TDengine 云服务还提供：
+   除高性能、具有水平扩展能力的时序数据库外，TDengine 云服务还提供：
 
    **缓存**：无需部署 Redis，应用就能快速的获得最新数据。
 
@@ -76,7 +76,7 @@ TDengine Cloud 的主要功能如下：
 
    **安全**：提供基于角色的访问权限控制、IP 白名单、用户行为审计等功能。
 
-   **专业**：提供7*24的专业技术服务，承诺 99.9% 的 Service Level Agreement。
+   **专业**：提供 7*24 的专业技术服务，承诺 99.9% 的 Service Level Agreement。
 
    安全、专业、高效可靠的企业级服务，用户无需再为数据管理发愁，可以聚焦自身的核心业务。
 

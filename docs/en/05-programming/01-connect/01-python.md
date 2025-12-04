@@ -18,8 +18,8 @@ You must first install Python3 and Pip3.
 * Install Python. The newer versions of the taospy package require Python 3.6.2+. Earlier versions of the taospy package require Python 3.7+. The taos-ws-py package requires Python 3.7+. If Python is not yet installed on your system, you can refer to the [Python Beginners Guide](https://wiki.python.org/moin/BeginnersGuide/Download) for installation.
 * Install Pip3. In most cases, the Python installation package comes with the pip tool. If it's not included, please refer to the [pip documentation](https://pypi.org/project/pip/) for installation.
 
-
 ### Install with Pip
+
 If you have installed an older version of the Python connector, please uninstall it in advance.
 
 <Tabs defaultValue="rest" groupID="package">
@@ -28,12 +28,14 @@ If you have installed an older version of the Python connector, please uninstall
 ```bash
 pip3 uninstall taos taospy
 ```
+
 </TabItem>
 <TabItem value="websocket" label="WebSocket">
 
 ```bash
 pip3 uninstall taos taos-ws-py
 ```
+
 </TabItem>
 </Tabs>
 
@@ -52,15 +54,16 @@ pip3 install taospy==2.6.2
 # install from github
 pip3 install git+https://github.com/taosdata/taos-connector-python.git
 ```
+
 </TabItem>
 <TabItem value="websocket" label="WebSocket">
 
 ```bash
 pip3 install taos-ws-py
 ```
+
 </TabItem>
 </Tabs>
-
 
 ### Verify
 
@@ -71,6 +74,7 @@ For REST connections, simply verify that the `taosrest` module can be successful
 ```python
 import taosrest
 ```
+
 </TabItem>
 <TabItem value="websocket" label="WebSocket">
 For WebSocket connections, simply verify that the `taosws` module can be successfully imported. You can enter the following in the Python interactive Shell:
@@ -78,10 +82,9 @@ For WebSocket connections, simply verify that the `taosws` module can be success
 ```python
 import taosws
 ```
+
 </TabItem>
 </Tabs>
-
-
 
 ## Config
 
@@ -128,7 +131,7 @@ Please ensure to distinguish between the URLs for REST connections and WebSocket
 
 ## Connect
 
-Copy code bellow to your editor, then run it. 
+Copy code below to your editor, then run it.
 <Tabs defaultValue="rest">
 <TabItem value="rest" label="REST">
 

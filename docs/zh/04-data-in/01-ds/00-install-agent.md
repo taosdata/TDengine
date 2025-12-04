@@ -25,7 +25,7 @@ import TabItem from "@theme/TabItem";
 4. 在本地计算机上运行连接代理安装程序，并按照提示操作。
 5. 在 TDengine Cloud 中，单击**下一步**。
 6. 为您的代理输入一个唯一的名称，然后单击**下一步**以生成一个身份验证令牌。
-7. 在本地计算机上，打开`C:\TDengine\cfg\agent.toml` 文件。
+7. 在本地计算机上，打开 `C:\TDengine\cfg\agent.toml` 文件。
 8. 将 TDengine Cloud 中显示的 `endpoint` 和 `token` 的值复制到 `agent.toml` 文件中。
 9. 在 TDengine Cloud 中，单击**下一步**，然后单击**完成**。
 

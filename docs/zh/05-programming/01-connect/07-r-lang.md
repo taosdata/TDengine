@@ -6,7 +6,7 @@ title: TDengine R Language Connector
 
 ## 配置
 
-完成了 R 语言环境安装步骤后，您需要进行一些配置，以便RJDBC库能够正确连接和访问 TDengine 时序数据库。
+完成了 R 语言环境安装步骤后，您需要进行一些配置，以便 RJDBC 库能够正确连接和访问 TDengine 时序数据库。
 
 1. 在 R 脚本中加载 RJDBC 和其他必要的库：
 

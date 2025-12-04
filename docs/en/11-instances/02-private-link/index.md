@@ -56,6 +56,7 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 
 8. Click Create endpoint. Then you have the **VPC endpoint ID**.
 </TabItem>
+
 <TabItem value="GCP" label="GCP">
 1. Sign in to the [GCP Private Service Connect](https://console.cloud.google.com/net-services/psc/list/consumers).
 2. Find **CONNECTED ENDPOINTS** tab and then click **+CONNECT ENDPOINT**.

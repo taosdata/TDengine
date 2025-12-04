@@ -40,7 +40,7 @@ For more details about `INSERT` please refer to [INSERT](https://docs.tdengine.c
 
 ## Client Library Examples
 
-Here's an smart meters example to show how to use connectors in different languages, to create a super table called `meters` in a `power` database, with columns for timestamp, current, voltage, phase, and tags for group ID and location. 
+Here's a smart meters example to show how to use connectors in different languages, to create a super table called `meters` in a `power` database, with columns for timestamp, current, voltage, phase, and tags for group ID and location.
 
 :::note IMPORTANT
 Before executing the sample code in this section, please create a database named `power` on the[TDengine Cloud - Explorer](https://cloud.taosdata.com/explorer) page.

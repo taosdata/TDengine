@@ -19,7 +19,7 @@ Please refer to [version support list and history](https://docs.tdengine.com/ref
 
 `taos` provides Native Connection and WebSocket connection
 
-More details about establishing a connection, please check[Developer Guide - Connectd - Rust](../01-connect/04-rust.md)
+More details about establishing a connection, please check[Developer Guide - Connected - Rust](../01-connect/04-rust.md)
 
 ## Installation
 
@@ -34,11 +34,14 @@ The taos connector uses the WebSocket to access TDengine Cloud instances. You ne
 Add [taos][taos] to your Cargo.toml file and enable features. Both of the following methods are acceptable:
 
 * Enable default features
+
     ```toml
     [dependencies]
     taos = { version = "*"}
     ```
+
 * Disable default features and enable ws and ws-rustls features
+
     ```toml
     [dependencies]
     taos = { version = "*", default-features = false, features = ["ws", "ws-rustls"] }
@@ -87,6 +90,7 @@ let conn2 = builder.build()?;
 ```
 
 ### Query data
+
 `query`: Run a query statement and return a [ResultSet] object.
 
 ```rust
@@ -114,6 +118,7 @@ Get first 5 rows and print each row and each column:
 ```
 
 Use the [serde](https://serde.rs) deserialization framework.
+
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/serde.rs}}
 ```
@@ -130,19 +135,16 @@ let pool = TaosBuilder::from_dsn(dsn)?.pool()?;
 
 In the application code, use `pool.get()?` to get a connection object [Taos].
 
-
 ```rust
 let taos = pool.get()?;
 ```
 
 ## API Reference
 
-- [Api Reference](https://docs.tdengine.com/reference/connectors/rust/#api-reference)
-- [taos](https://docs.rs/taos)
-
+* [Api Reference](https://docs.tdengine.com/reference/connectors/rust/#api-reference)
+* [taos](https://docs.rs/taos)
 
 [taos]: https://github.com/taosdata/rust-connector-taos
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
-[struct.Taos]: https://docs.rs/taos/latest/taos/struct.Taos.html
 [ResultSet]: https://docs.rs/taos/latest/taos/struct.ResultSet.html

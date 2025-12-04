@@ -61,7 +61,7 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 <!-- exclude -->
 :::note IMPORTANT
 
-替换 \<DSN> 为 您要访问的TDengine Cloud 实例的 DSN 值，格式应该是 `wss://<cloud_endpoint>?token=<token>`。
+替换 \<DSN> 为 您要访问的 TDengine Cloud 实例的 DSN 值，格式应该是 `wss://<cloud_endpoint>?token=<token>`。
 
 获取实例的真实 `DSN` 的值，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的”编程“菜单，然后选择”Rust“。
 

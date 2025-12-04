@@ -2,7 +2,7 @@
 toc_max_heading_level: 4
 sidebar_label: Java
 title: TDengine Java Connector
-description: TDengine Java 连接器基于标准 JDBC API 实现, 并提供原生连接与 REST连接两种连接器。
+description: TDengine Java 连接器基于标准 JDBC API 实现，并提供原生连接与 REST 连接两种连接器。
 ---
 
 import Tabs from '@theme/Tabs';
@@ -284,7 +284,7 @@ public static void main(String[] args) throws Exception {
 
 ### 更多示例程序
 
-示例程序源码位于 `TDengine/examples/JDBC` 下:
+示例程序源码位于 `TDengine/examples/JDBC` 下：
 
 - JDBCDemo：JDBC 示例源程序。
 - JDBCConnectorChecker：JDBC 安装校验源程序及 jar 包。
@@ -332,7 +332,7 @@ public static void main(String[] args) throws Exception {
 
 **原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
 
-**解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+**解决方法**：使用 taos-jdbcdriver 2.*版本连接 TDengine 2.* 版本。
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 

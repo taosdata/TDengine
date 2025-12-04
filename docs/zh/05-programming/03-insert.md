@@ -38,11 +38,13 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 详细的 SQL INSERT 语法规则参考 [TDengine SQL 的数据写入](https://docs.taosdata.com/cloud/taos-sql/insert)。
 
 ## 连接器样例
+
 下面以智能电表为例，展示如何使用各语言连接器在名为 power 的数据库中，创建一个名为 meters 的超级表（STABLE），其表结构包含时间戳、电流、电压、相位等列，以及分组 ID 和位置作为标签。
 
 :::note IMPORTANT
+
 1. 在执行下面样例代码的之前，您必须先在 [TDengine Cloud - 数据浏览器](https://cloud.taosdata.com/explorer) 页面创建一个名为 power 的数据库
-2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南-建立连接](../connect/)。
+2. 如何在代码中建立和 TDengine Cloud 的连接，请参考 [开发指南 - 建立连接](../connect/)。
 
 :::
 <Tabs>
@@ -53,6 +55,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 ```python
 {{#include docs/examples/python/develop_tutorial.py:insert}}
 ```
+
 </TabItem>
 <TabItem value="java" label="Java">
 
@@ -70,7 +73,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 </TabItem>
 <TabItem value="rust" label="Rust">
 
-在这个例子中，我们使用 `exec` 方法来执行 SQL 。`exec` 是为非查询的 SQL 语句设计的，所有返回的数据都会被忽略。
+在这个例子中，我们使用 `exec` 方法来执行 SQL。`exec` 是为非查询的 SQL 语句设计的，所有返回的数据都会被忽略。
 
 ```rust
 {{#include docs/examples/rust/cloud-example/examples/tutorial.rs:insert}}
@@ -101,7 +104,7 @@ INSERT INTO test.d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 1
 
 :::note IMPORTANT
 
-由于 RESTful 接口无状态， 不能使用 `USE db;` 语句来切换数据库, 所以在上面示例中使用了`dbName.tbName`指定表名。
+由于 RESTful 接口无状态，不能使用 `USE db;` 语句来切换数据库，所以在上面示例中使用了`dbName.tbName`指定表名。
 
 :::
 

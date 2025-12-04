@@ -12,19 +12,19 @@ TDengine ODBC  提供基于 WebSocket（推荐）和 原生连接两种方式连
 
 注意：TDengine ODBC 只支持 64 位系统，调用 TDengine ODBC 必须通过 64 位的 ODBC 驱动管理器进行。因此调用 ODBC 的程序不能使用 32 位版本。
 
-想更多了解 TDengine 时序时序数据库的使用，可访问 [TDengine官方文档](https://docs.taosdata.com/intro/)。
+想更多了解 TDengine 时序时序数据库的使用，可访问 [TDengine 官方文档](https://docs.taosdata.com/intro/)。
 
 ## 安装
 
-1. 仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 [VC运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170) 如果已经安装VS开发工具可忽略。  
+1. 仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170) 如果已经安装 VS 开发工具可忽略。  
 
 2. 安装 TDengine Windows 客户端，版本在 3.2.1.0 或以上，都会包含 TDengine 的 ODBC 驱动。
 
 ## 配置数据源
 
-1. 【开始】菜单搜索打开【ODBC 数据源(64 位)】管理工具（注意不要选择ODBC 数据源(32 位)）
+1. 【开始】菜单搜索打开【ODBC 数据源 (64 位)】管理工具（注意不要选择 ODBC 数据源 (32 位)）
 
-2. 选中【用户 DSN】标签页，通过【添加(D)】按钮进入"创建数据源"界面
+2. 选中【用户 DSN】标签页，通过【添加 (D)】按钮进入"创建数据源"界面
 
 3. 选择想要添加的数据源，这里我们选择【TDengine】
 
@@ -32,15 +32,15 @@ TDengine ODBC  提供基于 WebSocket（推荐）和 原生连接两种方式连
 
     ![ODBC websocket connection config](./assets/odbc-ws-config-zh.webp)
 
-    4.1 【DSN】:Data Source Name 必填，为新添加的 ODBC 数据源命名
+    4.1【DSN】:Data Source Name 必填，为新添加的 ODBC 数据源命名
 
-    4.2【连接类型】 : 必选，选择连接类型，这里选择 【Websocket】
+    4.2【连接类型】 : 必选，选择连接类型，这里选择【Websocket】
 
-    4.3【URL】必填，ODBC 数据源 URL，示例: 云服务的 URL 示例: `https://gw.cloud.taosdata.com?token=your_token`
+    4.3【URL】必填，ODBC 数据源 URL，示例：云服务的 URL 示例：`https://gw.cloud.taosdata.com?token=your_token`
 
     4.4【数据库】选填，需要连接的默认数据库
 
-5. 点【测试连接】测试连接情况，如果成功，提示"成功连接到URL"
+5. 点【测试连接】测试连接情况，如果成功，提示"成功连接到 URL"
 
 6. 点【确定】，即可保存配置并退出
 

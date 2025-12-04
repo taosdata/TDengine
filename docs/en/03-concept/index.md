@@ -126,7 +126,7 @@ To make full use of time-series data characteristics, TDengine adopts a strategy
 3. The metric data from a DCP is continuously stored, block by block. If you read data for a period of time, it can greatly reduce random read operations and improve read and query performance by orders of magnitude.
 4. Inside a data block for a DCP, columnar storage is used, and different compression algorithms are used for different data types. Metrics generally don't vary as significantly between themselves over a time range as compared to other metrics, which allows for a higher compression rate.
 
-If the metric data of multiple DCPs are traditionally written into a single table, due to uncontrollable network delays, the timing of the data from different DCPs arriving at the server cannot be guaranteed, write operations must be protected by locks, and metric data from one DCP cannot be guaranteed to be continuously stored together. **One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest possible extent.**
+If the metric data of multiple DCPs are traditionally written into a single table, due to uncontrollable network delays, the timing of the data from different DCPs arriving at the server cannot be guaranteed, write operations must be protected by locks, and metric data from one DCP cannot be guaranteed to be continuously stored together. One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest possible extent.
 
 TDengine suggests using DCP ID as the table name (like D1001 in the above table). Each DCP may collect one or multiple metrics (like the current, voltage, phase as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the time stamp as the index, and won’t build the index on any metrics stored. Column wise storage is used.
 
@@ -159,7 +159,7 @@ Queries can be executed on both a table (subtable) and a STable. For a query on 
 
 In TDengine, it is recommended to use a subtable instead of a regular table for a DCP. In the smart meters example, we can create subtables like d1001, d1002, d1003, and d1004 under super table meters.
 
-To better understand the data model using metri, tags, super table and subtable, please refer to the diagram below which demonstrates the data model of the smart meters example. ![Meters Data Model Diagram](./supertable.webp)
+To better understand the data model using metric, tags, super table and subtable, please refer to the diagram below which demonstrates the data model of the smart meters example. ![Meters Data Model Diagram](./supertable.webp)
 
 ## Database
 

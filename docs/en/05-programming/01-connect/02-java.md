@@ -69,10 +69,12 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 
 <!-- exclude -->
 
-:::note IMPORTANT
-Replace &lt;jdbcURL&gt; with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`.
+:::important
+
+Replace `<jdbcURL>` with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?useSSL=true&token=xxxx`.
 
 To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Java".
+
 :::
 
 <!-- exclude-end -->
@@ -96,13 +98,13 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 {{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
 ```
 
-2. Create a 'meterMapper.xml' file under 'src/main/resources/mapper', and add the following SQL mapping:
+1. Create a `meterMapper.xml` file under `src/main/resources/mapper`, and add the following SQL mapping:
 
-```xml   
+```xml
 {{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
 ```
 
-3. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to [Spring Example](https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/)
+1. For more details about how to write or query data from TDngine Cloud instance through Spring, please refer to [Spring Example](https://github.com/taosdata/TDengine/tree/docs-cloud/docs/examples/java/spring/)
 
 </TabItem>
 </Tabs>

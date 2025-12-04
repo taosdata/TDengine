@@ -12,7 +12,7 @@ TDengine 采用类关系型数据模型，需要建库、建表。因此对于�
 
 ![TDengine create-database](./create-database.png)
 
-详细的语法及参数请见 [数据库管理](../../taos-sql/database) 章节。
+详细的语法及参数请见 [数据库管理](/reference/taos-sql/database) 章节。
 
 :::note IMPORTANT
 
@@ -22,13 +22,14 @@ TDengine 采用类关系型数据模型，需要建库、建表。因此对于�
 :::
 
 ## 创建超级表
+
 一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用 TDengine, 需要对每个类型的数据采集点创建一个超级表。以 [表 1](../../concept) 中的智能电表为例，可以使用如下的 SQL 命令创建超级表：
 
 ```sql
 CREATE STABLE power.meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
 ```
 
-与创建普通表一样，创建超级表时，需要提供表名（示例中为 meters），表结构 Schema，即数据列的定义。第一列必须为时间戳（示例中为 ts），其他列为采集的物理量（示例中为 current, voltage, phase），数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的 Schema （示例中为 location, groupId），标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组 ID、管理员 ID 等等。标签的 Schema 可以事后增加、删除、修改。具体定义以及细节请见 [TDengine SQL 的超级表管理](../../taos-sql/stable) 章节。
+与创建普通表一样，创建超级表时，需要提供表名（示例中为 meters），表结构 Schema，即数据列的定义。第一列必须为时间戳（示例中为 ts），其他列为采集的物理量（示例中为 current, voltage, phase），数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的 Schema（示例中为 location, groupId），标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组 ID、管理员 ID 等等。标签的 Schema 可以事后增加、删除、修改。具体定义以及细节请见 [TDengine SQL 的超级表管理](/reference/taos-sql/stable) 章节。
 
 每一种类型的数据采集点需要建立一个超级表，因此一个物联网系统，往往会有多个超级表。对于电网，我们就需要对智能电表、变压器、母线、开关等都建立一个超级表。在物联网中，一个设备就可能有多个数据采集点（比如一台风力发电的风机，有的采集点采集电流、电压等电参数，有的采集点采集温度、湿度、风向等环境参数），这个时候，对这一类型的设备，需要建立多张超级表。
 
@@ -42,9 +43,9 @@ TDengine 对每个数据采集点需要独立建表。与标准的关系型数�
 CREATE TABLE power.d1001 USING meters TAGS ("California.SanFrancisco", 2);
 ```
 
-其中 d1001 是表名，meters 是超级表的表名，后面紧跟标签 Location 的具体标签值为 "California.SanFrancisco"，标签 groupId 的具体标签值为 2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TDengine SQL 的表管理](../../taos-sql/table) 章节。
+其中 d1001 是表名，meters 是超级表的表名，后面紧跟标签 Location 的具体标签值为 "California.SanFrancisco"，标签 groupId 的具体标签值为 2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TDengine SQL 的表管理](/reference/taos-sql/table) 章节。
 
-在 TDengine 系统里面, 一个测点通过超级表创建一张表。在部分的 TDengine 文档里面，通过超级表创建的表叫做子表。所有可以在普通表里面使用的 SQL 命令都可以应用到子表里面。
+在 TDengine 系统里面，一个测点通过超级表创建一张表。在部分的 TDengine 文档里面，通过超级表创建的表叫做子表。所有可以在普通表里面使用的 SQL 命令都可以应用到子表里面。
 
 :::warning
 我们不推荐使用另外一个数据库里面的超级表作为模板来创建这个数据库的子表。
@@ -62,7 +63,7 @@ INSERT INTO power.d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES 
 
 上述 SQL 语句将记录`(NOW, 10.2, 219, 0.32)`插入表 d1001。如果表 d1001 还未创建，则使用超级表 meters 做模板自动创建，同时打上标签值 `"California.SanFrancisco", 2`。
 
-关于自动建表的详细语法请参见 [插入记录时自动建表](../../taos-sql/insert#插入记录时自动建表) 章节。
+关于自动建表的详细语法请参见 [插入记录时自动建表](/reference/taos-sql/insert#插入记录时自动建表) 章节。
 
 ## 多列模型 vs 单列模型
 

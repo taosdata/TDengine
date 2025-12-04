@@ -1,10 +1,10 @@
 ---
 sidebar_label: Google Data Studio
-title: 使用Google Data Studio
+title: 使用 Google Data Studio
 description: 使用 Google Data Studio 存取 TDengine 数据的详细指南
 ---
 
-使用[合作伙伴的连接器](https://datastudio.google.com/data?search=TDengine)，Google Data Studio可以快速访问 TDengine， 并且通过基于网页的报表功能可以快速创建交互式的报表和仪表盘。整个过程不需要任何的代码编写过程。可以分享报表和仪表盘给不同的个人，团队以及全世界，还可以跟其他人员实时协作，另外在任何的网页里面嵌入您的报表。
+使用[合作伙伴的连接器](https://datastudio.google.com/data?search=TDengine)，Google Data Studio 可以快速访问 TDengine，并且通过基于网页的报表功能可以快速创建交互式的报表和仪表盘。整个过程不需要任何的代码编写过程。可以分享报表和仪表盘给不同的个人，团队以及全世界，还可以跟其他人员实时协作，另外在任何的网页里面嵌入您的报表。
 
 更多使用 Data Studio 和 TDengine 集成可以参考[GitHub](https://github.com/taosdata/gds-connector/blob/master/README.md)。
 
@@ -21,7 +21,7 @@ description: 使用 Google Data Studio 存取 TDengine 数据的详细指南
 #### URL
 
 <!-- exclude -->
-获取实际的URL，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的“工具”菜单，然后选择“Google Data Studio”。
+获取实际的 URL，请登录[TDengine Cloud](https://cloud.taosdata.com) 后点击左边的“工具”菜单，然后选择“Google Data Studio”。
 <!-- exclude-end -->
 
 #### TDengine Cloud 令牌
@@ -39,7 +39,7 @@ description: 使用 Google Data Studio 存取 TDengine 数据的详细指南
 
 您希望查询数据和执行报表的表的名称
 
-**注意** 可以获取的最大记录行数是1000000。
+**注意** 可以获取的最大记录行数是 1000000。
 
 ### 可选配置
 
@@ -64,7 +64,7 @@ select * from test.demo where ts >= '2022-05-10 18:24:15' and ts<='2022-05-12 18
 事实上，您可通过一些过滤器来加快报表加载数据的速度。
 ![TDengine Cloud 配置页面](./gds/gds_cloud_login.webp)
 
-在配置完成以后，点击"CONNECT"按钮，您就会连接上您的具有给定数据库和表的”TDengine Cloud “。
+在配置完成以后，点击"CONNECT"按钮，您就会连接上您的具有给定数据库和表的”TDengine Cloud“。
 
 ## 创建报表和仪表盘
 

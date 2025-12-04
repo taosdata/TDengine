@@ -4,7 +4,7 @@ sidebar_label: Node.js
 title: TDengine Node.js Connector
 ---
 
-`@tdengine/websocket` 是 TDengine 的官方 Node.js 语言连接器。 Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件，它通过 WebSocket 接口连接 TDengine 的运行实例。
+`@tdengine/websocket` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件，它通过 WebSocket 接口连接 TDengine 的运行实例。
 
 Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node/tree/main)。
 
@@ -16,7 +16,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 ### 安装前准备
 
-安装 Node.js 开发环境, 使用 14 以上版本。[下载链接](https://nodejs.org/en/download/)
+安装 Node.js 开发环境，使用 14 以上版本。[下载链接](https://nodejs.org/en/download/)
 
 ### 使用 npm 安装
 
@@ -40,7 +40,7 @@ npm install @tdengine/websocket
 
 2. "Unable to establish connection"，"Unable to resolve FQDN"
 
-一般都是因为配置 FQDN 不正确。 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
+一般都是因为配置 FQDN 不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
 ## 重要更新记录
 

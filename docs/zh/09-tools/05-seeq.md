@@ -10,7 +10,7 @@ description: 如何使用 Seeq 和 TDengine 进行时序数据分析
 
 Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在工艺制造组织中使用机器学习创新的新功能。这些功能使组织能够将自己或第三方机器学习算法部署到前线流程工程师和主题专家使用的高级分析应用程序，从而使单个数据科学家的努力扩展到许多前线员工。
 
-通过 TDengine Java connector， Seeq 可以轻松支持查询 TDengine 提供的时序数据，并提供数据展现、分析、预测等功能。
+通过 TDengine Java connector，Seeq 可以轻松支持查询 TDengine 提供的时序数据，并提供数据展现、分析、预测等功能。
 
 ### Seeq 安装方法
 
@@ -18,7 +18,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 ### Seeq Server 安装和启动
 
-```
+```bash
 tar xvzf seeq-server-xxx.tar.gz
 cd seeq-server-installer
 sudo ./install
@@ -31,7 +31,7 @@ sudo seeq start
 
 Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 官方文档](https://support.seeq.com/space/KB/1034059842)。
 
-```
+```bash
 tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
 sudo seeq-data-lab-installer/install -f /opt/seeq/seeq-data-lab -g /var/opt/seeq -u seeq
 sudo seeq config set Network/DataLab/Hostname localhost
@@ -50,13 +50,14 @@ sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab serve
 ```
 
 ## TDengine Cloud 访问方法
-如果使用 Seeq 连接 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。
+
+如果使用 Seeq 连接 TDengine Cloud，请在 [TDengine Cloud](https://cloud.taosdata.com) 申请帐号并登录查看如何访问 TDengine Cloud。
 
 ## 如何配置 Seeq 访问 TDengine
 
 1. 查看 data 存储位置
 
-```
+```bash
 sudo seeq config get Folders/Data
 ```
 
@@ -64,7 +65,7 @@ sudo seeq config get Folders/Data
 
 3. 重新启动 seeq server
 
-```
+```bash
 sudo seeq restart
 ```
 
@@ -82,7 +83,7 @@ sudo seeq restart
 
 ### 数据 Schema
 
-```
+```sql
 CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
@@ -91,7 +92,7 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 
 ### 构造数据方法
 
-```
+```bash
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
@@ -110,7 +111,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Power
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -169,7 +170,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Goods
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -229,7 +230,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Temperature
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -361,11 +362,10 @@ plt.show()
 
 ![Seeq forecast result](./seeq/seeq-forecast-result.webp)
 
-
 ## 方案总结
 
-通过集成Seeq和TDengine，可以充分利用TDengine高效的存储和查询性能，同时也可以受益于Seeq提供给用户的强大数据可视化和分析功能。
+通过集成 Seeq 和 TDengine，可以充分利用 TDengine 高效的存储和查询性能，同时也可以受益于 Seeq 提供给用户的强大数据可视化和分析功能。
 
-这种集成使用户能够充分利用TDengine的高性能时序数据存储和检索，确保高效处理大量数据。同时，Seeq提供高级分析功能，如数据可视化、异常检测、相关性分析和预测建模，使用户能够获得有价值的洞察并基于数据进行决策。
+这种集成使用户能够充分利用 TDengine 的高性能时序数据存储和检索，确保高效处理大量数据。同时，Seeq 提供高级分析功能，如数据可视化、异常检测、相关性分析和预测建模，使用户能够获得有价值的洞察并基于数据进行决策。
 
-综合来看，Seeq和TDengine共同为制造业、工业物联网和电力系统等各行各业的时序数据分析提供了综合解决方案。高效数据存储和先进的分析相结合，赋予用户充分发挥时序数据潜力的能力，推动运营改进，并支持预测和规划分析应用。
+综合来看，Seeq 和 TDengine 共同为制造业、工业物联网和电力系统等各行各业的时序数据分析提供了综合解决方案。高效数据存储和先进的分析相结合，赋予用户充分发挥时序数据潜力的能力，推动运营改进，并支持预测和规划分析应用。

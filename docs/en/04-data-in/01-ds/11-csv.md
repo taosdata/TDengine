@@ -16,7 +16,7 @@ CSV data source is the process of writing data from a file or a collection of fi
 2. In the **Target DB**, select the database of the current TDengine Cloud instance as the target database.
 3. Configure CSV Options
    - **Include Header:** If including header, the first row will be treated as column information.
-   - **Skip the first N lines:**，Skip the first N lines for each CSV file.
+   - **Skip the first N lines:** Skip the first N lines for each CSV file.
    - **Delimiter Char:** The field separator in a CSV line,The default value is `,`.
    - **Quote Char:** The quote is used to enclose field values,The default value is `"`.
    - **Comment Prefix:** If a line begins with the character given here, then that line will be ignored by the CSV parser,The default value is `#`.

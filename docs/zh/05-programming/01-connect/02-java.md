@@ -23,7 +23,7 @@ import TabItem from '@theme/TabItem';
 </TabItem>
 <TabItem value="spring" label="Spring">
 
-在 “pom.xml” 文件中添加 Spring Boot 和 TDengine Java connector 的依赖：
+在“pom.xml”文件中添加 Spring Boot 和 TDengine Java connector 的依赖：
 
 ```xml
 {{#include docs/examples/java/spring/pom.xml:spring}}
@@ -84,7 +84,7 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
 <Tabs defaultValue="java">
 <TabItem value="java" label="Java">
 
-下面的代码是先从环境变量里面创建 JDBC URL ，然后创建 `Connection` 这个 JDBC 连接标准对象。
+下面的代码是先从环境变量里面创建 JDBC URL，然后创建 `Connection` 这个 JDBC 连接标准对象。
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/ConnectCloudExample.java:connect}}
@@ -99,7 +99,7 @@ $env:TDENGINE_JDBC_URL='<jdbcURL>'
   {{#include docs/examples/java/spring/src/main/java/com/taos/example/dao/MeterMapper.java:mybatis}}
   ```
 
-2. 在“src/main/resources/mapper”中创建 “MeterMapper.xml”，文件中添加以下 SQL 映射
+2. 在“src/main/resources/mapper”中创建“MeterMapper.xml”，文件中添加以下 SQL 映射
 
 ```xml
 {{#include docs/examples/java/spring/src/main/resources/mapper/MeterMapper.xml}}
