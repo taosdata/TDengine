@@ -1,0 +1,610 @@
+e                                       |Rate    Num|Rate  Num|Rate   Num
+================================================================================
+[/home/TDinternal/community/]
+contrib/TSZ/sz/inc/transcode.h                 | 0.0%     5| 0.0%   1|    -    0
+contrib/TSZ/sz/src/ByteToolkit.c               |41.8%   177|55.0%  20|    -    0
+contrib/TSZ/sz/src/CompressElement.c           |15.7%   127|13.3%  15|    -    0
+contrib/TSZ/sz/src/DynamicByteArray.c          |61.1%    36|66.7%   6|    -    0
+contrib/TSZ/sz/src/DynamicIntArray.c           |58.6%    29|60.0%   5|    -    0
+contrib/TSZ/sz/src/Huffman.c                   |38.4%   464|68.2%  22|    -    0
+contrib/TSZ/sz/src/TightDataPointStorageD.c    |75.2%   246| 100%   7|    -    0
+contrib/TSZ/sz/src/TightDataPointStorageF.c    | 0.0%   244| 0.0%   7|    -    0
+contrib/TSZ/sz/src/TypeManager.c               |48.7%   117|50.0%   6|    -    0
+contrib/TSZ/sz/src/conf.c                      |19.4%   201|28.6%   7|    -    0
+contrib/TSZ/sz/src/dataCompression.c           |16.7%   402|23.1%  26|    -    0
+contrib/TSZ/sz/src/dictionary.c                | 0.0%   112| 0.0%   9|    -    0
+contrib/TSZ/sz/src/iniparser.c                 | 0.0%   254| 0.0%  20|    -    0
+contrib/TSZ/sz/src/sz.c                        |23.3%    73|25.0%   8|    -    0
+contrib/TSZ/sz/src/sz_double.c                 |57.5%   226|55.6%   9|    -    0
+contrib/TSZ/sz/src/sz_float.c                  | 0.0%   212| 0.0%   7|    -    0
+contrib/TSZ/sz/src/szd_double.c                |63.6%   110| 100%   3|    -    0
+contrib/TSZ/sz/src/szd_float.c                 | 0.0%   108| 0.0%   3|    -    0
+contrib/TSZ/sz/src/td_sz.c                     | 100%    31| 100%   4|    -    0
+contrib/TSZ/sz/src/transcode.c                 | 0.0%    75| 0.0%   2|    -    0
+contrib/TSZ/sz/src/utility.c                   |79.3%    29| 100%   3|    -    0
+contrib/TSZ/zstd/common/bitstream.h            | 100%   102| 100%  15|    -    0
+contrib/TSZ/zstd/common/cpu.h                  | 100%    16| 100%   2|    -    0
+contrib/TSZ/zstd/common/entropy_common.c       |80.7%   114|42.9%   7|    -    0
+contrib/TSZ/zstd/common/error_private.c        | 0.0%    28| 0.0%   1|    -    0
+contrib/TSZ/zstd/common/error_private.h        |50.0%     4|66.7%   3|    -    0
+contrib/TSZ/zstd/common/fse.h                  |80.3%    61|77.8%   9|    -    0
+contrib/TSZ/zstd/common/fse_decompress.c       |69.0%   116|37.5%   8|    -    0
+contrib/TSZ/zstd/common/mem.h                  |80.3%    61|90.9%  22|    -    0
+contrib/TSZ/zstd/common/zstd_common.c          |45.5%    22|44.4%   9|    -    0
+contrib/TSZ/zstd/common/zstd_internal.h        | 100%    10| 100%   3|    -    0
+contrib/TSZ/zstd/compress/fse_compress.c       |75.1%   334|57.1%  21|    -    0
+contrib/TSZ/zstd/compress/hist.c               |82.5%    80|57.1%   7|    -    0
+contrib/TSZ/zstd/compress/huf_compress.c       |81.5%   340|55.6%  27|    -    0
+contrib/TSZ/zstd/compress/zstd_compress.c      |37.4%  1725|30.9% 152|    -    0
+contrib/TSZ/zstd/compr...td_compress_internal.h|79.7%   123|76.9%  26|    -    0
+contrib/TSZ/zstd/compress/zstd_double_fast.c   |32.8%   305|20.0%   5|    -    0
+contrib/TSZ/zstd/compress/zstd_fast.c          |32.8%   235|20.0%   5|    -    0
+contrib/TSZ/zstd/compress/zstd_lazy.c          |22.8%   587|12.5%  24|    -    0
+contrib/TSZ/zstd/compress/zstd_ldm.c           | 3.9%   283|13.0%  23|    -    0
+contrib/TSZ/zstd/compress/zstd_opt.c           |73.3%   532|60.9%  23|    -    0
+contrib/TSZ/zstd/decompress/huf_decompress.c   |74.2%   476|36.0%  50|    -    0
+contrib/TSZ/zstd/decompress/zstd_decompress.c  |36.1%  1412|31.0% 100|    -    0
+include/common/tcommon.h                       |40.0%    10|66.7%   3|    -    0
+include/common/tdatablock.h                    |88.5%    52|    -   0|    -    0
+include/common/tdataformat.h                   | 100%     6|    -   0|    -    0
+include/common/tmsg.h                          |84.3%   357|85.7%  14|    -    0
+include/common/trow.h                          | 0.0%    15|    -   0|    -    0
+include/common/ttime.h                         | 100%     5|    -   0|    -    0
+include/libs/executor/storageapi.h             | 100%     3|    -   0|    -    0
+include/libs/function/function.h               | 100%     4| 100%   1|    -    0
+include/libs/function/taosudf.h                |85.7%    84|    -   0|    -    0
+include/os/osTime.h                            | 100%    12|    -   0|    -    0
+include/util/tRealloc.h                        |88.9%    18|    -   0|    -    0
+include/util/tarray.h                          | 100%     1|    -   0|    -    0
+include/util/tarray2.h                         |96.6%    29|    -   0|    -    0
+include/util/tbuffer.inc                       |68.0%   153|60.0%  20|    -    0
+include/util/tchecksum.h                       | 100%     7|    -   0|    -    0
+include/util/tcoding.h                         |86.3%   161|    -   0|    -    0
+include/util/tencode.h                         |83.9%   267| 100%   4|    -    0
+include/util/tringbuf.h                        |80.0%    40|    -   0|    -    0
+include/util/tsimplehash.h                     | 100%     3|    -   0|    -    0
+include/util/tutil.h                           | 100%    46|    -   0|    -    0
+source/client/inc/clientInt.h                  | 100%     4|    -   0|    -    0
+source/client/inc/clientSml.h                  | 100%    14| 100%   3|    -    0
+source/client/src/clientEnv.c                  |54.3%   698|81.6%  38|    -    0
+source/client/src/clientHb.c                   |73.6%  1051|90.2%  41|    -    0
+source/client/src/clientImpl.c                 |71.5%  2089|89.4%  85|    -    0
+source/client/src/clientMain.c                 |48.8%  1655|73.2% 112|    -    0
+source/client/src/clientMonitor.c              |41.6%   705|71.1%  38|    -    0
+source/client/src/clientMonitorSlow.c          |12.1%    33|25.0%   4|    -    0
+source/client/src/clientMonitorSql.c           |81.8%    33| 100%   3|    -    0
+source/client/src/clientMsgHandler.c           |78.2%   714| 100%  20|    -    0
+source/client/src/clientRawBlockWrite.c        |74.1%  2025|94.3%  53|    -    0
+source/client/src/clientSml.c                  |89.6%  1245|96.9%  65|    -    0
+source/client/src/clientSmlJson.c              |87.2%   343| 100%  14|    -    0
+source/client/src/clientSmlLine.c              |87.2%   343| 100%   6|    -    0
+source/client/src/clientSmlTelnet.c            |89.9%   138| 100%   6|    -    0
+source/client/src/clientStmt.c                 |64.8%  1059|82.0%  50|    -    0
+source/client/src/clientStmt2.c                |66.4%  1472|81.0%  58|    -    0
+source/client/src/clientTmq.c                  |79.2%  2314| 100%  91|    -    0
+source/client/wrapper/src/clientJniConnector.c |40.7%   874|58.7%  46|    -    0
+source/client/wrapper/src/clientTmqConnector.c |48.0%   379|64.7%  34|    -    0
+source/client/wrapper/src/wrapperDriver.c      |93.9%   179|66.7%   3|    -    0
+source/client/wrapper/src/wrapperFunc.c        |73.0%   474|74.0% 146|    -    0
+source/client/wrapper/src/wrapperHint.c        | 0.0%    98| 0.0%   5|    -    0
+source/common/src/msg/streamMsg.c              |83.5%  3234|82.2% 152|    -    0
+source/common/src/msg/tmsg.c                   |78.6% 10981|81.3% 646|    -    0
+source/common/src/systable.c                   | 100%    27| 100%   4|    -    0
+source/common/src/tanalytics.c                 | 3.8%   548| 8.5%  47|    -    0
+source/common/src/tcol.c                       |93.0%   314| 100%  29|    -    0
+source/common/src/tdatablock.c                 |71.4%  2727|87.6% 113|    -    0
+source/common/src/tdataformat.c                |63.4%  4409|76.5% 217|    -    0
+source/common/src/tglobal.c                    |87.3%  2009|97.9%  47|    -    0
+source/common/src/tmisce.c                     |58.9%   270|78.6%  14|    -    0
+source/common/src/tname.c                      |78.9%   147|75.0%  20|    -    0
+source/common/src/trow.c                       | 0.0%   591| 0.0%  28|    -    0
+source/common/src/ttime.c                      |78.6%  1220|86.4%  44|    -    0
+source/common/src/ttypes.c                     |77.1%   153| 100%  17|    -    0
+source/common/src/tvariant.c                   |77.2%   351|84.6%  13|    -    0
+source/dnode/bnode/src/bnode.c                 |59.3%    27| 100%   2|    -    0
+source/dnode/mgmt/exe/dmMain.c                 |55.7%   357|68.8%  16|    -    0
+source/dnode/mgmt/mgmt_bnode/src/bmInt.c       |60.2%   226|92.9%  14|    -    0
+source/dnode/mgmt/mgmt_dnode/src/dmHandle.c    |66.8%   603|85.0%  20|    -    0
+source/dnode/mgmt/mgmt_dnode/src/dmInt.c       |84.8%    79| 100%   6|    -    0
+source/dnode/mgmt/mgmt_dnode/src/dmWorker.c    |67.9%   507|96.8%  31|    -    0
+source/dnode/mgmt/mgmt_mnode/src/mmFile.c      |75.5%   143| 100%   4|    -    0
+source/dnode/mgmt/mgmt_mnode/src/mmHandle.c    |91.2%   274|83.3%   6|    -    0
+source/dnode/mgmt/mgmt_mnode/src/mmInt.c       |84.8%   125| 100%  12|    -    0
+source/dnode/mgmt/mgmt_mnode/src/mmWorker.c    |58.1%   327|83.3%  24|    -    0
+source/dnode/mgmt/mgmt_qnode/src/qmHandle.c    |61.5%    65|80.0%   5|    -    0
+source/dnode/mgmt/mgmt_qnode/src/qmInt.c       |81.1%    53| 100%   6|    -    0
+source/dnode/mgmt/mgmt_qnode/src/qmWorker.c    |31.6%    76|33.3%   9|    -    0
+source/dnode/mgmt/mgmt_snode/src/smHandle.c    |84.7%   163|88.9%   9|    -    0
+source/dnode/mgmt/mgmt_snode/src/smInt.c       |78.9%    71| 100%   7|    -    0
+source/dnode/mgmt/mgmt_snode/src/smWorker.c    |48.0%   254|72.7%  11|    -    0
+source/dnode/mgmt/mgmt_vnode/src/vmFile.c      |80.4%   449| 100%  12|    -    0
+source/dnode/mgmt/mgmt_vnode/src/vmHandle.c    |73.1%  1351|83.3%  30|    -    0
+source/dnode/mgmt/mgmt_vnode/src/vmInt.c       |75.9%   855|94.3%  35|    -    0
+source/dnode/mgmt/mgmt_vnode/src/vmWorker.c    |82.0%   362|96.0%  25|    -    0
+source/dnode/mgmt/node_mgmt/src/dmEnv.c        |70.2%   315|88.0%  25|    -    0
+source/dnode/mgmt/node_mgmt/src/dmMetrics.c    |15.8%    38|40.0%   5|    -    0
+source/dnode/mgmt/node_mgmt/src/dmMgmt.c       |69.9%   229|76.9%  13|    -    0
+source/dnode/mgmt/node_mgmt/src/dmMonitor.c    |66.0%   147|68.4%  19|    -    0
+source/dnode/mgmt/node_mgmt/src/dmNodes.c      |80.7%   109| 100%   9|    -    0
+source/dnode/mgmt/node_mgmt/src/dmTransport.c  |81.0%   464|84.6%  26|    -    0
+source/dnode/mgmt/node_util/src/dmEps.c        |56.5%   478|71.4%  21|    -    0
+source/dnode/mgmt/node_util/src/dmFile.c       |53.3%   448|84.6%  13|    -    0
+source/dnode/mgmt/node_util/src/dmUtil.c       |82.1%    56| 100%   5|    -    0
+source/dnode/mnode/impl/inc/mndTrans.h         | 100%     2| 100%   1|    -    0
+source/dnode/mnode/impl/src/mndAcct.c          |67.8%   152|63.6%  11|    -    0
+source/dnode/mnode/impl/src/mndAnode.c         | 6.2%   608|12.1%  33|    -    0
+source/dnode/mnode/impl/src/mndArbGroup.c      |58.4%   962|75.0%  48|    -    0
+source/dnode/mnode/impl/src/mndBnode.c         |82.4%   364|92.3%  26|    -    0
+source/dnode/mnode/impl/src/mndCluster.c       |77.5%   284|90.0%  20|    -    0
+source/dnode/mnode/impl/src/mndCompact.c       |69.3%   646|96.3%  27|    -    0
+source/dnode/mnode/impl/src/mndCompactDetail.c |81.2%   202| 100%  12|    -    0
+source/dnode/mnode/impl/src/mndConfig.c        |58.2%   882|82.9%  35|    -    0
+source/dnode/mnode/impl/src/mndConsumer.c      |82.1%   739|96.8%  31|    -    0
+source/dnode/mnode/impl/src/mndDb.c            |79.7%  2074|91.0%  67|    -    0
+source/dnode/mnode/impl/src/mndDef.c           |87.9%   539| 100%  27|    -    0
+source/dnode/mnode/impl/src/mndDnode.c         |79.7%  1084|88.9%  45|    -    0
+source/dnode/mnode/impl/src/mndDump.c          |44.0%   736|74.2%  31|    -    0
+source/dnode/mnode/impl/src/mndFunc.c          |67.8%   503|94.1%  17|    -    0
+source/dnode/mnode/impl/src/mndGrant.c         | 100%     1| 100%   1|    -    0
+source/dnode/mnode/impl/src/mndIndex.c         |76.6%   608|81.1%  37|    -    0
+source/dnode/mnode/impl/src/mndIndexCom.c      |76.0%    25| 100%   2|    -    0
+source/dnode/mnode/impl/src/mndInfoSchema.c    |80.4%   102| 100%   6|    -    0
+source/dnode/mnode/impl/src/mndMain.c          |79.6%   843|90.6%  64|    -    0
+source/dnode/mnode/impl/src/mndMnode.c         |78.0%   687|86.1%  36|    -    0
+source/dnode/mnode/impl/src/mndMount.c         |78.6%   459|88.0%  25|    -    0
+source/dnode/mnode/impl/src/mndPerfSchema.c    |78.3%    92| 100%   6|    -    0
+source/dnode/mnode/impl/src/mndProfile.c       |70.4%   912|81.8%  33|    -    0
+source/dnode/mnode/impl/src/mndQnode.c         |82.2%   387|92.6%  27|    -    0
+source/dnode/mnode/impl/src/mndQuery.c         |74.0%   123| 100%   7|    -    0
+source/dnode/mnode/impl/src/mndRetention.c     |53.3%   617|75.9%  29|    -    0
+source/dnode/mnode/imp...c/mndRetentionDetail.c|76.9%   147|90.0%  10|    -    0
+source/dnode/mnode/impl/src/mndRsma.c          |81.6%   896|92.9%  42|    -    0
+source/dnode/mnode/impl/src/mndScan.c          |70.8%   770| 100%  32|    -    0
+source/dnode/mnode/impl/src/mndScanDetail.c    |81.2%   202| 100%  12|    -    0
+source/dnode/mnode/impl/src/mndShow.c          |82.7%   306| 100%  11|    -    0
+source/dnode/mnode/impl/src/mndSma.c           | 8.7%  1410|22.2%  54|    -    0
+source/dnode/mnode/impl/src/mndSnode.c         |82.8%   618|89.2%  37|    -    0
+source/dnode/mnode/impl/src/mndSsMigrate.c     | 1.8%   726| 6.7%  30|    -    0
+source/dnode/mnode/impl/src/mndStb.c           |76.1%  2709|88.7%  97|    -    0
+source/dnode/mnode/impl/src/mndStream.c        |69.2%   655|68.8%  32|    -    0
+source/dnode/mnode/impl/src/mndStreamHb.c      |83.8%    37| 100%   2|    -    0
+source/dnode/mnode/impl/src/mndStreamMgmt.c    |75.5%  3269|89.6% 134|    -    0
+source/dnode/mnode/impl/src/mndStreamTrans.c   |60.8%    74|60.0%   5|    -    0
+source/dnode/mnode/impl/src/mndStreamUtil.c    |79.7%   873|89.1%  46|    -    0
+source/dnode/mnode/impl/src/mndSubscribe.c     |86.7%  1160|98.0%  50|    -    0
+source/dnode/mnode/impl/src/mndSync.c          |70.5%   444|73.5%  34|    -    0
+source/dnode/mnode/impl/src/mndTelem.c         |74.1%   143|85.7%   7|    -    0
+source/dnode/mnode/impl/src/mndTopic.c         |87.1%   711|92.0%  25|    -    0
+source/dnode/mnode/impl/src/mndTrans.c         |83.6%  2055|91.0% 111|    -    0
+source/dnode/mnode/impl/src/mndUser.c          |77.0%  2567|87.8%  74|    -    0
+source/dnode/mnode/impl/src/mndVgroup.c        |67.3%  2610|84.8%  92|    -    0
+source/dnode/mnode/impl/src/mndView.c          |78.8%    33|85.7%   7|    -    0
+source/dnode/mnode/sdb/src/sdb.c               |87.6%   129| 100%   9|    -    0
+source/dnode/mnode/sdb/src/sdbFile.c           |46.7%   565|55.0%  20|    -    0
+source/dnode/mnode/sdb/src/sdbHash.c           |88.9%   396|92.6%  27|    -    0
+source/dnode/mnode/sdb/src/sdbRaw.c            |53.6%   209|82.6%  23|    -    0
+source/dnode/mnode/sdb/src/sdbRow.c            |81.0%    21| 100%   3|    -    0
+source/dnode/qnode/src/qnode.c                 |40.5%    74|60.0%   5|    -    0
+source/dnode/snode/src/snode.c                 |86.0%   243|92.3%  13|    -    0
+source/dnode/vnode/src/bse/bseCache.c          |21.6%   278|23.1%  26|    -    0
+source/dnode/vnode/src/bse/bseMgt.c            |48.9%   745|57.1%  56|    -    0
+source/dnode/vnode/src/bse/bseSnapshot.c       | 0.0%   278| 0.0%  18|    -    0
+source/dnode/vnode/src/bse/bseTable.c          |44.9%  1591|56.5% 108|    -    0
+source/dnode/vnode/src/bse/bseTableMgt.c       |63.0%   365|62.5%  32|    -    0
+source/dnode/vnode/src/bse/bseUtil.c           |43.5%    92|37.5%  24|    -    0
+source/dnode/vnode/src/inc/tsdb.h              |93.8%    16|    -   0|    -    0
+source/dnode/vnode/src/inc/tsdbInt.h           | 100%     1|    -   0|    -    0
+source/dnode/vnode/src/meta/metaCache.c        |77.8%   607|91.2%  34|    -    0
+source/dnode/vnode/src/meta/metaCommit.c       |90.7%    54| 100%   8|    -    0
+source/dnode/vnode/src/meta/metaEntry.c        |80.9%   477| 100%  23|    -    0
+source/dnode/vnode/src/meta/metaEntry2.c       |76.6%  1390|94.8%  77|    -    0
+source/dnode/vnode/src/meta/metaOpen.c         |51.7%   460|75.0%  24|    -    0
+source/dnode/vnode/src/meta/metaQuery.c        |61.1%  1133|76.3%  59|    -    0
+source/dnode/vnode/src/meta/metaSnapshot.c     |76.7%   589| 100%  21|    -    0
+source/dnode/vnode/src/meta/metaTable.c        |80.4%   626| 100%  27|    -    0
+source/dnode/vnode/src/meta/metaTable2.c       |66.6%  1457|97.4%  38|    -    0
+source/dnode/vnode/src/meta/metaTtl.c          |60.0%   280|78.9%  19|    -    0
+source/dnode/vnode/src/tq/tq.c                 |77.0%   483|94.7%  19|    -    0
+source/dnode/vnode/src/tq/tqMeta.c             |72.7%   425|90.0%  20|    -    0
+source/dnode/vnode/src/tq/tqOffset.c           |37.2%    78|66.7%   3|    -    0
+source/dnode/vnode/src/tq/tqPush.c             |73.1%    67| 100%   4|    -    0
+source/dnode/vnode/src/tq/tqRead.c             |61.6%  1076|76.9%  39|    -    0
+source/dnode/vnode/src/tq/tqScan.c             |81.2%   341|90.0%  10|    -    0
+source/dnode/vnode/src/tq/tqSnapshot.c         |91.2%   171| 100%   9|    -    0
+source/dnode/vnode/src/tq/tqUtil.c             |88.4%   398| 100%  13|    -    0
+source/dnode/vnode/src/tsdb/tsdbCache.c        |70.1%  2435|78.7%  94|    -    0
+source/dnode/vnode/src/tsdb/tsdbCacheRead.c    |80.0%   385|77.8%   9|    -    0
+source/dnode/vnode/src/tsdb/tsdbCommit.c       |88.9%    27| 100%   2|    -    0
+source/dnode/vnode/src/tsdb/tsdbCommit2.c      |88.4%   413|95.8%  24|    -    0
+source/dnode/vnode/src/tsdb/tsdbDataFileRAW.c  |84.9%   126|90.9%  11|    -    0
+source/dnode/vnode/src/tsdb/tsdbDataFileRW.c   |91.5%  1058|97.8%  46|    -    0
+source/dnode/vnode/src/tsdb/tsdbFS.c           | 1.8%   492| 5.9%  17|    -    0
+source/dnode/vnode/src/tsdb/tsdbFS2.c          |83.4%   874|98.1%  53|    -    0
+source/dnode/vnode/src/tsdb/tsdbFSet2.c        |81.1%   487| 100%  30|    -    0
+source/dnode/vnode/src/tsdb/tsdbFSetRAW.c      |92.6%    95| 100%   6|    -    0
+source/dnode/vnode/src/tsdb/tsdbFSetRW.c       |93.8%   176| 100%   6|    -    0
+source/dnode/vnode/src/tsdb/tsdbFile.c         | 0.0%   145| 0.0%  19|    -    0
+source/dnode/vnode/src/tsdb/tsdbFile2.c        |68.6%   258|96.3%  27|    -    0
+source/dnode/vnode/src/tsdb/tsdbIter.c         |82.3%   436|96.6%  29|    -    0
+source/dnode/vnode/src/tsdb/tsdbMemTable.c     |84.0%   457|90.9%  22|    -    0
+source/dnode/vnode/src/tsdb/tsdbMerge.c        |84.0%   282| 100%  14|    -    0
+source/dnode/vnode/src/tsdb/tsdbMergeTree.c    |89.1%   687|96.8%  31|    -    0
+source/dnode/vnode/src/tsdb/tsdbMigrate.c      | 1.9%   642| 9.1%  22|    -    0
+source/dnode/vnode/src/tsdb/tsdbOpen.c         |87.7%    73| 100%   4|    -    0
+source/dnode/vnode/src/tsdb/tsdbRead2.c        |86.6%  4401|94.6% 147|    -    0
+source/dnode/vnode/src/tsdb/tsdbReadUtil.c     |86.0%  1074| 100%  47|    -    0
+source/dnode/vnode/src/tsdb/tsdbReaderWriter.c |31.4%   529|45.5%  22|    -    0
+source/dnode/vnode/src/tsdb/tsdbRetention.c    |73.0%   282|80.0%  15|    -    0
+source/dnode/vnode/src...tsdbRetentionMonitor.c|76.6%    77|75.0%   8|    -    0
+source/dnode/vnode/src/tsdb/tsdbScan.c         |18.2%   264|35.3%  17|    -    0
+source/dnode/vnode/src/tsdb/tsdbSnapInfo.c     |79.1%   426|96.2%  26|    -    0
+source/dnode/vnode/src/tsdb/tsdbSnapshot.c     |78.0%   682|90.6%  32|    -    0
+source/dnode/vnode/src/tsdb/tsdbSnapshotRAW.c  |90.6%   299|95.8%  24|    -    0
+source/dnode/vnode/src/tsdb/tsdbSttFileRW.c    |90.0%   560|96.7%  30|    -    0
+source/dnode/vnode/src/tsdb/tsdbUpgrade.c      | 1.3%   302| 8.3%  12|    -    0
+source/dnode/vnode/src/tsdb/tsdbUtil.c         |80.0%   929|81.8%  55|    -    0
+source/dnode/vnode/src/tsdb/tsdbUtil2.c        |95.7%   256|95.2%  21|    -    0
+source/dnode/vnode/src/tsdb/tsdbWrite.c        | 0.0%    39| 0.0%   2|    -    0
+source/dnode/vnode/src/vnd/vnodeApi.c          | 100%   115| 100%   8|    -    0
+source/dnode/vnode/src/vnd/vnodeAsync.c        |54.9%   459|81.0%  21|    -    0
+source/dnode/vnode/src/vnd/vnodeBufPool.c      |74.7%   190|86.7%  15|    -    0
+source/dnode/vnode/src/vnd/vnodeCfg.c          |85.9%   290| 100%   6|    -    0
+source/dnode/vnode/src/vnd/vnodeCommit.c       |79.3%   328|90.0%  20|    -    0
+source/dnode/vnode/src/vnd/vnodeHash.c         |86.2%    80| 100%   6|    -    0
+source/dnode/vnode/src/vnd/vnodeModule.c       |90.9%    11| 100%   2|    -    0
+source/dnode/vnode/src/vnd/vnodeOpen.c         |68.9%   415|87.0%  23|    -    0
+source/dnode/vnode/src/vnd/vnodeQuery.c        |64.0%   956|76.3%  38|    -    0
+source/dnode/vnode/src/vnd/vnodeRetention.c    |21.4%   131|25.0%   8|    -    0
+source/dnode/vnode/src/vnd/vnodeScan.c         |81.7%    60| 100%   4|    -    0
+source/dnode/vnode/src/vnd/vnodeSnapshot.c     |84.6%   460| 100%  16|    -    0
+source/dnode/vnode/src/vnd/vnodeStream.c       |84.9%  2251|93.2%  74|    -    0
+source/dnode/vnode/src/vnd/vnodeSvr.c          |66.0%  1980|75.4%  65|    -    0
+source/dnode/vnode/src/vnd/vnodeSync.c         |69.0%   539|80.0%  50|    -    0
+source/libs/audit/src/auditMain.c              |82.1%    28|85.7%   7|    -    0
+source/libs/catalog/src/catalog.c              |54.6%  1092|64.1%  78|    -    0
+source/libs/catalog/src/ctgAsync.c             |64.9%  2897|77.5% 111|    -    0
+source/libs/catalog/src/ctgCache.c             |63.5%  2572|79.6%  98|    -    0
+source/libs/catalog/src/ctgDbg.c               | 4.4%   229|21.4%  14|    -    0
+source/libs/catalog/src/ctgRemote.c            |63.0%  1047|88.9%  27|    -    0
+source/libs/catalog/src/ctgRent.c              |85.2%   189| 100%  12|    -    0
+source/libs/catalog/src/ctgUtil.c              |69.6%  1678|71.1% 121|    -    0
+source/libs/command/src/command.c              |80.6%   898|97.4%  39|    -    0
+source/libs/command/src/explain.c              |77.4%  1596|96.2%  26|    -    0
+source/libs/crypt/src/crypt.c                  |50.0%     4|50.0%   2|    -    0
+source/libs/decimal/inc/wideInteger.h          | 100%     3| 100%   1|    -    0
+source/libs/decimal/src/decimal.c              |81.3%  1256|81.5% 119|    -    0
+source/libs/decimal/src/detail/intx/int128.hpp |92.7%   164|87.5%  40|    -    0
+source/libs/decimal/src/detail/intx/intx.hpp   |55.2%   174|69.7%  33|    -    0
+source/libs/decimal/src/detail/wideInteger.cpp |51.4%   177|45.1%  51|    -    0
+source/libs/executor/inc/executil.h            |75.0%     8|    -   0|    -    0
+source/libs/executor/inc/executorInt.h         |91.7%    12| 100%   3|    -    0
+source/libs/executor/src/aggregateoperator.c   |75.6%   512|90.5%  21|    -    0
+source/libs/executor/s...nomalywindowoperator.c| 0.0%   511| 0.0%  13|    -    0
+source/libs/executor/src/cachescanoperator.c   |83.1%   267| 100%   5|    -    0
+source/libs/executor/src/countwindowoperator.c |79.5%   268|90.0%  10|    -    0
+source/libs/executor/src/dataDeleter.c         |73.0%   200|83.3%  12|    -    0
+source/libs/executor/src/dataDispatcher.c      |69.6%   283|87.5%  16|    -    0
+source/libs/executor/src/dataInserter.c        |67.9%  1818|95.0%  60|    -    0
+source/libs/executor/src/dataSinkMgt.c         |80.4%    56|83.3%  12|    -    0
+source/libs/executor/src/dynqueryctrloperator.c|75.9%  1613|91.7%  60|    -    0
+source/libs/executor/src/eventwindowoperator.c |85.7%   258|87.5%   8|    -    0
+source/libs/executor/src/exchangeoperator.c    |77.0%  1150| 100%  31|    -    0
+source/libs/executor/src/executil.c            |74.2%  2387|88.5% 104|    -    0
+source/libs/executor/src/executor.c            |68.3%  1377|75.3%  77|    -    0
+source/libs/executor/src/executorInt.c         |78.0%   824|81.5%  54|    -    0
+source/libs/executor/s...ternalwindowoperator.c|72.3%  1291|83.1%  59|    -    0
+source/libs/executor/src/filloperator.c        |59.8%   473|85.7%  14|    -    0
+source/libs/executor/src/forecastoperator.c    | 0.0%   761| 0.0%  17|    -    0
+source/libs/executor/src/groupcacheoperator.c  |67.4%   989|85.7%  49|    -    0
+source/libs/executor/src/groupoperator.c       |73.9%   895|86.7%  30|    -    0
+source/libs/executor/src/hashjoin.c            |67.9%    28| 100%   1|    -    0
+source/libs/executor/src/hashjoinoperator.c    |60.9%   774|82.5%  40|    -    0
+source/libs/executor/src/imputationoperator.c  | 0.0%   751| 0.0%  24|    -    0
+source/libs/executor/src/mergejoin.c           |63.2%  2188|77.6%  85|    -    0
+source/libs/executor/src/mergejoinoperator.c   |69.1%  1219|77.8%  63|    -    0
+source/libs/executor/src/mergeoperator.c       |84.0%   419|90.5%  21|    -    0
+source/libs/executor/src/operator.c            |57.4%   650|69.7%  33|    -    0
+source/libs/executor/src/projectoperator.c     |82.0%   716|88.0%  25|    -    0
+source/libs/executor/src/querytask.c           |83.5%   182| 100%  12|    -    0
+source/libs/executor/src/rollupoperator.c      |87.0%   262| 100%   7|    -    0
+source/libs/executor/src/scanoperator.c        |72.9%  3488|76.5% 119|    -    0
+source/libs/executor/src/sortoperator.c        |80.8%   543|90.9%  22|    -    0
+source/libs/executor/src/sysscanoperator.c     |74.9%  2865|83.1%  83|    -    0
+source/libs/executor/src/tfill.c               |67.4%   903|86.0%  43|    -    0
+source/libs/executor/src/timesliceoperator.c   |85.2%   893|95.3%  43|    -    0
+source/libs/executor/src/timewindowoperator.c  |72.1%  1705|82.8%  64|    -    0
+source/libs/executor/src/tsort.c               |77.0%  1766|95.3%  86|    -    0
+source/libs/executor/s...ualtablescanoperator.c|87.5%   559| 100%  20|    -    0
+source/libs/function/inc/tfunctionInt.h        | 100%     5|    -   0|    -    0
+source/libs/function/src/builtins.c            |79.1%  1353|85.4% 130|    -    0
+source/libs/function/src/builtinsimpl.c        |76.5%  4477|83.4% 253|    -    0
+source/libs/function/src/detail/tavgfunction.c |90.2%   328|90.9%  11|    -    0
+source/libs/function/src/detail/tminmax.c      |81.8%   478|90.9%  11|    -    0
+source/libs/function/src/detail/tminmaxavx.c   | 100%    80| 100%   6|    -    0
+source/libs/function/src/functionMgt.c         |75.5%   538|92.3%  91|    -    0
+source/libs/function/src/thistogram.c          |71.6%   204|81.8%  11|    -    0
+source/libs/function/src/tpercentile.c         |65.8%   401|85.0%  20|    -    0
+source/libs/function/src/tudf.c                |79.5%  1385|98.6%  72|    -    0
+source/libs/function/src/udfd.c                |75.6%  1156|95.2%  62|    -    0
+source/libs/function/test/change_udf.c         |88.3%    60|50.0%  22|    -    0
+source/libs/function/test/udf1.c               |90.5%    21| 100%   3|    -    0
+source/libs/function/test/udf1_dup.c           |90.5%    21| 100%   3|    -    0
+source/libs/function/test/udf2.c               |88.5%    52| 100%   5|    -    0
+source/libs/function/test/udf2_dup.c           |78.0%    50| 100%   5|    -    0
+source/libs/geometry/src/geomFunc.c            |66.4%   211|78.9%  19|    -    0
+source/libs/geometry/src/geosWrapper.c         |74.1%   228|90.0%  20|    -    0
+source/libs/index/src/index.c                  |56.7%   520|63.4%  41|    -    0
+source/libs/index/src/indexCache.c             |36.5%   532|40.4%  52|    -    0
+source/libs/index/src/indexComm.c              |26.6%   304|31.2%  16|    -    0
+source/libs/index/src/indexFilter.c            |63.0%   821|78.6%  42|    -    0
+source/libs/index/src/indexFst.c               |34.3%   990|37.8%  90|    -    0
+source/libs/index/src/indexFstAutomation.c     | 0.0%   113| 0.0%  23|    -    0
+source/libs/index/src/indexFstFile.c           |71.2%   208|87.5%  16|    -    0
+source/libs/index/src/indexFstNode.c           |75.5%    49| 100%   4|    -    0
+source/libs/index/src/indexFstRegister.c       |62.3%   114|83.3%   6|    -    0
+source/libs/index/src/indexFstUtil.c           |64.6%    99|81.8%  11|    -    0
+source/libs/index/src/indexJson.c              |40.0%    25|25.0%   4|    -    0
+source/libs/index/src/indexTfile.c             |40.5%   765|52.3%  65|    -    0
+source/libs/index/src/indexUtil.c              |37.1%   151|66.7%   9|    -    0
+source/libs/metrics/src/metrics.c              |39.0%   136|33.3%   6|    -    0
+source/libs/monitor/src/monFramework.c         | 7.0%   441|18.2%  11|    -    0
+source/libs/monitor/src/monMain.c              |76.2%   508|75.9%  29|    -    0
+source/libs/monitor/src/monMsg.c               | 100%    30| 100%   5|    -    0
+source/libs/monitorfw/src/taos_collector.c     |61.8%    68|55.6%   9|    -    0
+source/libs/monitorfw/...s_collector_registry.c|63.5%   159|72.7%  11|    -    0
+source/libs/monitorfw/src/taos_counter.c       |16.9%    59|42.9%   7|    -    0
+source/libs/monitorfw/src/taos_gauge.c         |12.5%    16|33.3%   3|    -    0
+source/libs/monitorfw/src/taos_linked_list.c   |52.8%   106|61.5%  13|    -    0
+source/libs/monitorfw/src/taos_map.c           |71.5%   235|73.7%  19|    -    0
+source/libs/monitorfw/src/taos_metric.c        |77.1%    96|80.0%   5|    -    0
+source/libs/monitorfw/...aos_metric_formatter.c|69.6%    79|83.3%   6|    -    0
+source/libs/monitorfw/...ric_formatter_custom.c|69.5%   167| 100%   3|    -    0
+source/libs/monitorfw/src/taos_metric_sample.c |67.4%    46|71.4%   7|    -    0
+source/libs/monitorfw/src/taos_monitor_util.c  |72.7%    55|66.7%   6|    -    0
+source/libs/monitorfw/src/taos_string_builder.c|84.0%    75|81.8%  11|    -    0
+source/libs/new-stream/src/dataSinkCache.c     |54.4%   309|76.2%  21|    -    0
+source/libs/new-stream/src/dataSinkFile.c      | 3.4%   266| 6.7%  15|    -    0
+source/libs/new-stream/src/dataSinkMgr.c       |55.3%   743|72.7%  44|    -    0
+source/libs/new-stream/src/freeBlockMgr.c      | 0.0%    72| 0.0%   8|    -    0
+source/libs/new-stream/src/stream.c            |87.3%   150| 100%  12|    -    0
+source/libs/new-stream/src/streamCheckpoint.c  |87.7%   179| 100%  14|    -    0
+source/libs/new-stream/src/streamHb.c          |94.2%   104| 100%   6|    -    0
+source/libs/new-stream/src/streamMgmt.c        |78.0%   581|95.5%  22|    -    0
+source/libs/new-stream/src/streamReader.c      |92.4%   649|94.9%  39|    -    0
+source/libs/new-stream/src/streamRunner.c      |71.9%   773|91.2%  34|    -    0
+source/libs/new-stream/src/streamTimer.c       |70.0%    30|80.0%   5|    -    0
+source/libs/new-stream.../streamTriggerMerger.c|80.6%  1375|90.9%  44|    -    0
+source/libs/new-stream/src/streamTriggerTask.c |88.8%  6954|95.2% 104|    -    0
+source/libs/new-stream/src/streamUtil.c        |83.9%   598| 100%  17|    -    0
+source/libs/nodes/src/nodesCloneFuncs.c        |78.0%  1058|74.0%  77|    -    0
+source/libs/nodes/src/nodesCodeFuncs.c         |37.8%  6314|28.5% 473|    -    0
+source/libs/nodes/src/nodesEqualFuncs.c        |83.0%   106|91.7%  12|    -    0
+source/libs/nodes/src/nodesMatchFuncs.c        |38.8%    80|40.0%  10|    -    0
+source/libs/nodes/src/nodesMsgFuncs.c          |85.8%  3572|90.8% 228|    -    0
+source/libs/nodes/src/nodesToSQLFuncs.c        |63.8%   163| 100%   4|    -    0
+source/libs/nodes/src/nodesTraverseFuncs.c     |93.6%   422| 100%  19|    -    0
+source/libs/nodes/src/nodesUtilFuncs.c         |87.2%  2758|82.4% 108|    -    0
+source/libs/parser/inc/sql.y                   |91.5%   714|    -   0|    -    0
+source/libs/parser/src/parAstCreater.c         |75.0%  4294|92.9% 281|    -    0
+source/libs/parser/src/parAstParser.c          |90.7%   880|93.0% 114|    -    0
+source/libs/parser/src/parAuthenticator.c      |92.7%   289|94.6%  37|    -    0
+source/libs/parser/src/parCalcConst.c          |94.1%   440| 100%  39|    -    0
+source/libs/parser/src/parInsertSml.c          |89.9%   316|92.3%  13|    -    0
+source/libs/parser/src/parInsertSql.c          |83.5%  2458|99.1% 114|    -    0
+source/libs/parser/src/parInsertStmt.c         |47.5%  1082|66.7%  30|    -    0
+source/libs/parser/src/parInsertUtil.c         |74.6%   828|82.9%  41|    -    0
+source/libs/parser/src/parTokenizer.c          |90.4%   280|85.7%   7|    -    0
+source/libs/parser/src/parTranslater.c         |82.0% 14255|92.8% 814|    -    0
+source/libs/parser/src/parUtil.c               |76.8%  1184|89.9%  89|    -    0
+source/libs/parser/src/parser.c                |49.7%   535|88.2%  34|    -    0
+source/libs/planner/src/planLogicCreater.c     |85.5%  2029|94.7% 114|    -    0
+source/libs/planner/src/planOptimizer.c        |69.8%  5205|80.8% 271|    -    0
+source/libs/planner/src/planPhysiCreater.c     |75.6%  2301|92.2% 116|    -    0
+source/libs/planner/src/planScaleOut.c         |86.9%   198| 100%  17|    -    0
+source/libs/planner/src/planSpliter.c          |82.8%  1401|96.9%  96|    -    0
+source/libs/planner/src/planUtil.c             |74.4%   500|90.2%  51|    -    0
+source/libs/planner/src/planValidator.c        |91.5%    47| 100%   6|    -    0
+source/libs/planner/src/planner.c              |69.9%   133|75.0%  16|    -    0
+source/libs/qcom/src/queryUtil.c               |75.4%   484|93.1%  29|    -    0
+source/libs/qcom/src/querymsg.c                |65.1%   836|79.1%  43|    -    0
+source/libs/qworker/inc/qwInt.h                | 100%     2|    -   0|    -    0
+source/libs/qworker/src/qwDbg.c                |25.0%   208|60.0%  10|    -    0
+source/libs/qworker/src/qwMem.c                |79.2%   106| 100%   5|    -    0
+source/libs/qworker/src/qwMsg.c                |70.9%   426|86.4%  22|    -    0
+source/libs/qworker/src/qwUtil.c               |73.4%   545|91.1%  45|    -    0
+source/libs/qworker/src/qworker.c              |81.1%  1045|86.7%  30|    -    0
+source/libs/scalar/inc/sclvector.h             |98.5%    65| 100%  11|    -    0
+source/libs/scalar/src/filter.c                |76.8%  3675|89.8% 127|    -    0
+source/libs/scalar/src/scalar.c                |74.7%  1584|95.3%  64|    -    0
+source/libs/scalar/src/sclfunc.c               |85.7%  3367|95.1% 163|    -    0
+source/libs/scalar/src/sclvector.c             |83.5%  1628|95.2%  83|    -    0
+source/libs/scheduler/src/schFlowCtrl.c        |11.2%   160|42.9%   7|    -    0
+source/libs/scheduler/src/schJob.c             |74.7%   768| 100%  39|    -    0
+source/libs/scheduler/src/schRemote.c          |77.3%   854|91.7%  24|    -    0
+source/libs/scheduler/src/schStatus.c          |94.0%    50| 100%   3|    -    0
+source/libs/scheduler/src/schTask.c            |78.1%   690|97.4%  39|    -    0
+source/libs/scheduler/src/schUtil.c            |80.1%   251|95.7%  23|    -    0
+source/libs/scheduler/src/scheduler.c          |71.7%   138|80.0%  10|    -    0
+source/libs/sm4/src/sm4.c                      |54.8%   259|55.6%  18|    -    0
+source/libs/sync/inc/syncPipeline.h            | 100%     2|    -   0|    -    0
+source/libs/sync/inc/syncRaftEntry.h           | 100%     1|    -   0|    -    0
+source/libs/sync/src/syncAppendEntries.c       |74.6%    71| 100%   1|    -    0
+source/libs/sync/src/syncAppendEntriesReply.c  |71.4%    35| 100%   1|    -    0
+source/libs/sync/src/syncCommit.c              |94.1%    34| 100%   5|    -    0
+source/libs/sync/src/syncElection.c            |62.9%    62| 100%   2|    -    0
+source/libs/sync/src/syncEnv.c                 |83.1%    83| 100%  12|    -    0
+source/libs/sync/src/syncIndexMgr.c            |58.0%   131|72.2%  18|    -    0
+source/libs/sync/src/syncMain.c                |63.2%  2205|81.4% 113|    -    0
+source/libs/sync/src/syncMessage.c             |72.4%   210|75.0%  16|    -    0
+source/libs/sync/src/syncPipeline.c            |77.4%   970| 100%  38|    -    0
+source/libs/sync/src/syncRaftCfg.c             |80.7%   197| 100%   8|    -    0
+source/libs/sync/src/syncRaftEntry.c           |90.0%    70| 100%   7|    -    0
+source/libs/sync/src/syncRaftLog.c             |65.5%   264|71.4%  21|    -    0
+source/libs/sync/src/syncRaftStore.c           |89.3%   140| 100%  13|    -    0
+source/libs/sync/src/syncReplication.c         |93.0%    71| 100%   6|    -    0
+source/libs/sync/src/syncRequestVote.c         |89.8%    49| 100%   2|    -    0
+source/libs/sync/src/syncRequestVoteReply.c    |85.7%    28| 100%   1|    -    0
+source/libs/sync/src/syncRespMgr.c             |82.4%   119|88.9%   9|    -    0
+source/libs/sync/src/syncSnapshot.c            |72.6%   840|97.4%  38|    -    0
+source/libs/sync/src/syncTimeout.c             |79.2%    53| 100%   3|    -    0
+source/libs/sync/src/syncUtil.c                |79.8%   371|77.5%  40|    -    0
+source/libs/sync/src/syncVoteMgr.c             |76.0%   100|92.3%  13|    -    0
+source/libs/tdb/src/db/tdbBtree.c              |69.5%  1510|92.3%  39|    -    0
+source/libs/tdb/src/db/tdbDb.c                 |70.5%   139|81.8%  11|    -    0
+source/libs/tdb/src/db/tdbPCache.c             |87.1%   311| 100%  22|    -    0
+source/libs/tdb/src/db/tdbPage.c               |72.2%   396|91.9%  37|    -    0
+source/libs/tdb/src/db/tdbPager.c              |64.6%   624|85.3%  34|    -    0
+source/libs/tdb/src/db/tdbTable.c              |76.3%   139|74.1%  27|    -    0
+source/libs/tdb/src/db/tdbTxn.c                |76.2%    21| 100%   2|    -    0
+source/libs/tdb/src/db/tdbUtil.c               |88.6%    35| 100%   5|    -    0
+source/libs/tdb/src/inc/tdbInt.h               |81.5%    27| 100%   4|    -    0
+source/libs/tdb/src/inc/tdbUtil.h              | 100%    26| 100%   5|    -    0
+source/libs/tfs/src/tfs.c                      |76.2%   441|75.0%  40|    -    0
+source/libs/tfs/src/tfsDisk.c                  |71.0%    31| 100%   3|    -    0
+source/libs/tfs/src/tfsTier.c                  |88.9%   117| 100%   8|    -    0
+source/libs/tmqtt/mgmt/src/tmqttMgmt.c         |73.1%   186| 100%   7|    -    0
+source/libs/tmqtt/mqtt/src/tmqttContext.c      |94.9%   118| 100%   8|    -    0
+source/libs/tmqtt/mqtt/src/tmqttCtx.c          |64.3%   602|90.5%  21|    -    0
+source/libs/tmqtt/mqtt/src/tmqttDaemon.c       |11.7%   446|14.3%  28|    -    0
+source/libs/tmqtt/mqtt/src/tmqttKeepalive.c    |88.2%    17|80.0%   5|    -    0
+source/libs/tmqtt/mqtt/src/tmqttLogging.c      |19.3%   150|44.4%   9|    -    0
+source/libs/tmqtt/mqtt/src/tmqttSocket.c       |88.1%   160|95.5%  22|    -    0
+source/libs/tmqtt/ttq/src/ttqDb.c              |38.4%   677|60.5%  38|    -    0
+source/libs/tmqtt/ttq/src/ttqHandleConnect.c   |37.0%   440|71.4%   7|    -    0
+source/libs/tmqtt/ttq/src/ttqHandleRead.c      |35.5%   121|40.0%   5|    -    0
+source/libs/tmqtt/ttq/src/ttqHandleSub.c       |61.9%   289| 100%   4|    -    0
+source/libs/tmqtt/ttq/src/ttqLoop.c            |53.4%   133| 100%   7|    -    0
+source/libs/tmqtt/ttq/src/ttqMemory.c          |93.8%    16|83.3%   6|    -    0
+source/libs/tmqtt/ttq/src/ttqMisc.c            | 0.0%    42| 0.0%   2|    -    0
+source/libs/tmqtt/ttq/src/ttqMux.c             |74.8%   119| 100%   8|    -    0
+source/libs/tmqtt/ttq/src/ttqNet.c             |25.2%   107|60.0%  10|    -    0
+source/libs/tmqtt/ttq/src/ttqNet2.c            |42.5%   193|60.0%  10|    -    0
+source/libs/tmqtt/ttq/src/ttqPacket.c          |56.1%   212|75.0%   8|    -    0
+source/libs/tmqtt/ttq/src/ttqPacketDataTypes.c |77.8%   117|92.9%  14|    -    0
+source/libs/tmqtt/ttq/src/ttqProperty.c        |36.0%   709|65.6%  32|    -    0
+source/libs/tmqtt/ttq/src/ttqPropertyBroker.c  | 0.0%    35| 0.0%   1|    -    0
+source/libs/tmqtt/ttq/src/ttqSend.c            |18.8%    80|11.1%   9|    -    0
+source/libs/tmqtt/ttq/src/ttqSendPublish.c     |67.2%    61| 100%   2|    -    0
+source/libs/tmqtt/ttq/src/ttqSessionExpiry.c   |43.1%    65|71.4%   7|    -    0
+source/libs/tmqtt/ttq/src/ttqStrings.c         | 0.0%   197| 0.0%   4|    -    0
+source/libs/tmqtt/ttq/src/ttqSubs.c            |46.7%   454|63.6%  22|    -    0
+source/libs/tmqtt/ttq/src/ttqTime.c            |30.0%    10|50.0%   2|    -    0
+source/libs/tmqtt/ttq/src/ttqUtf8.c            |41.9%    43| 100%   1|    -    0
+source/libs/tmqtt/ttq/src/ttqUtil.c            |40.0%    45|55.6%   9|    -    0
+source/libs/tmqtt/ttq/src/ttqUtilTopic.c       | 7.9%   202|16.7%   6|    -    0
+source/libs/transport/src/thttp.c              |69.1%   653|86.4%  44|    -    0
+source/libs/transport/src/tmsgcb.c             |97.4%    38| 100%  11|    -    0
+source/libs/transport/src/trans.c              |81.6%   158|80.8%  26|    -    0
+source/libs/transport/src/transCli.c           |72.7%  2451|85.0% 120|    -    0
+source/libs/transport/src/transComm.c          |69.7%   755|78.7%  75|    -    0
+source/libs/transport/src/transSvr.c           |64.5%  1302|76.1%  67|    -    0
+source/libs/transport/src/transTLS.c           |10.0%    20|11.8%  17|    -    0
+source/libs/tss/src/fs.c                       | 0.0%   258| 0.0%  16|    -    0
+source/libs/tss/src/s3.c                       | 0.0%   497| 0.0%  30|    -    0
+source/libs/tss/src/tss.c                      | 0.0%   218| 0.0%  27|    -    0
+source/libs/wal/inc/walInt.h                   | 100%    50| 100%  15|    -    0
+source/libs/wal/src/walMeta.c                  |76.9%   701|92.9%  28|    -    0
+source/libs/wal/src/walMgmt.c                  |77.1%   240| 100%  16|    -    0
+source/libs/wal/src/walRead.c                  |67.0%   288|88.2%  17|    -    0
+source/libs/wal/src/walRef.c                   |81.6%    38| 100%   4|    -    0
+source/libs/wal/src/walWrite.c                 |65.8%   441|84.6%  13|    -    0
+source/os/src/osAtomic.c                       |30.4%   194|36.5%  74|    -    0
+source/os/src/osDir.c                          |74.6%   268|95.5%  22|    -    0
+source/os/src/osEnv.c                          |86.5%    37|72.7%  11|    -    0
+source/os/src/osFile.c                         |56.4%   557|85.7%  42|    -    0
+source/os/src/osLocale.c                       |75.8%    33| 100%   3|    -    0
+source/os/src/osMath.c                         | 100%     3| 100%   1|    -    0
+source/os/src/osMemory.c                       |69.6%    46|81.8%  11|    -    0
+source/os/src/osRand.c                         |70.4%    27|83.3%   6|    -    0
+source/os/src/osSemaphore.c                    |56.1%   187|77.8%  18|    -    0
+source/os/src/osSignal.c                       |72.7%    22|66.7%   3|    -    0
+source/os/src/osSleep.c                        | 100%    10| 100%   3|    -    0
+source/os/src/osSocket.c                       |57.9%   254|76.2%  21|    -    0
+source/os/src/osString.c                       |59.2%   461|74.4%  43|    -    0
+source/os/src/osSysinfo.c                      |79.9%   533|93.8%  32|    -    0
+source/os/src/osSystem.c                       |58.5%    82|88.9%   9|    -    0
+source/os/src/osThread.c                       |52.0%   410|54.9%  71|    -    0
+source/os/src/osTime.c                         |68.4%    57|90.9%  11|    -    0
+source/os/src/osTimer.c                        |87.0%    54| 100%   6|    -    0
+source/os/src/osTimezone.c                     |55.4%    74|83.3%   6|    -    0
+source/os/src/timezone/localtime.c             |53.0%   995|80.4%  46|    -    0
+source/os/src/timezone/strftime.c              |30.5%   243| 100%   4|    -    0
+source/util/src/mpDirect.c                     |35.6%    90|58.3%  12|    -    0
+source/util/src/talgo.c                        |71.3%   265|75.0%  12|    -    0
+source/util/src/tarray.c                       |69.7%   314|83.3%  36|    -    0
+source/util/src/tbase58.c                      |33.3%    90|50.0%   2|    -    0
+source/util/src/tbase64.c                      |73.2%    56| 100%   2|    -    0
+source/util/src/tcache.c                       |72.7%   473|80.6%  31|    -    0
+source/util/src/tcompare.c                     |64.7%  1209|67.3% 162|    -    0
+source/util/src/tcompression.c                 |70.1%  1113|69.7% 109|    -    0
+source/util/src/tconfig.c                      |73.5%  1030| 100%  60|    -    0
+source/util/src/tconv.c                        |73.4%    64| 100%   3|    -    0
+source/util/src/tcrc32c.c                      | 100%    70| 100%   4|    -    0
+source/util/src/tcurl.c                        |57.3%   124|50.0%   6|    -    0
+source/util/src/tdecompressavx.c               |46.0%   113|20.0%   5|    -    0
+source/util/src/tdes.c                         |80.3%   229|50.0%   8|    -    0
+source/util/src/tdigest.c                      |76.8%   142|87.5%   8|    -    0
+source/util/src/tencode.c                      |96.1%    77| 100%   8|    -    0
+source/util/src/tenv.c                         |44.2%    43|66.7%   3|    -    0
+source/util/src/terror.c                       |94.4%    36|80.0%  10|    -    0
+source/util/src/tgeosctx.c                     |79.6%    54| 100%   4|    -    0
+source/util/src/thash.c                        |84.1%   372|80.0%  25|    -    0
+source/util/src/thashutil.c                    |92.9%   156|86.7%  15|    -    0
+source/util/src/theap.c                        |89.9%   207|94.1%  34|    -    0
+source/util/src/tjson.c                        |69.5%   243|86.0%  43|    -    0
+source/util/src/tlist.c                        |77.8%   108|82.6%  23|    -    0
+source/util/src/tlockfree.c                    |92.5%    80| 100%  12|    -    0
+source/util/src/tlog.c                         |60.8%   877|72.2%  54|    -    0
+source/util/src/tlosertree.c                   |77.6%    76|83.3%   6|    -    0
+source/util/src/tlrucache.c                    |74.8%   465|84.0%  50|    -    0
+source/util/src/tmd5.c                         | 100%   110| 100%   4|    -    0
+source/util/src/tmempool.c                     |25.8%  1043|44.1%  68|    -    0
+source/util/src/tobjpool.c                     |58.4%   262|68.4%  19|    -    0
+source/util/src/tpagedbuf.c                    |68.1%   420|80.0%  35|    -    0
+source/util/src/tpcre2.c                       |83.3%    30| 100%   3|    -    0
+source/util/src/tqueue.c                       |78.3%   336|68.8%  32|    -    0
+source/util/src/trbtree.c                      |84.0%   275|81.0%  21|    -    0
+source/util/src/tref.c                         |81.0%   273|93.3%  15|    -    0
+source/util/src/tsched.c                       |63.8%   141| 100%   4|    -    0
+source/util/src/tsimplehash.c                  |81.2%   218|85.7%  14|    -    0
+source/util/src/tskiplist.c                    |60.6%   254|86.7%  15|    -    0
+source/util/src/tstrbuild.c                    |66.0%    50|60.0%  10|    -    0
+source/util/src/tthread.c                      |35.7%    28|33.3%   3|    -    0
+source/util/src/ttimer.c                       |89.2%   371| 100%  26|    -    0
+source/util/src/tunit.c                        |90.9%    66| 100%   3|    -    0
+source/util/src/tutil.c                        |67.4%   334|76.9%  26|    -    0
+source/util/src/tuuid.c                        |83.7%    49| 100%   5|    -    0
+source/util/src/tversion.c                     |62.5%    64|75.0%   4|    -    0
+source/util/src/tworker.c                      |75.9%   848|82.2%  45|    -    0
+source/util/src/version.c                      | 0.0%     1| 0.0%   1|    -    0
+tools/shell/src/shellArguments.c               |76.0%   233|87.5%   8|    -    0
+tools/shell/src/shellAuto.c                    |32.9%   861|42.9%  49|    -    0
+tools/shell/src/shellCommand.c                 |29.7%   387|32.0%  25|    -    0
+tools/shell/src/shellEngine.c                  |77.7%   916|88.9%  36|    -    0
+tools/shell/src/shellMain.c                    |69.0%    71|66.7%   3|    -    0
+tools/shell/src/shellNettest.c                 |61.0%   100|40.0%   5|    -    0
+tools/shell/src/shellTire.c                    |17.9%   212|26.3%  19|    -    0
+tools/shell/src/shellUtil.c                    |72.8%    81|87.5%   8|    -    0
+tools/src/pub.c                                |96.9%    65| 100%   6|    -    0
+tools/taos-tools/deps/...cJson/src/toolscJson.c|47.0%  1209|49.4%  87|    -    0
+tools/taos-tools/src/benchCommandOpt.c         |91.8%   400| 100%  10|    -    0
+tools/taos-tools/src/benchCsv.c                |83.9%   785| 100%  40|    -    0
+tools/taos-tools/src/benchDataMix.c            |78.8%    99| 100%   2|    -    0
+tools/taos-tools/src/benchInsertMix.c          |80.6%   494|90.0%  20|    -    0
+tools/taos-tools/src/benchLog.c                |87.2%    39| 100%   8|    -    0
+tools/taos-tools/src/benchMain.c               |79.7%   118| 100%   5|    -    0
+tools/taos-tools/src/benchQuery.c              |80.4%   677| 100%  15|    -    0
+tools/taos-tools/src/benchSys.c                |93.9%   295| 100%   4|    -    0
+tools/taos-tools/src/benchTmq.c                |80.4%   250| 100%   7|    -    0
+tools/taos-tools/src/benchUtilDs.c             |79.5%    88|92.3%  13|    -    0
+tools/taos-tools/src/dumpUtil.c                |82.9%   532|93.3%  45|    -    0
+tools/taos-tools/src/toolsDir.c                |81.2%    16| 100%   4|    -    0
+tools/taos-tools/src/toolsString.c             |87.5%     8| 100%   1|    -    0
+tools/taos-tools/src/toolsSys.c                |63.6%    33|85.7%   7|    -    0
+tools/taos-tools/src/toolstime.c               |73.4%   237|90.0%  20|    -    0
+tools/taos-tools/src/wrapDb.c                  |75.0%    40| 100%   3|    -    0
+utils/test/c/tmqSim.c                          |49.0%   876|66.7%  36|    -    0
+utils/test/c/tmq_offset_test.c                 |22.6%   248|40.0%   5|    -    0
+================================================================================
+                                         Total:|69.5%  348k|78.3% 18k|    -    0
+=== 文件检查 ===
