@@ -3407,6 +3407,11 @@ typedef struct SColIdPair {
   col_id_t orgColId;
 } SColIdPair;
 
+typedef struct SColIdSlotIdPair {
+  int32_t  vtbSlotId;
+  col_id_t orgColId;
+} SColIdSlotIdPair;
+
 typedef struct SOrgTbInfo {
   int32_t vgId;
   char    tbName[TSDB_TABLE_FNAME_LEN];
