@@ -15,7 +15,7 @@ description: 让开发者能够快速上手的指南
 7. 在很多场景下（如车辆管理），应用需要获取每个数据采集点的最新状态，那么建议你采用 TDengine 的 Cache 功能，而不用单独部署 Redis 等缓存软件。
 8. 如果你发现 TDengine 的函数无法满足你的要求，那么你可以使用用户自定义函数（UDF）来解决问题。
 
-本部分内容就是按照上述顺序组织的。为便于理解，TDengine 为每个功能和每个支持的编程语言都提供了示例代码。如果你希望深入了解 SQL 的使用，需要查看[SQL 手册](../taos-sql/)。如果想更深入地了解各连接器的使用，请阅读[连接器参考指南](./client-libraries/)。更多的方式往 TDengine 里面写入数据，请参考[数据写入](../data-in)，另外更多的方式从 TDengine 读取数据，请参考[数据输出](../tools/)。
+本部分内容就是按照上述顺序组织的。为便于理解，TDengine 为每个功能和每个支持的编程语言都提供了示例代码。如果你希望深入了解 SQL 的使用，需要查看[SQL 手册](/reference/taos-sql/)。如果想更深入地了解各连接器的使用，请阅读[连接器参考指南](./client-libraries/)。更多的方式往 TDengine 里面写入数据，请参考[数据写入](../data-in)，另外更多的方式从 TDengine 读取数据，请参考[数据输出](../tools/)。
 
 如果在开发过程中遇到任何问题，请点击每个页面下方的["反馈问题"](https://github.com/taosdata/TDengine/issues/new/choose), 在 GitHub 上直接递交 Issue。
 
