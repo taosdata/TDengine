@@ -29,7 +29,7 @@ TDengine provides three methods for establishing connections:
 2. Connection to taosd through the REST API provided by the taosAdapter component, referred to as "REST connection" in the text below.
 3. Connection to taosd through the WebSocket API provided by the taosAdapter component, referred to as "WebSocket connection" in the text below.
 
-![](../assets/connecting-to-tdengine-01.png)
+![Connection flow](../assets/connecting-to-tdengine-01.png)
 
 Regardless of the method used to establish the connection, the connectors provide the same or similar API to operate the database and can execute SQL statements. The initialization of the connection slightly differs, but users will not feel any difference in usage.
 For various connection methods and language connector support, please refer to: [Connector Features](../../tdengine-reference/client-libraries/)

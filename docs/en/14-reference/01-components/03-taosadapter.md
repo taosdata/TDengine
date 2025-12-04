@@ -15,7 +15,7 @@ The connectors of TDengine in various languages communicate with TDengine throug
 
 The architecture diagram is as follows:
 
-![](../../assets/taosadapter-01.png)
+![taosAdapter architecture](../../assets/taosadapter-01.png)
 
 ## Feature List
 
@@ -732,8 +732,8 @@ taosAdapter supports recording SQL requests to CSV files. Users can enable this 
 
 ### Configuration Parameters
 
-1. New configuration item `log.enableSqlToCsvLogging` (boolean, default: false) determines whether SQL logging is enabled. 
-When set to true, SQL records will be saved to CSV files. 
+1. New configuration item `log.enableSqlToCsvLogging` (boolean, default: false) determines whether SQL logging is enabled.
+When set to true, SQL records will be saved to CSV files.
 The recording start time is the service startup time, and the end time is `2300-01-01 00:00:00`.
 
 2. File naming follows the same rules as logs: `taosadapterSql_{instanceId}_{yyyyMMdd}.csv[.index]`
@@ -760,6 +760,7 @@ curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
 ```
 
 Supported parameters:
+
 - `start_time`: [Optional] Start time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to the current time if not specified.
 - `end_time`: [Optional] End time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to 2300-01-01 00:00:00 if not specified.
 - `location`: [Optional] Timezone for parsing start and end times, using IANA format (e.g., `Asia/Shanghai`). Defaults to the server's timezone.
@@ -796,26 +797,26 @@ Successful response: HTTP code 200.
 
 1. If a task exists, the response is:
 
-```json
-{
-        "code": 0,
-        "message": "",
-        "start_time": "2025-07-23 17:00:00",
-        "end_time": "2025-07-23 18:00:00"
-}
-```
+   ```json
+   {
+           "code": 0,
+           "message": "",
+           "start_time": "2025-07-23 17:00:00",
+           "end_time": "2025-07-23 18:00:00"
+   }
+   ```
 
-- `start_time`: Configured start time of the canceled task (timezone: server's timezone).
-- `end_time`: Configured end time of the canceled task (timezone: server's timezone).
+   - `start_time`: Configured start time of the canceled task (timezone: server's timezone).
+   - `end_time`: Configured end time of the canceled task (timezone: server's timezone).
 
-2. If no task exists, the response is:
+1. If no task exists, the response is:
 
-```json
-{
-        "code": 0,
-        "message": ""
-}
-```
+   ```json
+   {
+           "code": 0,
+           "message": ""
+   }
+   ```
 
 ### Query Status
 
@@ -850,37 +851,37 @@ Successful response: HTTP code 200 with the following structure:
 
 ### Recording Format
 
-Records are written before `taos_free_result` is executed or when the task ends (reaching the end time or being manually stopped). 
+Records are written before `taos_free_result` is executed or when the task ends (reaching the end time or being manually stopped).
 Records are stored in CSV format without headers. Each line includes the following fields:
 
 1. `TS`: Log timestamp (format: yyyy-MM-dd HH:mm:ss.SSSSSS, timezone: server's timezone).
-2. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes. 
-SQL containing special characters cannot be directly copied for use. Example:
+1. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes.
+   SQL containing special characters cannot be directly copied for use. Example:
 
-Original SQL:
+   Original SQL:
 
- ```sql
+   ```sql
    select * from t1
    where c1 = "ab"
    ```
 
-CSV record:
+   CSV record:
 
    ```csv
    "select * from t1
    where c1 = ""ab"""
    ```
 
-3. `IP`: Client IP.
-4. `User`: Username executing the SQL.
-5. `ConnType`: Connection type (HTTP, WS).
-6. `QID`: Request ID (saved as hexadecimal).
-7. `ReceiveTime`: Time when the SQL was received (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
-8. `FreeTime`: Time when the SQL was released (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
-9. `QueryDuration(us)`: Time consumed from taos_query_a to callback completion (microseconds).
-10. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
-11. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
-12. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
+1. `IP`: Client IP.
+1. `User`: Username executing the SQL.
+1. `ConnType`: Connection type (HTTP, WS).
+1. `QID`: Request ID (saved as hexadecimal).
+1. `ReceiveTime`: Time when the SQL was received (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+1. `FreeTime`: Time when the SQL was released (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+1. `QueryDuration(us)`: Time consumed from taos_query_a to callback completion (microseconds).
+1. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
+1. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
+1. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
 
 Example:
 

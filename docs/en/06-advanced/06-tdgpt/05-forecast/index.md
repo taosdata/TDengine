@@ -145,54 +145,54 @@ To use the tool, run `analytics_compare` in TDgpt's `misc` directory. Ensure tha
 
 1. Configure your TDengine cluster information in the `analytics.ini` file:
 
-```ini
-[taosd]
-# taosd hostname
-host = 127.0.0.1
+   ```ini
+   [taosd]
+   # taosd hostname
+   host = 127.0.0.1
 
-# username
-user = root
+   # username
+   user = root
 
-# password
-password = taosdata
+   # password
+   password = taosdata
 
-# tdengine configuration file
-conf = /etc/taos/taos.cfg
+   # tdengine configuration file
+   conf = /etc/taos/taos.cfg
 
-[input_data]
-# database for testing forecasting algorithms
-db_name = test
+   [input_data]
+   # database for testing forecasting algorithms
+   db_name = test
 
-# table with test data
-table_name = passengers
+   # table with test data
+   table_name = passengers
 
-# columns with test data
-column_name = val, _c0   
-```
+   # columns with test data
+   column_name = val, _c0   
+   ```
 
 1. Prepare your data.
 
-A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
+   A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
 
-```shell
-taos -f sample-fc.sql
-```
+   ```shell
+   taos -f sample-fc.sql
+   ```
 
-You can now begin the evaluation.
+   You can now begin the evaluation.
 
 1. Ensure that the Python environment on the local machine is operational. Then run the following command:
 
-```shell
-python3.10 ./analytics_compare.py forecast
-```
+   ```shell
+   python3.10 ./analytics_compare.py forecast
+   ```
 
 1. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
 
-| algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
-| ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
-| holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
-| arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
+   | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
+   | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
+   | holtwinters | `{"trend":"add", "seasonal":"add"}`                                       | 351.622 | 125.1721          |
+   | arima       | `{"time_step":3600000, "start_p":0, "max_p":10, "start_q":0, "max_q":10}` | 433.709 | 45577.9187        |
 
 If you set `gen_figure` to `true`, a chart is also generated, as displayed in the following figure.
 
-![](../../../assets/tdgpt-04.png)
+![Forecasting comparison](../../../assets/tdgpt-04.png)

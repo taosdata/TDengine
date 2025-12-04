@@ -23,7 +23,7 @@ TDengine can efficiently read data from OPC-DA servers and write it to TDengine,
 
 On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-![](../../assets/opc-da-01.png)
+![Add data source](../../assets/opc-da-01.png)
 
 ### 2. Configure Basic Information
 
@@ -35,7 +35,7 @@ If the taosX service is running on the same server as OPC-DA, **Proxy** is not n
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right to create a new database.
 
-![](../../assets/opc-da-02.png)
+![Configure basic settings](../../assets/opc-da-02.png)
 
 ### 3. Configure Connection Information
 
@@ -43,7 +43,7 @@ Fill in the **OPC-DA Service Address** in the **Connection Configuration** area,
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![](../../assets/opc-da-03.png)
+![Configure connection information](../../assets/opc-da-03.png)
 
 ### 4. Configure Points Set
 
@@ -139,13 +139,13 @@ Configure **Supertable Name** and **Table Name** to specify the supertable and s
 
 Configure **Primary Key Column**, choosing `origin_ts` to use the original timestamp of the OPC data point as the primary key in TDengine; choosing `request_ts` to use the timestamp when the data is request as the primary key; choosing `received_ts` to use the timestamp when the data is received as the primary key. Configure **Primary Key Alias** to specify the name of the TDengine timestamp column.
 
-![](../../assets/opc-da-04.png)
+![Configure data sets](../../assets/opc-da-04.png)
 
 ### 5. Collection Configuration
 
 In the collection configuration, set the current task's collection interval, connection timeout, and collection timeout.
 
-![](../../assets/opc-da-05.png)
+![Configure collection settings](../../assets/opc-da-05.png)
 
 As shown in the image:
 
@@ -163,7 +163,7 @@ When using **Select Data Points** in the **Data Point Set**, the collection conf
 
 ### 6. Advanced Options
 
-![](../../assets/opc-da-06.png)
+![Configure advanced options](../../assets/opc-da-06.png)
 
 As shown above, configure advanced options for more detailed optimization of performance, logs, etc.
 
@@ -192,12 +192,4 @@ Click the **Submit** button to complete the creation of the OPC DA to TDengine d
 
 ## Add Data Points
 
-During the task execution, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file.
-
-![](../../assets/opc-da-07.png)
-
-In the pop-up form, fill in the information for the data points.
-
-![](../../assets/opc-da-08.png)
-
-Click the **Confirm** button to complete the addition of data points.
+During the task execution, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file. In the pop-up form, fill in the information for the data points. Then click the **Confirm** button to complete the addition of data points.

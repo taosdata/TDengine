@@ -182,7 +182,7 @@ T = Latest event time - watermark
 
 Each data write updates the window closure time using the above formula, and all open windows with an end time < T are closed. If the trigger mode is WINDOW_CLOSE or MAX_DELAY, the aggregated results of the window are pushed.
 
-![](./assets/stream-processing-01-watermark.webp)
+![Watermark](./assets/stream-processing-01-watermark.webp)
 
 In the diagram, the vertical axis represents different moments in time. For each moment, we plot the data received by TDengine on the horizontal axis.
 

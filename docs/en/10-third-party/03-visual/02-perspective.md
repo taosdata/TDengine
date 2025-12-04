@@ -9,7 +9,7 @@ import TabItem from "@theme/TabItem";
 
 This document demonstrates how to integrate TDengine with [Perspective](https://perspective.finos.org/), a powerful data visualization library from [Prospective.co](https://prospective.co/). By combining these technologies, you can create a real-time data visualization platform that streams data from TDengine to an interactive real-time Perspective dashboard.
 
-![](../../assets/perspective-01.png)
+![TDengine-Perspective integration workflow](../../assets/perspective-01.png)
 
 The integration can be performed using the Node.js or Python connector.
 

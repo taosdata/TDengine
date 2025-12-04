@@ -7,7 +7,7 @@ To ensure stable operation of the cluster, TDengine integrates various monitorin
 
 As for how to obtain and use these monitoring data, users can use third-party monitoring tools such as Zabbix to retrieve the saved system monitoring data, thereby seamlessly integrating the operation status of TDengine into the existing IT monitoring system. Alternatively, users can use the TDinsight plugin provided by TDengine, which allows users to visually display and manage these monitoring information through the Grafana platform, as shown in the figure below. This provides users with flexible monitoring options to meet operational needs in different scenarios.
 
-![](../assets/monitor-your-cluster-01.png)
+![Managing monitoring information](../assets/monitor-your-cluster-01.png)
 
 ## Configuring taosKeeper
 
@@ -50,7 +50,7 @@ On the "Home" -> "Dashboards" page of Grafana, click the "New" -> "import" butto
 
 After filling in the above Dashboard ID or Dashboard URL, click the "Load" button and follow the guide to complete the import. After the import is successful, the "TDinsight for 3.x" dashboard will appear on the Dashboards list page. Click to enter, and you will see the panels of various metrics created in TDinsight, as shown in the figure below:
 
-![](../assets/monitor-your-cluster-02.png)
+![TDinsight interface](../assets/monitor-your-cluster-02.png)
 
 **Note** In the "Log from" dropdown list in the upper left corner of the TDinsight interface, you can select the `log` database.
 
@@ -109,9 +109,10 @@ Each configuration also has corresponding command line options and environment v
 1. In the Grafana interface menu, click "Data sources", then select the TDengine data source that has been configured.
 2. In the data source configuration interface, select the "Dashboard" tab, and then import the "TDinsight for taosX" dashboard (you need to import it the first time you use it). Below is an example image:
 
-   ![](../assets/monitor-your-cluster-03.png)
+   ![Import TDinsight for taosX dashboard](../assets/monitor-your-cluster-03.png)
 
    Each row on the dashboard represents one or a category of monitoring objects. The top row is for monitoring taosX, followed by the Agent monitoring row, and finally the monitoring of various data writing tasks.
+
    :::note
    - If you open this dashboard and see no data, you likely need to click on the database list in the upper left corner (the "Log from" dropdown menu) and switch to the database where the monitoring data is stored.
    - The database will automatically create as many Agent rows as there are Agents' data. (As shown in the picture above)
@@ -121,28 +122,29 @@ Each configuration also has corresponding command line options and environment v
 
 1. taosX monitoring example image
 
-   ![](../assets/monitor-your-cluster-04.png)
+   ![taosX monitoring dashboard](../assets/monitor-your-cluster-04.png)
 
 2. Agent monitoring example image
 
-   ![](../assets/monitor-your-cluster-05.png)
+   ![Agent monitoring dashboard](../assets/monitor-your-cluster-05.png)
 
 3. TDengine2 data source monitoring example image
 
-   ![](../assets/monitor-your-cluster-06.png)
+   ![TDengine 2.x monitoring dashboard](../assets/monitor-your-cluster-06.png)
 
    :::info
+
    The monitoring panel only displays some monitoring indicators for data writing tasks. There are more comprehensive monitoring indicators on the Explorer page, with detailed explanations for each indicator.
 
    :::
 
 4. TDengine3 data source monitoring example image
 
-   ![](../assets/monitor-your-cluster-07.png)
+   ![TDengine 3.x monitoring dashboard](../assets/monitor-your-cluster-07.png)
 
 5. Other data source monitoring example image
 
-   ![](../assets/monitor-your-cluster-08.png)
+   ![Dashboard for monitoring other data sources](../assets/monitor-your-cluster-08.png)
 
 #### Limitations
 
@@ -152,4 +154,4 @@ Monitoring-related configurations only take effect when taosX is running in serv
 
 After logging into the explorer, switch to the "Dashboard" page, and you can view the cluster status. As shown in the following figure, it includes the number of taosd/taos-adapter/taosX/taos-keeper in the cluster, as well as the information of dnode hosts and the status of various service components.
 
-![cluster monitor](./pic/cluster-monitor.jpg)
+![Dashboard page in TDengine TSDB-Explorer](../assets/monitor-your-cluster-09.jpg)

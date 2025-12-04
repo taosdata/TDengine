@@ -50,7 +50,7 @@ With its high performance, standard SQL support, and component integration, TDen
 
 With its open ecosystem, TDengine allows you the freedom to construct the data stack that is best for your business. Its support for standard SQL, zero-code connectors for a wide range of industrial protocols and data solutions, and seamless integration with visualization, analytics, and business intelligence (BI) applications make it easy to fit TDengine into your infrastructure.
 
-![](./assets/introduction-01.png)
+![TDengine TSDB Ecosystem](./assets/introduction-01.png)
 
 As shown in the figure, TDengine acts as the central source of truth in an industrial data ecosystem, ingesting data from a variety of sources and sharing that data with business applications and stakeholders.
 

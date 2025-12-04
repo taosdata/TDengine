@@ -3,6 +3,8 @@ title: Data Connectors
 slug: /advanced-features/data-connectors
 ---
 
+import DocCardList from '@theme/DocCardList';
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -13,7 +15,7 @@ TDengine Enterprise is equipped with a powerful visual data management tool—ta
 
 The diagram below shows the system architecture of the zero-code integration platform.
 
-![](../../assets/data-connectors-01.png)
+![Zero-code data connectors](../../assets/data-connectors-01.png)
 
 ## Supported Data Sources
 
@@ -55,7 +57,7 @@ Only unstructured data sources need this step. Currently, MQTT and Kafka data so
 
 #### Sample Data
 
-![](../../assets/data-connectors-02.png)
+![Sample data](../../assets/data-connectors-02.png)
 
 As shown in the image, the textarea input box contains the sample data, which can be obtained in three ways:
 
@@ -95,7 +97,7 @@ The following nested JSON data can automatically parse fields `groupid`, `data_v
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
 ```
 
-![](../../assets/data-connectors-03.png)
+![JSON parsing](../../assets/data-connectors-03.png)
 
 ##### Regex Regular Expressions<a name="regex"></a>
 
@@ -105,7 +107,7 @@ You can use **named capture groups** in regular expressions to extract multiple 
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
 ```
 
-![](../../assets/data-connectors-04.png)
+![Regex parsing](../../assets/data-connectors-04.png)
 
 ##### UDT Custom Parsing Scripts
 
@@ -139,7 +141,7 @@ let v3 = data["voltage"].split(",");
 
 The final parsing result is shown below:
 
-![](../../assets/data-connectors-05.png)
+![Parsed results](../../assets/data-connectors-05.png)
 
 ### Extraction or Splitting
 
@@ -297,9 +299,4 @@ Below, using MQTT data source as an example, we explain how to create a task of 
 
 On the task list page, you can also start, stop, view, delete, copy, and other operations on tasks. You can also view the running status of each task, including the number of records written, traffic, etc.
 
-```mdx-code-block
-import DocCardList from '@theme/DocCardList';
-import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
-
 <DocCardList items={useCurrentSidebarCategory().items}/>
-```

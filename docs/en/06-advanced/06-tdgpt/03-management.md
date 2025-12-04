@@ -3,8 +3,6 @@ title: Anode Management
 sidebar_label: Anode Management
 ---
 
-import PkgListV3 from "/components/PkgListV3";
-
 ### Starting the TDgpt Service
 
 The `taosanoded` service is created when you install an anode. You can use systemd to manage this service:
@@ -92,8 +90,7 @@ log-level = INFO
 
 ```
 
-Note
-Do not specify a value for the `daemonize` parameter. This parameter causes a conflict between uWSGI and systemctl. If you enable the `daemonize` parameter, your anode will fail to start.
+Note: Do not specify a value for the `daemonize` parameter. This parameter causes a conflict between uWSGI and systemctl. If you enable the `daemonize` parameter, your anode will fail to start.
 The configuration file above includes only the basic configuration needed for an anode to provide services. For more information about configuring uWSGI, see the [official documentation](https://uwsgi-docs.readthedocs.io/en/latest/).
 
 The main configuration options for an anode are described as follows:

@@ -162,7 +162,7 @@ To further control the tolerance level for out-of-order data, stream computing i
 
 Assuming T = Latest event time - watermark, each time new data is written, the system updates the window closure time based on this formula. Specifically, the system closes all open windows whose end time is less than T. If the trigger mode is set to window_close or max_delay, the aggregated results of the window are pushed. The diagram below illustrates the window closure process in stream computing.
 
-![](../assets/stream-processing-01-watermark.webp)
+![Window closure process](../assets/stream-processing-01-watermark.webp)
 
 In the diagram above, the vertical axis represents moments, and the dots on the horizontal axis represent the data received. The related process is described as follows.
 

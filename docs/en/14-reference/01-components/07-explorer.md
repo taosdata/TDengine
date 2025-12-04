@@ -33,13 +33,13 @@ addr = "0.0.0.0"
 # ipv6 = "::1"
 
 # explorer server instance id
-# 
+#
 # The instanceId of each instance is unique on the host
 # instanceId = 1
 
 # Explorer server log level.
 # Default is "info"
-# 
+#
 # Deprecated: use log.level instead
 log_level = "info"
 
@@ -49,7 +49,7 @@ log_level = "info"
 
 # REST API endpoint to connect to the cluster.
 # This configuration is also the target for data migration tasks.
-# 
+#
 # Default is "http://localhost:6041" - the default endpoint for REST API.
 #
 cluster = "http://localhost:6041"
@@ -93,7 +93,7 @@ cors = true
 # log configuration
 [log]
 # All log files are stored in this directory
-# 
+#
 # path = "/var/log/taos" # on linux/macOS
 # path = "C:\\TDengine\\log" # on windows
 
@@ -102,19 +102,19 @@ cors = true
 # level = "info"
 
 # Compress archived log files or not
-# 
+#
 # compress = false
 
 # The number of log files retained by the current explorer server instance in the `path` directory
-# 
+#
 # rotationCount = 30
 
 # Rotate when the log file reaches this size
-# 
+#
 # rotationSize = "1GB"
 
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
-# 
+#
 # reservedDiskSize = "1GB"
 
 # The number of days log files are retained
@@ -166,57 +166,57 @@ sc.exe stop taos-explorer # Windows
 2. If detailed logs of taosExplorer are needed, use the command `journalctl -u taos-explorer`.
 3. When using Nginx or other tools for forwarding, pay attention to setting CORS or use `cors = true` in the configuration file.
 
-    Here is an example of a CORS setting in an Nginx configuration file:
+   Here is an example of a CORS setting in an Nginx configuration file:
 
-    ```nginx
-    http {
-      server {
-            listen 6060;
-            location ~* {
-                proxy_pass http://explorer;
-    
-                if ($request_method = 'OPTIONS') {
-                    add_header 'Access-Control-Allow-Origin' '*';
-    
-                    add_header 'Access-Control-Allow-Credentials' 'true';
-                    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+   ```nginx
+   http {
+     server {
+           listen 6060;
+           location ~* {
+               proxy_pass http://explorer;
 
-                    add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+               if ($request_method = 'OPTIONS') {
+                   add_header 'Access-Control-Allow-Origin' '*';
 
-                    add_header 'Access-Control-Max-Age' 86400;
-                    add_header 'Content-Type' 'text/plain charset=UTF-8';
-                    add_header 'Content-Length' 0;
-                    return 204; break;
-                }
+                   add_header 'Access-Control-Allow-Credentials' 'true';
+                   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
 
-                if ($request_method = 'POST') {
-                    add_header 'Access-Control-Allow-Origin' '*';
-                    add_header 'Access-Control-Allow-Credentials' 'true';
-                    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                    add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-                }
-                if ($request_method = 'GET') {
-                    add_header 'Access-Control-Allow-Origin' '*';
-                    add_header 'Access-Control-Allow-Credentials' 'true';
-                    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                    add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-                }
+                   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
 
-                proxy_set_header Host      $host:$server_port;
-                proxy_set_header X-Real-IP $remote_addr;
+                   add_header 'Access-Control-Max-Age' 86400;
+                   add_header 'Content-Type' 'text/plain charset=UTF-8';
+                   add_header 'Content-Length' 0;
+                   return 204; break;
+               }
 
-                #proxy_http_version 1.1;
-                proxy_read_timeout 60s;
-                proxy_next_upstream error  http_502 http_500  non_idempotent;
-            }
-        }
-        upstream explorer{
-            ip_hash;
-            server 192.168.1.65:6060 ;
-            server 192.168.1.68:6060 ;
-        }
-    }
-    ```
+               if ($request_method = 'POST') {
+                   add_header 'Access-Control-Allow-Origin' '*';
+                   add_header 'Access-Control-Allow-Credentials' 'true';
+                   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+               }
+               if ($request_method = 'GET') {
+                   add_header 'Access-Control-Allow-Origin' '*';
+                   add_header 'Access-Control-Allow-Credentials' 'true';
+                   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+               }
+
+               proxy_set_header Host      $host:$server_port;
+               proxy_set_header X-Real-IP $remote_addr;
+
+               #proxy_http_version 1.1;
+               proxy_read_timeout 60s;
+               proxy_next_upstream error  http_502 http_500  non_idempotent;
+           }
+       }
+       upstream explorer{
+           ip_hash;
+           server 192.168.1.65:6060 ;
+           server 192.168.1.68:6060 ;
+       }
+   }
+   ```
 
 ## Registration and Login
 

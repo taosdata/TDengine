@@ -68,7 +68,7 @@ taosKeeper supports specifying a configuration file with the command `taoskeeper
 If no configuration file is specified, taosKeeper will use the default configuration file located at: `/etc/taos/taoskeeper.toml`.
 If neither a taosKeeper configuration file is specified nor does `/etc/taos/taoskeeper.toml` exist, the default configuration will be used.
 
-**Below is an example of the configuration file:**
+Below is an example of the configuration file:
 
 ```toml
 # The ID of the currently running taoskeeper instance, default is 64.

@@ -67,7 +67,7 @@ Data writing uses parameter binding and is accomplished in three steps:
     ```
 
 2. Bind Data and Submit.  
-  The following example directly writes to a supertable and uses the batch - binding method to enhance writing efficiency.
+    The following example directly writes to a supertable and uses the batch - binding method to enhance writing efficiency.
 
     ``` java
     int childTb    = 1;
@@ -77,18 +77,18 @@ Data writing uses parameter binding and is accomplished in three steps:
     System.out.printf("prepare sql:%s\n", sql);
     // prepare
     PreparedStatement preparedStatement = connection.prepareStatement(sql);
-
+    
     // write
     for (int i = 0; i < childTb; i++ ) {
         for (int j = 0; j < insertRows; j++) {
             float current = (float)(10  + rand.nextInt(100) * 0.01);
             float phase   = (float)(1   + rand.nextInt(100) * 0.0001);
             int   voltage = (int)  (210 + rand.nextInt(20));
-
+    
             preparedStatement.setString   (1, String.format("d%d", i));        // tbname
             preparedStatement.setInt      (2, i);                              // groupid
             preparedStatement.setString   (3, String.format("location%d", i)); // location
-
+    
             preparedStatement.setTimestamp(4, new Timestamp(ts + j));
             preparedStatement.setFloat    (5, current);
             preparedStatement.setInt      (6, voltage);
@@ -97,13 +97,13 @@ Data writing uses parameter binding and is accomplished in three steps:
             preparedStatement.addBatch();
         }
     }
-
+    
     // submit
     preparedStatement.executeBatch();
-
+    
     // close statement
     preparedStatement.close();
-
+    
     ```
 
 3. Close the Connection.
@@ -324,7 +324,7 @@ The LAG() function in Spark is used to obtain data from a previous row relative 
 
 3. Output the analysis results, as shown in the following table:
 
-    ![spark-result](./spark-result.png)
+    ![Output results](../../assets/spark-01.png)
 
 After Spark accesses the TDengine data source, it can further support complex data - processing functions such as cross - database analysis, intersection/union/difference operations of datasets, sub - query filtering with the WHERE clause, and normal - column JOIN.
 

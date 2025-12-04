@@ -145,10 +145,10 @@ In TDengine, you can use the window clause to perform aggregation queries by tim
 
 The window clause allows you to partition the queried data set by windows and aggregate the data within each window. The logic of window partitioning is shown in the following image:
 
-![](../assets/data-querying-01-window.png)
+![Windowing logic](../assets/data-querying-01-window.png)
 
 - Time Window: Data is divided based on time intervals, supporting sliding and tumbling time windows, suitable for data aggregation over fixed time periods.
-- Status Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
+- State Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
@@ -236,7 +236,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 Each query execution is a time window, and the time window slides forward as time progresses. When defining a continuous query, it is necessary to specify the size of the time window (time window) and the forward increment time (forward sliding times). As shown in the figure below, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three consecutive queries, and the time range of the window's forward sliding is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window.
 
-![](../assets/data-querying-02-time-window.webp)
+![Sliding window logic](../assets/data-querying-02-time-window.webp)
 
 :::note
 
@@ -399,7 +399,7 @@ STATE_WINDOW(
 SLIMIT 2;
 ```
 
-The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into status windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
+The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into state windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |    status     |
@@ -433,7 +433,7 @@ Query OK, 22 row(s) in set (0.153403s)
 
 The session window determines whether records belong to the same session based on the value of the timestamp primary key. As shown in the figure below, if the interval between consecutive timestamps is set to be less than or equal to 12 seconds, the following 6 records form 2 session windows: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, which exceeds the continuous interval (12 seconds).
 
-![](../assets/data-querying-03-session-window.png)
+![Session window example](../assets/data-querying-03-session-window.png)
 
 Within the tol_value time interval, results are considered to belong to the same window. If the time between two consecutive records exceeds tol_val, a new window is automatically started.
 
@@ -487,7 +487,7 @@ Consider the following SQL statement, the event window segmentation is illustrat
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![](../assets/data-querying-04-event-window.png)
+![Event window example](../assets/data-querying-04-event-window.png)
 
 Example SQL:
 
@@ -597,6 +597,7 @@ TDengine's nested queries follow these rules:
 ## UNION Clause
 
 In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+
 1. Each SELECT clause must return results with the same number of columns;
 2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
 

@@ -469,7 +469,11 @@ The table below describes the mapping between TDengine SQL data types and Python
 
 This article includes 5 example programs, ranging from basic to advanced, and also contains numerous practical debugging tips.
 
-Note: **Within UDF, logging cannot be done using the print function; you must write to a file or use Python's built-in logging library.**
+:::note
+
+Within UDF, logging cannot be done using the print function; you must write to a file or use Python's built-in logging library.
+
+:::
 
 #### Example One
 
