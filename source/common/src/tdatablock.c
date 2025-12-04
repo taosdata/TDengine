@@ -1559,7 +1559,10 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 
   terrno = 0;
   taosqsort_r(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
-  if (terrno) return terrno;
+  if (terrno) {
+    destroyTupleIndex(index);
+    return terrno;
+  }
 
   int64_t p1 = taosGetTimestampUs();
 
