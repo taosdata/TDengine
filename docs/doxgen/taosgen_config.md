@@ -53,7 +53,7 @@ schema:
 
 jobs:
   # TDengine insert job
-  insert-data:
+  insert:
     steps:
       - uses: tdengine/create-super-table
       - uses: tdengine/create-child-table
@@ -62,7 +62,7 @@ jobs:
             size: 1000
             concurrency: 10
 
-      - uses: tdengine/insert-data
+      - uses: tdengine/insert
         with:
           concurrency: 8
 //ANCHOR_END: tdengine_gen_stmt_insert_config
@@ -92,11 +92,11 @@ schema:
 
 jobs:
   # TDengine insert job
-  insert-data:
+  insert:
     steps:
       - uses: tdengine/create-super-table
       - uses: tdengine/create-child-table
-      - uses: tdengine/insert-data
+      - uses: tdengine/insert
 //ANCHOR_END: tdengine_gen_stmt_insert_simple
 
 //ANCHOR: tdengine_csv_stmt_insert_config
@@ -145,7 +145,7 @@ schema:
 
 jobs:
   # TDengine insert job
-  insert-data:
+  insert:
     steps:
       - uses: tdengine/create-super-table
       - uses: tdengine/create-child-table
@@ -153,7 +153,7 @@ jobs:
           batch:
             size: 1000
             concurrency: 10
-      - uses: tdengine/insert-data
+      - uses: tdengine/insert
         with:
           concurrency: 8
 //ANCHOR_END: tdengine_csv_stmt_insert_config
@@ -163,8 +163,6 @@ mqtt:
   uri: tcp://localhost:1883
   user: root
   password: taosdata
-  topic: factory/{table}/{location}
-  qos: 0
 
 schema:
   name: meters
@@ -202,14 +200,72 @@ schema:
     interlace: 1
     concurrency: 8
     rows_per_table: 10000
-    rows_per_batch: 1000
+    rows_per_batch: 10000
     num_cached_batches: 0
 
 jobs:
   # MQTT publish job
   publish-data:
     steps:
-      - uses: mqtt/publish-data
+      - uses: mqtt/publish
         with:
           concurrency: 8
+          topic: factory/{table}/{location}
+          qos: 0
+
 //ANCHOR_END: mqtt_publish_config
+
+//ANCHOR: kafka_produce_config
+kafka:
+  bootstrap_servers: localhost:9092
+  topic: factory-electric-meter
+
+schema:
+  name: meters
+  tbname:
+    prefix: d
+    count: 10000
+    from: 0
+  columns:
+    - name: ts
+      type: timestamp
+      start: 1700000000000
+      precision : ms
+      step: 300s
+    - name: current
+      type: float
+      min: 0
+      max: 100
+    - name: voltage
+      type: int
+      expr: 220 * math.sqrt(2) * math.sin(_i)
+    - name: phase
+      type: float
+      min: 0
+      max: 360
+    - name: location
+      type: varchar(20)
+      values:
+        - Chicago
+        - Houston
+        - Phoenix
+        - Philadelphia
+        - Dallas
+        - Austin
+  generation:
+    interlace: 1
+    concurrency: 8
+    rows_per_table: 10000
+    rows_per_batch: 10000
+    num_cached_batches: 0
+
+jobs:
+  # Kafka produce job
+  produce-data:
+    steps:
+      - uses: kafka/produce
+        with:
+          concurrency: 8
+          acks: 0
+
+//ANCHOR_END: kafka_produce_config
