@@ -3618,7 +3618,7 @@ int32_t tSerializePrivSysObjPolicies(SEncoder *pEncoder, SPrivSet *sysPriv, SHas
   TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nObjPrivs));
   if (nObjPrivs > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate(pHash, pIter)) {
+    while ((pIter = taosHashIterate(pHash, pIter))) {
       char *objKey = taosHashGetKey(pIter, &klen);
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, objKey));
       SPrivSet *pPrivSet = &((SPrivObjPolicies *)pIter)->policy;
@@ -3679,7 +3679,7 @@ int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, SHashObj *pHash) {
   TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nPolicies));
   if (nPolicies > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate((SHashObj *)pHash, pIter)) {
+    while ((pIter = taosHashIterate((SHashObj *)pHash, pIter))) {
       char *tbKey = taosHashGetKey(pIter, &klen);
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, tbKey));
       if ((vlen = taosHashGetValueSize(pIter)) == 0) {

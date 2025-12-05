@@ -296,7 +296,7 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentUsers));
   if (nParentUsers > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->parentUsers, pIter)) {
+    while ((pIter = taosHashIterate(pObj->parentUsers, pIter))) {
       char *userName = taosHashGetKey(pIter, NULL);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, userName));
     }
@@ -305,7 +305,7 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentRoles));
   if (nParentRoles > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->parentRoles, pIter)) {
+    while ((pIter = taosHashIterate(pObj->parentRoles, pIter))) {
       char *roleName = taosHashGetKey(pIter, NULL);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
     }
@@ -314,7 +314,7 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nSubRoles));
   if (nSubRoles > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
+    while ((pIter = taosHashIterate(pObj->subRoles, pIter))) {
       char *roleName = taosHashGetKey(pIter, NULL);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
     }
@@ -336,7 +336,7 @@ _exit:
 void tFreePrivTblPolicies(SHashObj **ppHash) {
   if (*ppHash) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate(*ppHash, pIter)) {
+    while ((pIter = taosHashIterate(*ppHash, pIter))) {
       int32_t vlen = taosHashGetValueSize(pIter);  // value is NULL for key 1.db.* or 1.*.*
       if (vlen == 0) continue;
       privTblPoliciesFree((SPrivTblPolicies *)pIter);
@@ -967,7 +967,7 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       void  *pIter = NULL;
       size_t klen = 0, tlen = 0;
       char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
-      while (pIter = taosHashIterate(pObj->subRoles, pIter)) {
+      while ((pIter = taosHashIterate(pObj->subRoles, pIter))) {
         char *roleName = taosHashGetKey(pIter, &klen);
         tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }

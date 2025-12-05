@@ -2523,7 +2523,7 @@ static uint64_t tGetPrivObjPoliciesSize(SHashObj* pHash) {
   int32_t  nPolicies = taosHashGetSize((SHashObj*)pHash);
   if (nPolicies > 0) {
     void* pIter = NULL;
-    while (pIter = taosHashIterate((SHashObj*)pHash, pIter)) {
+    while ((pIter = taosHashIterate((SHashObj*)pHash, pIter))) {
       size_t klen = 0;
       char*  tbKey = taosHashGetKey(pIter, &klen);
       totalSize += klen;
@@ -2538,7 +2538,7 @@ static uint64_t tGetPrivTblPoliciesSize(SHashObj *pHash) {
   int32_t nPolicies = taosHashGetSize((SHashObj *)pHash);
   if (nPolicies > 0) {
     void *pIter = NULL;
-    while (pIter = taosHashIterate((SHashObj *)pHash, pIter)) {
+    while ((pIter = taosHashIterate((SHashObj *)pHash, pIter))) {
       size_t klen = 0, vlen = 0;
       char  *tbKey = taosHashGetKey(pIter, &klen);
       totalSize += klen;
