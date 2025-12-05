@@ -1886,7 +1886,11 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   pConn->hostThrd = pThrd;
 
   if (pInst->enableSSL) {
-    code = sslInit(pInst->pSSLContext, &pConn->pTls);
+    SSslCtx *pCxt = NULL;
+    code = transTlsCxtMgtGet(pInst->pTlsMgt, &pCxt);
+    TAOS_CHECK_GOTO(code, &lino, _end);
+
+    code = sslInit(pCxt, &pConn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _end);
 
     pConn->pTls->writeCb = uvOnSendCbSSL;
@@ -2402,11 +2406,11 @@ void uvHandleFreeById(SSvrRespMsg* msg, SWorkThrd* thrd) {
 void uvHandleReloadTlsConfig(SSvrRespMsg* msg, SWorkThrd* thrd) {
   STrans* pInst = thrd->pInst;
 
-  int8_t result = transDoReloadTlsConfig(pInst);
+  int8_t result = transDoReloadTlsConfig(pInst->pTlsMgt, pInst->numOfThreads);
   if (result == 0) {
-    tInfo("%s successfully reloaded TLS config", transLabel(pInst));
+    tInfo("%s not ready to reload TLS config", transLabel(pInst));
   } else {
-    tDebug("%s not ready to  to reload TLS config", transLabel(pInst));
+    tDebug("%s succ to reload TLS config", transLabel(pInst));
   }
 
   taosMemoryFree(msg);
@@ -2757,11 +2761,7 @@ int32_t transReloadServerTlsConfig(void* handle) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
 
-  if (!transShouldDoReloadTlsConfig(pInst)) {
-    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_CFG, &lino, _error);
-  }
-
-  code = transTlsCtxCreateFromOld(pInst->pSSLContext, TAOS_CONN_SERVER, (SSslCtx **)&pInst->pNewSSLContext);
+  code = transTlsCxtMgtCreateNewCxt(pInst->pTlsMgt, TAOS_CONN_SERVER);
   TAOS_CHECK_GOTO(code, &lino, _error);
   
 

@@ -118,14 +118,24 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
   pRpc->ipv6 = pInit->ipv6;
 
+
+  code = transTlsCxtMgtInit((STlsCxtMgt **)&pRpc->pTlsMgt); 
+  TAOS_CHECK_GOTO(code, NULL, _end);
+
   if (pInit->enableSSL == 1) {
-    code = transTlsCtxCreate(pInit, (SSslCtx**)&pRpc->pSSLContext);
+    SSslCtx* pCxt = NULL;
+    code = transTlsCtxCreate(pInit, (SSslCtx**)&pCxt);
     TAOS_CHECK_GOTO(code, NULL, _end);
 
-    if (pRpc->pSSLContext == NULL) {
+    if (pCxt == NULL) {
       tError("Failed to create SSL context for %s", pRpc->label);
       TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
     }
+
+    code = transTlsCxtMgtAppend((STlsCxtMgt*)pRpc->pTlsMgt, pCxt);
+    TAOS_CHECK_GOTO(code, NULL, _end);
+
+
     tInfo("TLS is enabled for %s", pRpc->label);
     pRpc->enableSSL = 1;
   } else {
@@ -160,9 +170,9 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   return (void*)refId;
 _end:
-  if (pRpc->pSSLContext) {
-    transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
-  }
+  // if (pRpc->pSSLContext) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  // }
   taosMemoryFree(pRpc);
   terrno = code;
 
@@ -185,15 +195,16 @@ void rpcCloseImpl(void* arg) {
     (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   }
 
-  if (pRpc->pSSLContext) {
-    transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
-    pRpc->pSSLContext = NULL;
-  }
+  // if (pRpc->pSSLContext) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  //   pRpc->pSSLContext = NULL;
+  // }
+  transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
 
-  if (pRpc->pNewSSLContext != NULL) {
-    transTlsCtxDestroy((SSslCtx*)pRpc->pNewSSLContext);
-    pRpc->pNewSSLContext = NULL;
-  }
+  // if (pRpc->pNewSSLContext != NULL) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pNewSSLContext);
+  //   pRpc->pNewSSLContext = NULL;
+  // }
   taosMemoryFree(pRpc);
 }
 

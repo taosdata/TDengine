@@ -98,12 +98,14 @@ typedef struct {
   int8_t        enableSasl;
   TdThreadMutex mutex;
 
-  void* pSSLContext;  // SSL context for mTLS
-
-  void* pNewSSLContext;  // SSL context for mTLS update version  
   int8_t enableSSL;
-  int32_t loadTlsCount;   
-  int8_t doLoad;
+
+  // void* pSSLContext;  // SSL context for mTLS
+  // void* pNewSSLContext;  // SSL context for mTLS update version  
+  
+  // int32_t loadTlsCount;   
+  // int8_t tlsLoading;
+  void *pTlsMgt;
 } SRpcInfo;
 #else
 void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);

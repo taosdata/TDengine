@@ -46,11 +46,15 @@ typedef struct {
   char*    cafile;    // CA file path
   char*    capath;    // CA directory path
   SSL_CTX* sslCtx;    // SSL context
+  volatile int32_t  refCount;
 } SSslCtx;
 
 int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
 void    transTlsCtxDestroy(SSslCtx* pCtx);
-int32_t transTlsCtxCreateFromOld(SSslCtx *pOld, int8_t cliMode, SSslCtx** pNew);
+
+void   transTlsCxtRef(SSslCtx* pCtx);
+void   transTlsCxtUnref(SSslCtx* pCtx);
+
 typedef struct {
   int32_t  cap;
   int32_t  len;
@@ -71,6 +75,7 @@ typedef struct {
 
   void* pStream;
   void* pConn;
+
 
   SSslBuffer readBuf;  // buffer for reading data
   SSslBuffer sendBuf;  // buffer for sending data
@@ -111,6 +116,31 @@ void sslBufferUnref(SSslBuffer* buf);
 #define SSL_BUFFER_CAP(buf)               ((buf)->cap)
 #define SSL_BUFFER_DATA(buf)              ((buf)->buf)
 #define SSL_BUFFER_OFFSET_DATA(b, offset) ((b)->buf + (offset))
+
+typedef struct {
+  TdThreadRwlock lock;
+  SSslCtx*       pTlsCtx;
+
+  SSslCtx*       pNewTlsCtx;
+  int8_t tlsLoading;
+  int32_t loadTlsCount;
+  
+} STlsCxtMgt;
+
+int32_t transTlsCxtMgtInit(STlsCxtMgt** pMgt); 
+
+int32_t transTlsCxtMgtGet(STlsCxtMgt* pMgt, SSslCtx** ppCtx);
+
+int32_t transTlsCxtMgtAppend(STlsCxtMgt* pMgt, SSslCtx* pNewCtx); 
+
+void transTlsCxtMgtDestroy(STlsCxtMgt* pMgt); 
+
+int32_t transTlsCxtMgtCreateNewCxt(STlsCxtMgt* pMgt, int8_t cliMode); 
+
+int8_t transDoReloadTlsConfig(STlsCxtMgt *pMgt, int32_t numOfThreads); 
+
+int8_t transShouldDoReloadTlsConfig(STlsCxtMgt *pMgt);
+
 
 #ifdef __cplusplus
 }

@@ -1853,7 +1853,11 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
   }
 
   if (pThrd->pInst->enableSSL) {
-    code = sslInit(pThrd->pInst->pSSLContext, &conn->pTls);
+    SSslCtx* pTlsCtx = NULL;
+    code = transTlsCxtMgtGet(pInst->pTlsMgt, &pTlsCtx);
+    TAOS_CHECK_GOTO(code, &lino, _exception1);
+
+    code = sslInit(pTlsCtx, &conn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
 
     conn->pTls->writeCb = cliSendCbSSL;
@@ -2043,7 +2047,7 @@ static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq) {
 static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq) {
   STrans *pInst = pThrd->pInst;
   
-  int8_t result = transDoReloadTlsConfig(pInst);
+  int8_t result = transDoReloadTlsConfig(pInst->pTlsMgt, pInst->numOfThreads);
   if (result == 0) {
     tInfo("%s successfully reloaded TLS config", transLabel(pInst));
   } else {
@@ -3800,12 +3804,7 @@ int32_t transReloadClientTlsConfig(void* handle) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
 
-  if (!transShouldDoReloadTlsConfig(pInst)) {
-    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_CFG, &lino, _error);
-  }
-  
-
-  code = transTlsCtxCreateFromOld(pInst->pSSLContext, TAOS_CONN_CLIENT, (SSslCtx **)&pInst->pNewSSLContext);
+  code = transTlsCxtMgtCreateNewCxt(pInst->pTlsMgt, TAOS_CONN_CLIENT);
   TAOS_CHECK_GOTO(code, &lino, _error);
   
   for (int8_t i = 0; i < pInst->numOfThreads; i++) {
