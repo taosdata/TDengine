@@ -359,6 +359,8 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
                  gid, tsList[i]);
           code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
           QUERY_CHECK_CODE(code, lino, _return);
+        } else {
+          pInfo->winSup.lastTs = tsList[i];
         }
       }
     }

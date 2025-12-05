@@ -676,12 +676,15 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;
+  TSKEY       prevTs;  // previous timestamp
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
   uint32_t    numNullRows;  // number of continuous rows with null state col
-  TSKEY       lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
+  // lastTs is used to record the last timestamp,
+  // so that we can know whether current ts is duplicated
+  // TODO(tony zhang): combine prevTs and lastTs
+  TSKEY       lastTs; 
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col
@@ -701,9 +704,9 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   }
 
   pRowSup->win.skey = pRowSup->win.ekey = 0;
-  pRowSup->prevTs = pRowSup->startRowIndex = 0;
-  pRowSup->numOfRows = pRowSup->groupId = 0;
-  resetNumNullRows(pRowSup);
+  pRowSup->prevTs = pRowSup->lastTs = INT64_MIN;
+  pRowSup->startRowIndex = pRowSup->groupId = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = 0;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);

@@ -2224,8 +2224,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       memcpy(digest + 1, context.digest, tListLen(context.digest));
     } else if (tsTagFilterCache) {
       qInfo("suid:%" PRIu64 ", %s add uid list to normal tag filter cache, "
-        "uidListSize:%d", pScanNode->suid, idstr,
-        (int32_t)taosArrayGetSize(pUidList));
+            "uidListSize:%d", pScanNode->suid, idstr,
+            (int32_t)taosArrayGetSize(pUidList));
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       char*  pPayload = taosMemoryMalloc(size);
       QUERY_CHECK_NULL(pPayload, code, lino, _end, terrno);
@@ -2233,12 +2233,20 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       *(int32_t*)pPayload = numOfTables;
       if (numOfTables > 0) {
         void* tmp = taosArrayGet(pUidList, 0);
+        if (NULL == tmp) {
+          taosMemoryFree(pPayload);
+        }
         QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
         memcpy(pPayload + sizeof(int32_t), tmp, numOfTables * sizeof(uint64_t));
       }
 
-      code = pStorageAPI->metaFn.putCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),
+      code = pStorageAPI->metaFn.putCachedTableList(pVnode, pScanNode->suid, 
+                                                    context.digest, 
+                                                    tListLen(context.digest),
                                                     pPayload, size, 1);
+      if (TSDB_CODE_SUCCESS != code) {
+        taosMemoryFree(pPayload);
+      }
       QUERY_CHECK_CODE(code, lino, _error);
 
       digest[0] = 1;
