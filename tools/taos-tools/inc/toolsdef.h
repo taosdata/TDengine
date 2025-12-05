@@ -169,9 +169,9 @@ extern "C" {
 #define TSDB_DB_NAME_LEN                65
 
 #define TSDB_COL_NAME_LEN               65
-#ifndef TSDB_MAX_ALLOWED_SQL_LEN
-#define TSDB_MAX_ALLOWED_SQL_LEN        (1*1024*1024u) /* sql length should be less than 1mb */
-#endif
+
+// come from tdef.h 
+#define TSDB_MAX_ALLOWED_SQL_LEN        (4*1024*1024u) /* sql max length */
 
 #define TSDB_MAX_BYTES_PER_ROW          65531
 #define TSDB_MAX_TAGS                   128

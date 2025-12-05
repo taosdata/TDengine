@@ -1288,7 +1288,7 @@ void *queryKiller(void *arg) {
             return NULL;
         }
 
-        char command[TSDB_MAX_ALLOWED_SQL_LEN] =
+        char command[] =
             "SELECT kill_id,exec_usec,sql FROM performance_schema.perf_queries";
         TAOS_RES *res = taos_query(taos, command);
         int32_t code = taos_errno(res);

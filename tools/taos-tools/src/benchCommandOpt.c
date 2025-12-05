@@ -396,7 +396,7 @@ static void *queryStableAggrFunc(void *sarg) {
         fprintf(fp, "Querying On %" PRId64 " records:\n", totalData);
     }
     for (int j = 0; j < n; j++) {
-        char condition[COND_BUF_LEN] = "\0";
+        char* condition = benchCalloc(COND_BUF_LEN, sizeof(char), true);
         char tempS[LARGE_BUFF_LEN] = "\0";
         int64_t m = 10 < stbInfo->childTblCount ? 10 : stbInfo->childTblCount;
         for (int64_t i = 1; i <= m; i++) {
@@ -436,6 +436,7 @@ static void *queryStableAggrFunc(void *sarg) {
                 code = taos_errno(res);
                 if (code != 0) {
                     printErrCmdCodeStr(command, code, res);
+                    free(condition);
                     free(command);
                     return NULL;
                 }
@@ -453,6 +454,7 @@ static void *queryStableAggrFunc(void *sarg) {
             infoPrint("%s took %.6f second(s)\n\n", command,
                       t / 1000000);
         }
+        free(condition);
     }
     free(command);
     return NULL;
