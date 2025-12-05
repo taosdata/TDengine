@@ -13,6 +13,4 @@ target_include_directories(
 
 target_link_libraries(crypt PRIVATE common PRIVATE sm4)
 
-if (NOT ${TD_WINDOWS})
-    DEP_ext_ssl(crypt)
-endif()
+DEP_ext_ssl(crypt)
