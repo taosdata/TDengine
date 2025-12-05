@@ -1893,11 +1893,17 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNode** pCol) {
+/**
+  translate column in tables without table prefix
+ */
+static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt,
+                                             SColumnNode** pCol,
+                                             bool* pFound) {
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t  nums = taosArrayGetSize(pTables);
-  bool    found = false;
   bool    isInternalPk = isInternalPrimaryKey(*pCol);
+  *pFound = false;
+
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
     bool        foundCol = false;
@@ -1906,30 +1912,24 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
       return DEAL_RES_ERROR;
     }
     if (foundCol) {
-      if (found) {
+      if (*pFound) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, (*pCol)->colName);
       }
-      found = true;
+      *pFound = true;
     }
     if (isInternalPk) {  // this value should be updated
       break;
     }
   }
-  if (!found) {
-    if (isInternalPk) {
-      if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
-      }
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
-    } else {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
-    }
-  }
+
   return DEAL_RES_CONTINUE;
 }
 
 static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc);
 
+/**
+  translate column using alias in projection list
+ */
 static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** pCol, bool* pFound) {
   SNodeList* pProjectionList = getProjectListFromCurrStmt(pCxt->pCurrStmt);
   SNode*     pNode;
@@ -2225,11 +2225,23 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    res = translateColumnWithoutPrefix(pCxt, pCol);
-    if (!(*pCol)->node.asParam && res != DEAL_RES_CONTINUE && res != DEAL_RES_END &&
-        pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
+    res = translateColumnWithoutPrefix(pCxt, pCol, &found);
+    if (!found && !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
       *translateAsAlias = true;
+    }
+    if (!found && res != DEAL_RES_ERROR) {
+      if (isInternalPrimaryKey(*pCol)) {
+        if (isSelectStmt(pCxt->pCurrStmt) &&
+            NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
+          return generateDealNodeErrMsg(pCxt,
+                                        TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
+        }
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
+      } else {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN,
+                                      (*pCol)->colName);
+      }
     }
   }
   return res;
@@ -2257,31 +2269,64 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   }
 
   EDealRes res = DEAL_RES_CONTINUE;
+  // if has table prefix, directly match column in specified table
   if ('\0' != (*pCol)->tableAlias[0]) {
-    res = translateColumnWithPrefix(pCxt, pCol);
-  } else {
-    bool found = false;
-    if (pCxt->currClause == SQL_CLAUSE_ORDER_BY) {
-      if ((isSelectStmt(pCxt->pCurrStmt) && !(*pCol)->node.asParam) ||
-          isSetOperator(pCxt->pCurrStmt)) {
-        // match column in alias first if column is 'bare' in select stmt
-        // or it is in set operator
-        res = translateColumnUseAlias(pCxt, pCol, &found);
-      }
+    return translateColumnWithPrefix(pCxt, pCol);
+  }
+
+  bool found = false;
+  // for SET(e.g. UNION) statement, only check select list alias
+  if (isSetOperator(pCxt->pCurrStmt)) {
+    res = translateColumnUseAlias(pCxt, pCol, &found);
+    if (!found && res != DEAL_RES_ERROR) {
+      res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, (*pCol)->colName);
     }
-    if (DEAL_RES_ERROR != res && !found) {
-      if (isSetOperator(pCxt->pCurrStmt)) {
-        res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, (*pCol)->colName);
-      } else {
-        // match column in table if not found or column is part of an expression in select stmt
-        res = translateColumnWithoutPrefix(pCxt, pCol);
+    return res;
+  }
+
+  /*
+    For nonparametric columns in ORDER BY clause, first try to match alias in
+    select list. If not found, then match them in all tables.
+  */
+  bool alreadyCheckedAlias = false;
+  if (pCxt->currClause == SQL_CLAUSE_ORDER_BY &&
+      isSelectStmt(pCxt->pCurrStmt) &&
+      !(*pCol)->node.asParam) {
+    res = translateColumnUseAlias(pCxt, pCol, &found);
+    alreadyCheckedAlias = true;
+  }
+
+  /*
+    For most cases, try to match column in all tables directly. If not found,
+    then try to match alias in select list (only for supported clause).
+  */
+  if (!found && res != DEAL_RES_ERROR) {
+    res = translateColumnWithoutPrefix(pCxt, pCol, &found);
+  }
+
+  /*
+    For supported clauses, if column not found in all tables, try to match
+    alias in select list.
+  */
+  if (!found && res != DEAL_RES_ERROR && clauseSupportAlias(pCxt->currClause) &&
+      !alreadyCheckedAlias) {
+    res = translateColumnUseAlias(pCxt, pCol, &found);
+  }
+
+  if (!found && res != DEAL_RES_ERROR) {
+    if (isInternalPrimaryKey(*pCol)) {
+      if (isSelectStmt(pCxt->pCurrStmt) &&
+          NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
+        return generateDealNodeErrMsg(pCxt,
+                                      TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
       }
-    }
-    if (clauseSupportAlias(pCxt->currClause) && !(*pCol)->node.asParam && res != DEAL_RES_CONTINUE &&
-        res != DEAL_RES_END) {
-      res = translateColumnUseAlias(pCxt, pCol, &found);
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
+    } else {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN,
+                                    (*pCol)->colName);
     }
   }
+
   return res;
 }
 
