@@ -16,6 +16,7 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/client"
+    "${TD_SOURCE_DIR}/include/libs/crypt"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -29,6 +30,7 @@ target_link_libraries(
     PRIVATE scalar
     PRIVATE geometry
     PRIVATE decimal
+    PRIVATE crypt
     PUBLIC transport
 )
 
