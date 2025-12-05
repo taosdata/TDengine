@@ -264,7 +264,6 @@ typedef struct STqReader {
   int64_t           lastTs;
   bool              hasPrimaryKey;
   SExtSchema       *extSchema;
-  SVTSourceScanInfo vtSourceScanInfo;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -294,11 +293,6 @@ bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp* pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
 
-int32_t tqReaderSetVtableInfo(STqReader *pReader, void *vnode, void *pAPI, SSHashObj *pVtableInfos,
-                              SSDataBlock **ppResBlock, const char *idstr);
-int32_t tqRetrieveVTableDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
-bool    tqNextVTableSourceBlockImpl(STqReader *pReader, const char *idstr);
-bool    tqReaderIsQueriedSourceTable(STqReader *pReader, uint64_t uid);
 int32_t tqCommitOffset(void* p);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);

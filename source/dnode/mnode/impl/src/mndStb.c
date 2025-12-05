@@ -1645,124 +1645,6 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  while (1) {
-    SMqTopicObj *pTopic = NULL;
-    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
-    if (pIter == NULL) break;
-
-    mInfo("topic:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, subType:%d sql:%s",
-          pTopic->name, stbFullName, suid, colId, pTopic->subType, pTopic->sql);
-    if (pTopic->ast == NULL) {
-      sdbRelease(pSdb, pTopic);
-      continue;
-    }
-
-    SNode *pAst = NULL;
-    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
-      code = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
-      mError("topic:%s, create ast error", pTopic->name);
-      sdbRelease(pSdb, pTopic);
-      sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(code);
-    }
-
-    SNodeList *pNodeList = NULL;
-    if ((code = nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList)) !=
-        0) {
-      sdbRelease(pSdb, pTopic);
-      sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(code);
-    }
-    SNode *pNode = NULL;
-    FOREACH(pNode, pNodeList) {
-      SColumnNode *pCol = (SColumnNode *)pNode;
-      mInfo("topic:%s, check colId:%d tableId:%" PRId64 " ctbStbUid:%" PRId64, pTopic->name, pCol->colId, pCol->tableId,
-            pTopic->ctbStbUid);
-
-      if (pCol->tableId != suid && pTopic->ctbStbUid != suid) {
-        mInfo("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
-        goto NEXT;
-      }
-      if (pCol->colId > 0 && pCol->colId == colId) {
-        code = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
-        mError("topic:%s, check colId:%d conflicted", pTopic->name, pCol->colId);
-        nodesDestroyNode(pAst);
-        nodesDestroyList(pNodeList);
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pTopic);
-        TAOS_RETURN(code);
-      }
-      mInfo("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
-    }
-
-  NEXT:
-    sdbRelease(pSdb, pTopic);
-    nodesDestroyNode(pAst);
-    nodesDestroyList(pNodeList);
-  }
-  TAOS_RETURN(code);
-}
-
-static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
-  return 0;
-  
-  /* STREAMTODO
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  while (1) {
-    SStreamObj *pStream = NULL;
-    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
-    if (pIter == NULL) break;
-
-    SNode *pAst = NULL;
-    if (nodesStringToNode(pStream->ast, &pAst) != 0) {
-      code = TSDB_CODE_MND_INVALID_STREAM_OPTION;
-      mError("stream:%s, create ast error", pStream->name);
-      sdbRelease(pSdb, pStream);
-      sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(code);
-    }
-
-    SNodeList *pNodeList = NULL;
-    if ((code = nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList)) !=
-        0) {
-      sdbRelease(pSdb, pStream);
-      sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(code);
-    }
-
-    SNode *pNode = NULL;
-    FOREACH(pNode, pNodeList) {
-      SColumnNode *pCol = (SColumnNode *)pNode;
-
-      if (pCol->tableId != suid) {
-        mInfo("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
-        goto NEXT;
-      }
-      if (pCol->colId > 0 && pCol->colId == colId) {
-        code = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
-        mError("stream:%s, check colId:%d conflicted", pStream->name, pCol->colId);
-        nodesDestroyNode(pAst);
-        nodesDestroyList(pNodeList);
-        sdbRelease(pSdb, pStream);
-        sdbCancelFetch(pSdb, pIter);
-        TAOS_RETURN(code);
-      }
-      mInfo("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
-    }
-
-  NEXT:
-    sdbRelease(pSdb, pStream);
-  }
-  TAOS_RETURN(code);
-*/  
-}
-
 static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId, bool isTag) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1827,13 +1709,6 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId, bool isTag) {
-  TAOS_CHECK_RETURN(mndCheckAlterColForTopic(pMnode, stbFullName, suid, colId));
-  TAOS_CHECK_RETURN(mndCheckAlterColForStream(pMnode, stbFullName, suid, colId));
-  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, stbFullName, suid, colId, isTag));
-  TAOS_RETURN(0);
-}
-
 static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj *pNew, const char *tagName) {
   int32_t code = 0;
   int32_t tag = mndFindSuperTableTagIndex(pOld, tagName);
@@ -1843,7 +1718,7 @@ static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, true));
+  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, true));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
 
@@ -1879,7 +1754,7 @@ static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, true));
+  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, true));
 
   if (mndFindSuperTableTagIndex(pOld, newTagName) >= 0) {
     code = TSDB_CODE_MND_TAG_ALREADY_EXIST;
@@ -1910,7 +1785,7 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, true));
+  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, true));
 
   uint32_t nLen = 0;
   for (int32_t i = 0; i < pOld->numOfTags; ++i) {
@@ -2108,7 +1983,7 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
   }
 
   col_id_t colId = pOld->pColumns[col].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, false));
+  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, false));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
 
@@ -2145,7 +2020,7 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, false));
+  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, false));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
 
@@ -2988,53 +2863,12 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
     pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
     if (pIter == NULL) break;
 
-    if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
-      if (pTopic->stbUid == suid) {
-        sdbRelease(pSdb, pTopic);
-        sdbCancelFetch(pSdb, pIter);
-        TAOS_RETURN(-1);
-      }
-    }
-
-    if (pTopic->ast == NULL) {
-      sdbRelease(pSdb, pTopic);
-      continue;
-    }
-
-    SNode *pAst = NULL;
-    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
-      code = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
-      mError("topic:%s, create ast error", pTopic->name);
+    if (pTopic->stbUid == suid) {
       sdbRelease(pSdb, pTopic);
       sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(code);
+      TAOS_RETURN(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED);
     }
-
-    SNodeList *pNodeList = NULL;
-    if ((code = nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList)) !=
-        0) {
-      sdbRelease(pSdb, pTopic);
-      sdbCancelFetch(pSdb, pIter);
-      TAOS_RETURN(code);
-    }
-    SNode *pNode = NULL;
-    FOREACH(pNode, pNodeList) {
-      SColumnNode *pCol = (SColumnNode *)pNode;
-
-      if (pCol->tableId == suid) {
-        sdbRelease(pSdb, pTopic);
-        nodesDestroyNode(pAst);
-        nodesDestroyList(pNodeList);
-        sdbCancelFetch(pSdb, pIter);
-        TAOS_RETURN(-1);
-      } else {
-        goto NEXT;
-      }
-    }
-  NEXT:
     sdbRelease(pSdb, pTopic);
-    nodesDestroyNode(pAst);
-    nodesDestroyList(pNodeList);
   }
   TAOS_RETURN(code);
 }
@@ -3102,17 +2936,9 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid) < 0) {
-    code = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+  if ((code = mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid)) != 0) {
     goto _OVER;
   }
-
-/*
-  if (mndCheckDropStbForStream(pMnode, dropReq.name, pStb->uid) < 0) {
-    code = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
-    goto _OVER;
-  }
-*/
 
   if (pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
