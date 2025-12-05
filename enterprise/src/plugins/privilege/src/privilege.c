@@ -19,6 +19,23 @@
 #include "mndTopic.h"
 #include "mndUser.h"
 
+
+
+bool mndMustChangePassword(SUserObj* pUser) {
+  if (pUser->changePass == 1) {
+    return true;
+  }
+
+  if (pUser->passwordLifeTime == -1) {
+    return false;
+  }
+
+  int64_t now = taosGetTimestampSec();
+  return (now - pUser->passwords[0].setTime) >= (int64_t)pUser->passwordLifeTime;
+}
+
+
+
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 
 void mndCleanupPrivilege(SMnode *pMnode) {}
@@ -29,6 +46,14 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operTy
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
+  if (operType == MND_OPER_CONNECT && (pUser->superUser || pUser->enable)) {
+    goto _OVER;
+  }
+
+  if (mndMustChangePassword(pUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+  }
+
   if (pUser->superUser) {
     goto _OVER;
   }
@@ -38,7 +63,6 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operTy
   }
 
   switch (operType) {
-    case MND_OPER_CONNECT:
     case MND_OPER_CREATE_FUNC:
     case MND_OPER_DROP_FUNC:
     case MND_OPER_SHOW_VARIABLES:
@@ -52,32 +76,96 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
-  if (pUser->superUser && pAlter->alterType != TSDB_ALTER_USER_PASSWD &&
-      pAlter->alterType != TSDB_ALTER_USER_ADD_WHITE_LIST && pAlter->alterType != TSDB_ALTER_USER_DROP_WHITE_LIST) {
-    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+
+
+static bool canChangePassword(SUserObj *pOperUser, SUserObj *pUser) {
+  if (pOperUser->superUser) {
+    return true;
   }
 
-  if (pOperUser->superUser) return 0;
-
   if (!pOperUser->enable) {
+    return false;
+  }
+
+  if (strcmp(pUser->user, pOperUser->user) != 0) {
+    return false;
+  }
+
+  if (pUser->changePass == 0) {
+    return false;
+  }
+
+  return true;
+}
+
+
+
+int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
+  if (pAlter->alterType != TSDB_ALTER_USER_BASIC_INFO) {
+    if (mndMustChangePassword(pOperUser)) {
+      TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+    }
+    if (pOperUser->superUser && !pUser->superUser) {
+      return 0;
+    }
     TAOS_RETURN(TSDB_CODE_MND_USER_DISABLED);
   }
 
-  if (pAlter->alterType == TSDB_ALTER_USER_PASSWD) {
-    if (strcmp(pUser->user, pOperUser->user) == 0) {
-      if (pOperUser->sysInfo) return 0;
+  if (pAlter->hasPassword) {
+    if (!canChangePassword(pOperUser, pUser)) {
+      TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
     }
+  } else if (mndMustChangePassword(pOperUser)) {
+    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
   }
 
-  TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+  if (pOperUser->superUser) {
+    if (!pUser->superUser) {
+      // super user can alter any non-super user
+      return 0;
+    }
+  } else if (!pOperUser->enable) {
+    TAOS_RETURN(TSDB_CODE_MND_USER_DISABLED);
+  } else if (strcmp(pUser->user, pOperUser->user) != 0) {
+    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+  } else if (pAlter->numIpRanges > 0 || pAlter->numDropIpRanges > 0) {
+    // user can not alter its own ip white list
+    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+  }
+
+  // now there are two cases left:
+  // 1. if both pOperUser and pUser are superuser
+  // 2. pOperUser and pUser are same user
+
+  if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb ||
+      pAlter->hasChangepass || pAlter->hasSessionPerUser ||
+      pAlter->hasConnectTime || pAlter->hasConnectIdleTime ||
+      pAlter->hasCallPerSession || pAlter->hasVnodePerCall ||
+      pAlter->hasFailedLoginAttempts || pAlter->hasPasswordLifeTime ||
+      pAlter->hasPasswordReuseTime || pAlter->hasPasswordReuseMax ||
+      pAlter->hasPasswordLockTime || pAlter->hasPasswordGraceTime ||
+      pAlter->hasInactiveAccountTime || pAlter->hasAllowTokenNum ||
+      pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
+    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+  }
+
+  // super user can alter totp seed of any user, user can also alter its own totp seed
+  // so no need to check pAlter->hasTotpseed here
+
+  return 0;
 }
+
+
 
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
+
+  if (mndMustChangePassword(pUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+  }
 
   if (pUser->superUser) {
     goto _OVER;
@@ -126,6 +214,10 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
+
+  if (mndMustChangePassword(pUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+  }
 
   if (pUser->superUser) goto _OVER;
 
@@ -204,6 +296,10 @@ int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, EOperType operType
   int32_t code = 0, lino = 0;
   SDbObj *pDb = NULL;
 
+  if (mndMustChangePassword(pUser)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
+  }
+
   if (pUser->superUser) goto _exit;
 
   if (!pUser->enable) {
@@ -237,6 +333,10 @@ int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, EOperType operTy
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
+  if (mndMustChangePassword(pUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+  }
+
   if (pUser->superUser) goto _OVER;
 
   if (!pUser->enable) {
@@ -259,6 +359,10 @@ int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operT
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
+
+  if (mndMustChangePassword(pUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+  }
 
   if (pUser->superUser) goto _OVER;
 
@@ -294,6 +398,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
+  pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
 
@@ -337,7 +442,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+int32_t mndSetUserIpWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp) {
   if (tsEnableWhiteList) {
     (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
     pWhiteListRsp->numWhiteLists = pUser->pIpWhiteListDual->num;
@@ -367,9 +472,10 @@ int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteLis
   TAOS_RETURN(0);
 }
 
-int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp) {
+  (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+
   if (tsEnableWhiteList) {
-    (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
     pWhiteListRsp->numWhiteLists = pUser->pIpWhiteListDual->num;
     pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
     if (pWhiteListRsp->pWhiteListsDual == NULL) {
@@ -378,10 +484,9 @@ int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhit
     (void)memcpy(pWhiteListRsp->pWhiteListsDual, pUser->pIpWhiteListDual->pIpRanges,
                  pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
   } else {
-    (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
     pWhiteListRsp->numWhiteLists = 2;
     pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
-    if (pWhiteListRsp->pWhiteLists == NULL) {
+    if (pWhiteListRsp->pWhiteListsDual == NULL) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
     (void)memset(pWhiteListRsp->pWhiteListsDual, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
@@ -389,8 +494,27 @@ int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhit
     pWhiteListRsp->pWhiteListsDual[1].type = 1;  // ipv6
   }
   TAOS_RETURN(0);
-
-  return 0;
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 1; }
+int32_t mndEnableTimeWhiteList(SMnode *pMnode) { return 1; }
+
+
+int32_t mndSetUserDateTimeWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SUserDateTimeWhiteList *pWhiteListRsp) {
+  (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+
+  if (tsEnableWhiteList) {
+    pWhiteListRsp->ver = pUser->timeWhiteListVer;
+    pWhiteListRsp->numWhiteLists = pUser->pTimeWhiteList->num;
+    pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SDateTimeWhiteListItem));
+    if (pWhiteListRsp->pWhiteLists == NULL) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    (void)memcpy(pWhiteListRsp->pWhiteLists, pUser->pTimeWhiteList->ranges, pWhiteListRsp->numWhiteLists * sizeof(SDateTimeWhiteListItem));
+  } else {
+    pWhiteListRsp->ver = 0;
+    pWhiteListRsp->numWhiteLists = 0;
+  }
+
+  TAOS_RETURN(0);
+}
