@@ -179,6 +179,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not support
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
 
 // mnode-common
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_CONNECTIONS,     "User has too many connections")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_REQ_REJECTED,             "Request rejected")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                "Insufficient privilege for operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          "Data expired")
@@ -187,6 +188,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          "Invalid connection id
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_DISABLED,            "User is disabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PLATFORM,         "Unsupported feature on this platform")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RETURN_VALUE_NULL,        "Return value is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_EXPIRED,    "User password expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INTERNAL_ERROR,           "Mnode internal error")
 
 // mnode-sdb
@@ -229,10 +231,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEDGE_EXIST,         "User already have this priviledge")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_HOST_EXIST,          "Host already exist in ip white list")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_HOST_NOT_EXIST,      "Host not exist in ip white list")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_HOST,       "Too many host in ip white list")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_LOCAL_HOST_NOT_DROP,  "Host can not be dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_REUSE,      "Password reuse detected")
+//TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_TIME_RANGE_CONFLICT, "Date time black/white list conflict")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE,   "Too many ranges in IP white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_TIME_RANGE, "Too many ranges in date time white list")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
@@ -846,13 +848,19 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,             "Invalid table t
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max length is 127 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG,         "Algorithm type too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG,    "Algorithm OpenSSL name too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_DUPLICATED,          "Option duplicated")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OPTION_VALUE,       "Invalid option value")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG,      "Option value too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT,     "Option value too short")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too big")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
