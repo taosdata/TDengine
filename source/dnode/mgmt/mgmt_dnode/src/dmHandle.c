@@ -746,25 +746,25 @@ int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   code = rpcReloadTlsConfig(pTransServer, TAOS_CONN_SERVER);
   if (code != 0) {
-    dError("failed to reload tls config for transport instance %s", "server");
+    dError("failed to reload tls config for transport %s since %s", "server", tstrerror(code));
     goto _error;
   }
 
   code = rpcReloadTlsConfig(pTransCli, TAOS_CONN_CLIENT);
   if (code != 0) {
-    dError("failed to reload tls config for transport instance %s", "cli");
+    dError("failed to reload tls config for transport %s since %s", "cli", tstrerror(code));
     goto _error;
   }
 
   code = rpcReloadTlsConfig(pTransStatus, TAOS_CONN_CLIENT);
   if (code != 0) {
-    dError("failed to reload tls config for transport instance %s", "status-cli");
+    dError("failed to reload tls config for transport %s since %s", "status-cli", tstrerror(code));
     goto _error;
   }
 
   code = rpcReloadTlsConfig(pTransSync, TAOS_CONN_CLIENT);
   if (code != 0) {
-    dError("failed to reload tls config for transport instance %s", "sync-cli");
+    dError("failed to reload tls config for transport %s since %s", "sync-cli", tstrerror(code));
     goto _error;
   }
 

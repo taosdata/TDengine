@@ -161,6 +161,10 @@ int32_t transTlsCxtMgtCreateNewCxt(STlsCxtMgt* pMgt, int8_t cliMode) {
     return code;
   }
 
+  if (pOldCxt == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
   transTlsCxtRef(pOldCxt);
 
   (void)taosThreadRwlockWrlock(&pMgt->lock);

@@ -1853,7 +1853,7 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
   code = mndGetAllNodeAddr(pMnode, pAddr);
 
   for (int32_t i = 0; i < taosArrayGetSize(pAddr); i++) {
-    SEpSet *pEpSet = (SEpSet *)taosArrayGetP(pAddr, i);
+    SEpSet *pEpSet = (SEpSet *)taosArrayGet(pAddr, i);
     // SEpSet epSet = mndCreateEpSetByStr(addr);
     SRpcMsg rpcMsg = {.msgType = TDMT_DND_RELOAD_DNODE_TLS, .pCont = NULL, .contLen = 0};
     code = tmsgSendReq(pEpSet, &rpcMsg);
@@ -1868,6 +1868,10 @@ _OVER:
 
 static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp) {
   int32_t code = 0;
-  rpcFreeCont(pRsp->pCont);
+  if (pRsp->code != 0) {
+    mError("failed to reload dnode tls config since %s", tstrerror(pRsp->code));
+  } else {
+    mInfo("succeed to reload dnode tls config");
+  }
   return code;
 }
