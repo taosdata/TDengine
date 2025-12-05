@@ -49,11 +49,24 @@ class DoTest(BaseStep):
         except Exception as e:
             log.out(f"  {i} total_delay except: {e}")
 
-    def wait_stream_end(self, verifySql, expectRows, compare, delaySql, timeout, max_test_time):
+    def wait_stream_end(self, verifySql, expectRows, compare, delaySql, equalSql, diffRows, timeout, max_test_time):
         log.out("Waiting for stream processing to complete...")
-        log.out(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Max Test Time: {max_test_time} seconds, Timeout: {timeout} seconds")
         conn = taos_connect()
         cursor = conn.cursor()
+        
+        if expectRows is None and equalSql is not None:
+            start = time.time()
+            cursor.execute(equalSql)
+            results = cursor.fetchall()
+            expectRows = results[0][0]
+            cost = time.time() - start
+            metrics.write_metrics(f"Equal sql took {cost:.3f} seconds")
+            
+            log.out(f"  Equal SQL: {equalSql}, Get Rows: {expectRows} diffRows: {diffRows}")
+            if diffRows is not None:
+                expectRows += diffRows
+        
+        log.out(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Max Test Time: {max_test_time} seconds, Timeout: {timeout} seconds")
         
         last_rows = 0
         cnt = 0
@@ -134,10 +147,16 @@ class DoTest(BaseStep):
                         expect_rows = case.get('expectRows')
                         compare     = case.get('compare')
                         delay_sql   = case.get('delaySql')
+                        equal_sql   = case.get('equalSql')
+                        diffRows    = case.get('diffRows')
+                        
                         log.out(f"Found verify info for scenario '{scenario_id}':")
                         log.out(f"  Verify SQL: {verify_sql}")
                         log.out(f"  Expect Rows: {expect_rows}")
-                        return verify_sql, expect_rows, compare, delay_sql
+                        log.out(f"  Compare: {compare}")
+                        log.out(f"  Equal SQL: {equal_sql}")
+                        log.out(f"  Diff Rows: {diffRows}")
+                        return verify_sql, expect_rows, compare, delay_sql, equal_sql, diffRows
                 
                 # If no matching scenario found
                 log.out(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
@@ -160,12 +179,14 @@ class DoTest(BaseStep):
         for table in self.scene.tables:
             yaml_file = self.scene.get_yaml_file(table)
             log.out(f"Processing YAML file: {yaml_file}")
-            verifySql, expectRows, compare, delaySql = self.read_verify_info(self.scene.name, yaml_file)
-            if verifySql != None and expectRows != None:
+            verifySql, expectRows, compare, delaySql, equalSql, diffRows = self.read_verify_info(self.scene.name, yaml_file)
+            if verifySql != None and ( expectRows is not None or equalSql is not None):
                 self.wait_stream_end(verifySql, 
                                      expectRows,
                                      compare, 
-                                     delaySql, 
+                                     delaySql,
+                                     equalSql,
+                                     diffRows,
                                      timeout = cmd.timeout, 
                                      max_test_time = cmd.max_test_time)
             else:

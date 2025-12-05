@@ -6,7 +6,7 @@ testCases:
         create stream db1.stm_a1 
                 sliding(1h) 
                 from db1.readings 
-                stream_options(fill_history_first) 
+                stream_options(IGNORE_DISORDER) 
                 into db1.res_a1 
                 as select _tcurrent_ts ts, avg(fuel_consumption)
                         from db1.readings 
@@ -19,7 +19,7 @@ testCases:
         create stream db1.stm_a2 
                sliding(1m) 
                from db1.readings 
-               stream_options(fill_history_first) 
+               stream_options(IGNORE_DISORDER) 
                into db1.res_a2 
                as 
                   select _tcurrent_ts ts, count(*), avg(fuel_consumption) 
@@ -36,7 +36,7 @@ testCases:
         create stream db1.stm_a3 
             sliding(1m) 
             from db1.readings 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_a3 
             as 
               select _tcurrent_ts cur_ts, count(*), avg(avg_fuel) 
@@ -55,7 +55,7 @@ testCases:
         create stream db1.stm_a4 
             sliding(10m) 
             from db1.readings 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_a4 
             as 
               select _tcurrent_ts, sum(load) 
@@ -73,7 +73,7 @@ testCases:
         create stream db1.stm_a5 
             sliding(10m) 
             from db1.readings 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_a5 (ts, last_heading primary key, num) 
             as 
               select _tcurrent_ts, last_heading, count(*) 
@@ -95,7 +95,7 @@ testCases:
         create stream db1.stm_a6 
             sliding(1h) 
             from db1.readings 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_a6 
             as 
               select _tcurrent_ts, count(*), avg(last_velocity) 
@@ -117,10 +117,10 @@ testCases:
       description: ""
       sql: |
         create stream db1.stm_a7
-            interval(1d) 
-            sliding(1d) 
+            interval(1h)
+            sliding(1h) 
             from db1.readings 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_a7 
             as 
               select _twstart, avg(fuel_consumption) 
@@ -132,10 +132,10 @@ testCases:
       description: ""
       sql: |
         create stream db2.stm_a8
-            interval(1d) 
-            sliding(1d) 
+            interval(1h) 
+            sliding(1h) 
             from db2.diagnostics 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db2.res_a8 
             as 
               select _twstart, sum(tduration)/3600000 
@@ -152,10 +152,10 @@ testCases:
       description: ""
       sql: |
         create stream db2.stm_a9 
-            interval(1d) 
-            sliding(1d) 
+            interval(1h) 
+            sliding(1h) 
             from db2.diagnostics 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db2.res_a9
             as 
               select _twstart, count(*) 
@@ -216,7 +216,7 @@ testCases:
         interval(1h) 
         sliding(1h) 
         from db1.readings partition by fleet 
-        stream_options(fill_history_first) 
+        stream_options(IGNORE_DISORDER) 
         into db1.res_f3 
         as 
           select _twend, avg(fuel_consumption) 
@@ -228,10 +228,10 @@ testCases:
       description: ""
       sql: |
          create stream db1.stm_f4 
-         interval(1d) 
-         sliding(1d) 
+         interval(1h) 
+         sliding(1h) 
          from db1.readings  
-         stream_options(fill_history_first) 
+         stream_options(IGNORE_DISORDER) 
          into db1.res_f4 (ts, fleet primary key, efficiency) 
          as 
           select _twstart, a.fleet, avg_load/avg_fuel efficiency 
@@ -253,11 +253,11 @@ testCases:
       description: ""
       sql: |
         create stream db2.stm_f5 
-        interval(1d) 
-        sliding(1d) 
+        interval(1h) 
+        sliding(1h) 
         from db2.diagnostics 
         partition by fleet 
-        stream_options(fill_history_first) 
+        stream_options(IGNORE_DISORDER) 
         into db2.res_f5 
         as 
           select _twstart, sum(tduration)/3600000 
@@ -276,7 +276,7 @@ testCases:
         create stream db2.stm_f6 
             sliding(1h) 
             from db2.diagnostics partition by fleet 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db2.res_f6 
             as 
               select _tcurrent_ts, sum(cur_load)/sum(load_capacity) 
@@ -294,7 +294,7 @@ testCases:
         create stream db2.stm_f7 
             sliding(1h) 
             from db2.diagnostics partition by fleet 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db2.res_f7 
             as 
               select _tcurrent_ts, sum(breakdown)/count(*) 
@@ -310,10 +310,10 @@ testCases:
       description: ""
       sql: |
         create stream db1.stm_f8 
-        interval(1d) 
-        sliding(1d) 
+        interval(1h) 
+        sliding(1h) 
         from db1.readings partition by fleet 
-        stream_options(fill_history_first) 
+        stream_options(IGNORE_DISORDER) 
         into db1.res_f8 (ts, name primary key, top_fuel) 
         as 
           select _twstart ts, name, top(avg_fuel, 5) top_fuel 
@@ -331,7 +331,7 @@ testCases:
             interval(1h) 
             sliding(1h) 
             from db1.readings partition by tbname 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_t1 
             as 
               select _twstart ts, avg(fuel_consumption) avg_fuel 
@@ -346,7 +346,7 @@ testCases:
             interval(1h) 
             sliding(1h) 
             from db1.readings partition by tbname 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_t2 
             as 
               select _twstart ts, sum(stime) stop_time 
@@ -367,7 +367,7 @@ testCases:
                      when grade <= 70 then 1 
                      else 2 end ) 
             from db1.readings partition by tbname 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_t3 
             as 
               select _twstart ts, avg(fuel_consumption), avg(velocity) 
@@ -386,7 +386,7 @@ testCases:
                         ) 
             from db1.readings 
             partition by tbname 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_t4 
             as 
               select _twstart ts, avg(fuel_consumption) 
@@ -403,7 +403,7 @@ testCases:
                         else 0 end
                       ) 
           from db2.diagnostics partition by tbname 
-          stream_options(fill_history_first) 
+          stream_options(IGNORE_DISORDER) 
           into db2.res_t5 
           as 
             select _twstart, _twduration, avg(current_load) 
@@ -420,7 +420,7 @@ testCases:
                           then 1 else 0 end
                          ) 
             from db2.diagnostics partition by tbname 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db2.res_t6 
             as 
                select  _twstart, _twduration, count(*) 
@@ -437,7 +437,7 @@ testCases:
                           else 0 end
                         ) 
             from db1.readings partition by tbname, name 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_t7 
             as 
               select a.ts, a.wduration, a.avg_velocity, a.avg_grade, a.avg_elevation, b.avg_load 
@@ -463,7 +463,7 @@ testCases:
                          end   with velocity <= 70 or grade <= 70
                         ) 
             from db1.readings partition by tbname 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db1.res_t8 
             as 
               select _twstart, _twduration, avg(fuel_consumption) 
@@ -480,7 +480,7 @@ testCases:
                           else 0 end 
                         ) 
             from db2.diagnostics partition by tbname 
-            stream_options(fill_history_first) 
+            stream_options(IGNORE_DISORDER) 
             into db2.res_t9 
             as 
               select _twstart, first(current_load) 
@@ -723,7 +723,7 @@ testCases:
         ) 
         from metron_dmp.alarm 
         partition by tbname, line, workshop, factory 
-        STREAM_OPTIONS(EVENT_TYPE(WINDOW_OPEN))  
+        STREAM_OPTIONS(IGNORE_DISORDER|EVENT_TYPE(WINDOW_OPEN))  
         into metron_dmp.result_alarm 
         output_subtable(concat_ws('_', 'stream', tbname, line, workshop, factory))
         TAGS(line varchar(20) as line, workshop varchar(20) as workshop, factory varchar(20) as factory)  

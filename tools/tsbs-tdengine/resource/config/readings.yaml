@@ -40,7 +40,8 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a7
-      expectRows: 8888
+      equalSql: select count(*) from (select _wstart ts, avg(fuel_consumption) from db1.readings interval(1h))
+      diffRows: -1
 
     # F1 F2 F3 F4 F8
 
