@@ -46,8 +46,8 @@ TDengine 数据源插件已提交至 Grafana 官网，如何安装 TDengine 数�
 
 在 Grafana 的“Home” -> “Dashboards”页面，点击位于右上角的“New” -> “import”按钮，即可进入 Dashboard 的导入页面，它支持以下两种导入方式。
 
-- Dashboard ID：18180。
-- Dashboard URL：[tdinsight-for-3-x/](https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/)
+- Dashboard ID: 18180.
+- Dashboard URL:[tdinsight-for-3-x/](https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/)
 
 填写以上 Dashboard ID 或 Dashboard URL 以后，点击“Load”按钮，按照向导操作，即可完成导入。导入成功后，Dashboards 列表页面会出现“TDinsight for 3.x”仪表盘，点击进入后，就可以看到 TDinsight 中已创建的各个指标的面板，如下图所示：
 
