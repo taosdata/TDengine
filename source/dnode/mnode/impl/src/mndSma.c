@@ -1499,7 +1499,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       code = colDataSetVal(pColInfo, numOfRows, interval, false);
     }
 
-    char buf[TSDB_MAX_SAVED_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+    char* buf = taosMemoryMalloc(TSDB_MAX_SAVED_SQL_LEN + VARSTR_HEADER_SIZE);
+    if (!buf) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (TSDB_CODE_SUCCESS == code) {
       // create sql
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1541,6 +1544,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     numOfRows++;
     mndReleaseSma(pMnode, pSma);
     mndReleaseDb(pMnode, pSrcDb);
+    taosMemoryFreeClear(buf);
     if (TSDB_CODE_SUCCESS != code) {
       sdbCancelFetch(pMnode->pSdb, pIter->pSmaIter);
       numOfRows = code;

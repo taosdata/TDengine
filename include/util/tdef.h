@@ -322,7 +322,7 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
 
-#define TSDB_MAX_BYTES_PER_ROW 65531  // 49151:65531
+#define TSDB_MAX_BYTES_PER_ROW 524283  // 49151:65531:524283
 #define TSDB_MAX_TAGS_LEN      16384
 #define TSDB_MAX_TAGS          128
 

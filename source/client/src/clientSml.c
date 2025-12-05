@@ -1440,7 +1440,7 @@ static int32_t smlParseEnd(SSmlHandle *info) {
     }
 
     if (taosArrayGetSize(elements->colArray) + taosArrayGetSize(tinfo->tags) > TSDB_MAX_COLUMNS) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "too many columns than 4096", NULL);
+      smlBuildInvalidDataMsg(&info->msgBuf, "too many columns than 32767", NULL);
       return TSDB_CODE_PAR_TOO_MANY_COLUMNS;
     }
 

@@ -847,7 +847,7 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     const SParamInfo* paramPattern = funcMgtBuiltins[pFunc->funcId].parameters.inputParaInfo[i];
 
     while (1) {
-      // one table can have at most 4096 columns, int32_t is enough.
+      // one table can have at most 32767 columns, int32_t is enough.
       for (int32_t j = paramPattern[paramIdx].startParam;
            j <= (paramPattern[paramIdx].endParam == -1 ? INT32_MAX - 1 : paramPattern[paramIdx].endParam); j++) {
         if (j > LIST_LENGTH(paramList)) {

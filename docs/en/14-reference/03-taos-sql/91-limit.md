@@ -29,11 +29,11 @@ Removed ``' " ` `` (single and double quotes, apostrophe, backslash, space)
 - Maximum length of table name is 192 bytes, excluding the database name prefix and separator
 - Maximum length of each row of data is 48KB (from version 3.0.5.0 it is 64KB) (Note: each BINARY/NCHAR type column within a data row will additionally occupy 2 bytes of storage space)
 - Maximum length of column name is 64 bytes
-- Maximum of 4096 columns allowed, with a minimum of 2 columns, the first column must be a timestamp.
+- Maximum of 32767 columns allowed, with a minimum of 2 columns, the first column must be a timestamp.
 - Maximum length of tag name is 64 bytes
 - Maximum of 128 tags allowed, with at least 1 tag required, total length of tag values in a table not exceeding 16KB
-- Default maximum length of SQL statement is 1048576 characters, can be configured via the `maxSQLLength` parameter, with a maximum value of 64MB.
-- SELECT statement results can return up to 4096 columns (function calls in the statement may also occupy some column space), exceeding this limit requires explicitly specifying fewer return data columns to avoid execution errors
+- Default maximum length of SQL statement is 4194304 characters, can be configured via the `maxSQLLength` parameter, with a maximum value of 64MB.
+- SELECT statement results can return up to 32767 columns (function calls in the statement may also occupy some column space), exceeding this limit requires explicitly specifying fewer return data columns to avoid execution errors
 - Number of databases, supertables, and tables are not limited by the system, only by system resources
 - Number of replicas for a database can only be set to 1 or 3
 - Maximum length of username is 23 bytes

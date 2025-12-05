@@ -48,7 +48,7 @@ typedef struct SCsvParser {
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
   SMsgBuf        msg;
-  char           tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+  char*          tmpTokenBuf;
   SBoundColInfo  tags;  // for stmt
   bool           missCache;
   bool           usingDuplicateTable;
@@ -426,7 +426,10 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
     index = 0;
     SToken valueToken = tStrGetToken(pTokenEnd, &index, false, NULL);
     pTokenEnd += index;
-    char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+    char* tmpTokenBuf = taosMemoryMalloc(TSDB_MAX_BYTES_PER_ROW);
+    if (!tmpTokenBuf) {
+      return terrno;
+    }
     if (TK_NK_STRING == valueToken.type) {
       if (valueToken.n >= TSDB_MAX_BYTES_PER_ROW) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", valueToken.z);
@@ -438,22 +441,26 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
 
     if (TSDB_CODE_SUCCESS !=
         parseTimestampOrInterval(&pTokenEnd, &valueToken, timePrec, &tempTs, &tempInterval, pMsgBuf, &secondIsTs, tz)) {
+      taosMemoryFree(tmpTokenBuf);
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
     }
 
     if (valueToken.n < 2) {
+      taosMemoryFree(tmpTokenBuf);
       return buildSyntaxErrMsg(pMsgBuf, "value expected in timestamp", token.z);
     }
 
     if (secondIsTs) {
       // not support operator between tow timestamp, such as today() + now()
       if (firstIsTS) {
+        taosMemoryFree(tmpTokenBuf);
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
       ts = tempTs;
     } else {
       // not support operator between tow interval, such as 2h + 3s
       if (!firstIsTS) {
+        taosMemoryFree(tmpTokenBuf);
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
       interval = tempInterval;
@@ -461,6 +468,7 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
     if (token.type == TK_NK_MINUS) {
       // not support interval - ts,such as 2h - today()
       if (secondIsTs) {
+        taosMemoryFree(tmpTokenBuf);
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
       }
       *time = ts - interval;
@@ -477,10 +485,13 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
       }
       if (valueToken.z[k] == ',' || valueToken.z[k] == ')') {
         *end = pTokenEnd;
+        taosMemoryFree(tmpTokenBuf);
         return TSDB_CODE_SUCCESS;
       }
+      taosMemoryFree(tmpTokenBuf);
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
     }
+    taosMemoryFree(tmpTokenBuf);
   }
 
   *end = pTokenEnd;
@@ -3873,6 +3884,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
                                  .usingDuplicateTable = false,
                                  .needRequest = true,
                                  .forceUpdate = (NULL != pCatalogReq ? pCatalogReq->forceUpdate : false)};
+  context.tmpTokenBuf = taosMemoryMalloc(TSDB_MAX_BYTES_PER_ROW);
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3887,6 +3899,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMeta(*pQuery);
   }
 
+  taosMemoryFreeClear(context.tmpTokenBuf);
   insDestroyBoundColInfo(&context.tags);
   clearInsertParseContext(&context);
   // if no data to insert, set emptyMode to avoid request server
