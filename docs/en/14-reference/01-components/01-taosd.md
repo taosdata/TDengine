@@ -244,7 +244,7 @@ The effective value of charset is UTF-8.
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing        |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime              |
 | timeseriesThreshold        |                   | Supported, effective immediately   | Internal parameter, for usage statistics                     |
-| udf                        |                   | Supported, effective after restart | Whether to start UDF service; 0: do not start, 1: start; default value 0 |
+| udf                        |                   | Supported, effective after restart | Whether to start UDF service; 0: do not start, 1: start; default value 1(The default value on Windows is 0.) |
 | udfdResFuncs               |                   | Supported, effective after restart | Internal parameter, for setting UDF result sets              |
 | udfdLdLibPath              |                   | Supported, effective after restart | Internal parameter, indicates the library path for loading UDF |
 | enableStrongPassword       | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
