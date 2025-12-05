@@ -38,6 +38,9 @@ int32_t Builtin_CBC_Decrypt(SCryptOpts* opts);
 int32_t  taosSm4Encrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len);
 int32_t  taosSm4Decrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len);
 uint32_t tsm4_encrypt_len(int32_t len);
+int32_t  taosAesEncrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len, const uint8_t* iv);
+int32_t  taosAesDecrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len, const uint8_t* iv);
+uint32_t taes_encrypt_len(int32_t len);
 
 #ifdef __cplusplus
 }

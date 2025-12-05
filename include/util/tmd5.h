@@ -42,10 +42,6 @@ void tMD5Init(T_MD5_CTX *mdContext);
 void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, uint32_t inLen);
 void tMD5Final(T_MD5_CTX *mdContext);
 
-int32_t  taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv);
-int32_t  taosAesDecrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv);
-uint32_t taes_encrypt_len(int32_t len);
-
 #ifdef __cplusplus
 }
 #endif
