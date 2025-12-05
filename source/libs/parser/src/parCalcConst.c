@@ -496,8 +496,11 @@ static int32_t calcSubQueries(SCalcConstContext* pCxt, SNodeList* pSubQueries) {
       break;
     }
     if (isEmptyResultQuery(pNode) && isScalarSubQuery(pNode)) {
+      // TODO
+/*
       parserError("%" PRIx64 " scalar subquery got empty result", pCxt->pParseCxt->requestId);
       code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
+*/
       break;
     }
   }
@@ -697,6 +700,9 @@ static void resetProjectNullTypeImpl(SNodeList* pProjects) {
     if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
       pExpr->resType.type = TSDB_DATA_TYPE_VARCHAR;
       pExpr->resType.bytes = VARSTR_HEADER_SIZE;
+      if (QUERY_NODE_VALUE == nodeType(pExpr)) {
+        ((SValueNode*)pExpr)->isNull = true;
+      }
     }
   }
 }

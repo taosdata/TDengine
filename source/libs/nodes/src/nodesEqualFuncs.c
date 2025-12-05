@@ -179,6 +179,11 @@ static bool groupingSetNodeEqual(const SGroupingSetNode* a, const SGroupingSetNo
   return true;
 }
 
+static bool remoteValueNodeEqual(const SRemoteValueNode* a, const SRemoteValueNode* b) {
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return valueNodeEqual(&a->val, &b->val);
+}
+
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -216,6 +221,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
       return false;
+    case QUERY_NODE_REMOTE_VALUE:
+      return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
     default:
       break;
   }

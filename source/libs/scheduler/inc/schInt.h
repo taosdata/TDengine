@@ -361,6 +361,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_LOCAL_EXEC_TASK(_job, _task)                                          \
   ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && \
    (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
+#define SCH_IS_ROOT_TASK(_task) (0 == (_task)->level->level)   
 
 #define SCH_IS_PARENT_JOB(job) (NULL == (job)->parent) 
 #define SCH_JOB_GOT_SUB_JOBS(job) (NULL != (job)->subJobs)

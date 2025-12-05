@@ -77,7 +77,7 @@ int32_t qwCloneSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int
 
 int32_t qwChkSaveSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {
   SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)rsp;
-  if (!queryEnd || be64toh(pRsp->numOfRows) != 1) {
+  if (!queryEnd || be64toh(pRsp->numOfRows) > 1) {
     qError("invalid subQ rsp, queryEnd:%d, numOfRows:%" PRId64, queryEnd, be64toh(pRsp->numOfRows));
     code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
   }

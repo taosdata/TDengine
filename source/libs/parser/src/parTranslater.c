@@ -3863,6 +3863,7 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
       }
       if (TSDB_CODE_SUCCESS == code) {
         SRemoteValueNode* pValue = (SRemoteValueNode*)*pNode;
+        pValue->val.flag |= VALUE_FLAG_VAL_UNSET;
         pValue->subQIdx = pCxt->pSubQueries->length - 1;
         getScalarSubQueryResType(pSubQuery, &pValue->val.node.resType);
       }

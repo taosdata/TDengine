@@ -156,7 +156,8 @@ typedef struct SQWSubQRes {
   void*   rsp;
   int32_t dataLen;
   int32_t code;
-  bool    resGot;
+  int8_t  resGot;
+  int8_t  fetchFromSink;
 } SQWSubQRes;
 
 typedef struct SQWTaskCtx {

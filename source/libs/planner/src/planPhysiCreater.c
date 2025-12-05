@@ -2076,6 +2076,10 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
       if (fmIsScalarFunc(((SFunctionNode*)(*pNode))->funcId)) {
         return collectAndRewrite(pCxt, pNode);
       }
+      break;
+    }
+    case QUERY_NODE_REMOTE_VALUE: {
+      return collectAndRewrite(pCxt, pNode);
     }
     default:
       break;

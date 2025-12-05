@@ -547,6 +547,23 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwHandleSubQueryFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen) {
+  int32_t code = 0;
+  if (atomic_load_8(&ctx->subQRes.resGot)) {
+    *ppRes = ctx->subQRes.rsp;
+    *dataLen = ctx->subQRes.dataLen;
+    code = ctx->subQRes.code;
+    QW_TASK_DLOG("subQ task already got res, rsp:%p, dataLen:%d, code:%d", *ppRes, *dataLen, code);
+    *toFetch = false;
+
+    return code;
+  }
+
+  *toFetch = true;
+
+  return code;
+}
+
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
   int32_t     code = 0;
   SQWTaskCtx *ctx = NULL;
@@ -595,7 +612,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       break;
     }
     case QW_PHASE_PRE_FETCH: {
-      if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
+      if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask && !ctx->subQuery) {
         QW_TASK_ELOG("query already end, phase:%d", phase);
         QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
       }
@@ -1031,12 +1048,12 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     goto _return;
   }
 
-  if (ctx->subQuery && ctx->subQRes.resGot) {
-    rsp = ctx->subQRes.rsp;
-    dataLen = ctx->subQRes.dataLen;
-    code = ctx->subQRes.code;
-    QW_TASK_DLOG("subQ task already got res, rsp:%p, dataLen:%d, code:%d", rsp, dataLen, code);
-    goto _return;
+  if (ctx->subQuery) {
+    bool toFetch = false;
+    code = qwHandleSubQueryFetch(QW_FPARAMS(), ctx, &toFetch, &rsp, &dataLen);
+    if (code || !toFetch) {
+      goto _return;
+    }
   }
 
   SOutputData sOutput = {0};
@@ -1107,7 +1124,7 @@ _return:
     }
 
     if (!rsped && ctx) {
-      if (ctx->subQuery && !ctx->subQRes.resGot) {
+      if (ctx->subQuery && !atomic_load_8(&ctx->subQRes.resGot)) {
         code = qwChkSaveSubQueryFetchRsp(ctx, rsp, dataLen, code, sOutput.queryEnd);
       }
       

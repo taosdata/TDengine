@@ -120,9 +120,11 @@ typedef struct STargetNode {
 
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
+#define VALUE_FLAG_VAL_UNSET      (1 << 2)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
+#define IS_VAL_UNSET(_flag) ((_flag)&VALUE_FLAG_VAL_UNSET)
 
 typedef struct SValueNode {
   SExprNode  node;  // QUERY_NODE_VALUE
