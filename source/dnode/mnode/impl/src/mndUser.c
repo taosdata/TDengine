@@ -3810,7 +3810,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
   }
 
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq, NULL);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 #if 0

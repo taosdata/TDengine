@@ -3835,7 +3835,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tabName));
   }
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->tagCond, pReq->tagCondLen));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->privileges));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, 0)); // obsolete
   ENCODESQL();
 
   tEndEncode(&encoder);
@@ -4004,8 +4004,8 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   uint64_t tagCondLen = 0;
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->tagCond, &tagCondLen));
   pReq->tagCondLen = tagCondLen;
-
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->privileges));
+  int64_t obsolete;
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &obsolete));
   DECODESQL();
 
   tEndDecode(&decoder);

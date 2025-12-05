@@ -1635,6 +1635,7 @@ typedef struct {
   SDateTimeRange* pTimeRanges;
   SIpRange*       pDropIpRanges;
   SDateTimeRange* pDropTimeRanges;
+  SPrivSet        privileges;
 
   char        objname[TSDB_OBJ_FNAME_LEN];  // db or topic
   char        tabName[TSDB_TABLE_NAME_LEN];
@@ -1642,7 +1643,6 @@ typedef struct {
   int32_t     tagCondLen;
   int32_t     sqlLen;
   char*       sql;
-  int64_t    privileges;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);

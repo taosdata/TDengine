@@ -429,7 +429,10 @@ typedef struct {
 } SUserPassword;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
+  union {
+    char name[TSDB_USER_LEN];
+    char user[TSDB_USER_LEN];
+  };
 
   // passwords history, from newest to oldest,
   // the latest one is the current password
