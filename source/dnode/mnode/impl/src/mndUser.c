@@ -305,8 +305,10 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
     TAOS_RETURN(code);
   }
 
-  tIpRangeSetMask(&range, 32);
-
+  code = tIpRangeSetMask(&range, 32);
+  if (code) {
+    TAOS_RETURN(code);
+  }
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteListDual **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
   SIpWhiteListDual  *pList = NULL;
@@ -668,7 +670,10 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
   for (int i = 0; i < num; i++) {
     SIpRange *pRange = &range[i];
     SIpAddr   addr = {0};
-    tIpUintToStr(pRange, &addr);
+    int32_t code = tIpUintToStr(pRange, &addr);
+    if (code != 0) {
+      mError("%s failed to convert ip range to str, code: %d", __func__, code);
+    }
 
     len += tsnprintf(buf + len, bufLen - len, "%s/%d,", IP_ADDR_STR(&addr), addr.mask);
   }
