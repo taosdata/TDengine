@@ -395,6 +395,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
+  taosInitRWLatch(&topicObj.lock);
 
   MND_TMQ_RETURN_CHECK(processAst(&topicObj, pCreate->ast));
 
@@ -460,6 +461,7 @@ static int32_t mndReloadTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
+  taosInitRWLatch(&topicObj.lock);
   taosRUnLockLatch(&topicObjOri->lock);
 
   MND_TMQ_RETURN_CHECK(processAst(&topicObj, pCreate->ast));

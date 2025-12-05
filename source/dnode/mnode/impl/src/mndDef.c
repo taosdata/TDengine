@@ -116,6 +116,7 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char *cgroup, int8_t updateType, 
   pConsumer->hbStatus = 0;
   pConsumer->pollStatus = 0;
 
+  taosInitRWLatch(&pConsumer->lock);
   pConsumer->createTime = taosGetTimestampMs();
   pConsumer->updateType = updateType;
 
@@ -433,6 +434,7 @@ int32_t tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub) {
   MND_TMQ_NULL_CHECK(pSubObj);
   
   (void)memcpy(pSubObj->key, key, TSDB_SUBSCRIBE_KEY_LEN);
+  taosInitRWLatch(&pSubObj->lock);
   pSubObj->vgNum = 0;
   pSubObj->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   MND_TMQ_NULL_CHECK(pSubObj->consumerHash);
@@ -455,11 +457,12 @@ int32_t tCloneSubscribeObj(SMqSubscribeObj *pSub, SMqSubscribeObj **ppSub) {
   PRINT_LOG_START
   taosRLockLatch(&pSub->lock);
 
-  SMqSubscribeObj *pSubNew = taosMemoryMalloc(sizeof(SMqSubscribeObj));
+  SMqSubscribeObj *pSubNew = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
   MND_TMQ_NULL_CHECK(pSubNew);
   *ppSub = pSubNew;
 
   (void)memcpy(pSubNew->key, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
+  taosInitRWLatch(&pSubNew->lock);
 
   pSubNew->dbUid = pSub->dbUid;
   pSubNew->stbUid = pSub->stbUid;

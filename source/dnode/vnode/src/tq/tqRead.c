@@ -616,31 +616,48 @@ static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, c
   SSDataBlock* pBlock = pReader->pResBlock;
 
   int32_t numOfCols = taosArrayGetSize(pColIdList);
-  int32_t i = 0;
-  int32_t j = 0;
-  while (i < pSchema->nCols && j < numOfCols) {
-    SSchema* pColSchema = &pSchema->pSchema[i];
-    col_id_t colIdSchema = pColSchema->colId;
-
-    col_id_t* pColIdNeed = (col_id_t*)taosArrayGet(pColIdList, j);
-    if (pColIdNeed == NULL) {
-      break;
-    }
-    if (colIdSchema < *pColIdNeed) {
-      i++;
-    } else if (colIdSchema > *pColIdNeed) {
-      j++;
-    } else {
+  if (numOfCols == 0) {  // all columns are required
+    for (int32_t i = 0; i < pSchema->nCols; ++i) {
+      SSchema*        pColSchema = &pSchema->pSchema[i];
       SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+
       if (IS_DECIMAL_TYPE(pColSchema->type) && pReader->extSchema != NULL) {
         decimalFromTypeMod(pReader->extSchema[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
       }
       int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != TSDB_CODE_SUCCESS) {
-        return -1;
+        blockDataFreeRes(pBlock);
+        return code;
       }
-      i++;
-      j++;
+    }
+  } else {
+    int32_t i = 0;
+    int32_t j = 0;
+    while (i < pSchema->nCols && j < numOfCols) {
+      SSchema* pColSchema = &pSchema->pSchema[i];
+      col_id_t colIdSchema = pColSchema->colId;
+
+      col_id_t* pColIdNeed = (col_id_t*)taosArrayGet(pColIdList, j);
+      if (pColIdNeed == NULL) {
+        break;
+      }
+      if (colIdSchema < *pColIdNeed) {
+        i++;
+      } else if (colIdSchema > *pColIdNeed) {
+        j++;
+      } else {
+        SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+        if (IS_DECIMAL_TYPE(pColSchema->type) && pReader->extSchema != NULL) {
+          decimalFromTypeMod(pReader->extSchema[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
+        }
+        int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          blockDataFreeRes(pBlock);
+          return code;
+        }
+        i++;
+        j++;
+      }
     }
   }
 
