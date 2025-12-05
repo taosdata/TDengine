@@ -181,8 +181,6 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
-  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
-                                   1);  // TODO: check the return value
 
 _OVER:
   mndTransDrop(pTrans);
@@ -770,7 +768,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
   }
 
-  pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
+  pMnode->ipWhiteVer = mndGetIpWhiteListVersion(pMnode);
+  pMnode->timeWhiteVer = mndGetTimeWhiteListVersion(pMnode);
 
   int64_t analVer = sdbGetTableVer(pMnode->pSdb, SDB_ANODE);
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
@@ -783,7 +782,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
-                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
+                   encryptKeyChanged || enableWhiteListChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
@@ -922,6 +922,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
+    statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -1018,8 +1019,6 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
-  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
-                                   1);  // TODO: check the return value
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);

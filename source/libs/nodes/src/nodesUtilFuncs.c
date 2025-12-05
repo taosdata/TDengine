@@ -652,6 +652,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_BNODE_OPTIONS:
       code = makeNode(type, sizeof(SBnodeOptions), &pNode);
       break;
+    case QUERY_NODE_DATE_TIME_RANGE:
+      code = makeNode(type, sizeof(SDateTimeRangeNode), &pNode);
+      break;
+    case QUERY_NODE_IP_RANGE:
+      code = makeNode(type, sizeof(SIpRangeNode), &pNode);
+      break;
+    case QUERY_NODE_USER_OPTIONS:
+      code = makeNode(type, sizeof(SUserOptions), &pNode);
+      break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode);
       break;
@@ -1664,7 +1673,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_USER_STMT: {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
-      nodesDestroyList(pStmt->pNodeListIpRanges);
+      taosMemoryFree(pStmt->pTimeRanges);
       break;
     }
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT: {
@@ -1672,8 +1681,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_ALTER_USER_STMT: {
       SAlterUserStmt* pStmt = (SAlterUserStmt*)pNode;
-      taosMemoryFree(pStmt->pIpRanges);
-      nodesDestroyList(pStmt->pNodeListIpRanges);
+      nodesDestroyNode((SNode*)pStmt->pUserOptions);
     }
     case QUERY_NODE_DROP_USER_STMT:     // no pointer field
     case QUERY_NODE_USE_DATABASE_STMT:  // no pointer field
@@ -1694,6 +1702,17 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_BNODE_OPTIONS: {
       SBnodeOptions* pOptions = (SBnodeOptions*)pNode;
       // nodesDestroyList(pOptions->pProtocol);
+      break;
+    }
+    case QUERY_NODE_DATE_TIME_RANGE: // no pointer field
+    case QUERY_NODE_IP_RANGE: // no pointer field
+      break;
+    case QUERY_NODE_USER_OPTIONS: {
+      SUserOptions* opts = (SUserOptions*)pNode;
+      nodesDestroyList(opts->pIpRanges);
+      nodesDestroyList(opts->pDropIpRanges);
+      nodesDestroyList(opts->pTimeRanges);
+      nodesDestroyList(opts->pDropTimeRanges);
       break;
     }
     case QUERY_NODE_CREATE_INDEX_STMT: {
