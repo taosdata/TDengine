@@ -303,6 +303,11 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN    1024
 // TSDB_MAX_ALLOWED_SQL_LEN is deprecated, use tsMaxSQLLength instead (defined in tglobal.h)
+#define TSDB_ENCRYPT_ALGR_NAME_LEN          64
+#define TSDB_ENCRYPT_ALGR_DESC_LEN          128
+#define TSDB_ENCRYPT_ALGR_TYPE_LEN          64
+#define TSDB_ENCRYPT_ALGR_SM4_NAME          "SM4-CBC:SM4"
+#define TSDB_MNODE_BUILTIN_DATA_VERSION     2
 
 #define TSDB_VIEW_NAME_LEN  193
 #define TSDB_VIEW_FNAME_LEN (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
@@ -674,6 +679,11 @@ typedef struct {
 typedef struct {
   char name[TSDB_LOG_VAR_LEN];
 } SLogVar;
+
+typedef struct SEncryptData {
+  char encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char encryptKey[ENCRYPT_KEY_LEN + 1];
+} SEncryptData;
 
 #define TMQ_SEPARATOR      ":"
 #define TMQ_SEPARATOR_CHAR ':'

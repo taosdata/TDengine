@@ -2091,7 +2091,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   opts.result = packetData;
   opts.unitLen = TSDB_PASSWORD_LEN;
   tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
-  int newLen = CBC_Encrypt(&opts);
+  int newLen = Builtin_CBC_Encrypt(&opts);
 
   memcpy(pass, packetData, newLen);
   if (algo != NULL) {

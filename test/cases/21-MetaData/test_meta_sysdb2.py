@@ -14,7 +14,7 @@
 
 from new_test_framework.utils import tdLog, tdSql
 
-NUM_INFO_DB_TABLES = 47  # number of system tables in information_schema
+NUM_INFO_DB_TABLES = 48  # number of system tables in information_schema
 NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
 NUM_USER_DB_TABLES = 1  # number of user tables in test_meta_sysdb
 class TestMetaSysDb2:
@@ -75,7 +75,7 @@ class TestMetaSysDb2:
         ## 1.1 check count result
         tdSql.query("select count(*) cnt from information_schema.ins_tables", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + NUM_USER_DB_TABLES) # 47 sys tables + 5 perf tables + 1 user table
+        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + NUM_USER_DB_TABLES) # 48 sys tables + 6 perf tables + 1 user table
 
         ## 2. check plan with group by
         ### 2.1 check plan with group by db_name

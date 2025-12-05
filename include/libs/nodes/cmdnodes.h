@@ -97,7 +97,7 @@ typedef struct SDatabaseOptions {
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
   char        dnodeListStr[TSDB_DNODE_LIST_LEN];
-  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
+  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGR_NAME_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
   int32_t     maxRowsPerBlock;
@@ -508,6 +508,15 @@ typedef struct SCreateUserStmt {
   SDateTimeRange* pTimeRanges;
 } SCreateUserStmt;
 
+typedef struct SCreateEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  char      algrType[TSDB_ENCRYPT_ALGR_TYPE_LEN];
+  char      osslAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SCreateEncryptAlgrStmt;
+
 typedef struct SAlterUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
@@ -518,6 +527,11 @@ typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
+
+typedef struct SDropEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SDropEncryptAlgrStmt;
 
 typedef struct SCreateDnodeStmt {
   ENodeType type;

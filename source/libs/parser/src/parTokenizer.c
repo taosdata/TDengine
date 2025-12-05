@@ -438,6 +438,11 @@ static SKeyword keywordTable[] = {
     {"NOT_ALLOW_HOST",       TK_NOT_ALLOW_HOST},
     {"ALLOW_DATETIME",       TK_ALLOW_DATETIME},
     {"NOT_ALLOW_DATETIME",   TK_NOT_ALLOW_DATETIME},
+    {"ENCRYPT_ALGORITHMS",   TK_ENCRYPT_ALGORITHMS},
+    {"ALGR_NAME",            TK_ALGR_NAME},
+    {"ALGR_TYPE",            TK_ALGR_TYPE},
+    {"ENCRYPT_ALGR",         TK_ENCRYPT_ALGR},
+    {"OSSL_ALGR_NAME",       TK_OSSL_ALGR_NAME},
 };
 // clang-format on
 
