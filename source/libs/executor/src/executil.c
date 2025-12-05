@@ -2260,16 +2260,23 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
                                                     context.digest,
                                                     tListLen(context.digest),
                                                     pPayload, size, 1);
-      if (TSDB_CODE_DUP_KEY == code) {
-        code = TSDB_CODE_SUCCESS;  // ignore duplicate key error
+      if (TSDB_CODE_SUCCESS == code) {
+        /*
+          data referenced by pPayload is used in lru cache,
+          reset pPayload to NULL to avoid being freed in _error block
+        */
+        pPayload = NULL;
+      } else {
+        if (TSDB_CODE_DUP_KEY == code) {
+          /*
+            another thread has already put the same key into cache,
+            we can just ignore this error
+          */
+          code = TSDB_CODE_SUCCESS;
+        }
+        QUERY_CHECK_CODE(code, lino, _end);
       }
-      QUERY_CHECK_CODE(code, lino, _end);
 
-      /*
-        data referenced by pPayload is used in lru cache,
-        reset pPayload to NULL to avoid being freed in _error block
-      */
-      pPayload = NULL;
 
       digest[0] = 1;
       memcpy(digest + 1, context.digest, tListLen(context.digest));
