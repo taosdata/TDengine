@@ -8172,8 +8172,8 @@ static const char* jkAlterUserStmtCreatedb = "Createdb";
 
 static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   const SAlterUserStmt* pNode = (const SAlterUserStmt*)pObj;
-
   int32_t code = tjsonAddStringToObject(pJson, jkAlterUserStmtUserName, pNode->userName);
+#if 0
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtAlterType, pNode->alterType);
   }
@@ -8189,14 +8189,14 @@ static int32_t alterUserStmtToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkAlterUserStmtCreatedb, pNode->createdb);
   }
-
+#endif
   return code;
 }
 
 static int32_t jsonToAlterUserStmt(const SJson* pJson, void* pObj) {
   SAlterUserStmt* pNode = (SAlterUserStmt*)pObj;
-
   int32_t code = tjsonGetStringValue(pJson, jkAlterUserStmtUserName, pNode->userName);
+#if 0
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtAlterType, &pNode->alterType);
   }
@@ -8212,7 +8212,7 @@ static int32_t jsonToAlterUserStmt(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkAlterUserStmtCreatedb, &pNode->createdb);
   }
-
+#endif
   return code;
 }
 
