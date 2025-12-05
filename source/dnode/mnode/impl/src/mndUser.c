@@ -2686,7 +2686,7 @@ static char *mndUserAuditTypeStr(int32_t type) {
   return "error";
 }
 
-static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode *pMnode, SUserObj *pNewUser) {
+static int32_t mndProcessAlterUserPrivilegesReq(SAlterRoleReq *pAlterReq, SMnode *pMnode, SUserObj *pNewUser) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   int32_t code = 0;
@@ -2871,6 +2871,10 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+#ifdef TD_ENTERPRISE
+extern int32_t mndAlterUserInfo(SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+#endif
+
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -2883,7 +2887,9 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pAlterReq->principal, &pUser));
 
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
-    // TAOS_CHECK_EXIT(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser));
+#ifdef TD_ENTERPRISE
+    TAOS_CHECK_EXIT(mndAlterUserInfo(pObj, &newObj, &alterReq));
+#endif
   } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
     TAOS_CHECK_EXIT(mndAcquireRole(pMnode, pAlterReq->roleName, &pRole));
 

@@ -1507,7 +1507,6 @@ typedef struct {
   int32_t     tagCondLen;
   int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
-  SPrivSet    privileges;
   int32_t     sqlLen;
   char*       sql;
   int8_t      passIsMd5;

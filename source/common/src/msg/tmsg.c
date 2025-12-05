@@ -3477,10 +3477,6 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     TAOS_CHECK_EXIT(code);
   }
 
-  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-    TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pReq->privileges.set[i]));
-  }
-
   tEndEncode(&encoder);
 
 _exit:
@@ -3546,12 +3542,6 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
       SIpRange *pRange = &pReq->pIpDualRanges[i];
       code = tDeserializeIpRange(&decoder, pRange);
       TAOS_CHECK_EXIT(code);
-    }
-  }
-
-  if (!tDecodeIsEnd(&decoder)) {
-    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-      TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pReq->privileges.set[i]));
     }
   }
 
