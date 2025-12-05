@@ -109,7 +109,7 @@ class OutMetrics:
             f.write(msg + '\n') 
 
     def output_metrics(self):
-        log.out(f"Outputting metrics to {self.metrics_file}")
+        log.out(f"\nTotal metrics output:")
         succ = 0
         
         # Column widths

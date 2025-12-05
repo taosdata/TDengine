@@ -81,6 +81,7 @@ testCases:
                              ) b 
                              on a.ts = b.ts and a.fleet = b.fleet
                    )
+                   where ts < '2025-01-01 11:00:00' 
       diffRows: -1
 
     - scenarioId: "F8"
