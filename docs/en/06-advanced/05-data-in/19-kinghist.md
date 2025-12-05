@@ -15,7 +15,7 @@ TDengine TSDB can efficiently read data from KingHistorian and write it into TDe
 
 In the data writing page, click the **+Add Data Source** button to enter the Add Data Source page.
 
-![kinghist-01.png](../../assets/Common-en00-EnterDataSourcePage.png)
+![Add data source](../../assets/Common-en00-EnterDataSourcePage.png)
 
 ### 2. Configure Basic Information
 
@@ -27,7 +27,7 @@ Select **KingHistorian** from the **Type** dropdown list.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![kinghist-02.png](../../assets/kinghist-02.png)
+![Configure basic settings](../../assets/kinghist-02.png)
 
 ### 3. Configure Connection Information
 
@@ -37,14 +37,14 @@ Fill in the **Username** and **Password** in the **Authentication** area.
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![kinghist-03.png](../../assets/kinghist-03.png)
+![Configure connection information](../../assets/kinghist-03.png)
 
 ### 4. Configure Tags
 
 In the **Upload CSV Configuration File**, click **Download Data Points**, then select the required **Point Group**, **Points**, and **Tags**. This action generates a CSV configuration and downloads it locally.
 Modify the generated CSV configuration file as needed and re-upload it.
 
-![kinghist-04.png](../../assets/kinghist-04.png)
+![Configure tags](../../assets/kinghist-04.png)
 
 ### 5. Configure Collection Information
 
@@ -64,7 +64,7 @@ Fill in a time interval in **Out-of-Order**. Each query window will backtrack th
 
 Fill in a time interval in **Query Interval**. There will be a waiting interval between each query window.
 
-![kinghist-05.png](../../assets/kinghist-05.png)
+![Migrate historical data](../../assets/kinghist-05.png)
 
 #### 5.2. Real-Time Data Synchronization
 
@@ -72,7 +72,7 @@ If you want to perform real-time data synchronization, configure the following p
 
 Fill in a time interval in **Minimum Interval Time**, which is the minimum subscription interval time.
 
-![kinghist-06.png](../../assets/kinghist-06.png)
+![Synchronize real-time data](../../assets/kinghist-06.png)
 
 ### 6. Configure Advanced Options
 

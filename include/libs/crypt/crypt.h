@@ -27,10 +27,13 @@ typedef struct SCryptOpts {
   char*   result;
   int32_t unitLen;
   char    key[ENCRYPT_KEY_LEN + 1];
+  char*   pOsslAlgrName;
 } SCryptOpts;
 
 int32_t CBC_Decrypt(SCryptOpts* opts);
 int32_t CBC_Encrypt(SCryptOpts* opts);
+int32_t Builtin_CBC_Encrypt(SCryptOpts* opts);
+int32_t Builtin_CBC_Decrypt(SCryptOpts* opts);
 
 int32_t  taosSm4Encrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len);
 int32_t  taosSm4Decrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len);

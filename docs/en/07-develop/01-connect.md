@@ -20,7 +20,7 @@ import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
 import VerifyWindows from "../assets/resources/_verify_windows.mdx";
 import ConnectorType from "../assets/resources/_connector_type.mdx";
 
-<ConnectorType /> 
+<ConnectorType />
 
 ## Installing the Client Driver taosc
 
@@ -492,6 +492,7 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 ```python
 {{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
 ```
+
 </TabItem>
 
 <TabItem label="Go" value="go">
