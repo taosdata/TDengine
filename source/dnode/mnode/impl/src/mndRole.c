@@ -191,7 +191,7 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleTyp
   SRoleObj *pRole = NULL, *pNew = NULL;
   if (mndAcquireRole(pMnode, role, &pRole) == 0) {
     if (pRole->version < MND_ROLE_SYSROLE_VER) {
-      mInfo("role:%s version:%ld upgrade to version:%d", role, pRole->version, MND_ROLE_SYSROLE_VER);
+      mInfo("role:%s version:%" PRId64 " upgrade to version:%d", role, pRole->version, MND_ROLE_SYSROLE_VER);
       pNew = taosMemoryCalloc(1, sizeof(SRoleObj));
       if (pNew == NULL) {
         mndReleaseRole(pMnode, pRole);

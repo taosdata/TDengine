@@ -16262,12 +16262,12 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     pCol->node.resType.bytes = pSchema->bytes;
   }
 
-  if (!(*ppReqCols = taosArrayInit(MIN(nCols, columnNum), sizeof(SColIdNameKV)))) {
+  if (!(*ppReqCols = taosArrayInit(TMIN(nCols, columnNum), sizeof(SColIdNameKV)))) {
     return terrno;
   }
 
   nodesSortList(&pCols, comparePrivColWithColId);
-  int32_t bufLen = MIN(nCols, columnNum) * (sizeof(col_id_t)), colIdx = 0;
+  int32_t bufLen = TMIN(nCols, columnNum) * (sizeof(col_id_t)), colIdx = 0;
   if (!(buf = (col_id_t*)taosMemoryMalloc(bufLen))) {
     return terrno;
   }
