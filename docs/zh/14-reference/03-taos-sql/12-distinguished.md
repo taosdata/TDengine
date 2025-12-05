@@ -17,10 +17,10 @@ PARTITION BY part_list
 ```
 
 part_list 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。例如，将数据按标签 location 进行分组，取每个分组内的电压平均值：
+
 ```sql
 select location, avg(voltage) from meters partition by location
 ```
-
 
 TDengine 按如下方式处理数据切分子句：
 
@@ -31,11 +31,12 @@ TDengine 按如下方式处理数据切分子句：
 ```sql
 select _wstart, location, max(current) from meters partition by location interval(10m)
 ```
+
 数据切分子句最常见的用法就是在超级表查询中，按标签将子表数据进行切分，然后分别进行计算。特别是 PARTITION BY TBNAME 用法，它将每个子表的数据独立出来，形成一条条独立的时间序列，极大的方便了各种时序场景的统计分析。例如，统计每个电表每 10 分钟内的电压平均值：
+
 ```sql
 select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
 ```
-
 
 ## 窗口切分查询
 
@@ -54,10 +55,10 @@ window_clause: {
 ```
 
 其中，interval_val 和 sliding_val 都表示时间段，interval_offset 表示窗口偏移量，interval_offset 必须小于 interval_val，语法上支持三种方式，举例说明如下：
- - `INTERVAL(1s, 500a) SLIDING(1s)` 自带时间单位的形式，其中的时间单位是单字符表示，分别为：a (毫秒)、b (纳秒)、d (天)、h (小时)、m (分钟)、n (月)、s (秒)、u (微秒)、w (周)、y (年)。
- - `INTERVAL(1000, 500) SLIDING(1000)` 不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库。
- - `INTERVAL('1s', '500a') SLIDING('1s')` 自带时间单位的字符串形式，字符串内部不能有任何空格等其它字符。
 
+- `INTERVAL(1s, 500a) SLIDING(1s)` 自带时间单位的形式，其中的时间单位是单字符表示，分别为：a (毫秒)、b (纳秒)、d (天)、h (小时)、m (分钟)、n (月)、s (秒)、u (微秒)、w (周)、y (年)。
+- `INTERVAL(1000, 500) SLIDING(1000)` 不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库。
+- `INTERVAL('1s', '500a') SLIDING('1s')` 自带时间单位的字符串形式，字符串内部不能有任何空格等其它字符。
 
 ### 窗口子句的规则
 
@@ -84,10 +85,11 @@ FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填
 
 以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。而对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 v3.0.3.0 开始，增加了两种新的填充模式：
 
-7. NULL_F：强制填充 NULL 值 
+7. NULL_F：强制填充 NULL 值
 8. VALUE_F：强制填充 VALUE 值
 
 NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
+
 - INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
 - 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
 - INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
@@ -110,13 +112,13 @@ INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗
 
 INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用。以下 SQL 语句非法：
 
-```
+```sql
 SELECT * FROM temp_tb_1 INTERVAL(1m);
 ```
 
 SLIDING 的向前滑动的时间不能超过一个窗口的时间范围。以下语句非法：
 
-```
+```sql
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
@@ -147,27 +149,27 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 ![TDengine Database 状态窗口示意图](./pic/state_window.png)
 
-使用 STATE_WINDOW 来确定状态窗口划分的列。例如 
+使用 STATE_WINDOW 来确定状态窗口划分的列。例如
 
-```
+```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
-仅关心 status 为 2 时的状态窗口的信息。例如 
+仅关心 status 为 2 时的状态窗口的信息。例如
 
-```
+```sql
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
 TDengine 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。例如，智能电表的电压正常范围是 205V 到 235V，那么可以通过监控电压来判断电路是否正常。
 
-```
+```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
 
 状态窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个状态窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
-```
+```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
 ```
 
@@ -179,8 +181,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
 
-```
-
+```sql
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
 
@@ -196,6 +197,7 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
 
 以下面的 SQL 语句为例，事件窗口切分如图所示：
+
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
@@ -204,7 +206,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
-```
+```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
 ```
 
@@ -213,6 +215,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 计数窗口按固定的数据行数来划分窗口。默认将数据按时间戳排序，再按照 count_val 的值，将数据划分为多个窗口，然后做聚合计算。count_val 表示每个 count window 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 interval 的 SLIDING。
 
 以下面的 SQL 语句为例，计数窗口切分如图所示：
+
 ```sql
 select _wstart, _wend, count(*) from t count_window(4);
 ```
@@ -227,17 +230,15 @@ select _wstart, _wend, count(*) from t count_window(4);
 
 智能电表的建表语句如下：
 
-```
+```sql
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
 针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
 
-```
+```sql
 SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
   WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)
   FILL(PREV);
 ```
-
-

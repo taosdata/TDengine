@@ -13,25 +13,27 @@ Telegraf 是一款十分流行的指标采集开源软件。在数据采集和�
 ## 前置条件
 
 要将 Telegraf 数据写入 TDengine 需要以下几方面的准备工作。
+
 - TDengine 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
 - Telegraf 已经安装。安装 Telegraf 请参考 [官方文档](https://docs.influxdata.com/telegraf/v1.22/install/)
 - Telegraf 默认采集系统运行状态数据。通过使能 [输入插件](https://docs.influxdata.com/telegraf/v1.22/plugins/)方式可以输出 [其他格式](https://docs.influxdata.com/telegraf/v1.24/data_formats/input/) 的数据到 Telegraf 再写入到 TDengine 中。
 
 ## 配置步骤
+
 <Telegraf />
 
 ## 验证方法
 
 重启 Telegraf 服务：
 
-```
+```bash
 sudo systemctl restart telegraf
 ```
 
 使用 TDengine CLI 验证从 Telegraf 向 TDengine 写入数据并能够正确读出：
 
-```
+```sql
 taos> show databases;
               name              |
 =================================
@@ -74,5 +76,5 @@ Query OK, 3 row(s) in set (0.013269s)
 - TDengine 接收 influxdb 格式数据默认生成的子表名是根据规则生成的唯一 ID 值。
 用户如需指定生成的表名，可以通过在 taos.cfg 里配置 smlChildTableName 参数来指定。如果通过控制输入数据格式，即可利用 TDengine 这个功能指定生成的表名。
 举例如下：配置 smlChildTableName=tname 插入数据为 st,tname=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1。如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。[TDengine 无模式写入参考指南](../../../develop/schemaless)
-:::
 
+:::

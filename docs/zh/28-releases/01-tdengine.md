@@ -7,6 +7,7 @@ description: TDengine 发布历史、Release Notes 及下载链接
 ## TDengine 版本规则说明
 
 TDengine 版本号由四个数字组成，中间由点号分隔，定义如下
+
 - `[Major+].[Major].[Feature].[Maintenance]`
 - `Major+`：产品有重大重构，不能直接升级，如有升级需要请联系 TDengine 客户支持团队
 - `Major`：有重大新特性，升级时不支持滚动升级，且升级后不可回退，如从 3.2.3.0 升级到 3.3.0.0 后不能回退
@@ -159,7 +160,6 @@ import Release from "/components/ReleaseV3";
 ## 3.0.3.0
 
 <Release type="tdengine" version="3.0.3.0" />
-
 
 ## 3.0.2.6
 

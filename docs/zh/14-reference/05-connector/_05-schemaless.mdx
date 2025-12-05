@@ -9,6 +9,7 @@ TDengine 提供了兼容 InfluxDB (v1) 和 OpenTSDB 行协议的 Schemaless API�
 ### 兼容 InfluxDB 行协议写入的方法
 
 您可以配置任何支持使用 InfluxDB（v1）行协议的应用访问地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 InfluxDB 兼容格式的数据到 TDengine。EndPoint 如下：
+
 ```text
 /influxdb/v1/write?<param1=value1>?<param2=value2>...
 ```
@@ -35,5 +36,6 @@ TDengine 提供了兼容 InfluxDB (v1) 和 OpenTSDB 行协议的 Schemaless API�
 ```
 
 参考链接：
-  - [OpenTSDB JSON](http://opentsdb.net/docs/build/html/api_http/put.html)
-  - [OpenTSDB Telnet](http://opentsdb.net/docs/build/html/api_telnet/put.html)
+
+- [OpenTSDB JSON](http://opentsdb.net/docs/build/html/api_http/put.html)
+- [OpenTSDB Telnet](http://opentsdb.net/docs/build/html/api_telnet/put.html)

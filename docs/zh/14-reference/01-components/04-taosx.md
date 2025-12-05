@@ -16,6 +16,7 @@ taosx -f <from-DSN> -t <to-DSN> <其它参数>
 ```
 
 taosX 的命令行参数分为三个主要部分：
+
 - `-f` 指定数据源，即 Source DSN
 - `-t` 指定写入目标，即 Sink DSN
 - 其它参数
@@ -35,6 +36,7 @@ taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源）
 // url 示例
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ```
+
 [] 中的数据都为可选参数。
 
 1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项：
@@ -50,6 +52,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - csv：从 CSV 文件解析数据
 
 2. +protocol 包含如下选项：
+
 - +ws：当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
 - +ua：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
 - +da：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
@@ -62,7 +65,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ### 其它参数
 
 1. --jobs `<number>` 指定任务并发数，仅支持 tmq 任务
-2. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace 
+2. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace
 
 ### 使用举例
 
@@ -231,7 +234,7 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 
 ## 服务模式
 
-本节讲述如何以服务模式部署 `taosX`。以服务模式运行的 taosX，其各项功能需要通过 taosExplorer 上的图形界面来使用。 
+本节讲述如何以服务模式部署 `taosX`。以服务模式运行的 taosX，其各项功能需要通过 taosExplorer 上的图形界面来使用。
 
 ### 配置
 
@@ -389,6 +392,7 @@ sc.exe start taosx
 1. 修改 `taosX` 日志级别
 
 `taosX` 的默认日志级别为 `info`，要指定不同的级别，请修改配置文件，或使用以下命令行参数：
+
 - `error`：`taosx serve -qq`
 - `debug`：`taosx serve -q`
 - `info`：`taosx serve -v`
@@ -438,7 +442,6 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | process_memory_percent     | taosX 进程占用内存百分比，单位 %                                             |
 | process_disk_read_bytes    | taosX 进程在一个监控周期（比如 10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
 | process_disk_written_bytes | taosX 进程在一个监控周期（比如 10s）内写到硬盘的字节数的平均值，单位 bytres/s  |
-
 
 ### Agent
 
