@@ -124,7 +124,7 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   if (pInit->enableSSL == 1) {
     SSslCtx* pCxt = NULL;
-    code = transTlsCtxCreate(pInit, (SSslCtx**)&pCxt);
+    code = transTlsCxtCreate(pInit, (SSslCtx**)&pCxt);
     TAOS_CHECK_GOTO(code, NULL, _end);
 
     if (pCxt == NULL) {
@@ -171,7 +171,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   return (void*)refId;
 _end:
   // if (pRpc->pSSLContext) {
-  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  //   transTlsCxtDestroy((SSslCtx*)pRpc->pSSLContext);
   // }
   taosMemoryFree(pRpc);
   terrno = code;
@@ -196,13 +196,13 @@ void rpcCloseImpl(void* arg) {
   }
 
   // if (pRpc->pSSLContext) {
-  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  //   transTlsCxtDestroy((SSslCtx*)pRpc->pSSLContext);
   //   pRpc->pSSLContext = NULL;
   // }
   transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
 
   // if (pRpc->pNewSSLContext != NULL) {
-  //   transTlsCtxDestroy((SSslCtx*)pRpc->pNewSSLContext);
+  //   transTlsCxtDestroy((SSslCtx*)pRpc->pNewSSLContext);
   //   pRpc->pNewSSLContext = NULL;
   // }
   taosMemoryFree(pRpc);

@@ -992,8 +992,8 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     code = sslRead(conn->pTls, pBuf, nread, 0);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
-    conn->saslConn->isAuthed = 1;
-    if (sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
+    if (conn->saslConn) conn->saslConn->isAuthed = 1;
+    if (conn->saslConn && sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
       code = saslConnHandleAuth(conn->saslConn, (const char*)pBuf->buf, pBuf->len);
       TAOS_CHECK_GOTO(code, &lino, _error);
 
@@ -2787,7 +2787,7 @@ _error:
 
   transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
   if (code != 0) {
-    tError("ip-white-list update failed since %s", tstrerror(code));
+    tError("trans failed to update tls config  since %s", tstrerror(code));
   }
   return code;
 }

@@ -1863,6 +1863,8 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
   }
 
 _OVER:
+  tFreeSMCfgDnodeReq(&req);
+  taosArrayDestroy(pAddr);
   return code;
 }
 

@@ -1066,8 +1066,9 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
     code = sslRead(conn->pTls, pBuf, nread, 1);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
-    conn->saslConn->isAuthed = 1;
-    if (sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
+    if (conn->saslConn) conn->saslConn->isAuthed = 1;
+
+    if (sslIsInited(conn->pTls) && conn->saslConn && !saslAuthIsInited(conn->saslConn)) {
       code = saslConnHandleAuth(conn->saslConn, (const char*)pBuf->buf, pBuf->len);
       if (code != 0) {
         tDebug("%s conn:%p, failed to handle sasl auth since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));

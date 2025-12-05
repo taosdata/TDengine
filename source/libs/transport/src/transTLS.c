@@ -48,10 +48,10 @@ extern void sslBufferUnrefImpl(SSslBuffer* buf);
 
 
 
-int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
+int32_t transTlsCxtCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
 
 
-void transTlsCtxDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }
+void transTlsCxtDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }
 
 
 int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) { return sslInitImpl(pCtx, ppTLs); }
@@ -126,7 +126,9 @@ int32_t transTlsCxtMgtUpdate(STlsCxtMgt* pMgt) {
   SSslCtx* pOldCtx = pMgt->pTlsCtx; 
   pMgt->pTlsCtx = pMgt->pNewTlsCtx;
   pMgt->pNewTlsCtx = NULL;
-  transTlsCtxDestroy(pOldCtx);
+
+  transTlsCxtUnref(pOldCtx);
+  transTlsCxtRef(pMgt->pTlsCtx);
 
   (void)taosThreadRwlockUnlock(&pMgt->lock);
 
@@ -136,6 +138,7 @@ int32_t transTlsCxtMgtUpdate(STlsCxtMgt* pMgt) {
 int32_t transTlsCxtMgtAppend(STlsCxtMgt* pMgt, SSslCtx* pNewCtx) {
   int32_t code = 0;
   (void)taosThreadRwlockWrlock(&pMgt->lock);
+  transTlsCxtRef(pNewCtx);
   pMgt->pTlsCtx = pNewCtx;
   (void)taosThreadRwlockUnlock(&pMgt->lock);
   return code;
@@ -144,7 +147,7 @@ int32_t transTlsCxtMgtAppend(STlsCxtMgt* pMgt, SSslCtx* pNewCtx) {
 
 void transTlsCxtMgtDestroy(STlsCxtMgt* pMgt) {
   taosThreadRwlockDestroy(&pMgt->lock);
-  transTlsCtxDestroy(pMgt->pTlsCtx);
+  transTlsCxtUnref(pMgt->pTlsCtx);
   taosMemoryFree(pMgt);
   return;
 }
@@ -188,7 +191,7 @@ void transTlsCxtUnref(SSslCtx* pCtx) {
   }
 
   if (atomic_sub_fetch_32(&pCtx->refCount, 1) == 0) {
-    transTlsCtxDestroy(pCtx);
+    transTlsCxtDestroy(pCtx);
   }
 }
 
