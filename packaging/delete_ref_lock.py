@@ -1,5 +1,6 @@
 import subprocess
 import re
+import os
 
 def git_fetch():
     result = subprocess.run(['git', 'fetch'], capture_output=True, text=True)
@@ -30,7 +31,7 @@ def parse_branch_name_type2(error_output):
 def parse_branch_name_type3(error_output):
     # match the branch name before the first single quote before 'Unable to' with a regular expression
     # git error: could not delete references: cannot lock ref 'refs/remotes/origin/test/3.0/TS-4893': Unable to create 'D:/workspace/main/TDinternal/community/.git/refs/remotes/origin/test/3.0/TS-4893.lock': File exists
-    match = re.search(r"references: cannot lock ref '(refs/remotes/origin/[^']+)': Unable to", error_output)
+    match = re.search(r"(?:error|references): cannot lock ref '(refs/remotes/origin/[^']+)': Unable to", error_output)
     if match:
         return match.group(1)
     return None
@@ -39,7 +40,24 @@ def parse_branch_name_type3(error_output):
 # execute git update-ref -d <branch_name> to delete the ref
 def git_update_ref(branch_name):
     if branch_name:
-        subprocess.run(['git', 'update-ref', '-d', f'{branch_name}'], check=True)
+        try:
+            subprocess.run(['git', 'update-ref', '-d', f'{branch_name}'], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"git update-ref failed: {e}")
+            # 处理两种 lock 文件路径
+            lock_files = [
+                f".git/{branch_name}.lock",
+                f".git/logs/{branch_name}.lock"
+            ]
+            for lock_file in lock_files:
+                if os.path.exists(lock_file):
+                    print(f"Removing lock file: {lock_file}")
+                    os.remove(lock_file)
+            # 再次尝试
+            try:
+                subprocess.run(['git', 'update-ref', '-d', f'{branch_name}'], check=True)
+            except subprocess.CalledProcessError as e2:
+                print(f"Still failed to delete ref after removing lock: {e2}")
 
 # parse error type and execute corresponding repair operation
 def handle_error(error_output):
@@ -61,9 +79,8 @@ def handle_error(error_output):
 
 def main():
     fetch_result = git_fetch()
-    if fetch_result.returncode != 0:  
-        error_output = fetch_result.stderr
-        handle_error(error_output)
+    if fetch_result.stderr:
+        handle_error(fetch_result.stderr)
     else:
         print("Git fetch successful.")
 
