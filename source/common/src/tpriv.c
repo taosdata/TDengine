@@ -374,7 +374,7 @@ const char* privObjTypeName(EPrivObjType objType) {
   return privObjTypeNames[objType];
 }
 
-uint32_t getSysRoleType(const char* roleName) {
+int32_t getSysRoleType(const char* roleName) {
   if (strcmp(roleName, TSDB_ROLE_SYSDBA) == 0) {
     return ROLE_SYSDBA;
   } else if (strcmp(roleName, TSDB_ROLE_SYSSEC) == 0) {
@@ -389,6 +389,17 @@ uint32_t getSysRoleType(const char* roleName) {
     return ROLE_SYSINFO_1;
   }
   return 0;
+}
+
+bool isPrivInheritName(const char* name) {
+  if (name && (name[0] == 'S' || name[0] == 's')) {
+    if (taosStrncasecmp(name, TSDB_ROLE_SYSDBA, 7) == 0 || taosStrncasecmp(name, TSDB_ROLE_SYSSEC, 7) == 0 ||
+        taosStrncasecmp(name, TSDB_ROLE_SYSAUDIT, 9) == 0 || taosStrncasecmp(name, TSDB_ROLE_SYSAUDIT_LOG, 13) == 0 ||
+        taosStrncasecmp(name, TSDB_ROLE_SYSINFO_0, 10) == 0 || taosStrncasecmp(name, TSDB_ROLE_SYSINFO_1, 10) == 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {

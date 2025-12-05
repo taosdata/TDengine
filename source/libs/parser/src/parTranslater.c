@@ -12564,6 +12564,10 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
     return code;
   }
+  if (isPrivInheritName(pStmt->userName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "Cannot create user with inherit roles: %s", pStmt->userName);
+  }
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
   createReq.superUser = 0;
@@ -16284,7 +16288,14 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   SAlterRoleReq req = {0};
   req.alterType = pStmt->optrType;
   req.add = grant ? 1 : 0;
-  tstrncpy(req.principal, pStmt->principal, TSDB_ROLE_LEN);
+
+  if (isPrivInheritName(pStmt->principal)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "Cannot grant or revoke on inherit roles: %s", pStmt->principal);
+  }
+
+  (void)snprintf(req.principal, TSDB_ROLE_LEN, "%s", pStmt->principal);
+
   switch (req.alterType) {
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;

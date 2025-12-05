@@ -4187,9 +4187,9 @@ static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName, bool checkSysN
     trimEscape(pCxt, pName, true);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    if (checkSysName && strncmp(pName->z, "SYS", 3) == 0) {  // system reserved role name prefix
+    if (checkSysName && taosStrncasecmp(pName->z, "sys", 3) == 0) {  // system reserved role name prefix
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                              "Cannot create/drop/alter roles with reserved prefix SYS");
+                                              "Cannot create/drop/alter roles with reserved prefix 'sys'");
     }
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode;
@@ -4221,6 +4221,9 @@ _err:
   return NULL;
 }
 
+/**
+ * used by user and role
+ */
 SNode* createAlterRoleStmt(SAstCreateContext* pCxt, SToken* pName, int8_t alterType, void* pAlterInfo) {
   SAlterRoleStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);

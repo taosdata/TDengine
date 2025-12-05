@@ -401,7 +401,8 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
 const char* privObjTypeName(EPrivObjType objType);
-uint32_t    getSysRoleType(const char* roleName);
+int32_t     getSysRoleType(const char* roleName);
+bool        isPrivInheritName(const char* name);
 
 #ifdef __cplusplus
 }
