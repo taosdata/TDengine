@@ -389,10 +389,13 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     // Get encrypt file path from tsDataDir
     char masterKeyFile[PATH_MAX] = {0};
     char derivedKeyFile[PATH_MAX] = {0};
-    snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%smaster.bin", tsDataDir, TD_DIRSEP);
-    snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sderived.bin", tsDataDir, TD_DIRSEP);
+    snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
+    snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
 
-    dInfo("updating local encryption keys, keyVersion:%d -> %d", tsLocalKeyVersion, keySyncRsp.keyVersion);
+    dInfo("updating local encryption keys from mnode, key file is saved in %s and %s, keyVersion:%d -> %d",
+          masterKeyFile, derivedKeyFile, tsLocalKeyVersion, keySyncRsp.keyVersion);
 
     // Save keys to master.bin and derived.bin
     code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, keySyncRsp.svrKey, keySyncRsp.dbKey, keySyncRsp.cfgKey, keySyncRsp.metaKey,
@@ -453,14 +456,20 @@ void dmSendKeySyncReq(SDnodeMgmt *pMgmt) {
   SRpcMsg rpcRsp = {0};
 
   SEpSet epSet = {0};
+  int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
-  code = tmsgSendReq(&epSet, &rpcMsg);
+  dDebug("send key sync req to mnode, dnodeId:%d keyVersion:%d, begin to send rpc msg", req.dnodeId, req.keyVersion);
+  code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
-    dError("failed to send key sync req since %s", tstrerror(code));
-    rpcFreeCont(pHead);
+    dError("failed to SendRecv key sync req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
     return;
   }
+  if (rpcRsp.code != 0) {
+    dError("failed to send key sync req since %s", tstrerror(rpcRsp.code));
+    return;
+  }
+  dmProcessKeySyncRsp(pMgmt, &rpcRsp);
 }
 
 void dmSendConfigReq(SDnodeMgmt *pMgmt) {
