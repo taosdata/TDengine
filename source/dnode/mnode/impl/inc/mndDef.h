@@ -424,10 +424,6 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  union {
-    char user[TSDB_USER_LEN];
-    char name[TSDB_USER_LEN];
-  };
   char    pass[TSDB_PASSWORD_LEN];
   int64_t setTime;  // password set time, in seconds
 } SUserPassword;
