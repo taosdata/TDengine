@@ -331,7 +331,7 @@ END:
   return code;
 }
 
-static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp) {
+static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp, int32_t epoch) {
   int32_t         code = 0;
   int32_t         lino = 0;
   SMqSubscribeObj *pSub = NULL;
@@ -345,7 +345,7 @@ static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, cha
   }
   tstrncpy(topicEp.topic, topic, TSDB_TOPIC_FNAME_LEN);
 
-  taosRLockLatch(&pSub->lock);
+  taosWLockLatch(&pSub->lock);
   // 2.2 iterate all vg assigned to the consumer of that topic
   SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
   MND_TMQ_NULL_CHECK(pConsumerEp);
@@ -353,10 +353,18 @@ static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, cha
   topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
   MND_TMQ_NULL_CHECK(topicEp.vgs);
 
+  tstrncpy(topicEp.db, pSub->dbName, TSDB_DB_FNAME_LEN);
   for (int32_t j = 0; j < vgNum; j++) {
     SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, j);
     if (pVgEp == NULL) {
       continue;
+    }
+    if (epoch == -1) {
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+      if (pVgroup) {
+        pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+        mndReleaseVgroup(pMnode, pVgroup);
+      }
     }
     SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
     MND_TMQ_NULL_CHECK(taosArrayPush(topicEp.vgs, &vgEp));
@@ -366,7 +374,7 @@ static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, cha
 
 END:
   if (pSub != NULL) {
-    taosRUnLockLatch(&pSub->lock);
+    taosWUnLockLatch(&pSub->lock);
   }
   taosArrayDestroy(topicEp.vgs);
   mndReleaseSubscribe(pMnode, pSub);
@@ -389,7 +397,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
   // handle all topics subscribed by this consumer
   for (int32_t i = 0; i < numOfTopics; i++) {
     char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp));
+    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp, epoch));
   }
 
 END:
