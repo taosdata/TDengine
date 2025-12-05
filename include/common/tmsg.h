@@ -1503,6 +1503,7 @@ typedef struct {
   char        pass[TSDB_USET_PASSWORD_LEN];
   char        objname[TSDB_DB_FNAME_LEN];  // db or topic
   char        tabName[TSDB_TABLE_NAME_LEN];
+  SPrivSet    privileges;
   char*       tagCond;
   int32_t     tagCondLen;
   int32_t     numIpRanges;

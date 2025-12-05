@@ -2686,7 +2686,7 @@ static char *mndUserAuditTypeStr(int32_t type) {
   return "error";
 }
 
-static int32_t mndProcessAlterUserPrivilegesReq(SAlterRoleReq *pAlterReq, SMnode *pMnode, SUserObj *pNewUser) {
+static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode *pMnode, SUserObj *pNewUser) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   int32_t code = 0;
@@ -2888,7 +2888,8 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
 
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
-    TAOS_CHECK_EXIT(mndAlterUserInfo(pObj, &newObj, &alterReq));
+    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
+    TAOS_CHECK_EXIT(mndAlterUserInfo(pUser, &newUser, pAlterReq));
 #endif
   } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
     TAOS_CHECK_EXIT(mndAcquireRole(pMnode, pAlterReq->roleName, &pRole));
