@@ -180,8 +180,12 @@ int32_t dmInitVars(SDnode *pDnode) {
 
   // Load local encryption keys and initialize key version
   {
-    char encryptFile[PATH_MAX] = {0};
-    snprintf(encryptFile, sizeof(encryptFile), "%s%senc%sencrypt.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+    char masterKeyFile[PATH_MAX] = {0};
+    char derivedKeyFile[PATH_MAX] = {0};
+    snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
+    snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
 
     char    svrKey[129] = {0};
     char    dbKey[129] = {0};
@@ -195,8 +199,8 @@ int32_t dmInitVars(SDnode *pDnode) {
     int64_t svrKeyUpdateTime = 0;
     int64_t dbKeyUpdateTime = 0;
 
-    code = taoskLoadEncryptKeys(encryptFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm, &fileVersion,
-                                &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+    code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                                &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
     if (code == 0) {
       tsLocalKeyVersion = keyVersion;
       dInfo("loaded local encryption keys, version:%d", tsLocalKeyVersion);

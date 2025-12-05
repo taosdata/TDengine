@@ -589,9 +589,10 @@ extern int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineI
 
 extern int32_t dmGetEncryptKeyFromTaosk();
 
-extern int32_t taoskLoadEncryptKeys(const char *encryptFile, char *svrKey, char *dbKey, char *cfgKey, char *metaKey,
-                                    char *dataKey, int32_t *algorithm, int32_t *fileVersion, int32_t *keyVersion,
-                                    int64_t *createTime, int64_t *svrKeyUpdateTime, int64_t *dbKeyUpdateTime);
+extern int32_t taoskLoadEncryptKeys(const char *masterKeyFile, const char *derivedKeyFile, char *svrKey, char *dbKey,
+                                    char *cfgKey, char *metaKey, char *dataKey, int32_t *algorithm,
+                                    int32_t *fileVersion, int32_t *keyVersion, int64_t *createTime,
+                                    int64_t *svrKeyUpdateTime, int64_t *dbKeyUpdateTime);
 
 static int32_t dmReadEncryptCodeFile(char *file, char **output) {
   TdFilePtr pFile = NULL;
@@ -640,22 +641,35 @@ _OVER:
 
 int32_t dmGetEncryptKeyFromTaosk() {
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  char encryptFile[PATH_MAX] = {0};
+  char keyFileDir[PATH_MAX] = {0};
+  char masterKeyFile[PATH_MAX] = {0};
+  char derivedKeyFile[PATH_MAX] = {0};
 
-  // Build path to encrypt.bin: tsDataDir/dnode/config/encrypt.bin
-  int32_t nBytes = snprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%sconfig%sencrypt.bin", tsDataDir, TD_DIRSEP,
-                            TD_DIRSEP, TD_DIRSEP);
-  if (nBytes <= 0 || nBytes >= sizeof(encryptFile)) {
+  // Build path to key file directory: tsDataDir/dnode/config/
+  int32_t nBytes = snprintf(keyFileDir, sizeof(keyFileDir), "%s%sdnode%sconfig", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(keyFileDir)) {
     return TSDB_CODE_OUT_OF_BUFFER;
   }
 
-  // Check if encrypt.bin exists
-  if (!taosCheckExistFile(encryptFile)) {
-    dInfo("taosk encrypt.bin not found: %s, using legacy format", encryptFile);
+  // Build path to master.bin
+  nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%smaster.bin", keyFileDir, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Build path to derived.bin
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sderived.bin", keyFileDir, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Check if master.bin exists
+  if (!taosCheckExistFile(masterKeyFile)) {
+    dInfo("taosk master key file not found: %s, encryption not configured", masterKeyFile);
     return TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
   }
 
-  dInfo("loading encryption keys from taosk file: %s", encryptFile);
+  dInfo("loading encryption keys from taosk split files: %s, %s", masterKeyFile, derivedKeyFile);
 
   // Prepare variables for decrypted keys
   int32_t algorithm = 0;
@@ -665,20 +679,19 @@ int32_t dmGetEncryptKeyFromTaosk() {
   int64_t svrKeyUpdateTime = 0;
   int64_t dbKeyUpdateTime = 0;
 
-  // Call enterprise function to decrypt and load multi-layer keys
-  // Similar to tsdbAsyncCompact - external function implemented in enterprise code
-  int32_t code = taoskLoadEncryptKeys(encryptFile,
-                                      tsSvrKey,          // output: SVR_KEY (server master key)
-                                      tsDbKey,           // output: DB_KEY (database master key)
-                                      tsCfgKey,          // output: CFG_KEY (config encryption key)
-                                      tsMetaKey,         // output: META_KEY (metadata encryption key)
-                                      tsDataKey,         // output: DATA_KEY (data encryption key)
-                                      &algorithm,        // output: encryption algorithm type
-                                      &fileVersion,      // output: file format version
-                                      &keyVersion,       // output: key update version
-                                      &createTime,       // output: key creation timestamp
-                                      &svrKeyUpdateTime, // output: SVR_KEY update timestamp
-                                      &dbKeyUpdateTime   // output: DB_KEY update timestamp
+  // Call enterprise function to decrypt and load multi-layer keys from split files
+  int32_t code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile,
+                                      tsSvrKey,           // output: SVR_KEY (server master key)
+                                      tsDbKey,            // output: DB_KEY (database master key)
+                                      tsCfgKey,           // output: CFG_KEY (config encryption key)
+                                      tsMetaKey,          // output: META_KEY (metadata encryption key)
+                                      tsDataKey,          // output: DATA_KEY (data encryption key)
+                                      &algorithm,         // output: encryption algorithm type
+                                      &fileVersion,       // output: file format version
+                                      &keyVersion,        // output: key update version
+                                      &createTime,        // output: key creation timestamp
+                                      &svrKeyUpdateTime,  // output: SVR_KEY update timestamp
+                                      &dbKeyUpdateTime    // output: DB_KEY update timestamp
   );
 
   if (code != 0) {
@@ -731,14 +744,14 @@ int32_t dmGetEncryptKey() {
   char   *encryptKey = NULL;
   char   *content = NULL;
 
-  // First try to load from taosk encrypt.bin
+  // First try to load from taosk key files (master.bin and derived.bin)
   code = dmGetEncryptKeyFromTaosk();
   if (code == 0) {
-    dInfo("encryption keys loaded from taosk encrypt.bin");
+    dInfo("encryption keys loaded from taosk key files");
     return 0;
   }
 
-  // Fallback to legacy encryptCode.cfg format
+  // Fallback to legacy encryptCode.cfg format (pre-taosk)
   dInfo("falling back to legacy encryptCode.cfg format");
 
   int32_t nBytes = snprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP,

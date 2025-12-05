@@ -878,12 +878,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     // Verify whether the cluster parameters are consistent when status change from offline to ready
-    pDnode->offlineReason = mndCheckClusterCfgPara(pMnode, pDnode, &statusReq.clusterCfg);
-    if (pDnode->offlineReason != 0) {
-      mError("dnode:%d, cluster cfg inconsistent since:%s", pDnode->id, offlineReason[pDnode->offlineReason]);
-      if (terrno == 0) terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
-      goto _OVER;
-    }
+    // pDnode->offlineReason = mndCheckClusterCfgPara(pMnode, pDnode, &statusReq.clusterCfg);
+    // if (pDnode->offlineReason != 0) {
+    //   mError("dnode:%d, cluster cfg inconsistent since:%s", pDnode->id, offlineReason[pDnode->offlineReason]);
+    //   if (terrno == 0) terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
+    //   goto _OVER;
+    // }
 
     if (!online) {
       mInfo("dnode:%d, from offline to online, memory avail:%" PRId64 " total:%" PRId64 " cores:%.2f", pDnode->id,

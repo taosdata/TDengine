@@ -65,6 +65,7 @@ int32_t mndSetDeleteConfigCommitLogs(STrans *pTrans, SConfigObj *item);
 int32_t mndSetCreateConfigPrepareLogs(STrans *pTrans, SConfigObj *obj);
 
 static int32_t mndProcessKeySyncReq(SRpcMsg *pReq);
+static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq);
 
 int32_t mndInitConfig(SMnode *pMnode) {
   int32_t   code = 0;
@@ -85,6 +86,7 @@ int32_t mndInitConfig(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_SDB, mndTryRebuildConfigSdb);
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_SDB_RSP, mndTryRebuildConfigSdbRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC, mndProcessKeySyncReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC_RSP, mndProcessKeySyncRsp);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -1408,9 +1410,12 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
 
 #ifdef TD_ENTERPRISE
   // Load mnode's encryption keys
-  char encryptFile[PATH_MAX] = {0};
-  snprintf(encryptFile, sizeof(encryptFile), "%s%senc%sencrypt.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-
+  char masterKeyFile[PATH_MAX] = {0};
+  snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+           TD_DIRSEP);
+  char derivedKeyFile[PATH_MAX] = {0};
+  snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+           TD_DIRSEP);
   char    svrKey[129] = {0};
   char    dbKey[129] = {0};
   char    cfgKey[129] = {0};
@@ -1423,8 +1428,8 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
   int64_t svrKeyUpdateTime = 0;
   int64_t dbKeyUpdateTime = 0;
 
-  code = taoskLoadEncryptKeys(encryptFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm, &fileVersion,
-                              &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+  code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                              &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
   if (code != 0) {
     mError("failed to load encryption keys, since %s", tstrerror(code));
     // If keys don't exist on mnode, return error
@@ -1487,3 +1492,5 @@ _OVER:
   }
   return code;
 }
+
+static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq) { return 0; }

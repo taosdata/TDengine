@@ -387,13 +387,15 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   if (keySyncRsp.needUpdate) {
 #ifdef TD_ENTERPRISE
     // Get encrypt file path from tsDataDir
-    char encryptFile[PATH_MAX] = {0};
-    snprintf(encryptFile, sizeof(encryptFile), "%s%senc%sencrypt.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+    char masterKeyFile[PATH_MAX] = {0};
+    char derivedKeyFile[PATH_MAX] = {0};
+    snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%smaster.bin", tsDataDir, TD_DIRSEP);
+    snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sderived.bin", tsDataDir, TD_DIRSEP);
 
     dInfo("updating local encryption keys, keyVersion:%d -> %d", tsLocalKeyVersion, keySyncRsp.keyVersion);
 
     // Save keys to master.bin and derived.bin
-    code = taoskSaveEncryptKeys(encryptFile, keySyncRsp.svrKey, keySyncRsp.dbKey, keySyncRsp.cfgKey, keySyncRsp.metaKey,
+    code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, keySyncRsp.svrKey, keySyncRsp.dbKey, keySyncRsp.cfgKey, keySyncRsp.metaKey,
                                 keySyncRsp.dataKey, keySyncRsp.algorithm, keySyncRsp.keyVersion, keySyncRsp.createTime,
                                 keySyncRsp.svrKeyUpdateTime, keySyncRsp.dbKeyUpdateTime);
     if (code != 0) {
