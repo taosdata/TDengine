@@ -12,14 +12,16 @@ import TabItem from "@theme/TabItem";
 为帮助用户轻松构建百万级吞吐量的数据写入管道，TDengine 连接器提供高效写入的特性。启动高效写入特性后，TDengine 连接器将自动创建写入线程与专属队列，将数据按子表切分缓存，在达到数据量阈值或超时条件时批量发送，以此减少网络请求、提升吞吐量，让用户无需掌握多线程编程知识和数据切分技巧即可实现高性能写入。
 
 ## 高效写入使用方法 {#usage}
+
 下面介绍各连接器高效写入特性的使用方法：
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
-**一、JDBC 高效写入特性概述**
+##### JDBC 高效写入特性概述
 
 JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写入特性。JDBC 驱动高效写入特性有如下特点：
+
 - 支持 JDBC 标准参数绑定接口。
 - 在资源充分条件下，写入能力跟写入线程数配置线性相关。
 - 支持写入超时和连接断开重连后的重试次数和重试间隔配置。
@@ -27,17 +29,18 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
   
 下面详细介绍其使用方法。本节内容假设用户已经熟悉 JDBC 标准参数绑定接口（可参考 [参数绑定](https://docs.oracle.com/javase/8/docs/api/java/sql/PreparedStatement.html)）。
 
-**二、如何开启高效写入特性：**
+##### 如何开启高效写入特性
 
 对于 JDBC 连接器来说，有两种方式开启高效写入特性：  
+
 - 在连接属性上设置 PROPERTY_KEY_ASYNC_WRITE 为 `stmt` 或者 JDBC URL 中增加 `asyncWrite=stmt` 都可以在此连接上开启高效写入。在连接上开启高效写入特性后，后续所有创建的 `PreparedStatement` 都会使用高效写入模式。
 - 在参数绑定创建 `PreparedStatement` 所用的 SQL 中，使用 `ASYNC_INSERT INTO` 而不是 `INSERT INTO`，则可以在这个参数绑定对象上开启高效写入。
 
-**三、如何检查写入是否成功：**
+##### 如何检查写入是否成功
 
-客户应用使用 JDBC 标准接口的 `addBatch` 添加一条记录，用 `executeBatch` 提交所有添加记录。高效写入模式下，可以使用 **executeUpdate** 方法来同步获取写入成功条数，如果有数据写入失败，此时调用 `executeUpdate` 会捕获到异常。 
+客户应用使用 JDBC 标准接口的 `addBatch` 添加一条记录，用 `executeBatch` 提交所有添加记录。高效写入模式下，可以使用 **executeUpdate** 方法来同步获取写入成功条数，如果有数据写入失败，此时调用 `executeUpdate` 会捕获到异常。
 
-**四、高效写入重要配置参数：**
+##### 高效写入重要配置参数
 
 - TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM：高效写入模式下，后台写入线程数。仅在使用 WebSocket 连接时生效。默认值为 10。
 - TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW：高效写入模式下，写入数据的批大小，单位是行。仅在使用 WebSocket 连接时生效。默认值为 1000。
@@ -49,7 +52,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 其他配置参数请参考 [高效写入配置](../../reference/connector/java/#properties)。
 
-**五、JDBC 高效写入使用说明**
+##### JDBC 高效写入使用说明
 
 下面是一个简单的使用 JDBC 高效写入的例子，说明了高效写入相关的配置和接口。
 
@@ -82,7 +85,8 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
 
-**程序清单**
+##### 程序清单
+
 | 类名               | 功能说明                                                                                  |
 | ------------------ | ----------------------------------------------------------------------------------------- |
 | FastWriteExample   | 主程序，完成命令行参数解析，线程池创建，以及等待任务完成功能                              |
@@ -100,7 +104,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 <details>
 <summary>FastWriteExample</summary>
 
-**主程序命令行参数介绍：**  
+##### 主程序命令行参数介绍
 
 ```shell
    -b,--batchSizeByRow <arg>             指定高效写入的 batchSizeByRow 参数，默认 1000  
@@ -114,19 +118,19 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
    -w,--writeThreadPerReadThread <arg>   指定每工作线程对应写入线程数，默认 5  
 ```
 
-**JDBC URL 和 Kafka 集群地址配置：**
+##### JDBC URL 和 Kafka 集群地址配置
 
 1. JDBC URL 通过环境变量配置，例如：`export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata"`
 2. Kafka 集群地址通过环境变量配置，例如： `KAFKA_BOOTSTRAP_SERVERS=localhost:9092`
 
-**使用方式：** 
+##### 使用方式
 
 ```shell
 1. 采用模拟数据写入方式：java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 1000
 2. 采用 Kafka 订阅写入方式：java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 100 -K
 ```
 
-**主程序负责：**
+##### 主程序负责
 
 1. 解析命令行参数
 2. 创建子表
@@ -229,29 +233,31 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 </details>
 
-**执行步骤**
+##### 执行步骤
 
 <details>
 <summary>执行 Java 示例程序</summary>
 
-**本地集成开发环境执行示例程序**
+##### 本地集成开发环境执行示例程序
 
 1. clone TDengine 仓库
-   ```
-   git clone git@github.com:taosdata/TDengine.git --depth 1
-   ```
-2. 用集成开发环境打开 `TDengine/docs/examples/JDBC/highvolume` 目录。
-3. 在开发环境中配置环境变量 `TDENGINE_JDBC_URL`。如果已配置了全局的环境变量 `TDENGINE_JDBC_URL` 可跳过这一步。
-4. 如果要运行 Kafka 示例，需要设置 Kafka 集群地址的环境变量 `KAFKA_BOOTSTRAP_SERVERS`。
-5. 指定命令行参数，如 `-r 3 -w 3 -b 100 -c 1000 -s 1000 -R 100`
-6. 运行类 `com.taos.example.highvolume.FastWriteExample`。
 
-**远程服务器上执行示例程序**
+```bash
+git clone git@github.com:taosdata/TDengine.git --depth 1
+```
+
+1. 用集成开发环境打开 `TDengine/docs/examples/JDBC/highvolume` 目录。
+2. 在开发环境中配置环境变量 `TDENGINE_JDBC_URL`。如果已配置了全局的环境变量 `TDENGINE_JDBC_URL` 可跳过这一步。
+3. 如果要运行 Kafka 示例，需要设置 Kafka 集群地址的环境变量 `KAFKA_BOOTSTRAP_SERVERS`。
+4. 指定命令行参数，如 `-r 3 -w 3 -b 100 -c 1000 -s 1000 -R 100`
+5. 运行类 `com.taos.example.highvolume.FastWriteExample`。
+
+##### 远程服务器上执行示例程序
 
 若要在服务器上执行示例程序，可按照下面的步骤操作：
 
 1. 打包示例代码。在目录 `TDengine/docs/examples/JDBC/highvolume` 下执行下面命令来生成 `highVolume.jar`：
-   
+
    ```java
    mvn package
    ```
@@ -345,6 +351,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 ### 服务端配置方面 {#setting-view}
 
 首先看数据库建库参数中的几个重要性能相关参数：
+
 1. **vgroups**：在服务端配置层面，创建数据库时，需综合考虑系统内磁盘数量、磁盘 I/O 能力以及处理器能力，合理设置 vgroups 数量，从而充分挖掘系统性能潜力。若 vgroups 数量过少，系统性能将难以充分释放；若数量过多，则会引发不必要的资源竞争。建议将每个 vgroup 中的表数量控制在 100 万以内，在硬件资源充足的情况下，控制在 1 万以内效果更佳。
 1. **buffer**：buffer 指的是为一个 vnode 分配的写入内存大小，默认值为 256 MB。当 vnode 中实际写入的数据量达到 buffer 大小的约 1/3 时，会触发数据落盘操作。适当调大该参数，能够尽可能多地缓存数据，实现一次性落盘，提高写入效率。然而，若参数配置过大，在系统宕机恢复时，恢复时间会相应变长。
 2. **cachemodel**：用于控制是否在内存中缓存子表的最近数据。开启此功能会对写入性能产生一定影响，因为在数据写入过程中，系统会同步检查并更新每张表的 last_row 和每列的 last 值。可通过将原选项 'both' 调整为‘last_row’或‘last_value’，来减轻其对写入性能的影响。
@@ -353,6 +360,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 其他参数请参考 [数据库管理](../../reference/taos-sql/database)。
 
 然后看 `taosd` 配置中的几个性能相关参数：
+
 1. **compressMsgSize**：对于带宽是瓶颈的情况，开启 rpc 消息压缩可以提升性能。
 2. **numOfCommitThreads**：服务端后台落盘线程个数，默认为 4。落盘线程数并非越多越好。线程越多，硬盘写入争抢越严重，写入性能反而可能下降。配置了多块盘的服务器可以考虑将此参数放大，从而利用多块硬盘的并发 IO 能力。
 3. **日志级别**：以 `debugFlag` 为代表的一批参数，控制相关日志输出级别。日志级别决定日志输出压力，开的日志级别越高，对写入性能的影响越大，一般建议默认配置。  
@@ -360,6 +368,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 其他参数请参考 [服务端配置](../../reference/components/taosd)。
 
 ## 高效写入实现原理 {#implement-principle}
+
 通过上文的写入性能影响因素可知，开发高性能数据写入程序需掌握多线程编程与数据切分技术，存在一定技术门槛。为降低用户开发成本，TDengine 连接器提供**高效写入特性**，支持用户在不涉及底层线程管理与数据分片逻辑的前提下，充分利用 TDengine 强大的写入能力。
 
 下面是连接器实现高效写入特性的原理图：
@@ -373,7 +382,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
    当应用写入数据时，连接器自动按子表维度切分数据，缓存至对应队列。当满足以下任一条件时触发批量发送：
    1. 队列数据量达到预设阈值。
    2. 达到预设的等待超时时间（避免延迟过高）。
-   
+
    此机制通过减少网络请求次数，显著提升写入吞吐量。
 
 ### 功能优势

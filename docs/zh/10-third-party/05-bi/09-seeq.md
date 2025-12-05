@@ -11,6 +11,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 ## 前置条件
 
 准备以下环境：
+
 - TDengine 3.1.0.3 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - Seeq 已经安装。从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 `Seeq Server` 和 `Seeq Data Lab` 等。`Seeq Data Lab` 需要安装在和 `Seeq Server` 不同的服务器上，并通过配置和 `Seeq Server` 互联。详细安装配置指令参见 [Seeq 知识库]( https://support.seeq.com/kb/latest/cloud/)。
@@ -20,7 +21,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 **第 1 步**，查看 data 存储位置
 
-```
+```bash
 sudo seeq config get Folders/Data
 ```
 
@@ -28,7 +29,7 @@ sudo seeq config get Folders/Data
 
 **第 3 步**，重新启动 seeq server
 
-```
+```bash
 sudo seeq restart
 ```
 
@@ -46,7 +47,7 @@ sudo seeq restart
 
 **第 1 步**，在 TDengine 中创建表。
 
-```
+```sql
 CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
@@ -55,7 +56,7 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 
 **第 2 步**，在 TDengine 中构造数据。
 
-```
+```bash
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```
@@ -66,7 +67,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Power
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -125,7 +126,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Goods
 
-```
+```json
 {
     "QueryDefinitions": [
         {
@@ -185,7 +186,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 - Temperature
 
-```
+```json
 {
     "QueryDefinitions": [
         {

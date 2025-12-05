@@ -9,7 +9,7 @@ description: 对 JSON 类型如何使用的详细说明
 
 1. 创建 json 类型 tag
 
-   ```
+   ```sql
    create stable s1 (ts timestamp, v1 int) tags (info json)
 
    create table s1_1 using s1 tags ('{"k1": "v1"}')
@@ -17,7 +17,7 @@ description: 对 JSON 类型如何使用的详细说明
 
 2. json 取值操作符 ->
 
-   ```
+   ```sql
    select * from s1 where info->'k1' = 'v1'
 
    select info->'k1' from s1
@@ -25,7 +25,7 @@ description: 对 JSON 类型如何使用的详细说明
 
 3. json key 是否存在操作符 contains
 
-   ```
+   ```sql
    select * from s1 where info contains 'k2'
 
    select * from s1 where info contains 'k1'
@@ -35,7 +35,7 @@ description: 对 JSON 类型如何使用的详细说明
 
 1. 在 where 条件中时，支持函数 `match`、`nmatch`、`between and`、`like`、`and`、`or`、`is null`、`is not null`，不支持 `in`
 
-   ```
+   ```sql
    select * from s1 where info->'k1' match 'v*';
 
    select * from s1 where info->'k1' like 'v%' and info contains 'k2';
@@ -49,7 +49,7 @@ description: 对 JSON 类型如何使用的详细说明
 
 3. 支持 distinct 操作
 
-   ```
+   ```sql
    select distinct info->'k1' from s1
    ```
 
@@ -81,12 +81,12 @@ description: 对 JSON 类型如何使用的详细说明
 
    比如暂不支持
 
-   ```
+   ```sql
    select jtag->'key' from (select jtag from stable)
    ```
 
    不支持
 
-   ```
+   ```sql
    select jtag->'key' from (select jtag from stable) where jtag->'key'>0
    ```

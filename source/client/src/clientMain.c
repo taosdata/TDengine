@@ -331,6 +331,12 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return NULL;
 }
 
+TAOS *taos_connect_with_dsn(const char *dsn) {
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  tscError("taos_connect_with_dsn not supported");
+  return NULL;
+}
+
 int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type) {
   if (taos == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;

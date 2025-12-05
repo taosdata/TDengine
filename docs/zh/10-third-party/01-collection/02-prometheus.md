@@ -15,11 +15,13 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 ## 前置条件
 
 要将 Prometheus 数据写入 TDengine 需要以下几方面的准备工作。
+
 - TDengine 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
 - Prometheus 已经安装。安装 Prometheus 请参考 [官方文档](https://prometheus.io/docs/prometheus/latest/installation/)
 
 ## 配置步骤
+
 <Prometheus />
 
 ## 验证方法
@@ -27,7 +29,8 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 重启 Prometheus 后可参考以下示例验证从 Prometheus 向 TDengine 写入数据并能够正确读出。
 
 ### 使用 TDengine CLI 查询写入数据
-```
+
+```sql
 taos> show databases;
               name              |
 =================================
@@ -65,13 +68,13 @@ Query OK, 10 row(s) in set (0.011146s)
 
 安装 promql-cli
 
-```
+```bash
  go install github.com/nalbury/promql-cli@latest
 ```
 
 在 TDengine 和 taosAdapter 服务运行状态对 Prometheus 数据进行查询
 
-```
+```bash
 ubuntu@shuduo-1804 ~ $ promql-cli --host "http://127.0.0.1:9090" "sum(up) by (job)"
 JOB           VALUE    TIMESTAMP
 prometheus    1        2022-04-20T08:05:26Z
@@ -80,7 +83,7 @@ node          1        2022-04-20T08:05:26Z
 
 暂停 taosAdapter 服务后对 Prometheus 数据进行查询
 
-```
+```bash
 ubuntu@shuduo-1804 ~ $ sudo systemctl stop taosadapter.service
 ubuntu@shuduo-1804 ~ $ promql-cli --host "http://127.0.0.1:9090" "sum(up) by (job)"
 VALUE    TIMESTAMP
@@ -90,4 +93,5 @@ VALUE    TIMESTAMP
 :::note
 
 - TDengine 默认生成的子表名是根据规则生成的唯一 ID 值。
+
 :::

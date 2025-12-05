@@ -38,6 +38,7 @@ TSMA 只能基于超级表和普通表创建，不能基于子表创建。
 TSMA 为库内对象，但名字全局唯一。集群内一共可创建 TSMA 个数受参数 `maxTsmaNum` 限制，参数默认值为 3，范围：[0-3]。注意，由于 TSMA 后台计算使用流计算，因此每创建一条 TSMA，将会创建一条流，因此能够创建的 TSMA 条数也受当前已经存在的流条数和最大可创建流条数限制。
 
 ## 支持的函数列表
+
 | 函数 |  备注 |
 |---|---|
 |min||
@@ -52,12 +53,15 @@ TSMA 为库内对象，但名字全局唯一。集群内一共可创建 TSMA 个
 |||
 
 ## 删除 TSMA
+
 ```sql
 DROP TSMA [db_name.]tsma_name;
 ```
+
 若存在其他 TSMA 基于当前被删除 TSMA 创建，则删除操作报 `Invalid drop base tsma, drop recursive tsma first` 错误。因此需先删除 所有 Recursive TSMA。
 
 ## TSMA 的计算
+
 TSMA 的计算结果为与原始表相同库下的一张超级表，此表用户不可见。不可删除，在 `DROP TSMA` 时自动删除。TSMA 的计算是通过流计算完成的，此过程为后台异步过程，TSMA 的计算结果不保证实时性，但可以保证最终正确性。
 
 TSMA 计算时若原始子表内没有数据，则可能不会创建对应的输出子表，因此在 count 查询中，即使配置了 `countAlwaysReturnValue`，也不会返回该表的结果。
@@ -79,7 +83,6 @@ TSMA 计算时若原始子表内没有数据，则可能不会创建对应的输
 指定窗口大小时即 `INTERVAL` 语句，使用最大的可整除窗口 TSMA。窗口查询中，`INTERVAL` 的窗口大小、`OFFSET` 以及 `SLIDING` 都影响能使用的 TSMA 窗口大小。因此若使用窗口查询较多时，需要考虑经常查询的窗口大小，以及 offset、sliding 大小来创建 TSMA。
 
 例如 创建 TSMA 窗口大小 `5m` 一条，`10m` 一条，查询时 `INTERVAL(30m)`，那么优先使用 `10m` 的 TSMA，若查询为 `INTERVAL(30m, 10m) SLIDING(5m)`，那么仅可使用 `5m` 的 TSMA 查询。
-
 
 ### 查询限制
 
@@ -132,8 +135,10 @@ SELECT COUNT(*), MIN(c1) FROM stable where c2 > 0; ---- can't use tsma1 or tsam2
 - 若某些列被 TSMA 使用了，则这些列不能被删除，必须先删除 TSMA。添加列不受影响，但是新添加的列不在任何 TSMA 中，因此若要计算新增列，需要新创建其他的 TSMA。
 
 ## 查看 TSMA
+
 ```sql
 SHOW [db_name.]TSMAS;
 SELECT * FROM information_schema.ins_tsma;
 ```
+
 若创建时指定的较多的函数，且列名较长，在显示函数列表时可能会被截断 (目前最大支持输出 256KB)。

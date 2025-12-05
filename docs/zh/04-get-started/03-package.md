@@ -19,18 +19,23 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 ## 运行环境要求
 
 在 linux 系统中，运行环境最低要求如下：
+
 1. linux 内核版本：3.10.0-1160.83.1.el7.x86_64 或以上
-2. glibc 版本：2.17 或以上
+2. glibc 版本：2.17 及以上 (x64 架构)，2.27 及以上 (ARM 架构 )
 
 如果通过 Clone 源码进行编译安装，还需要满足：
+
 1. cmake 版本：3.26.4 或以上
 2. gcc 版本：9.3.1 或以上
 
 ## 安装
 
-**注意**
+:::note
 
-从 TDengine 3.0.6.0 开始，不再提供单独的 taosTools 安装包，原 taosTools 安装包中包含的工具都在 TDengine-server 安装包中，如果需要请直接下载 TDengine-server 安装包。
+1. 从 TDengine TSDB 3.0.6.0 开始，不再提供单独的 taosTools 安装包，原 taosTools 安装包中包含的工具都在 TDengine TSDB 服务端安装包中，如果需要请直接下载 TDengine TSDB 服务端安装包。
+2. 当安装第一个节点时，出现 `Enter FQDN:` 提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
+
+:::
 
 <Tabs>
 <TabItem label="Deb 安装" value="debinst">
@@ -92,7 +97,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 
 可以使用 `apt-get` 工具从官方仓库安装。
 
-**配置包仓库**
+##### 配置包仓库
 
 ```bash
 wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
@@ -119,12 +124,16 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 :::
 
 </TabItem>
+
 <TabItem label="Windows 安装" value="windows">
 
-**注意**
+:::note
+
 - 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
 - 从 TDengine 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine 销售团队升级为企业版。
 - Windows 上需要安装 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)，如果已经安装此运行库可忽略。
+
+:::
 
 按照以下步骤安装：
 
@@ -134,6 +143,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 Note: 从 3.0.1.7 版本开始，只提供 TDengine 客户端的 Windows 客户端的下载。想要使用 TDengine 服务端的 Windows 版本，请联系 TDengine 销售团队升级为企业版。
 
 </TabItem>
+
 <TabItem label="macOS 安装" value="macos">
 
 1. 从列表中下载获得 pkg 安装程序；
@@ -167,6 +177,7 @@ systemctl start taos-explorer
 ```
 
 你也可以直接运行 start-all.sh 脚本来启动上面的所有服务
+
 ```bash
 start-all.sh 
 ```
@@ -198,7 +209,7 @@ systemctl status taosd
 
 <TabItem label="macOS 系统" value="macos">
 
-安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start ` 来启动 TDengine 服务进程。
+安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start` 来启动 TDengine 服务进程。
 
 ```bash
 sudo launchctl start com.tdengine.taosd
@@ -208,6 +219,7 @@ sudo launchctl start com.tdengine.taos-explorer
 ```
 
 你也可以直接运行 `start-all.sh` 脚本来启动上面的所有服务
+
 ```bash
 start-all.sh
 ```
@@ -232,7 +244,6 @@ sudo launchctl print system/com.tdengine.taosd
 
 </TabItem>
 </Tabs>
-
 
 ## TDengine 命令行（CLI）
 
@@ -279,6 +290,7 @@ taosBenchmark -y
 执行该命令后，系统将迅速完成 1 亿条记录的写入过程。实际所需时间取决于硬件性能，但即便在普通 PC 服务器上，这个过程通常也只需要十几秒。
 
 taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如表的数目、记录条数等。要查看详细的参数列表，请在终端中输入如下命令
+
 ```shell
 taosBenchmark --help
 ```
@@ -290,26 +302,31 @@ taosBenchmark --help
 使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI（taos）输入查询命令，体验查询速度。
 
 1. 查询超级表 meters 下的记录总条数
+
 ```shell
 SELECT COUNT(*) FROM test.meters;
 ```
 
 2. 查询 1 亿条记录的平均值、最大值、最小值
+
 ```shell
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
 3. 查询 location = "California.SanFrancisco" 的记录总条数
+
 ```shell
 SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 ```
 
 4. 查询 groupId = 10 的所有记录的平均值、最大值、最小值
+
 ```shell
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
 ```
 
 5. 对表 d1001 按每 10 秒进行平均值、最大值和最小值聚合统计
+
 ```shell
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```

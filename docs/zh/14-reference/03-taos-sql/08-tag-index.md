@@ -8,7 +8,7 @@ description: 使用标签索引提升查询性能
 
 ## 语法
 
-创建索引的语法如下 
+创建索引的语法如下
 
 ```sql
 CREATE INDEX index_name ON tbl_name (tagColName)

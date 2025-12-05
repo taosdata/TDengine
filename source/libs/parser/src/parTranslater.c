@@ -8184,6 +8184,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
         return DEAL_RES_ERROR;
       } else {
         ((SExprNode*)pExpr)->asAlias = true;
+        tstrncpy(((SExprNode*)pExpr)->aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
         tstrncpy(((SExprNode*)pExpr)->userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
       }
     }

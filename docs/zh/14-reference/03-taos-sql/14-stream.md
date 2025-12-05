@@ -35,6 +35,7 @@ subquery: SELECT select_list
 stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的 schema 信息。详见 [写入已存在的超级表](#写入已存在的超级表)。
 
 TAGS 子句定义了流计算中创建 TAG 的规则，可以为每个 partition 对应的子表生成自定义的 TAG 值，详见 [自定义 TAG](#自定义-tag)
+
 ```sql
 create_definition:
     col_name column_definition
@@ -56,7 +57,7 @@ window_clause: {
 
 其中：
 
-- SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。该窗口的 _wend 等于最后一条数据的时间加上 tol_val。
+- SESSION 是会话窗口，tol_val 是时间间隔的最大范围。在 tol_val 时间间隔范围内的数据都属于同一个窗口，如果连续的两条数据的时间超过 tol_val，则自动开启下一个窗口。该窗口的_wend 等于最后一条数据的时间加上 tol_val。
 
 - STATE_WINDOW 是状态窗口，col 用来标识状态量，相同的状态量数值则归属于同一个状态窗口，col 数值改变后则当前窗口结束，自动开启下一个窗口。
 
@@ -128,6 +129,7 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 如果该流任务已经彻底过期，并且您不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
 
 注意：
+
 - 开启 fill_history 时，创建流需要找到历史数据的分界点，如果历史数据很多，可能会导致创建流任务耗时较长，此时可以通过 fill_history 1 async（v3.3.6.0 开始支持）语法将创建流的任务放在后台处理，创建流的语句可立即返回，不阻塞后面的操作。async 只对 fill_history 1 起效，fill_history 0 时建流很快，不需要异步处理。
 
 - 通过 show streams 可查看后台建流的进度（ready 状态表示成功，init 状态表示正在建流，failed 状态表示建流失败，失败时 message 列可以查看原因。对于建流失败的情况可以删除流重新建立）。
@@ -188,9 +190,7 @@ T = 最新事件时间 - watermark
 
 每次写入的数据都会以上述公式更新窗口关闭时间，并将窗口结束时间 < T 的所有打开的窗口关闭，若触发模式为 WINDOW_CLOSE 或 MAX_DELAY，则推送窗口聚合结果。
 
-
 ![TDengine 流式计算窗口关闭示意图](./pic/watermark.webp)
-
 
 图中，纵轴表示不同时刻，对于不同时刻，我们画出其对应的 TDengine 收到的数据，即为横轴。
 
@@ -204,7 +204,6 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 
 在 window_close 或 max_delay 模式下，窗口关闭直接影响推送结果。在 at_once 模式下，窗口关闭只与内存占用有关。
 
-
 ## 流式计算对于过期数据的处理策略
 
 对于已关闭的窗口，再次落入该窗口中的数据被标记为过期数据。
@@ -214,7 +213,6 @@ TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项�
 1. 增量计算，即 IGNORE EXPIRED 0。
 
 2. 直接丢弃，即 IGNORE EXPIRED 1：默认配置，忽略过期数据
-
 
 无论在哪种模式下，watermark 都应该被妥善设置，来得到正确结果（直接丢弃模式）或避免频繁触发重算带来的性能开销（重新计算模式）。
 
@@ -226,20 +224,23 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 
 2. 不检查数据是否被修改，全部按增量数据计算，即 IGNORE UPDATE 1，默认配置。
 
-
 ## 写入已存在的超级表
+
 ```sql
 [field1_name, ...]
 ```
+
 在本页文档顶部的 [field1_name, ...] 是用来指定 stb_name 的列与 subquery 输出结果的对应关系的。如果 stb_name 的列与 subquery 输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果 stb_name 的列与 subquery 输出结果的数据类型不匹配，会把 subquery 输出结果的类型转换成对应的 stb_name 的列的类型。创建流计算时不能指定 stb_name 的列和 TAG 的数据类型，否则会报错。
 
 对于已经存在的超级表，检查列的 schema 信息
+
 1. 检查列的 schema 信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于 4096byte 时才报错，其余场景都能进行类型转换。
 2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与 subquery 的列的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
 
 ## 自定义 TAG
 
 用户可以为每个 partition 对应的子表生成自定义的 TAG 值。
+
 ```sql
 CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s);
 ```
@@ -247,14 +248,16 @@ CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select 
 PARTITION 子句中，为 concat("tag-", tbname) 定义了一个别名 cc，对应超级表 st1 的自定义 TAG 的名字。在上述示例中，流新创建的子表的 TAG 将以前缀 'new-' 连接原表名作为 TAG 的值。
 
 会对 TAG 信息进行如下检查
+
 1. 检查 tag 的 schema 信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于 4096byte 时才报错，其余场景都能进行类型转换。
 2. 检查 tag 的个数是否相同，如果不同，需要显示的指定超级表与 subquery 的 tag 的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
 
 ## 清理中间状态
 
-```
+```sql
 DELETE_MARK time
 ```
+
 DELETE_MARK 用于删除缓存的窗口状态，也就是删除流计算的中间结果。如果不设置，默认值是 10 年
 T = 最新事件时间 - DELETE_MARK
 
@@ -284,6 +287,7 @@ T = 最新事件时间 - DELETE_MARK
 - [mode](../function/#mode)
 
 ## 暂停、恢复流计算
+
 1.流计算暂停计算任务
 PAUSE STREAM [IF EXISTS] stream_name;
 没有指定 IF EXISTS，如果该 stream 不存在，则报错；如果存在，则暂停流计算。指定了 IF EXISTS，如果该 stream 不存在，则返回成功；如果存在，则暂停流计算。
@@ -293,22 +297,26 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 没有指定 IF EXISTS，如果该 stream 不存在，则报错，如果存在，则恢复流计算；指定了 IF EXISTS，如果 stream 不存在，则返回成功；如果存在，则恢复流计算。如果指定 IGNORE UNTREATED，则恢复流计算时，忽略流计算暂停期间写入的数据。
 
 ## 状态数据备份与同步
+
 流计算的中间结果成为计算的状态数据，需要在流计算整个生命周期中进行持久化保存。为了确保流计算中间状态能够在集群环境下在不同的节点间可靠地同步和迁移，从 v3.3.2.1 开始，需要在运行环境中部署 rsync 软件，还需要增加以下的步骤：
+
 1. 在配置文件中配置 snode 的地址（IP + 端口）和状态数据备份目录（该目录系 snode 所在的物理节点的目录）。
 2. 然后创建 snode。
 完成上述两个步骤以后才能创建流。
 如果没有创建 snode 并正确配置 snode 的地址，流计算过程中将无法生成检查点（checkpoint），并可能导致后续的计算结果产生错误。
 
 > snodeAddress           127.0.0.1:873
-> 
+>
 > checkpointBackupDir    /home/user/stream/backup/checkpoint/
 
-
 ## 创建 snode 的方式
+
 使用以下命令创建 snode（stream node），snode 是流计算中有状态的计算节点，可用于部署聚合任务，同时负责备份不同的流计算任务生成的检查点数据。
+
 ```sql
 CREATE SNODE ON DNODE [id]
 ```
+
 其中的 id 是集群中的 dnode 的序号。请注意选择的 dnode，流计算的中间状态将自动在其上进行备份。
 从 v3.3.4.0 开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
 
@@ -333,6 +341,7 @@ notification_options: {
 ```
 
 上述语法中的相关规则含义如下：
+
 1. `url`：指定通知的目标地址，必须包括协议、IP 或域名、端口号，并允许包含路径、参数。目前仅支持 websocket 协议。例如：`ws://localhost:8080`、`ws://localhost:8080/notify`、`wss://localhost:8080/notify?key=foo`。
 1. `event_type`：定义需要通知的事件，支持的事件类型有：
     1. WINDOW_OPEN：窗口打开事件，所有类型的窗口打开时都会触发。
@@ -462,6 +471,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 #### 通用字段
 
 这部分是所有 event 对象所共有的字段。
+
 1. tableName：字符串类型，是对应目标子表的表名。
 1. eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
 1. eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
@@ -472,6 +482,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 #### 时间窗口相关字段
 
 这部分是 windowType 为 Time 时 event 对象才有的字段。
+
 1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
     1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
@@ -482,6 +493,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 #### 状态窗口相关字段
 
 这部分是 windowType 为 State 时 event 对象才有的字段。
+
 1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
     1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
     1. prevState：与状态列的类型相同，表示上一个窗口的状态值。如果没有上一个窗口 (即：现在是第一个窗口)，则为 NULL。
@@ -496,6 +508,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 #### 会话窗口相关字段
 
 这部分是 windowType 为 Session 时 event 对象才有的字段。
+
 1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
     1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
@@ -506,9 +519,10 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 #### 事件窗口相关字段
 
 这部分是 windowType 为 Event 时 event 对象才有的字段。
+
 1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
-  1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-  1. triggerCondition：触发窗口开始的条件信息，包括以下字段：
+1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. triggerCondition：触发窗口开始的条件信息，包括以下字段：
     1. conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从 0 开始编号。
     1. fieldValue：键值对形式，包含条件列列名及其对应的值。
 1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
@@ -522,6 +536,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 #### 计数窗口相关字段
 
 这部分是 windowType 为 Count 时 event 对象才有的字段。
+
 1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
     1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
@@ -534,6 +549,7 @@ CREATE STREAM avg_current_stream FILL_HISTORY 1
 因为流计算过程中会遇到数据乱序、更新、删除等情况，可能造成已生成的窗口被删除，或者结果需要重新计算。此时会向通知地址发送一条 WINDOW_INVALIDATION 的通知，说明哪些窗口已经被删除。
 
 这部分是 eventType 为 WINDOW_INVALIDATION 时，event 对象才有的字段。
+
 1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 1. windowEnd: 长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
 

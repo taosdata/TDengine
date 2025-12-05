@@ -380,7 +380,7 @@ static const SSysDbTableSchema vnodesSchema[] = {
     {.name = "status", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "role_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
-    {.name = "applied", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "restored", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
     {.name = "apply_finish_time", .bytes = TSDB_SYNC_RESTORE_lEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "unapplied", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "buffer_segment_used", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},

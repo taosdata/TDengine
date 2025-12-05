@@ -39,7 +39,6 @@ description: 可配置压缩算法
 | bool                                 | disabled/bit-packing      | bit-packing | lz4/zlib/zstd/xz     | zstd | medium |
 | decimal                              | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
 
-
 ## SQL 语法
 
 ### 建表时指定压缩
@@ -48,14 +47,14 @@ description: 可配置压缩算法
 CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other create_definition]...])
 ```
 
-**参数说明**
+###### 参数说明
 
 - tabname：超级表或者普通表名称
 - encode_type：一级压缩，具体参数见上面列表
 - compress_type：二级压缩，具体参数见上面列表
 - level：特指二级压缩的级别，默认值为 medium，支持简写为 'h'、'l'、'm'
 
-**功能说明**
+###### 功能说明
 
 - 创建表的时候指定列的压缩方式
 
@@ -66,12 +65,12 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 
 ```
 
-**参数说明**
+###### 参数说明
 
 - tabName：表名，可以为超级表、普通表
 - colName：待更改压缩算法的列，只能为普通列
 
-**功能说明**
+###### 功能说明
 
 - 更改列的压缩方式
 
@@ -81,7 +80,7 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 DESCRIBE [dbname.]tabName
 ```
 
-**功能说明**
+###### 功能说明
 
 - 显示列的基本信息，包括类型、压缩方式
 
