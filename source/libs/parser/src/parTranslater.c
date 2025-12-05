@@ -12585,21 +12585,6 @@ static int32_t translateCreateEncryptAlgr(STranslateContext* pCxt, SCreateEncryp
   return code;
 }
 
-static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
-  int32_t code = 0;
-  switch (pStmt->alterType) {
-    case TSDB_ALTER_USER_ENABLE:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1, false);
-      break;
-    case TSDB_ALTER_USER_SYSINFO:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false);
-      break;
-    case TSDB_ALTER_USER_CREATEDB:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, false);
-      break;
-  }
-  return code;
-}
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t       code = 0;
