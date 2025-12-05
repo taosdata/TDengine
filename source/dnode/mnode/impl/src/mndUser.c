@@ -986,7 +986,7 @@ static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
   while ((pIter = taosHashIterate(pObj->roles, pIter))) {
     size_t keyLen = 0;
     char  *key = taosHashGetKey(pIter, &keyLen);  // key: role name
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, key, (int32_t)keyLen));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, key));
 
     uint8_t flag = *(int8_t *)pIter;
     TAOS_CHECK_EXIT(tEncodeU8(&encoder, flag));  // value: 0 reset, 1 set(default)
@@ -1033,7 +1033,7 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
       TAOS_CHECK_EXIT(tDecodeCStrAndLen(&decoder, &key, &keyLen));
       uint8_t flag = 0;
       TAOS_CHECK_EXIT(tDecodeU8(&decoder, &flag));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->roles, key, keyLen, &flag, sizeof(flag)));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->roles, key, keyLen + 1, &flag, sizeof(flag)));
     }
   }
 
@@ -1710,6 +1710,10 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   if (sver >= USER_VER_SUPPORT_RBAC) {
     int32_t extLen = 0;
     SDB_GET_INT32(pRaw, dataPos, &extLen, _OVER);
+    TAOS_MEMORY_REALLOC(key, extLen);
+    if (key == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
     SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
   }
@@ -1909,7 +1913,7 @@ _exit:
 }
 
 int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
-  if ((*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+  if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                              HASH_ENTRY_LOCK))) {
     TAOS_RETURN(terrno);
   }
