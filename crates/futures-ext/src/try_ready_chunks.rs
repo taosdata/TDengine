@@ -112,3 +112,93 @@ impl<T, E: fmt::Display> fmt::Display for TryReadyChunksError<T, E> {
         self.1.fmt(f)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::pin::pin;
+
+    use futures_test::task::noop_context;
+    use tokio_test::assert_ready_eq;
+
+    use super::*;
+
+    #[test]
+    fn empty_stream_return_none_test() {
+        let mut context = noop_context();
+        let (_tx, rx) = futures::channel::mpsc::unbounded::<Result<(), ()>>();
+        let stream = TryReadyChunks::new(rx, 10);
+        let mut stream = pin!(stream);
+        assert_ready_eq!(stream.as_mut().poll_next(&mut context), None);
+    }
+
+    #[test]
+    fn less_data_test() {
+        let mut context = noop_context();
+        let (tx, rx) = futures::channel::mpsc::unbounded::<Result<(), ()>>();
+        let stream = TryReadyChunks::new(rx, 10);
+        let mut stream = pin!(stream);
+        for _ in 0..5 {
+            let _ = tx.unbounded_send(Ok(()));
+        }
+        assert_ready_eq!(
+            stream.as_mut().poll_next(&mut context),
+            Some(Ok(std::iter::repeat_n((), 5).collect::<Vec<_>>()))
+        );
+    }
+
+    #[test]
+    fn more_data_test() {
+        let mut context = noop_context();
+        let (tx, rx) = futures::channel::mpsc::unbounded::<Result<(), ()>>();
+        let stream = TryReadyChunks::new(rx, 10);
+        let mut stream = pin!(stream);
+
+        for _ in 0..20 {
+            let _ = tx.unbounded_send(Ok(()));
+        }
+
+        assert_ready_eq!(
+            stream.as_mut().poll_next(&mut context),
+            Some(Ok(std::iter::repeat_n((), 10).collect::<Vec<_>>()))
+        );
+
+        assert_ready_eq!(
+            stream.as_mut().poll_next(&mut context),
+            Some(Ok(std::iter::repeat_n((), 10).collect::<Vec<_>>()))
+        );
+    }
+
+    #[test]
+    fn empty_drop_test() {
+        let mut context = noop_context();
+        let (tx, rx) = futures::channel::mpsc::unbounded::<Result<(), ()>>();
+        let stream = TryReadyChunks::new(rx, 10);
+        let mut stream = pin!(stream);
+        drop(tx);
+        assert_ready_eq!(stream.as_mut().poll_next(&mut context), None);
+    }
+
+    #[test]
+    fn has_data_and_drop_test() {
+        let mut context = noop_context();
+        let (tx, rx) = futures::channel::mpsc::unbounded::<Result<(), ()>>();
+        let stream = TryReadyChunks::new(rx, 10);
+        let mut stream = pin!(stream);
+
+        for _ in 0..20 {
+            let _ = tx.unbounded_send(Ok(()));
+        }
+
+        drop(tx);
+
+        assert_ready_eq!(
+            stream.as_mut().poll_next(&mut context),
+            Some(Ok(std::iter::repeat_n((), 10).collect::<Vec<_>>()))
+        );
+
+        assert_ready_eq!(
+            stream.as_mut().poll_next(&mut context),
+            Some(Ok(std::iter::repeat_n((), 10).collect::<Vec<_>>()))
+        );
+    }
+}
