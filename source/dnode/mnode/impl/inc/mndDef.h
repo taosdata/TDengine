@@ -416,7 +416,10 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
+  union {
+    char user[TSDB_USER_LEN];
+    char name[TSDB_USER_LEN];
+  };
   char    pass[TSDB_PASSWORD_LEN];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
