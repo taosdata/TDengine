@@ -855,7 +855,7 @@ static bool hashIntervalAggForUnsortedBlock(SOperatorInfo* pOperatorInfo, SResul
 static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
                             int32_t scanFlag) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
-  if (pInfo->binfo.inputTsOrder == ORDER_OUT_OF_ORDER) {
+  if (pInfo->binfo.inputTsOrder != ORDER_ASC && pInfo->binfo.inputTsOrder != ORDER_DESC) {
     return hashIntervalAggForUnsortedBlock(pOperatorInfo, pResultRowInfo, pBlock, scanFlag);
   }
 
