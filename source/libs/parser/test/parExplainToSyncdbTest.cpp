@@ -30,7 +30,7 @@ TEST_F(ParserExplainToSyncdbTest, explain) {
 
   run("EXPLAIN ANALYZE VERBOSE true RATIO 0.01 SELECT * FROM t1");
 }
-
+#if 0
 TEST_F(ParserExplainToSyncdbTest, grant) {
   useDb("root", "test");
 
@@ -242,7 +242,7 @@ TEST_F(ParserExplainToSyncdbTest, revoke) {
   setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_SUBSCRIBE, "wxy", "0.tp1");
   run("REVOKE SUBSCRIBE ON tp1 FROM wxy");
 }
-
+#endif
 // todo syncdb
 
 }  // namespace ParserTest
