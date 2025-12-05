@@ -423,6 +423,12 @@ static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt) {
+  const char* pUser = pCxt->pParseCxt->pUser;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
@@ -509,6 +515,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateRsma(pCxt, (SCreateRsmaStmt*)pStmt);
     case QUERY_NODE_DROP_RSMA_STMT:
       return authDropRsma(pCxt, (SDropRsmaStmt*)pStmt);
+    case QUERY_NODE_CREATE_DATABASE_STMT:
+      return authSysPrivileges(pCxt, pStmt);
     default:
       break;
   }

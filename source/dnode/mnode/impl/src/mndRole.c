@@ -1074,7 +1074,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       int32_t objType = PRIV_OBJ_UNKNOWN;
       char    dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName));
+
+      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName)))) {
+        sdbRelease(pSdb, pObj);
+        sdbCancelFetch(pSdb, pShow->pIter);
+        TAOS_CHECK_EXIT(code);
+      }
 
       SPrivIter privIter = {0};
       privIterInit(&privIter, &pPolices->policy);
