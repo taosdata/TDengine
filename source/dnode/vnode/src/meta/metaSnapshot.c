@@ -424,10 +424,10 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
         continue;
       }
     }
-    tDecoderClear(&dc);
 
     TSDB_CHECK_NULL(taosArrayPush(ctx->idList, &tmp->uid), code, lino, END, terrno);
     metaDebug("tmqsnap init idlist name:%s, uid:%" PRIi64, me.name, tmp->uid);
+    tDecoderClear(&dc);
 
     SIdInfo info = {0};
     code = taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
@@ -476,6 +476,8 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
       code = saveSuperTableInfoForChildTable(&me, ctx->suidInfo);
       TSDB_CHECK_CODE(code, lino, END);
     }
+    tDecoderClear(&dc);
+
   }
 
   for (int i = 0; i < taosArrayGetSize(ctx->idList); i++) {
