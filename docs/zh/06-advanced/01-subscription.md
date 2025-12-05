@@ -25,13 +25,16 @@ TDengine 使用 SQL 创建的主题共有 3 种类型，下面分别介绍。
 ```sql
 CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 ```
+
 该 SQL 通过 SELECT 语句订阅（包括 SELECT *，或 SELECT ts, c1 等指定查询订阅，可以带条件过滤、标量函数计算，但不支持聚合函数、不支持时间窗口聚合）。需要注意的是：
+
 1. 该类型 TOPIC 一旦创建则订阅数据的结构确定。
 2. 被订阅或用于计算的列或标签不可被删除（ALTER table DROP）、修改（ALTER table MODIFY）。
 3. 若发生表结构变更，新增的列不出现在结果中。
 4. 对于 select *，则订阅展开为创建时所有的列（子表、普通表为数据列，超级表为数据列加标签列）
 
 假设需要订阅所有智能电表中电压值大于 200 的数据，且仅仅返回时间戳、电流、电压 3 个采集量（不返回相位），那么可以通过下面的 SQL 创建 power_topic 这个主题。
+
 ```sql
 CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE voltage > 200;
 ```
@@ -39,6 +42,7 @@ CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE 
 ### 超级表主题
 
 订阅一个超级表中的所有数据，语法如下：
+
 ```sql
 CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_condition]
 ```
@@ -54,11 +58,13 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_co
 ### 数据库主题
 
 订阅一个数据库里所有数据，其语法如下：
+
 ```sql
 CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 ```
 
 通过该语句可创建一个包含数据库所有表数据的订阅：
+
 1. with meta 参数可选，选择时将返回数据库里所有超级表，子表、普通表的元数据创建、删除、修改语句，主要用于 taosX 做数据库迁移。
 2. 超级表订阅和库订阅属于高级订阅模式，容易出错，如确实要使用，请咨询技术支持人员。
 
@@ -95,6 +101,7 @@ SHOW CONSUMERS;
 ### 删除消费组
 
 消费者创建的时候，会给消费者指定一个消费者组，消费者不能显式的删除，但是可以删除消费者组。如果当前消费者组里有消费者在消费，通过 FORCE 语法可强制删除，强制删除后订阅的消费者会消费数据会出错（FORCE 语法从 v3.3.6.0 开始支持）。
+
 ```sql
 DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
 ```
@@ -106,6 +113,7 @@ DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
 ```sql
 SHOW SUBSCRIPTIONS;
 ```
+
 显示 topic 在不同 vgroup 上的消费信息，可用于查看消费进度。
 
 ### 订阅数据
@@ -129,6 +137,7 @@ TDengine 的数据订阅功能支持回放（replay）功能，允许用户按�
 ```
 
 使用数据订阅的回放功能时需要注意如下几项：
+
 - 通过配置消费参数 enable.replay 为 true 开启回放功能。
 - 数据订阅的回放功能仅查询订阅支持数据回放，超级表和库订阅不支持回放。
 - 回放不支持进度保存。

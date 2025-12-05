@@ -37,13 +37,13 @@ ARIMA 模型是一种自回归模型，只需要自变量即可预测后续的�
 
 针对 i32 列进行数据预测，输入列 i32 每 10 个点是一个周期；start_p 起始是 1，最大拟合是 5；start_q 是 1，最大值是 5，预测结果中返回 95% 置信区间范围边界。
 
-```
+```sql
 FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5")
 ```
 
 完整的调用 SQL 语句如下：
 
-```SQL
+```sql
 SELECT _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") from foo
 ```
 
@@ -60,5 +60,5 @@ SELECT _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,s
 
 ### 参考文献
 
-- https://en.wikipedia.org/wiki/Autoregressive_moving-average_model
-- [https://baike.baidu.com/item/自回归滑动平均模型/5023931](https://baike.baidu.com/item/%E8%87%AA%E5%9B%9E%E5%BD%92%E6%BB%91%E5%8A%A8%E5%B9%B3%E5%9D%87%E6%A8%A1%E5%9E%8B/5023931)
+1. [Autoregressive moving-average model - Wikipedia](https://en.wikipedia.org/wiki/Autoregressive_moving-average_model)
+2. [自回归滑动平均模型 - 百度百科](https://baike.baidu.com/item/自回归滑动平均模型/5023931)

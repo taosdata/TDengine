@@ -5,6 +5,7 @@ toc_max_heading_level: 4
 ---
 
 本节介绍 TDengine Enterprise 特有的多级存储功能，其作用是将较近的热度较高的数据存储在高速介质上，而时间久远热度很低的数据存储在低成本介质上，达成了以下目标：
+
 - **降低存储成本**：将数据分级存储后，海量极冷数据存入廉价存储介质带来显著经济性
 - **提升写入性能**：得益于每级存储可支持多个挂载点，WAL 预写日志也支持 0 级的多挂载点并行写入，极大提升写入性能（实际场景测得支持持续写入每秒 3 亿测点以上），在机械硬盘上可获得极高磁盘 IO 吞吐（实测可达 2GB/s）
 - **方便维护**：配置好各级存储挂载点后，系统数据迁移等工作，无需人工干预；存储扩容更灵活、方便
@@ -21,6 +22,7 @@ toc_max_heading_level: 4
 **Tips** 典型的配置方案有：0 级配置多个挂载点，每个挂载点对应单块 SAS 硬盘；1 级配置多个挂载点，每个挂载点对应单块或多块 SATA 硬盘；2 级可配置 S3 存储或其他廉价网络存储。
 
 TDengine 多级存储配置方式如下（在配置文件/etc/taos/taos.cfg 中）：
+
 ```shell
 dataDir [path] <level> <primary>
 ```
@@ -40,7 +42,8 @@ dataDir /mnt/data5 2 0
 dataDir /mnt/data6 2 0
 ```
 
-**注意** 
+**注意** ：
+
 1. 多级存储不允许跨级配置，合法的配置方案有：仅 0 级、仅 0 级 + 1 级、以及 0 级 + 1 级 + 2 级。而不允许只配置 level=0 和 level=2，而不配置 level=1。
 2. 禁止手动移除使用中的挂载盘，挂载盘目前不支持非本地的网络盘。
 
@@ -59,7 +62,6 @@ dataDir /mnt/data6 2 0
 为了解决这个问题，从 3.1.1.0 开始引入了一个新的配置 minDiskFreeSize，当某块磁盘上的可用空间小于等于这个阈值时，该磁盘将不再被选择用于生成新的数据文件。该配置项的单位为字节，若配置值大于 2GB，则会跳过可用空间小于 2GB 的挂载点。
 
 从 3.3.2.0 版本开始，引入了一个新的配置 disable_create_new_file，用于控制在某个挂载点上禁止生成新文件，其缺省值为 false，即每个挂载点上默认都可以生成新文件。
-
 
 ## 对象存储
 
@@ -89,7 +91,7 @@ dataDir /mnt/data6 2 0
 
 在 taos.cfg 中完成对 S3 的配置后，通过 taosd 命令的 checks3 参数可以检查所配置的 S3 服务是否可用：
 
-```
+```bash
 taosd --checks3
 ```
 
@@ -148,9 +150,11 @@ s3migrate database <db_name>;
 页缓存是内存缓存，节点重启后，再次查询需要重新下载数据。缓存采用 LRU (Least Recently Used) 策略，当缓存空间不足时，最近最少使用的数据将被淘汰。缓存的大小可以通过 `s3PageCacheSize` 参数进行调整，通常来说，缓存越大，下载次数越少。
 
 ### Azure Blob 存储
+
 本节介绍在 TDengine Enterprise 版本中如何使用微软 Azure Blob 存储。本功能可以通过两个方式使用：利用 Flexify 服务提供的 S3 网关功能和不依赖 Flexify 服务。通过配置参数，可以把大部分较冷的时序数据存储到 Azure Blob 服务中。
 
 #### Flexify 服务
+
 Flexify 是 Azure Marketplace 中的一款应用程序，允许兼容 S3 的应用程序通过标准 S3 API 在 Azure Blob Storage 中存储数据。可使用多个 Flexify 服务对同一个 Blob 存储建立多个 S3 网关。
 
 部署方式请参考 [Flexify](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/flexify.azure-s3-api?tab=Overview)  应用页面说明。
@@ -159,7 +163,7 @@ Flexify 是 Azure Marketplace 中的一款应用程序，允许兼容 S3 的应�
 
 在配置文件 /etc/taos/taos.cfg 中，添加用于 S3 访问的参数：
 
-```
+```bash
 s3EndPoint   http //20.191.157.23,http://20.191.157.24,http://20.191.157.25
 s3AccessKey  FLIOMMNL0:uhRNdeZMLD4wo,ABCIOMMN:uhRNdeZMD4wog,DEFOMMNL049ba:uhRNdeZMLD4wogXd
 s3BucketName td-test
@@ -177,7 +181,7 @@ s3BucketName td-test
 
 | # | 参数 | 示例值 | 描述 |
 |:--|:-------------|:-----------------------------------------|:----------------------------------|
-| 1 | s3EndPoint   | https://fd2d01c73.blob.core.windows.net  | Blob URL                          |
+| 1 | s3EndPoint   | `https://fd2d01c73.blob.core.windows.net` | Blob URL                          |
 | 2 | s3AccessKey  | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg== | 冒号分隔的用户 accountId:accountKey |
 | 3 | s3BucketName | test-container                           | Container name                    |
 

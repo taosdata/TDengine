@@ -16,9 +16,10 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 - 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
 - 系统表中的一些列可能是关键字，在查询时需要使用转义符 '\`'，例如查询数据库 test 有几个 VGROUP。
-```sql 
+
+```sql
    select `vgroups` from ins_databases where name = 'test';
-``` 
+```
 
 :::
 
@@ -69,7 +70,6 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 1   |     id      | SMALLINT     | snode id     |
 | 2   |  endpoint   | VARCHAR(134)  | snode 的地址 |
 | 3   | create_time | TIMESTAMP    | 创建时间     |
-
 
 ## INS_CLUSTER
 
@@ -132,7 +132,6 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 8   | func_language | VARCHAR(31)    | 自定义函数编程语言                                                                            |
 | 9   |   func_body   | VARCHAR(16384) | 函数体定义                                                                                    |
 | 10  | func_version  | INT           | 函数版本号。初始版本为 0，每次替换更新，版本号加 1。                                           |
-
 
 ## INS_INDEXES
 
@@ -264,7 +263,6 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 14  |   keep_version    | INT      | 此 vgroup 大于等于 keep_version 的 wal 日志不会被自动删除                                      |
 | 15  |   keep_version_time    | INT      | 此 vgroup 在 keep_version 上次被修改的时间                                 |
 
-
 ## INS_CONFIGS
 
 系统配置参数。
@@ -326,11 +324,11 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 | #   |   **列名** | **数据类型** | **说明** |
 |:----|:-----------|:------------|:--------|
-| 1   | user_name    | VARCHAR(24)       | 用户名
-| 2   | privilege    | VARCHAR(10)       | 权限描述
-| 3   | db_name      | VARCHAR(65)       | 数据库名称
-| 4   | table_name   | VARCHAR(193)      | 表名称
-| 5   | condition    | VARCHAR(49152)    | 子表权限过滤条件
+| 1   | user_name    | VARCHAR(24)       | 用户名 |
+| 2   | privilege    | VARCHAR(10)       | 权限描述 |
+| 3   | db_name      | VARCHAR(65)       | 数据库名称 |
+| 4   | table_name   | VARCHAR(193)      | 表名称 |
+| 5   | condition    | VARCHAR(49152)    | 子表权限过滤条件 |
 
 ## INS_DISK_USAGE
 
@@ -345,8 +343,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 7   | cache_rdb  | BIGINT      | last/last_row 文件的大小，单位为 KB |
 | 8   | table_meta | BIGINT      | meta 文件的大小，单位为 KB         |
 | 9   | s3         | BIGINT      | s3 上占用的大小，单位为 KB          |
-| 10  | raw_data   | BIGINT      | 预估的原始数据的大小，单位为 KB      | 
-
+| 10  | raw_data   | BIGINT      | 预估的原始数据的大小，单位为 KB      |
 
 ## INS_FILESETS
 

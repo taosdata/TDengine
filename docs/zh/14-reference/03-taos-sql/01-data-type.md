@@ -42,7 +42,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 | 14  |       NCHAR       | 自定义    | 记录包含多字节字符在内的字符串，如中文字符。每个 NCHAR 字符占用 4 字节的存储空间。字符串两端使用单引号引用，字符串内的单引号需用转义字符 `\'`。NCHAR 使用时须指定字符串大小，类型为 NCHAR(10) 的列表示此列的字符串最多存储 10 个 NCHAR 字符。如果用户字符串长度超出声明长度，将会报错。|
 | 15  |       JSON        |           | JSON 数据类型，只有 Tag 可以是 JSON 格式               |
 | 16  |      VARCHAR      | 自定义    | BINARY 类型的别名                 |
-| 17  |      GEOMETRY     | 自定义    | 几何类型，v3.1.0.0 开始支持
+| 17  |      GEOMETRY     | 自定义    | 几何类型，v3.1.0.0 开始支持 |
 | 18  |      VARBINARY     | 自定义    | 可变长的二进制数据，v3.1.1.0 开始支持|
 | 19  |      DECIMAL      |  8 或 16    | 高精度数值类型，取值范围取决于类型中指定的 precision 和 scale，自 v3.3.6.0 开始支持，见下文描述|
 
@@ -65,6 +65,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 :::
 
 ### DECIMAL 数据类型
+
 `DECIMAL` 数据类型用于高精度数值存储，自 v3.3.6.0 开始支持，定义语法：`DECIMAL(18, 2)`、`DECIMAL(38, 10)`，其中需要指定两个参数，分别为 `precision` 和 `scale`。`precision` 是指最大支持的有效数字个数，`scale` 是指最大支持的小数位数。如 `DECIMAL(8, 4)`，可表示范围即 `[-9999.9999, 9999.9999]`。定义 DECIMAL 数据类型时，`precision` 范围为：`[1, 38]`，scale 的范围为：`[0, precision]`，scale 为 0 时，仅表示整数。也可以不指定 scale，默认为 0，例如 `DECIMAL(18)`，与 `DECIMAL(18, 0)` 相同。
 
 当 `precision` 值不大于 18 时，内部使用 8 字节存储 (DECIMAL64)，当 `precision` 范围为 `(18, 38]` 时，使用 16 字节存储 (DECIMAL)。SQL 中写入 DECIMAL 类型数据时，可直接使用数值写入，当写入值大于类型可表示的最大值时会报 DECIMAL_OVERFLOW 错误，当未大于类型表示的最大值，但小数位数超过 SCALE 时，会自动四舍五入处理。如定义类型 DECIMAL(10, 2)，写入 10.987，则实际存储值为 10.99。
@@ -74,7 +75,6 @@ DECIMAL 类型仅支持普通列，暂不支持 tag 列。DECIMAL 类型只支�
 整数类型和 DECIMAL 类型操作时，会将整数类型转换为 DECIMAL 类型再进行计算。DECIMAL 类型与 DOUBLE/FLOAT/VARCHAR/NCHAR 等类型计算时，转换为 DOUBLE 类型进行计算。
 
 查询 DECIMAL 类型表达式时，若计算的中间结果超出当前类型可表示的最大值时，报 DECIMAL OVERFLOW 错误。
-
 
 ## 常量
 

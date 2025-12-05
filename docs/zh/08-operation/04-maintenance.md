@@ -37,11 +37,10 @@ kill compact compact_id;
 - compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
 - show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务
 
-
 ### 补充说明
 
--   compact 为异步，执行 compact 命令后不会等 compact 结束就会返回。如果上一个 compact 没有完成则再发起一个 compact 任务，则会等上一个任务完成后再返回。
--   compact 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
+- compact 为异步，执行 compact 命令后不会等 compact 结束就会返回。如果上一个 compact 没有完成则再发起一个 compact 任务，则会等上一个任务完成后再返回。
+- compact 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
 
 ## vgroup leader 再平衡
 
@@ -118,15 +117,19 @@ select * from information_schema.ins_arbgroups;
  db                             |           4 |        1 |        3 |       1 | NULL           | NULL                           |
 
 ```
+
 is_sync 有以下两种取值：
+
 - 0: vgroup 数据未达成同步。在此状态下，如果 vgroup 中的某一 vnode 不可访问，另一个 vnode 无法被指定为 `AssignedLeader` role，该 vgroup 将无法提供服务。
 - 1: vgroup 数据达成同步。在此状态下，如果 vgroup 中的某一 vnode 不可访问，另一个 vnode 可以被指定为 `AssignedLeader` role，该 vgroup 可以继续提供服务。
 
 assigned_dnode：
+
 - 标识被指定为 AssignedLeader 的 vnode 的 DnodeId
 - 未指定 AssignedLeader 时，该列显示 NULL
 
 assigned_token：
+
 - 标识被指定为 AssignedLeader 的 vnode 的 Token
 - 未指定 AssignedLeader 时，该列显示 NULL
 
@@ -135,6 +138,7 @@ assigned_token：
 1. 全新部署
 
 双副本的主要价值在于节省存储成本的同时能够有一定的高可用和高可靠能力。在实践中，推荐配置为：
+
 - N 节点集群（其中 N>=3）
 - 其中 N-1 个 dnode 负责存储时序数据
 - 第 N 个 dnode 不参与时序数据的存储和读取，即其上不保存副本；可以通过 `supportVnodes` 这个参数为 0 来实现这个目标
