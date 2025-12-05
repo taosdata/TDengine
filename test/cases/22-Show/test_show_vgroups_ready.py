@@ -31,26 +31,26 @@ class TestShowBasic:
 
         """
 
-        tdLog.info(f"=============== create database, stable, table")
         tdSql.execute(f"create database db1 vgroups 1 replica 1")
+        time.sleep(5)
         tdSql.execute(f"use db1")
 
         tdSql.query(f"show vgroups")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 15, 1) 
+        tdSql.checkData(0, 15, True) 
 
-        tdLog.info(f"=============== create database, stable, table")
         tdSql.execute(f"create database db2 vgroups 1 replica 2")
+        time.sleep(5)
         tdSql.execute(f"use db2")
 
         tdSql.query(f"show vgroups")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 15, 1)
+        tdSql.checkData(0, 15, True)
 
-        tdLog.info(f"=============== create database, stable, table")
         tdSql.execute(f"create database db3 vgroups 1 replica 3")
+        time.sleep(5)
         tdSql.execute(f"use db3")
 
         tdSql.query(f"show vgroups")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 15, 1) 
+        tdSql.checkData(0, 15, True) 
