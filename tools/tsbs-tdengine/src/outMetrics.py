@@ -49,8 +49,7 @@ class OutMetrics:
         self.data_rows   = {}
         self.output_rows = {}
         self.status      = {}
-        self.delay       = {}
-        
+        self.delay       = {}     
     
     def init_metrics(self, metrics_file):
         log.out("Initializing metrics output")
@@ -73,12 +72,12 @@ class OutMetrics:
     def end_write(self, name):
         self.time_end_write[name] = time.time()
         cost = self.time_end_write[name] - self.time_start_write[name]
-        self.write_metrics(f"Write step '{name}' took {cost:.3f} seconds")
+        self.write_metrics(f"WRITE STEP '{name}' took {cost:.3f} seconds")
 
     def end_test(self, name):
         self.time_end_test[name] = time.time()
         cost = self.time_end_test[name] - self.time_start_test[name]
-        self.write_metrics(f"Test  step '{name}' took {cost:.3f} seconds")
+        self.write_metrics(f"TEST STEP '{name}' took {cost:.3f} seconds")
     
     def end(self):
         self.time_end = time.time()

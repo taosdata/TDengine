@@ -103,6 +103,8 @@ class PrepareEnv(BaseStep):
             log.out("prepare wait stream ready...")
             self.wait_stream_ready(conn)
             conn.close()
+            log.outSuccess("Stream is ready!")
+            
             return True
         except Exception as e:
             log.out(f"PrepareEnv run except: {e} sql:\n{self.scene.sql}")

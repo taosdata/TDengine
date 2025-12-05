@@ -385,26 +385,28 @@ class DNodeManager:
         
         # Loop to verify all processes are stopped
         max_wait_time = 10  # Maximum wait time in seconds
-        check_interval = 0.5  # Check every 0.5 seconds
+        check_interval = 1  # Check every 1 second
         elapsed_time = 0
         
         while elapsed_time < max_wait_time:
+            time.sleep(check_interval)
+
             # Check if any taosd process is still running
             result = subprocess.run(
-                "ps aux | grep taosd | grep -v grep",
+                "echo `pidof taosd`",
                 shell=True,
                 capture_output=True,
                 text=True
-            )
-            
+            )            
             if not result.stdout.strip():
                 # No taosd processes found
                 self.logger.success(f"All DNODEs stopped successfully (took {elapsed_time:.1f}s)")
                 self.processes.clear()
                 return
+            else:
+                print(f"Still running taosd pid:{result.stdout.strip()}")
             
             # Still running, wait and retry
-            time.sleep(check_interval)
             elapsed_time += check_interval
             
             if elapsed_time % 2 == 0:  # Log every 2 seconds
@@ -735,8 +737,8 @@ class DeployCluster(BaseStep):
             self.cluster_mgr.check_cluster_status(check_snodes=(self.snodes > 0))
             
             # Print summary
-            self.logger.info("\n" + "=" * 30)
-            self.logger.success("✓ Cluster setup completed successfully!")
+            self.logger.info("=" * 30)
+            self.logger.success("✓ Cluster setup completed!")
             self.logger.info("=" * 30)
             self.logger.info("\nCluster Summary:")
             self.logger.info(f"  Total DNODEs: {self.dnodes}")

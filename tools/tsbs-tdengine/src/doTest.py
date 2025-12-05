@@ -60,9 +60,10 @@ class DoTest(BaseStep):
             results = cursor.fetchall()
             expectRows = results[0][0]
             cost = time.time() - start
-            metrics.write_metrics(f"Equal sql took {cost:.3f} seconds")
+            metrics.write_metrics(f"  Equal SQL took: {cost:.3f} seconds")
+            log.out(f"  Equal SQL: {equalSql}")
+            log.out(f"  Get Rows: {expectRows} diffRows: {diffRows}")
             
-            log.out(f"  Equal SQL: {equalSql}, Get Rows: {expectRows} diffRows: {diffRows}")
             if diffRows is not None:
                 expectRows += diffRows
         
@@ -194,3 +195,4 @@ class DoTest(BaseStep):
         
         # mark test end time
         metrics.end_test(self.scene.name)
+        log.outSuccess("doTest finished!")

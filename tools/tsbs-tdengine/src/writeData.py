@@ -104,6 +104,7 @@ class WriteData(BaseStep):
             self.insert_data(table)
             
         metrics.end_write(self.scene.name)
+        log.outSuccess("Write data finished!")
         
         # verify expect rows
         for table in self.scene.tables:

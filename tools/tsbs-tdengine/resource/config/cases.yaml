@@ -52,11 +52,11 @@ testCases:
       classif: "Summary"
       description: ""
       sql: |
-        create stream db1.stm_a4 
+        create stream db2.stm_a4 
             sliding(10m) 
-            from db1.readings 
+            from db2.diagnostics
             stream_options(IGNORE_DISORDER) 
-            into db1.res_a4 
+            into db2.res_a4 
             as 
               select _tcurrent_ts, sum(load) 
                 from (
@@ -170,7 +170,7 @@ testCases:
                             ) 
                        partition by name
                      ) 
-                where sduration > 12 * 3600000; 
+                where sduration > 12 * 60000; 
 
     - scenarioId: "F1"
       classif: "Fleet"
@@ -221,7 +221,7 @@ testCases:
         as 
           select _twend, avg(fuel_consumption) 
             from db1.readings 
-            where fleet = %%1 and _c0 >= _twstart and _c0 < _twend;
+            where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend;
 
     - scenarioId: "F4"
       classif: "Fleet"
@@ -264,7 +264,7 @@ testCases:
           from (
                 select _wduration tduration, count(*) 
                   from db2.diagnostics 
-                  where fleet = %%1 and _c0 >= _twstart and _c0 < _twend 
+                  where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend 
                   partition by tbname 
                   event_window start with status > 0 end with status = 0
                )
@@ -283,7 +283,7 @@ testCases:
                 from (
                         select fleet, last(current_load) cur_load, load_capacity 
                         from db2.diagnostics 
-                          where fleet = %%1 and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                           partition by tbname 
                       )
 
@@ -301,7 +301,7 @@ testCases:
                 from (
                        select fleet, case when last(status) > 0 then 1 else 0 end breakdown 
                        from db2.diagnostics 
-                          where fleet = %%1 and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
                           partition by tbname
                      )
 
@@ -319,7 +319,7 @@ testCases:
           select _twstart ts, name, top(avg_fuel, 5) top_fuel 
             from (
                   select name, fleet, avg(fuel_consumption) avg_fuel 
-                    from db1.readings where fleet = %%1 and _c0 >= _twstart and _c0 < _twend 
+                    from db1.readings where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend 
                     partition by tbname
                  )
 
