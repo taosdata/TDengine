@@ -238,12 +238,13 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.minRows = pCreate->minRows;
   pCfg->tsdbCfg.maxRows = pCreate->maxRows;
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  pCfg->tsdbCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
-  if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
-    tstrncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+  // pCfg->tsdbCfg.encryptAlgr = pCreate->encryptAlgr;
+  tstrncpy(pCfg->tsdbCfg.encryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 || pCfg->tsdbCfg.encryptData.encryptAlgrName[0] != '\0') {
+    tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
-  pCfg->tsdbCfg.encryptAlgorithm = 0;
+  pCfg->tsdbCfg.encryptAlgr = 0;
 #endif
 
   pCfg->walCfg.vgId = pCreate->vgId;  // pCreate->mountVgId ? pCreate->mountVgId : pCreate->vgId;
@@ -254,21 +255,23 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  pCfg->walCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
-  if (pCfg->walCfg.encryptAlgorithm == DND_CA_SM4) {
-    tstrncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+  // pCfg->walCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
+  tstrncpy(pCfg->walCfg.encryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 || pCfg->walCfg.encryptData.encryptAlgrName[0] != '\0') {
+    tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
-  pCfg->walCfg.encryptAlgorithm = 0;
+  pCfg->walCfg.encryptAlgr = 0;
 #endif
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
-  if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
-    tstrncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+  // pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
+  tstrncpy(pCfg->tdbEncryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  if (pCfg->tdbEncryptAlgr == DND_CA_SM4 || pCfg->tdbEncryptData.encryptAlgrName[0] != '\0') {
+    tstrncpy(pCfg->tdbEncryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
-  pCfg->tdbEncryptAlgorithm = 0;
+  pCfg->tdbEncryptAlgr = 0;
 #endif
 
   pCfg->sttTrigger = pCreate->sstTrigger;
@@ -345,7 +348,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       "precision:%d compression:%d minRows:%d maxRows:%d"
       ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
       ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
-      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d",
+      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d encryptAlgrName:%s",
       req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
       (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
       req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
@@ -353,7 +356,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
       req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix,
       req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex, req.strict, req.changeVersion,
-      req.encryptAlgorithm);
+      req.encryptAlgorithm, req.encryptAlgrName);
 
   for (int32_t i = 0; i < req.replica; ++i) {
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", req.vgId, i, req.replicas[i].fqdn, req.replicas[i].port,
@@ -380,7 +383,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 
-  if (req.encryptAlgorithm == DND_CA_SM4) {
+  if (req.encryptAlgrName[0] != '\0') {
     if (strlen(tsEncryptKey) == 0) {
       (void)tFreeSCreateVnodeReq(&req);
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
@@ -645,11 +648,12 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
       dError("mount:%s, vnode path:%s, vgId:%d not match:%d", pReq->mountName, pCfg->path, pInfo->config.vgId,
              pCfg->vgId);
       TAOS_CHECK_EXIT(TSDB_CODE_FILE_CORRUPTED);
-    } else if (pInfo->config.tdbEncryptAlgorithm || pInfo->config.tsdbCfg.encryptAlgorithm ||
-               pInfo->config.walCfg.encryptAlgorithm) {
-      dError("mount:%s, vnode path:%s, invalid encrypt algorithm, tdb:%d wal:%d tsdb:%d", pReq->mountName, pCfg->path,
-             pInfo->config.tdbEncryptAlgorithm, pInfo->config.walCfg.encryptAlgorithm,
-             pInfo->config.tsdbCfg.encryptAlgorithm);
+    } else if (pInfo->config.tdbEncryptData.encryptAlgrName[0] != '\0' ||
+               pInfo->config.tsdbCfg.encryptData.encryptAlgrName[0] != '\0' ||
+               pInfo->config.walCfg.encryptData.encryptAlgrName[0] != '\0') {
+      dError("mount:%s, vnode path:%s, invalid encrypt algorithm, tdb:%s wal:%s tsdb:%s", pReq->mountName, pCfg->path,
+             pInfo->config.tdbEncryptData.encryptAlgrName, pInfo->config.walCfg.encryptData.encryptAlgrName,
+             pInfo->config.tsdbCfg.encryptData.encryptAlgrName);
       TAOS_CHECK_EXIT(TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG);
     }
     SMountDbVgId dbVgId = {.dbId = pInfo->config.dbId, .vgId = pInfo->config.vgId, .diskPrimary = pCfg->diskPrimary};
@@ -743,7 +747,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walRetentionSize = pVgCfg->config.walCfg.retentionSize,
           .walSegSize = pVgCfg->config.walCfg.segSize,
           .walLevel = pVgCfg->config.walCfg.level,
-          .encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
+          //.encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
           .committed = pVgCfg->state.committed,
           .commitID = pVgCfg->state.commitID,
           .commitTerm = pVgCfg->state.commitTerm,
@@ -823,7 +827,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                  .config.walCfg.retentionSize = pVgInfo->walRetentionSize,
                  .config.walCfg.segSize = pVgInfo->walSegSize,
                  .config.walCfg.level = pVgInfo->walLevel,
-                 .config.walCfg.encryptAlgorithm = pVgInfo->encryptAlgorithm,
+          //.config.walCfg.encryptAlgorithm = pVgInfo->encryptAlgorithm,
                  .diskPrimary = pVgInfo->diskPrimary,
       };
       void *vnodePath = taosArrayGet(pMountInfo->pDisks[0], pVgInfo->diskPrimary);
