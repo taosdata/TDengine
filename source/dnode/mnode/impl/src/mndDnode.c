@@ -129,7 +129,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DNODE_RELOAD_TLS, mndProcessUpdateDnodeReloadTls);
-  mndSetMsgHandle(pMnode, TDMT_DND_RELOAD_DNODE_TLS, mndProcessReloadDnodeTlsRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_RELOAD_DNODE_TLS_RSP, mndProcessReloadDnodeTlsRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -1868,28 +1868,6 @@ _OVER:
 
 static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp) {
   int32_t code = 0;
+  rpcFreeCont(pRsp->pCont);
   return code;
-  // SMnode *pMnode = pRsp->info.node;
-  // int16_t nSuccess = 0;
-  // int16_t nFailed = 0;
-
-  // if (0 == pRsp->code) {
-  //   nSuccess = atomic_add_fetch_16(&pMnode->encryptMgmt.nSuccess, 1);
-  // } else {
-  //   nFailed = atomic_add_fetch_16(&pMnode->encryptMgmt.nFailed, 1);
-  // }
-
-  // int16_t nReq = atomic_load_16(&pMnode->encryptMgmt.nEncrypt);
-  // bool    finished = nSuccess + nFailed >= nReq;
-
-  // if (finished) {
-  //   atomic_store_8(&pMnode->encryptMgmt.encrypting, 0);
-  // }
-
-  // const STraceId *trace = &pRsp->info.traceId;
-  // mGInfo("msg:%p, create encrypt key rsp, nReq:%" PRIi16 ", nSucess:%" PRIi16 ", nFailed:%" PRIi16 ", %s", pRsp,
-  // nReq,
-  //        nSuccess, nFailed, finished ? "encrypt done" : "in encrypting");
-
-  return 0;
 }
