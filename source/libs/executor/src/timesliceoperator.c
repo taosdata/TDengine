@@ -29,7 +29,7 @@ typedef struct STimeSliceOperatorInfo {
   SSDataBlock*         pRes;
   STimeWindow          win;
   SInterval            interval;
-  int64_t              current;
+  int64_t              current;      // tony: start ts of current time slice
   SArray*              pPrevRow;     // SArray<SGroupValue>
   SArray*              pNextRow;     // SArray<SGroupValue>
   SArray*              pLinearInfo;  // SArray<SFillLinearInfo>
@@ -68,7 +68,7 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
         memcpy(pkey->pData, val, pkey->bytes);
       }
     } else {
-      pkey->isNull = true;
+      // pkey->isNull = true; // tony: just keep previous non-null state
     }
   }
 
@@ -900,6 +900,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
       doKeepPrevRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
 
+      /* tony: move to the next time slice */
       pSliceInfo->current =
           taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
 
@@ -912,16 +913,20 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
         return;
       }
     } else if (ts < pSliceInfo->current) {
+      /* tony: found data in previous time slice */
       // in case of interpolation window starts and ends between two datapoints, fill(prev) need to interpolate
       doKeepPrevRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
 
       if (i < pBlock->info.rows - 1) {
         // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
+        /* tony: if not last row of data block, keep next row first */
         doKeepNextRows(pSliceInfo, pBlock, i + 1);
         int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
         if (nextTs > pSliceInfo->current) {
+          /* tony: if next row belons/beyonds to current time slice */
           while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
+            /* tony: insert resBlock until current time slice exceeds next row */
             if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, false, pTaskInfo) &&
                 pSliceInfo->fillType == TSDB_FILL_LINEAR) {
               break;
@@ -946,10 +951,13 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
       }
     } else {  // ts > pSliceInfo->current
       // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
+      /* tony: found data in next time slice, which means this time slice contains no data
+               mark this row as next row first */
       doKeepNextRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
 
       while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
+        /* tony: insert resBlock until current time slice exceeds next row */
         if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, true, pTaskInfo) &&
             pSliceInfo->fillType == TSDB_FILL_LINEAR) {
           break;
