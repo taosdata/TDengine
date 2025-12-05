@@ -973,7 +973,7 @@ TEST_F(ParserInitialCTest, createTableSemanticCheck) {
   useDb("root", "test");
 
   string sql = "CREATE TABLE st1(ts TIMESTAMP, ";
-  for (int32_t i = 1; i < 4096; ++i) {
+  for (int32_t i = 1; i < 32767; ++i) {
     if (i > 1) {
       (void)sql.append(", ");
     }

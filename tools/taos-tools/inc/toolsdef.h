@@ -161,7 +161,7 @@ extern "C" {
 #define TSDB_TIME_PRECISION_MICRO       1
 #define TSDB_TIME_PRECISION_NANO        2
 
-#define TSDB_MAX_COLUMNS                4096
+#define TSDB_MAX_COLUMNS                32767
 #define TSDB_MIN_COLUMNS                2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_TABLE_NAME_LEN             193     // it is a null-terminated string
@@ -169,11 +169,11 @@ extern "C" {
 #define TSDB_DB_NAME_LEN                65
 
 #define TSDB_COL_NAME_LEN               65
-#ifndef TSDB_MAX_ALLOWED_SQL_LEN
-#define TSDB_MAX_ALLOWED_SQL_LEN        (1*1024*1024u) /* sql length should be less than 1mb */
-#endif
 
-#define TSDB_MAX_BYTES_PER_ROW          65531
+// come from tdef.h 
+#define TSDB_MAX_ALLOWED_SQL_LEN        (4*1024*1024u) /* sql max length */
+
+#define TSDB_MAX_BYTES_PER_ROW          524283
 #define TSDB_MAX_TAGS                   128
 
 #define TSDB_DEFAULT_PKT_SIZE           65480  //same as RPC_MAX_UDP_SIZE

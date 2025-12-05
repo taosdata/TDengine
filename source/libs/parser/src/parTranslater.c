@@ -19618,7 +19618,7 @@ typedef struct SParseFileContext {
   STableMeta* pStbMeta;
   SArray*     aTagIndexs;
 
-  char    tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+  char*    tmpTokenBuf;
   SArray* aCreateTbData;
 
   // per line
@@ -19787,6 +19787,7 @@ static void destructParseFileContext(SParseFileContext** ppParFileCxt) {
   SParseFileContext* pParFileCxt = *ppParFileCxt;
 
   taosArrayDestroy(pParFileCxt->aTagNames);
+  taosMemoryFreeClear(pParFileCxt->tmpTokenBuf);
   taosMemoryFreeClear(pParFileCxt->pStbMeta);
   taosArrayDestroy(pParFileCxt->aTagIndexs);
   taosArrayDestroy(pParFileCxt->aCreateTbData);
@@ -19804,6 +19805,8 @@ static int32_t constructParseFileContext(SCreateSubTableFromFileClause* pStmt, S
 
   SParseFileContext* pParFileCxt = taosMemoryCalloc(1, sizeof(SParseFileContext));
   if (!pParFileCxt) return terrno;
+  pParFileCxt->tmpTokenBuf = taosMemoryMalloc(TSDB_MAX_BYTES_PER_ROW);
+  if (!pParFileCxt->tmpTokenBuf) return terrno;
   pParFileCxt->pStbMeta = pSuperTableMeta;
   pParFileCxt->tagNameFilled = false;
   pParFileCxt->pTag = NULL;

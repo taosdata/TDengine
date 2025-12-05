@@ -339,7 +339,7 @@ class TestStableAlterBasic:
         tdSql.error(f"alter table tb modify column c2 binary(9);")
         tdSql.error(f"alter table tb modify column c2 binary(-9);")
         tdSql.error(f"alter table tb modify column c2 binary(0);")
-        tdSql.error(f"alter table tb modify column c2 binary(65436);")
+        tdSql.error(f"alter table tb modify column c2 binary(65531);")
         tdSql.error(f"alter table tb modify column c2 nchar(30);")
         tdSql.error(f"alter table tb modify column c3 double;")
         tdSql.error(f"alter table tb modify column c3 nchar(10);")

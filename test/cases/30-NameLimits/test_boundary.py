@@ -181,9 +181,9 @@ class TestBoundary:
         tdSql.execute('create table if not exists stb1 (ts timestamp, c1 int,c2 binary(1000)) tags (city binary(16382))')
         tdSql.error('create table if not exists stb1 (ts timestamp, c1 int,c2 binary(1000)) tags (city binary(16383))')
         tdSql.execute('create table if not exists stb2 (ts timestamp, c0 tinyint, c1 int, c2 nchar(16379)) tags (city binary(16382))')
-        tdSql.error('create table if not exists stb2 (ts timestamp, c0 smallint, c1 int, c2 nchar(16379)) tags (city binary(16382))')
+        tdSql.error('create table if not exists stb2 (ts timestamp, c0 smallint, c1 int, c2 nchar(65517), c3 nchar(65517), c4 nchar(65517), c5 nchar(65517), c6 nchar(65517), c7 nchar(65517), c8 nchar(65517), c9 nchar(65517)) tags (city binary(16382))')
         tdSql.execute('create table if not exists stb3 (ts timestamp, c1 int, c2 binary(65517)) tags (city binary(16382))')
-        tdSql.error('create table if not exists stb3 (ts timestamp, c0 bool, c1 int, c2 binary(65517)) tags (city binary(16382))')
+        tdSql.error('create table if not exists stb3 (ts timestamp, c0 bool, c1 int, c2 binary(65517), c3 nchar(65517), c4 nchar(65517), c5 nchar(65517), c6 nchar(65517), c7 nchar(65517), c8 nchar(65517), c9 nchar(65517)) tags (city binary(16382))')
         # prepare the column and tag data
         char100='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123456789'
         tag_max_16382=''

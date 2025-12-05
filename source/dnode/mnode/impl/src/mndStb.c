@@ -1635,6 +1635,10 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
     pSchema->bytes = pField->bytes;
     pSchema->type = pField->type;
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+    if (pNew->nextColId > INT16_MAX) {
+      code = TSDB_CODE_MND_EXCEED_MAX_COL_ID;
+      TAOS_RETURN(code);
+    }
     pSchema->colId = pNew->nextColId;
     pNew->nextColId++;
 
@@ -2033,6 +2037,10 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       pSchema->bytes = pField->bytes;
       pSchema->type = pField->type;
       memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+      if (pNew->nextColId > INT16_MAX) {
+        code = TSDB_CODE_MND_EXCEED_MAX_COL_ID;
+        TAOS_RETURN(code);
+      }
       pSchema->colId = pNew->nextColId;
       pNew->nextColId++;
 
@@ -2056,6 +2064,10 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       pSchema->bytes = pField->bytes;
       pSchema->type = pField->type;
       memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+      if (pNew->nextColId > INT16_MAX) {
+        code = TSDB_CODE_MND_EXCEED_MAX_COL_ID;
+        TAOS_RETURN(code);
+      }
       pSchema->colId = pNew->nextColId;
       pNew->nextColId++;
 
