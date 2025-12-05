@@ -11,6 +11,7 @@
 #include "tjson.h"
 #include "ttime.h"
 #include "tcompare.h"
+#include "totp.h"
 
 typedef float (*_float_fn)(float);
 typedef float (*_float_fn_2)(float, float);
@@ -1722,6 +1723,82 @@ _return:
 
   return code;
 }
+
+
+
+static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
+    const char *charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    
+    uint32_t buffer = 0;
+    int bits_left = 0;
+    int outLen = 0;
+    
+    // process all input bytes
+    for (int i = 0; i < inLen; i++) {
+        buffer = (buffer << 8) | in[i];
+        bits_left += 8;
+        
+        while (bits_left >= 5) {
+            int index = (buffer >> (bits_left - 5)) & 0x1F;
+            out[outLen++] = charset[index];
+            bits_left -= 5;
+        }
+    }
+    
+    // process remaining bits
+    if (bits_left > 0) {
+        int index = (buffer << (5 - bits_left)) & 0x1F;
+        out[outLen++] = charset[index];
+    }
+    
+    out[outLen] = '\0';
+    return outLen;
+}
+
+
+
+int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t          bufLen = 30 + VARSTR_HEADER_SIZE + 1;
+  char            *pOutputBuf = taosMemoryMalloc(bufLen);
+  if (!pOutputBuf) {
+    qError("generate_totp_secret function alloc memory failed");
+    return terrno;
+  }
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    char *input = colDataGetData(pInput[0].columnData, i);
+
+    char secret[16] = {0};
+    int len = taosGenerateTotpSecret(varDataVal(input), varDataLen(input), secret, sizeof(secret));
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
+    }
+
+    char *output = pOutputBuf;
+    len = base32Encode(secret, len, varDataVal(output));
+
+    varDataSetLen(output, len);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pOutputBuf);
+      SCL_ERR_RET(code);
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  taosMemoryFree(pOutputBuf);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
