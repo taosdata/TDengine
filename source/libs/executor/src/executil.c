@@ -1350,10 +1350,10 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
         isNull[j] = 0;
         char* data = colDataGetData(pValue, i);
         if (pValue->info.type == TSDB_DATA_TYPE_JSON) {
-          if (tTagIsJson(data)) {
-            code = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
-            goto end;
-          }
+          // if (tTagIsJson(data)) {
+          //   code = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+          //   goto end;
+          // }
           if (tTagIsJsonNull(data)) {
             isNull[j] = 1;
             continue;
