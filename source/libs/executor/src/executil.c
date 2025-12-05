@@ -2294,7 +2294,7 @@ _end:
     }
   }
 
-  qDebug("table list with %d uids built", numOfTables);
+  qDebug("%s, table list with %d uids built", idstr, (int32_t)numOfTables);
 
 _error:
   taosArrayDestroy(pUidList);
