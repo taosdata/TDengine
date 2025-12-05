@@ -142,19 +142,19 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
     } else if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {  // object privileges
       switch (pPrivInfo->privType) {
         case PRIV_TBL_SELECT: {  // SELECT TABLE
-          mndFillSystemRoleTblPrivileges(&pObj->selectTbs);
+          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->selectTbs));
           break;
         }
         case PRIV_TBL_INSERT: {  // INSERT TABLE
-          mndFillSystemRoleTblPrivileges(&pObj->insertTbs);
+          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->insertTbs));
           break;
         }
         case PRIV_TBL_UPDATE: {  // UPDATE TABLE(reserved)
-          mndFillSystemRoleTblPrivileges(&pObj->updateTbs);
+          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->updateTbs));
           break;
         }
         case PRIV_TBL_DELETE: {  // DELETE TABLE:
-          mndFillSystemRoleTblPrivileges(&pObj->deleteTbs);
+          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->deleteTbs));
           break;
         }
         default: {
@@ -250,7 +250,10 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleTyp
   }
 
 _exit:
-  if (pNew) taosMemoryFree(pNew);
+  if (pNew) {
+    mndRoleFreeObj(pNew);
+    taosMemoryFree(pNew);
+  }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }

@@ -16092,7 +16092,7 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name cannot be empty for table or view level privileges");
       }
-      if (objType = PRIV_OBJ_TABLE) {
+      if (objType == PRIV_OBJ_TABLE) {
         code = translateGrantTagCond(pCxt, pStmt, pReq);
         if (TSDB_CODE_SUCCESS != code) {
           return code;

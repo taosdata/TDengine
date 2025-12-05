@@ -3371,7 +3371,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       void  *pIter = NULL;
       size_t klen = 0, tlen = 0;
       char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
-      while (pIter = taosHashIterate(pUser->roles, pIter)) {
+      while ((pIter = taosHashIterate(pUser->roles, pIter))) {
         char *roleName = taosHashGetKey(pIter, &klen);
         tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }
@@ -3927,7 +3927,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       int32_t objType = PRIV_OBJ_UNKNOWN;
       char    dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName));
+      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName)))) {
+        sdbRelease(pSdb, pObj);
+        sdbCancelFetch(pSdb, pShow->pIter);
+        TAOS_CHECK_EXIT(code);
+      }
 
       SPrivIter privIter = {0};
       privIterInit(&privIter, &pPolices->policy);
