@@ -1871,31 +1871,40 @@ int32_t mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
 int32_t mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
   if (!(*ppNew)) return mndDupPrivTblHash(pOld, ppNew);
 
-  int32_t code = 0;
+  int32_t           code = 0, lino = 0;
+  SHashObj         *pNew = *ppNew;
   SPrivTblPolicies *policies = NULL;
   while ((policies = taosHashIterate(pOld, policies))) {
-    size_t keyLen = 0;
-    char  *key = taosHashGetKey(policies, &keyLen);
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
 
-    SPrivTblPolicies tmpPolicies = {.nPolicies = policies->nPolicies};
-
-    for (int32_t i = 0; i < policies->nPolicies; ++i) {
-      if (policies->policy[i] && !(tmpPolicies.policy[i] = taosArrayDup(policies->policy[i], NULL))) {
-        code = terrno;
-        privTblPoliciesFree(&tmpPolicies);
-        taosHashCancelIterate(pOld, policies);
-        taosHashCleanup(*ppNew);
-        TAOS_RETURN(code);
+    SPrivTblPolicies *pNewPolicies = taosHashGet(pNew, key, klen);
+    if (pNewPolicies) {
+      size_t newVlen = taosHashGetValueSize(pNewPolicies);
+      if (newVlen > 0 && vlen > 0) {
+        TAOS_CHECK_EXIT(privTblPoliciesAdd(pNewPolicies, policies, true));
       }
+      continue;
     }
 
-    if ((code = taosHashPut(*ppNew, key, keyLen, &tmpPolicies, sizeof(*policies))) != 0) {
+    SPrivTblPolicies tmpPolicies = {0};
+    if (vlen > 0) {
+      if ((code = privTblPoliciesAdd(&tmpPolicies, policies, true))) {
+        privTblPoliciesFree(&tmpPolicies);
+        goto _exit;
+      }
+    }
+    if ((code = taosHashPut(pNew, key, klen, vlen ? &tmpPolicies : NULL, vlen)) != 0) {
+      privTblPoliciesFree(&tmpPolicies);
       taosHashCancelIterate(pOld, policies);
-      taosHashCleanup(*ppNew);
+      taosHashCleanup(pNew);
+      *ppNew = NULL;
       TAOS_RETURN(code);
     }
   }
 
+_exit:
   TAOS_RETURN(code);
 }
 
@@ -1929,21 +1938,27 @@ int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
   taosHashSetFreeFp(*ppNew, privTblPoliciesFree);
 
   int32_t           code = 0, lino = 0;
-  SPrivTblPolicies *policies = NULL;
+  SPrivTblPolicies *policies = NULL, *pTmpPolicies = NULL;
+  SPrivTblPolicies  tmpPolicies = {0};
   while ((policies = taosHashIterate(pOld, policies))) {
     size_t klen = 0;
     char  *key = taosHashGetKey(policies, &klen);
     size_t vlen = taosHashGetValueSize(policies);
-
-    SPrivTblPolicies tmpPolicies = {0};
+    memset(&tmpPolicies, 0, sizeof(tmpPolicies));
+    pTmpPolicies = &tmpPolicies;
     if (vlen > 0) {
-      TAOS_CHECK_EXIT(privTblPoliciesCopy(&tmpPolicies, policies, true));
+      TAOS_CHECK_EXIT(privTblPoliciesAdd(&tmpPolicies, policies, true));
     }
     TAOS_CHECK_EXIT(taosHashPut(*ppNew, key, klen, vlen > 0 ? &tmpPolicies : NULL, vlen));
+    pTmpPolicies = NULL;
   }
 
 _exit:
   if (code != 0) {
+    if (!pTmpPolicies) {
+      privTblPoliciesFree(pTmpPolicies);
+      pTmpPolicies = NULL;
+    }
     if (policies) taosHashCancelIterate(pOld, policies);
     taosHashCleanup(*ppNew);
     *ppNew = NULL;

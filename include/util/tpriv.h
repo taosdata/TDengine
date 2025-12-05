@@ -394,7 +394,7 @@ void    privInfoIterInit(SPrivInfoIter* pIter);
 bool    privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo);
 
 int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src);
-int32_t privTblPoliciesCopy(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy);
+int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy);
 
 int32_t privObjKey(EPrivObjType objType, const char* db, const char* tb, char* buf, int32_t bufLen);
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen);

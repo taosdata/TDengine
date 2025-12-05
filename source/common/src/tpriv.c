@@ -422,18 +422,28 @@ int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {
   return 0;
 }
 
-int32_t privTblPoliciesCopy(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy) {
-  int32_t code = 0;
-  dest->nPolicies = src->nPolicies;
+int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy) {
+  int32_t code = 0, lino = 0;
+  dest->nPolicies += src->nPolicies;
   for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
     if (taosArrayGetSize(src->policy[i]) > 0) {
       if (deepCopy) {
-        dest->policy[i] = taosArrayInit_s(sizeof(SPrivTblPolicy), TARRAY_SIZE(src->policy[i]));
+        if (!dest->policy[i]) {
+          dest->policy[i] = taosArrayInit(TARRAY_SIZE(src->policy[i]), sizeof(SPrivTblPolicy));
+          if (!dest->policy[i]) {
+            TAOS_CHECK_EXIT(terrno);
+          }
+        }
         for (int32_t j = 0; j < TARRAY_SIZE(src->policy[i]); ++j) {
           SPrivTblPolicy* pSrcPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(src->policy[i], j);
-          SPrivTblPolicy* destPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(dest->policy[i], j);
-          if ((code = privTblPolicyCopy(destPolicy, pSrcPolicy))) {
-            goto _exit;
+          SPrivTblPolicy  destPolicy = {0};
+          if ((code = privTblPolicyCopy(&destPolicy, pSrcPolicy))) {
+            privTblPolicyFree(&destPolicy);
+            TAOS_CHECK_EXIT(code);
+          }
+          if (!taosArrayPush(dest->policy[i], &destPolicy)) {
+            privTblPolicyFree(&destPolicy);
+            TAOS_CHECK_EXIT(terrno);
           }
         }
       } else {
@@ -444,8 +454,5 @@ int32_t privTblPoliciesCopy(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool 
     }
   }
 _exit:
-  if (code != 0) {
-    privTblPoliciesFree(dest);
-  }
-  return 0;
+  return code;
 }
