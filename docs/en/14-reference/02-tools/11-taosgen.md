@@ -313,8 +313,8 @@ The `mqtt/publish` action publishes data to the specified topic. Supports obtain
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for publishing data, currently only supports json, default: json.
 - concurrency (int): Number of threads for concurrent publishing, default: 8.
-- failure_handling (optional): Same as in "Writing Data to TDengine Action".
-- time_interval: Same as in "Writing Data to TDengine Action".
+- failure_handling: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- time_interval: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
 - topic (string): MQTT Topic to publish messages to, default: tsbench/`{table}`. Supports dynamic topics via placeholder syntax:
   - `{table}`: Table name data
   - `{column}`: Column data, where column is the column field name
@@ -329,8 +329,8 @@ The `kafka/produce` action publishes data to the specified topic. It supports ob
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - concurrency (int): Number of threads for concurrent publishing, default: 8.
-- failure_handling: Same as in "Writing Data to TDengine Action".
-- time_interval: Same as in "Writing Data to TDengine Action".
+- failure_handling: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- time_interval: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
 - key_pattern (string): The pattern for the message key, supporting dynamic key generation via placeholder syntax. Default is `{table}`. Placeholder syntax:
   - `{table}`: Table name data
   - `{column}`: Column data, where column is the column field name
@@ -446,7 +446,7 @@ Configuration details:
   - Connection info: URI for MQTT Broker.
 - schema configuration
   - Name: Specifies the schema name.
-  - Table names: Rule for generating 10,000 table names, d0 to d9999. Tables are logical concepts for organizing data.
+  - Table names: Defines the rule for generating 10,000 logical table names in the format d0 to d9999, used to organize and identify the generated data.
   - Table structure: 4 normal columns (current, voltage, phase, device location).
     - Timestamp: Generation strategy starts from 1700000000000 (2023-11-14 22:13:20 UTC), increments by 5 minutes.
     - Time-series data: current, phase, and location use random values; voltage uses sine wave simulation.
@@ -480,7 +480,7 @@ Configuration details:
 
 - schema configuration
   - Name: Specifies the schema name.
-  - Table names: Rule for generating 10,000 table names, d0 to d9999. Tables are logical concepts for organizing data.
+  - Table names: Defines the rule for generating 10,000 logical table names in the format d0 to d9999, used to organize and identify the generated data.
   - Table structure: 4 normal columns (current, voltage, phase, device location).
     - Timestamp: Generation strategy starts from 1700000000000 (2023-11-14 22:13:20 UTC), increments by 5 minutes.
     - Time-series data: current, phase, and location use random values; voltage uses sine wave simulation.
