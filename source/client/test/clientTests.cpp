@@ -338,6 +338,11 @@ TEST(clientCase, connect_Test) {
   taos_close(pConn);
 }
 
+TEST(clientCase, connect_with_dsn_Test) {
+  TAOS* pConn = taos_connect_with_dsn(NULL);
+  ASSERT_EQ(pConn, nullptr);
+}
+
 TEST(clientCase, create_user_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
