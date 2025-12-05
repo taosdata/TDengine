@@ -38,6 +38,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_same_db_stb.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_same_db_stb_window.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_same_db_stb_group.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_same_reference_col.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_window.py

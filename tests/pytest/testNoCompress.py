@@ -16,7 +16,6 @@
 import sys
 import getopt
 import subprocess
-from distutils.log import warn as printf
 
 from util.log import *
 from util.dnodes import *
