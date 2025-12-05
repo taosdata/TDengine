@@ -1138,6 +1138,16 @@ typedef struct {
 } SCompactObj;
 
 typedef struct {
+  int32_t id;
+  char    algorithm_id[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  int16_t type;
+  int8_t  source;
+  char    ossl_algr_name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SEncryptAlgrObj;
+
+typedef struct {
   int32_t scanId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t dbUid;

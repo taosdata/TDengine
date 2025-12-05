@@ -63,10 +63,10 @@ class TestAlterDatabase:
 
     def alter_encrypt_alrogithm(self):
         tdSql.execute('create database db')
-        tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'sM4\''))
-        tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'noNe\''))
-        tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'\''))
-        tdSql.checkEqual("Invalid option encrypt_algorithm: none ", tdSql.error('alter database db encrypt_algorithm \'none \''))
+        tdSql.checkEqual("Encryption is not allowed to be changed after database is created", tdSql.error('alter database db encrypt_algorithm \'sM4-CBC\''))
+        tdSql.execute('alter database db encrypt_algorithm \'noNe\'')
+        tdSql.checkEqual("Invalid option encrypt_algorithm", tdSql.error('alter database db encrypt_algorithm \'\''))
+        tdSql.checkEqual("Encrypt algorithm not exists in list", tdSql.error('alter database db encrypt_algorithm \'none \''))
         tdSql.execute('drop database db')
 
     def alter_same_options(self):

@@ -376,6 +376,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algori
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
 
+// mnode encrypt
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST,       "Encrypt algorithm not exists in list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_INVALID_ENCRYPT_ALGR_TYPE,    "Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode, Digests, Asymmetric_Ciphers now")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALGR_EXIST,                   "Encryption algorithm already exists, please keep algorithm_id unique")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH,       "Encryption algorithm type not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ENCRYPT_ALGR_FORMAT,    "Invalid encryption algorithm format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_IN_USE,          "Encryption algorithm in use")
+
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_RSP_IS_NULL,         "Analysis service response is NULL")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_CANT_ACCESS,         "Analysis service can't access")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_FOUND,          "Analysis algorithm is missing")
@@ -484,6 +492,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No Snode is available")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL,   "Request is not matched with local dnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV, "Failed to load encryption provider")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -846,6 +855,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max length is 127 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG,         "Algorithm type too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG,    "Algorithm OpenSSL name too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT,  "Conflict between privilege type and target")
 
 //planner
@@ -998,6 +1012,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open
 
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_NO_METRIC_EXIST,           "No metrics exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CIPHER_NOT_EXIST,          "Encrypt cipher not exists in loaded provider")
 
 //AUDIT
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")

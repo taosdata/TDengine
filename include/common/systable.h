@@ -74,6 +74,7 @@ extern "C" {
 #define TSDB_INS_TABLE_RSMAS               "ins_rsmas"
 #define TSDB_INS_TABLE_RETENTIONS          "ins_retentions"
 #define TSDB_INS_TABLE_RETENTION_DETAILS   "ins_retention_details"
+#define TSDB_INS_TABLE_ENCRYPT_ALGORITHMS  "ins_encrypt_algorithms"
 #define TSDB_INS_TABLE_ROLES               "ins_roles"
 #define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
 #define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"

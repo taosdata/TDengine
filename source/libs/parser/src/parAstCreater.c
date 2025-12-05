@@ -2463,6 +2463,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
   pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
+  pOptions->encryptAlgorithmStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2505,12 +2506,13 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->ssKeepLocal = -1;
   pOptions->ssCompact = -1;
   pOptions->withArbitrator = -1;
-  pOptions->encryptAlgorithm = -1;
+  pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pOptions->dnodeListStr[0] = 0;
   pOptions->compactInterval = -1;
   pOptions->compactStartTime = -1;
   pOptions->compactEndTime = -1;
   pOptions->compactTimeOffset = -1;
+  pOptions->encryptAlgorithmStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2652,7 +2654,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
-      pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+      if (strlen(pDbOptions->encryptAlgorithmStr) == 0) pDbOptions->encryptAlgorithm = -1;
       break;
     case DB_OPTION_DNODES:
       if (((SToken*)pVal)->n >= TSDB_DNODE_LIST_LEN) {
@@ -4242,6 +4244,21 @@ _err:
   return NULL;
 }
 
+SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_ID_TOO_LONG);
+    goto _err;
+  }
+  SDropEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ENCRYPT_ALGR_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateDnodeStmt* pStmt = NULL;
@@ -4291,6 +4308,42 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   if (NULL != pValue) {
     (void)trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createCreateAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId, const SToken* name, const SToken* desc,
+                            const SToken* type, const SToken* osslAlgrName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_ID_TOO_LONG);
+    goto _err;
+  }
+  if (name->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_NAME_TOO_LONG);
+    goto _err;
+  }
+  if (desc->n >= TSDB_ENCRYPT_ALGR_DESC_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_DESC_TOO_LONG);
+    goto _err;
+  }
+  if (type->n >= TSDB_ENCRYPT_ALGR_TYPE_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG);
+    goto _err;
+  }
+  if (osslAlgrName->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG);
+    goto _err;
+  }
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
+  (void)trimString(name->z, name->n, pStmt->name, sizeof(pStmt->name));
+  (void)trimString(desc->z, desc->n, pStmt->desc, sizeof(pStmt->desc));
+  (void)trimString(type->z, type->n, pStmt->algrType, sizeof(pStmt->algrType));
+  (void)trimString(osslAlgrName->z, osslAlgrName->n, pStmt->osslAlgrName, sizeof(pStmt->osslAlgrName));
   return (SNode*)pStmt;
 _err:
   return NULL;

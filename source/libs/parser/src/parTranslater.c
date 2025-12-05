@@ -460,6 +460,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"id"}
   },
+  { .showType = QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPT_ALGORITHMS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
   {
     .showType = QUERY_NODE_SHOW_ROLES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -9968,8 +9974,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->ssCompact = pStmt->pOptions->ssCompact;
   pReq->ignoreExist = pStmt->ignoreExists;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
-  pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
   tstrncpy(pReq->dnodeListStr, pStmt->pOptions->dnodeListStr, TSDB_DNODE_LIST_LEN);
+  tstrncpy(pReq->encryptAlgrName, pStmt->pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGR_NAME_LEN);
 
   // auto-compact options
   pReq->compactInterval = pStmt->pOptions->compactInterval;
@@ -10133,16 +10139,8 @@ static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions
 }
 
 static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if ('\0' != pOptions->encryptAlgorithmStr[0]) {
-    if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_NONE_STR)) {
-      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_NONE;
-    } else if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_SM4_STR)) {
-      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_SM4;
-    } else {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                     "Invalid option encrypt_algorithm: %s", pOptions->encryptAlgorithmStr);
-    }
-  }
+  if (pOptions->encryptAlgorithm < 0)
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option encrypt_algorithm");
 
   return TSDB_CODE_SUCCESS;
 }
@@ -10579,10 +10577,12 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEnumOption(pCxt, "withArbitrator", pOptions->withArbitrator, TSDB_MIN_DB_WITH_ARBITRATOR,
                              TSDB_MAX_DB_WITH_ARBITRATOR);
   }
+  /*
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "encryptAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
                              TSDB_MAX_ENCRYPT_ALGO);
   }
+  */
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
   }
@@ -10729,6 +10729,14 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
     case TDMT_MND_CREATE_USER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateUserReq, pReq);
+      break;
+    }
+    case TDMT_MND_CREATE_ENCRYPT_ALGR: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateEncryptAlgrReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_ENCRYPT_ALGR: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropEncryptAlgrReq, pReq);
       break;
     }
     case TDMT_MND_ALTER_USER: {
@@ -10915,6 +10923,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->compactStartTime = pStmt->pOptions->compactStartTime;
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
+  tstrncpy(pReq->encryptAlgrName, pStmt->pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGR_NAME_LEN);
   return code;
 }
 
@@ -10946,8 +10955,8 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
     return code;
   }
 
-  if (pStmt->pOptions->encryptAlgorithm != -1) {
-    code = TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE;
+  if (pStmt->pOptions->encryptAlgorithm == -1) {
+    code = TSDB_CODE_PAR_INVALID_DB_OPTION;
     return code;
   }
 
@@ -12590,6 +12599,21 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   return code;
 }
 
+static int32_t translateCreateEncryptAlgr(STranslateContext* pCxt, SCreateEncryptAlgrStmt* pStmt) {
+  int32_t               code = 0;
+  SCreateEncryptAlgrReq createReq = {0};
+
+  tstrncpy(createReq.algorithmId, pStmt->algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(createReq.name, pStmt->name, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(createReq.desc, pStmt->desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(createReq.type, pStmt->algrType, TSDB_ENCRYPT_ALGR_TYPE_LEN);
+  tstrncpy(createReq.osslAlgrName, pStmt->osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+
+  code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_ALGR, (FSerializeFunc)tSerializeSCreateEncryptAlgrReq, &createReq);
+  tFreeSCreateEncryptAlgrReq(&createReq);
+  return code;
+}
+
 static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t code = 0;
   switch (pStmt->alterType) {
@@ -12688,6 +12712,14 @@ static int32_t translateAlterRole(STranslateContext* pCxt, SAlterRoleStmt* pStmt
   return code;
 }
 
+static int32_t translateDropEncryptAlgr(STranslateContext* pCxt, SDropEncryptAlgrStmt* pStmt) {
+  SDropEncryptAlgrReq dropReq = {0};
+  tstrncpy(dropReq.algorithmId, pStmt->algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_ENCRYPT_ALGR, (FSerializeFunc)tSerializeSDropEncryptAlgrReq, &dropReq);
+  tFreeSDropEncryptAlgrReq(&dropReq);
+  return code;
+}
 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
   SMCreateAnodeReq createReq = {0};
@@ -17724,6 +17756,9 @@ _return:
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
+      code = translateCreateEncryptAlgr(pCxt, (SCreateEncryptAlgrStmt*)pNode);
+      break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = translateAlterUser(pCxt, (SAlterUserStmt*)pNode);
       break;
@@ -17738,6 +17773,9 @@ _return:
       break;
     case QUERY_NODE_ALTER_ROLE_STMT:
       code = translateAlterRole(pCxt, (SAlterRoleStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      code = translateDropEncryptAlgr(pCxt, (SDropEncryptAlgrStmt*)pNode);
       break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = translateUseDatabase(pCxt, (SUseDatabaseStmt*)pNode);
@@ -22356,6 +22394,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:

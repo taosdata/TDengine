@@ -363,13 +363,13 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
     return terrno;
   }
 
-  SCryptOpts opts;
+  SCryptOpts opts = {0};
   tstrncpy(opts.key, key, ENCRYPT_KEY_LEN + 1);
   opts.len = len;
   opts.source = DM_KEY_INDICATOR;
   opts.result = result;
   opts.unitLen = 16;
-  (void)CBC_Encrypt(&opts);
+  (void)Builtin_CBC_Encrypt(&opts);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
@@ -488,7 +488,7 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
   opts.source = content;
   opts.result = result;
   opts.unitLen = 16;
-  (void)CBC_Decrypt(&opts);
+  (void)Builtin_CBC_Decrypt(&opts);
 
   if (strcmp(opts.result, DM_KEY_INDICATOR) != 0) {
     code = TSDB_CODE_DNODE_ENCRYPTKEY_CHANGED;

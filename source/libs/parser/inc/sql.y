@@ -419,6 +419,9 @@ with_clause_opt(A) ::= WITH search_condition(B).                                
 /************************************************ create encrypt_key *********************************************/
 cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                          { pCxt->pRootNode = createEncryptKeyStmt(pCxt, &A); }
 
+cmd ::= CREATE ENCRYPT_ALGR NK_STRING(A) ALGR_NAME NK_STRING(B) DESC NK_STRING(C) ALGR_TYPE NK_STRING(D) OSSL_ALGR_NAME NK_STRING(E).                                          { pCxt->pRootNode = createCreateAlgrStmt(pCxt, &A, &B, &C, &D, &E); }
+
+cmd ::= DROP ENCRYPT_ALGR NK_STRING(A).                                           { pCxt->pRootNode = createDropEncryptAlgrStmt(pCxt, &A); }
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
 cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
@@ -910,6 +913,7 @@ cmd ::= SHOW CREATE VTABLE full_table_name(A).                                  
 cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT,
 A); }
 cmd ::= SHOW ENCRYPTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPTIONS_STMT); }
+cmd ::= SHOW ENCRYPT_ALGORITHMS.                                                  { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT); }
 cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT); }
 cmd ::= SHOW SCORES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SCORES_STMT); }
 cmd ::= SHOW TOPICS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TOPICS_STMT); }

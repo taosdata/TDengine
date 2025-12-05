@@ -2504,7 +2504,6 @@ int32_t tSerializeSCreateRoleReq(void *buf, int32_t bufLen, SCreateRoleReq *pReq
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->flag));
   ENCODESQL();
   tEndEncode(&encoder);
-
 _exit:
   if (code) {
     tlen = code;
@@ -2740,6 +2739,46 @@ void tFreeSAlterRoleReq(SAlterRoleReq *pReq) {
   FREESQL();
 }
 
+int32_t tSerializeSDropEncryptAlgrReq(void *buf, int32_t bufLen, SDropEncryptAlgrReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->algorithmId));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDropEncryptAlgrReq(void *buf, int32_t bufLen, SDropEncryptAlgrReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->algorithmId));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSDropEncryptAlgrReq(SDropEncryptAlgrReq *pReq) { FREESQL(); }
+
 int32_t tSerializeSAuditReq(void *buf, int32_t bufLen, SAuditReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -2873,6 +2912,54 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
 
   return code;
 }
+
+int32_t tSerializeSCreateEncryptAlgrReq(void *buf, int32_t bufLen, SCreateEncryptAlgrReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->algorithmId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->desc));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->type));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->osslAlgrName));
+  ENCODESQL();
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+int32_t tDeserializeSCreateEncryptAlgrReq(void *buf, int32_t bufLen, SCreateEncryptAlgrReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->algorithmId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->desc));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->type));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->osslAlgrName));
+  DECODESQL();
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+void tFreeSCreateEncryptAlgrReq(SCreateEncryptAlgrReq *pReq) { FREESQL(); }
+
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -5814,6 +5901,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactStartTime));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactEndTime));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
 
   tEndEncode(&encoder);
 
@@ -5920,6 +6008,12 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
     pReq->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
+  } else {
+    pReq->encryptAlgrName[0] = '\0';
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -5975,6 +6069,8 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactStartTime));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactEndTime));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
+
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   tEndEncode(&encoder);
 
 _exit:
@@ -6055,6 +6151,13 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     pReq->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
     pReq->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
+  } else {
+    pReq->encryptAlgrName[0] = '\0';
+  }
+  
   tEndDecode(&decoder);
 
 _exit:
@@ -7905,7 +8008,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI16(encoder, pRsp->sstTrigger));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->keepTimeOffset));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->withArbitrator));
-  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->encryptAlgorithm));
+  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->encryptAlgr));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->ssChunkSize));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->ssKeepLocal));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->ssCompact));
@@ -7915,6 +8018,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI32v(encoder, pRsp->compactEndTime));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->compactTimeOffset));
   TAOS_CHECK_RETURN(tEncodeU8(encoder, pRsp->flags));
+  TAOS_CHECK_RETURN(tEncodeCStr(encoder, pRsp->algorithmsId));
 
   return 0;
 }
@@ -7997,13 +8101,13 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->withArbitrator));
-    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->encryptAlgorithm));
+    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->encryptAlgr));
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->ssChunkSize));
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->ssKeepLocal));
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->ssCompact));
   } else {
     pRsp->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
-    pRsp->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+    pRsp->encryptAlgr = TSDB_DEFAULT_ENCRYPT_ALGO;
     pRsp->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
     pRsp->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
     pRsp->ssCompact = TSDB_DEFAULT_SS_COMPACT;
@@ -8027,6 +8131,9 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
 
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeU8(decoder, &pRsp->flags));
+  }
+  if (!tDecodeIsEnd(decoder)) {
+    TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pRsp->algorithmsId));
   }
 
   return 0;
@@ -9388,6 +9495,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssChunkSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
 
   tEndEncode(&encoder);
 
@@ -9496,6 +9604,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssChunkSize));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
   }
 
   tEndDecode(&decoder);

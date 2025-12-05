@@ -98,6 +98,8 @@ const char *sdbTableName(ESdbType type) {
       return "retention_detail";
     case SDB_INSTANCE:
       return "instance";
+    case SDB_ENCRYPT_ALGORITHMS:
+      return "encrypt_algr";
     case SDB_ROLE:
       return "role";
     default:

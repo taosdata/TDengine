@@ -601,6 +601,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
+      code = makeNode(type, sizeof(SCreateEncryptAlgrStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      code = makeNode(type, sizeof(SDropEncryptAlgrStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = makeNode(type, sizeof(SAlterUserStmt), &pNode);
       break;
@@ -811,6 +817,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_RSMAS_STMT:
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_INSTANCES_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1660,6 +1667,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pNodeListIpRanges);
       break;
     }
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT: {
+      break;
+    }
     case QUERY_NODE_ALTER_USER_STMT: {
       SAlterUserStmt* pStmt = (SAlterUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
@@ -1674,6 +1684,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
     case QUERY_NODE_DROP_BNODE_STMT:    // no pointer field
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:     // no pointer field
       break;
     case QUERY_NODE_CREATE_BNODE_STMT: {
       SBnodeOptions* pOptions = ((SCreateBnodeStmt*)pNode)->pOptions;
@@ -1841,6 +1852,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
