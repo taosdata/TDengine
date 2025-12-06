@@ -13,7 +13,6 @@
 
 # TODO: after TD-4518 and TD-4510 is resolved, add the exception test case for these situations
 
-from distutils.log import error
 import sys
 
 from requests.api import head

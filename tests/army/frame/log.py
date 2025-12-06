@@ -12,11 +12,9 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import os
 import time
 import datetime
-from distutils.log import warn as printf
-
+from warnings import warn as printf
 
 class TDLog:
     def __init__(self):
