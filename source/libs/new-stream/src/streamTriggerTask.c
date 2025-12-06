@@ -8076,7 +8076,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (TARRAY_SIZE(pContext->pWindows) == 0 && pGroup->stateVal.type == 0) {
+    if (pGroup->stateVal.type == 0) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
@@ -10008,53 +10008,68 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+    if (pGroup->stateVal.type == 0) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
-      if (isVarType) {
+      if (isVarType && pStateVal->pData == NULL) {
         pStateVal->nData = pStateCol->info.bytes;
         pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
         QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
         pStateData = pStateVal->pData;
       }
-
-      // open the first window
-      char   *newVal = colDataGetData(pStateCol, startIdx);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
-                                             &pExtraNotifyContent);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      code = stHistoryGroupOpenWindow(pGroup, pTsData[startIdx], &pExtraNotifyContent, false, true);
-      QUERY_CHECK_CODE(code, lino, _end);
-      memcpy(pStateData, newVal, bytes);
-      startIdx++;
     }
 
     for (int32_t r = startIdx; r < endIdx; r++) {
-      char   *newVal = colDataGetData(pStateCol, r);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (memcmp(pStateData, newVal, bytes) == 0) {
-        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
-        TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+      bool isNull = colDataIsNull_s(pStateCol, r);
+      if (isNull) {
+        if (pGroup->numPendingNull == 0) {
+          pGroup->pendingNullStart = pTsData[r];
+        }
+        pGroup->numPendingNull++;
       } else {
-        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
-          QUERY_CHECK_CODE(code, lino, _end);
+        char   *oldVal = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pStateData : NULL;
+        char   *newVal = colDataGetData(pStateCol, r);
+        int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
+        int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[r];
+        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          if (memcmp(pStateData, newVal, bytes) == 0) {
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull + 1;
+            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+          } else {
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r] - 1;
+            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+              startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
+            }
+            if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+              code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
+                                                   &pExtraNotifyContent);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+            code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
-        code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
-        QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
-          QUERY_CHECK_CODE(code, lino, _end);
+        if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
+            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, oldVal, newVal,
+                                                 &pExtraNotifyContent);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+            code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+          } else {
+            code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          memcpy(pStateData, newVal, bytes);
         }
-        code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
-        QUERY_CHECK_CODE(code, lino, _end);
-        memcpy(pStateData, newVal, bytes);
+        pGroup->numPendingNull = 0;
       }
     }
   }

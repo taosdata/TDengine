@@ -16,20 +16,20 @@ Using DBeaver to manage TDengine requires the following preparations.
 
 1. Launch the DBeaver application, click the button or menu item to "New Database Connection", then select TDengine in the time-series category.
 
-   ![](../../assets/dbeaver-01.webp)
+   ![Select TDengine connection](../../assets/dbeaver-01.webp)
 
 2. Configure the TDengine connection by entering the host address, port number (6041), username, and password. For example, use TDengine server host address `www.taosdemo.com` and port number `6041`. It is recommended to select URL connection and add connection parameters `varcharAsString=true&conmode=1`. For parameter meanings, refer to the [JDBC documentation](../../../tdengine-reference/client-libraries/java/#properties). Click "Test Connection" to test whether the connection is available. If the TDengine Java connector is not installed on the local machine, DBeaver will prompt you to download and install it.
 
-   ![](../../assets/dbeaver-02.webp)
+   ![Download JDBC client library](../../assets/dbeaver-02.webp)
 
 3. A successful connection will be displayed as shown below. If the connection fails, check whether the TDengine service and taosAdapter are running correctly, and whether the host address, port number, username, and password are correct.
 
-   ![](../../assets/dbeaver-03.webp)
+   ![Configure JDBC connection settings](../../assets/dbeaver-03.webp)
 
 4. Using DBeaver to select databases and tables allows you to browse data from the TDengine service.
 
-   ![](../../assets/dbeaver-04.webp)
+   ![Select tables to browse in DBeaver](../../assets/dbeaver-04.webp)
 
 5. You can also operate on TDengine data by executing SQL commands.
 
-   ![](../../assets/dbeaver-05.webp)
+   ![Run SQL statements on TDengine data](../../assets/dbeaver-05.webp)

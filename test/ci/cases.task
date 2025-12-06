@@ -198,6 +198,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_reference_col.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_with_null_value.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
@@ -409,7 +410,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
 ,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py
-,,n,.,pytest cases/12-UDFs/test_udf_test.py
+,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_create.py
 ,,n,.,pytest cases/12-UDFs/test_udf_cfg1.py
 ,,n,.,pytest cases/12-UDFs/test_udf_cfg2.py
@@ -1091,6 +1092,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td37436.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td33504.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td35698.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_get_meta_json.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5906.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts7402.py

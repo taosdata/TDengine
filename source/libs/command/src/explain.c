@@ -1495,8 +1495,19 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
       STableCountScanPhysiNode *pLastRowNode = (STableCountScanPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_TABLE_COUNT_SCAN_FORMAT,
-                      ('\0' != pLastRowNode->scan.tableName.tname[0] ? pLastRowNode->scan.tableName.tname : TSDB_INS_TABLE_TABLES));
+      char *dbname = pLastRowNode->scan.tableName.dbname;
+      char *tbname = pLastRowNode->scan.tableName.tname;
+      if (dbname[0] != '\0' && tbname[0] != '\0') {
+        char name[TSDB_TABLE_FNAME_LEN];
+        snprintf(name, sizeof(name), "%s.%s", dbname, tbname);
+        EXPLAIN_ROW_NEW(level, EXPLAIN_TABLE_COUNT_SCAN_FORMAT, name);
+      } else if (dbname[0] != '\0') {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_TABLE_COUNT_SCAN_FORMAT, dbname);
+      } else if (tbname[0] != '\0') {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_TABLE_COUNT_SCAN_FORMAT, tbname);
+      } else {
+        EXPLAIN_ROW_NEW(level, EXPLAIN_TABLE_COUNT_SCAN_FORMAT, TSDB_INS_TABLE_TABLES);
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));

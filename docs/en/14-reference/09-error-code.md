@@ -11,7 +11,7 @@ This document provides a detailed list of error codes from both clients and the 
 
 ## TSDB
 
-TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained.**
+TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained**.
 
 ### Error Code Structure
 
@@ -31,10 +31,12 @@ Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digi
 #### Example Explanation
 
 Take the error code `0x80000216` as an example:
+
 - **Prefix**: `0x8000` → TDengine business error.
 - **Specific Error Code**: `0x0216` → Corresponds to the TSC module's "Syntax error in SQL".
 
 Take the error code `0x80FF0002` as an example:
+
 - **Prefix**: `0x80FF` → Linux system error.
 - **Specific Error Code**: `0x0002` → Corresponds to Linux `errno` 2, which means "No such file or directory".
 
@@ -653,15 +655,18 @@ Below are the business error codes for each module.
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 
 ## Connectors
+
 Below are the error codes specific to connectors for various programming languages. In addition to returning their own error codes, connectors also return the TSDB error codes mentioned above.
 
 ### C
 
 In the design of the C interface, error codes are represented as integers, and each error code corresponds to a specific error state. Unless otherwise specified:
+
 - When an API returns an integer, **0** indicates success, and other values are error codes representing the cause of failure.
 - When an API returns a pointer, **NULL** indicates failure.
 
 The C connector has two types of error codes:
+
 - General Error Codes  
   All error codes and their corresponding descriptions are in the `taoserror.h` file.  
   For detailed error code explanations, refer to: [TSDB Error Codes](./#tsdb)
@@ -679,7 +684,7 @@ The C connector has two types of error codes:
 | 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
 | 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
 | 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
-        
+
 ### Java
 
 The Java connector may report four types of error codes:
@@ -737,7 +742,6 @@ For specific error codes, refer to the table below:
 
 - [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
-
 ### Rust
 
 | Error Code | Error Description       | Possible Error Scenarios or Reasons       | Recommended User Actions                          |
@@ -751,7 +755,6 @@ For specific error codes, refer to the table below:
 | 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
 | 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
 | 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
-
 
 ### Node.js
 
@@ -779,7 +782,7 @@ For specific connector error codes, refer to the table below:
 
 - [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
-### C#
+### C\#
 
 | Error Code | Error Description                         | Possible Error Scenarios or Reasons              | Recommended User Actions                                           |
 | ---------- | ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ |

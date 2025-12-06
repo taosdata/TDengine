@@ -22,7 +22,7 @@ In this document, it specifically refers to the internal levels of the second-le
 
 ### List of Compression Algorithms
 
-- Encoding algorithms list (First-level compression): simple8b, bit-packing, delta-i, delta-d, disabled, bss(byte-stream-split) 
+- Encoding algorithms list (First-level compression): simple8b, bit-packing, delta-i, delta-d, disabled, bss(byte-stream-split)
 
 - Compression algorithms list (Second-level compression): lz4, zlib, zstd, tsz, xz, disabled
 

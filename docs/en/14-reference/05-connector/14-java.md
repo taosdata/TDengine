@@ -88,27 +88,27 @@ For error code information please refer to [Error Codes](../../error-codes/)
 
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Java type conversions are as follows:
 
-| TDengine DataType | JDBCType             | Remark                                                                                                     |
-| ----------------- | -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| TIMESTAMP         | java.sql.Timestamp   |                                                                                                            |
-| BOOL              | java.lang.Boolean    |                                                                                                            |
-| TINYINT           | java.lang.Byte       |                                                                                                            |
-| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections                                                                    |
-| SMALLINT          | java.lang.Short      |                                                                                                            |
-| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections                                                                    |
-| INT               | java.lang.Integer    |                                                                                                            |
-| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections                                                                    |
-| BIGINT            | java.lang.Long       |                                                                                                            |
-| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections                                                                    |
-| FLOAT             | java.lang.Float      |                                                                                                            |
-| DOUBLE            | java.lang.Double     |                                                                                                            |
+| TDengine DataType | JDBCType             | Remark                                                       |
+| ----------------- | -------------------- | ------------------------------------------------------------ |
+| TIMESTAMP         | java.sql.Timestamp   |                                                              |
+| BOOL              | java.lang.Boolean    |                                                              |
+| TINYINT           | java.lang.Byte       |                                                              |
+| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections                      |
+| SMALLINT          | java.lang.Short      |                                                              |
+| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections                      |
+| INT               | java.lang.Integer    |                                                              |
+| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections                      |
+| BIGINT            | java.lang.Long       |                                                              |
+| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections                      |
+| FLOAT             | java.lang.Float      |                                                              |
+| DOUBLE            | java.lang.Double     |                                                              |
 | VARCHAR/BINARY    | byte[]               | Setting the `varcharAsString` parameter to `true` on a WebSocket connection can map it to the String type. |
-| NCHAR             | java.lang.String     |                                                                                                            |
-| JSON              | java.lang.String     | only supported in tags                                                                                     |
-| VARBINARY         | byte[]               |                                                                                                            |
-| GEOMETRY          | byte[]               |                                                                                                            |
-| BLOB              | byte[]               | only supported in columns                                                                                  |
-| DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections                                                                    |
+| NCHAR             | java.lang.String     |                                                              |
+| JSON              | java.lang.String     | only supported in tags                                       |
+| VARBINARY         | byte[]               |                                                              |
+| GEOMETRY          | byte[]               |                                                              |
+| BLOB              | byte[]               | only supported in columns                                    |
+| DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections                      |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
@@ -529,16 +529,16 @@ For example: if the password is specified as taosdata in the URL and as taosdemo
 
 List of interface methods that return `true` for supported features, others not explicitly mentioned return `false`.
 
-| Interface Method                               | Description                                                                                     |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `boolean nullsAreSortedAtStart()`              | Determines if `NULL` values are sorted at the start                                             |
-| `boolean storesLowerCaseIdentifiers()`         | Determines if the database stores identifiers in lowercase                                      |
-| `boolean supportsAlterTableWithAddColumn()`    | Determines if the database supports adding columns with `ALTER TABLE`                           |
-| `boolean supportsAlterTableWithDropColumn()`   | Determines if the database supports dropping columns with `ALTER TABLE`                         |
-| `boolean supportsColumnAliasing()`             | Determines if the database supports column aliasing                                             |
-| `boolean supportsGroupBy()`                    | Determines if the database supports `GROUP BY` statements                                       |
+| Interface Method                               | Description                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| `boolean nullsAreSortedAtStart()`              | Determines if `NULL` values are sorted at the start          |
+| `boolean storesLowerCaseIdentifiers()`         | Determines if the database stores identifiers in lowercase   |
+| `boolean supportsAlterTableWithAddColumn()`    | Determines if the database supports adding columns with `ALTER TABLE` |
+| `boolean supportsAlterTableWithDropColumn()`   | Determines if the database supports dropping columns with `ALTER TABLE` |
+| `boolean supportsColumnAliasing()`             | Determines if the database supports column aliasing          |
+| `boolean supportsGroupBy()`                    | Determines if the database supports `GROUP BY` statements    |
 | `boolean isCatalogAtStart()`                   | Determines if the catalog name appears at the start of the fully qualified name in the database |
-| `boolean supportsCatalogsInDataManipulation()` | Determines if the database supports catalog names in data manipulation statements               |
+| `boolean supportsCatalogsInDataManipulation()` | Determines if the database supports catalog names in data manipulation statements |
 
 ### Connection Features
 

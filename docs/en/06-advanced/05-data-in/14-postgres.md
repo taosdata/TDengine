@@ -21,7 +21,7 @@ TDengine can efficiently read data from PostgreSQL and write it to TDengine, ena
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
 
-![](../../assets/postgresql-01.png)
+![Add data source](../../assets/postgresql-01.png)
 
 ### 2. Configure Basic Information
 
@@ -33,13 +33,13 @@ Select *`PostgreSQL`* from the **Type** dropdown menu, as shown below (the field
 
 **Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
-![](../../assets/postgresql-02.png)
+![Configure basic settings](../../assets/postgresql-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source PostgreSQL database`* in the **Connection Configuration** area, as shown below:
 
-![](../../assets/postgresql-03.png)
+![Configure connection information](../../assets/postgresql-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -47,7 +47,7 @@ Fill in the *`connection information for the source PostgreSQL database`* in the
 
 **Password** Enter the login password for the user mentioned above in the source PostgreSQL database.
 
-![](../../assets/postgresql-04.png)
+![Configure authentication information](../../assets/postgresql-04.png)
 
 ### 5. Configure Connection Options
 
@@ -55,7 +55,7 @@ Fill in the *`connection information for the source PostgreSQL database`* in the
 
 **SSL Mode** Set whether to negotiate a secure SSL TCP/IP connection with the server or the priority of such negotiation. The default value is PREFER. Options include DISABLE, ALLOW, PREFER, REQUIRE.
 
-![](../../assets/postgresql-05.png)
+![Configure application name and SSL mode](../../assets/postgresql-05.png)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally fetch data from the source PostgreSQL database.
 
@@ -85,7 +85,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![](../../assets/postgresql-06.png)
+![Configure data collection](../../assets/postgresql-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -101,7 +101,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-![](../../assets/postgresql-07.png)
+![Configure data mapping](../../assets/postgresql-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -111,7 +111,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![](../../assets/postgresql-08.png)
+![Configure advanced options](../../assets/postgresql-08.png)
 
 ### 9. Completion
 
