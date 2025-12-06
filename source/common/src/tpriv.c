@@ -467,3 +467,8 @@ int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool d
 _exit:
   return code;
 }
+
+SPrivInfo* privInfoGet(EPrivType privType) {
+  (void)taosThreadOnce(&privInit, initPrivLookup);
+  return privType <= MAX_PRIV_TYPE ? privLookup[privType] : NULL;
+}

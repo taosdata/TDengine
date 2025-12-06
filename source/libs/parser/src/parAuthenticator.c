@@ -43,8 +43,10 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
   }
 
   if (NULL == pTabName) {
-    int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
-    if (TSDB_CODE_SUCCESS != code) return code;
+    if (pDbName) {
+      int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
   } else {
     toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
   }
@@ -66,6 +68,7 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   if (TSDB_CODE_SUCCESS != code) return code;
   SUserAuthRes authRes = {0};
   if (NULL != pCxt->pMetaCache) {
+    assert(0);
     code = getUserAuthFromCache(pCxt->pMetaCache, &authInfo, &authRes);
 #ifdef TD_ENTERPRISE
     if (isView && TSDB_CODE_PAR_INTERNAL_ERROR == code) {
@@ -423,10 +426,9 @@ static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt) {
+static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
   const char* pUser = pCxt->pParseCxt->pUser;
-
-  return TSDB_CODE_SUCCESS;
+  return checkAuth(pCxt, NULL, NULL, type, NULL);
 }
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
@@ -516,7 +518,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_RSMA_STMT:
       return authDropRsma(pCxt, (SDropRsmaStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
-      return authSysPrivileges(pCxt, pStmt);
+      return authSysPrivileges(pCxt, pStmt, PRIV_DB_CREATE);
     default:
       break;
   }

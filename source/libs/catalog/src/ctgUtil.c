@@ -2249,6 +2249,17 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
+  SPrivInfo* privInfo = privInfoGet(pReq->type);
+  if (!privInfo) {
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+  if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+    if (PRIV_HAS(&pInfo->sysPrivs, pReq->type)) {
+      pRes->pass[AUTH_RES_BASIC] = true;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
 #ifdef PRIV_TODO
   switch (pReq->type) {
     case AUTH_TYPE_READ: {

@@ -403,6 +403,7 @@ int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 const char* privObjTypeName(EPrivObjType objType);
 int32_t     getSysRoleType(const char* roleName);
 bool        isPrivInheritName(const char* name);
+SPrivInfo   *privInfoGet(EPrivType privType);
 
 #ifdef __cplusplus
 }
