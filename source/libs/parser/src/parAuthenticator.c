@@ -46,6 +46,9 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
     if (pDbName) {
       int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
       if (TSDB_CODE_SUCCESS != code) return code;
+    } else {
+      pAuth->tbName.acctId = pCxt->acctId;
+      pAuth->tbName.type = TSDB_SYS_NAME_T;
     }
   } else {
     toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
@@ -68,7 +71,6 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   if (TSDB_CODE_SUCCESS != code) return code;
   SUserAuthRes authRes = {0};
   if (NULL != pCxt->pMetaCache) {
-    assert(0);
     code = getUserAuthFromCache(pCxt->pMetaCache, &authInfo, &authRes);
 #ifdef TD_ENTERPRISE
     if (isView && TSDB_CODE_PAR_INTERNAL_ERROR == code) {

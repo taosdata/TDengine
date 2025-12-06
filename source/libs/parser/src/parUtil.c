@@ -682,8 +682,8 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                 char* pStr, bool isView) {
-  return snprintf(pStr, USER_AUTH_KEY_MAX_LEN, "`%s`*%d*`%s`*`%s`*%d*%d", pUser, acctId, pDb,
-                  (NULL == pTable || '\0' == pTable[0]) ? "" : pTable, type, isView);
+  return snprintf(pStr, USER_AUTH_KEY_MAX_LEN, "`%s`*%d*`%s`*`%s`*%d*%d", pUser, acctId,
+                  (pDb && pDb[0] != 0) ? pDb : "", (pTable && pTable[0] != 0) ? pTable : "", type, isView);
 }
 
 static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {

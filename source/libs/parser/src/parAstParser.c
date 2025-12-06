@@ -1246,6 +1246,11 @@ static int32_t collectMetaKeyFromShowAlive(SCollectMetaKeyCxt* pCxt, SShowAliveS
   return code;
 }
 
+static int32_t collectMetaKeyFromCreateDatabaseStmt(SCollectMetaKeyCxt* pCxt, SCreateDatabaseStmt* pStmt) {
+  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_DB_CREATE,
+                                pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
   pCxt->pStmt = pStmt;
   switch (nodeType(pStmt)) {
@@ -1459,6 +1464,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       return collectMetaKeyFromShowAlive(pCxt, (SShowAliveStmt*)pStmt);
+    case QUERY_NODE_CREATE_DATABASE_STMT:
+      return collectMetaKeyFromCreateDatabaseStmt(pCxt, (SCreateDatabaseStmt*)pStmt);
     default:
       break;
   }
