@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
+#include "tencrypt.h"
 #include "tjson.h"
 #include "tmisce.h"
 
@@ -317,10 +318,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
   int32_t   code = 0;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
-  TdFilePtr pFile = NULL;
-  char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   // if ((code == dmInitDndInfo(pData)) != 0) goto _OVER;
@@ -338,15 +336,13 @@ int32_t dmWriteEps(SDnodeData *pData) {
     TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
-  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(terrno, NULL, _OVER);
 
-  (void)taosCloseFile(&pFile);
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
+    TAOS_CHECK_GOTO(code, NULL, _OVER);
+  }
 
   pData->updateTime = taosGetTimestampMs();
   dInfo("succeed to write dnode file:%s, num:%d ver:%" PRId64, realfile, (int32_t)taosArrayGetSize(pData->dnodeEps),
@@ -355,7 +351,6 @@ int32_t dmWriteEps(SDnodeData *pData) {
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) (void)taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to write dnode file:%s since %s, dnodeVer:%" PRId64, realfile, tstrerror(code), pData->dnodeVer);

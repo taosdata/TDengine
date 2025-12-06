@@ -16,6 +16,7 @@
 #include "cJSON.h"
 #include "os.h"
 #include "taoserror.h"
+#include "tencrypt.h"
 #include "tglobal.h"
 #include "tutil.h"
 #include "walInt.h"
@@ -1077,7 +1078,6 @@ int32_t walSaveMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   char tmpFnameStr[WAL_FILE_LEN];
   int       n;
-  TdFilePtr pMetaFile = NULL;
   char*     serialized = NULL;
 
   TAOS_CHECK_GOTO(walFindCurMetaVer(pWal, &metaVer), &lino, _err);
@@ -1101,31 +1101,18 @@ int32_t walSaveMeta(SWal* pWal) {
     TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
-  pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pMetaFile == NULL) {
-    wError("vgId:%d, failed to open file %s since %s", pWal->cfg.vgId, tmpFnameStr, strerror(ERRNO));
-
-    TAOS_RETURN(terrno);
-  }
-
   TAOS_CHECK_RETURN(walMetaSerialize(pWal, &serialized));
   int len = strlen(serialized);
-  if (pWal->cfg.level != TAOS_WAL_SKIP && len != taosWriteFile(pMetaFile, serialized, len)) {
-    wError("vgId:%d, failed to write file %s since %s", pWal->cfg.vgId, tmpFnameStr, strerror(ERRNO));
-    (void)taosCloseFile(&pMetaFile);
-    TAOS_CHECK_GOTO(terrno, &lino, _err);
+
+  // Use encrypted write if tsCfgKey is enabled
+  if (pWal->cfg.level != TAOS_WAL_SKIP) {
+    code = taosWriteCfgFile(tmpFnameStr, serialized, len);
+    if (code != 0) {
+      wError("vgId:%d, failed to write file %s since %s", pWal->cfg.vgId, tmpFnameStr, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _err);
+    }
   }
 
-  if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pMetaFile) < 0) {
-    wError("vgId:%d, failed to sync file %s since %s", pWal->cfg.vgId, tmpFnameStr, strerror(ERRNO));
-    (void)taosCloseFile(&pMetaFile);
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _err);
-  }
-
-  if (taosCloseFile(&pMetaFile) < 0) {
-    wError("vgId:%d, failed to close file %s since %s", pWal->cfg.vgId, tmpFnameStr, strerror(ERRNO));
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _err);
-  }
   wInfo("vgId:%d, save meta file %s, first index:%" PRId64 ", last index:%" PRId64, pWal->cfg.vgId, tmpFnameStr,
         pWal->vers.firstVer, pWal->vers.lastVer);
 

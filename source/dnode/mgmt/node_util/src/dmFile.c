@@ -17,8 +17,10 @@
 #include "crypt.h"
 #include "dmUtil.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 #include "tgrant.h"
 #include "tjson.h"
+#include "tglobal.h"
 
 #define MAXLEN               1024
 #define DM_KEY_INDICATOR     "this indicator!"
@@ -187,17 +189,9 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
   int32_t   code = -1;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
-  TdFilePtr pFile = NULL;
-  char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
-  if (nBytes <= 0 || nBytes >= PATH_MAX) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    goto _OVER;
-  }
-
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
+  int32_t nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -217,27 +211,13 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = terrno;
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
     goto _OVER;
   }
-  if (taosFsyncFile(pFile) < 0) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    goto _OVER;
-  }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   dInfo("succeed to write file:%s", realfile);
 
@@ -245,7 +225,6 @@ _OVER:
 
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to write file:%s since %s", realfile, tstrerror(code));
@@ -256,17 +235,9 @@ _OVER:
 int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson) {
   int32_t   code = -1;
   char     *buffer = NULL;
-  TdFilePtr pFile = NULL;
-  char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
-  if (nBytes <= 0 || nBytes >= PATH_MAX) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    goto _OVER;
-  }
-
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
+  int32_t nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -278,27 +249,13 @@ int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = terrno;
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
     goto _OVER;
   }
-  if (taosFsyncFile(pFile) < 0) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    goto _OVER;
-  }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   dInfo("succeed to write file:%s", realfile);
 
@@ -306,7 +263,6 @@ _OVER:
 
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to write file:%s since %s", realfile, tstrerror(code));
