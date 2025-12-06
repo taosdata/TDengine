@@ -94,6 +94,14 @@ int32_t tNameGetFullDbName(const SName* name, char* dst) {
   return 0;
 }
 
+int32_t tNameGetFullDbAllName(const SName* name, char* dst) {
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_DB_FNAME_LEN, "%d.*", name->acctId);
+  return 0;
+}
+
 bool tNameIsEmpty(const SName* name) { return name->type == 0 || name->acctId == 0; }
 
 const char* tNameGetTableName(const SName* name) {
@@ -109,6 +117,22 @@ int32_t tNameGetFullTableName(const SName* name, char* dst) {
     return TSDB_CODE_INVALID_PARA;
   }
   (void)snprintf(dst, TSDB_TABLE_FNAME_LEN, "%s.%s", name->dbname, name->tname);
+  return 0;
+}
+
+int32_t tNameGetFullTableAllName(const SName* name, char* dst) {
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_TABLE_FNAME_LEN, "%s.*", name->dbname);
+  return 0;
+}
+
+int32_t tNameGetFullDbTableAllName(const SName* name, char* dst) {
+  if (name == NULL || dst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)snprintf(dst, TSDB_TABLE_FNAME_LEN, "%d.*.*", name->acctId);
   return 0;
 }
 

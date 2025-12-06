@@ -2258,6 +2258,31 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       pRes->pass[AUTH_RES_BASIC] = true;
     }
     return TSDB_CODE_SUCCESS;
+  } else if (PRIV_CATEGORY_OBJECT == privInfo->category) {
+    if (privInfo->privType >= PRIV_TBL_SELECT && privInfo->privType <= PRIV_TBL_DELETE) {
+      return TSDB_CODE_SUCCESS;
+    }
+    if (taosHashGetSize(pInfo->objPrivs) == 0) return TSDB_CODE_SUCCESS;
+    if (pReq->tbName.type == TSDB_DB_NAME_T) {
+      SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, dbFName, strlen(dbFName) + 1);
+      if (policies) {
+        if (PRIV_HAS(&policies->policy, pReq->type)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+          return TSDB_CODE_SUCCESS;
+        }
+      } else {
+        (void)tNameGetFullDbAllName(&pReq->tbName, dbFName);
+        policies = taosHashGet(pInfo->objPrivs, dbFName, strlen(dbFName) + 1);
+        if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+        }
+      }
+    } else if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+    }
+    return TSDB_CODE_SUCCESS;
+  } else {
+    ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo->category, privInfo->name);
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
 
 #ifdef PRIV_TODO

@@ -54,8 +54,12 @@ int32_t     tNameGetDbName(const SName* name, char* dst);
 const char* tNameGetDbNameP(const SName* name);
 
 int32_t tNameGetFullDbName(const SName* name, char* dst);
+int32_t tNameGetFullDbAllName(const SName* name, char* dst);
 
 int32_t tNameGetFullTableName(const SName* name, char* dst);
+int32_t tNameGetFullTableAllName(const SName* name, char* dst);
+
+int32_t tNameGetFullDbTableAllName(const SName* name, char* dst);
 
 bool tNameIsEmpty(const SName* name);
 
