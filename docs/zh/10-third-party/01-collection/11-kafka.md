@@ -29,10 +29,11 @@ TDengine TSDB Source Connector 用于把数据实时地从 TDengine TSDB 读出�
 
 - 在任意目录下执行：
 
-    ```shell
-    curl -O https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
-    tar xzf kafka_2.13-3.4.0.tgz -C /opt/
-    ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
+    ```bash
+    KAFKA_PKG="kafka_2.13-3.4.0"
+    curl -O "https://archive.apache.org/dist/kafka/3.4.0/${KAFKA_PKG}.tgz"
+    tar xzf "${KAFKA_PKG}.tgz" -C /opt/
+    ln -s "/opt/${KAFKA_PKG}" /opt/kafka
     ```
 
 - 然后需要把 `$KAFKA_HOME/bin` 目录加入 PATH。
@@ -48,7 +49,7 @@ TDengine TSDB Source Connector 用于把数据实时地从 TDengine TSDB 读出�
 
 ### 编译插件
 
-```shell
+```bash
 git clone --branch 3.0 https://github.com/taosdata/kafka-connect-tdengine.git
 cd kafka-connect-tdengine
 mvn clean package -Dmaven.test.skip=true
@@ -67,7 +68,7 @@ plugin.path=/usr/share/java,/opt/kafka/components
 
 ## 启动 Kafka
 
-```shell
+```bash
 zookeeper-server-start.sh -daemon $KAFKA_HOME/config/zookeeper.properties
 
 kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
@@ -79,7 +80,7 @@ connect-distributed.sh -daemon $KAFKA_HOME/config/connect-distributed.properties
 
 输入命令：
 
-```shell
+```bash
 curl http://localhost:8083/connectors
 ```
 
@@ -99,7 +100,7 @@ TDengine TSDB Sink Connector 内部使用 TDengine TSDB [无模式写入接口](
 
 ### 添加 Sink Connector 配置文件
 
-```shell
+```bash
 mkdir ~/test
 cd ~/test
 vi sink-demo.json
@@ -136,7 +137,7 @@ sink-demo.json 内容如下：
 
 ### 创建 Sink Connector 实例
 
-```shell
+```bash
 curl -X POST -d @sink-demo.json http://localhost:8083/connectors -H "Content-Type: application/json"
 ```
 
@@ -180,7 +181,7 @@ meters,location=California.LosAngeles,groupid=3 current=11.3,voltage=221,phase=0
 
 使用 kafka-console-producer 向主题 meters 添加测试数据。
 
-```shell
+```bash
 cat test-data.txt | kafka-console-producer.sh --broker-list localhost:9092 --topic meters
 ```
 
@@ -218,7 +219,7 @@ TDengine TSDB Source Connector 会将 TDengine TSDB 数据表中的数据转换�
 
 ### 添加 Source Connector 配置文件
 
-```shell
+```bash
 vi source-demo.json
 ```
 
@@ -273,13 +274,13 @@ INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-1
 
 使用 TDengine TSDB CLI, 执行 SQL 文件。
 
-```shell
+```bash
 taos -f prepare-source-data.sql
 ```
 
 ### 创建 Source Connector 实例
 
-```shell
+```bash
 curl -X POST -d @source-demo.json http://localhost:8083/connectors -H "Content-Type: application/json"
 ```
 
@@ -287,7 +288,7 @@ curl -X POST -d @source-demo.json http://localhost:8083/connectors -H "Content-T
 
 使用 kafka-console-consumer 命令行工具监控主题 tdengine-test-meters 中的数据。一开始会输出所有历史数据，往 TDengine TSDB 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。输出数据 InfluxDB line protocol 的格式。
 
-```shell
+```bash
 kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-test-meters
 ```
 
@@ -316,13 +317,13 @@ INSERT INTO d1002 VALUES (now, 16.3, 233, 0.22);
 
 查看当前活跃的 connector：
 
-```shell
+```bash
 curl http://localhost:8083/connectors
 ```
 
 如果按照前述操作，此时应有两个活跃的 connector。使用下面的命令 unload：
 
-```shell
+```bash
 curl -X DELETE http://localhost:8083/connectors/TDengineSinkConnector
 curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 ```

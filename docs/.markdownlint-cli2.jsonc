@@ -4,18 +4,19 @@
 {
   // Disable some built-in rules
   "config": {
-	"MD001": false, // heading-increment 标题级别不需要逐级递增
-	"MD013": false, // line-length 禁止行长度限制
-	"MD024": false, // no-duplicate-heading 禁止重复标题
-	"MD029": false, // ol-prefix 列表前缀可以任意设置
-	"MD025": false, // single-title 同一文档只能有一个一级标题
-	"MD033": false, // no-inline-html 禁止行内HTML
-	"MD037": true,
-	"MD041": false, // first-line-heading 禁止第一行必须是标题
-	"MD046": {"style": "fenced"}, // code-fence-style 代码块使用围栏样式
-	"MD048": {"style": "backtick"}, // Code fence style 只允许用反引号 ``` 作为围栏
-	"MD052": false  // reference-links-image: 禁止引用链接和图片
-	// "no-space-after-emphasis": {"severity": "error"}
+    "MD001": false, // heading-increment 标题级别不需要逐级递增
+    "MD013": false, // line-length 禁止行长度限制
+    "MD024": false, // no-duplicate-heading 禁止重复标题
+    "MD029": false, // ol-prefix 列表前缀可以任意设置
+    "MD025": false, // single-title 同一文档只能有一个一级标题
+    "MD033": false, // no-inline-html 禁止行内HTML
+    "MD037": true,
+    "MD060": false, // ul-style 列表前缀不强制使用统一样式
+    "MD041": false, // first-line-heading 禁止第一行必须是标题
+    "MD046": {"style": "fenced"}, // code-fence-style 代码块使用围栏样式
+    "MD048": {"style": "backtick"}, // Code fence style 只允许用反引号 ``` 作为围栏
+    "MD052": false  // reference-links-image: 禁止引用链接和图片
+    // "no-space-after-emphasis": {"severity": "error"}
   },
   "customRules": ["./custom-rules/space-after-punctuation-in-emphasis.js"],
   "ignores": ["node_modules/**", "dist/**"] // 忽略路径

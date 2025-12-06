@@ -187,7 +187,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   // query name.idx
   if (tdbTbGet(((SMeta *)pReader->pMeta)->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
     metaReaderClear(&mr);
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return terrno = TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
 
   *uid = *(tb_uid_t *)pReader->pBuf;

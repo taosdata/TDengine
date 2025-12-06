@@ -8,7 +8,8 @@ TDengine TSDB ODBC 是为 TDengine TSDB 实现的 ODBC 驱动程序，支持 Win
 TDengine TSDB ODBC 提供基于 WebSocket（推荐）和 原生连接两种方式连接 TDengine TSDB 数据库，使用时可以为 TDengine TSDB 数据源设置不同的连接方式。访问云服务时必须使用 WebSocket 连接方式。
 
 TDengine TSDB ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业版支持，且仅支持 WebSocket 连接方式。  
-**注意：**
+**注意** ：
+
 - 驱动管理器：确保使用与应用程序架构匹配的 ODBC 驱动管理器。32 位应用程序需要使用 32 位 ODBC 驱动管理器，64 位应用程序需要使用 64 位 ODBC 驱动管理器。
 - 数据源名称（DSN）：32 位和 64 位 ODBC 驱动管理器都可以看到所有 DSN，用户 DSN 标签页下的 DSN 如果名字相同会共用，因此需要在 DSN 名称上去区分。
 
@@ -42,13 +43,13 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
 
 ### WebSocket 连接
 
-1. 【开始】菜单搜索打开【ODBC 数据源 (32 位)】或者【ODBC 数据源 (64 位)】管理工具 
+1. 【开始】菜单搜索打开【ODBC 数据源 (32 位)】或者【ODBC 数据源 (64 位)】管理工具
 
-2. 选中【用户 DSN】标签页，通过【添加 (D)】按钮进入"创建数据源"界面 
+2. 选中【用户 DSN】标签页，通过【添加 (D)】按钮进入"创建数据源"界面
 
-3. 选择想要添加的数据源，这里我们选择【TDengine TSDB】 
+3. 选择想要添加的数据源，这里我们选择【TDengine TSDB】
 
-4. 点击完成，进入 TDengine TSDB ODBC 数据源配置页面，填写如下必要信息 
+4. 点击完成，进入 TDengine TSDB ODBC 数据源配置页面，填写如下必要信息
 
     ![ODBC WebSocket connection config](./assets/odbc-ws-config-zh.webp)
 
@@ -91,7 +92,7 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
     4.3【服务器】必填，ODBC 数据源 服务器 地址，示例：`localhost:6030`
 
     4.4【数据库】选填，需要连接的默认数据库
-    
+
     4.5【用户名】仅供第 5 步测试连接使用，选填，数据库用户名，如果不填，TDengine TSDB 默认 root
 
     4.6【密码】仅供第 5 步测试连接使用，选填，数据库用户密码，如果不填，TDengine TSDB 默认 taosdata
@@ -104,23 +105,20 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
 
 7. 也可以在第 2 步选择已经配置好的数据源名通过【配置】按钮进入配置页面，修改已有配置
 
-
 ## 支持的平台
 
 - 原生连接方式支持的平台和 TDengine TSDB Windows X64 版 客户端驱动支持的平台一致。
 - WebSocket 连接方式除此之外还支持 Windows X64 系统上运行的 32 位应用程序上使用。
 
-
 ## 版本历史
 
 | taos_odbc 版本 | 主要变化                                                                                             |   TDengine TSDB 版本    |
 | -----------  | --------------------------------------------------------------------------------------------------  | ----------------  |
-|      v1.1.1   | 支持ADO访问TDengine ODBC 32/64接口。                                                                              | 3.3.3.0 及更高版本 |
+|      v1.1.1   | 支持 ADO 访问 TDengine ODBC 32/64接口。                                                                              | 3.3.3.0 及更高版本 |
 |      v1.1.0   | 1. 支持视图功能；<br/>2. 支持 VARBINARY/GEOMETRY 数据类型；<br/>3. 支持 ODBC 32 位 WebSocket 连接方式（仅企业版支持）；<br/>4. 支持 ODBC 数据源配置对话框设置对工业软件 KingSCADA、Kepware 等的兼容性适配选项（仅企业版支持）； | 3.3.3.0 及更高版本 |
 |      v1.0.2   | 支持 CP1252 字符编码；                                                                                 | 3.2.3.0 及更高版本 |
 |      v1.0.1   | 1. 支持 DSN 设置 BI 模式，在 BI 模式下 TDengine 数据库不返回系统数据库和超级表子表信息；<br/>2. 重构字符集转换模块，提升读写性能；<br/>3. ODBC 数据源配置对话框中默认修改默认连接方式为“WebSocket”；<br/>4. ODBC 数据源配置对话框增加“测试连接”控件；<br/>5. ODBC 数据源配置支持中文/英文界面； |         -          |
 |    v1.0.0.0   | 发布初始版本，支持与 TDengine 数据库交互以读写数据，具体请参考“API 参考”一节                                | 3.2.2.0 及更高版本 |
-
 
 ## 数据类型映射
 
@@ -146,7 +144,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
 | JSON               | SQL_WVARCHAR      | SQL_C_WCHAR       |
 | GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
 | VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
-
 
 ## API 参考
 
@@ -246,7 +243,7 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
 | SQL_ATTR_TRANSLATE_LIB | |
 | SQL_ATTR_TRANSLATE_OPTION | |
 
-- **允许任何带有 ODBC 库的编程语言与 TDengine TSDB 通信：**
+- **允许任何带有 ODBC 库的编程语言与 TDengine TSDB 通信** ：
 
 | programming language | ODBC-API or bindings/plugins |
 | :----- | :---- |
@@ -259,8 +256,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
 | Nodejs | odbc |
 | Python3 | pyodbc |
 | Rust | odbc |
-
-
 
 ### API 功能分类
 
@@ -282,7 +277,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **是否支持**：不支持
   - **标准**：ODBC
   - **作用**：用于解析 DSN 的配置，在 DSN 配置和实际数据库驱动程序配置之间进行翻译或转换
-
 
 #### 连接到数据源
 
@@ -316,7 +310,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **标准**：弃用
   - **作用**：在 ODBC 3.x 中，ODBC 2.x 函数 SQLAllocConnect 已替换为 SQLAllocHandle
 
-
 #### 获取有关驱动程序和数据源的信息
 
 - API：SQLDataSources
@@ -343,7 +336,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **是否支持**：支持
   - **标准**：ISO 92
   - **作用**：返回有关支持的数据类型的信息
-
 
 #### 设置和检索驱动程序属性
 
@@ -397,7 +389,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **标准**：弃用
   - **作用**：在 ODBC 3.x 中，ODBC 2.0 函数 SQLSetStmtOption 已替换为 SQLGetStmtAttr
 
-
 #### 准备 SQL 请求
 
 - API：SQLAllocStmt
@@ -435,7 +426,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **标准**：ODBC
   - **作用**：设置控制光标行为的选项
 
-
 #### 提交请求
 
 - API：SQLExecute
@@ -472,7 +462,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **是否支持**：不支持
   - **标准**：ISO 92
   - **作用**：当使用流输入方式时，可以用于向输出参数发送数据块
-
 
 #### 检索结果和关于结果的信息
 
@@ -536,7 +525,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **标准**：ODBC
   - **作用**：执行批量插入和批量书签操作，包括更新、删除和按书签提取
 
-
 #### 检索错误或诊断信息
 
 - API：SQLError
@@ -553,7 +541,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **是否支持**：支持
   - **标准**：ISO 92
   - **作用**：返回附加诊断信息（多条诊断结果）
-
 
 #### 获取有关数据源的系统表项的信息
 
@@ -607,7 +594,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **标准**：ODBC
   - **作用**：返回存储过程的列信息，包括输入输出参数的详细信息
 
-
 #### 执行事务
 
 - API：SQLTransact
@@ -619,7 +605,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **是否支持**：支持
   - **标准**：ISO 92
   - **作用**：用于提交或回滚事务。TDengine TSDB 是非事务性的，因此 SQLEndTran 函数最多只能模拟提交或回滚操作。如果有任何未完成的连接或语句，无论是提交（commit）还是回滚（rollback）都不会成功
-
 
 #### 终止连接
 
@@ -652,4 +637,3 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **是否支持**：支持
   - **标准**：ODBC
   - **作用**：关闭与当前语句句柄关联的游标，并释放游标所使用的所有资源
-

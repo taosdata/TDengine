@@ -160,7 +160,7 @@ optional arguments:
 
 配置方法
 
-```
+```shell
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 ```
 
@@ -239,36 +239,36 @@ taos-explorer
 
 在工具所在节点安装数据库
 
-```
+```shell
 ./taosinstall install -m local
 ```
 
 在集群所有节点安装数据库，日志级别配置为 debug
 
-```
+```shell
 ./taosinstall install -m ssh -l debug
 ```
 
 指定配置文件并在集群所有节点安装数据库
 
-```
+```shell
 ./taosinstall install -m ssh -f /path_to_file/install.cfg
 ```
 
 在集群指定节点安装数据库
 
-```
+```shell
 ./taosinstall install -m ssh -l server1,server2...
 ```
 
 停服升级数据库
 
-```
+```shell
 ./taosinstall upgrade -m ssh
 ```
 
 滚动升级数据库
 
-```
+```shell
 ./taosinstall upgrade -m ssh -r
 ```

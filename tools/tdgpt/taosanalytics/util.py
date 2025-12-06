@@ -1,6 +1,7 @@
 # encoding:utf-8
 """utility methods to helper query processing"""
 import math
+import re
 
 import numpy as np
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -206,3 +207,12 @@ def do_check_before_exec(request, check_rows=True):
     options = req_json["option"] if "option" in req_json else None
 
     return req_json, payload, options, data_index, ts_index
+
+def parse_time_delta_string(time_str:str):
+    match = re.match(r'^(\d*)([smhdw]|ns|ms|us)$', time_str.lower())
+    if not match:
+        raise ValueError(f"failed to parse time string: {time_str}")
+
+    value = int(match.group(1)) if len(match.group(1)) > 0 else 1
+    unit = match.group(2)
+    return value, unit

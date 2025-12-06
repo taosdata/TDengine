@@ -48,6 +48,7 @@ class TestStreamOldCaseCheckPoint:
         streams.append(self.Session0())
         streams.append(self.Session1())
         streams.append(self.State0())
+        streams.append(self.ts_7578())
         tdStream.checkAll(streams)
 
     class Interval0(StreamCheckItem):
@@ -425,4 +426,46 @@ class TestStreamOldCaseCheckPoint:
                 and tdSql.compareData(1, 1, "2022-04-01 13:33:53.004")
                 and tdSql.compareData(1, 2, 2)
                 and tdSql.compareData(1, 3, 9),
+            )
+
+    class ts_7578(StreamCheckItem):
+        def __init__(self):
+            self.db = "ts_7578"
+            self.tb = "t1"
+            self.outTb = "out"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(f"create table {self.tb} (ts timestamp, a int, b int, c int)")
+            tdSql.execute(f"create stream s_event event_window(start with a >= 0 end with b < 0) from {self.tb} stream_options(event_type(window_open)) into {self.outTb} as select cast(_tlocaltime / 1000000 as timestamp) as ts, a, b, c from {self.tb} where ts = _twstart;")
+
+        def insert1(self):
+            tdSql.execute(f"insert into {self.tb} values('2025-01-01 00:00:01', 10, 20, 30);")
+            tdSql.execute(f"insert into {self.tb} values('2025-01-01 00:00:02', 15, -5, 25);")
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select a, b, c from {self.db}.{self.outTb}",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, 10)
+                and tdSql.compareData(0, 1, 20)
+                and tdSql.compareData(0, 2, 30)
+            )
+            time.sleep(5) # wait for progress update
+
+        def insert3(self):
+            tdSql.execute(f"insert into {self.tb} values('2025-01-01 00:00:03', 5, 15, 25);")
+            tdSql.execute(f"insert into {self.tb} values('2025-01-01 00:00:04', 0, -10, 20);")
+
+        def check3(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select a, b, c from {self.db}.{self.outTb}",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, 10)
+                and tdSql.compareData(0, 1, 20)
+                and tdSql.compareData(0, 2, 30)
+                and tdSql.compareData(1, 0, 5)
+                and tdSql.compareData(1, 1, 15)
+                and tdSql.compareData(1, 2, 25)
             )

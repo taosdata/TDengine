@@ -330,7 +330,7 @@ Below is a sample log output from an actual run on a machine with a 40-core CPU,
 
 From the client application's perspective, the following factors should be considered for efficient data writing:  
 
-1. **Batch Writing**: Generally, larger batch sizes improve efficiency (but the advantage diminishes beyond a certain threshold). When using SQL to write to TDengine, include as much data as possible in a single SQL statement. The maximum allowed SQL length in TDengine is **1MB** (1,048,576 characters).  
+1. **Batch Writing**: Generally, larger batch sizes improve efficiency (but the advantage diminishes beyond a certain threshold). When using SQL to write to TDengine, include as much data as possible in a single SQL statement.  
 2. **Multithreaded Writing**: Before system resource bottlenecks are reached, increasing the number of write threads can improve throughput (performance may decline due to server-side processing limitations beyond the threshold). It is recommended to assign independent connections to each write thread to reduce connection resource contention.  
 3. **Write Locality**: The distribution of data across different tables (or sub-tables), i.e., the locality of data to be written. Writing to a single table (or sub-table) in each batch is more efficient than writing to multiple tables (or sub-tables).  
 4. **Pre-Creating Tables**: Pre-creating tables improves write performance as it eliminates the need to check table existence and allows omitting tag column data during writing.  
@@ -383,7 +383,7 @@ From the factors affecting write performance discussed above, developing high-pe
 
 Below is a schematic diagram of the connector's efficient writing feature implementation:
 
-![](../assets/ingesting-data-efficiently-01.png)
+![ingesting-data](../assets/ingesting-data-efficiently-01.png)
 
 ### Design Principles  
 

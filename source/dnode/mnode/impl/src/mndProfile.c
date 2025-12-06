@@ -268,6 +268,41 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
   }
 }
 
+
+
+// TODO: if there are many connections, this function may be slow
+static int32_t mndCountUserConns(SMnode *pMnode, const char *user) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  SCacheIter   *pIter = taosCacheCreateIter(pMgmt->connCache);
+  if (pIter == NULL) {
+    mError("failed to create conn cache iterator");
+    return -1;
+  }
+
+  int32_t    count = 0;
+  SConnObj  *pConn = NULL;
+  while ((pConn = mndGetNextConn(pMnode, pIter)) != NULL) {
+    if (strncmp(pConn->user, user, TSDB_USER_LEN) == 0) {
+      count++;
+    }
+    mndReleaseConn(pMnode, pConn, true);
+  }
+
+  return count;
+}
+
+
+
+static bool constTimeEq(const char *a, const char *b, size_t len) {
+  volatile uint8_t res = 0;
+  for (size_t i = 0; i < len; i++) {
+    res |= a[i] ^ b[i];
+  }
+  return res == 0;
+}
+
+
+
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SUserObj       *pUser = NULL;
@@ -301,21 +336,80 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  int64_t now = taosGetTimestampSec();
+  if (pUser->passwordLifeTime > 0 && pUser->passwordGraceTime >= 0) {
+    int64_t lifeTime = now - pUser->passwords[0].setTime;
+    int64_t maxLifeTime = pUser->passwordLifeTime + pUser->passwordGraceTime;
+    if (lifeTime >= maxLifeTime) {
+      mGError("user:%s, failed to login from %s since password expired", pReq->info.conn.user, ip);
+      code = TSDB_CODE_MND_USER_PASSWORD_EXPIRED;
+      goto _OVER;
+    }
+  }
+
+  if (!isTimeInDateTimeWhiteList(pUser->pTimeWhiteList, now)) {
+    mGError("user:%s, failed to login from %s since not in date white list", pReq->info.conn.user, ip);
+    code = TSDB_CODE_MND_USER_DISABLED;
+    goto _OVER;
+  }
+
+  SLoginInfo loginInfo = {0};
+  mndGetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+  if (pUser->inactiveAccountTime >= 0 && (now - loginInfo.lastLoginTime >= pUser->inactiveAccountTime)) {
+    mGError("user:%s, failed to login from %s since inactive account", pReq->info.conn.user, ip);
+    code = TSDB_CODE_MND_USER_DISABLED;
+    goto _OVER;
+  }
+
+  if (pUser->failedLoginAttempts >= 0 & loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
+    if(now - loginInfo.lastFailedLoginTime < pUser->passwordLockTime) {
+      mGError("user:%s, failed to login from %s since too many login failures", pReq->info.conn.user, ip);
+      code = TSDB_CODE_MND_USER_DISABLED;
+      goto _OVER;
+    }
+  }
+
+  if (pUser->sessionPerUser >= 0) {
+    int32_t currentSessions = mndCountUserConns(pMnode, pReq->info.conn.user);
+    if (currentSessions >= pUser->sessionPerUser) {
+      mGError("user:%s, failed to login from %s since exceed max connections:%d", pReq->info.conn.user, ip, pUser->sessionPerUser);
+      code = TSDB_CODE_MND_TOO_MANY_CONNECTIONS;
+      goto _OVER;
+    }
+  }
+
   char tmpPass[TSDB_PASSWORD_LEN] = {0};
-  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+  (void)memcpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+  tmpPass[TSDB_PASSWORD_LEN - 1] = 0;
 
   if (pUser->passEncryptAlgorithm != 0) {
     if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       goto _OVER;
     }
-    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, pUser->salt, NULL), NULL, _OVER);
   }
 
-  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
-            connReq.passwd);
+  if (tsMndSkipGrant) {
+    loginInfo.lastLoginTime= now;
+  } else if (constTimeEq(tmpPass, pUser->passwords[0].pass, sizeof(tmpPass) - 1)) {
+    loginInfo.failedLoginCount = 0;
+    loginInfo.lastLoginTime= now;
+  } else {
+    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip, connReq.passwd);
+    if (pUser->failedLoginAttempts >= 0) {
+      if (loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
+        // if we can get here, it means the lock time has passed, so reset the counter
+        loginInfo.failedLoginCount = 0;
+      }
+      loginInfo.failedLoginCount++;
+      loginInfo.lastFailedLoginTime = now;
+    }
     code = TSDB_CODE_MND_AUTH_FAILURE;
+  }
+
+  mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+  if (code != 0) {
     goto _OVER;
   }
 
@@ -352,6 +446,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
+  connectRsp.mustChangePass = mndMustChangePassword(pUser) ? 1 : 0;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
@@ -364,6 +459,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.enableAuditDelete = tsEnableAuditDelete;
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
+  connectRsp.timeWhiteListVer = pUser->timeWhiteListVer;
 
   tstrncpy(connectRsp.sVer, td_version, sizeof(connectRsp.sVer));
   (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", td_version,

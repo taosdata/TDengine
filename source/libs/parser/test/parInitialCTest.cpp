@@ -1091,7 +1091,6 @@ TEST_F(ParserInitialCTest, createUser) {
     expect.superUser = 0;
     expect.sysInfo = sysInfo;
     expect.enable = 1;
-    taosEncryptPass_c((uint8_t*)pPass, strlen(pPass), expect.pass);
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -1104,7 +1103,6 @@ TEST_F(ParserInitialCTest, createUser) {
     ASSERT_EQ(req.sysInfo, expect.sysInfo);
     ASSERT_EQ(req.enable, expect.enable);
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
-    ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
     tFreeSCreateUserReq(&req);
   });
 

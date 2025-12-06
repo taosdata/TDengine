@@ -31,47 +31,48 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 ## Version History
 
-| taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                               | TDengine Version   |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| taos-jdbcdriver Version | Major Changes                                                | TDengine Version   |
+| ----------------------- | ------------------------------------------------------------ | ------------------ |
+| 3.7.8                   | Fixed the bug that the `getTables` method requires an identifier quote string. | -                  |
 | 3.7.7                   | 1. Fixed the issue of loading configuration files on the Windows platform. <br/> 2. Fixed the problem of mutual interference between WebSocket connection Statement timeout settings | -                  |
 | 3.7.6                   | Optimized WebSocket connection load balancing and the `setObject` method for parameter binding. | -                  |
-| 3.7.5                   | 1. WebSocket connections support load balancing. <br/> 2. Automatic reconnection supports parameter binding. <br/> 3. Optimized serialization performance for efficient writing. <br/> 4. Improved the performance of WebSocket connection isValid.   |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
-| 3.7.3                   | Optimized WebSocket/Native query implementations.    |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
-| 3.7.2                   | Fixed the supportsBatchUpdates issue that caused poor performance in Spring JdbcTemplate parameter binding.    |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
-| 3.7.1                   | 1. Replace Java-WebSocket library with Netty to enhance small query performance. <br/>  2. Add IPv6 protocol compatibility. <br/>  3. Implement BLOB (Binary Large Object) data type support. <br/>  4. Enable TDengine version compatibility checks. <br/>  5. Support `varcharAsString` in connection property. <br/>  6. Optimize memory utilization in WebSocket query operations. <br/>  7. Fix timezone handling in WebSocket connections. <br/> |-|                                                                                                                                                                                                                                                                                                                                  | -                  |
-| 3.6.3                   | Fixed data type conversion bug in database or super table subscription.                                                                                                                                                                                                                                                                                                                                     | -                  |
-| 3.6.2                   | 1. Supports data subscription for databases and super tables (subscription meta not supported). <br/> 1. Resolved the bug in cloud service subscription. <br/> 1. Improved the implement of setQueryTimeout with param 0.                                                                                                                                                                                   | -                  |
-| 3.6.1                   | Fixed the performance issue of small queries in WebSocket connection.                                                                                                                                                                                                                                                                                                                                       | -                  |
-| 3.6.0                   | Support efficient writing and decimal data types in WebSocket connections.                                                                                                                                                                                                                                                                                                                                  | 3.3.6.0 and higher |
-| 3.5.3                   | Support unsigned data types in WebSocket connections.                                                                                                                                                                                                                                                                                                                                                       | -                  |
-| 3.5.2                   | Fixed WebSocket result set free bug.                                                                                                                                                                                                                                                                                                                                                                        | -                  |
-| 3.5.1                   | Fixed the getObject issue in data subscription.                                                                                                                                                                                                                                                                                                                                                             | -                  |
-| 3.5.0                   | 1. Optimized the performance of WebSocket connection parameter binding, supporting parameter binding queries using binary data. <br/> 1. Optimized the performance of small queries in WebSocket connection. <br/> 1. Added support for setting time zone and app info on WebSocket connection.                                                                                                             | 3.3.5.0 and higher |
-| 3.4.0                   | 1. Replaced fastjson library with jackson. <br/> 1. WebSocket uses a separate protocol identifier. <br/> 1. Optimized background thread usage to avoid user misuse leading to timeouts.                                                                                                                                                                                                                     | -                  |
-| 3.3.4                   | Fixed getInt error when data type is float.                                                                                                                                                                                                                                                                                                                                                                 | -                  |
-| 3.3.3                   | Fixed memory leak caused by closing WebSocket statement.                                                                                                                                                                                                                                                                                                                                                    | -                  |
-| 3.3.2                   | 1. Optimized parameter binding performance under WebSocket connection. <br/> 1. Improved support for mybatis.                                                                                                                                                                                                                                                                                               | -                  |
-| 3.3.0                   | 1. Optimized data transmission performance under WebSocket connection. <br/> 1. Supports skipping SSL verification, off by default.                                                                                                                                                                                                                                                                         | 3.3.2.0 and higher |
-| 3.2.11                  | Fixed a bug in closing result set in Native connection.                                                                                                                                                                                                                                                                                                                                                     | -                  |
+| 3.7.5                   | 1. WebSocket connections support load balancing. <br/> 2. Automatic reconnection supports parameter binding. <br/> 3. Optimized serialization performance for efficient writing. <br/> 4. Improved the performance of WebSocket connection isValid. | -                  |
+| 3.7.3                   | Optimized WebSocket/Native query implementations.            | -                  |
+| 3.7.2                   | Fixed the supportsBatchUpdates issue that caused poor performance in Spring JdbcTemplate parameter binding. | -                  |
+| 3.7.1                   | 1. Replace Java-WebSocket library with Netty to enhance small query performance. <br/>  2. Add IPv6 protocol compatibility. <br/>  3. Implement BLOB (Binary Large Object) data type support. <br/>  4. Enable TDengine version compatibility checks. <br/>  5. Support `varcharAsString` in connection property. <br/>  6. Optimize memory utilization in WebSocket query operations. <br/>  7. Fix timezone handling in WebSocket connections. <br/> | -                  |
+| 3.6.3                   | Fixed data type conversion bug in database or super table subscription. | -                  |
+| 3.6.2                   | 1. Supports data subscription for databases and super tables (subscription meta not supported). <br/> 1. Resolved the bug in cloud service subscription. <br/> 1. Improved the implement of setQueryTimeout with param 0. | -                  |
+| 3.6.1                   | Fixed the performance issue of small queries in WebSocket connection. | -                  |
+| 3.6.0                   | Support efficient writing and decimal data types in WebSocket connections. | 3.3.6.0 and higher |
+| 3.5.3                   | Support unsigned data types in WebSocket connections.        | -                  |
+| 3.5.2                   | Fixed WebSocket result set free bug.                         | -                  |
+| 3.5.1                   | Fixed the getObject issue in data subscription.              | -                  |
+| 3.5.0                   | 1. Optimized the performance of WebSocket connection parameter binding, supporting parameter binding queries using binary data. <br/> 1. Optimized the performance of small queries in WebSocket connection. <br/> 1. Added support for setting time zone and app info on WebSocket connection. | 3.3.5.0 and higher |
+| 3.4.0                   | 1. Replaced fastjson library with jackson. <br/> 1. WebSocket uses a separate protocol identifier. <br/> 1. Optimized background thread usage to avoid user misuse leading to timeouts. | -                  |
+| 3.3.4                   | Fixed getInt error when data type is float.                  | -                  |
+| 3.3.3                   | Fixed memory leak caused by closing WebSocket statement.     | -                  |
+| 3.3.2                   | 1. Optimized parameter binding performance under WebSocket connection. <br/> 1. Improved support for mybatis. | -                  |
+| 3.3.0                   | 1. Optimized data transmission performance under WebSocket connection. <br/> 1. Supports skipping SSL verification, off by default. | 3.3.2.0 and higher |
+| 3.2.11                  | Fixed a bug in closing result set in Native connection.      | -                  |
 | 3.2.10                  | 1. REST/WebSocket connections support data compression during transmission. <br/> 1. WebSocket automatic reconnection mechanism, off by default. <br/> 1. Connection class provides methods for schemaless writing. <br/> 1. Optimized data fetching performance for native connections. <br/> 1. Fixed some known issues.  <br/> 1. Metadata retrieval functions can return a list of supported functions. | -                  |
-| 3.2.9                   | Fixed bug in closing WebSocket prepareStatement.                                                                                                                                                                                                                                                                                                                                                            | -                  |
-| 3.2.8                   | 1. Optimized auto-commit. <br/> 1. Fixed manual commit bug in WebSocket. <br/> 1. Optimized WebSocket prepareStatement using a single connection. <br/> 1. Metadata supports views.                                                                                                                                                                                                                         | -                  |
-| 3.2.7                   | 1. Supports VARBINARY and GEOMETRY types. <br/> 1. Added timezone setting support for native connections. <br/> 1. Added WebSocket automatic reconnection feature.                                                                                                                                                                                                                                          | 3.2.0.0 and higher |
-| 3.2.5                   | Data subscription adds committed() and assignment() methods.                                                                                                                                                                                                                                                                                                                                                | 3.1.0.3 and higher |
-| 3.2.4                   | Data subscription adds enable.auto.commit parameter under WebSocket connection, as well as unsubscribe() method.                                                                                                                                                                                                                                                                                            | -                  |
-| 3.2.3                   | Fixed ResultSet data parsing failure in some cases.                                                                                                                                                                                                                                                                                                                                                         | -                  |
-| 3.2.2                   | New feature: Data subscription supports seek function.                                                                                                                                                                                                                                                                                                                                                      | 3.0.5.0 and higher |
-| 3.2.1                   | 1. WebSocket connection supports schemaless and prepareStatement writing. <br/> 1. Consumer poll returns result set as ConsumerRecord, which can be accessed through value() method.                                                                                                                                                                                                                        | 3.0.3.0 and higher |
-| 3.2.0                   | Connection issues, not recommended for use.                                                                                                                                                                                                                                                                                                                                                                 | -                  |
-| 3.1.0                   | WebSocket connection supports subscription function.                                                                                                                                                                                                                                                                                                                                                        | -                  |
-| 3.0.1 - 3.0.4           | Fixed data parsing errors in result sets under some conditions. 3.0.1 compiled in JDK 11 environment, other versions recommended for JDK 8.                                                                                                                                                                                                                                                                 | -                  |
-| 3.0.0                   | Supports TDengine 3.0                                                                                                                                                                                                                                                                                                                                                                                       | 3.0.0.0 and higher |
-| 2.0.42                  | Fixed wasNull interface return value in WebSocket connection.                                                                                                                                                                                                                                                                                                                                               | -                  |
-| 2.0.41                  | Fixed username and password encoding method in REST connection.                                                                                                                                                                                                                                                                                                                                             | -                  |
-| 2.0.39 - 2.0.40         | Added REST connection/request timeout settings.                                                                                                                                                                                                                                                                                                                                                             | -                  |
-| 2.0.38                  | JDBC REST connection adds batch fetching function.                                                                                                                                                                                                                                                                                                                                                          | -                  |
-| 2.0.37                  | Added support for json tag.                                                                                                                                                                                                                                                                                                                                                                                 | -                  |
-| 2.0.36                  | Added support for schemaless writing.                                                                                                                                                                                                                                                                                                                                                                       | -                  |
+| 3.2.9                   | Fixed bug in closing WebSocket prepareStatement.             | -                  |
+| 3.2.8                   | 1. Optimized auto-commit. <br/> 1. Fixed manual commit bug in WebSocket. <br/> 1. Optimized WebSocket prepareStatement using a single connection. <br/> 1. Metadata supports views. | -                  |
+| 3.2.7                   | 1. Supports VARBINARY and GEOMETRY types. <br/> 1. Added timezone setting support for native connections. <br/> 1. Added WebSocket automatic reconnection feature. | 3.2.0.0 and higher |
+| 3.2.5                   | Data subscription adds committed() and assignment() methods. | 3.1.0.3 and higher |
+| 3.2.4                   | Data subscription adds enable.auto.commit parameter under WebSocket connection, as well as unsubscribe() method. | -                  |
+| 3.2.3                   | Fixed ResultSet data parsing failure in some cases.          | -                  |
+| 3.2.2                   | New feature: Data subscription supports seek function.       | 3.0.5.0 and higher |
+| 3.2.1                   | 1. WebSocket connection supports schemaless and prepareStatement writing. <br/> 1. Consumer poll returns result set as ConsumerRecord, which can be accessed through value() method. | 3.0.3.0 and higher |
+| 3.2.0                   | Connection issues, not recommended for use.                  | -                  |
+| 3.1.0                   | WebSocket connection supports subscription function.         | -                  |
+| 3.0.1 - 3.0.4           | Fixed data parsing errors in result sets under some conditions. 3.0.1 compiled in JDK 11 environment, other versions recommended for JDK 8. | -                  |
+| 3.0.0                   | Supports TDengine 3.0                                        | 3.0.0.0 and higher |
+| 2.0.42                  | Fixed wasNull interface return value in WebSocket connection. | -                  |
+| 2.0.41                  | Fixed username and password encoding method in REST connection. | -                  |
+| 2.0.39 - 2.0.40         | Added REST connection/request timeout settings.              | -                  |
+| 2.0.38                  | JDBC REST connection adds batch fetching function.           | -                  |
+| 2.0.37                  | Added support for json tag.                                  | -                  |
+| 2.0.36                  | Added support for schemaless writing.                        | -                  |
 
 ## Exceptions and Error Codes
 
@@ -87,27 +88,27 @@ For error code information please refer to [Error Codes](../../error-codes/)
 
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Java type conversions are as follows:
 
-| TDengine DataType | JDBCType             | Remark                                                                                                     |
-| ----------------- | -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| TIMESTAMP         | java.sql.Timestamp   |                                                                                                            |
-| BOOL              | java.lang.Boolean    |                                                                                                            |
-| TINYINT           | java.lang.Byte       |                                                                                                            |
-| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections                                                                    |
-| SMALLINT          | java.lang.Short      |                                                                                                            |
-| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections                                                                    |
-| INT               | java.lang.Integer    |                                                                                                            |
-| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections                                                                    |
-| BIGINT            | java.lang.Long       |                                                                                                            |
-| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections                                                                    |
-| FLOAT             | java.lang.Float      |                                                                                                            |
-| DOUBLE            | java.lang.Double     |                                                                                                            |
+| TDengine DataType | JDBCType             | Remark                                                       |
+| ----------------- | -------------------- | ------------------------------------------------------------ |
+| TIMESTAMP         | java.sql.Timestamp   |                                                              |
+| BOOL              | java.lang.Boolean    |                                                              |
+| TINYINT           | java.lang.Byte       |                                                              |
+| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections                      |
+| SMALLINT          | java.lang.Short      |                                                              |
+| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections                      |
+| INT               | java.lang.Integer    |                                                              |
+| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections                      |
+| BIGINT            | java.lang.Long       |                                                              |
+| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections                      |
+| FLOAT             | java.lang.Float      |                                                              |
+| DOUBLE            | java.lang.Double     |                                                              |
 | VARCHAR/BINARY    | byte[]               | Setting the `varcharAsString` parameter to `true` on a WebSocket connection can map it to the String type. |
-| NCHAR             | java.lang.String     |                                                                                                            |
-| JSON              | java.lang.String     | only supported in tags                                                                                     |
-| VARBINARY         | byte[]               |                                                                                                            |
-| GEOMETRY          | byte[]               |                                                                                                            |
-| BLOB              | byte[]               | only supported in columns                                                                                  |
-| DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections                                                                    |
+| NCHAR             | java.lang.String     |                                                              |
+| JSON              | java.lang.String     | only supported in tags                                       |
+| VARBINARY         | byte[]               |                                                              |
+| GEOMETRY          | byte[]               |                                                              |
+| BLOB              | byte[]               | only supported in columns                                    |
+| DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections                      |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
@@ -178,7 +179,7 @@ The JDBC URL format for TDengine is:
 
 - The host parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.  
 - **Only the WebSocket connection method supports multiple endpoint addresses**, which should be separated by commas when used. These multiple endpoint addresses will be randomly used during connection to achieve load balancing.
-- All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.   
+- All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.
 
 **Native Connection**  
 `jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`, using the TSDBDriver for native JDBC connection, establishes a connection to the host taosdemo.com, port 6030 (TDengine's default port), and database name power. This URL specifies the username (user) as root and the password (password) as taosdata.
@@ -259,7 +260,7 @@ For REST connections, the common configuration parameters in the URL are as foll
 
 #### Properties
 
-In addition to obtaining a connection through a specified URL, you can also use Properties to specify parameters when establishing a connection.   
+In addition to obtaining a connection through a specified URL, you can also use Properties to specify parameters when establishing a connection.
 All configuration parameters in Properties can also be specified in the JDBC URL. The parameter names in square brackets can be used in the JDBC URL (e.g., TSDBDriver.PROPERTY_KEY_USER[`user`] can be set in the JDBC URL as `user=root` to specify the username).
 
 > **Note**: The client parameter set in the application is at the process level, meaning if you need to update the client's parameters, you must restart the application. This is because the client parameter is a global parameter and only takes effect the first time it is set in the application.
@@ -483,16 +484,16 @@ For example: if the password is specified as taosdata in the URL and as taosdemo
 
 List of interface methods that return `true` for supported features, others not explicitly mentioned return `false`.
 
-| Interface Method                               | Description                                                                                     |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `boolean nullsAreSortedAtStart()`              | Determines if `NULL` values are sorted at the start                                             |
-| `boolean storesLowerCaseIdentifiers()`         | Determines if the database stores identifiers in lowercase                                      |
-| `boolean supportsAlterTableWithAddColumn()`    | Determines if the database supports adding columns with `ALTER TABLE`                           |
-| `boolean supportsAlterTableWithDropColumn()`   | Determines if the database supports dropping columns with `ALTER TABLE`                         |
-| `boolean supportsColumnAliasing()`             | Determines if the database supports column aliasing                                             |
-| `boolean supportsGroupBy()`                    | Determines if the database supports `GROUP BY` statements                                       |
+| Interface Method                               | Description                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| `boolean nullsAreSortedAtStart()`              | Determines if `NULL` values are sorted at the start          |
+| `boolean storesLowerCaseIdentifiers()`         | Determines if the database stores identifiers in lowercase   |
+| `boolean supportsAlterTableWithAddColumn()`    | Determines if the database supports adding columns with `ALTER TABLE` |
+| `boolean supportsAlterTableWithDropColumn()`   | Determines if the database supports dropping columns with `ALTER TABLE` |
+| `boolean supportsColumnAliasing()`             | Determines if the database supports column aliasing          |
+| `boolean supportsGroupBy()`                    | Determines if the database supports `GROUP BY` statements    |
 | `boolean isCatalogAtStart()`                   | Determines if the catalog name appears at the start of the fully qualified name in the database |
-| `boolean supportsCatalogsInDataManipulation()` | Determines if the database supports catalog names in data manipulation statements               |
+| `boolean supportsCatalogsInDataManipulation()` | Determines if the database supports catalog names in data manipulation statements |
 
 ### Connection Features
 
@@ -1358,7 +1359,7 @@ JDBC standards do not support data subscription, therefore all interfaces in thi
 Consumer support property list:
 
 - td.connect.type: Connection method. jni: indicates using a dynamic library connection, ws/WebSocket: indicates using WebSocket for data communication. The default is jni.
-- bootstrap.servers: 
+- bootstrap.servers:
   1. If using a WebSocket connection, it is the `ip:port` where taosAdapter is located. Multiple endpoints are supported, separated by commas, such as `ip1:port1,ip2:port2`. If the connection is disconnected during the poll process, it can switch to other nodes (requires setting the auto-reconnect parameter `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT` to `true`).  
   2. If using a Native connection, it is the `ip:port` where the TDengine TSDB server is located. Native connections do not support multiple endpoints.
 - enable.auto.commit: Whether to allow automatic commit.

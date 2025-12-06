@@ -141,7 +141,7 @@ static void generateBigVal(char *val, int valLen) {
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, 0, NULL);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, NULL);
   if (ret) {
     pEnv = NULL;
   }
@@ -371,7 +371,7 @@ TEST(tdb_test, simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database

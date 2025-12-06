@@ -11,7 +11,7 @@ This document provides a detailed list of error codes from both clients and the 
 
 ## TSDB
 
-TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained.**
+TSDB error codes include those from the taosc client and the server. Connectors for all programming languages may return these error codes to the caller, regardless of whether they use native connections or WebSocket connections. **When WebSocket connections return error codes, only the last four digits are retained**.
 
 ### Error Code Structure
 
@@ -31,10 +31,12 @@ Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digi
 #### Example Explanation
 
 Take the error code `0x80000216` as an example:
+
 - **Prefix**: `0x8000` → TDengine business error.
 - **Specific Error Code**: `0x0216` → Corresponds to the TSC module's "Syntax error in SQL".
 
 Take the error code `0x80FF0002` as an example:
+
 - **Prefix**: `0x80FF` → Linux system error.
 - **Specific Error Code**: `0x0002` → Corresponds to Linux `errno` 2, which means "No such file or directory".
 
@@ -143,11 +145,13 @@ Below are the business error codes for each module.
 | Error Code | Description                                                  | Possible Error Scenarios or Reasons                          | Suggested Actions for Users                                  |
 | ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 0x80000303 | Insufficient privilege for operation                         | No permission                                                | Grant permissions                                            |
+| 0x80000309 | User has too many connections                                | User has created too many connections                        | Increase limitation                                          |
 | 0x8000030B | Data expired                                                 | Internal error                                               | Report issue                                                 |
 | 0x8000030C | Invalid query id                                             | Internal error                                               | Report issue                                                 |
 | 0x8000030E | Invalid connection id                                        | Internal error                                               | Report issue                                                 |
 | 0x80000315 | User is disabled                                             | User is unavailable                                          | Grant permissions                                            |
 | 0x80000318 | Mnode internal error                                         | Internal error                                               | Report issue                                                 |
+| 0x80000319 | User password expired                                        | User password expired                                        | Change password                                              |
 | 0x80000320 | Object already there                                         | Internal error                                               | Report issue                                                 |
 | 0x80000322 | Invalid table type                                           | Internal error                                               | Report issue                                                 |
 | 0x80000323 | Object not there                                             | Internal error                                               | Report issue                                                 |
@@ -258,11 +262,18 @@ Below are the business error codes for each module.
 | 0x800003F5 | Stream temporarily does not support source db having replica > 1 | Exceeding limit                                              | Operation not allowed                                        |
 | 0x800003F6 | Too many streams                                             | Exceeding limit                                              | Cannot be modified, code-level restriction                   |
 | 0x800003F7 | Cannot write the same stable as other stream                 | Internal error                                               | Report issue                                                 |
+| 0x8000042E | Failed to load encryption provider   | Failed to load                                               | Confirm if encryptExtDir is configured correctly                          |
 | 0x80000480 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000481 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x80000482 | Invalid sma index option                                     | Internal error                                               | Report issue                                                 |
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E0 | Encrypt algorithm not exists in list                         | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E1 | Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode, Digests, Asymmetric_Ciphers now| Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E2 | Encryption algorithm already exists, please keep algorithm_id unique| Already exists                                               | Confirm if the operation is correct                          |
+| 0x800004E3 | Encryption algorithm type not match                          | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E4 | Invalid encryption algorithm format                          | Input algorithm id is empty                                               | Confirm if the operation is correct                          |
+| 0x800004E5 | Encryption algorithm in use                                  | Still in use                                                  | Remove all object which use this algorithm                          |
 
 #### Bnode
 
@@ -528,7 +539,18 @@ Below are the business error codes for each module.
 | 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement           |
 | 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement           |
 | 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement           |
-| 0x80002698 | Invalid extend value | Invalid extend value | Check and correct the SQL statement           |
+| 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement           |
+| 0x80002699 | Algorithm ID too long, max length is 63 character                                                      | Invalid algorithm id value                                                      | Check and correct the SQL statement           |
+| 0x8000269A | Algorithm name too long, max length is 63 character                                                    | Invalid algorithm name value                                                      | Check and correct the SQL statement           |
+| 0x8000269B | Algorithm description too long, max length is 127 character                                            | Invalid algorithm description value                                                      | Check and correct the SQL statement           |
+| 0x8000269C | Algorithm type too long, max length is 63 character                                                    | Invalid algorithm type value                                                      | Check and correct the SQL statement           |
+| 0x8000269D | Algorithm OpenSSL name too long, max length is 63 character                                            | Invalid algorithm OpenSSL name value                                                      | Check and correct the SQL statement           |
+| 0x8000269E | Option duplicated                                                                                      | Option is only allowed to appear once but appeared twice or more           | Check and correct the SQL statement                          | 
+| 0x8000269F | Invalid option value                                                                                   | Invalid option value                                                       | Check and correct the SQL statement                          |
+| 0x800026A0 | Option value too long                                                                                  | Option value too long                                                      | Check and correct the SQL statement                          |
+| 0x800026A1 | Option value too short                                                                                 | Option value too short                                                     | Check and correct the SQL statement                          |
+| 0x800026A2 | Option value too big                                                                                   | Option value too big                                                       | Check and correct the SQL statement                          |
+| 0x800026A3 | Option value too small                                                                                 | Option value too small                                                     | Check and correct the SQL statement                          |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
@@ -536,6 +558,7 @@ Below are the business error codes for each module.
 | 0x80002704 | Planner slot key not found                                                                             | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub                        |
 | 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
 | 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
+| 0x80002707 | Planner invalid window type                                                                            | Planner get invalid window type during making physic plan                  | Preserve the scene and logs, report issue on GitHub                         |
 
 #### function
 
@@ -651,17 +674,21 @@ Below are the business error codes for each module.
 | 0x80007014 | Stream output table name too long     | Output table name exceeds length limit       | Check if the output table name rules in the stream creation statement are correct and if the result is too long |
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
+| 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 
 ## Connectors
+
 Below are the error codes specific to connectors for various programming languages. In addition to returning their own error codes, connectors also return the TSDB error codes mentioned above.
 
 ### C
 
 In the design of the C interface, error codes are represented as integers, and each error code corresponds to a specific error state. Unless otherwise specified:
+
 - When an API returns an integer, **0** indicates success, and other values are error codes representing the cause of failure.
 - When an API returns a pointer, **NULL** indicates failure.
 
 The C connector has two types of error codes:
+
 - General Error Codes  
   All error codes and their corresponding descriptions are in the `taoserror.h` file.  
   For detailed error code explanations, refer to: [TSDB Error Codes](./#tsdb)
@@ -679,7 +706,7 @@ The C connector has two types of error codes:
 | 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
 | 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
 | 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
-        
+
 ### Java
 
 The Java connector may report four types of error codes:
@@ -737,7 +764,6 @@ For specific error codes, refer to the table below:
 
 - [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
-
 ### Rust
 
 | Error Code | Error Description       | Possible Error Scenarios or Reasons       | Recommended User Actions                          |
@@ -751,7 +777,6 @@ For specific error codes, refer to the table below:
 | 0xE006     | Authentication Failed   | Incorrect username/password or insufficient permissions | Verify username and password, and confirm user permissions. |
 | 0xE007     | Encoding/Decoding Error | Data encoding/decoding exception          | Check data format and investigate `taosadapter` logs. |
 | 0xE008     | Connection Disconnected | WebSocket connection disconnected         | Check network status and reestablish the connection. |
-
 
 ### Node.js
 
@@ -779,7 +804,7 @@ For specific connector error codes, refer to the table below:
 
 - [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
-### C#
+### C\#
 
 | Error Code | Error Description                         | Possible Error Scenarios or Reasons              | Recommended User Actions                                           |
 | ---------- | ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ |
@@ -792,7 +817,8 @@ For specific connector error codes, refer to the table below:
 
 ### taosAdapter
 
-| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                         |
-|------------|------------------------------------------------|------------------------------------------------|--------------------------------------------------|
-| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message |
-| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests         |
+| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                                                   |
+|------------|------------------------------------------------|------------------------------------------------|----------------------------------------------------------------------------|
+| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message                           |
+| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests                                   |
+| 0xFFFD     | Query SQL has been rejected                    | Query SQL has been rejected                    | If you do not want to be intercepted, check the taosAdapter configuration. |

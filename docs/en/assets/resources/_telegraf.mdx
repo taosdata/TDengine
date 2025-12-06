@@ -15,7 +15,7 @@ The `smlAutoCreateDB` configuration item is used to enable the automatic databas
 
 In the Telegraf configuration file (default location /etc/telegraf/telegraf.conf), add the configuration for the outputs.http output module:
 
-```
+```conf
 [[outputs.http]]
   url = "http://<taosAdapter's host>:<REST service port>/influxdb/v1/write?db=<database name>"
   ...
@@ -28,7 +28,7 @@ Where \<taosAdapter's host> should be filled with the domain name or IP address 
 
 Example as follows:
 
-```
+```conf
 [[outputs.http]]
   url = "http://127.0.0.1:6041/influxdb/v1/write?db=telegraf"
   method = "POST"

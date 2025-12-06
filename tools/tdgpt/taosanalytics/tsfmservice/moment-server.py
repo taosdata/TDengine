@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -73,13 +74,20 @@ class InputDataset(torch.utils.data.Dataset):
         self.n_channels = 1
         self.length_timeseries_original = len(input_data)
 
-        complete_df, self.mask = complete_timeseries(self.input_ts, input_data, self.time_precision, freq)
+        self.freq_val = self.freq_unit = None
+        self.freq = freq
+
+        # self.freq_val, self.freq_unit = 1, 'ms'
+        self.parse_freq()
+
+        complete_df, self.mask = complete_timeseries(self.input_ts, input_data, self.time_precision, self.freq,
+                                                     self.freq_val, self.freq_unit)
 
         self.timeseries_complete_length = complete_df.shape[0]
         self.timeseries_padding_length = ((complete_df.shape[0] // self.seq_len) + 1) * self.seq_len
 
         inc = self.timeseries_padding_length - complete_df.shape[0]
-        data, self.input_mask, self.mask = padding_data_list(complete_df, np.min(input_data), inc, self.mask, freq)
+        data, self.input_mask, self.mask = padding_data_list(complete_df, np.min(input_data), inc, self.mask, self.freq, self.freq_val, self.freq_unit)
 
         self.data, self.ts = self._transform_data(data)
 
@@ -115,26 +123,33 @@ class InputDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.timeseries_padding_length // self.data_stride_len
 
+    def parse_freq(self):
+        match = re.match(r'^(\d*)([DHTSLU])$', self.freq)
+        if not match:
+            raise ValueError(f"failed to parse time string: {self.freq}")
 
-def padding_data_list(df, val, n_rows, mask, freq):
+        self.freq_val = int(match.group(1)) if len(match.group(1)) > 0 else 1
+        self.freq_unit  = match.group(2)
+
+
+def padding_data_list(df, val, n_rows, mask, freq, freq_value, freq_unit):
     # get the last timestamp
     last_time = df.index[-1]
 
-    delta = None
-    if freq == 'D':
-        delta = timedelta(days=1)
-    elif freq == 'H':
-        delta = timedelta(hours=1)
-    elif freq == 'T':
-        delta = timedelta(minutes=1)
-    elif freq == 'S':
-        delta = timedelta(seconds=1)
-    elif freq == 'L':
-        delta = timedelta(milliseconds=1)
-    elif freq == 'U':
-        delta = timedelta(microseconds=1)
+    unit_map = {
+        'D': 'days',
+        'H': 'hours',
+        'T': 'minutes',
+        'S': 'seconds',
+        'L': 'milliseconds',
+        'U': 'microseconds',
+    }
+
+    unit = freq_unit
+    if unit in unit_map:
+        delta = timedelta(**{unit_map[unit]: freq_value})
     else:
-        raise ValueError(f"Unsupported frequency: {freq}")
+        raise ValueError(f"Unsupported frequency: {unit}")
 
     # generate the increase timestamps series
     if isinstance(last_time, (np.datetime64, pd.Timestamp)):
@@ -165,7 +180,7 @@ def draw_imputation_stride_result(trues, preds, masks):
     plt.savefig("moment.png")
 
 
-def complete_timeseries(timestamps, values, precision, freq='T'):
+def complete_timeseries(timestamps, values, precision, freq, freq_val, freq_unit:str):
     """
     Complete the time series data by generating a DataFrame with a full time range and marking missing values.
 
@@ -186,9 +201,10 @@ def complete_timeseries(timestamps, values, precision, freq='T'):
     }).set_index('timestamp')
 
     # 生成完整时间范围
+    norm_freq = '1' + freq_unit
     full_range = pd.date_range(
-        start=df.index.min().floor(freq),
-        end=df.index.max().ceil(freq),
+        start=df.index.min().floor(norm_freq),
+        end=df.index.max().ceil(norm_freq),
         freq=freq
     )
 
