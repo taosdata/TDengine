@@ -146,6 +146,74 @@ bool    lastErrorIsFileNotExist();
 
 int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
 
+// ============================================================================
+// Encrypted File Operations
+// ============================================================================
+
+// File encryption magic number and constants
+#define TD_ENCRYPT_FILE_MAGIC   "tdEncrypt"
+#define TD_ENCRYPT_FILE_VERSION 1
+#define TD_ENCRYPT_MAGIC_LEN    16
+
+// Database encryption status
+typedef enum {
+  TD_DB_ENCRYPT_STATUS_UNKNOWN = 0,   // Unknown - encryption state uncertain (upgrade scenario)
+  TD_DB_ENCRYPT_STATUS_PLAIN = 1,     // Plain - database files are unencrypted
+  TD_DB_ENCRYPT_STATUS_ENCRYPTED = 2  // Encrypted - database files are fully encrypted
+} ETdDbEncryptStatus;
+
+// DNode encryption status
+typedef enum {
+  TD_DNODE_ENCRYPT_STATUS_PLAIN = 0,     // Plain - config and metadata files are unencrypted
+  TD_DNODE_ENCRYPT_STATUS_ENCRYPTED = 1  // Encrypted - all related files are encrypted
+} ETdDnodeEncryptStatus;
+
+// Encrypt file header structure (plaintext part at file beginning)
+typedef struct {
+  char    magic[TD_ENCRYPT_MAGIC_LEN];  // Magic number "tdEncrypt"
+  int32_t algorithm;                    // Encryption algorithm (e.g., TSDB_ENCRYPT_ALGO_SM4 = 1)
+  int32_t version;                      // File format version
+  int32_t dataLen;                      // Length of encrypted data following header
+  char    reserved[32];                 // Reserved for future use
+} STdEncryptFileHeader;
+
+/**
+ * @brief Write file with encryption header using atomic file replacement
+ *
+ * This function writes data to a file with an encryption header at the beginning.
+ * The caller is responsible for encrypting the data before passing it to this function.
+ * It uses atomic file replacement strategy: writes to temp file, then renames.
+ *
+ * @param filepath Target file path
+ * @param algorithm Encryption algorithm identifier (e.g., TSDB_ENCRYPT_ALGO_SM4)
+ * @param data Data buffer to write (caller should encrypt data if needed, can be NULL for empty file)
+ * @param dataLen Length of data to write (0 for empty file)
+ * @return 0 on success, error code on failure
+ */
+int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, const void *data, int32_t dataLen);
+
+/**
+ * @brief Read encryption header from file
+ *
+ * Reads and validates the encryption header from the beginning of a file.
+ *
+ * @param filepath File path to read
+ * @param header Output parameter for header data
+ * @return 0 on success, error code on failure
+ */
+int32_t taosReadEncryptFileHeader(const char *filepath, STdEncryptFileHeader *header);
+
+/**
+ * @brief Check if file has encryption header
+ *
+ * Quickly checks if a file begins with the encryption magic number.
+ *
+ * @param filepath File path to check
+ * @param algorithm Output parameter for algorithm (can be NULL)
+ * @return true if file is encrypted, false otherwise
+ */
+bool taosIsEncryptedFile(const char *filepath, int32_t *algorithm);
+
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \
   do {                                                                    \
