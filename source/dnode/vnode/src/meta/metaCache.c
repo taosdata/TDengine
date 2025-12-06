@@ -722,6 +722,9 @@ static void freeUidCachePayload(const void* key, size_t keyLen, void* value, voi
     }
   }
 
+  metaDebug("free uid cache payload in lru, suid: %" PRIu64
+            " origin key:%" PRIu64 ",%" PRIu64,
+            p[1], p[2], p[3]);
   taosMemoryFree(value);
 }
 
@@ -800,7 +803,7 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
     if (code == TSDB_CODE_DUP_KEY) {
       // we have already found the existed items, no need to added to cache anymore.
       (void)taosThreadMutexUnlock(pLock);
-      return TSDB_CODE_SUCCESS;
+      return TSDB_CODE_DUP_KEY;
     }
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
