@@ -126,21 +126,22 @@ int32_t transTlsCxtMgtUpdate(STlsCxtMgt* pMgt) {
   SSslCtx* pOldCtx = pMgt->pTlsCtx; 
   pMgt->pTlsCtx = pMgt->pNewTlsCtx;
   pMgt->pNewTlsCtx = NULL;
+  (void)taosThreadRwlockUnlock(&pMgt->lock);
 
   transTlsCxtUnref(pOldCtx);
   transTlsCxtRef(pMgt->pTlsCtx);
-
-  (void)taosThreadRwlockUnlock(&pMgt->lock);
 
   return code;
 }
 
 int32_t transTlsCxtMgtAppend(STlsCxtMgt* pMgt, SSslCtx* pNewCtx) {
   int32_t code = 0;
+
   (void)taosThreadRwlockWrlock(&pMgt->lock);
-  transTlsCxtRef(pNewCtx);
   pMgt->pTlsCtx = pNewCtx;
   (void)taosThreadRwlockUnlock(&pMgt->lock);
+
+  transTlsCxtRef(pNewCtx);
   return code;
 }
 
@@ -153,8 +154,8 @@ void transTlsCxtMgtDestroy(STlsCxtMgt* pMgt) {
 }
 
 int32_t transTlsCxtMgtCreateNewCxt(STlsCxtMgt* pMgt, int8_t cliMode) {
-  SSslCtx *pOldCxt = NULL;
   int32_t code = 0;
+  SSslCtx *pOldCxt = NULL;
   if (!(transShouldDoReloadTlsConfig(pMgt))) {
     return TSDB_CODE_INVALID_CFG;
   }
@@ -184,6 +185,7 @@ void transTlsCxtRef(SSslCtx* pCtx) {
     return;
   }
   atomic_fetch_add_32(&pCtx->refCount, 1);
+  tInfo("ref tls context %p, current refCount:%d", pCtx, atomic_load_32(&pCtx->refCount));
 }
 void transTlsCxtUnref(SSslCtx* pCtx) {
   if (pCtx == NULL) {
@@ -191,7 +193,10 @@ void transTlsCxtUnref(SSslCtx* pCtx) {
   }
 
   if (atomic_sub_fetch_32(&pCtx->refCount, 1) == 0) {
+    tInfo("ref tls context %p, current refCount:0, try to destroy", pCtx, atomic_load_32(&pCtx->refCount));
     transTlsCxtDestroy(pCtx);
+  } else {
+    tInfo("ref tls context %p, current refCount:%d", pCtx, atomic_load_32(&pCtx->refCount));
   }
 }
 

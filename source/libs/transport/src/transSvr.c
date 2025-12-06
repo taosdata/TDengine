@@ -1370,7 +1370,7 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
     }
 
     // release handle to rpc init
-    if (msg->type == Quit || msg->type == Update) {
+    if (msg->type == Quit || msg->type == Update || msg->type == ReloadTLS) {
       (*transAsyncHandle[msg->type])(msg, pThrd);
     } else {
       STransMsg transMsg = msg->msg;

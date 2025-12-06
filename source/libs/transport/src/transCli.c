@@ -1858,6 +1858,8 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     code = transTlsCxtMgtGet(pInst->pTlsMgt, &pTlsCtx);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
 
+    //transTlsCxtRef(pTlsCtx);
+
     code = sslInit(pTlsCtx, &conn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
 

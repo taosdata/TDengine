@@ -49,8 +49,8 @@ typedef struct {
   volatile int32_t  refCount;
 } SSslCtx;
 
-int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
-void    transTlsCtxDestroy(SSslCtx* pCtx);
+int32_t transTlsCxtCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
+void    transTlsCxtDestroy(SSslCtx* pCtx);
 
 void   transTlsCxtRef(SSslCtx* pCtx);
 void   transTlsCxtUnref(SSslCtx* pCtx);
