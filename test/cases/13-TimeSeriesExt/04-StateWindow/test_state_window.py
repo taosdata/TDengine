@@ -230,6 +230,7 @@ class TestStateWindow:
         self.check_crash_for_state_window3()
         self.check_crash_for_state_window4()
         self.check_crash_for_state_window5()
+        self.test_state_window_start_with_null()
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
@@ -254,6 +255,7 @@ class TestStateWindow:
 
         """
         
+        tdLog.info("test state window start with null start")
         tdSql.execute("drop database if exists testdb")
         tdSql.execute("create database if not exists testdb keep 3650", show=True)
         tdSql.execute("use testdb")
@@ -330,5 +332,40 @@ class TestStateWindow:
         tdSql.checkData(3, 8, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 9, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 10, "b")
+        
+        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s, 2)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
+        tdSql.checkData(0, 1, 4000)
+        tdSql.checkData(0, 2, "2025-09-01 10:00:04.000")
+        tdSql.checkData(0, 3, "a")
+        tdSql.checkData(1, 0, "2025-09-01 10:00:04.001")
+        tdSql.checkData(1, 1, 3999)
+        tdSql.checkData(1, 2, "2025-09-01 10:00:08.000")
+        tdSql.checkData(1, 3, "b")
+        tdSql.checkData(2, 0, "2025-09-01 10:00:08.001")
+        tdSql.checkData(2, 1, 1999)
+        tdSql.checkData(2, 2, "2025-09-01 10:00:10.000")
+        tdSql.checkData(2, 3, "a")
+        tdSql.checkData(3, 0, "2025-09-01 10:00:10.001")
+        tdSql.checkData(3, 1, 2999)
+        tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
+        tdSql.checkData(3, 3, "b")
+        
+        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+
+        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+                
+        sql = "select 1 from ntb state_window(s, 2)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        
+        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
+        tdSql.error(sql, show=True)
 
 event = threading.Event()
