@@ -27,6 +27,13 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartConfigThread(pMgmt)) != 0) {
     return code;
   }
+
+#if defined(TD_ENTERPRISE)
+  if ((code = dmStartKeySyncThread(pMgmt)) != 0) {
+    return code;
+  }
+#endif
+
   if ((code = dmStartStatusInfoThread(pMgmt)) != 0) {
     return code;
   }
@@ -56,6 +63,9 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
   dmStopConfigThread(pMgmt);
+#if defined(TD_ENTERPRISE)
+  dmStopKeySyncThread(pMgmt);
+#endif
   dmStopStatusInfoThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);

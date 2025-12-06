@@ -15,6 +15,7 @@
 
 #include "meta.h"
 #include "sync.h"
+#include "tencrypt.h"
 #include "vnd.h"
 #include "vnodeInt.h"
 
@@ -167,7 +168,6 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   int32_t   code = 0;
   int32_t   lino;
   char      fname[TSDB_FILENAME_LEN];
-  TdFilePtr pFile = NULL;
   char     *data = NULL;
 
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
@@ -175,18 +175,12 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   code = vnodeEncodeInfo(pInfo, &data);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // save info to a vnode_tmp.json
-  pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  if (taosWriteFile(pFile, data, strlen(data)) < 0) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  if (taosFsyncFile(pFile) < 0) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  int32_t len = strlen(data);
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(fname, data, len);
+  if (code != 0) {
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -195,9 +189,6 @@ _exit:
   } else {
     vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", pInfo->config.vgId, fname,
           pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, pInfo->config.syncCfg.changeVersion);
-  }
-  if (taosCloseFile(&pFile) != 0) {
-    vError("vgId:%d, failed to close file", pInfo->config.vgId);
   }
   taosMemoryFree(data);
   TAOS_RETURN(code);

@@ -29,6 +29,13 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+if(TD_ENTERPRISE)
+  target_include_directories(
+    mnode
+    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
+  )
+endif()
 target_link_libraries(
   mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw
 )

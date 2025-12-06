@@ -61,6 +61,7 @@ extern int32_t       tsVersion;
 extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
+extern int32_t       tsLocalKeyVersion;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
 extern int32_t       tsStatusSRTimeoutMs;
@@ -188,6 +189,23 @@ extern int64_t tsDndUpTime;
 extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
 extern uint32_t tsGrant;
+
+// taosk encryption keys (multi-layer encryption)
+extern bool     tsUseTaoskEncryption;      // Flag: using taosk encrypt.bin format
+extern char     tsSvrKey[129];             // SVR_KEY (server master key)
+extern char     tsDbKey[129];              // DB_KEY (database master key)
+extern char     tsCfgKey[129];             // CFG_KEY (config encryption key)
+extern char     tsMetaKey[129];            // META_KEY (metadata encryption key)
+extern char     tsDataKey[129];            // DATA_KEY (data encryption key)
+extern int32_t  tsEncryptAlgorithmType;    // Algorithm type (SM2/SM3/SM4)
+extern int32_t  tsEncryptFileVersion;      // File format version for compatibility
+extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1, increments on update)
+extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
+extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
+extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
+extern bool     tsCfgKeyEnabled;           // CFG_KEY enabled flag
+extern bool     tsMetaKeyEnabled;          // META_KEY enabled flag
+extern bool     tsDataKeyEnabled;          // DATA_KEY enabled flag
 
 // monitor
 extern bool     tsEnableMonitor;

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "tencrypt.h"
 #include "tjson.h"
 
 static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
@@ -168,17 +169,9 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   int32_t   code = -1;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
-  TdFilePtr pFile = NULL;
-  char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%smnode.json.bak", path, TD_DIRSEP);
-  if (nBytes <= 0 || nBytes >= sizeof(file)) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    goto _OVER;
-  }
-
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
+  int32_t nBytes = snprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(realfile)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -199,34 +192,19 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = terrno;
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
     goto _OVER;
   }
-  if (taosFsyncFile(pFile) < 0) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosCloseFile(&pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    goto _OVER;
-  }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   dInfo("succeed to write mnode file:%s, deloyed:%d", realfile, pOption->deploy);
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to write mnode file:%s since %s, deloyed:%d", realfile, tstrerror(code), pOption->deploy);

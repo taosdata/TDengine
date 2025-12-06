@@ -14,6 +14,7 @@
  */
 
 #include "cos.h"
+#include "tencrypt.h"
 #include "tsdbFS2.h"
 #include "tsdbUpgrade.h"
 #include "vnd.h"
@@ -83,24 +84,18 @@ static int32_t save_json(const cJSON *json, const char *fname) {
   int32_t   code = 0;
   int32_t   lino;
   char     *data = NULL;
-  TdFilePtr fp = NULL;
 
   data = cJSON_PrintUnformatted(json);
   if (data == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
-  fp = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (fp == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  if (taosWriteFile(fp, data, strlen(data)) < 0) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  if (taosFsyncFile(fp) < 0) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  int32_t len = strlen(data);
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(fname, data, len);
+  if (code != 0) {
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -108,7 +103,6 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
   }
   taosMemoryFree(data);
-  taosCloseFileWithLog(&fp);
   return code;
 }
 

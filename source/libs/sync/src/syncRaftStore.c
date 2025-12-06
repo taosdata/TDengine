@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "tencrypt.h"
 #include "tjson.h"
 
 int32_t raftStoreReadFile(SSyncNode *pNode);
@@ -113,11 +114,8 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   int32_t     code = -1, lino = 0;
   char       *buffer = NULL;
   SJson      *pJson = NULL;
-  TdFilePtr   pFile = NULL;
   const char *realfile = pNode->raftStorePath;
   SRaftStore *pStore = &pNode->raftStore;
-  char        file[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s.bak", realfile);
 
   pJson = tjsonCreateObject();
   if (pJson == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
@@ -126,16 +124,14 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   buffer = tjsonToString(pJson);
   if (buffer == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-
-  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-
-  TAOS_CHECK_GOTO(taosCloseFile(&pFile), &lino, _OVER);
-  if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
+    lino = __LINE__;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
 
   code = 0;
   sInfo("vgId:%d, succeed to write raft store file:%s, term:%" PRId64, pNode->vgId, realfile, pStore->currentTerm);
@@ -143,7 +139,6 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     sError("vgId:%d, failed to write raft store file:%s since %s", pNode->vgId, realfile, terrstr());
