@@ -429,8 +429,14 @@ static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
 }
 
 static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
-  const char* pUser = pCxt->pParseCxt->pUser;
   return checkAuth(pCxt, NULL, NULL, type, NULL);
+}
+
+static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type) {
+  if(!pDbName) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  return checkAuth(pCxt, pDbName, pTabName, type, NULL);
 }
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
@@ -521,6 +527,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authDropRsma(pCxt, (SDropRsmaStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_DB_CREATE);
+    case QUERY_NODE_ALTER_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_ALTER);
+    case QUERY_NODE_DROP_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_DROP);
     default:
       break;
   }

@@ -363,6 +363,7 @@ typedef enum ELogicConditionType {
 #define TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT (90 * 1440 * 60)  // 90 days
 #define TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT       3
 
+#define TSDB_PRODUCT_LEN           32
 #define TSDB_VERSION_LEN           32
 #define TSDB_LABEL_LEN             16
 #define TSDB_JOB_STATUS_LEN        32
