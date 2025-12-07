@@ -2639,6 +2639,15 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.timeWhiteListVer = userObj.ipWhiteListVer;
 
+  userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (userObj.roles == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSINFO_0, strlen(TSDB_ROLE_SYSINFO_0) + 1, NULL, 0)) != 0) {
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
