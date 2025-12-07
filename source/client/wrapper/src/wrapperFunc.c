@@ -16,6 +16,8 @@
 #include "version.h"
 #include "wrapper.h"
 
+static TdThreadOnce tsDriverEnvOnce = PTHREAD_ONCE_INIT;
+
 static TdThreadOnce tsDriverOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsDriverOnceRet = 0;
 
@@ -92,12 +94,17 @@ setConfRet taos_set_config(const char *config) {
   return (*fp_taos_set_config)(config);
 }
 
+static void taos_init_driver_env(void) {
+  taosDriverEnvInit();
+}
+
 static void taos_init_driver(void) {
   tsDriverOnceRet = taosDriverInit(tsDriverType);
   if (tsDriverOnceRet != 0) return;
 
   tsDriverOnceRet = 0;
 }
+
 static void taos_init_wrapper(void) {
   if (fp_taos_init == NULL) {
     terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
@@ -108,6 +115,7 @@ static void taos_init_wrapper(void) {
 }
 
 int taos_init(void) {
+  (void)taosThreadOnce(&tsDriverEnvOnce, taos_init_driver_env);
   (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
   (void)taosThreadOnce(&tsInitOnce, taos_init_wrapper);
   return tsInitOnceRet;
@@ -119,6 +127,7 @@ void taos_cleanup(void) {
 }
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
+  (void)taosThreadOnce(&tsDriverEnvOnce, taos_init_driver_env);
   if (option == TSDB_OPTION_DRIVER) {
     if (tsDriver == NULL) {
       if (strcasecmp((const char *)arg, STR_NATIVE) == 0) {

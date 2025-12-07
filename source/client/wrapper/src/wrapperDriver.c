@@ -51,33 +51,16 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
   return ret;
 }
 
-void readEnvDriver() {
-  const char *envDriver = getenv("TDENGINE_DRIVER");
-  if (envDriver != NULL) {
-    if (strcasecmp(envDriver, STR_NATIVE) == 0) {
-      tsDriverType = DRIVER_NATIVE;      
-    } else if (strcasecmp(envDriver, STR_WEBSOCKET) == 0) {
+void taosDriverEnvInit() {
+  const char *driver = getenv("TDENGINE_DRIVER");
+  if (driver) {
+    if (strcasecmp(driver, STR_NATIVE) == 0) {
+      tsDriverType = DRIVER_NATIVE;
+    } else if (strcasecmp(driver, STR_WEBSOCKET) == 0) {
       tsDriverType = DRIVER_WEBSOCKET;
     }
   }
 }
-
-#ifdef WINDOWS
-BOOL WINAPI DllMain(
-    _In_ HINSTANCE hinstDLL,
-    _In_ DWORD     fdwReason,
-    _In_ LPVOID    lpvReserved) {
-  if (fdwReason == DLL_PROCESS_ATTACH) {
-    readEnvDriver();
-  }
-  return TRUE;
-}
-#else
-__attribute__((constructor))
-void wrapper_library_init() {
-    readEnvDriver();
-}
-#endif
 
 int32_t taosDriverInit(EDriverType driverType) {
   int32_t     code = -1;
@@ -101,7 +84,7 @@ int32_t taosDriverInit(EDriverType driverType) {
     tsDriver = taosLoadDll(driverName);
   }
 
-  // load from install path on mac
+// load from install path on mac
 #if defined(DARWIN)
   if (tsDriver == NULL) {
     snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s", driverName);
@@ -115,7 +98,6 @@ int32_t taosDriverInit(EDriverType driverType) {
     return code;
   }
 
-  // printf("load driver from %s\r\n", driverPath);
   LOAD_FUNC(fp_taos_set_config, "taos_set_config");
 
   LOAD_FUNC(fp_taos_init, "taos_init");
