@@ -84,15 +84,12 @@ def build_package(internal_root, new_version, branch_name) {
 def build_package_for_ci(internal_root, work_dir) {
     sh """
         date
-        declare -a ARTIFACTS_TO_CLEAN=(
-            "${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt"
-            "${internal_root}/community/contrib/deps-download/CMakeCache.txt"
-            "${internal_root}/community/contrib/libs3"
-            "${internal_root}/community/contrib/deps-download/libs3-prefix"
-        )
-
         rm -rf ${internal_root}/community/debug
-        rm -rf "${ARTIFACTS_TO_CLEAN[@]}"
+
+        rm -rf ${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/libs3
+        rm -rf ${internal_root}/community/contrib/deps-download/libs3-prefix
 
         cd ${internal_root}/community/tests/ci
         rm -rf ${internal_root}/.externals/build/*
@@ -102,7 +99,10 @@ def build_package_for_ci(internal_root, work_dir) {
         rm -rf ${internal_root}/.externals/build/*
         time ./container_build.sh -w ${work_dir} -e
 
-        rm -rf "${ARTIFACTS_TO_CLEAN[@]}"
+        rm -rf ${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/libs3
+        rm -rf ${internal_root}/community/contrib/deps-download/libs3-prefix
         rm -rf ${internal_root}/.externals/build/*
     """
 }
