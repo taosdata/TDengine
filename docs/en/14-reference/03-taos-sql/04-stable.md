@@ -42,11 +42,11 @@ Notes:
   - A supertable can have a maximum of 128 tag columns. At least one tag column is required.
   - The total length of all tag columns cannot exceed 16 KB.
 
-- `ENCODE` and `COMPRESS`: See [Data Compression](./manage-data-compression/).
+- `ENCODE` and `COMPRESS`: See [Data Compression](../manage-data-compression/).
 
-- `COMMENT` and `SMA`: See [Tables](./manage-tables/).
+- `COMMENT` and `SMA`: See [Tables](../manage-tables/).
 
-- `KEEP`: See [Databases](./manage-databases/) for details. However, note the following differences between supertable-level `KEEP` and database-level `KEEP`:
+- `KEEP`: See [Databases](../manage-databases/) for details. However, note the following differences between supertable-level `KEEP` and database-level `KEEP`:
   - The supertable-level `KEEP` value must be smaller than the database-level `KEEP` value.
   - Supertable-level `KEEP` does not take effect immediately. You must flush and then compact the database before data marked as expired by the supertable-level `KEEP` is removed.
   - If you compact the database, then alter the supertable-level `KEEP` value, then compact the database again, expired data might not be completely removed.
