@@ -84,21 +84,25 @@ def build_package(internal_root, new_version, branch_name) {
 def build_package_for_ci(internal_root, work_dir) {
     sh """
         date
+        declare -a ARTIFACTS_TO_CLEAN=(
+            "${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt"
+            "${internal_root}/community/contrib/deps-download/CMakeCache.txt"
+            "${internal_root}/community/contrib/libs3"
+            "${internal_root}/community/contrib/deps-download/libs3-prefix"
+        )
+
         rm -rf ${internal_root}/community/debug
-        rm -rf ${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt
-        rm -rf ${internal_root}/community/contrib/deps-download/CMakeCache.txt
-        rm -rf ${internal_root}/community/contrib/libs3
-        rm -rf ${internal_root}/community/contrib/deps-download/libs3-prefix
+        rm -rf "${ARTIFACTS_TO_CLEAN[@]}"
+
         cd ${internal_root}/community/tests/ci
         rm -rf ${internal_root}/.externals/build/*
         time ./container_build_newmachine.sh -w ${work_dir} -e
+
         cd ${internal_root}/community/tests/parallel_test
         rm -rf ${internal_root}/.externals/build/*
         time ./container_build.sh -w ${work_dir} -e
-        rm -rf ${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt
-        rm -rf ${internal_root}/community/contrib/deps-download/CMakeCache.txt
-        rm -rf ${internal_root}/community/contrib/libs3
-        rm -rf ${internal_root}/community/contrib/deps-download/libs3-prefix
+
+        rm -rf "${ARTIFACTS_TO_CLEAN[@]}"
         rm -rf ${internal_root}/.externals/build/*
     """
 }
@@ -231,7 +235,7 @@ pipeline {
                             if (check_cases_to_run() == 0) {
                                 sync_source("${TDINTERNAL_BRANCH_NAME}", "${COMMUNITY_BRANCH_NAME}", "${INTERNAL_ROOT}")
                                 build_package("${INTERNAL_ROOT}", "${NEW_VERSION}","${TDINTERNAL_BRANCH_NAME}")
-                                if (env.env.ENABLE_ALL_CI == 'y' || env.ENABLE_LONGTIME_CI == 'y') {
+                                if (env.ENABLE_ALL_CI == 'y' || env.ENABLE_LONGTIME_CI == 'y') {
                                     build_package_for_ci("${INTERNAL_ROOT}", "${WORK_DIR}")
                                 }
                             } else {
