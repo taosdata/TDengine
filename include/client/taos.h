@@ -194,6 +194,16 @@ DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT int   taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+/**
+ * taos_connect_with_dsn
+ * Note: This API is currently not supported in this client library.
+ * It may be supported in future versions. Calls will return NULL and set terrno
+ * to an appropriate "not supported" error code.
+ *
+ * @param dsn Data Source Name string (reserved for future use)
+ * @return TAOS* connection handle on success; NULL if unsupported or on error
+ */
+DLL_EXPORT TAOS *taos_connect_with_dsn(const char *dsn);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
