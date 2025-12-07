@@ -23,8 +23,30 @@
 
 
 //
-// ---------------- function ----------------
+// ---------------- struct ----------------
 //
+typedef struct GroupThread {
+    char ** childTableNames;
+    int numChildTables;
+    char dbName[TSDB_DB_NAME_LEN];
+    char stbName[TSDB_TABLE_NAME_LEN];
+    TAOS* conn;
+} GroupThread;
+
+
+//
+// ---------------- util ----------------
+//
+
+typedef enum  {
+    BACK_FILE_TYPE_META = 0,
+    BACK_FILE_TYPE_DATA = 1,
+} BackFileType;
+
+int genBackFileName(BackFileType fileType, const char *dbName, const char *tableName, char *fileName, int len);
+
+int genBackTableSql(const char *dbName, const char *tableName, char *sql, int len);
+
 
 // backup main function
 int backupMain();

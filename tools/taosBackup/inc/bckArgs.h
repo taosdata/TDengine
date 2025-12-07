@@ -36,19 +36,23 @@ typedef struct {
 
 
 //
-// ---------------- function ----------------
+// ---------------- interface ----------------
 //
-
-// interface
 
 // init
 int argsInit(int argc, char *argv[]);
 
-// get action
-enum ActionType argsGetAction();
-
 // destroy
 void argsDestroy();
 
+//
+// -------------------- get args ----------------
+//
+
+// get action
+enum ActionType argAction();
+
+int argRetryCount();
+int argRetrySleepMs();
 
 #endif  // INC_BACKARGS_H_

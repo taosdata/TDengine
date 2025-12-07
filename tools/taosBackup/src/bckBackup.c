@@ -22,6 +22,23 @@
 #include "bckError.h"
 #include "bckArgs.h"
 #include "util.h"
+#include "bckBackup.h"
+
+
+//
+// ---------------- util ----------------
+//
+
+int genBackFileName(BackFileType fileType, const char *dbName, const char *tableName, char *fileName, int len) {
+    return TSDB_CODE_SUCCESS;
+}
+
+
+int genBackTableSql(const char *dbName, const char *tableName, char *sql, int len) {
+    snprintf(sql, len, "SELECT * FROM %s.%s", dbName, tableName);
+
+    return TSDB_CODE_SUCCESS;
+}
 
 
 //
@@ -103,26 +120,37 @@ int backDatabaseMeta(const char *dbName) {
 //
 // ------------------- data ---------------------
 //
-typedef struct GroupThread {
-    char ** childTableNames;
-    int numChildTables;
-    char dbName[TSDB_DB_NAME_LEN];
-    char stbName[TSDB_TABLE_NAME_LEN];
-    TAOS* conn;
-} GroupThread;
 
+
+//
+// write data block to file
+//
+int writeBlockToFile(const char *fileName, void *block) {
+    int code = TSDB_CODE_FAILED;
+
+    return code;
+}
+
+//
+// back child table data on thread group
+//
 int backChildTableData(GroupThread* group, const char *childTableName) {
     int code = TSDB_CODE_FAILED;
     // get write file name
     char fileName[MAX_PATH_LEN];
-    code = generateFileName(fileName, group->dbName, childTableName);
+    code = genBackFileName(BACK_FILE_TYPE_DATA, group->dbName, childTableName, fileName, sizeof(fileName));
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
 
     // query sql
-    char sql[TSDB_MAX_ALLOWED_SQL_LEN];
-    snprintf(sql, sizeof(sql)-1, "SELECT * FROM %s.%s", group->dbName, childTableName);
+    char sql[512] = {0};
+    code = genBackTableSql(group->dbName, childTableName, sql, sizeof(sql));
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("generate backup table sql failed(%d): %s.%s", code, group->dbName, childTableName);
+        return code;
+    }
+
     TAOS_RES* res = taos_query(group->conn, sql);
     if (res == NULL) {
         logError("query child table data failed(%s): %s", taos_errstr(res), sql);
@@ -134,9 +162,8 @@ int backChildTableData(GroupThread* group, const char *childTableName) {
     int blockRows = 0;
     void *block = NULL;
     while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
-
         // write to file
-        code = writeDataBlockToFile(fileName, block, numRows);
+        code = writeBlockToFile(fileName, block);
         if (code != TSDB_CODE_SUCCESS) {
             logError("write data block to file failed(%d): %s", code, fileName);
             taos_free_result(res);
@@ -145,14 +172,8 @@ int backChildTableData(GroupThread* group, const char *childTableName) {
         numRows += blockRows;
     }
 
-    
-
-
-
-    taos_free_result(res);
-
-
     // free
+    taos_free_result(res);
 
     return code;
 }
@@ -162,21 +183,43 @@ int backChildTableData(GroupThread* group, const char *childTableName) {
 // back thread
 //
 static void* backGroupThread(void *arg) {
+    int retryCount   = argRetryCount();
+    int retrySleepMs = argRetrySleepMs();
+
     GroupThread * group = (GroupThread *)arg;
     for (int i = 0; i < group->numChildTables; i++) {
-        // backup child table data
         logInfo("backup child table data: %s", group->childTableNames[i]);
-        int code = backChildTableData(group, group->childTableNames[i]);
-        if (code != TSDB_CODE_SUCCESS) {
-            logError("backup child table data failed(%d): %s", code, group->childTableNames[i]);
-            return (void *)(intptr_t)code;
+        
+        // support retry
+        int n = 0;
+        while (n < retryCount) {
+            // back child table data
+            int code = backChildTableData(group, group->childTableNames[i]);
+
+            // check code
+            if (code == TSDB_CODE_SUCCESS) {
+                // success
+                break;
+            }
+            else if (errorCodeCanRetry(code)) {
+                // can retry
+                n += 1;
+                logInfo("retry backup child table data: %s, times: %d", group->childTableNames[i], n);
+                sleepMs(retrySleepMs);
+            } else {
+                // not retry
+                logError("backup child table data failed(%d): %s.%s", code, group->dbName, group->childTableNames[i]);
+                break;
+            }
         }
     }
 
     return NULL;
 }
 
-
+//
+// back stb data
+//
 int backStbData(const char *dbName, const char *stbName) {
     int code = TSDB_CODE_FAILED;
     int count = 0;

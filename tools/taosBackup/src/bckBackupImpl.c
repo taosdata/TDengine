@@ -9,34 +9,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
     
-#include "bckArgs.h"
+#include "bckBackupImpl.h"
 
-//
-// ---------------- interface ----------------
-//
+// detail implementation for bckBackup.c
 
-int argsInit(int argc, char *argv[]) {
-    return 0;
-}
-
-void argsDestroy() {
-
-}
-
-
-//
-// -------------------- get args ----------------
-//
-
-enum ActionType argAction() {
-    return ACTION_BACKUP;
-}
-
-int argRetryCount() {
-    return 3;
-}
-
-// ms
-int argRetrySleepMs() {
-    return 2000;
-}

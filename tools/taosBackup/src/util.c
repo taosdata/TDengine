@@ -10,7 +10,14 @@
  */
     
 #include "util.h"
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include "taoserror.h"
 
+void sleepMs(int ms) {
+    usleep(ms * 1000);
+}
 
 void freeArrayPtr(char **ptr) {
     if (ptr == NULL) {
@@ -21,5 +28,15 @@ void freeArrayPtr(char **ptr) {
         free(ptr[i]);
     }
     free(ptr);
+}
+
+bool errorCodeCanRetry(int code) {
+    if (code == TSDB_CODE_RPC_NETWORK_ERROR ||
+        code == TSDB_CODE_RPC_NETWORK_BUSY ||
+        code == TSDB_CODE_RPC_TIMEOUT) {
+        return true;
+    }
+
+    return false;
 }
 

@@ -9,18 +9,17 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BACKARGS_H_
-#define INC_BACKARGS_H_
+#ifndef INC_BCKBACKUPIMPL_H_
+#define INC_BCKBACKUPIMPL_H_
 
 
 //
 // ---------------- define ----------------
 //
 
-void sleepMs(int ms);
 
-void freeArrayPtr(char **ptr);
+// ---------------- error code ----------------
 
-bool errorCodeCanRetry(int code);
 
-#endif  // INC_BACKARGS_H_
+
+#endif  // INC_BCKBACKUPIMPL_H_
