@@ -58,6 +58,37 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserAuthRes* pAuthRes) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  SPrivInfo*     privInfo = privInfoGet(pAuthInfo->type);
+  if (NULL == privInfo) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  int32_t code = 0;
+  if (privInfo->category == PRIV_CATEGORY_OBJECT) {
+    switch (privInfo->objType) {
+      case PRIV_OBJ_DB: {
+        SDbCfgInfo dbCfgInfo = {0};
+        char dbFName[TSDB_DB_FNAME_LEN] = {0};
+        (void)tNameGetFullDbName(&pAuthInfo->tbName, dbFName);
+        code = getDbCfgFromCache(pCxt->pMetaCache, dbFName, &dbCfgInfo);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        if (0 == strncmp(dbCfgInfo.owner, pAuthInfo->user, TSDB_USER_LEN)) {
+          pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
+          return TSDB_CODE_SUCCESS;
+        }
+        break;
+      }
+      default:
+        return TSDB_CODE_SUCCESS;
+    }
+  }
+_exit:
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond,
                              bool isView, bool effective) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
@@ -71,6 +102,10 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   if (TSDB_CODE_SUCCESS != code) return code;
   SUserAuthRes authRes = {0};
   if (NULL != pCxt->pMetaCache) {
+    code = checkAuthByOwner(pCxt, &authInfo, &authRes);
+    if (code == TSDB_CODE_SUCCESS && authRes.pass[auth_res_type]) {
+      goto _exit;
+    }
     code = getUserAuthFromCache(pCxt->pMetaCache, &authInfo, &authRes);
 #ifdef TD_ENTERPRISE
     if (isView && TSDB_CODE_PAR_INTERNAL_ERROR == code) {
@@ -85,6 +120,7 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
                              .mgmtEps = pParseCxt->mgmtEpSet};
     code = catalogChkAuth(pParseCxt->pCatalog, &conn, &authInfo, &authRes);
   }
+_exit:
   if (TSDB_CODE_SUCCESS == code && NULL != pCond) {
     *pCond = authRes.pCond[auth_res_type];
   }

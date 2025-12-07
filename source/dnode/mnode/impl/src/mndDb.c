@@ -1515,6 +1515,7 @@ _OVER:
 
 static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId) {
   tstrncpy(cfgRsp->db, pDb->name, sizeof(cfgRsp->db));
+  snprintf(cfgRsp->owner, sizeof(cfgRsp->owner), "%s", pDb->owner[0] != 0 ? pDb->owner : pDb->createUser);
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
   cfgRsp->numOfVgroups = pDb->cfg.numOfVgroups;

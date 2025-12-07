@@ -335,8 +335,9 @@ int32_t privObjKey(EPrivObjType objType, const char* dbFName, const char* tb, ch
 
 int32_t privObjKeyF(EPrivObjType objType, int32_t acctId, const char* dbName, const char* tb, char* buf,
                     int32_t bufLen) {
-  return (objType == PRIV_OBJ_DB) ? snprintf(buf, bufLen, "%d.%d.%s", objType, dbName ? dbName : "")
-                                  : snprintf(buf, bufLen, "%d.%d.%s.%s", objType, dbName ? dbName : "", tb ? tb : "");
+  return (objType == PRIV_OBJ_DB)
+             ? snprintf(buf, bufLen, "%d.%d.%s", objType, acctId, dbName ? dbName : "")
+             : snprintf(buf, bufLen, "%d.%d.%s.%s", objType, acctId, dbName ? dbName : "", tb ? tb : "");
 }
 
 // objType.1.db or objType.1.db.tb

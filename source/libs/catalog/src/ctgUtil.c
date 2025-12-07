@@ -2266,17 +2266,14 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       int32_t klen =
           privObjKeyF(privInfo->objType, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
       SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-      if (policies) {
-        if (PRIV_HAS(&policies->policy, pReq->type)) {
-          pRes->pass[AUTH_RES_BASIC] = true;
-          return TSDB_CODE_SUCCESS;
-        }
-      } else {
-        klen = privObjKey(privInfo->objType, "1.*", NULL, objKey, sizeof(objKey));
-        policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-        if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
-          pRes->pass[AUTH_RES_BASIC] = true;
-        }
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      klen = privObjKey(privInfo->objType, "1.*", NULL, objKey, sizeof(objKey));
+      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
       }
     } else if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
     }
