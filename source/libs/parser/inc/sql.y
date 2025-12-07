@@ -904,6 +904,14 @@ trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.        
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
 trigger_type(A) ::= PERIOD NK_LP interval_sliding_duration_literal(B) offset_opt(C) NK_RP.                                  { A = createPeriodWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
+trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH NK_LP search_condition_list(B) NK_RP
+                    END WITH search_condition(C) NK_RP true_for_opt(D).                                                     { A = createEventWindowNode(pCxt, createNodeListNode(pCxt, B), C, D); }
+trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH NK_LP search_condition_list(B) NK_RP NK_RP true_for_opt(D).               { A = createEventWindowNode(pCxt, createNodeListNode(pCxt, B), NULL, D); }
+
+%type search_condition_list                                                                                                 { SNodeList* }
+%destructor search_condition_list                                                                                           { nodesDestroyList($$); }
+search_condition_list(A) ::= search_condition(B) NK_COMMA search_condition(C).                                              { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
+search_condition_list(A) ::= search_condition_list(B) NK_COMMA search_condition(C).                                         { A = addNodeToList(pCxt, B, C); }
 
 interval_opt(A) ::= .                                                                                                       { A = NULL; }
 interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C) NK_RP.                                              { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), NULL, NULL, NULL); }
