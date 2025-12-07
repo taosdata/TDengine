@@ -9,17 +9,18 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BACKARGS_H_
-#define INC_BACKARGS_H_
+#ifndef INC_BCKLOG_H_
+#define INC_BCKLOG_H_
 
 
 //
 // ---------------- define ----------------
 //
-#define MAX_PATH_LEN                    4096
 
-// ---------------- error code ----------------
+void logError(const char *format, ...);
+void logInfo(const char *format, ...);
+void logDebug(const char *format, ...); 
 
 
 
-#endif  // INC_BACKARGS_H_
+#endif  // INC_BCKLOG_H_

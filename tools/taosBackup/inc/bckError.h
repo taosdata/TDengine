@@ -9,17 +9,16 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BACKARGS_H_
-#define INC_BACKARGS_H_
+#ifndef INC_BCKERROR_H_
+#define INC_BCKERROR_H_
 
-
-//
-// ---------------- define ----------------
-//
-#define MAX_PATH_LEN                    4096
+#include "taoserror.h"
 
 // ---------------- error code ----------------
 
 
+#define TSDB_CODE_BACKUP_INVALID_PARAM           TAOS_DEF_ERROR_CODE(0, 0xA000)
+#define TSDB_CODE_BACKUP_CREATE_THREAD_FAILED    TAOS_DEF_ERROR_CODE(0, 0xA001)
 
-#endif  // INC_BACKARGS_H_
+
+#endif  // INC_BCKERROR_H_
