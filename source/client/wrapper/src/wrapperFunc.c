@@ -598,6 +598,16 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
   return (*fp_taos_fetch_whitelist_dual_stack_a)(taos, fp, param);
 }
 
+void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) {
+  CHECK_VOID(fp_taos_fetch_ip_whitelist_a);
+  return (*fp_taos_fetch_ip_whitelist_a)(taos, fp, param);
+}
+
+void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) {
+  CHECK_VOID(fp_taos_fetch_datetime_whitelist_a);
+  return (*fp_taos_fetch_datetime_whitelist_a)(taos, fp, param);
+}
+
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {
   CHECK_INT(fp_taos_set_conn_mode);
   return (*fp_taos_set_conn_mode)(taos, mode, value);

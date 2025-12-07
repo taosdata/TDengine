@@ -196,6 +196,8 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_fetch_whitelist_a, "taos_fetch_whitelist_a");
 
   LOAD_FUNC(fp_taos_fetch_whitelist_dual_stack_a, "taos_fetch_whitelist_dual_stack_a");
+  LOAD_FUNC(fp_taos_fetch_ip_whitelist_a, "taos_fetch_ip_whitelist_a");
+  LOAD_FUNC(fp_taos_fetch_datetime_whitelist_a, "taos_fetch_datetime_whitelist_a");
 
   LOAD_FUNC(fp_taos_set_conn_mode, "taos_set_conn_mode");
 

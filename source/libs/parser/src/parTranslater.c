@@ -459,6 +459,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_PERFS_TABLE_INSTANCES,
     .numOfShowCols = 1,
     .pShowCols = {"id"}
+  },
+  { .showType = QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPT_ALGORITHMS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
   }
 };
 // clang-format on
@@ -9947,8 +9953,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->ssCompact = pStmt->pOptions->ssCompact;
   pReq->ignoreExist = pStmt->ignoreExists;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
-  pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
   tstrncpy(pReq->dnodeListStr, pStmt->pOptions->dnodeListStr, TSDB_DNODE_LIST_LEN);
+  tstrncpy(pReq->encryptAlgrName, pStmt->pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGR_NAME_LEN);
 
   // auto-compact options
   pReq->compactInterval = pStmt->pOptions->compactInterval;
@@ -10112,16 +10118,8 @@ static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions
 }
 
 static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if ('\0' != pOptions->encryptAlgorithmStr[0]) {
-    if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_NONE_STR)) {
-      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_NONE;
-    } else if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_SM4_STR)) {
-      pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_SM4;
-    } else {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                     "Invalid option encrypt_algorithm: %s", pOptions->encryptAlgorithmStr);
-    }
-  }
+  if (pOptions->encryptAlgorithm < 0)
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option encrypt_algorithm");
 
   return TSDB_CODE_SUCCESS;
 }
@@ -10558,10 +10556,12 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEnumOption(pCxt, "withArbitrator", pOptions->withArbitrator, TSDB_MIN_DB_WITH_ARBITRATOR,
                              TSDB_MAX_DB_WITH_ARBITRATOR);
   }
+  /*
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "encryptAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
                              TSDB_MAX_ENCRYPT_ALGO);
   }
+  */
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
   }
@@ -10708,6 +10708,14 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
     case TDMT_MND_CREATE_USER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateUserReq, pReq);
+      break;
+    }
+    case TDMT_MND_CREATE_ENCRYPT_ALGR: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateEncryptAlgrReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_ENCRYPT_ALGR: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropEncryptAlgrReq, pReq);
       break;
     }
     case TDMT_MND_ALTER_USER: {
@@ -10881,6 +10889,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->compactStartTime = pStmt->pOptions->compactStartTime;
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
+  tstrncpy(pReq->encryptAlgrName, pStmt->pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGR_NAME_LEN);
   return code;
 }
 
@@ -10912,8 +10921,8 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
     return code;
   }
 
-  if (pStmt->pOptions->encryptAlgorithm != -1) {
-    code = TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE;
+  if (pStmt->pOptions->encryptAlgorithm == -1) {
+    code = TSDB_CODE_PAR_INVALID_DB_OPTION;
     return code;
   }
 
@@ -12518,102 +12527,189 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
-  if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
-    return code;
-  }
-  tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
+
   createReq.createType = 0;
   createReq.superUser = 0;
-  createReq.sysInfo = pStmt->sysinfo;
-  createReq.enable = 1;
-  createReq.isImport = pStmt->isImport;
-  createReq.createDb = pStmt->createDb;
+  createReq.ignoreExisting = pStmt->ignoreExisting;
 
-  if (pStmt->isImport == 1) {
-    tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
-  } else {
-    taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
-  }
-  createReq.passIsMd5 = 1;
+  tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
+  tstrncpy(createReq.pass, pStmt->password, sizeof(createReq.pass));
+  tstrncpy(createReq.totpseed, pStmt->totpseed, sizeof(createReq.totpseed));
+
+  createReq.sysInfo = pStmt->sysinfo;
+  createReq.createDb = pStmt->createDb;
+  createReq.isImport = pStmt->isImport;
+  createReq.changepass = pStmt->changepass;
+  createReq.enable = pStmt->enable;
+
+  createReq.sessionPerUser = pStmt->sessionPerUser;
+  createReq.connectTime = pStmt->connectTime;
+  createReq.connectIdleTime = pStmt->connectIdleTime;
+  createReq.callPerSession = pStmt->callPerSession;
+  createReq.vnodePerCall = pStmt->vnodePerCall;
+  createReq.failedLoginAttempts = pStmt->failedLoginAttempts;
+
+  createReq.passwordLifeTime = pStmt->passwordLifeTime;
+  createReq.passwordReuseTime = pStmt->passwordReuseTime;
+  createReq.passwordReuseMax = pStmt->passwordReuseMax;
+  createReq.passwordLockTime = pStmt->passwordLockTime;
+  createReq.passwordGraceTime = pStmt->passwordGraceTime;
+  createReq.inactiveAccountTime = pStmt->inactiveAccountTime;
+  createReq.allowTokenNum = pStmt->allowTokenNum;
 
   createReq.numIpRanges = pStmt->numIpRanges;
-  if (pStmt->numIpRanges > 0) {
-    createReq.pIpRanges = taosMemoryCalloc(1, createReq.numIpRanges * sizeof(SIpV4Range));
-    if (!createReq.pIpRanges) {
-      return terrno;
-    }
+  createReq.pIpDualRanges = pStmt->pIpRanges;
 
-    createReq.pIpDualRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpRange));
-    if (!createReq.pIpDualRanges) {
-      tFreeSCreateUserReq(&createReq);
-      return terrno;
-    }
-
-    memcpy(createReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
-  }
+  createReq.numTimeRanges = pStmt->numTimeRanges;
+  createReq.pTimeRanges = pStmt->pTimeRanges;
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+
+  // set to NULL because the memory is not owned by createReq, so that tFreeSCreateUserReq will not free them
+  createReq.pIpDualRanges = NULL;
+  createReq.pTimeRanges = NULL;
   tFreeSCreateUserReq(&createReq);
   return code;
 }
 
-static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
-  int32_t code = 0;
-  switch (pStmt->alterType) {
-    case TSDB_ALTER_USER_ENABLE:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1, false);
-      break;
-    case TSDB_ALTER_USER_SYSINFO:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false);
-      break;
-    case TSDB_ALTER_USER_CREATEDB:
-      code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, false);
-      break;
-  }
+static int32_t translateCreateEncryptAlgr(STranslateContext* pCxt, SCreateEncryptAlgrStmt* pStmt) {
+  int32_t               code = 0;
+  SCreateEncryptAlgrReq createReq = {0};
+
+  tstrncpy(createReq.algorithmId, pStmt->algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(createReq.name, pStmt->name, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(createReq.desc, pStmt->desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(createReq.type, pStmt->algrType, TSDB_ENCRYPT_ALGR_TYPE_LEN);
+  tstrncpy(createReq.osslAlgrName, pStmt->osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+
+  code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_ALGR, (FSerializeFunc)tSerializeSCreateEncryptAlgrReq, &createReq);
+  tFreeSCreateEncryptAlgrReq(&createReq);
   return code;
 }
+
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t       code = 0;
   SAlterUserReq alterReq = {0};
-  if ((code = checkAlterUser(pCxt, pStmt))) {
-    return code;
-  }
+  SUserOptions* opts = pStmt->pUserOptions;
+
+  alterReq.alterType = TSDB_ALTER_USER_BASIC_INFO;
   tstrncpy(alterReq.user, pStmt->userName, TSDB_USER_LEN);
-  alterReq.alterType = pStmt->alterType;
-  alterReq.superUser = 0;
-  alterReq.enable = pStmt->enable;
-  alterReq.sysInfo = pStmt->sysinfo;
-  alterReq.createdb = pStmt->createdb ? 1 : 0;
-
-  int32_t len = strlen(pStmt->password);
-  if (len > 0) {
-    taosEncryptPass_c((uint8_t*)pStmt->password, len, alterReq.pass);
-    alterReq.passIsMd5 = 1;
-  }
-
   if (NULL != pCxt->pParseCxt->db) {
-    snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
+    tstrncpy(alterReq.objname, pCxt->pParseCxt->db, sizeof(alterReq.objname));
   }
 
-  alterReq.numIpRanges = pStmt->numIpRanges;
-  if (pStmt->numIpRanges > 0) {
-    alterReq.pIpRanges = taosMemoryCalloc(1, alterReq.numIpRanges * sizeof(SIpV4Range));
+  alterReq.hasPassword = opts->hasPassword;
+  alterReq.hasTotpseed = opts->hasTotpseed;
+  alterReq.hasEnable = opts->hasEnable;
+  alterReq.hasSysinfo = opts->hasSysinfo;
+  alterReq.hasCreatedb = opts->hasCreatedb;
+  alterReq.hasChangepass = opts->hasChangepass;
+  alterReq.hasSessionPerUser = opts->hasSessionPerUser;
+  alterReq.hasConnectTime = opts->hasConnectTime;
+  alterReq.hasConnectIdleTime = opts->hasConnectIdleTime;
+  alterReq.hasCallPerSession = opts->hasCallPerSession;
+  alterReq.hasVnodePerCall = opts->hasVnodePerCall;
+  alterReq.hasFailedLoginAttempts = opts->hasFailedLoginAttempts;
+  alterReq.hasPasswordLifeTime = opts->hasPasswordLifeTime;
+  alterReq.hasPasswordReuseTime = opts->hasPasswordReuseTime;
+  alterReq.hasPasswordReuseMax = opts->hasPasswordReuseMax;
+  alterReq.hasPasswordLockTime = opts->hasPasswordLockTime;
+  alterReq.hasPasswordGraceTime = opts->hasPasswordGraceTime;
+  alterReq.hasInactiveAccountTime = opts->hasInactiveAccountTime;
+  alterReq.hasAllowTokenNum = opts->hasAllowTokenNum;
+
+  alterReq.enable = opts->enable;
+  alterReq.sysinfo = opts->sysinfo;
+  alterReq.createdb = opts->createdb;
+  alterReq.changepass = opts->changepass;
+
+  if (opts->hasPassword) {
+    tstrncpy(alterReq.pass, opts->password, sizeof(alterReq.pass));
+  }
+  if (opts->hasTotpseed) {
+    tstrncpy(alterReq.totpseed, opts->totpseed, sizeof(alterReq.totpseed));
+  }
+  alterReq.sessionPerUser = opts->sessionPerUser;
+  alterReq.connectTime = opts->connectTime;
+  alterReq.connectIdleTime = opts->connectIdleTime;
+  alterReq.callPerSession = opts->callPerSession;
+  alterReq.vnodePerCall = opts->vnodePerCall;
+  alterReq.failedLoginAttempts = opts->failedLoginAttempts;
+  alterReq.passwordLifeTime = opts->passwordLifeTime;
+  alterReq.passwordReuseTime = opts->passwordReuseTime;
+  alterReq.passwordReuseMax = opts->passwordReuseMax;
+  alterReq.passwordLockTime = opts->passwordLockTime;
+  alterReq.passwordGraceTime = opts->passwordGraceTime;
+  alterReq.inactiveAccountTime = opts->inactiveAccountTime;
+  alterReq.allowTokenNum = opts->allowTokenNum;
+
+  alterReq.numIpRanges = LIST_LENGTH(opts->pIpRanges);
+  alterReq.numTimeRanges = LIST_LENGTH(opts->pTimeRanges);
+  alterReq.numDropIpRanges = LIST_LENGTH(opts->pDropIpRanges);
+  alterReq.numDropTimeRanges = LIST_LENGTH(opts->pDropTimeRanges);
+
+  if (alterReq.numIpRanges > 0) {
+    alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpRange));
     if (!alterReq.pIpRanges) {
       tFreeSAlterUserReq(&alterReq);
       return terrno;
     }
+    int i = 0;
+    SNode* pNode = NULL;
+    FOREACH(pNode, opts->pIpRanges) {
+      SIpRangeNode* node = (SIpRangeNode*)(pNode);
+      alterReq.pIpRanges[i++] = node->range;
+    }
+  }
 
-    alterReq.pIpDualRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpRange));
-    if (!alterReq.pIpDualRanges) {
+  if (alterReq.numTimeRanges > 0) {
+    alterReq.pTimeRanges = taosMemoryMalloc(alterReq.numTimeRanges * sizeof(SDateTimeRange));
+    if (!alterReq.pTimeRanges) {
       tFreeSAlterUserReq(&alterReq);
       return terrno;
     }
-    memcpy(alterReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * alterReq.numIpRanges);
+    int i = 0;
+    SNode* pNode = NULL;
+    FOREACH(pNode, opts->pTimeRanges) {
+      SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
+      alterReq.pTimeRanges[i++] = node->range;
+    }
   }
+
+  if (alterReq.numDropIpRanges > 0) {
+    alterReq.pDropIpRanges = taosMemoryMalloc(alterReq.numDropIpRanges * sizeof(SIpRange));
+    if (!alterReq.pDropIpRanges) {
+      tFreeSAlterUserReq(&alterReq);
+      return terrno;
+    }
+    int i = 0;
+    SNode* pNode = NULL;
+    FOREACH(pNode, opts->pDropIpRanges) {
+      SIpRangeNode* node = (SIpRangeNode*)(pNode);
+      alterReq.pDropIpRanges[i++] = node->range;
+    }
+  }
+
+  if (alterReq.numDropTimeRanges > 0) {
+    alterReq.pDropTimeRanges = taosMemoryMalloc(alterReq.numDropTimeRanges * sizeof(SDateTimeRange));
+    if (!alterReq.pDropTimeRanges) {
+      tFreeSAlterUserReq(&alterReq);
+      return terrno;
+    }
+    int i = 0;
+    SNode* pNode = NULL;
+    FOREACH(pNode, opts->pDropTimeRanges) {
+      SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
+      alterReq.pDropTimeRanges[i++] = node->range;
+    }
+  }
+
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
   tFreeSAlterUserReq(&alterReq);
   return code;
 }
+
+
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
@@ -12621,6 +12717,15 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
   tFreeSDropUserReq(&dropReq);
+  return code;
+}
+
+static int32_t translateDropEncryptAlgr(STranslateContext* pCxt, SDropEncryptAlgrStmt* pStmt) {
+  SDropEncryptAlgrReq dropReq = {0};
+  tstrncpy(dropReq.algorithmId, pStmt->algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_ENCRYPT_ALGR, (FSerializeFunc)tSerializeSDropEncryptAlgrReq, &dropReq);
+  tFreeSDropEncryptAlgrReq(&dropReq);
   return code;
 }
 
@@ -17391,11 +17496,17 @@ _return:
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
+      code = translateCreateEncryptAlgr(pCxt, (SCreateEncryptAlgrStmt*)pNode);
+      break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = translateAlterUser(pCxt, (SAlterUserStmt*)pNode);
       break;
     case QUERY_NODE_DROP_USER_STMT:
       code = translateDropUser(pCxt, (SDropUserStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      code = translateDropEncryptAlgr(pCxt, (SDropEncryptAlgrStmt*)pNode);
       break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = translateUseDatabase(pCxt, (SUseDatabaseStmt*)pNode);
@@ -22012,6 +22123,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:

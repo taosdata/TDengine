@@ -67,7 +67,7 @@ TEST(testCase, tqOffsetTest) {
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pOffset, (FDelete)tDeleteSTqOffset);
 
-  tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0, 0, NULL);
+  tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0, NULL);
   tdbTbOpen("tq.offset.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pOffsetStore, 0);
 
   tqWriteOffset();
