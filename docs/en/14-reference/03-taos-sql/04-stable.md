@@ -29,7 +29,7 @@ Notes:
 
 - A supertable can have a maximum of 4096 columns, including tag columns.
 
-- A supertable must have at least three columns: one timestamp column (the primary key column), one  metric column, and one tag column.
+- A supertable must have at least three columns: one timestamp column (the primary key column), one metric column, and one tag column.
 
 - `COMPOSITE KEY`: You can specify a second column for the primary key by using the `COMPOSITE KEY` keyword. The second primary key column must be of integer or `VARCHAR` type. This column, together with the timestamp column, forms a composite key.
 
@@ -205,7 +205,7 @@ You can perform the following actions:
 - `MODIFY TAG`: Extend the length of a tag column of type `NCHAR` or `BINARY`.
   - You cannot modify tag columns of other types.
   - You cannot modify the length of a column to be shorter.
-- `RENAME TAG`: Change the name of a tag column in the supertable. Note that this action affects all subtables within the supetable.
+- `RENAME TAG`: Change the name of a tag column in the supertable. Note that this action affects all subtables within the supertable.
 
 :::important
 
@@ -279,7 +279,7 @@ ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
 
 ### Querying Supertables
 
-You can perform projection and aggregation queries on a supertable using the `SELECT` statement. You can filter on metrics and tags In the `WHERE` clause.
+You can perform projection and aggregation queries on a supertable using the `SELECT` statement. You can filter on metrics and tags in the `WHERE` clause.
 
 If a supertable query does not include an `ORDER BY` clause, the results returned are grouped by subtable. All records from one subtable are returned first, followed by all records from the next subtable. This means that the data returned is not ordered.
 
