@@ -33,27 +33,27 @@ Notes:
 
 - `COMPOSITE KEY`: You can specify a second column for the primary key by using the `COMPOSITE KEY` keyword. The second primary key column must be of integer or `VARCHAR` type. This column, together with the timestamp column, forms a composite key.
 
-   If a supertable has a composite key, two records in the supertable are considered duplicates only when both the timestamp column and the second primary key column are identical. In such cases, the database keeps only the most recent record; otherwise, both records are retained.
+  If a supertable has a composite key, two records in the supertable are considered duplicates only when both the timestamp column and the second primary key column are identical. In such cases, the database keeps only the most recent record; otherwise, both records are retained.
 
 - `TAGS`: The `TAGS` clause defines the tag columns of a supertable. The following restrictions apply:
-   - For tag columns of type `TIMESTAMP`, you must provide a literal timestamp value when inserting data. Arithmetic expressions such as `NOW + 10s` are not supported.
-   - The names of tag columns must be unique among all columns. You cannot use the same name for a metric column and a tag column.
-   - Tag column names cannot use reserved keywords.
-   - A supertable can have a maximum of 128 tag columns. At least one tag column is required.
-   - The total length of all tag columns cannot exceed 16 KB.
+  - For tag columns of type `TIMESTAMP`, you must provide a literal timestamp value when inserting data. Arithmetic expressions such as `NOW + 10s` are not supported.
+  - The names of tag columns must be unique among all columns. You cannot use the same name for a metric column and a tag column.
+  - Tag column names cannot use reserved keywords.
+  - A supertable can have a maximum of 128 tag columns. At least one tag column is required.
+  - The total length of all tag columns cannot exceed 16 KB.
 
 - `ENCODE` and `COMPRESS`: See [Data Compression](./manage-data-compression/).
 
 - `COMMENT` and `SMA`: See [Tables](./manage-tables/).
 
 - `KEEP`: See [Databases](./manage-databases/) for details. However, note the following differences between supertable-level `KEEP` and database-level `KEEP`:
-   - The supertable-level `KEEP` value must be smaller than the database-level `KEEP` value.
-   - Supertable-level `KEEP` does not take effect immediately. You must flush and then compact the database before data marked as expired by the supertable-level `KEEP` is removed.
-   - If you compact the database, then alter the supertable-level `KEEP` value, then compact the database again, expired data might not be completely removed.
+  - The supertable-level `KEEP` value must be smaller than the database-level `KEEP` value.
+  - Supertable-level `KEEP` does not take effect immediately. You must flush and then compact the database before data marked as expired by the supertable-level `KEEP` is removed.
+  - If you compact the database, then alter the supertable-level `KEEP` value, then compact the database again, expired data might not be completely removed.
 
 - `VIRTUAL`: Specify 1 to create a virtual supertable. The following restrictions apply:
-   - `COMPOSITE KEY` is not supported.
-   - Compression options (`ENCODE` and `COMPRESS`) are not supported.
+  - `COMPOSITE KEY` is not supported.
+  - Compression options (`ENCODE` and `COMPRESS`) are not supported.
 
 ## View Supertables
 
@@ -198,13 +198,13 @@ You can perform the following actions:
 - `ADD COLUMN`: Add a metric column to the supertable.
 - `DROP COLUMN`: Delete a metric column from the supertable. Note that this action deletes the metric column from all subtables within the supertable.
 - `MODIFY COLUMN`: Extend the length of a metric column of type `NCHAR` or `BINARY`.
-   - You cannot modify metric columns of other types.
-   - You cannot modify the length of a column to be shorter.
+  - You cannot modify metric columns of other types.
+  - You cannot modify the length of a column to be shorter.
 - `ADD TAG`: Add a tag column to the supertable.
 - `DROP TAG`: Delete a tag column from the supertable. Note that this action deletes the tag column from all subtables within the supertable.
 - `MODIFY TAG`: Extend the length of a tag column of type `NCHAR` or `BINARY`.
-   - You cannot modify tag columns of other types.
-   - You cannot modify the length of a column to be shorter.
+  - You cannot modify tag columns of other types.
+  - You cannot modify the length of a column to be shorter.
 - `RENAME TAG`: Change the name of a tag column in the supertable. Note that this action affects all subtables within the supetable.
 
 :::important
