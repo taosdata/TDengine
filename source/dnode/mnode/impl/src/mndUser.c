@@ -1149,7 +1149,7 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nRoles));
   if (nRoles > 0) {
     if (!pObj->roles &&
-        !(pObj->roles = taosHashInit(nRoles, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), 1, HASH_ENTRY_LOCK))) {
+        !(pObj->roles = taosHashInit(nRoles, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), 1, HASH_ENTRY_LOCK))) {
       TAOS_CHECK_EXIT(terrno);
     }
     for (int32_t i = 0; i < nRoles; i++) {
