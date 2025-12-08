@@ -43,7 +43,7 @@ description: "TDengine TSDB 3.0 版本的语法变更说明"
 | 15 | CREATE STREAM | 新增 | 创建流。 |
 | 16 | CREATE TABLE | 调整 | 新增表参数语法<ul><li>COMMENT：表注释。</li><li>WATERMARK：指定窗口的关闭时间。</li><li>MAX_DELAY：用于控制推送计算结果的最大延迟。</li><li>ROLLUP：指定的聚合函数，提供基于多层级的降采样聚合结果。</li><li>SMA：提供基于数据块的自定义预计算功能。</li><li>TTL：用来指定表的生命周期的参数。</li></ul> |
 | 17 | CREATE TOPIC | 新增 | 创建订阅主题。 |
-| 18 | DROP ACCOUNT | 废除 | 2.x 中为企业版功能，3.0 不再支持。语法暂时保留，执行报“This statement is no longer supported”错误。 |
+| 18 | DROP ACCOUNT | 废除 | 2.x 中为企业版功能，3.0 不再支持。语法暂时保留，执行报"This statement is no longer supported"错误。 |
 | 19 | DROP CONSUMER GROUP | 新增 | 删除消费组。 |
 | 20 | DROP INDEX | 新增 | 删除索引。 |
 | 21 | DROP MNODE | 新增 | 创建管理节点。 |
