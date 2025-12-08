@@ -454,19 +454,17 @@ if [ ${send2feishu_enabled} == "True" ] ;then
     end_time_all=`date +%Y_%m%d_%H%M%S`
 
     if [ -f ${failed_case_file} ]; then
-        result='failed'
-    else
-        result='success'
-    fi
-    if [[ ${t_file} =~ "query" ]];then
+    case "${t_file}" in
+      *query*)
         owner="Platform TSDB-Query Test"
-    elif [[ ${t_file} =~ "insert" ]];then
+        ;;
+      *insert*)
         owner="Platform TSDB-Insert Test"
-    elif [[ ${t_file} =~ "taox" ]];then
+        ;;
+      *)
         owner="Platform Test"
-    else
-        owner="Platform Test"
-    fi
+        ;;
+    esac
 
     detail="failed ${failed_cases},successful ${success_cases}"
     #test_scope="${t_file} , querypolicy-[${DATABASE_QUERY_POLICY}] , buildNumber-[${BUILD_NUMBER}]"
