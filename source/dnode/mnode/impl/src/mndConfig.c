@@ -747,6 +747,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   int32_t       lino = -1;
   SMnode       *pMnode = pReq->info.node;
   SMCfgDnodeReq cfgReq = {0};
+  int64_t       tss = taosGetTimestampMs();
   SConfigObj   *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
     code = TSDB_CODE_SDB_OBJ_NOT_THERE;
@@ -808,10 +809,13 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   // Audit log
-  {
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[50] = {0};
     (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
-    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen, duration, 0);
   }
 
   dcfgReq.version = vObj->i32 + 1;

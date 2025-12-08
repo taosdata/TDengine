@@ -1014,6 +1014,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
   SArray      *dnodeList = NULL;
+  int64_t      tss = taosGetTimestampMs();
 
   dnodeList = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(int32_t));
   TSDB_CHECK_NULL(dnodeList, code, lino, _OVER, TSDB_CODE_OUT_OF_MEMORY);
@@ -1074,11 +1075,15 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName name = {0};
-  if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
-    mError("db:%s, failed to parse db name", createReq.db);
-
-  auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName name = {0};
+    if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+      mError("db:%s, failed to parse db name", createReq.db);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1372,6 +1377,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   SDbObj     *pDb = NULL;
   SAlterDbReq alterReq = {0};
   SDbObj      dbObj = {0};
+  int64_t     tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSAlterDbReq(pReq->pCont, pReq->contLen, &alterReq), NULL, _OVER);
 
@@ -1430,11 +1436,16 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  SName name = {0};
-  if (tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
-    mError("db:%s, failed to parse db name", alterReq.db);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName name = {0};
+    if (tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+      mError("db:%s, failed to parse db name", alterReq.db);
 
-  auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", alterReq.sql, alterReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", alterReq.sql, alterReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1787,6 +1798,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
   SDropDbReq dropReq = {0};
+  int64_t    tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
@@ -1858,11 +1870,16 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  SName name = {0};
-  if (tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
-    mError("db:%s, failed to parse db name", dropReq.db);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName name = {0};
+    if (tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
+      mError("db:%s, failed to parse db name", dropReq.db);
 
-  auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2365,6 +2382,7 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
   int32_t    code = 0, lino = 0;
   SDbObj    *pDb = NULL;
   STrimDbReq trimReq = {0};
+  int64_t    tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq));
 
@@ -2393,15 +2411,19 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndTrimDb(pMnode, pReq, pDb, trimReq.tw, trimReq.vgroupIds, trimReq.optrType, trimReq.triggerType));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName name = {0};
-  if (tNameFromString(&name, trimReq.db, T_NAME_ACCT | T_NAME_DB) < 0) {
-    mWarn("db:%s, failed at line %d to parse db name", trimReq.db, __LINE__);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName name = {0};
+    if (tNameFromString(&name, trimReq.db, T_NAME_ACCT | T_NAME_DB) < 0) {
+      mWarn("db:%s, failed at line %d to parse db name", trimReq.db, __LINE__);
+    }
+
+    char optrType[16] = {0};
+    (void)snprintf(optrType, sizeof(optrType), "%u", trimReq.optrType);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "trimDB", name.dbname, optrType, trimReq.sql, trimReq.sqlLen, duration, 0);
   }
-
-  char optrType[16] = {0};
-  (void)snprintf(optrType, sizeof(optrType), "%u", trimReq.optrType);
-
-  auditRecord(pReq, pMnode->clusterId, "trimDB", name.dbname, optrType, trimReq.sql, trimReq.sqlLen);
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

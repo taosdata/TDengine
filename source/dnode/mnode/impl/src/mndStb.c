@@ -1276,6 +1276,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMCreateStbReq createReq = {0};
   bool           isAlter = false;
   SHashObj      *pHash = NULL;
+  int64_t        tss = taosGetTimestampMs();
 
   if (tDeserializeSMCreateStbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -1412,17 +1413,23 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName name = {0};
-  TAOS_CHECK_RETURN(tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName name = {0};
+    TAOS_CHECK_RETURN(tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
 
-  if (createReq.sql == NULL && createReq.sqlLen == 0) {
-    char detail[1000] = {0};
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    if (createReq.sql == NULL && createReq.sqlLen == 0) {
+      char detail[1000] = {0};
 
-    (void)tsnprintf(detail, sizeof(detail), "dbname:%s, stable name:%s", name.dbname, name.tname);
+      (void)tsnprintf(detail, sizeof(detail), "dbname:%s, stable name:%s", name.dbname, name.tname);
 
-    auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail, strlen(detail));
-  } else {
-    auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
+      auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail, strlen(detail), duration, 0);
+    } else {
+      auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen,
+                  duration, 0);
+    }
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2748,6 +2755,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   SDbObj       *pDb = NULL;
   SStbObj      *pStb = NULL;
   SMAlterStbReq alterReq = {0};
+  int64_t       tss = taosGetTimestampMs();
 
   if (tDeserializeSMAlterStbReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -2780,13 +2788,18 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName   name = {0};
-  int32_t ret = 0;
-  if ((ret = tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
-    mError("stb:%s, failed to tNameFromString since %s", alterReq.name, tstrerror(ret));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName   name = {0};
+    int32_t ret = 0;
+    if ((ret = tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
+      mError("stb:%s, failed to tNameFromString since %s", alterReq.name, tstrerror(ret));
 
-  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, name.tname, alterReq.sql, alterReq.sqlLen);
-
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, name.tname, alterReq.sql, alterReq.sqlLen, duration,
+                0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to alter since %s", alterReq.name, tstrerror(code));
@@ -2989,6 +3002,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SDbObj      *pDb = NULL;
   SStbObj     *pStb = NULL;
   SMDropStbReq dropReq = {0};
+  int64_t      tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSMDropStbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
@@ -3041,13 +3055,17 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName   name = {0};
-  int32_t ret = 0;
-  if ((ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
-    mError("stb:%s, failed to tNameFromString since %s", dropReq.name, tstrerror(ret));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName   name = {0};
+    int32_t ret = 0;
+    if ((ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
+      mError("stb:%s, failed to tNameFromString since %s", dropReq.name, tstrerror(ret));
 
-  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
-
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to drop since %s", dropReq.name, tstrerror(code));

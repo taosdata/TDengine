@@ -577,6 +577,7 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
   SDbObj       *pDb = NULL;
   SRsmaObj     *pObj = NULL;
   SMDropRsmaReq dropReq = {0};
+  int64_t       tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSMDropRsmaReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _exit);
 
@@ -608,7 +609,12 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  auditRecord(pReq, pMnode->clusterId, "dropRsma", dropReq.name, "", "", 0);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropRsma", dropReq.name, "", "", 0, duration, 0);
+  }
 _exit:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("rsma:%s, failed at line %d to drop since %s", dropReq.name, lino, tstrerror(code));
@@ -719,6 +725,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   SUserObj       *pUser = NULL;
   int64_t         mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMCreateRsmaReq createReq = {0};
+  int64_t         tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSMCreateRsmaReq(pReq->pCont, pReq->contLen, &createReq));
 
@@ -766,7 +773,12 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createRsma", createReq.name, createReq.tbFName, "", 0);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createRsma", createReq.name, createReq.tbFName, "", 0, duration, 0);
+  }
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("rsma:%s, failed at line %d to create since %s", createReq.name, lino, tstrerror(code));
@@ -957,6 +969,7 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
   int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMAlterRsmaReq req = {0};
   char           tbFName[TSDB_TABLE_FNAME_LEN] = "\0";
+  int64_t        tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSMAlterRsmaReq(pReq->pCont, pReq->contLen, &req));
 
@@ -991,9 +1004,14 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char alterType[32] = "\0";
-  (void)snprintf(alterType, sizeof(alterType), "alterType:%" PRIi8, req.alterType);
-  auditRecord(pReq, pMnode->clusterId, "alterRsma", req.name, tbFName, alterType, 0);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    char alterType[32] = "\0";
+    (void)snprintf(alterType, sizeof(alterType), "alterType:%" PRIi8, req.alterType);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "alterRsma", req.name, tbFName, alterType, 0, duration, 0);
+  }
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("rsma:%s, failed at line %d to alter since %s", req.name, lino, tstrerror(code));

@@ -197,12 +197,20 @@ bool    tsMonitorForceV2 = false;
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
 bool    tsEnableAuditDelete = true;
+bool    tsEnableAuditSelect = true;
+bool    tsEnableAuditInsert = true;
 int32_t tsAuditInterval = 5000;
+int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
+bool    tsAuditHttps = false;
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;
 bool    tsEnableAuditDelete = false;
+bool    tsEnableAuditSelect = false;
+bool    tsEnableAuditInsert = false;
 int32_t tsAuditInterval = 200000;
+int32_t tsAuditLevel = AUDIT_LEVEL_NONE;
+bool    tsAuditHttps = false;
 #endif
 
 // telem
@@ -902,8 +910,12 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditDelete", tsEnableAuditDelete, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditSelect", tsEnableAuditSelect, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditInsert", tsEnableAuditInsert, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditLevel", tsAuditLevel, 0, 5, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditHttps", tsAuditHttps, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1687,6 +1699,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditDelete");
   tsEnableAuditDelete = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditSelect");
+  tsEnableAuditSelect = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditInsert");
+  tsEnableAuditInsert = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditLevel");
+  tsAuditLevel = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditHttps");
+  tsAuditHttps = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
@@ -2693,6 +2717,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"monitorMaxLogs", &tsMonitorMaxLogs},
                                          {"auditCreateTable", &tsEnableAuditCreateTable},
                                          {"auditInterval", &tsAuditInterval},
+                                         {"auditLevel", &tsAuditLevel},
+                                         {"auditHttps", &tsAuditHttps},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
                                          {"compressMsgSize", &tsCompressMsgSize},
                                          {"compressor", &tsCompressor},

@@ -516,6 +516,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
   int32_t         code = 0;
   int32_t         lino = 0;
   SKillCompactReq killCompactReq = {0};
+  int64_t         tss = taosGetTimestampMs();
 
   if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &killCompactReq)) != 0) {
     TAOS_RETURN(code);
@@ -537,14 +538,20 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char    obj[TSDB_INT32_ID_LEN] = {0};
-  int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pCompact->compactId);
-  if ((uint32_t)nBytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql,
-                killCompactReq.sqlLen);
-  } else {
-    mError("compact:%" PRId32 " failed to audit since %s", pCompact->compactId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    char    obj[TSDB_INT32_ID_LEN] = {0};
+    int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pCompact->compactId);
+    if ((uint32_t)nBytes < sizeof(obj)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql,
+                  killCompactReq.sqlLen, duration, 0);
+    } else {
+      mError("compact:%" PRId32 " failed to audit since %s", pCompact->compactId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to kill compact %" PRId32 " since %s", killCompactReq.compactId, terrstr());
@@ -920,6 +927,7 @@ static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
     return 0;
   }
+  int64_t tss = taosGetTimestampMs();
 
   SName   name = {0};
   int32_t sqlLen = 0;
@@ -939,7 +947,13 @@ static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
     sqlLen = tsnprintf(sql, sizeof(sql), "compact db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
                        tw->ekey);
   }
-  auditRecord(NULL, pMnode->clusterId, "autoCompactDB", name.dbname, "", sql, sqlLen);
+
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(NULL, pMnode->clusterId, "autoCompactDB", name.dbname, "", sql, sqlLen, duration, 0);
+  }
 
   return 0;
 }

@@ -55,19 +55,19 @@ void auditCleanup() {
 }
 
 extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                          char *detail, int32_t len);
+                          char *detail, int32_t len, double duration, int64_t affectedRows);
 extern void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                          char *detail, int32_t len);
+                          char *detail, int32_t len, double duration, int64_t affectedRows);
 extern void auditSendRecordsInBatchImp();
 
 void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                char *detail, int32_t len) {
-  auditRecordImp(pReq, clusterId, operation, target1, target2, detail, len);
+                char *detail, int32_t len, double duration, int64_t affectedRows) {
+  auditRecordImp(pReq, clusterId, operation, target1, target2, detail, len, duration, affectedRows);
 }
 
 void auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                char *detail, int32_t len) {
-  auditAddRecordImp(pReq, clusterId, operation, target1, target2, detail, len);
+                char *detail, int32_t len, double duration, int64_t affectedRows) {
+  auditAddRecordImp(pReq, clusterId, operation, target1, target2, detail, len, duration, affectedRows);
 }
 
 void auditSendRecordsInBatch(){
@@ -76,7 +76,7 @@ void auditSendRecordsInBatch(){
 
 #ifndef TD_ENTERPRISE
 void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                    char *detail, int32_t len) {
+                    char *detail, int32_t len, double duration, int64_t affectedRows) {
 }
 
 void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
