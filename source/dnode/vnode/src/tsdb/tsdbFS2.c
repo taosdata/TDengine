@@ -110,27 +110,13 @@ static int32_t load_json(const char *fname, cJSON **json) {
   int32_t code = 0;
   int32_t lino;
   char   *data = NULL;
+  int32_t dataLen = 0;
 
-  TdFilePtr fp = taosOpenFile(fname, TD_FILE_READ);
-  if (fp == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  int64_t size;
-  code = taosFStatFile(fp, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(fname, &data, &dataLen);
   if (code != 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  data = taosMemoryMalloc(size + 1);
-  if (data == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  if (taosReadFile(fp, data, size) < 0) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-  data[size] = '\0';
 
   json[0] = cJSON_Parse(data);
   if (json[0] == NULL) {
@@ -142,7 +128,6 @@ _exit:
     tsdbError("%s failed at %s:%d since %s", __func__, fname, __LINE__, tstrerror(code));
     json[0] = NULL;
   }
-  taosCloseFileWithLog(&fp);
   taosMemoryFree(data);
   return code;
 }

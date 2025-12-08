@@ -214,31 +214,16 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   int32_t   code = 0;
   int32_t   lino;
   char      fname[TSDB_FILENAME_LEN];
-  TdFilePtr pFile = NULL;
   char     *pData = NULL;
-  int64_t   size;
+  int32_t   dataLen = 0;
 
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
 
-  // read info
-  pFile = taosOpenFile(fname, TD_FILE_READ);
-  if (pFile == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(fname, &pData, &dataLen);
+  if (code != 0) {
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  code = taosFStatFile(pFile, &size, NULL);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  if (taosReadFile(pFile, pData, size) < 0) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  pData[size] = '\0';
 
   // decode info
   code = vnodeDecodeInfo(pData, pInfo);
@@ -251,9 +236,6 @@ _exit:
            tstrerror(code), fname);
   }
   taosMemoryFree(pData);
-  if (taosCloseFile(&pFile) != 0) {
-    vError("vgId:%d, failed to close file", pInfo->config.vgId);
-  }
   return code;
 }
 

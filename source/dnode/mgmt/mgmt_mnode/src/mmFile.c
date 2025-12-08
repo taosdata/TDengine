@@ -62,8 +62,8 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
 
 int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   int32_t   code = -1;
-  TdFilePtr pFile = NULL;
   char     *pData = NULL;
+  int32_t   dataLen = 0;
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
 
@@ -78,33 +78,12 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
     return 0;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open mnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    dError("failed to fstat mnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    code = terrno;
     dError("failed to read mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -122,7 +101,6 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to read mnode file:%s since %s", file, tstrerror(code));

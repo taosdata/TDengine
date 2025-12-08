@@ -1154,7 +1154,7 @@ int32_t walLoadMeta(SWal* pWal) {
   int       n = 0;
   int32_t   lino = 0;
   char*     buf = NULL;
-  TdFilePtr pFile = NULL;
+  int32_t   bufLen = 0;
   int64_t   metaVer = -1;
 
   // find existing meta file
@@ -1179,17 +1179,11 @@ int32_t walLoadMeta(SWal* pWal) {
 
     TAOS_RETURN(TSDB_CODE_FAILED);
   }
-  int size = (int)fileSize;
-  buf = taosMemoryMalloc(size + 5);
-  TSDB_CHECK_NULL(buf, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
 
-  (void)memset(buf, 0, size + 5);
-  pFile = taosOpenFile(fnameStr, TD_FILE_READ);
-  TSDB_CHECK_NULL(pFile, code, lino, _exit, terrno);
-
-  if (taosReadFile(pFile, buf, size) != size) {
-    code = terrno;
-    goto _exit;
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(fnameStr, &buf, &bufLen);
+  if (code != 0) {
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // load into fileInfoSet
@@ -1210,7 +1204,6 @@ _exit:
   }
 
   taosMemoryFree(buf);
-  (void)taosCloseFile(&pFile);
   TAOS_RETURN(code);
 }
 

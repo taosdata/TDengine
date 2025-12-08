@@ -116,7 +116,6 @@ void dmSplitStr(char **arr, char *str, const char *del) {
 
 int32_t dmReadEps(SDnodeData *pData) {
   int32_t   code = -1;
-  TdFilePtr pFile = NULL;
   char     *content = NULL;
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
@@ -206,33 +205,13 @@ int32_t dmReadEps(SDnodeData *pData) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open dnode file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  int32_t contentLen = 0;
+  code = taosReadCfgFile(file, &content, &contentLen);
   if (code != 0) {
-    dError("failed to fstat dnode file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  content = taosMemoryMalloc(size + 1);
-  if (content == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, content, size) != size) {
-    code = terrno;
     dError("failed to read dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
-
-  content[size] = '\0';
 
   pJson = tjsonParse(content);
   if (pJson == NULL) {
@@ -250,7 +229,6 @@ int32_t dmReadEps(SDnodeData *pData) {
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, terrstr());
@@ -603,8 +581,8 @@ void dmRemoveDnodePairs(SDnodeData *pData) {
 
 static int32_t dmReadDnodePairs(SDnodeData *pData) {
   int32_t   code = -1;
-  TdFilePtr pFile = NULL;
   char     *content = NULL;
+  int32_t   contentLen = 0;
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
@@ -616,33 +594,12 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open dnode file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &content, &contentLen);
   if (code != 0) {
-    dError("failed to fstat dnode file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  content = taosMemoryMalloc(size + 1);
-  if (content == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, content, size) != size) {
-    terrno = terrno;
     dError("failed to read dnode file:%s since %s", file, terrstr());
     goto _OVER;
   }
-
-  content[size] = '\0';
 
   pJson = tjsonParse(content);
   if (pJson == NULL) {
@@ -671,7 +628,6 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, tstrerror(code));

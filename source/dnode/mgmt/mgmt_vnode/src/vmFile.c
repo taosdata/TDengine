@@ -192,8 +192,8 @@ _OVER:
 
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
   int32_t      code = -1;
-  TdFilePtr    pFile = NULL;
   char        *pData = NULL;
+  int32_t      dataLen = 0;
   SJson       *pJson = NULL;
   char         file[PATH_MAX] = {0};
   SWrapperCfg *pCfgs = NULL;
@@ -206,33 +206,12 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
     return code;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open vnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    dError("failed to fstat vnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    code = terrno;
     dError("failed to read vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -251,7 +230,6 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to read vnode file:%s since %s", file, tstrerror(code));

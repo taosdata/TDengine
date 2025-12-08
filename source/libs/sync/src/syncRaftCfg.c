@@ -239,39 +239,18 @@ static int32_t syncDecodeRaftCfg(const SJson *pJson, void *pObj) {
 
 int32_t syncReadCfgFile(SSyncNode *pNode) {
   int32_t     code = 0;
-  TdFilePtr   pFile = NULL;
   char       *pData = NULL;
+  int32_t     dataLen = 0;
   SJson      *pJson = NULL;
   const char *file = pNode->configPath;
   SRaftCfg   *pCfg = &pNode->raftCfg;
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    sError("vgId:%d, failed to fstat sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
-    goto _OVER;
-  }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    code = terrno;
     sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -289,7 +268,6 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));

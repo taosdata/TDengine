@@ -108,6 +108,23 @@ bool taosIsEncryptedFile(const char *filepath, int32_t *algorithm);
  */
 int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen);
 
+/**
+ * @brief Read configuration file with automatic decryption support.
+ *
+ * This function reads a configuration file and automatically handles decryption if needed.
+ * It checks if the file has an encryption header:
+ * - If encrypted: reads header, reads encrypted data, decrypts using tsCfgKey
+ * - If not encrypted: reads file content directly
+ *
+ * The caller is responsible for freeing the returned buffer.
+ *
+ * @param filepath File path to read
+ * @param data Output parameter for data buffer (caller must free)
+ * @param dataLen Output parameter for data length
+ * @return 0 on success, error code on failure
+ */
+int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen);
+
 #ifdef __cplusplus
 }
 #endif

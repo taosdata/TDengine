@@ -64,7 +64,6 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
   }
 
   int32_t code = 0;
-  int64_t now = taosGetTimestampMs();
 
   // Prepare encryption header (plaintext)
   STdEncryptFileHeader header;
@@ -76,7 +75,7 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
 
   // Create temporary file for atomic write
   char tempFile[PATH_MAX];
-  snprintf(tempFile, sizeof(tempFile), "%s.tmp.%ld", filepath, now);
+  snprintf(tempFile, sizeof(tempFile), "%s.tmp", filepath);
 
   // Open temp file
   TdFilePtr pFile = taosOpenFile(tempFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
@@ -330,3 +329,180 @@ _cleanup:
   return code;
 }
 
+/**
+ * Read configuration file with automatic decryption support.
+ *
+ * This function reads a configuration file and automatically handles decryption if needed.
+ * It checks if the file has an encryption header:
+ * - If encrypted: reads header, reads encrypted data, decrypts using tsCfgKey
+ * - If not encrypted: reads file content directly
+ *
+ * The caller is responsible for freeing the returned buffer.
+ *
+ * @param filepath File path to read
+ * @param data Output parameter for data buffer (caller must free)
+ * @param dataLen Output parameter for data length (actual plaintext length)
+ * @return 0 on success, error code on failure
+ */
+int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
+  if (filepath == NULL || data == NULL || dataLen == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  *data = NULL;
+  *dataLen = 0;
+
+  int32_t              code = 0;
+  TdFilePtr            pFile = NULL;
+  char                *fileContent = NULL;
+  char                *decryptedBuf = NULL;
+  STdEncryptFileHeader header;
+
+  // Check if file exists
+  if (!taosCheckExistFile(filepath)) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return terrno;
+  }
+
+  // Check if file is encrypted
+  bool isEncrypted = taosIsEncryptedFile(filepath, NULL);
+
+  // Open file for reading
+  pFile = taosOpenFile(filepath, TD_FILE_READ);
+  if (pFile == NULL) {
+    code = terrno;
+    return code;
+  }
+
+  // Get file size
+  int64_t fileSize = 0;
+  code = taosFStatFile(pFile, &fileSize, NULL);
+  if (code != 0) {
+    taosCloseFile(&pFile);
+    return code;
+  }
+
+  if (fileSize <= 0) {
+    taosCloseFile(&pFile);
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return terrno;
+  }
+
+  if (isEncrypted) {
+    // File is encrypted - read header first
+    int64_t nread = taosReadFile(pFile, &header, sizeof(STdEncryptFileHeader));
+    if (nread != sizeof(STdEncryptFileHeader)) {
+      code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
+      taosCloseFile(&pFile);
+      terrno = code;
+      return code;
+    }
+
+    // Verify magic number
+    if (strncmp(header.magic, TD_ENCRYPT_FILE_MAGIC, strlen(TD_ENCRYPT_FILE_MAGIC)) != 0) {
+      taosCloseFile(&pFile);
+      terrno = TSDB_CODE_FILE_CORRUPTED;
+      return terrno;
+    }
+
+    // Read encrypted data
+    int32_t encryptedDataLen = header.dataLen;
+    if (encryptedDataLen <= 0 || encryptedDataLen > fileSize) {
+      taosCloseFile(&pFile);
+      terrno = TSDB_CODE_FILE_CORRUPTED;
+      return terrno;
+    }
+
+    fileContent = taosMemoryMalloc(encryptedDataLen);
+    if (fileContent == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      taosCloseFile(&pFile);
+      terrno = code;
+      return code;
+    }
+
+    nread = taosReadFile(pFile, fileContent, encryptedDataLen);
+    if (nread != encryptedDataLen) {
+      code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
+      taosMemoryFree(fileContent);
+      taosCloseFile(&pFile);
+      terrno = code;
+      return code;
+    }
+
+    taosCloseFile(&pFile);
+
+    // Check if CFG_KEY encryption is enabled
+    if (!tsCfgKeyEnabled || tsCfgKey[0] == '\0') {
+      // File is encrypted but no key available
+      taosMemoryFree(fileContent);
+      terrno = TSDB_CODE_FAILED;
+      return terrno;
+    }
+
+    // Decrypt data (reference: sdbFile.c decrypt implementation)
+    // Allocate buffer for plaintext (same size as encrypted data for CBC padding)
+    char *plainContent = taosMemoryMalloc(encryptedDataLen);
+    if (plainContent == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(fileContent);
+      terrno = code;
+      return code;
+    }
+
+    // Setup decryption options
+    SCryptOpts opts = {0};
+    opts.len = encryptedDataLen;
+    opts.source = fileContent;
+    opts.result = plainContent;
+    opts.unitLen = 16;
+    tstrncpy(opts.key, tsCfgKey, ENCRYPT_KEY_LEN + 1);
+
+    // Decrypt the data
+    int32_t count = Builtin_CBC_Decrypt(&opts);
+    if (count != encryptedDataLen) {
+      code = TSDB_CODE_FAILED;
+      taosMemoryFree(fileContent);
+      taosMemoryFree(plainContent);
+      terrno = code;
+      return code;
+    }
+
+    taosMemoryFree(fileContent);
+
+    // Return decrypted data (JSON parser will handle the content)
+    // Note: plainContent already has padding zeros from decryption, which is fine for JSON
+    *data = plainContent;
+    *dataLen = encryptedDataLen;
+
+  } else {
+    // File is not encrypted - read directly
+    fileContent = taosMemoryMalloc(fileSize + 1);
+    if (fileContent == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      taosCloseFile(&pFile);
+      terrno = code;
+      return code;
+    }
+
+    int64_t nread = taosReadFile(pFile, fileContent, fileSize);
+    if (nread != fileSize) {
+      code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
+      taosMemoryFree(fileContent);
+      taosCloseFile(&pFile);
+      terrno = code;
+      return code;
+    }
+
+    taosCloseFile(&pFile);
+
+    fileContent[fileSize] = '\0';
+
+    // Return file content
+    *data = fileContent;
+    *dataLen = fileSize;
+  }
+
+  return 0;
+}

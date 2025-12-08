@@ -37,7 +37,6 @@ static int32_t raftStoreDecode(const SJson *pJson, SRaftStore *pStore) {
 
 int32_t raftStoreReadFile(SSyncNode *pNode) {
   int32_t     code = -1, lino = 0;
-  TdFilePtr   pFile = NULL;
   char       *pData = NULL;
   SJson      *pJson = NULL;
   const char *file = pNode->raftStorePath;
@@ -51,32 +50,13 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
     return raftStoreWriteFile(pNode);
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    sError("vgId:%d, failed to open raft store file:%s since %s", pNode->vgId, file, terrstr());
-
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  int32_t dataLen = 0;
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    sError("vgId:%d, failed to fstat raft store file:%s since %s", pNode->vgId, file, terrstr());
+    sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
-
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -93,7 +73,6 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
