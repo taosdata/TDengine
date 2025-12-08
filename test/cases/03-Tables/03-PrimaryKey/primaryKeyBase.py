@@ -408,7 +408,7 @@ class PrimaryKeyBase:
         tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         i = random.randint(0,5)
         cachesize = random.randint(1,100)
-        if i ==0:ƒ
+        if i ==0:
             tdLog.info("======this case test cachemodel none =========") 
         elif i ==1:
             tdLog.info("======this case test cachemodel last_row =========")
