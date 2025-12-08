@@ -327,14 +327,14 @@ select extract_avg(valStr) from scores;
 Generate `.so` file
 
 ```bash
-gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
+gcc -g -O0 -fPIC -shared extract_avg.c -o libextract_avg.so
 ```
 
 <details>
-<summary>max_vol.c</summary>
+<summary>extract_avg.c</summary>
 
 ```c
-{{#include docs/examples/udf/max_vol.c}}
+{{#include docs/examples/udf/extract_avg.c}}
 ```
 
 </details>
@@ -886,7 +886,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <details>
 <summary>pyl2norm.py</summary>
 
-```c
+```python
 {{#include docs/examples/udf/pyl2norm.py}}
 ```
 
@@ -898,7 +898,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <details>
 <summary>pycumsum.py</summary>
 
-```c
+```python
 {{#include docs/examples/udf/pycumsum.py}}
 ```
 
