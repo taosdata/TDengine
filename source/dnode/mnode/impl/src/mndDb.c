@@ -2073,7 +2073,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       if (terrno != 0) code = terrno;
       goto _OVER;
     } else {
-      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb), NULL, _OVER);
+      // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb), NULL, _OVER);
 
       TAOS_CHECK_GOTO(mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq), NULL, _OVER);
 

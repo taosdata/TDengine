@@ -568,13 +568,20 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_ALTER);
     case QUERY_NODE_DROP_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_DROP);
-    case QUERY_NODE_USE_DATABASE_STMT: {
-      code = authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
-      if (code != TSDB_CODE_SUCCESS) {
-        code = TSDB_CODE_SUCCESS;  // check DB owner in mnode
-      }
-      break;
-    }
+    case QUERY_NODE_USE_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+    case QUERY_NODE_FLUSH_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SFlushDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_FLUSH);
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SCompactDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_COMPACT);
+    case QUERY_NODE_TRIM_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((STrimDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_TRIM);
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SRollupDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_ROLLUP);
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SScanDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_SCAN);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      return authObjPrivileges(pCxt, ((SSsMigrateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_SSMIGRATE);
     default:
       break;
   }
