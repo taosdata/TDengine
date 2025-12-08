@@ -32,7 +32,7 @@ class TestTimestamp(TDCase):
         elif precision == 'ns':
             ns_timestamp = str(timestamp)[-6:]
             ts_utc = datetime.datetime.utcfromtimestamp(int(timestamp/1000000)/1000).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + ns_timestamp
-        return self.tdCom.delete_end_zero(ts_utc).replace(' ','T')+ "Z"
+        return self.tdCom.delete_end_zero(ts_utc, precision).replace(' ','T')+ "Z"
     def ms_us_ns_db_check(self):
         """
         precision = ["ms", "us", "ns"]
