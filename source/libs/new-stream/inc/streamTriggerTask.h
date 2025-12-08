@@ -405,6 +405,9 @@ typedef struct SStreamTriggerTask {
   SList     *pRecalcRequests;    // SList<SSTriggerRecalcRequest>
   SSHashObj *pRecalcRequestMap;  // SSHashObj<gid, TriggerRecalcRequestList>
 
+  SRWLatch userRecalcRequestLock;
+  SArray  *pUserRecalcRequests;  // SArray<SStreamRecalcReq>
+
   // runtime status
   volatile int8_t           isCheckpointReady;
   volatile int8_t           historyFinished;

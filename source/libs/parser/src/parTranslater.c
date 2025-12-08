@@ -4916,9 +4916,20 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
   vgroupList = taosArrayInit(1, sizeof(SVgroupInfo));
   QUERY_CHECK_NULL(vgroupList, code, lino, _return, terrno);
 
-
   SArray* pVStbRefs = NULL;
-  PAR_ERR_JRET(getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs));
+  code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+
+  // Handle the case where VStbRefDbs data is not available (e.g., stmt scenario)
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
+    // VStbRefDbs not available in cache (stmt scenario without async metadata fetch)
+    // Use empty vgroup list - the executor will resolve vgroups at runtime
+    taosMemoryFreeClear(pRefScanTable->pVgroupList);
+    PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
+  }
+  PAR_ERR_JRET(code);
+
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(dbNameHash, code, lino, _return, terrno);
 
@@ -5748,9 +5759,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
     // virtual table only support select operation
     PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
   }
-  if (pCxt->pParseCxt->stmtBindVersion > 0) {
-    PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT);
-  }
+
   if (pCxt->pParseCxt->topicQuery) {
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC);
   }
@@ -14092,9 +14101,11 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag count mismatch");
     }
     // tags not support decimal, so scale and precision are always 0
-    if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
-        strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+    if (pTagDef->dataType.type != pMeta->schema[tagIndex].type) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag type mismatch");
+    }
+    if (strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
     }
     tagIndex++;
   }
