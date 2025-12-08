@@ -515,7 +515,7 @@ Below are a few examples of configuration files:
 <summary>insert.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/insert.json}}
+{{#include tools/taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -526,7 +526,7 @@ Below are a few examples of configuration files:
 <summary>query.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/query.json}}
+{{#include tools/taos-tools/example/query.json}}
 ```
 
 </details>
@@ -535,7 +535,7 @@ Below are a few examples of configuration files:
 <summary>queryStb.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+{{#include tools/taos-tools/example/queryStb.json}}
 ```
 
 </details>
@@ -546,7 +546,7 @@ Below are a few examples of configuration files:
 <summary>tmq.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/tmq.json}}
+{{#include tools/taos-tools/example/tmq.json}}
 ```
 
 </details>
@@ -557,7 +557,7 @@ Below are a few examples of configuration files:
 <summary>csv-export.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
+{{#include tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

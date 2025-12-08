@@ -1194,7 +1194,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     bool isReady = false;
     bool isLeaderRestored = false;
     bool hasFollowerRestored = false;
-
+    ESyncState leaderState = TAOS_SYNC_STATE_OFFLINE;
     // default 3 replica, add 1 replica if move vnode
     for (int32_t i = 0; i < 4; ++i) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1226,6 +1226,9 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
               hasFollowerRestored = true;
             }
           }
+          if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER ||
+              pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER)
+            leaderState = pVgroup->vnodeGid[i].syncState;
           snprintf(role, sizeof(role), "%s", syncStr(pVgroup->vnodeGid[i].syncState));
           /*
           mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
@@ -1273,7 +1276,17 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       }
     }
 
-    if (isLeaderRestored && hasFollowerRestored) isReady = true;
+    if (pVgroup->replica >= 3) {
+      if (isLeaderRestored && hasFollowerRestored) isReady = true;
+    } else if (pVgroup->replica == 2) {
+      if (leaderState == TAOS_SYNC_STATE_LEADER) {
+        if (isLeaderRestored && hasFollowerRestored) isReady = true;
+      } else if (leaderState == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+        if (isLeaderRestored) isReady = true;
+      }
+    } else {
+      if (isLeaderRestored) isReady = true;
+    }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&isReady, false);
     if (code != 0) {
