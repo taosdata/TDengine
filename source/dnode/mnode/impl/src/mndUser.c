@@ -3507,24 +3507,32 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
     TAOS_CHECK_EXIT(mndAlterUserInfo(pUser, &newUser, pAlterReq));
-#endif
   } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
-    TAOS_CHECK_EXIT(mndAcquireRole(pMnode, pAlterReq->roleName, &pRole));
+    if (pAlterReq->add) {
+      TAOS_CHECK_EXIT(mndAcquireRole(pMnode, pAlterReq->roleName, &pRole));
 
-    if (taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
-      mInfo("user:%s already has role:%s", pUser->user, pAlterReq->roleName);
-      TAOS_CHECK_EXIT(0);
-    }
-    int32_t nSubRoles = taosHashGetSize(pUser->roles);
-    if (nSubRoles >= TSDB_MAX_SUBROLE) {
-      mError("user:%s has reached max subrole number:%d", pUser->user, TSDB_MAX_SUBROLE);
-      TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED);
-    }
+      if (taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
+        mInfo("user:%s already has role:%s", pUser->user, pAlterReq->roleName);
+        TAOS_CHECK_EXIT(0);
+      }
+      int32_t nSubRoles = taosHashGetSize(pUser->roles);
+      if (nSubRoles >= TSDB_MAX_SUBROLE) {
+        mError("user:%s has reached max subrole number:%d", pUser->user, TSDB_MAX_SUBROLE);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED);
+      }
 
-    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-    uint8_t flag = 1;  // add role with flag 1, which means the role is set(enabled) for the user.
-    TAOS_CHECK_EXIT(
-        taosHashPut(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1, &flag, sizeof(flag)));
+      TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
+      uint8_t flag = 1;  // add role with flag 1, which means the role is set(enabled) for the user.
+      TAOS_CHECK_EXIT(
+          taosHashPut(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1, &flag, sizeof(flag)));
+    } else {
+      if (!taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
+        TAOS_CHECK_EXIT(0);
+      }
+      TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
+      TAOS_CHECK_EXIT(taosHashRemove(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1));
+    }
+#endif
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
