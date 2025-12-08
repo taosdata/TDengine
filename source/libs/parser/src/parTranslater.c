@@ -14101,9 +14101,11 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag count mismatch");
     }
     // tags not support decimal, so scale and precision are always 0
-    if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
-        strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+    if (pTagDef->dataType.type != pMeta->schema[tagIndex].type) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag type mismatch");
+    }
+    if (strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
     }
     tagIndex++;
   }
