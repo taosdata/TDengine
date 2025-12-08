@@ -26,20 +26,20 @@ description: "TDengine TSDB 3.0 版本的语法变更说明"
 
 | # | **语句**  | **<div style={{width: 60}}>差异性</div>** | **说明** |
 | - | :------- | :-------- | :------- |
-| 1 | ALTER ACCOUNT | 废除 | 2.x 中为企业版功能，3.0 不再支持。语法暂时保留，执行报“This statement is no longer supported”错误。 |
+| 1 | ALTER ACCOUNT | 废除 | 2.x 中为企业版功能，3.0 不再支持。语法暂时保留，执行报"This statement is no longer supported"错误。 |
 | 2 | ALTER ALL DNODES | 新增 | 修改所有 DNODE 的参数。 |
 | 3 | ALTER DATABASE | 调整 | <p>废除</p><ul><li>QUORUM：写入需要的副本确认数。3.0 版本默认行为是强一致性，且不支持修改为弱一致性。</li><li>BLOCKS：VNODE 使用的内存块数。3.0 版本使用 BUFFER 来表示 VNODE 写入内存池的大小。</li><li>UPDATE：更新操作的支持模式。3.0 版本所有数据库都支持部分列更新。</li><li>CACHELAST：缓存最新一行数据的模式。3.0 版本用 CACHEMODEL 代替。</li><li>COMP：3.0 版本暂不支持修改。</li></ul><p>新增</p><ul><li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。</li><li>CACHESIZE：表示缓存子表最近数据的内存大小。</li><li>WAL_FSYNC_PERIOD：代替原 FSYNC 参数。</li><li>WAL_LEVEL：代替原 WAL 参数。</li><li>WAL_RETENTION_PERIOD：v3.0.4.0 新增，WAL 文件的额外保留策略，用于数据订阅。</li><li>WAL_RETENTION_SIZE：v3.0.4.0 新增，WAL 文件的额外保留策略，用于数据订阅。</li></ul><p>调整</p><ul><li>KEEP：3.0 版本新增支持带单位的设置方式。</li></ul> |
-| 4 | ALTER STABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0 版本使用 RENAME TAG 代替。<br/>新增</li><li>RENAME TAG：代替原 CHANGE TAG 子句。</li><li>COMMENT：修改超级表的注释。</li></ul> |
-| 5 | ALTER TABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0 版本使用 RENAME TAG 代替。<br/>新增</li><li>RENAME TAG：代替原 CHANGE TAG 子句。</li><li>COMMENT：修改表的注释。</li><li>TTL：修改表的生命周期。</li></ul> |
-| 6 | ALTER USER | 调整 | 废除<ul><li>PRIVILEGE：修改用户权限。3.0 版本使用 GRANT 和 REVOKE 来授予和回收权限。<br/>新增</li><li>ENABLE：启用或停用此用户。</li><li>SYSINFO：修改用户是否可查看系统信息。</li></ul> |
+| 4 | ALTER STABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0 版本使用 RENAME TAG 代替。</li></ul>新增<ul><li>RENAME TAG：代替原 CHANGE TAG 子句。</li><li>COMMENT：修改超级表的注释。</li></ul> |
+| 5 | ALTER TABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0 版本使用 RENAME TAG 代替。</li></ul>新增<ul><li>RENAME TAG：代替原 CHANGE TAG 子句。</li><li>COMMENT：修改表的注释。</li><li>TTL：修改表的生命周期。</li></ul> |
+| 6 | ALTER USER | 调整 | 废除<ul><li>PRIVILEGE：修改用户权限。3.0 版本使用 GRANT 和 REVOKE 来授予和回收权限。</li></ul>新增<ul><li>ENABLE：启用或停用此用户。</li><li>SYSINFO：修改用户是否可查看系统信息。</li></ul> |
 | 7 | COMPACT VNODES | 暂不支持 | 整理指定 VNODE 的数据。 |
-| 8 | CREATE ACCOUNT | 废除 | 2.x 中为企业版功能，3.0 不再支持。语法暂时保留，执行报“This statement is no longer supported”错误。 |
+| 8 | CREATE ACCOUNT | 废除 | 2.x 中为企业版功能，3.0 不再支持。语法暂时保留，执行报"This statement is no longer supported"错误。 |
 | 9 | CREATE DATABASE | 调整 | <p>废除</p><ul><li>BLOCKS：VNODE 使用的内存块数。3.0 版本使用 BUFFER 来表示 VNODE 写入内存池的大小。</li><li>CACHE：VNODE 使用的内存块的大小。3.0 版本使用 BUFFER 来表示 VNODE 写入内存池的大小。</li><li>CACHELAST：缓存最新一行数据的模式。3.0 版本用 CACHEMODEL 代替。</li><li>DAYS：数据文件存储数据的时间跨度。3.0 版本使用 DURATION 代替。</li><li>FSYNC：当 WAL 设置为 2 时，执行 fsync 的周期。3.0 版本使用 WAL_FSYNC_PERIOD 代替。</li><li>QUORUM：写入需要的副本确认数。3.0 版本使用 STRICT 来指定强一致还是弱一致。</li><li>UPDATE：更新操作的支持模式。3.0 版本所有数据库都支持部分列更新。</li><li>WAL：WAL 级别。3.0 版本使用 WAL_LEVEL 代替。</li></ul><p>新增</p><ul><li>BUFFER：一个 VNODE 写入内存池大小。</li><li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。</li><li>CACHESIZE：表示缓存子表最近数据的内存大小。</li><li>DURATION：代替原 DAYS 参数。新增支持带单位的设置方式。</li><li>PAGES：一个 VNODE 中元数据存储引擎的缓存页个数。</li><li>PAGESIZE：一个 VNODE 中元数据存储引擎的页大小。</li><li>RETENTIONS：表示数据的聚合周期和保存时长。</li><li>STRICT：表示数据同步的一致性要求。</li><li>SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表。</li><li>VGROUPS：数据库中初始 VGROUP 的数目。</li><li>WAL_FSYNC_PERIOD：代替原 FSYNC 参数。</li><li>WAL_LEVEL：代替原 WAL 参数。</li><li>WAL_RETENTION_PERIOD：WAL 文件的额外保留策略，用于数据订阅。</li><li>WAL_RETENTION_SIZE：WAL 文件的额外保留策略，用于数据订阅。</li></ul><p>调整</p><ul><li>KEEP：3.0 版本新增支持带单位的设置方式。</li></ul> |
 | 10 | CREATE DNODE | 调整 | 新增主机名和端口号分开指定语法<ul><li>CREATE DNODE dnode_host_name PORT port_val</li></ul> |
 | 11 | CREATE INDEX | 新增 | 创建 SMA 索引。 |
 | 12 | CREATE MNODE | 新增 | 创建管理节点。 |
 | 13 | CREATE QNODE | 新增 | 创建查询节点。 |
-| 14 | CREATE STABLE | 调整 | 新增表参数语法<li>COMMENT：表注释。</li> |
+| 14 | CREATE STABLE | 调整 | 新增表参数语法<ul><li>COMMENT：表注释。</li></ul> |
 | 15 | CREATE STREAM | 新增 | 创建流。 |
 | 16 | CREATE TABLE | 调整 | 新增表参数语法<ul><li>COMMENT：表注释。</li><li>WATERMARK：指定窗口的关闭时间。</li><li>MAX_DELAY：用于控制推送计算结果的最大延迟。</li><li>ROLLUP：指定的聚合函数，提供基于多层级的降采样聚合结果。</li><li>SMA：提供基于数据块的自定义预计算功能。</li><li>TTL：用来指定表的生命周期的参数。</li></ul> |
 | 17 | CREATE TOPIC | 新增 | 创建订阅主题。 |

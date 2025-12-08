@@ -26,7 +26,7 @@ TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思�
 
 本章将以支持 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
 
-介绍如何本地部署 [Time-MoE](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
+下面介绍如何本地部署 [Time-MoE](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
 
 ## 准备环境
 

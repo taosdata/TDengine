@@ -87,7 +87,7 @@ show dnodes;
 
 **Tips** ：
 
-- 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine CLI 设置参数，则默认连接由 firstEp 指定的节点。
+- 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine TSDB CLI 设置参数，则默认连接由 firstEp 指定的节点。
 - 两个没有配置 firstEp 参数的 dnode 在启动后会独立运行。这时无法将其中一个 dnode 加入另外一个 dnode，形成集群。
 - TDengine TSDB 不允许将两个独立的集群合并成新的集群。
 
@@ -103,7 +103,7 @@ create mnode on dnode <dnodeId>
 
 **Tips** ：
 
-在搭建 TDengine 集群的过程中，如果在执行 create dnode 命令以添加新节点后，新节点始终显示为离线状态，请按照以下步骤进行排查。
+在搭建 TDengine TSDB 集群的过程中，如果在执行 create dnode 命令以添加新节点后，新节点始终显示为离线状态，请按照以下步骤进行排查。
 
 - 第 1 步，检查新节点上的 taosd 服务是否已经正常启动。你可以通过查看日志文件或使用 ps 命令来确认。
 - 第 2 步，如果 taosd 服务已启动，接下来请检查新节点的网络连接是否畅通，并确认防火墙是否已关闭。网络不通或防火墙设置可能会阻止节点与集群的其他节点通信。
