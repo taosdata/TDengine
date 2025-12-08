@@ -434,13 +434,12 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
 }
 
 static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, const char *function, int64_t offset) {
-  int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
-  char   *encryptKey = pPager->pEnv->encryptKey;
+  SEncryptData *pEncryptData = pPager->pEnv->encryptData;
 
   char *buf = pPageData;
 
-  if (encryptAlgorithm == DND_CA_SM4) {
-    // tdbInfo("CBC_Encrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
+  if (pEncryptData != NULL && pEncryptData->encryptAlgrName[0] != '\0') {
+    // tdbInfo("CBC Encrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
 
     // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Encrypt", offset, pPage->pData[0]);
 
@@ -459,9 +458,15 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
       opts.source = pPageData + count;
       opts.result = packetData;
       opts.unitLen = 128;
-      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
+      // opts.pOsslAlgrName, pEncryptData->encryptAlgrName;
+      opts.pOsslAlgrName = pEncryptData->encryptAlgrName;
+      tstrncpy(opts.key, pEncryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
       int32_t newLen = CBC_Encrypt(&opts);
+      if (newLen != opts.len) {
+        terrno = newLen;
+        return NULL;
+      }
 
       memcpy(buf + count, packetData, newLen);
       count += newLen;
@@ -475,8 +480,8 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
 }
 
 void tdbFreeEncryptBuf(SPager *pPager, char *buf) {
-  int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
-  if (encryptAlgorithm == DND_CA_SM4) taosMemoryFreeClear(buf);
+  SEncryptData *pEncryptData = pPager->pEnv->encryptData;
+  if (pEncryptData != NULL && pEncryptData->encryptAlgrName[0] != '\0') taosMemoryFreeClear(buf);
 }
 // recovery dirty pages
 int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
@@ -895,11 +900,10 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
         return TAOS_SYSTEM_ERROR(ERRNO);
       }
 
-      int32_t encryptAlgorithm = pPager->pEnv->encryptAlgorithm;
-      char   *encryptKey = pPager->pEnv->encryptKey;
+      SEncryptData *pEncryptData = pPager->pEnv->encryptData;
 
-      if (encryptAlgorithm == DND_CA_SM4) {
-        // tdbInfo("CBC_Decrypt key:%d %s %s", encryptAlgorithm, encryptKey, __FUNCTION__);
+      if (pEncryptData != NULL && pEncryptData->encryptAlgrName[0] != '\0') {
+        // tdbInfo("CBC Decrypt key:%d %s %s", pEncryptData->encryptAlgorithm, pEncryptData->encryptKey, __FUNCTION__);
 
         // uint8_t flags = pPage->pData[0];
         // tdbInfo("CBC tdb offset:%" PRId64 ", flag:%d before Decrypt", ((i64)pPage->pageSize) * (pgno - 1), flags);
@@ -913,9 +917,11 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
           opts.source = pPage->pData + count;
           opts.result = packetData;
           opts.unitLen = 128;
-          tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
+          opts.pOsslAlgrName = pEncryptData->encryptAlgrName;
+          tstrncpy(opts.key, pEncryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
           int newLen = CBC_Decrypt(&opts);
+          if (newLen != opts.len) return newLen;
 
           memcpy(pPage->pData + count, packetData, newLen);
           count += newLen;
@@ -1027,6 +1033,9 @@ static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
 
   char *buf = tdbEncryptPage(pPager, pPage->pData, pPage->pageSize, __FUNCTION__, offset);
+  if (buf == NULL) {
+    return terrno;
+  }
 
   ret = tdbOsPWrite(pPager->fd, buf, pPage->pageSize, offset);
   if (ret < 0) {

@@ -19,7 +19,7 @@ class TestBasic:
         
         tdSql.execute("create encrypt_key '1234567890'")
         autoGen = AutoGen()
-        autoGen.create_db(self.db, 2, 1, "ENCRYPT_ALGORITHM 'sm4'")
+        autoGen.create_db(self.db, 2, 1, "ENCRYPT_ALGORITHM 'SM4-CBC'")
         tdSql.execute(f"use {self.db}")
         autoGen.create_stable(self.stb, 2, 3, 8, 8)
         autoGen.create_child(self.stb, "d", self.childtable_count)

@@ -23,6 +23,7 @@ int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...) = NULL;
 int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) = NULL;
 TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) = NULL;
 TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) = NULL;
+TAOS *(*fp_taos_connect_with_dsn)(const char *dsn) = NULL;
 void (*fp_taos_close)(TAOS *taos) = NULL;
 
 const char *(*fp_taos_data_type)(int type) = NULL;
@@ -124,6 +125,10 @@ int (*fp_taos_set_notify_cb)(TAOS *taos, __taos_notify_fn_t fp, void *param, int
 void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) = NULL;
 
 void (*fp_taos_fetch_whitelist_dual_stack_a)(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) = NULL;
+
+void (*fp_taos_fetch_ip_whitelist_a)(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) = NULL;
+
+void (*fp_taos_fetch_datetime_whitelist_a)(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) = NULL;
 
 int (*fp_taos_set_conn_mode)(TAOS *taos, int mode, int value) = NULL;
 

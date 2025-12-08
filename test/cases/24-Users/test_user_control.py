@@ -197,7 +197,7 @@ class TestUserControl:
         users  = self.__user_list
         passwds = self.__passwd_list
         for i in range(self.users_count):
-            tdSql.execute(f"create user {users[i]} pass '{passwds[i]}' ")
+            tdSql.execute(f"create user {users[i]} pass '{passwds[i]}' password_reuse_time 0 password_reuse_max 0")
 
         tdSql.query("show users")
         tdSql.checkRows(self.users_count + 1)
