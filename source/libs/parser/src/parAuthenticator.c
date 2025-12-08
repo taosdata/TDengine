@@ -476,6 +476,7 @@ static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char
 }
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
       return authSetOperator(pCxt, (SSetOperator*)pStmt);
@@ -567,11 +568,18 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_ALTER);
     case QUERY_NODE_DROP_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_DROP);
+    case QUERY_NODE_USE_DATABASE_STMT: {
+      code = authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = TSDB_CODE_SUCCESS;  // check DB owner in mnode
+      }
+      break;
+    }
     default:
       break;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
