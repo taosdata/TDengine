@@ -11,6 +11,7 @@
 #include "tjson.h"
 #include "ttime.h"
 #include "tcompare.h"
+#include "totp.h"
 
 typedef float (*_float_fn)(float);
 typedef float (*_float_fn_2)(float, float);
@@ -1722,6 +1723,166 @@ _return:
 
   return code;
 }
+
+
+
+static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
+    int buffer = 0, bits = 0;
+    int outLen = 0;
+    
+    // process all input bytes
+    for (int i = 0; i < inLen; i++) {
+        buffer = (buffer << 8) | in[i];
+        bits += 8;
+        
+        while (bits >= 5) {
+            int v = (buffer >> (bits - 5)) & 0x1F;
+            out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+            bits -= 5;
+        }
+    }
+    
+    // process remaining bits
+    if (bits > 0) {
+        int v = (buffer << (5 - bits)) & 0x1F;
+        out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+    }
+    
+    out[outLen] = '\0';
+    return outLen;
+}
+
+
+
+int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t          bufLen = 30 + VARSTR_HEADER_SIZE + 1;
+  char            *pOutputBuf = taosMemoryMalloc(bufLen);
+  if (!pOutputBuf) {
+    qError("generate_totp_secret function alloc memory failed");
+    return terrno;
+  }
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    char *input = colDataGetData(pInput[0].columnData, i);
+
+    char secret[16] = {0};
+    int len = taosGenerateTotpSecret(varDataVal(input), varDataLen(input), secret, sizeof(secret));
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
+    }
+
+    char *output = pOutputBuf;
+    len = base32Encode(secret, len, varDataVal(output));
+
+    varDataSetLen(output, len);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pOutputBuf);
+      SCL_ERR_RET(code);
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  taosMemoryFree(pOutputBuf);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t base32Decode(const char *in, int32_t inLen, uint8_t *out) {
+    int buffer = 0, bits = 0;
+    int32_t outLen = 0;
+
+    for (int32_t i = 0; i < inLen; i++) {
+      char c = in[i];
+
+      if (c >= 'a' && c <= 'z') {
+          c -= 'a';
+      } else if (c >= 'A' && c <= 'Z') {
+          c -= 'A';
+      } else if (c >= '2' && c <= '7') {
+          c = c - '2' + 26;
+      } else if (c == '=') {
+          break; // padding character
+      } else {
+          return -1; // invalid character
+      }
+      buffer = (buffer << 5) | c;
+      bits += 5;
+      if (bits >= 8) {
+          out[outLen++] = (buffer >> (bits - 8)) & 0xFF;
+          bits -= 8;
+      }
+    }
+
+    return outLen; // success
+}
+
+
+// this function generates TOTP code based on the TOTP secret,
+// it is not documented and only used for testing purpose to verify the correctness of
+// TOTP code generation.
+int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  char            *output = taosMemoryMalloc(VARSTR_HEADER_SIZE + 6 + 1);
+  if (!output) {
+    qError("generate_totp code function alloc memory failed");
+    return terrno;
+  }
+
+  uint8_t secret[64] = {0};
+  int32_t secretLen = 0;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char *in = colDataGetData(pInput[0].columnData, i);
+    if (varDataLen(in) > 100) {
+      colDataSetNULL(pOutputData, i);
+      qError("the %d secret is too long", i);
+      continue;
+    }
+
+    secretLen = base32Decode(varDataVal(in), varDataLen(in), secret);
+    if (secretLen <= 0) {
+      qError("failed to decode the %d base32 secret", i);
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    int64_t totp = taosGenerateTotpCode(secret, secretLen, 6);
+    if (totp < 0) {
+      qError("failed to generate the %d totp code", i);
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    taosFormatTotp(totp, 6, varDataVal(output), 7);
+    varDataSetLen(output, 6);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(output);
+      SCL_ERR_RET(code);
+    }
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  taosMemoryFree(output);
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;

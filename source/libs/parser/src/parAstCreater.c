@@ -121,31 +121,11 @@ static bool isValidSimplePassword(const char* password) {
 
 
 
-static bool isComplexString(const char* str) {
-  int hasUpper = 0, hasLower = 0, hasDigit = 0, hasSpecial = 0;
-
-  for (char c = *str; c != 0; c = *(++str)) {
-    if (taosIsBigChar(c)) {
-      hasUpper = 1;
-    } else if (taosIsSmallChar(c)) {
-      hasLower = 1;
-    } else if (taosIsNumberChar(c)) {
-      hasDigit = 1;
-    } else if (taosIsSpecialChar(c)) {
-      hasSpecial = 1;
-    }
-  }
-
-  return (hasUpper + hasLower + hasDigit + hasSpecial) >= 3;
-}
-
-
-
 static bool isValidStrongPassword(const char* password) {
   if (strcmp(password, "taosdata") == 0) {
     return true;
   }
-  return isComplexString(password);
+  return taosIsComplexString(password);
 }
 
 
@@ -4347,7 +4327,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasTotpseed && !isComplexString(opts->totpseed)) {
+  if (opts->hasTotpseed && !taosIsComplexString(opts->totpseed)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "TOTPSEED");
     return false;
   }

@@ -28,6 +28,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
+#include "totp.h"
 
 // clang-format on
 
@@ -2165,7 +2166,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   if (pCreate->totpseed[0] != 0) {
-    // TODO: generate totp seed
+    int len = taosGenerateTotpSecret(pCreate->totpseed, 0, userObj.totpsecret, sizeof(userObj.totpsecret));
+    if (len < 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_INVALID_OPTION_VALUE, &lino, _OVER);
+    }
   }
 
   userObj.createdTime = taosGetTimestampMs();
@@ -2333,7 +2337,6 @@ _OVER:
 }
 
 
-
 static int32_t mndCheckPasswordFmt(const char *pwd) {
   if (strcmp(pwd, "taosdata") == 0) {
     return 0;
@@ -2357,26 +2360,26 @@ static int32_t mndCheckPasswordFmt(const char *pwd) {
     return TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
   }
 
-  int32_t upper = 0, lower = 0, number = 0, special = 0;
-  for (int32_t i = 0; i < len; ++i) {
-    if (taosIsBigChar(pwd[i])) {
-      upper = 1;
-    } else if (taosIsSmallChar(pwd[i])) {
-      lower = 1;
-    } else if (taosIsNumberChar(pwd[i])) {
-      number = 1;
-    } else if (taosIsSpecialChar(pwd[i])) {
-      special = 1;
-    } else {
-      return TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    }
+  if (taosIsComplexString(pwd)) {
+    return 0;
   }
 
-  if (upper + lower + number + special < 3) {
-    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+}
+
+
+
+static int32_t mndCheckTotpSeedFmt(const char *seed) {
+  int32_t len = strlen(seed);
+  if (len < TSDB_USER_TOTPSEED_MIN_LEN) {
+    return TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT;
   }
 
-  return 0;
+  if (taosIsComplexString(seed)) {
+    return 0;
+  }
+
+  return TSDB_CODE_PAR_INVALID_OPTION_VALUE;
 }
 
 
@@ -2562,6 +2565,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.isImport != 1) {
     code = mndCheckPasswordFmt(createReq.pass);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+
+  if (createReq.totpseed[0] != 0) {
+    code = mndCheckTotpSeedFmt(createReq.totpseed);
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -3201,7 +3209,10 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.hasTotpseed) {
-    // TODO: totp seed to secret
+    int len = taosGenerateTotpSecret(alterReq.totpseed, 0, newUser.totpsecret, sizeof(newUser.totpsecret));
+    if (len < 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_INVALID_OPTION_VALUE, &lino, _OVER);
+    }
   }
 
   if (alterReq.hasEnable) {
