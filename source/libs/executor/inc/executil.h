@@ -33,7 +33,7 @@ typedef struct STaskSubJobCtx {
   void*       pTaskInfo;
   void*       rpcHandle;
   int64_t     transporterId;
-  bool    inFetch;
+  bool        hasSubJobs;
   int32_t code;
   tsem_t  ready;
   SArray* subEndPoints;  // SArray<SDownstreamSourceNode*>

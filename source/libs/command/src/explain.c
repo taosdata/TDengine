@@ -88,18 +88,8 @@ void qExplainFreeResNode(SExplainResNode *resNode) {
   taosMemoryFreeClear(resNode);
 }
 
-void qExplainFreeCtx(SExplainCtx *pCtx) {
-  if (NULL == pCtx) {
-    return;
-  }
-
-  int32_t rowSize = taosArrayGetSize(pCtx->rows);
-  for (int32_t i = 0; i < rowSize; ++i) {
-    SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    taosMemoryFreeClear(row->buf);
-  }
-
-  if (EXPLAIN_MODE_ANALYZE == pCtx->mode && pCtx->groupHash) {
+void qExplainFreePlanCtx(SExplainPlanCtx* pCtx, bool isAnalyze) {
+  if (isAnalyze && pCtx->groupHash) {
     void *pIter = taosHashIterate(pCtx->groupHash, NULL);
     while (pIter) {
       SExplainGroup *group = (SExplainGroup *)pIter;
@@ -117,12 +107,34 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
   }
 
   taosHashCleanup(pCtx->groupHash);
+}
+
+void qExplainFreeCtx(SExplainCtx *pCtx) {
+  if (NULL == pCtx) {
+    return;
+  }
+
+  int32_t rowSize = taosArrayGetSize(pCtx->rows);
+  for (int32_t i = 0; i < rowSize; ++i) {
+    SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
+    taosMemoryFreeClear(row->buf);
+  }
+
+  qExplainFreePlanCtx(&pCtx->planCtx, EXPLAIN_MODE_ANALYZE == pCtx->mode);
+  if (pCtx->subPlanCtxs) {
+    int32_t subNum = taosArrayGetSize(pCtx->subPlanCtxs);
+    for (int32_t i = 0; i < subNum; ++i) {
+      SExplainPlanCtx *pSub = taosArrayGet(pCtx->subPlanCtxs, i);
+      qExplainFreePlanCtx(pSub, EXPLAIN_MODE_ANALYZE == pCtx->mode);
+    }
+  }
+
   taosArrayDestroy(pCtx->rows);
   taosMemoryFreeClear(pCtx->tbuf);
   taosMemoryFree(pCtx);
 }
 
-static int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool verbose, double ratio, EExplainMode mode) {
+static int32_t qExplainInitCtx(SExplainCtx **pCtx, bool verbose, double ratio, EExplainMode mode) {
   int32_t      code = 0;
   SExplainCtx *ctx = taosMemoryCalloc(1, sizeof(SExplainCtx));
   if (NULL == ctx) {
@@ -147,7 +159,6 @@ static int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool ver
   ctx->ratio = ratio;
   ctx->tbuf = tbuf;
   ctx->rows = rows;
-  ctx->groupHash = groupHash;
 
   *pCtx = ctx;
 
@@ -156,7 +167,6 @@ static int32_t qExplainInitCtx(SExplainCtx **pCtx, SHashObj *groupHash, bool ver
 _return:
 
   taosArrayDestroy(rows);
-  taosHashCleanup(groupHash);
   taosMemoryFree(ctx);
 
   QRY_RET(code);
@@ -945,7 +955,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       SExchangePhysiNode *pExchNode = (SExchangePhysiNode *)pNode;
       int32_t nodeNum = 0;
       for (int32_t i = pExchNode->srcStartGroupId; i <= pExchNode->srcEndGroupId; ++i) {
-        SExplainGroup      *group = taosHashGet(ctx->groupHash, &pExchNode->srcStartGroupId, sizeof(pExchNode->srcStartGroupId));
+        SExplainGroup      *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &pExchNode->srcStartGroupId, sizeof(pExchNode->srcStartGroupId));
         if (NULL == group) {
           qError("exchange src group %d not in groupHash", pExchNode->srcStartGroupId);
           QRY_ERR_RET(TSDB_CODE_APP_ERROR);
@@ -2207,7 +2217,7 @@ static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t l
   int32_t          code = 0;
   SExplainCtx     *ctx = (SExplainCtx *)pCtx;
 
-  SExplainGroup *group = taosHashGet(ctx->groupHash, &groupId, sizeof(groupId));
+  SExplainGroup *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
   if (NULL == group) {
     qError("group %d not in groupHash", groupId);
     QRY_ERR_RET(TSDB_CODE_APP_ERROR);
@@ -2284,12 +2294,11 @@ _return:
   QRY_RET(code);
 }
 
-static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
+static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
   int32_t        code = 0;
   SNodeListNode *plans = NULL;
   int32_t        taskNum = 0;
   SExplainGroup *pGroup = NULL;
-  SExplainCtx   *ctx = NULL;
 
   if (pDag->numOfSubplans <= 0) {
     qError("invalid subplan num:%d", pDag->numOfSubplans);
@@ -2302,15 +2311,12 @@ static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
     QRY_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SHashObj *groupHash =
+  pCtx->groupHash =
       taosHashInit(EXPLAIN_MAX_GROUP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  if (NULL == groupHash) {
+  if (NULL == pCtx->groupHash) {
     qError("groupHash %d failed", EXPLAIN_MAX_GROUP_NUM);
     QRY_ERR_RET(terrno);
   }
-
-  QRY_ERR_JRET(
-      qExplainInitCtx(&ctx, groupHash, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode));
 
   for (int32_t i = 0; i < levelNum; ++i) {
     plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
@@ -2328,7 +2334,7 @@ static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
     SSubplan *plan = NULL;
     for (int32_t n = 0; n < taskNum; ++n) {
       plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
-      pGroup = taosHashGet(groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
+      pGroup = taosHashGet(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
         ++pGroup->nodeNum;
         continue;
@@ -2338,7 +2344,7 @@ static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
       group.nodeNum = 1;
       group.plan = plan;
 
-      if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
+      if (0 != taosHashPut(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
         QRY_ERR_JRET(terrno);
       }
@@ -2350,10 +2356,63 @@ static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
         QRY_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      ctx->rootGroupId = plan->id.groupId;
+      pCtx->rootGroupId = plan->id.groupId;
     }
 
     qDebug("level %d group handled, taskNum:%d", i, taskNum);
+  }
+
+  pCtx->groupNum = taosHashGetSize(pCtx->groupHash);
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  if (code) {
+    qError("QID:0x%" PRIx64 " %s failed since %s", pDag->queryId, __func__, tstrerror(code));
+  }
+  
+  QRY_RET(code);
+}
+
+static int32_t qExplainBuildCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
+  int32_t        code = 0;
+  SNodeListNode *plans = NULL;
+  int32_t        taskNum = 0;
+  SExplainGroup *pGroup = NULL;
+  SExplainCtx   *ctx = NULL;
+
+  if (pDag->numOfSubplans <= 0) {
+    qError("invalid subplan num:%d", pDag->numOfSubplans);
+    QRY_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  int32_t levelNum = (int32_t)LIST_LENGTH(pDag->pSubplans);
+  if (levelNum <= 0) {
+    qError("invalid level num:%d", levelNum);
+    QRY_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  QRY_ERR_JRET(qExplainInitCtx(&ctx, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode));
+
+  QRY_ERR_JRET(qExplainBuildPlanCtx(pDag, &ctx->planCtx));
+  ctx->groupNum = ctx->planCtx.groupNum;
+
+  if (pDag->pChildren && pDag->pChildren->length > 0) {
+    ctx->subPlanCtxs = taosArrayInit_s(sizeof(SExplainPlanCtx), pDag->pChildren->length);
+    if (NULL == ctx->subPlanCtxs) {
+      qError("taosArrayInit %d explainPlanCtx failed, error:%s", pDag->pChildren->length, tstrerror(terrno));
+      QRY_ERR_JRET(terrno);
+    }
+    
+    SNode* pNode = NULL;
+    int32_t i = 0;
+    FOREACH(pNode, pDag->pChildren) {
+      SExplainPlanCtx* pSub = taosArrayGet(ctx->subPlanCtxs, i);
+      QRY_ERR_JRET(qExplainBuildPlanCtx((SQueryPlan*)pNode, pSub));
+      ctx->groupNum += pSub->groupNum;
+      i++;
+    }
   }
 
   *pCtx = ctx;
@@ -2391,11 +2450,26 @@ static int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
 }
 
 static int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
-  QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->rootGroupId, 0, false));
+  pCtx->currPlanId = -1;
+  pCtx->pCurrPlanCtx = &pCtx->planCtx;
+  QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->pCurrPlanCtx->rootGroupId, 0, false));
+  
+  if (pCtx->subPlanCtxs) {
+    int32_t subNum = taosArrayGetSize(pCtx->subPlanCtxs);
+    for (pCtx->currPlanId = subNum - 1; pCtx->currPlanId >= 0; --pCtx->currPlanId) {
+      pCtx->pCurrPlanCtx = taosArrayGet(pCtx->subPlanCtxs, pCtx->currPlanId);
+      QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->pCurrPlanCtx->rootGroupId, 0, false));
+    }
+  }
   QRY_ERR_RET(qExplainAppendPlanRows(pCtx));
   QRY_ERR_RET(qExplainGetRspFromCtx(pCtx, pRsp));
 
   return TSDB_CODE_SUCCESS;
+}
+
+void qExplainSetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
+  pCtx->currPlanId = subJobId;
+  pCtx->pCurrPlanCtx = EXPLAIN_GET_CUR_PLAN_CTX(pCtx);
 }
 
 int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
@@ -2405,7 +2479,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   bool             groupDone = false;
   SExplainCtx     *ctx = (SExplainCtx *)pCtx;
 
-  SExplainGroup *group = taosHashGet(ctx->groupHash, &groupId, sizeof(groupId));
+  SExplainGroup *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
   if (NULL == group) {
     qError("group %d not in groupHash", groupId);
     tFreeSExplainRsp(pRspMsg);
@@ -2446,7 +2520,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
 
   taosWUnLockLatch(&group->lock);
 
-  if (groupDone && (taosHashGetSize(pCtx->groupHash) == atomic_add_fetch_32(&pCtx->groupDoneNum, 1))) {
+  if (groupDone && (pCtx->groupNum == atomic_add_fetch_32(&pCtx->groupDoneNum, 1))) {
     if (atomic_load_8((int8_t *)&pCtx->execDone)) {
       if (0 == taosWTryLockLatch(&pCtx->lock)) {
         QRY_ERR_RET(qExplainGenerateRsp(pCtx, pRsp));
@@ -2468,7 +2542,7 @@ int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp) {
   int32_t      code = 0;
   SExplainCtx *pCtx = NULL;
 
-  QRY_ERR_RET(qExplainPrepareCtx(pDag, &pCtx));
+  QRY_ERR_RET(qExplainBuildCtx(pDag, &pCtx));
   QRY_ERR_JRET(qExplainGenerateRsp(pCtx, pRsp));
 
 _return:
@@ -2478,7 +2552,7 @@ _return:
 
 int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs) {
   if(!pDag || !pCtx) return TSDB_CODE_INVALID_PARA;
-  QRY_ERR_RET(qExplainPrepareCtx(pDag, pCtx));
+  QRY_ERR_RET(qExplainBuildCtx(pDag, pCtx));
 
   (*pCtx)->reqStartTs = startTs;
   (*pCtx)->jobStartTs = taosGetTimestampUs();
@@ -2487,13 +2561,16 @@ int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs)
 }
 
 int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
-  if(!pCtx || !pRsp) return TSDB_CODE_INVALID_PARA;
+  if(!pCtx || !pRsp) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  
   int32_t code = 0;
   pCtx->jobDoneTs = taosGetTimestampUs();
 
   atomic_store_8((int8_t *)&pCtx->execDone, true);
 
-  if (taosHashGetSize(pCtx->groupHash) == atomic_load_32(&pCtx->groupDoneNum)) {
+  if (pCtx->groupNum == atomic_load_32(&pCtx->groupDoneNum)) {
     if (0 == taosWTryLockLatch(&pCtx->lock)) {
       QRY_ERR_RET(qExplainGenerateRsp(pCtx, pRsp));
       // LEAVE LOCK THERE

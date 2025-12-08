@@ -49,13 +49,25 @@ void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
 
 _return:
 
+  if (SCH_IS_SUBQ_JOB(pJob)) {
+    schUpdateJobErrCode((SSchJob*)pJob->parent, errCode);
+  }
+
   SCH_JOB_DLOG("job errCode updated to %s", tstrerror(errCode));
 }
 
 bool schJobDone(SSchJob *pJob) {
   int8_t status = SCH_GET_JOB_STATUS(pJob);
 
-  return (status == JOB_TASK_STATUS_FAIL || status == JOB_TASK_STATUS_DROP || status == JOB_TASK_STATUS_SUCC);
+  if (status == JOB_TASK_STATUS_FAIL || status == JOB_TASK_STATUS_DROP || status == JOB_TASK_STATUS_SUCC) {
+    return true;
+  }
+
+  if (SCH_IS_SUBQ_JOB(pJob)) {
+    return schJobDone((SSchJob*)pJob->parent);
+  }
+
+  return false;
 }
 
 FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
@@ -461,6 +473,22 @@ _return:
   SCH_RET(code);
 }
 
+void schDumpSubJobsExecRes(SSchJob *pParent, SExecResult *pRes) {
+  int32_t subNum = taosArrayGetSize(pParent->subJobs);
+  for (int32_t i = 0; i < subNum; ++i) {
+    SSchJob* pJob = taosArrayGetP(pParent->subJobs, i);
+    if (NULL == pJob) {
+      continue;
+    }
+    
+    SCH_LOCK(SCH_WRITE, &pJob->resLock);
+    if (pJob->execRes.res) {
+      void* p = taosArrayAddAll((SArray*)pRes->res, (SArray*)pJob->execRes.res);
+    }
+    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+  }
+}
+
 void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->numOfRows = pJob->resNumOfRows;
@@ -470,6 +498,9 @@ void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->msgType = pJob->execRes.msgType;
   pRes->numOfBytes = pJob->execRes.numOfBytes;
   pJob->execRes.res = NULL;
+  if (SCH_JOB_GOT_SUB_JOBS(pJob)) {
+    schDumpSubJobsExecRes(pJob, pRes);
+  }
   SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
   SCH_JOB_DLOG("exec result dumped, code:%s", tstrerror(pRes->code));
@@ -614,6 +645,10 @@ int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode) {
   }
 
   (void)schSwitchJobStatus(pJob, JOB_TASK_STATUS_FAIL, &errCode);  // ignore error
+  if (SCH_IS_SUBQ_JOB(pJob)) {
+    SCH_JOB_DLOG("set parent job FAILED since the %dth subJob failed, error:%s", pJob->subJobId, tstrerror(errCode));
+    (void)schSwitchJobStatus((SSchJob*)pJob->parent, JOB_TASK_STATUS_FAIL, &errCode);  // ignore error
+  }
 
   return TSDB_CODE_SCH_IGNORE_ERROR;
 }
@@ -917,10 +952,6 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   }
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, pJob));
-
-  if (SCH_IS_EXPLAIN_JOB(pJob)) {
-    SCH_ERR_JRET(qExecExplainBegin(pDag, &pJob->explainCtx, pReq->startTs));
-  }
 
   pJob->execTasks = taosHashInit(pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
                                  HASH_ENTRY_LOCK);

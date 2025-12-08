@@ -134,7 +134,9 @@ _return:
 
 int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp) {
   SRetrieveTableRsp *pRsp = NULL;
-  SCH_ERR_RET(qExplainUpdateExecInfo(pJob->explainCtx, rsp, pTask->plan->id.groupId, &pRsp));
+  SExplainCtx* pCtx = SCH_JOB_EXPLAIN_CTX(pJob);
+  qExplainSetCurrPlan(pCtx, pJob->subJobId);
+  SCH_ERR_RET(qExplainUpdateExecInfo(pCtx, rsp, pTask->plan->id.groupId, &pRsp));
   
   if (pRsp) {
     SCH_ERR_RET(schProcessOnExplainDone(pJob, pTask, pRsp));

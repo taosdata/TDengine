@@ -122,6 +122,8 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
       qError("%s tsem_init failed, error:%s", GET_TASKID(pTaskInfo), tstrerror(code));
       return code;
     }
+    
+    pTaskInfo->subJobCtx.hasSubJobs = true;
   }
 
   return TSDB_CODE_SUCCESS;

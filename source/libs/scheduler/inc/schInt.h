@@ -386,6 +386,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_JOB_STATUS(job)     atomic_load_8(&(job)->status)
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
 
+#define SCH_JOB_EXPLAIN_CTX(job) ((job)->parent ? ((SSchJob*)(job)->parent)->explainCtx : (job)->explainCtx)
+
 #define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.syncReq)
 #define SCH_JOB_IN_ASYNC_EXEC_OP(job)                                                                \
   ((SCH_OP_EXEC == atomic_val_compare_exchange_32(&(job)->opStatus.op, SCH_OP_EXEC, SCH_OP_NULL)) && \

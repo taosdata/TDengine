@@ -161,13 +161,19 @@ typedef struct SQueryExplainRowInfo {
   char   *buf;
 } SQueryExplainRowInfo;
 
+typedef struct SExplainPlanCtx {
+  int32_t      rootGroupId;
+  int32_t      groupNum;
+  int32_t      groupDoneNum;
+  SHashObj    *groupHash;     // Hash<SExplainGroup>
+} SExplainPlanCtx;
+
 typedef struct SExplainCtx {
   EExplainMode mode;
   double       ratio;
   bool         verbose;
 
   SRWLatch     lock;
-  int32_t      rootGroupId;
   int32_t      dataSize;
   bool         execDone;
   int64_t      reqStartTs;
@@ -175,13 +181,19 @@ typedef struct SExplainCtx {
   int64_t      jobDoneTs;
   char        *tbuf;
   SArray      *rows;
+  int32_t      groupNum;
   int32_t      groupDoneNum;
-  SHashObj    *groupHash;     // Hash<SExplainGroup>
+  int32_t      currPlanId;
+  SExplainPlanCtx *pCurrPlanCtx;
+  SExplainPlanCtx  planCtx;
+  SArray*          subPlanCtxs;
 } SExplainCtx;
 
 #define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : ORDER_DESC == _order ? "desc" : "unknown")
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 #define EXPLAIN_MERGE_MODE_STRING(_mode) ((_mode) == MERGE_TYPE_SORT ? "sort" : ((_mode) == MERGE_TYPE_NON_SORT ? "merge" : "column"))
+
+#define EXPLAIN_GET_CUR_PLAN_CTX(_ctx) ((_ctx)->currPlanId < 0 ? &(_ctx)->planCtx : (SExplainPlanCtx*)taosArrayGet((_ctx)->subPlanCtxs, (_ctx)->currPlanId))
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p, _r)         \
 do {                                                                \
