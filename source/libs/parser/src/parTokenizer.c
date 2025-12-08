@@ -152,6 +152,7 @@ static SKeyword keywordTable[] = {
     {"INDEXES",              TK_INDEXES},
     {"INNER",                TK_INNER},
     {"INSERT",               TK_INSERT},
+    {"INSTANCES",            TK_INSTANCES},
     {"INT",                  TK_INT},
     {"INTEGER",              TK_INTEGER},
     {"INTERVAL",             TK_INTERVAL},
@@ -363,6 +364,8 @@ static SKeyword keywordTable[] = {
     {"WINDOW_OPEN",          TK_WINDOW_OPEN},
     {"WINDOW_CLOSE",         TK_WINDOW_CLOSE},
     {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
+    {"WIN_OPTIMIZE_BATCH",   TK_WIN_OPTIMIZE_BATCH},
+    {"WIN_OPTIMIZE_SINGLE",  TK_WIN_OPTIMIZE_SINGLE},
     {"WITH",                 TK_WITH},
     {"WRITE",                TK_WRITE},
     {"_C0",                  TK_ROWTS},
@@ -435,6 +438,12 @@ static SKeyword keywordTable[] = {
     {"NOT_ALLOW_HOST",       TK_NOT_ALLOW_HOST},
     {"ALLOW_DATETIME",       TK_ALLOW_DATETIME},
     {"RELOAD",   TK_RELOAD},
+    {"NOT_ALLOW_DATETIME",   TK_NOT_ALLOW_DATETIME},
+    {"ENCRYPT_ALGORITHMS",   TK_ENCRYPT_ALGORITHMS},
+    {"ALGR_NAME",            TK_ALGR_NAME},
+    {"ALGR_TYPE",            TK_ALGR_TYPE},
+    {"ENCRYPT_ALGR",         TK_ENCRYPT_ALGR},
+    {"OSSL_ALGR_NAME",       TK_OSSL_ALGR_NAME},
 };
 // clang-format on
 

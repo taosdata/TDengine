@@ -120,30 +120,31 @@ curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timez
 
 默认情况下，`taosAdapter` 对大多数 C 接口调用出错时也会返回 200 响应码，但是 HTTP body 中包含错误信息。从 `TDengine TSDB 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的 HTTP 响应码。无论是否设置此参数，响应 body 里都有详细的错误码和错误信息，具体请参考 [错误](../rest-api/#错误) 。
 
-**当 httpCodeServerError 为 false 时：**
+**当 httpCodeServerError 为 false 时** ：
 
 | **分类说明**             |**HTTP 响应码** |
 |--------------------|-------------------------------|
-| C 接口调用成功  | 200                           | 200   |
+| C 接口调用成功  | 200                           |
 | C 接口调用出错，且不是鉴权错误 | 200                   |
-| HTTP 请求 URL 参数错误               | 400    | 
+| HTTP 请求 URL 参数错误               | 400    |
 | C 接口调用鉴权错误               | 401                           |
 | 接口不存在              | 404                           |
 | 系统资源不足             | 503                          |
 
-**当 httpCodeServerError 为 true 时：**
+**当 httpCodeServerError 为 true 时** ：
 
 | **分类说明**             |  **HTTP 响应码**          |
 |--------------------|-------------------------------|
 | C 接口调用成功  |  200                                   |
 | HTTP 请求 URL 参数错误和 C 接口调用参数解析错误    | 400  |
 | C 接口调用鉴权错误                 |  401          |
-| 接口不存在              | 404             |   
+| 接口不存在              | 404             |
 | C 接口调用网络不可用错误            | 502            |
 | 系统资源不足             |503                |
-| 其他 C 接口调用错误 | 500                | 
+| 其他 C 接口调用错误 | 500                |
 
  C 接口参数解析相关错误码：
+
 - TSDB_CODE_TSC_SQL_SYNTAX_ERROR (0x0216)
 - TSDB_CODE_TSC_LINE_SYNTAX_ERROR (0x021B)
 - TSDB_CODE_PAR_SYNTAX_ERROR (0x2600)
@@ -554,7 +555,6 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 | /rest/sqlt           | 支持                 | 不再支持                                             |
 | /rest/sqlutc         | 支持                 | 不再支持                                             |
 
-
 ### HTTP code
 
 | HTTP code            | TDengine TSDB 2.x         | TDengine TSDB 3.0 | 备注                                  |
@@ -565,7 +565,6 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 | 404                  | 支持                 | 支持         | 接口不存在                            |
 | 500                  | 不支持               | 支持         | 内部错误                              |
 | 503                  | 支持                 | 支持         | 系统资源不足                          |
-
 
 ### 响应代码和消息体
 
@@ -617,7 +616,8 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
   "rows": 1
 }
 ```
-```
+
+```json
   "data": [
         [
             "information_schema",
@@ -633,7 +633,6 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 ```
 
 #### TDengine TSDB 3.0 响应代码和消息体
-
 
 ```JSON
 {

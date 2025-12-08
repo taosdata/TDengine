@@ -16,13 +16,19 @@
 
 extern int32_t CBC_DecryptImpl(SCryptOpts *opts);
 extern int32_t CBC_EncryptImpl(SCryptOpts *opts);
+extern int32_t Builtin_CBC_DecryptImpl(SCryptOpts *opts);
+extern int32_t Builtin_CBC_EncryptImpl(SCryptOpts *opts);
 
-int32_t CBC_Encrypt(SCryptOpts *opts) { 
-  return CBC_EncryptImpl(opts); 
-}
+int32_t CBC_Encrypt(SCryptOpts *opts) { return CBC_EncryptImpl(opts); }
 int32_t CBC_Decrypt(SCryptOpts *opts) { 
   return CBC_DecryptImpl(opts); 
 }
+
+//int32_t Builtin_CBC_Encrypt(SCryptOpts *opts) { return Builtin_CBC_EncryptImpl(opts); }
+//int32_t Builtin_CBC_Decrypt(SCryptOpts *opts) { return Builtin_CBC_DecryptImpl(opts); }
+
+int32_t Builtin_CBC_Encrypt(SCryptOpts *opts) { return CBC_EncryptImpl(opts); }
+int32_t Builtin_CBC_Decrypt(SCryptOpts *opts) { return CBC_DecryptImpl(opts); }
 
 #if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
 int32_t CBC_EncryptImpl(SCryptOpts *opts) { 
@@ -32,5 +38,14 @@ int32_t CBC_EncryptImpl(SCryptOpts *opts) {
 int32_t CBC_DecryptImpl(SCryptOpts *opts) { 
   memcpy(opts->result, opts->source, opts->len);
   return opts->len; 
+}
+
+int32_t Builtin_CBC_EncryptImpl(SCryptOpts *opts) {
+  memcpy(opts->result, opts->source, opts->len);
+  return opts->len;
+}
+int32_t Builtin_CBC_DecryptImpl(SCryptOpts *opts) {
+  memcpy(opts->result, opts->source, opts->len);
+  return opts->len;
 }
 #endif

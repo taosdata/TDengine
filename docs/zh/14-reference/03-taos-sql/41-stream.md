@@ -149,7 +149,7 @@ STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)]
 
 - col：状态列的列名。
 - extend：可选，窗口开始结束时的扩展策略：extend 值为 0 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；extend 值为 2 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
-- zeorth_state：可选，指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置zeroth_extend数值时，extend值为强制输入项，不允许留空或省略。
+- zeorth_state：可选，指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
 - duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
 
 使用说明：
@@ -469,12 +469,12 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 
 这部分是所有 event 对象所共有的字段。
 
-- tableName：字符串类型，是对应目标子表的表名。
+- tableName：字符串类型，是对应目标子表的表名，当没有输出的时候，该字段不存在。
 - eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 - triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
-- groupId：字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
+- groupId：字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。若没有进行分组，该字段为 0.
 
 ###### 定时触发相关字段
 
@@ -946,4 +946,18 @@ CREATE stream sm1 PERIOD(1h)
 ```SQL
 CREATE stream sm1 PERIOD(1h) 
   NOTIFY("ws://localhost:8080/notify");
+```
+
+- 每过 1 天计算智能电表 meters 中各子表的耗电量和，计算结果写入降采样超级表 meters_1d 中并把各子表 TAG 值原样带过来。
+
+```SQL
+CREATE stream stream_consumer_energy 
+  PERIOD(1d) 
+  FROM meters PARTITION BY tbname, groupid, location
+  INTO meters_1d (ts, sum_power)
+     TAGS (groupid INT AS groupid , location VARCHAR(24) AS location)
+  AS 
+     SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
+          FROM meters
+          WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
 ```

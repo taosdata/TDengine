@@ -82,14 +82,24 @@ def check_list_result(result_list,detaild_list):
     remove_detail_items = [
             f"{TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:ASSERT_CORE(tsdb->imem == NULL, \"imem should be null to commit mem\");",
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(float) == sizeof(uint32_t));",
-            f"{TD_project_path}/community/include/util/types.h:assert(sizeof(double) == sizeof(uint64_t));"
+            f"{TD_project_path}/community/include/util/types.h:assert(sizeof(double) == sizeof(uint64_t));",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno <= pBt->pPager->dbFileSize, \"page number %u exceeds db file size %u\", pgno, pBt->pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno != 0 && pgno <= pBt->pPager->dbFileSize, \"page number %u exceeds db file size %u\", pgno, pBt->pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno <= pBtc->pBt->pPager->dbFileSize, \"page number %u exceeds db file size %u\", pgno, pBtc->pBt->pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbPage.c:ASSERT_CORE(pCell - pPage->pData >= 0 && pCell - pPage->pData <= pPage->pageSize, \"pCell: %p, pData: %p, pageSize: %d\", pCell, pPage->pData, pPage->pageSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbPage.c:ASSERT_CORE(pCell + szCell - pPage->pData > 0 && pCell + szCell - pPage->pData <= pPage->pageSize, \"pCell: %p, pData: %p, pageSize: %d\", pCell, pPage->pData, pPage->pageSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbPager.c:ASSERT_CORE(pgno <= pPager->dbFileSize, \"pgno:%u exceeds dbFileSize:%u.\", pgno, pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbPager.c:ASSERT_CORE(*ppgno <= pPager->dbFileSize, \"pgno:%u exceeds dbFileSize:%u.\", *ppgno, pPager->dbFileSize);",
         ]
     expected_strings = [
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
-        f"Total matches in {TD_project_path}/community/include/util/types.h:2"
+        f"Total matches in {TD_project_path}/community/include/util/types.h:2",
+        f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:7",
+        f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbPage.c:2",
+        f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbPager.c:4"
         ]
     # logger.debug(len(result_list))
-    if len(result_list) != 2:
+    if len(result_list) != len(expected_strings):
         logger.error(f"{error_message}")
         for item in expected_strings:
             if item in result_list:

@@ -58,6 +58,16 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
+    case TSDB_CODE_PAR_ALGR_ID_TOO_LONG:
+      return "Algorithm ID too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_NAME_TOO_LONG:
+      return "Algorithm name too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_DESC_TOO_LONG:
+      return "Algorithm description too long, max lenght is 127 character";
+    case TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG:
+      return "Algorithm type too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG:
+      return "Algorithm OpenSSL name too long, max lenght is 63 character";
     case TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY:
       return "Password too short or empty";
     case TSDB_CODE_PAR_INVALID_PORT:
@@ -1573,8 +1583,22 @@ int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
+
+  if (NULL == pMetaCache || NULL == pMetaCache->pVStbRefDbs) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   SArray* pRefs = NULL;
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pVStbRefDbs, (void**)&pRefs);
+
+  // Special handling for stmt scenario where slot is reserved but data is not filled
+  // In this case, getMetaDataFromHash returns INTERNAL_ERROR because value is nullPointer
+  if (TSDB_CODE_PAR_INTERNAL_ERROR == code) {
+    // Data not filled in cache (stmt scenario without putMetaDataToCache)
+    // Return table not exist to indicate VStbRefDbs is not available
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   if (TSDB_CODE_SUCCESS == code && NULL != pRefs) {
     *pOutput = pRefs;
   }

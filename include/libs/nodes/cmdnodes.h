@@ -22,6 +22,7 @@ extern "C" {
 
 #include "query.h"
 #include "querynodes.h"
+#include "tglobal.h"
 
 #define DESCRIBE_RESULT_COLS               4
 #define DESCRIBE_RESULT_COLS_COMPRESS      7
@@ -38,11 +39,15 @@ extern "C" {
 
 #define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
+// Use tsMaxSQLLength * 3 for buffer size to accommodate CREATE TABLE statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength * 3))
 
 #define SHOW_CREATE_VIEW_RESULT_COLS       2
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
+// Use tsMaxSQLLength + header for buffer size to accommodate CREATE VIEW statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
@@ -92,7 +97,7 @@ typedef struct SDatabaseOptions {
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
   char        dnodeListStr[TSDB_DNODE_LIST_LEN];
-  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
+  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGR_NAME_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
   int32_t     maxRowsPerBlock;
@@ -503,6 +508,15 @@ typedef struct SCreateUserStmt {
   SDateTimeRange* pTimeRanges;
 } SCreateUserStmt;
 
+typedef struct SCreateEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  char      algrType[TSDB_ENCRYPT_ALGR_TYPE_LEN];
+  char      osslAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SCreateEncryptAlgrStmt;
+
 typedef struct SAlterUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
@@ -513,6 +527,11 @@ typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
+
+typedef struct SDropEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SDropEncryptAlgrStmt;
 
 typedef struct SCreateDnodeStmt {
   ENodeType type;

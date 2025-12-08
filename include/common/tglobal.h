@@ -262,6 +262,7 @@ extern bool    tsMultiResultFunctionStarReturnTags;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxInsertBatchRows;
+extern int32_t tsMaxSQLLength;
 
 // build info
 extern char td_version[];
@@ -306,12 +307,14 @@ extern int64_t tsmaDataDeleteMark;
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
 extern bool    tsWalForceRepair;
+extern bool    tsWalDeleteOnCorruption;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
 extern int32_t tsScanPullupInterval;
+extern int32_t tsInstancePullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;

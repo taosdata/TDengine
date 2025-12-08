@@ -539,6 +539,17 @@ taosAdapter 的基础配置参数如下：
 
   设置 C 同步方法的最大并发调用数（0 表示使用 CPU 核心数）。
 
+### 注册配置
+
+从 **3.4.0.0** 版本开始，taosAdapter 将注册到 TDengine TSDB 中，可以通过 SQL 语句 `select * from performance_schema.perf_instances where type = 'taosadapter'` 进行查询。
+
+注册配置参数如下：
+
+- **`register.instance`**：taosAdapter 实例的地址，长度不超过 255 个字节。如未设置或设置为空字符串，系统将使用主机名与端口号自动拼接生成，若 `ssl.enable` 为 true，将拼接 https 协议头。
+- **`register.description`**：taosAdapter 实例的描述信息，长度不超过 511 个字节，默认值为空字符串。
+- **`register.duration`**：taosAdapter 实例注册的时间间隔，单位为秒，默认值为 10 秒。每隔此时间间隔，将重新注册以刷新其超时时间。必须大于 0 且小于 `register.expire`。
+- **`register.expire`**：taosAdapter 实例注册的过期时间，单位为秒，默认值为 30 秒。若在此时间内未收到注册刷新请求，注册信息将被删除。必须大于 `register.duration`。
+
 ### 跨域配置
 
 使用浏览器进行接口调用时，请根据实际情况设置如下跨域（CORS）参数：
@@ -574,6 +585,7 @@ taosAdapter 使用连接池管理与 TDengine TSDB 的连接，以提高并发�
 - node_exporter 数据写入
 - OpenMetrics 数据写入
 - Prometheus remote_read 和 remote_write
+- JSON 数据写入
 
 连接池的配置参数如下：
 
@@ -589,7 +601,7 @@ taosAdapter 通过参数 `httpCodeServerError` 来控制当底层 C 接口返回
 
 该配置只会影响 **RESTful 接口**。
 
-**参数说明**
+###### 参数说明
 
 - **`httpCodeServerError`**：
   - **设置为 `true` 时**：根据 C 接口返回的错误码映射为相应的 HTTP 状态码。
@@ -606,7 +618,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - OpenTSDB HTTP 写入接口
 - Prometheus remote_read 和 remote_write 接口
 
-**参数说明**
+###### 参数说明
 
 - **`pauseQueryMemoryThreshold`**：
   - 当内存使用超过此阈值时，taosAdapter 将停止处理查询请求。
@@ -617,7 +629,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 
 当内存使用回落到阈值以下时，taosAdapter 会自动恢复相应功能。
 
-**HTTP 返回内容：**
+##### HTTP 返回内容
 
 - **超过 `pauseQueryMemoryThreshold` 时**：
   - HTTP 状态码：`503`
@@ -626,7 +638,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
   - HTTP 状态码：`503`
   - 返回内容：`"memory exceeds threshold"`
 
-**状态检查接口：**
+##### 状态检查接口
 
 可以通过以下接口检查 taosAdapter 的内存状态：
 
@@ -635,7 +647,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
   - 如果内存超过 `pauseAllMemoryThreshold`，返回 `code 503`。
   - 如果内存超过 `pauseQueryMemoryThreshold`，且请求参数包含 `action=query`，返回 `code 503`。
 
-**相关配置参数：**
+##### 相关配置参数
 
 - **`monitor.collectDuration`**：内存监控间隔，默认值为 `3s`，环境变量为 `TAOS_MONITOR_COLLECT_DURATION`。
 - **`monitor.incgroup`**：是否在容器中运行（容器中运行设置为 `true`），默认值为 `false`，环境变量为 `TAOS_MONITOR_INCGROUP`。
@@ -658,7 +670,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - node_exporter 数据写入
 - OpenMetrics 数据写入
 
-**参数说明**
+###### 参数说明
 
 - **`smlAutoCreateDB`**：
   - **设置为 `true` 时**：在 schemaless 协议写入时，如果目标数据库不存在，taosAdapter 会自动创建该数据库。
@@ -673,7 +685,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 - RESTful 接口
 - Prometheus remote_read 接口
 
-**参数说明**
+###### 参数说明
 
 - **`restfulRowLimit`**：
   - **设置为正整数时**：接口返回的结果条数将不超过该值。
@@ -719,7 +731,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
   是否启用记录 SQL 到 CSV 文件（默认值：`false`）具体内容见 [记录 SQL 到 csv 文件](#记录-sql-到-csv-文件)。
 
-- **`log.enableRecordHttpSql`** 
+- **`log.enableRecordHttpSql`**
 
   **不建议继续使用此参数，推荐使用[记录 SQL 到 csv 文件](#记录-sql-到-csv-文件)作为替代方案**
 
@@ -743,16 +755,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
   SQL 日志轮转时间（默认值：`24h`）。
 
-1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括：panic、fatal、error、warn、warning、info、debug 以及 trace。
-2. 从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
-
-以下是通过 curl 命令将日志级别设置为 debug 的示例：
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括：panic、fatal、error、warn、warning、info、debug 以及 trace。
 
 ### 第三方数据源配置
 
@@ -1079,7 +1082,7 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **RESTful 接口**
 - **WebSocket SQL 执行接口**
 
-**参数说明**
+###### 参数说明
 
 - **`request.queryLimitEnable`**
   - **设置为 `true` 时**：启用查询请求并发限制功能。
@@ -1095,7 +1098,7 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **`request.excludeQueryLimitSqlRegex`**
   - 配置不受并发限制影响的 SQL 正则表达式列表。
 
-**针对每个用户可单独设置**
+###### 针对每个用户可单独设置
 
 仅支持配置文件进行设置：
 
@@ -1106,7 +1109,7 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **`request.users.<username>.queryMaxWait`**
   - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，优先级高于默认设置。
 
-**示例说明**
+###### 示例说明
 
 ```toml
 [request]
@@ -1134,6 +1137,36 @@ queryMaxWait = 10
 当用户 root 发起查询请求时，taosAdapter 会根据上述配置进行并发限制处理。当查询请求超过 100 个时，后续请求将进入等待，直到有可用的资源为止。如果等待时间超过 200 秒或等待请求数超过 10 个，taosAdapter 将直接返回错误响应。
 
 当其他用户发起查询请求时，将使用默认的并发限制配置进行处理。每个用户配置独立，不共享 `request.default` 的并发限制。比如用户 user1 发起 200 个并发查询请求时，用户 user2 也可以同时发起 200 个并发查询请求而不会阻塞。
+
+### 禁用查询 SQL 配置
+
+从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持通过配置禁用特定的查询 SQL，防止执行某些不安全或资源消耗过大的查询操作。
+当启用该功能后，taosAdapter 会检查每个非 insert（忽略大小写）开头的 SQL，如果匹配到配置的禁用正则表达式，则直接返回错误响应，提示用户该查询被禁用。
+当被禁用的查询 SQL 被匹配到时，RESTful 接口将返回 HTTP 状态码 `403`，WebSocket 接口将返回错误码 `0xFFFD`，
+taosAdapter 将打印警告日志，包含此 SQL 的来源等内容，例如：
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+该配置会影响以下接口：
+
+- **RESTful 接口**
+- **WebSocket SQL 执行接口**
+
+###### 参数说明
+
+- **`rejectQuerySqlRegex`**
+  - 配置禁用查询 SQL 的正则表达式列表。支持 [Goole RE2 语法](https://github.com/google/re2/wiki/Syntax)。
+  - 默认值：空列表，表示不禁用任何查询 SQL。
+
+###### 示例说明
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+
+`rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']` 禁用了所有 drop database、drop table 和 alter table 的查询操作，忽略大小写。
 
 ### 环境变量
 
@@ -1232,6 +1265,10 @@ queryMaxWait = 10
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
+| `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
+| `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |
+| `register.instance`                   | `TAOS_ADAPTER_REGISTER_INSTANCE`                      |
 | `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
 | `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
 | `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
@@ -1281,6 +1318,27 @@ taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 
 
 使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine TSDB server 软件。
 
+## 动态配置
+
+### 动态修改日志级别
+
+从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
+
+以下是通过 curl 命令将日志级别设置为 debug 的示例：
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+### 监听配置文件变更
+
+从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持监听配置文件的变更，支持以下配置自动更新
+
+- `log.level` 日志级别参数
+- `rejectQuerySqlRegex` 拒绝查询 SQL 列表配置参数
+
 ## IPv6 支持
 
 taosAdapter 自 **3.3.6.13** 版本起支持 IPv6，用户无需进行任何额外配置。
@@ -1316,6 +1374,7 @@ curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
 ```
 
 支持的参数项如下：
+
 - start_time：[可选参数] 开始采集的时间，格式为 `yyyy-MM-dd HH:mm:ss`，如果不设置则使用当前时间。
 - end_time：[可选参数] 结束采集的时间，格式为 `yyyy-MM-dd HH:mm:ss`，如果不设置则使用 `2300-01-01 00:00:00`。
 - location：[可选参数] 解析采集开始和结束时间使用的时区信息，如果不设置则使用 taosAdapter 所在服务器时区。时区使用 IANA 格式，例如：`Asia/Shanghai`。
@@ -1411,7 +1470,7 @@ curl --location 'http://127.0.0.1:6041/record_sql' \
 
 1. TS：打印日志时间，格式为 `yyyy-MM-dd HH:mm:ss.SSSSSS`，时区为 taosAdapter 所在服务器时区。
 2. SQL：执行的 SQL，按照 CSV 标准不处理 SQL 中的换行符，当存在特殊字符（\n、\r、"）时使用双引号包裹，包含特殊字符时无法直接复制 SQL 使用，例如：
-   
+
   原始 sql 为：
 
   ```sql
@@ -1516,7 +1575,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）                 |
 | ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）                    |
 | ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）                   |
-| cpu_percent               | DOUBLE    |         | taosAdapter 的 CPU 占用百分比（v3.3.6.24及以上 /v3.3.7.7 及以上） |
+| cpu_percent               | DOUBLE    |         | taosAdapter 的 CPU 占用百分比（v3.3.6.24 及以上 /v3.3.7.7 及以上） |
 | endpoint                  | NCHAR     | TAG     | 请求端点                                                |
 
 </details>

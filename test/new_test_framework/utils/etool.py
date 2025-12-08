@@ -27,7 +27,7 @@ from .sql import tdSql
 TAOS = "taos"
 TAOSDUMP = "taosdump"
 TAOSBENCHMARK = "taosBenchmark"
-TAOSADAPTER = "taosAdapter"
+TAOSADAPTER = "taosadapter"
 
 # taos
 def taosFile():

@@ -375,7 +375,7 @@ static int32_t doCacheBlockForImputation(SImputationSupp* pSupp, const char* id,
   return code;
 }
 
-int32_t doCacheBlockForDtw(SCorrelationSupp* pSupp, const char* id, SSDataBlock* pBlock) {
+int32_t doCacheBlockForCorrelation(SCorrelationSupp* pSupp, const char* id, SSDataBlock* pBlock) {
   SAnalyticBuf* pBuf = &pSupp->base.analyBuf;
   int32_t code = 0;
 
@@ -411,18 +411,23 @@ int32_t doCacheBlockForDtw(SCorrelationSupp* pSupp, const char* id, SSDataBlock*
     }
   }
 
-  return code;
+  if (pSupp->base.numOfRows > ANALY_CORRELATION_INPUT_MAX_ROWS) {
+    qError("%s too many rows for correlation, maximum allowed:%d, input:%d", id, ANALY_CORRELATION_INPUT_MAX_ROWS,
+           pSupp->base.numOfRows);
+    return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
+  }
 
+  return code;
 }
 
 static int32_t doCacheBlock(SAnalysisOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  int32_t       lino = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t type = pInfo->analysisType;
 
-  if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
+  if (type == FUNCTION_TYPE_IMPUTATION) {
     code = doCacheBlockForImputation(&pInfo->imputatSup, id, pBlock);
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH || pInfo->analysisType == FUNCTION_TYPE_TLCC) {
-    code = doCacheBlockForDtw(&pInfo->corrSupp, id, pBlock);
+  } else if (type == FUNCTION_TYPE_DTW || type == FUNCTION_TYPE_DTW_PATH || type == FUNCTION_TYPE_TLCC) {
+    code = doCacheBlockForCorrelation(&pInfo->corrSupp, id, pBlock);
   }
 
   return code;
@@ -1034,34 +1039,31 @@ void doInitDtwOptions(SCorrelationSupp* pSupp) {
 }
 
 int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
-  int32_t     code = 0;
-  char*       p = NULL;
-  int32_t     len = 0;
+  int32_t code = 0;
+  char*   p = NULL;
+  int32_t len = 0;
+  regex_t regex;
 
   char* pFreq = taosHashGet(pHashMap, FREQ_STR, strlen(FREQ_STR));
   if (pFreq != NULL) {
     len = taosHashGetValueSize(pFreq);
-    p = taosStrndupi(pSupp->freq, len);
+    p = taosStrndupi(pFreq, len);
     if (p == NULL) {
       qError("%s failed to clone the freq param, code:%s", id, strerror(terrno));
       return terrno;
     }
 
-    if (len >= tListLen(pSupp->freq)) {
+    if (regcomp(&regex, "^([1-9][0-9]*|[1-9]*)(ms|us|ns|[smhdw])$", REG_EXTENDED | REG_ICASE) != 0) {
+      qError("%s failed to compile regex for freq param", id);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    int32_t res = regexec(&regex, p, 0, NULL, 0);
+    regfree(&regex);
+    if (res != 0) {
       qError("%s invalid freq parameter: %s", id, p);
-      code = TSDB_CODE_INVALID_PARA;
-    } else {
-      if ((len == 1) && (strncmp(pFreq, "d", 1) != 0) && (strncmp(pFreq, "h", 1) != 0) &&
-          (strncmp(pFreq, "m", 1) != 0) && (strncmp(pFreq, "s", 1) != 0)) {
-        code = TSDB_CODE_INVALID_PARA;
-        qError("%s invalid freq parameter: %s", id, p);
-      } else if ((len == 2) && (strncmp(pFreq, "ms", 2) != 0) && (strncmp(pFreq, "us", 2) != 0)) {
-        code = TSDB_CODE_INVALID_PARA;
-        qError("%s invalid freq parameter: %s", id, p);
-      } else if (len > 2) {
-        code = TSDB_CODE_INVALID_PARA;
-        qError("%s invalid freq parameter: %s", id, p);
-      }
+      taosMemoryFreeClear(p);
+      return TSDB_CODE_INVALID_PARA;
     }
 
     if (code == TSDB_CODE_SUCCESS) {
@@ -1071,7 +1073,7 @@ int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
   } else {
     qDebug("%s not specify data freq, default: %s", id, pSupp->freq);
   }
-  
+
   taosMemoryFreeClear(p);
   return code;
 }

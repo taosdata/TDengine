@@ -124,6 +124,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
     type = TSDB_MGMT_TABLE_APPS;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_INSTANCES, len) == 0) {
+    type = TSDB_MGMT_TABLE_INSTANCE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAM_TASKS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_RECALCULATES, len) == 0) {
@@ -134,6 +136,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VIEWS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SCANS, len) == 0) {
     type = TSDB_MGMT_TABLE_SCAN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {

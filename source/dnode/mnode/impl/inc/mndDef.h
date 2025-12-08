@@ -402,6 +402,14 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
+
+typedef struct {
+  int64_t lastLoginTime;        // in seconds
+  int64_t lastFailedLoginTime;  // in seconds
+  int32_t failedLoginCount;
+} SLoginInfo;
+
+
 typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
@@ -428,11 +436,8 @@ typedef struct {
 
   char    acct[TSDB_USER_LEN];
   char    totpsecret[TSDB_TOTP_SECRET_LEN];
-  int64_t createdTime;
-  int64_t updateTime;
-  int64_t lastLoginTime;
-  int64_t lastFailedLoginTime;
-  int32_t failedLoginCount;
+  int64_t createdTime;          // in milliseconds
+  int64_t updateTime;           // in milliseconds
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
@@ -446,17 +451,17 @@ typedef struct {
   };
 
   int32_t sessionPerUser;
-  int32_t connectTime;
-  int32_t connectIdleTime;
+  int32_t connectTime;      // unit is second
+  int32_t connectIdleTime;  // unit is second
   int32_t callPerSession;
   int32_t vnodePerCall;
   int32_t failedLoginAttempts;
-  int32_t passwordLifeTime;
-  int32_t passwordReuseTime;
+  int32_t passwordLifeTime;   // unit is second
+  int32_t passwordReuseTime;  // unit is second
   int32_t passwordReuseMax;
-  int32_t passwordLockTime;
-  int32_t passwordGraceTime;
-  int32_t inactiveAccountTime;
+  int32_t passwordLockTime;     // unit is second
+  int32_t passwordGraceTime;    // unit is second
+  int32_t inactiveAccountTime;  // unit is second
   int32_t allowTokenNum;
 
   int32_t       acctId;
@@ -748,6 +753,15 @@ typedef struct {
   int32_t  funcVersion;
   SRWLatch lock;
 } SFuncObj;
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int64_t firstRegTime;
+  int64_t lastRegTime;
+  int32_t expire;
+} SInstanceObj;
 
 typedef struct {
   int64_t        id;
@@ -1082,6 +1096,16 @@ typedef struct {
     };
   };
 } SCompactObj;
+
+typedef struct {
+  int32_t id;
+  char    algorithm_id[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  int16_t type;
+  int8_t  source;
+  char    ossl_algr_name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SEncryptAlgrObj;
 
 typedef struct {
   int32_t scanId;

@@ -26,13 +26,13 @@ collectd 是一个用来收集系统性能的守护进程。collectd 提供各�
 
 重启 collectd
 
-```
+```bash
 sudo systemctl restart collectd
 ```
 
 使用 TDengine TSDB CLI 验证从 collectd 向 TDengine TSDB 写入数据并能够正确读出：
 
-```
+```sql
 taos> show databases;
               name              |
 =================================

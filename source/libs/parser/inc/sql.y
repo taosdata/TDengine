@@ -108,14 +108,14 @@ option_value(A) ::= NK_INTEGER(B).                                              
 %destructor user_enabled                                                          { }
 user_enabled(A) ::= ACCOUNT LOCK.                                                 { A = 0; }
 user_enabled(A) ::= ACCOUNT UNLOCK.                                               { A = 1; }
-user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; }
+user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 %type user_option                                                                 { SUserOptions* }
 user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
 user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
-user_option(A) ::= SYSINFO NK_INTEGER(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); A->sysinfo = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasSysinfo = true; }
-user_option(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->isImport = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasIsImport = true; }
-user_option(A) ::= CREATEDB NK_INTEGER(B).                                        { A = mergeUserOptions(pCxt, NULL, NULL); A->createdb = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasCreatedb = true; }
+user_option(A) ::= SYSINFO NK_INTEGER(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); A->sysinfo = taosStr2Int8(B.z, NULL, 10); A->hasSysinfo = true; }
+user_option(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->isImport = taosStr2Int8(B.z, NULL, 10); A->hasIsImport = true; }
+user_option(A) ::= CREATEDB NK_INTEGER(B).                                        { A = mergeUserOptions(pCxt, NULL, NULL); A->createdb = taosStr2Int8(B.z, NULL, 10); A->hasCreatedb = true; }
 user_option(A) ::= CHANGEPASS NK_INTEGER(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); A->changepass = taosStr2Int8(B.z, NULL, 10); A->hasChangepass = true; }
 user_option(A) ::= SESSION_PER_USER option_value(B).                              {
     A = mergeUserOptions(pCxt, NULL, NULL);
@@ -135,7 +135,7 @@ user_option(A) ::= CONNECT_TIME option_value(B).                                
     } else if (B.type == TK_UNLIMITED) {
       A->connectTime = -1;
     } else {
-      A->connectTime = taosStr2Int32(B.z, NULL, 10);
+      A->connectTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
     }
     A->hasConnectTime = true;
   }
@@ -146,7 +146,7 @@ user_option(A) ::= CONNECT_IDLE_TIME option_value(B).                           
     } else if (B.type == TK_UNLIMITED) {
       A->connectIdleTime = -1;
     } else {
-      A->connectIdleTime = taosStr2Int32(B.z, NULL, 10);
+      A->connectIdleTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
     }
     A->hasConnectIdleTime = true;
   }
@@ -192,7 +192,7 @@ user_option(A) ::= PASSWORD_LIFE_TIME option_value(B).                          
     } else if (B.type == TK_UNLIMITED) {
       A->passwordLifeTime = -1;
     } else {
-      A->passwordLifeTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordLifeTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasPasswordLifeTime = true;
   }
@@ -203,7 +203,7 @@ user_option(A) ::= PASSWORD_REUSE_TIME option_value(B).                         
     } else if (B.type == TK_UNLIMITED) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_TIME");
     } else {
-      A->passwordReuseTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordReuseTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasPasswordReuseTime = true;
   }
@@ -225,7 +225,7 @@ user_option(A) ::= PASSWORD_LOCK_TIME option_value(B).                          
     } else if (B.type == TK_UNLIMITED) {
       A->passwordLockTime = -1;
     } else {
-      A->passwordLockTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordLockTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
     }
     A->hasPasswordLockTime = true;
   }
@@ -236,7 +236,7 @@ user_option(A) ::= PASSWORD_GRACE_TIME option_value(B).                         
     } else if (B.type == TK_UNLIMITED) {
       A->passwordGraceTime = -1;
     } else {
-      A->passwordGraceTime = taosStr2Int32(B.z, NULL, 10);
+      A->passwordGraceTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasPasswordGraceTime = true;
   }
@@ -247,7 +247,7 @@ user_option(A) ::= INACTIVE_ACCOUNT_TIME option_value(B).                       
     } else if (B.type == TK_UNLIMITED) {
       A->inactiveAccountTime = -1;
     } else {
-      A->inactiveAccountTime = taosStr2Int32(B.z, NULL, 10);
+      A->inactiveAccountTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
     }
     A->hasInactiveAccountTime = true;
   }
@@ -361,8 +361,6 @@ cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user
 cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
 cmd ::= DROP USER user_name(A).                                                  { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
 
-cmd ::= ALTER DNODES RELOAD general_name(A).                                                 { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
-
 
 cmd ::= CREATE TOKEN. {}
 
@@ -402,6 +400,9 @@ with_clause_opt(A) ::= WITH search_condition(B).                                
 /************************************************ create encrypt_key *********************************************/
 cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                          { pCxt->pRootNode = createEncryptKeyStmt(pCxt, &A); }
 
+cmd ::= CREATE ENCRYPT_ALGR NK_STRING(A) ALGR_NAME NK_STRING(B) DESC NK_STRING(C) ALGR_TYPE NK_STRING(D) OSSL_ALGR_NAME NK_STRING(E).                                          { pCxt->pRootNode = createCreateAlgrStmt(pCxt, &A, &B, &C, &D, &E); }
+
+cmd ::= DROP ENCRYPT_ALGR NK_STRING(A).                                           { pCxt->pRootNode = createDropEncryptAlgrStmt(pCxt, &A); }
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
 cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
@@ -881,6 +882,7 @@ cmd ::= SHOW LICENCES.                                                          
 cmd ::= SHOW GRANTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCES_STMT); }
 cmd ::= SHOW GRANTS FULL.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
 cmd ::= SHOW GRANTS LOGS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOGS_STMT); }
+cmd ::= SHOW INSTANCES like_pattern_opt(B).                                       { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_INSTANCES_STMT, B); }
 cmd ::= SHOW CLUSTER MACHINES.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }
 cmd ::= SHOW MOUNTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MOUNTS_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
@@ -889,6 +891,7 @@ cmd ::= SHOW CREATE VTABLE full_table_name(A).                                  
 cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT,
 A); }
 cmd ::= SHOW ENCRYPTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPTIONS_STMT); }
+cmd ::= SHOW ENCRYPT_ALGORITHMS.                                                  { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT); }
 cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT); }
 cmd ::= SHOW SCORES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SCORES_STMT); }
 cmd ::= SHOW TOPICS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TOPICS_STMT); }

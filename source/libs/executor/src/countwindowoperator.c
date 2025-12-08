@@ -143,6 +143,8 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           qError("duplicate timestamp found in count window operator" PRId64 ", timestamp: %" PRId64, tsCols[i]);
           code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
           QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          pInfo->countSup.lastTs = tsCols[i];
         }
       }
     }
@@ -356,6 +358,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
+  pOperator->exprSupp.hasWindow = true;
 
   SCountWindowPhysiNode* pCountWindowNode = (SCountWindowPhysiNode*)physiNode;
 

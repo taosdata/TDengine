@@ -164,6 +164,15 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
 }
 
+TAOS *taos_connect_with_dsn(const char *dsn) {
+  if (taos_init() != 0) {
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_with_dsn);
+  return (*fp_taos_connect_with_dsn)(dsn);
+}
+
 void taos_close(TAOS *taos) {
   CHECK_VOID(fp_taos_close);
   (*fp_taos_close)(taos);
@@ -589,7 +598,7 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
   return (*fp_taos_fetch_whitelist_dual_stack_a)(taos, fp, param);
 }
 
-void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
+void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) {
   CHECK_VOID(fp_taos_fetch_ip_whitelist_a);
   return (*fp_taos_fetch_ip_whitelist_a)(taos, fp, param);
 }

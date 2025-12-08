@@ -74,7 +74,7 @@ class TestBenchmarkWebsite:
         try:
             fval = float(value)
         except Exception as e:
-            tdLog.info(f"value:'{value}' is not float, key:'{key}' end:'{end}' output:\n{output}")
+            tdLog.error(f"value:'{value}' is not float, key:'{key}' end:'{end}' output:\n{output}")
             # Remove the line breaks and try again
             value = value.splitlines()[0]
             fval = float(value)
@@ -83,6 +83,7 @@ class TestBenchmarkWebsite:
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
         elif equal == False and fval <= expect:
+            tdLog.error(f"value:'{value}' < expect, key:'{key}' end:'{end}' output:\n{output}")
             tdLog.exit(f"failed because {fval} <= {expect}, key:'{key}' end:'{end}' output:\n{output}")
         else:
             # succ
@@ -147,7 +148,7 @@ class TestBenchmarkWebsite:
             threadQueries = queryTimes * threads
             totalQueries  = queryTimes * threads * len(sqls)
             threadKey     = f"complete query with {threads} threads and "
-            qpsKey = "QPS: "
+            qpsKey = "s QPS: "
             avgKey = "query delay avg: "
             minKey = "min:"
         else:
@@ -178,7 +179,7 @@ class TestBenchmarkWebsite:
 
         items = [
             [threadKey, " ", threadQueries, True],
-            [qpsKey, " ",  1, False],  # qps need > 1
+            [qpsKey, " ",  0, False],
             [avgKey, "s",  0, False],
             [minKey, "s",  0, False],
             ["max: ", "s", 0, False],

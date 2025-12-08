@@ -161,12 +161,15 @@ void* rpcOpen(const SRpcInit* pInit) {
     tError("failed to init rpc handle");
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
+  pRpc->shareConn = pInit->shareConn;
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
-  void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);
-  pRpc->refId = refId;
+  TAOS_UNUSED(transAcquireExHandle(transGetInstMgt(), refId));
 
-  pRpc->shareConn = pInit->shareConn;
+  code = transCachePut(refId, (STrans*)pRpc);
+  TAOS_CHECK_GOTO(code, NULL, _end);
+
+  pRpc->refId = refId;
 
   return (void*)refId;
 _end:
@@ -183,6 +186,7 @@ void rpcClose(void* arg) {
   if (arg == NULL) {
     return;
   }
+  transCacheRemoveByRefId((int64_t)arg);
   transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");

@@ -302,13 +302,22 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN    1024
-#define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
+// TSDB_MAX_ALLOWED_SQL_LEN is deprecated, use tsMaxSQLLength instead (defined in tglobal.h)
+#define TSDB_ENCRYPT_ALGR_NAME_LEN          64
+#define TSDB_ENCRYPT_ALGR_DESC_LEN          128
+#define TSDB_ENCRYPT_ALGR_TYPE_LEN          64
+#define TSDB_ENCRYPT_ALGR_SM4_NAME          "SM4-CBC:SM4"
+#define TSDB_MNODE_BUILTIN_DATA_VERSION     2
 
 #define TSDB_VIEW_NAME_LEN  193
 #define TSDB_VIEW_FNAME_LEN (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
+
+#define TSDB_INSTANCE_ID_LEN   256
+#define TSDB_INSTANCE_TYPE_LEN 64
+#define TSDB_INSTANCE_DESC_LEN 512
 
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
@@ -332,19 +341,19 @@ typedef enum ELogicConditionType {
 #define TSDB_USER_TOTPSEED_MIN_LEN 8    // minimum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_TOTPSEED_MAX_LEN 255  // maximum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_SESSION_PER_USER_DEFAULT      32
-#define TSDB_USER_CONNECT_TIME_DEFAULT          480
-#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     30
+#define TSDB_USER_CONNECT_TIME_DEFAULT          (480 * 60)  // 480 minutes
+#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     (30 * 60)   // 30 minutes
 #define TSDB_USER_CALL_PER_SESSION_DEFAULT      10
 #define TSDB_USER_VNODE_PER_CALL_DEFAULT        10
 #define TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
-#define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    1440
-#define TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT    90
-#define TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT   7
-#define TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT   30
-#define TSDB_USER_PASSWORD_REUSE_TIME_MAX       365
+#define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    (1440 * 60)        // 1440 minutes
+#define TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT    (90 * 1440 * 60)   // 90 days
+#define TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT   (7 * 1440 * 60)    // 7 days
+#define TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT   (30 * 1440 * 60)   // 30 days
+#define TSDB_USER_PASSWORD_REUSE_TIME_MAX       (365 * 1440 * 60)  // 365 days
 #define TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT    5
 #define TSDB_USER_PASSWORD_REUSE_MAX_MAX        100
-#define TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT 90
+#define TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT (90 * 1440 * 60)  // 90 days
 #define TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT       3
 
 #define TSDB_VERSION_LEN           32
@@ -670,6 +679,11 @@ typedef struct {
 typedef struct {
   char name[TSDB_LOG_VAR_LEN];
 } SLogVar;
+
+typedef struct SEncryptData {
+  char encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char encryptKey[ENCRYPT_KEY_LEN + 1];
+} SEncryptData;
 
 #define TMQ_SEPARATOR      ":"
 #define TMQ_SEPARATOR_CHAR ':'

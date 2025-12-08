@@ -200,6 +200,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_RSMA,
   TSDB_MGMT_TABLE_RETENTION,
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
+  TSDB_MGMT_TABLE_INSTANCE,
+  TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -243,10 +245,12 @@ typedef enum {
 #define TSDB_FILL_NEXT        7
 #define TSDB_FILL_NEAR        8
 
-#define TSDB_ALTER_USER_BASIC_INFO 1
+
+#define TSDB_ALTER_USER_BASIC_INFO             1
 // these definitions start from 5 is to keep compatible with old versions
-#define TSDB_ALTER_USER_ADD_PRIVILEGES 5
-#define TSDB_ALTER_USER_DEL_PRIVILEGES 6
+#define TSDB_ALTER_USER_ADD_PRIVILEGES         5
+#define TSDB_ALTER_USER_DEL_PRIVILEGES         6
+
 
 #define TSDB_ALTER_RSMA_FUNCTION 0x1
 
@@ -453,6 +457,8 @@ typedef enum ENodeType {
   QUERY_NODE_ROLLUP_VGROUPS_STMT,
   QUERY_NODE_KILL_RETENTION_STMT,
   QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT,
+  QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
+  QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -508,6 +514,8 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_RSMAS_STMT,
   QUERY_NODE_SHOW_RETENTIONS_STMT,
   QUERY_NODE_SHOW_RETENTION_DETAILS_STMT,
+  QUERY_NODE_SHOW_INSTANCES_STMT,
+  QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1322,6 +1330,16 @@ int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 void    tFreeSDropUserReq(SDropUserReq* pReq);
 
+typedef struct {
+  char    algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SDropEncryptAlgrReq;
+
+int32_t tSerializeSDropEncryptAlgrReq(void* buf, int32_t bufLen, SDropEncryptAlgrReq* pReq);
+int32_t tDeserializeSDropEncryptAlgrReq(void* buf, int32_t bufLen, SDropEncryptAlgrReq* pReq);
+void    tFreeSDropEncryptAlgrReq(SDropEncryptAlgrReq* pReq);
+
 typedef struct SIpV4Range {
   uint32_t ip;
   uint32_t mask;
@@ -1333,8 +1351,8 @@ typedef struct SIpv6Range {
 } SIpV6Range;
 
 typedef struct {
-  int8_t type;  // 0: IPv4, 1: IPv6
-  int8_t neg;   // only used in SIpWhiteListDual, if neg is 1, means this is a blacklist entry
+  int8_t type;   // 0: IPv4, 1: IPv6
+  int8_t neg;    // only used in SIpWhiteListDual, if neg is 1, means this is a blacklist entry
   union {
     SIpV4Range ipV4;
     SIpV6Range ipV6;
@@ -1373,45 +1391,47 @@ void copyIpRange(SIpRange* pDst, const SIpRange* pSrc);
 // to server, and server will convert it to SDateTimeWhiteListItem for internal usage.
 typedef struct {
   int16_t year;
-  int8_t  month;  // 1-12, when month is -1, it means day is week day and year is not used.
-  int8_t  day;    // 1-31 or 0-6 (0 means Sunday), depends on the month value.
-  int8_t  hour;
-  int8_t  minute;
-  int8_t  neg;       // this is a negative entry
-  int32_t duration;  // duration in minute
+  int8_t month; // 1-12, when month is -1, it means day is week day and year is not used.
+  int8_t day;   // 1-31 or 0-6 (0 means Sunday), depends on the month value.
+  int8_t hour;
+  int8_t minute;
+  int8_t neg;   // this is a negative entry
+  int32_t duration; // duration in minute
 } SDateTimeRange;
 
-bool    isValidDateTimeRange(SDateTimeRange* pRange);
+bool isValidDateTimeRange(SDateTimeRange* pRange);
 int32_t tEncodeSDateTimeRange(SEncoder* pEncoder, const SDateTimeRange* pRange);
 int32_t tDecodeSDateTimeRange(SDecoder* pDecoder, SDateTimeRange* pRange);
 
-// SDateTimeWhiteListItem is used by server internally to represent datetime ranges.
+
+// SDateTimeWhiteListItem is used by server internally to represent datetime ranges. 
 typedef struct {
-  bool    absolute;  // true: absolute datetime range; false: weekly recurring datetime range
-  bool    neg;       // this is a negative entry
-  int32_t duration;  // duration in seconds
-  int64_t start;     // absolute timestamp in seconds or weekly offset in seconds
+  bool absolute;    // true: absolute datetime range; false: weekly recurring datetime range
+  bool neg;         // this is a negative entry
+  int32_t duration; // duration in seconds
+  int64_t start;    // absolute timestamp in seconds or weekly offset in seconds
 } SDateTimeWhiteListItem;
 
 void DateTimeRangeToWhiteListItem(SDateTimeWhiteListItem* dst, const SDateTimeRange* src);
-bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* pInterval);
+bool isDateTimeWhiteListItemExpired(const SDateTimeWhiteListItem* item);
 
 typedef struct {
-  int32_t                num;
+  int32_t num;
   SDateTimeWhiteListItem ranges[];
 } SDateTimeWhiteList;
 
 SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src);
-bool                isTimeInDateTimeWhiteList(SDateTimeWhiteList* wl, int64_t tm);
+bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
+
 
 typedef struct {
   int8_t createType;
   int8_t superUser;  // denote if it is a super user or not
   int8_t ignoreExisting;
 
-  char user[TSDB_USER_LEN];
-  char pass[TSDB_USER_PASSWORD_LONGLEN];
-  char totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_USER_PASSWORD_LONGLEN];
+  char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
   int8_t sysInfo;
   int8_t createDb;
@@ -1450,6 +1470,20 @@ int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pR
 void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 
 typedef struct {
+  char    algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  char    type[TSDB_ENCRYPT_ALGR_TYPE_LEN];
+  char    osslAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SCreateEncryptAlgrReq;
+
+int32_t tSerializeSCreateEncryptAlgrReq(void* buf, int32_t bufLen, SCreateEncryptAlgrReq* pReq);
+int32_t tDeserializeSCreateEncryptAlgrReq(void* buf, int32_t bufLen, SCreateEncryptAlgrReq* pReq);
+void    tFreeSCreateEncryptAlgrReq(SCreateEncryptAlgrReq* pReq);
+
+typedef struct {
   int32_t dnodeId;
   int64_t analVer;
 } SRetrieveAnalyticsAlgoReq;
@@ -1469,7 +1503,7 @@ typedef struct {
   int8_t alterType;
 
   int8_t isView;
-
+  
   int8_t hasPassword;
   int8_t hasTotpseed;
   int8_t hasEnable;
@@ -1495,9 +1529,9 @@ typedef struct {
   int8_t createdb;
   int8_t changepass;
 
-  char    user[TSDB_USER_LEN];
-  char    pass[TSDB_USER_PASSWORD_LONGLEN];
-  char    totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_USER_PASSWORD_LONGLEN];
+  char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
   int32_t sessionPerUser;
   int32_t connectTime;
   int32_t connectIdleTime;
@@ -1521,13 +1555,13 @@ typedef struct {
   SIpRange*       pDropIpRanges;
   SDateTimeRange* pDropTimeRanges;
 
-  char      objname[TSDB_DB_FNAME_LEN];  // db or topic
-  char      tabName[TSDB_TABLE_NAME_LEN];
-  char*     tagCond;
-  int32_t   tagCondLen;
-  int32_t   sqlLen;
-  char*     sql;
-  int64_t privileges;
+  char        objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char        tabName[TSDB_TABLE_NAME_LEN];
+  char*       tagCond;
+  int32_t     tagCondLen;
+  int32_t     sqlLen;
+  char*       sql;
+  int64_t     privileges;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -1596,6 +1630,7 @@ int32_t tSerializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* 
 int32_t tDeserializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
 void    tFreeSUpdateIpWhiteDualReq(SUpdateIpWhite* pReq);
 
+
 // SRetrieveWhiteListReq is used to retrieve both ip and datetime whitelist, but the
 // corresponding response struct is different.
 typedef struct {
@@ -1604,6 +1639,7 @@ typedef struct {
 
 int32_t tSerializeRetrieveWhiteListReq(void* buf, int32_t bufLen, SRetrieveWhiteListReq* pReq);
 int32_t tDeserializeRetrieveWhiteListReq(void* buf, int32_t bufLen, SRetrieveWhiteListReq* pReq);
+
 
 // SGetUserWhiteListReq is used to get both ip and datetime whitelist, but the
 // corresponding response struct is different.
@@ -1637,27 +1673,28 @@ int32_t tDeserializeSGetUserIpWhiteListDualRsp(void* buf, int32_t bufLen, SGetUs
 void    tFreeSGetUserIpWhiteListDualRsp(SGetUserIpWhiteListRsp* pRsp);
 
 typedef struct {
-  int64_t                 ver;
-  char                    user[TSDB_USER_LEN];
-  int32_t                 numWhiteLists;
+  int64_t ver;
+  char    user[TSDB_USER_LEN];
+  int32_t numWhiteLists;
   SDateTimeWhiteListItem* pWhiteLists;
 } SUserDateTimeWhiteList;
 
-int32_t cloneSUserDateTimeWhiteList(const SUserDateTimeWhiteList* src, SUserDateTimeWhiteList* dest);
+
 int32_t tSerializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTimeWhiteList* pRsp);
 int32_t tDeserializeSUserDateTimeWhiteList(void* buf, int32_t bufLen, SUserDateTimeWhiteList* pRsp);
 void    tFreeSUserDateTimeWhiteList(SUserDateTimeWhiteList* pRsp);
+int32_t cloneSUserDateTimeWhiteList(const SUserDateTimeWhiteList* src, SUserDateTimeWhiteList* dest);
 
 typedef struct {
-  int64_t                 ver;
-  int                     numOfUser;
-  SUserDateTimeWhiteList* pUsers;
+  int64_t             ver;
+  int                 numOfUser;
+  SUserDateTimeWhiteList *pUsers;
 } SRetrieveDateTimeWhiteListRsp;
 
-int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp* src, SRetrieveDateTimeWhiteListRsp** dest);
 int32_t tSerializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp);
 int32_t tDeserializeSRetrieveDateTimeWhiteListRsp(void* buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp* pRsp);
 void    tFreeSRetrieveDateTimeWhiteListRsp(SRetrieveDateTimeWhiteListRsp* pRsp);
+int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp* src, SRetrieveDateTimeWhiteListRsp** dest);
 
 /*
  * for client side struct, only column id, type, bytes are necessary
@@ -1842,6 +1879,7 @@ typedef struct {
   int32_t compactStartTime;   // minutes
   int32_t compactEndTime;     // minutes
   int8_t  compactTimeOffset;  // hour
+  char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1878,6 +1916,7 @@ typedef struct {
   int32_t compactStartTime;
   int32_t compactEndTime;
   int8_t  compactTimeOffset;
+  char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2095,7 +2134,8 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLast;
-  int8_t  encryptAlgorithm;
+  int8_t  encryptAlgr;
+  char    algorithmsId[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int32_t ssChunkSize;
   int32_t ssKeepLocal;
   int8_t  ssCompact;
@@ -2648,6 +2688,7 @@ typedef struct {
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
   int32_t  changeVersion;
   int8_t   encryptAlgorithm;
+  char     encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -3538,6 +3579,11 @@ typedef struct SColIdPair {
   col_id_t orgColId;
 } SColIdPair;
 
+typedef struct SColIdSlotIdPair {
+  int32_t  vtbSlotId;
+  col_id_t orgColId;
+} SColIdSlotIdPair;
+
 typedef struct SOrgTbInfo {
   int32_t vgId;
   char    tbName[TSDB_TABLE_FNAME_LEN];
@@ -3546,6 +3592,7 @@ typedef struct SOrgTbInfo {
 
 typedef struct STableScanOperatorParam {
   bool        tableSeq;
+  bool        isNewParam;
   SArray*     pUidList;
   SOrgTbInfo* pOrgTbInfo;
   STimeWindow window;
@@ -3557,9 +3604,22 @@ typedef struct STagScanOperatorParam {
 
 typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
+  STimeWindow     window;
   SOperatorParam* pTagScanOp;
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
 } SVTableScanOperatorParam;
+
+typedef struct SMergeOperatorParam {
+  int32_t         winNum;
+} SMergeOperatorParam;
+
+typedef struct SExternalWindowOperatorParam {
+  SArray*         ExtWins;  // SArray<SExtWinTimeWindow>
+} SExternalWindowOperatorParam;
+
+typedef struct SDynQueryCtrlOperatorParam {
+  STimeWindow    window;
+} SDynQueryCtrlOperatorParam;
 
 struct SStreamRuntimeFuncInfo;
 typedef struct {
@@ -5575,6 +5635,30 @@ void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp* pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp* pRsp);
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int32_t expire;
+} SInstanceRegisterReq;
+
+int32_t tSerializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
+int32_t tDeserializeSInstanceRegisterReq(void* buf, int32_t bufLen, SInstanceRegisterReq* pReq);
+
+typedef struct {
+  char filter_type[TSDB_INSTANCE_TYPE_LEN];
+} SInstanceListReq;
+
+typedef struct {
+  int32_t count;
+  char**  ids;  // Array of instance IDs
+} SInstanceListRsp;
+
+int32_t tSerializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
+int32_t tDeserializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
+int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
+int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
 
 #ifdef USE_MOUNT
 typedef struct {

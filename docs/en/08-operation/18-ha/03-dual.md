@@ -77,39 +77,41 @@ This command is used to start the data replication task in an active-active setu
 
 1. Method 1:
 
-```shell
-taosx replica start -f source_endpoint -t sink_endpoint [database...] 
-```
+   ```shell
+   taosx replica start -f source_endpoint -t sink_endpoint [database...] 
+   ```
 
-In the local taosx service, this command creates a synchronization task from `source_endpoint` to `sink_endpoint`. If the command runs successfully, it prints the replica ID to the console (referred to as id below).
+   In the local taosx service, this command creates a synchronization task from `source_endpoint` to `sink_endpoint`. If the command runs successfully, it prints the replica ID to the console (referred to as id below).
 
-The input parameters `source_endpoint` and `sink_endpoint` are required, and must be in the format `td2:6030`. For example:
+   The input parameters `source_endpoint` and `sink_endpoint` are required, and must be in the format `td2:6030`. For example:
 
-```shell
-taosx replica start -f td1:6030 -t td2:6030 
-```
+   ```shell
+   taosx replica start -f td1:6030 -t td2:6030 
+   ```
 
-This example command automatically creates synchronization tasks for all databases except `information_schema`, `performance_schema`, `log`, and `audit`. It also continuously monitors for new databases. When the same database name is created on both td1 and td2, a new replication task for that database will be started automatically. Notes:
+   This example command automatically creates synchronization tasks for all databases except `information_schema`, `performance_schema`, `log`, and `audit`. It also continuously monitors for new databases. When the same database name is created on both td1 and td2, a new replication task for that database will be started automatically. Notes:
 
-- You can specify that an endpoint use the WebSocket interface (default is the native interface) with `http://td2:6041`.
-- You can configure the interval for checking new databases with:
+   - You can specify that an endpoint use the WebSocket interface (default is the native interface) with `http://td2:6041`.
+   - You can configure the interval for checking new databases with:
 `--new-database-checking-interval <SECONDS>` (default: 30 minutes).
-- You can disable monitoring for new databases with `--no-new-databases`.
-- You can also specify replication for particular databases. For example, `taosx replica start -f td1:6030 -t td2:6030 db1` creates a replication task only for the specified database. In this case, it is equivalent to using `--no-new-databases`, and automatic replication of newly created databases will not be enabled.
+   - You can disable monitoring for new databases with `--no-new-databases`.
+   - You can also specify replication for particular databases. For example, `taosx replica start -f td1:6030 -t td2:6030 db1` creates a replication task only for the specified database. In this case, it is equivalent to using `--no-new-databases`, and automatic replication of newly created databases will not be enabled.
 
-2. Method 2:
+1. Method 2:
 
-```shell
-taosx replica start -i id [database...]
-```
+   ```shell
+   taosx replica start -i id [database...]
+   ```
 
-Use an existing replica ID to add databases to a replication task:
+   Use an existing replica ID to add databases to a replication task:
 
-Notes:
+:::note
 
 1. Running this command multiple times will not create duplicate tasks; it only adds the specified databases to the existing task.
 1. The replica ID is globally unique within a single taosX instance and is independent of the source/sink combination.
 1. For easier recall, the replica ID is generated as a common random word. The system automatically maps each source/sink combination to a word list to assign a unique, available word.
+
+:::
 
 ### View Task Status
 

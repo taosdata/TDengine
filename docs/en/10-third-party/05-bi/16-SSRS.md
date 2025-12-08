@@ -12,7 +12,7 @@ SSRS seamlessly connects to TDengine, which supports standard ODBC interfaces. T
 
 This example requires the preparation of two servers and two clients to build the SSRS example environment, network deployment diagram:
 
-![](../../assets/ssrs-01.webp)
+![Sample network diagram](../../assets/ssrs-01.webp)
 
 Prepare the environment as follows:
 
@@ -32,7 +32,7 @@ Prepare the environment as follows:
 - Install Microsoft SQL Server 2022 Reporting Service and the reporting service is running properly, [download and install](https://learn.microsoft.com/en-us/sql/reporting-services/install-windows/install-reporting-services?view=sql-server-ver16).
 - Configure the Microsoft SQL Server 2022 Reporting Service to use an IP address for external services.
   
-  ![](../../assets/ssrs-02.webp)
+  ![Configure SSRS web service URL](../../assets/ssrs-02.webp)
 
    Record the "Report Server Web Service URLs" address in the above figure, which will be used in the following steps.
 
@@ -43,7 +43,7 @@ Prepare the environment as follows:
 - Install Microsoft Report Builder (32-bit), which provides report development services, [download and install](https://www.microsoft.com/en-us/download/details.aspx?id=53613).
 - Configure Microsoft Report Builder to report the report server address, you should fill in the "Report Server Web Service URLs" address recorded earlier.
   
-  ![](../../assets/ssrs-03.webp)
+  ![Configure Report Builder target server](../../assets/ssrs-03.webp)
 
 ### Office Client
 
@@ -58,7 +58,7 @@ SSRS accesses the TDengine data source through ODBC, and the configuration steps
 1. Configure ODBC data source on SSRS Server.
    Open ODBC Data Source Manager (64-bit), select "System DSN" -> "Add..." -> "TDengine"->"Finish", the configuration window will pop up as follows:
 
-   ![](../../assets/ssrs-04.webp)
+   ![Configure ODBC data source](../../assets/ssrs-04.webp)
 
    - DSN: fill in "TDengine".
    - Connect type: select "WebSocket".
@@ -75,7 +75,7 @@ SSRS accesses the TDengine data source through ODBC, and the configuration steps
 3. Create data source connection on Report Builder Client.
    Start Report Builder, right-click on the "Data Source" item in the left area and click "Add Data Source..." menu, as shown in Figure:
 
-   ![](../../assets/ssrs-05.webp)
+   ![Create ODBC data source connection](../../assets/ssrs-05.webp)
 
    - Name: fill in the name of the data source.
    - Data Source Method: Select the second item "Use a connection embedded in my report".
@@ -102,7 +102,7 @@ Create a super meter with 500 sub-meters, each sub-meter represents a smart mete
 2. Create a new dataset.  
    In the left area, "DataSource" -> "DataSource1" -> "Add Dataset...".
 
-   ![](../../assets/ssrs-06.webp)
+   ![Add dataset](../../assets/ssrs-06.webp)
 
    - Name: Fill in the dataset name.
    - Dataset method: choose the second item "Use a dataset embedded im my report".
@@ -124,12 +124,12 @@ Create a super meter with 500 sub-meters, each sub-meter represents a smart mete
    Menu "Insert" -> "Table" -> "Insert Table", insert an empty table, use the mouse to drag the data columns of "DataSet1" to the right side of the report.
    "DataSet1" in the data columns with the mouse dragged to the right side of the report production area placed on the columns they want to show, as shown:
 
-   ![](../../assets/ssrs-07.webp)
+   ![Create report](../../assets/ssrs-07.webp)
 
 4. Preview.
    Click "Home" -> "Run" button to preview the report.
 
-   ![](../../assets/ssrs-08.webp)
+   ![Preview report](../../assets/ssrs-08.webp)
 
 5. Exit the preview.  
    Click the first icon "Design" on the left side of the toolbar to close the preview and go back to the design interface to continue designing.
@@ -139,12 +139,12 @@ Create a super meter with 500 sub-meters, each sub-meter represents a smart mete
 1. Save the report to the server.  
    Click menu "File" -> "Save", as shown in the figure:
 
-   ![](../../assets/ssrs-09.webp)
+   ![Share report](../../assets/ssrs-09.webp)
 
 2. The report data source connection component is published to the server.  
    Click menu "File" -> "Publish Report Parts".
 
-   ![](../../assets/ssrs-10.webp)
+   ![Publish report](../../assets/ssrs-10.webp)
 
    Selecting the first item "Pubsh all report parts with default settings" will send the report to the server with the data source configuration.
 
@@ -155,21 +155,21 @@ After the report is sent to the server, the report is shared and can be accessed
 1. View the report viewing address.  
    The report viewing address is in the SSRS server configuration, as follows:
 
-   ![](../../assets/ssrs-11.webp)
+   ![Browse report on server](../../assets/ssrs-11.webp)
 
 2. Enter the access authorization.  
    When the client accesses the report data for the first time, an authorization window will pop up asking for login, enter the report server operating system login account.
 
-   ![](../../assets/ssrs-12.webp)
+   ![Log in to access report](../../assets/ssrs-12.webp)
 
    After the account is entered successfully, the following page will appear, and you can see the report "meters" saved and uploaded earlier.
 
-   ![](../../assets/ssrs-13.webp)
+   ![See report files on server](../../assets/ssrs-13.webp)
 
 3. Paging through reports.  
    Click "meters", it will display the latest collected data of all smart meters in the district in pages.
 
-   ![](../../assets/ssrs-14.webp)
+   ![See paginated results](../../assets/ssrs-14.webp)
 
 ### Manage Report
 
