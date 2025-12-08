@@ -634,6 +634,9 @@ int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBa
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pBatchRsp->monitorParas));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->enableAuditDelete));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->enableStrongPass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->enableAuditSelect));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->enableAuditInsert));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBatchRsp->auditLevel));
   tEndEncode(&encoder);
 
 _exit:
@@ -686,6 +689,16 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pBatchRsp->enableStrongPass));
   } else {
     pBatchRsp->enableStrongPass = 0;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pBatchRsp->enableAuditSelect));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pBatchRsp->enableAuditInsert));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pBatchRsp->auditLevel));
+  } else {
+    pBatchRsp->enableAuditSelect = 0;
+    pBatchRsp->enableAuditInsert = 0;
+    pBatchRsp->auditLevel = 0;
   }
 
   tEndDecode(&decoder);
@@ -2557,6 +2570,8 @@ int32_t tSerializeSAuditReq(void *buf, int32_t bufLen, SAuditReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->table));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pSql));
+  TAOS_CHECK_EXIT(tEncodeDouble(&encoder, pReq->duration));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->affectedRows));
 
   tEndEncode(&encoder);
 
@@ -2589,6 +2604,11 @@ int32_t tDeserializeSAuditReq(void *buf, int32_t bufLen, SAuditReq *pReq) {
     }
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pSql));
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeDouble(&decoder, &pReq->duration));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->affectedRows));
+  }
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
@@ -2596,6 +2616,90 @@ _exit:
 }
 
 void tFreeSAuditReq(SAuditReq *pReq) { taosMemoryFreeClear(pReq->pSql); }
+
+int32_t tSerializeSBatchAuditReq(void *buf, int32_t bufLen, SBatchAuditReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  int32_t nAudit = taosArrayGetSize(pReq->auditArr);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, nAudit));
+  for (int32_t i = 0; i < nAudit; ++i) {
+    SAuditReq *audit = TARRAY_GET_ELEM(pReq->auditArr, i);
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, audit->operation));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, audit->db));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, audit->table));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, audit->sqlLen));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, audit->pSql));
+    TAOS_CHECK_EXIT(tEncodeDouble(&encoder, audit->duration));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, audit->affectedRows));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSBatchAuditReq(void *buf, int32_t bufLen, SBatchAuditReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  int32_t nAudit = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nAudit));
+  if (nAudit > 0) {
+    pReq->auditArr = taosArrayInit_s(sizeof(SAuditReq), nAudit);
+    if (!pReq->auditArr) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nAudit; ++i) {
+      SAuditReq *pAudit = TARRAY_GET_ELEM(pReq->auditArr, i);
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pAudit->operation));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pAudit->db));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pAudit->table));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pAudit->sqlLen));
+      if (pAudit->sqlLen > 0) {
+        pAudit->pSql = taosMemoryMalloc(pAudit->sqlLen + 1);
+        if (pAudit->pSql == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pAudit->pSql));
+      }
+      TAOS_CHECK_EXIT(tDecodeDouble(&decoder, &pAudit->duration));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pAudit->affectedRows));
+    }
+  }
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSBatchAuditReq(SBatchAuditReq *pReq) {
+  if (pReq) {
+    int32_t nAudit = taosArrayGetSize(pReq->auditArr);
+    for (int32_t i = 0; i < nAudit; ++i) {
+      SAuditReq *audit = TARRAY_GET_ELEM(pReq->auditArr, i);
+      taosMemoryFreeClear(audit->pSql);
+    }
+    taosArrayDestroy(pReq->auditArr);
+  }
+}
 
 SIpWhiteListDual *cloneIpWhiteList(const SIpWhiteListDual *src) {
   if (src == NULL) return NULL;
@@ -9423,6 +9527,9 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditDelete));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteListVer));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->mustChangePass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditSelect));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditInsert));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->auditLevel));
   tEndEncode(&encoder);
 
 _exit:
@@ -9487,6 +9594,15 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     pRsp->mustChangePass = 0;
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->enableAuditSelect));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->enableAuditInsert));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->auditLevel));
+  } else {
+    pRsp->enableAuditSelect = 0;
+    pRsp->enableAuditInsert = 0;
+    pRsp->auditLevel = 0;
+  }
   tEndDecode(&decoder);
 
 _exit:

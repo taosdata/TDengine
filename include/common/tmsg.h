@@ -1301,6 +1301,9 @@ typedef struct {
   int64_t       timeWhiteListVer;
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableAuditSelect;
+  int8_t        enableAuditInsert;
+  int8_t        auditLevel;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -2542,10 +2545,19 @@ typedef struct {
   char    operation[AUDIT_OPERATION_LEN];
   int32_t sqlLen;
   char*   pSql;
+  double  duration;
+  int64_t affectedRows;
 } SAuditReq;
 int32_t tSerializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
 int32_t tDeserializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
 void    tFreeSAuditReq(SAuditReq* pReq);
+
+typedef struct {
+  SArray* auditArr;
+} SBatchAuditReq;
+int32_t tSerializeSBatchAuditReq(void* buf, int32_t bufLen, SBatchAuditReq* pReq);
+int32_t tDeserializeSBatchAuditReq(void* buf, int32_t bufLen, SBatchAuditReq* pReq);
+void    tFreeSBatchAuditReq(SBatchAuditReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -4359,6 +4371,9 @@ typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
   int8_t        enableStrongPass;
+  int8_t        enableAuditSelect;
+  int8_t        enableAuditInsert;
+  int8_t        auditLevel;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }

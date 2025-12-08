@@ -87,6 +87,7 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
 static int32_t mndProcessAuditReq(SRpcMsg *pReq);
+static int32_t mndProcessBatchAuditReq(SRpcMsg *pReq);
 static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
@@ -122,6 +123,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
   mndSetMsgHandle(pMnode, TDMT_MND_AUDIT, mndProcessAuditReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_BATCH_AUDIT, mndProcessBatchAuditReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
@@ -628,7 +630,7 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
 
 static int32_t mndProcessAuditReq(SRpcMsg *pReq) {
   mTrace("process audit req:%p", pReq);
-  if (tsEnableAudit && tsEnableAuditDelete) {
+  if (tsEnableAudit && tsAuditLevel >= AUDIT_LEVEL_DATA) {
     SMnode   *pMnode = pReq->info.node;
     SAuditReq auditReq = {0};
 
@@ -637,9 +639,32 @@ static int32_t mndProcessAuditReq(SRpcMsg *pReq) {
     mDebug("received audit req:%s, %s, %s, %s", auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql);
 
     auditAddRecord(pReq, pMnode->clusterId, auditReq.operation, auditReq.db, auditReq.table, auditReq.pSql,
-                   auditReq.sqlLen);
+                   auditReq.sqlLen, auditReq.duration, auditReq.affectedRows);
 
     tFreeSAuditReq(&auditReq);
+  }
+  return 0;
+}
+
+static int32_t mndProcessBatchAuditReq(SRpcMsg *pReq) {
+  mTrace("process audit req:%p", pReq);
+  if (tsEnableAudit && tsAuditLevel >= AUDIT_LEVEL_DATA) {
+    SMnode        *pMnode = pReq->info.node;
+    SBatchAuditReq auditReq = {0};
+
+    TAOS_CHECK_RETURN(tDeserializeSBatchAuditReq(pReq->pCont, pReq->contLen, &auditReq));
+
+    int32_t nAudit = taosArrayGetSize(auditReq.auditArr);
+
+    for (int32_t i = 0; i < nAudit; ++i) {
+      SAuditReq *audit = TARRAY_GET_ELEM(auditReq.auditArr, i);
+      mDebug("received audit req:%s, %s, %s, %s", audit->operation, audit->db, audit->table, audit->pSql);
+
+      auditAddRecord(pReq, pMnode->clusterId, audit->operation, audit->db, audit->table, audit->pSql, audit->sqlLen,
+                     audit->duration, audit->affectedRows);
+    }
+
+    tFreeSBatchAuditReq(&auditReq);
   }
   return 0;
 }
@@ -1119,6 +1144,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
   int32_t         lino = 0;
+  int64_t         tss = taosGetTimestampMs();
 
   if ((code = grantCheck(TSDB_GRANT_DNODE)) != 0 || (code = grantCheck(TSDB_GRANT_CPU_CORES)) != 0) {
     goto _OVER;
@@ -1156,10 +1182,15 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
     tsGrantHBInterval = 5;
   }
 
-  char obj[200] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[200] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
 
-  auditRecord(pReq, pMnode->clusterId, "createDnode", "", obj, createReq.sql, createReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createDnode", "", obj, createReq.sql, createReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1287,6 +1318,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   SSnodeObj    *pSObj = NULL;
   SBnodeObj    *pBObj = NULL;
   SDropDnodeReq dropReq = {0};
+  int64_t       tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSDropDnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
@@ -1390,10 +1422,15 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, pBObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj1[30] = {0};
-  (void)tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj1[30] = {0};
+    (void)tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "dropDnode", "", obj1, dropReq.sql, dropReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropDnode", "", obj1, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

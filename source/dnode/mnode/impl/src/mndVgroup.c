@@ -2581,6 +2581,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   int32_t    oldDnodeId[3] = {0};
   int32_t    newIndex = -1;
   int32_t    oldIndex = -1;
+  int64_t    tss = taosGetTimestampMs();
 
   SRedistributeVgroupReq req = {0};
   if (tDeserializeSRedistributeVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
@@ -2876,11 +2877,15 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[33] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", req.vgId);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char obj[33] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", req.vgId);
 
-  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", "", obj, req.sql, req.sqlLen);
-
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", "", obj, req.sql, req.sqlLen, duration, 0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("vgId:%d, failed to redistribute to dnode %d:%d:%d since %s", req.vgId, req.dnodeId1, req.dnodeId2,
@@ -3923,6 +3928,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   SArray *pArray = NULL;
   void   *pIter = NULL;
   int64_t curMs = taosGetTimestampMs();
+  int64_t tss = taosGetTimestampMs();
 
   SBalanceVgroupReq req = {0};
   if (tDeserializeSBalanceVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
@@ -3969,7 +3975,12 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
     code = mndBalanceVgroup(pMnode, pReq, pArray);
   }
 
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", req.sql, req.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", req.sql, req.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
