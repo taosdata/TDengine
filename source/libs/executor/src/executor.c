@@ -1176,6 +1176,7 @@ static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   }
 }
 
+
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
   if (pTaskInfo == NULL) {

@@ -364,7 +364,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_ROOT_TASK(_task) (0 == (_task)->level->level)   
 
 #define SCH_IS_PARENT_JOB(job) (NULL == (job)->parent) 
-#define SCH_JOB_GOT_SUB_JOBS(job) (NULL != (job)->subJobs)
+#define SCH_IS_SUBQ_JOB(job) ((job)->subJobId >= 0) 
+#define SCH_JOB_GOT_SUB_JOBS(job) (NULL != (job)->subJobs && taosArrayGetSize((job)->subJobs) > 0)
 #define SCH_SUB_JOBS_EXEC_FINISHED(job, dn) ((dn) == (job)->subJobs->size)
 
 #define SCH_UPDATE_REDIRECT_CODE(job, _code) (void)atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)

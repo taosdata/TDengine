@@ -319,10 +319,24 @@ static void freeBlock(void* pParam) {
   blockDataDestroy(pBlock);
 }
 
+
+void destroySubJobCtx(STaskSubJobCtx* pCtx) {
+  if (pCtx->transporterId > 0) {
+    int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
+    if (ret != 0) {
+      qDebug("%s failed to free subQ rpc handle, code:%s", pCtx->idStr, tstrerror(ret));
+    }
+    pCtx->transporterId = -1;
+  }
+  taosArrayDestroy(pCtx->subResValues);
+}
+
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
   destroyOperator(pTaskInfo->pRoot);
   pTaskInfo->pRoot = NULL;
+
+  destroySubJobCtx(&pTaskInfo->subJobCtx);
 
   taosArrayDestroyEx(pTaskInfo->schemaInfos, cleanupQueriedTableScanInfo);
   cleanupStreamInfo(&pTaskInfo->streamInfo);

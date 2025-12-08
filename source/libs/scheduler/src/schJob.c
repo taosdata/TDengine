@@ -550,6 +550,10 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
 
 void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
   int32_t code = 0;
+  if (!SCH_IS_PARENT_JOB(pJob)) {
+    return;
+  }
+  
   SCH_LOCK(SCH_WRITE, &pJob->opStatus.lock);
 
   if (SCH_OP_NULL == pJob->opStatus.op) {

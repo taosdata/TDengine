@@ -31,7 +31,8 @@ typedef struct STaskSubJobCtx {
   uint64_t    queryId;
   char*       idStr;
   void*       pTaskInfo;
-  void*   rpcHandle;
+  void*       rpcHandle;
+  int64_t     transporterId;
   bool    inFetch;
   int32_t code;
   tsem_t  ready;

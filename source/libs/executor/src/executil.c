@@ -4161,16 +4161,13 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
 
   qDebug("%s subQIdx %d got rsp, code:%d, rsp:%p", ctx->idStr, pParam->subQIdx, code, pMsg->pData);
 
-/* TODO
-  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, index);
-  if (pRpcHandle != NULL) {
-    int32_t ret = asyncFreeConnById(pExchangeInfo->pTransporter, *pRpcHandle);
+  if (ctx->transporterId > 0) {
+    int32_t ret = asyncFreeConnById(ctx->rpcHandle, ctx->transporterId);
     if (ret != 0) {
-      qDebug("failed to free rpc handle, code:%s, %p", tstrerror(ret), pExchangeInfo);
+      qDebug("%s failed to free subQ rpc handle, code:%s, subQIdx:%d", ctx->idStr, tstrerror(ret), pParam->subQIdx);
     }
-    *pRpcHandle = -1;
+    ctx->transporterId = -1;
   }
-*/
 
   if (0 == code && NULL == pMsg->pData) {
     qError("%s invalid rsp msg, msgType:%d, len:%d", ctx->idStr, pMsg->msgType, pMsg->len);
@@ -4297,15 +4294,8 @@ int32_t fetchRemoteValueImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SRemoteValueN
   pMsgSendInfo->fp = remoteFetchCallBack;
   pMsgSendInfo->requestId = ctx->queryId;
 
-  int64_t transporterId = 0;
-  void* poolHandle = NULL;
-  code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
+  code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &ctx->transporterId, pMsgSendInfo);
   QUERY_CHECK_CODE(code, lino, _end);
-  
-  /* TODO
-  int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);
-  *pRpcHandle = transporterId;
-  */
 
   code = qSemWait(ctx->pTaskInfo, &ctx->ready);
   if (isTaskKilled(ctx->pTaskInfo)) {
