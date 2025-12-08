@@ -1887,7 +1887,7 @@ void asyncExec(void* param, TAOS_RES* res, int code) {
   return;
 }
 
-TEST(stmt2Case, stmt2_query) {
+TEST(stmt2Case, query) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
   do_query(taos, "drop database if exists stmt2_testdb_7");
@@ -1971,6 +1971,53 @@ TEST(stmt2Case, stmt2_query) {
     taos_stmt2_close(stmt);
   }
 
+  {
+    AsyncArgs* aa = (AsyncArgs*)taosMemoryMalloc(sizeof(AsyncArgs));
+    aa->async_affected_rows = 0;
+    ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
+
+    TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, (void*)aa};
+
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+
+    const char* sql =
+        "select table_name, db_name, stable_name from information_schema.ins_tables where 1 = 1 and table_name = ? and "
+        "db_name = ?";
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(fieldNum, 2);
+
+    int              b_len = 3;
+    int              b_len2 = 14;
+    TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_BINARY, (void*)"tb1", &b_len, NULL, 1},
+                                  {TSDB_DATA_TYPE_BINARY, (void*)"stmt2_testdb_7", &b_len2, NULL, 1}};
+    TAOS_STMT2_BIND* paramv = &params[0];
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    tsem_wait(&aa->sem);
+    tsem_destroy(&aa->sem);
+    taosMemoryFree(aa);
+
+    TAOS_RES* pRes = taos_stmt2_result(stmt);
+    ASSERT_NE(pRes, nullptr);
+    TAOS_ROW row = taos_fetch_row(pRes);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(strncmp((char*)row[0], "tb1", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[1], "stmt2_testdb_7", 14), 0);
+    ASSERT_EQ(strncmp((char*)row[2], "stb", 3), 0);
+    taos_stmt2_close(stmt);
+  }
   // int code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = ?", 0);
   // checkError(stmt, code, __FILE__, __LINE__);
 
@@ -3475,7 +3522,6 @@ TEST(stmt2Case, usage_error) {
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_17");
   taos_close(taos);
 }
-
 
 void stmtAsyncBindCb(void* param, TAOS_RES* pRes, int code) {
   bool* finish = (bool*)param;
