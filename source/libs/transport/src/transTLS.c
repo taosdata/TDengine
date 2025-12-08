@@ -193,7 +193,7 @@ void transTlsCxtUnref(SSslCtx* pCtx) {
   }
 
   if (atomic_sub_fetch_32(&pCtx->refCount, 1) == 0) {
-    tInfo("ref tls context %p, current refCount:0, try to destroy", pCtx, atomic_load_32(&pCtx->refCount));
+    tInfo("ref tls context %p, current refCount:%d, try to destroy", pCtx, atomic_load_32(&pCtx->refCount));
     transTlsCxtDestroy(pCtx);
   } else {
     tInfo("ref tls context %p, current refCount:%d", pCtx, atomic_load_32(&pCtx->refCount));
