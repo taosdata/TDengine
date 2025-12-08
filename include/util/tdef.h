@@ -337,7 +337,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_SALT_LEN     31   // length of salt used in password encryption, excluding the terminator '\0'
 #define TSDB_USER_PASSWORD_LEN     129
 #define TSDB_USER_PASSWORD_LONGLEN 256
-#define TSDB_TOTP_SECRET_LEN       16
+#define TSDB_TOTP_SECRET_LEN       32
 #define TSDB_USER_TOTPSEED_MIN_LEN 8    // minimum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_TOTPSEED_MAX_LEN 255  // maximum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_SESSION_PER_USER_DEFAULT      32

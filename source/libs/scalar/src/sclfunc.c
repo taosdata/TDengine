@@ -1758,7 +1758,8 @@ int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScal
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  int32_t          bufLen = 30 + VARSTR_HEADER_SIZE + 1;
+  char secret[64] = {0};
+  int32_t          bufLen = (sizeof(secret) * 8) / 5 + 4 + VARSTR_HEADER_SIZE + 1;
   char            *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("generate_totp_secret function alloc memory failed");
@@ -1771,7 +1772,6 @@ int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScal
     }
     char *input = colDataGetData(pInput[0].columnData, i);
 
-    char secret[16] = {0};
     int len = taosGenerateTotpSecret(varDataVal(input), varDataLen(input), secret, sizeof(secret));
     if (len < 0) {
       taosMemoryFree(pOutputBuf);
@@ -1869,8 +1869,8 @@ int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalar
       continue;
     }
 
-    taosFormatTotp(totp, 6, varDataVal(output), 7);
-    varDataSetLen(output, 6);
+    int len = taosFormatTotp(totp, 6, varDataVal(output), 7);
+    varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFree(output);

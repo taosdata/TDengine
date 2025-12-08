@@ -18,11 +18,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
+#include "ttime.h"
+
+#ifdef WINDOWS
+
+static int32_t doGenerateTotp(const uint8_t *secret, size_t secretLen, uint64_t tm, int digits) {
+  return -1;
+}
+
+int taosGenerateTotpSecret(const char *seed, size_t seedLen, uint8_t *secret, size_t secretLen) {
+  return 0;
+}
+
+#else // WINDOWS
 
 // OpenSSL HMAC 函数
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
-#include "tmd5.h"
 
 // doGenerateTotp generates a TOTP code based on the provided secret and time.
 // secret is a byte array, not a base32 string
@@ -42,7 +55,9 @@ static int32_t doGenerateTotp(const uint8_t *secret, size_t secretLen, uint64_t 
   // calculate HMAC-SHA1
   uint8_t      hmacResult[EVP_MAX_MD_SIZE];
   unsigned int hmacLen;
-  HMAC(EVP_sha1(), secret, secretLen, (const uint8_t *)&tm, sizeof(tm), hmacResult, &hmacLen);
+  if (HMAC(EVP_sha1(), secret, secretLen, (const uint8_t *)&tm, sizeof(tm), hmacResult, &hmacLen) == NULL) {
+    return -1;  // HMAC calculation failed
+  }
 
   // use the lower 4 bits of the last byte as offset
   int offset = hmacResult[hmacLen - 1] & 0x0F;
@@ -54,6 +69,37 @@ static int32_t doGenerateTotp(const uint8_t *secret, size_t secretLen, uint64_t 
 
   return binary % (int32_t)pow(10, digits);
 }
+
+
+// generate TOTP secret from seed
+// secret is a byte array, not a base32 string
+int taosGenerateTotpSecret(const char *seed, size_t seedLen, uint8_t *secret, size_t secretLen) {
+  // TOTP secret requires at least 16 characters for adequate security
+  if (secretLen < 16) {
+    return 0;
+  }
+
+  if (seedLen == 0) {
+    seedLen = strlen(seed);
+  }
+
+  // calculate HMAC-SHA1
+  uint8_t      hmacResult[EVP_MAX_MD_SIZE];
+  unsigned int hmacLen;
+  if (HMAC(EVP_sha256(), NULL, 0, seed, seedLen, hmacResult, &hmacLen) == NULL) {
+    return 0;  // HMAC calculation failed
+  }
+
+  if (hmacLen > secretLen) {
+    hmacLen = secretLen;
+  }
+  (void)memcpy(secret, hmacResult, hmacLen);
+
+  return hmacLen;
+}
+
+#endif // WINDOWS
+
 
 // formatTotp formats the TOTP code with leading zeros to match the specified digit length.
 int taosFormatTotp(int32_t totp, int digits, char *buffer, size_t size) {
@@ -73,7 +119,7 @@ int32_t taosGenerateTotpCode(const uint8_t *secret, size_t secretLen, int digits
 
 // verify TOTP code for given secret at current time with allowed window
 // secret is a byte array, not a base32 string
-int taosVerifyTotpCode(const char *secret, size_t secretLen, int32_t userCode, int digits, int window) {
+int taosVerifyTotpCode(const uint8_t *secret, size_t secretLen, int32_t userCode, int digits, int window) {
   if (secretLen < 16) {
     return 0;  // secret is too short
   }
@@ -86,25 +132,4 @@ int taosVerifyTotpCode(const char *secret, size_t secretLen, int32_t userCode, i
   }
 
   return 0;
-}
-
-// generate TOTP secret from seed
-// secret is a byte array, not a base32 string
-int taosGenerateTotpSecret(const char *seed, size_t seedLen, uint8_t *secret, size_t secretLen) {
-  // TOTP secret requires at least 16 characters for adequate security
-  if (secretLen < 16) {
-    return 0;
-  }
-
-  if (seedLen == 0) {
-    seedLen = strlen(seed);
-  }
-
-  T_MD5_CTX context;
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t*)seed, seedLen);
-  tMD5Final(&context);
-  (void)memcpy(secret, context.digest, sizeof(context.digest));
-
-  return sizeof(context.digest);
 }

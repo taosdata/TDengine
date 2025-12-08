@@ -4255,6 +4255,11 @@ void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
   }
   pUserOptions->hasTotpseed = true;
 
+  if (pTotpseed == NULL) { // clear TOTP secret
+    memset(pUserOptions->totpseed, 0, sizeof(pUserOptions->totpseed));
+    return;
+  }
+
   if (pTotpseed->n >= sizeof(pUserOptions->totpseed) * 2) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED", sizeof(pUserOptions->totpseed));
     return;

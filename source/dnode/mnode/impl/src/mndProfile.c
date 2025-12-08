@@ -29,6 +29,7 @@
 #include "mndView.h"
 #include "tglobal.h"
 #include "tversion.h"
+#include "totp.h"
 
 typedef struct {
   uint32_t id;
@@ -303,6 +304,30 @@ static bool constTimeEq(const char *a, const char *b, size_t len) {
 
 
 
+static bool verifyTotp(SUserObj *pUser, int32_t totpCode) {
+  int32_t code = 0;
+
+  bool allZero = true;
+  for (size_t i = 0; i < sizeof(pUser->totpsecret); i++) {
+    if (pUser->totpsecret[i] != 0) {
+      allZero = false;
+      break;
+    }
+  }
+
+  if (allZero) { // all TOTP secret is zero, means TOTP is not enabled for this user
+    return true;
+  }
+
+  if (taosVerifyTotpCode(pUser->totpsecret, sizeof(pUser->totpsecret), totpCode, 6, 1)) {
+    return true;
+  }
+
+  return false;
+}
+
+
+
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SUserObj       *pUser = NULL;
@@ -392,10 +417,10 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   if (tsMndSkipGrant) {
     loginInfo.lastLoginTime= now;
-  } else if (constTimeEq(tmpPass, pUser->passwords[0].pass, sizeof(tmpPass) - 1)) {
-    loginInfo.failedLoginCount = 0;
-    loginInfo.lastLoginTime= now;
-  } else {
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+    }
+  } else if (!constTimeEq(tmpPass, pUser->passwords[0].pass, sizeof(tmpPass) - 1)) {
     mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     if (pUser->failedLoginAttempts >= 0) {
       if (loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
@@ -405,11 +430,20 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
       loginInfo.failedLoginCount++;
       loginInfo.lastFailedLoginTime = now;
     }
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+    }
     code = TSDB_CODE_MND_AUTH_FAILURE;
-  }
-
-  mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
-  if (code != 0) {
+    goto _OVER;
+  } else if (verifyTotp(pUser, connReq.totpCode)) {
+    loginInfo.failedLoginCount = 0;
+    loginInfo.lastLoginTime= now;
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+    }
+  } else {
+    mGError("user:%s, failed to login from %s since wrong TOTP code, input:%06d", pReq->info.conn.user, ip, connReq.totpCode);
+    code = TSDB_CODE_MND_WRONG_TOTP_CODE;
     goto _OVER;
   }
 
@@ -430,6 +464,11 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb), NULL, _OVER);
   }
 
+  if (connReq.connType == CONN_TYPE__AUTH_TEST) {
+    code = 0;
+    goto _OVER;
+  }
+
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, &pReq->info.conn.cliAddr, connReq.pid,
                         connReq.app, connReq.startTime, connReq.sVer);
   if (pConn == NULL) {
@@ -446,7 +485,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
-  connectRsp.mustChangePass = mndMustChangePassword(pUser) ? 1 : 0;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;

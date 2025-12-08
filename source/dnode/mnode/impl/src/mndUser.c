@@ -3209,8 +3209,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.hasTotpseed) {
-    int len = taosGenerateTotpSecret(alterReq.totpseed, 0, newUser.totpsecret, sizeof(newUser.totpsecret));
-    if (len < 0) {
+    if (alterReq.totpseed[0] == 0) { // clear totp secret
+      memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
+    } else if (taosGenerateTotpSecret(alterReq.totpseed, 0, newUser.totpsecret, sizeof(newUser.totpsecret)) < 0) {
       TAOS_CHECK_GOTO(TSDB_CODE_PAR_INVALID_OPTION_VALUE, &lino, _OVER);
     }
   }
