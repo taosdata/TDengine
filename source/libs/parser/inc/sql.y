@@ -459,12 +459,6 @@ priv_type(A) ::= ROLLUP DATABASE.                                               
 priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
 
-priv_type(A) ::= BALANCE VGROUP.                                                  { A = PRIV_SET_TYPE(PRIV_VG_BALANCE); }
-priv_type(A) ::= BALANCE VGROUP LEADER.                                           { A = PRIV_SET_TYPE(PRIV_VG_BALANCE_LEADER); }
-priv_type(A) ::= MERGE VGROUP.                                                   { A = PRIV_SET_TYPE(PRIV_VG_MERGE); }
-priv_type(A) ::= REDISTRIBUTE VGROUP.                                             { A = PRIV_SET_TYPE(PRIV_VG_REDISTRIBUTE); }
-priv_type(A) ::= SPLIT VGROUP.                                                    { A = PRIV_SET_TYPE(PRIV_VG_SPLIT); }
-
 priv_type(A) ::= SHOW DATABASES.                                                  { A = PRIV_SET_TYPE(PRIV_SHOW_DATABASES); }
 priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
 priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }

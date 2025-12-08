@@ -16365,13 +16365,14 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   req.add = grant ? 1 : 0;
 
   if (isPrivInheritName(pStmt->principal)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                   "Cannot grant or revoke on inherit roles: %s", pStmt->principal);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Cannot grant or revoke inherit role: %s",
+                                   pStmt->principal);
   }
 
   (void)snprintf(req.principal, TSDB_ROLE_LEN, "%s", pStmt->principal);
 
   switch (req.alterType) {
+#ifdef TD_ENTERPRISE
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EPrivObjType  objType = PRIV_OBJ_UNKNOWN;
@@ -16398,6 +16399,11 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
           TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                                   "System privileges should not have target"));
         }
+        if (PRIV_HAS(&req.privileges.privSet, PRIV_VG_BALANCE)) {
+          TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                                  "'%s' cannot be grant or revoke",
+                                                  privInfoGet(PRIV_VG_BALANCE)->name));
+        }
       } else {
         req.targetType = objType;
         TAOS_CHECK_EXIT(translateGrantFillPrivileges(pCxt, pStmt, &req));
@@ -16409,6 +16415,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       snprintf(req.roleName, TSDB_ROLE_LEN, "%s", pStmt->roleName);
       break;
     }
+#endif
     default:
       break;
   }
