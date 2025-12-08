@@ -804,7 +804,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt2.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_taosc.py
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
+# TD-38727: Temporarily disable memory leak detection for test_benchmark_tmq tests
+# ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
+,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_website.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
 ## 04-Taosdump
