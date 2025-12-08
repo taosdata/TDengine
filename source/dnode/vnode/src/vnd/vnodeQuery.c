@@ -967,7 +967,6 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->roleTimeMs = state.roleTimeMs;
   pLoad->startTimeMs = state.startTimeMs;
   pLoad->syncCanRead = state.canRead;
-  pLoad->learnerProgress = state.progress;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
@@ -981,6 +980,11 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
   pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
   vnodeGetBufferInfo(pVnode, &pLoad->bufferSegmentUsed, &pLoad->bufferSegmentSize);
+  vDebug("vgId:%d, get vnode load, state:%s snapSeq:%d, learnerProgress:%d, totalIndex:%" PRId64, TD_VID(pVnode),
+         syncStr(state.state), state.snapSeq, state.progress, state.totalIndex);
+  pLoad->learnerProgress = state.progress;
+  pLoad->snapSeq = state.snapSeq;
+  pLoad->syncTotalIndex = state.totalIndex;
   return 0;
 }
 

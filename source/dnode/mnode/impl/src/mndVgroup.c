@@ -29,6 +29,7 @@
 #include "mndVgroup.h"
 #include "tmisce.h"
 
+#define SYNC_SNAPSHOT_SEQ_END 0x7FFFFFFF
 #define VGROUP_VER_NUMBER   1
 #define VGROUP_RESERVE_SIZE 64
 
@@ -171,6 +172,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
     if (pVgroup->replica == 1) {
       pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     }
+    pVgid->snapSeq = -1;
   }
   if (dataPos + sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
@@ -260,6 +262,8 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
         pNewGid->syncCommitIndex = pOldGid->syncCommitIndex;
         pNewGid->bufferSegmentUsed = pOldGid->bufferSegmentUsed;
         pNewGid->bufferSegmentSize = pOldGid->bufferSegmentSize;
+        pNewGid->learnerProgress = pOldGid->learnerProgress;
+        pNewGid->snapSeq = pOldGid->snapSeq;
       }
     }
   }
@@ -1232,28 +1236,6 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
             }
           }
           snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), star);
-          /*
-          mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
-
-          if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER) {
-            if(pVgroup->vnodeGid[i].learnerProgress < 0){
-              snprintf(role, sizeof(role), "%s-",
-                syncStr(pVgroup->vnodeGid[i].syncState));
-
-            }
-            else if(pVgroup->vnodeGid[i].learnerProgress >= 100){
-              snprintf(role, sizeof(role), "%s--",
-                syncStr(pVgroup->vnodeGid[i].syncState));
-            }
-            else{
-              snprintf(role, sizeof(role), "%s%d",
-                syncStr(pVgroup->vnodeGid[i].syncState), pVgroup->vnodeGid[i].learnerProgress);
-            }
-          }
-          else{
-            snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), star);
-          }
-          */
         } else {
         }
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
@@ -1267,8 +1249,27 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
         char applyStr[TSDB_SYNC_APPLY_COMMIT_LEN + 1] = {0};
         char buf[TSDB_SYNC_APPLY_COMMIT_LEN + VARSTR_HEADER_SIZE + 1] = {0};
-        snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
-                 pVgroup->vnodeGid[i].syncCommitIndex);
+
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER &&
+            (pVgroup->vnodeGid[i].snapSeq >= 0 && pVgroup->vnodeGid[i].snapSeq < SYNC_SNAPSHOT_SEQ_END)) {
+          mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
+
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "/%" PRId64 "(%d)(%d)", pVgroup->vnodeGid[i].syncAppliedIndex,
+                   pVgroup->vnodeGid[i].syncCommitIndex, pVgroup->vnodeGid[i].syncTotalIndex, pVgroup->vnodeGid[i].snapSeq,
+                   pVgroup->vnodeGid[i].learnerProgress);
+        } else if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER) {
+          mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
+
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "/%" PRId64 "(%d)", pVgroup->vnodeGid[i].syncAppliedIndex,
+                   pVgroup->vnodeGid[i].syncCommitIndex, pVgroup->vnodeGid[i].syncTotalIndex, pVgroup->vnodeGid[i].learnerProgress);
+        } else if (pVgroup->vnodeGid[i].snapSeq >= 0 && pVgroup->vnodeGid[i].snapSeq < SYNC_SNAPSHOT_SEQ_END) {
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "(%d)", pVgroup->vnodeGid[i].syncAppliedIndex,
+                   pVgroup->vnodeGid[i].syncCommitIndex, pVgroup->vnodeGid[i].snapSeq);
+        } else {
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
+                   pVgroup->vnodeGid[i].syncCommitIndex);
+        }
+
         STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

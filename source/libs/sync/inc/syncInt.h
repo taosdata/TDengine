@@ -241,6 +241,8 @@ struct SSyncNode {
   int64_t slowCount;
 
   int32_t applyQueueErrorCount;
+
+  int32_t snapSeq;
 };
 
 // open/close --------------
@@ -314,7 +316,7 @@ SSyncLogReplMgr* syncNodeGetLogReplMgr(SSyncNode* pNode, SRaftId* pDestId);
 // snapshot --------------
 bool    syncNodeHasSnapshot(SSyncNode* pSyncNode);
 void    syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
-int32_t syncNodeStartSnapshot(SSyncNode* pSyncNode, SRaftId* pDestId);
+int32_t syncNodeStartSnapshot(SSyncNode* pSyncNode, SRaftId* pDestId, char* reason);
 
 SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
