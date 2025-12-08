@@ -36,12 +36,14 @@ For more details of the PrivateLink concept, please see the following documents:
 
 <Tabs defaultValue="AWS">
 <TabItem value="AWS" label="AWS">
+
 To use the AWS Management Console to create a VPC interface endpoint, please follow these steps:
 
 1. Sign in to the [AWS Management Console](https://aws.amazon.com/console/) and open the Amazon VPC console at [AWS VPC](https://console.aws.amazon.com/vpc/).
 2. Select the region where your VPC is located from the drop-down list in the upper-right corner. Find **Virtual private cloud** in the left navigation pane and Click **Endpoints**, and then click **Create Endpoint** in the upper-right corner. The **Create endpoint** page is displayed.
 
    ![TDengine Cloud Create endpoint 1](./create-endpoint-1.webp)
+   
    <center><figcaption>Figure 2. Create Endpoint</figcaption></center>
 
 3. Select Other endpoint services.
@@ -49,15 +51,18 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 5. Select your VPC in the drop-down list.
 6. In the Subnets area, select all the availability zones, and select the Subnet ID.
 7. Select your security group properly in the Security groups area.
+
    :::note IMPORTANT
+   
    Make sure the selected security group allows inbound access from your EC2 instances on port 443.
 
    :::
 
 8. Click Create endpoint. Then you have the **VPC endpoint ID**.
-</TabItem>
 
+</TabItem>
 <TabItem value="GCP" label="GCP">
+
 1. Sign in to the [GCP Private Service Connect](https://console.cloud.google.com/net-services/psc/list/consumers).
 2. Find **CONNECTED ENDPOINTS** tab and then click **+CONNECT ENDPOINT**.
 3. Select **Published service**.
@@ -66,6 +71,7 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 6. In the Subnets area, select the Network, and select the Subnetwork.
 7. Create a Reserve a static internal IP address for the endpoint.
 8. Click ADD ENDPOINT. Then you have the **PSC Connection ID**.
+
 </TabItem>
 </Tabs>
 
@@ -83,18 +89,22 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 
 <Tabs defaultValue="AWS">
 <TabItem value="AWS" label="AWS">
+
 1. Click the endpoint id link in **Endpoints** page you created in Step 2.
 2. Click **Actions** in the upper-right area of the page and then select **Modify private DNS name**.
 3. Check the box **Enable for this endpoint** and then click **Save changes**.
 4. Then you can find the **Private DNS names** shown in **Endpoint Details** page.
+
 </TabItem>
 <TabItem value="GCP" label="GCP">
+
 1. Sign in to the [GCP Cloud DNS](https://console.cloud.google.com/net-services/dns/zones).
 2. Click **CREATE ZONE** to create a new zone and then select **Private** of Zone type.
 3. Enter a name in the **Zone name** and the **Private DNS Name** that you choose in **Step 1** in the **DNS Name**.
 4. Click **CREATE** to create a new zone.
 5. Select the zone you created in the **Cloud DNS** page and click **ADD STANDARD** to add a new record set.
 6. Choose the static internal IP address of **Step 2** in the **IPv4 Address** and click **CREATE** to create a new standard.
+
 </TabItem>
 </Tabs>
 
@@ -106,17 +116,21 @@ Now you can access TDengine Cloud instance in your VPC using the private DNS nam
 
 <Tabs defaultValue="AWS">
 <TabItem value="AWS" label="AWS">
+
 1. Click the **Actions** button in **endpoint connection list** page in TDengine Cloud. After a while, the connection status will be changed into DISCONNECTED.
 2. Delete the connection in  **endpoint connection list** page in TDengine Cloud.
 3. Remove the private endpoint in the AWS Console. Otherwise, AWS will continue to charge.
    1. Select the endpoint in **Endpoints** page in AWS.  
    2. Click **Actions**  in the upper-right area of the page and then select **Delete VPC Endpoints**.
+
 </TabItem>
 <TabItem value="GCP" label="GCP">
+
 1. Click the **Actions** button in **endpoint connection list** page in TDengine Cloud. After a while, the connection status will be changed into DISCONNECTED.
 2. Delete the connection in  **endpoint connection list** page in TDengine Cloud.
 3. Remove the private endpoint in the GCP Console. Otherwise, GCP will continue to charge.
    1. Select the endpoint in **Network services** -> **Private Service Connect** -> **CONNECTED ENDPOINTS** page in GCP.  
    2. Click **Actions**  in the upper-right area of the page and then select **Delete**.
+
 </TabItem>
 </Tabs>
