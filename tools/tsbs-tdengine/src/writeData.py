@@ -62,13 +62,13 @@ class WriteData(BaseStep):
                     if case.get('scenarioId') == scenario_id:
                         query_sql = case.get('querySql')
                         data_rows = case.get('dataRows')
-                        log.out(f"Found data info for scenario '{scenario_id}':")
+                        log.out(f"Found data info:")
                         log.out(f"  Query SQL: {query_sql}")
                         log.out(f"  data Rows: {data_rows}")
                         return query_sql, data_rows
                 
                 # If no matching scenario found
-                log.out(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
+                log.out(f"No verify info found in {yaml_file}")
                 return None, None
                 
         except FileNotFoundError:

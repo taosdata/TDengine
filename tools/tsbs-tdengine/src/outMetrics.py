@@ -72,12 +72,12 @@ class OutMetrics:
     def end_write(self, name):
         self.time_end_write[name] = time.time()
         cost = self.time_end_write[name] - self.time_start_write[name]
-        self.write_metrics(f"WRITE STEP '{name}' took {cost:.3f} seconds")
+        self.write_metrics(f"WRITE STEP took {cost:.3f} seconds")
 
     def end_test(self, name):
         self.time_end_test[name] = time.time()
         cost = self.time_end_test[name] - self.time_start_test[name]
-        self.write_metrics(f"TEST STEP '{name}' took {cost:.3f} seconds")
+        self.write_metrics(f"TEST STEP took {cost:.3f} seconds")
     
     def end(self):
         self.time_end = time.time()
@@ -85,7 +85,7 @@ class OutMetrics:
         self.write_metrics(f"Total execution time: {total_cost:.3f} seconds")
         
     def add_data_rows(self, name, rows):
-        log.out(f"Total data rows written for '{name}': {rows}")
+        log.out(f"Total data rows written: {rows}")
         if self.data_rows[name] is None:
             self.data_rows[name] = rows
         else:
