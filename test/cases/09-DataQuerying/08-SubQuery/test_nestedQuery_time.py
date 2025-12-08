@@ -2034,22 +2034,28 @@ class TestNestedQueryCase:
 
 
     def test_nestedQuery_time(self):
-        """summary: xxx
+        """Subquery func time 
 
-        description: xxx
+        1. Create database and many super/child tables 
+        2. Insert data with random rows
+        3. Generate select clause list
+        4. Generate where clause list
+        5. Generate order by clause list
+        6. Generate limit clause list
+        7. Selected different sql clauses to form nested query
+        8. Replace time function:
+           - NOW/TODAY/TIMEZONE/TIMETRUNCATE/
+           - TO_ISO8601/TO_UNIXTIMESTAMP/ELAPSED
+        9. Execute sql and check results
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_nestedQuery_time.py
 
         """
 

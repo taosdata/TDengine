@@ -1,28 +1,28 @@
+import random
 import time
 import socket
 import os
 import platform
 import threading
 
+from random import randrange
+import time
+import threading
+import secrets
+from new_test_framework.utils import tdLog, tdSql, tdCom
 from datetime import timezone, datetime
 
-from new_test_framework.utils import tdLog, tdSql
-
 class TestNestedqueryinterval:
-    hostname = socket.gethostname()
-
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
         cls.testcasePath = os.path.split(__file__)[0]
         cls.testcaseFilename = os.path.split(__file__)[-1]
 
-
+    #
+    # ------------------- nest query interval ----------------
+    # 
     def create_tables(self):
         tdSql.execute(f"drop database if exists nested")
         tdSql.execute(f"create database if not exists nested keep 36500  replica 1")
-        tdSql.execute(f"use nested")
         tdSql.execute(f"use nested")
         tdSql.execute(f"create stable nested.stable_1 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp ,                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp)                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp)")
         tdSql.execute(f"create stable nested.stable_2 (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp ,                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp)                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp)")
@@ -756,24 +756,26 @@ class TestNestedqueryinterval:
         return
 
     def test_nestedQueryInterval(self):
-        """summary: xxx
+        """Subquery interval
 
-        description: xxx
+        1. Create database and tables
+        2. Insert data
+        3. Flush database
+        4. Test subquery with interval clause and time series functions: twa, irate
+        5. Test to_char and to_timestamp functions
+        6. Test TS-3932
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_nestedQueryInterval.py
 
         """
+
 
         time.sleep(2)
         tdSql.prepare()
@@ -1480,3 +1482,165 @@ class TestNestedqueryinterval:
         tdSql.error(f"insert into nested.stable_1 (ts,tbname,q_int) values({ts},'stable_1',1) \
                       nested.stable_null_data (ts,tbname,q_int) values({ts},'stable_null_data',1) \
                       nested.stable_null_childtable (ts,tbname,q_int) values({ts},'stable_null_childtable',1);")
+
+    #
+    # ------------------- do nestQuery2 ----------------
+    #
+    def create_database(self, tsql, dbName, dropFlag=1, vgroups=2, replica=1, duration: str = '1d'):
+        if dropFlag == 1:
+            tsql.execute("drop database if exists %s" % (dbName))
+
+        tsql.execute("create database if not exists %s vgroups %d replica %d duration %s" % (
+            dbName, vgroups, replica, duration))
+        tdLog.debug("complete to create database %s" % (dbName))
+        return
+
+    def create_stable(self, tsql, paraDict):
+        colString = tdCom.gen_column_type_str(
+            colname_prefix=paraDict["colPrefix"], column_elm_list=paraDict["colSchema"])
+        tagString = tdCom.gen_tag_type_str(
+            tagname_prefix=paraDict["tagPrefix"], tag_elm_list=paraDict["tagSchema"])
+        sqlString = f"create table if not exists %s.%s (%s) tags (%s)" % (
+            paraDict["dbName"], paraDict["stbName"], colString, tagString)
+        tdLog.debug("%s" % (sqlString))
+        tsql.execute(sqlString)
+        return
+
+    def create_ctable(self, tsql=None, dbName='dbx', stbName='stb', ctbPrefix='ctb', ctbNum=1, ctbStartIdx=0):
+        for i in range(ctbNum):
+            sqlString = "create table %s.%s%d using %s.%s tags(%d, 'tb%d', 'tb%d', %d, %d, %d)" % (dbName, ctbPrefix, i+ctbStartIdx, dbName, stbName, (i+ctbStartIdx) % 5, i+ctbStartIdx + random.randint(
+                1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100), i+ctbStartIdx + random.randint(1, 100))
+            tsql.execute(sqlString)
+
+        tdLog.debug("complete to create %d child tables by %s.%s" %
+                    (ctbNum, dbName, stbName))
+        return
+
+    def init_normal_tb(self, tsql, db_name: str, tb_name: str, rows: int, start_ts: int, ts_step: int):
+        sql = 'CREATE TABLE %s.%s (ts timestamp, c1 INT, c2 INT, c3 INT, c4 double, c5 VARCHAR(255))' % (
+            db_name, tb_name)
+        tsql.execute(sql)
+        sql = 'INSERT INTO %s.%s values' % (db_name, tb_name)
+        for j in range(rows):
+            sql += f'(%d, %d,%d,%d,{random.random()},"varchar_%d"),' % (start_ts + j * ts_step + randrange(500), j %
+                                                     10 + randrange(200), j % 10, j % 10, j % 10 + randrange(100))
+        tsql.execute(sql)
+
+    def insert_data2(self, tsql, dbName, ctbPrefix, ctbNum, rowsPerTbl, batchNum, startTs, tsStep):
+        tdLog.debug("start to insert data ............")
+        tsql.execute("use %s" % dbName)
+        pre_insert = "insert into "
+        sql = pre_insert
+
+        for i in range(ctbNum):
+            rowsBatched = 0
+            sql += " %s.%s%d values " % (dbName, ctbPrefix, i)
+            for j in range(rowsPerTbl):
+                if (i < ctbNum/2):
+                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') " % (startTs + j*tsStep + randrange(
+                        500), j % 10 + randrange(100), j % 10 + randrange(200), j % 10, j % 10, j % 10, j % 10, j % 10, j % 10)
+                else:
+                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') " % (
+                        startTs + j*tsStep + randrange(500), j % 10, j % 10, j % 10, j % 10, j % 10, j % 10)
+                rowsBatched += 1
+                if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
+                    tsql.execute(sql)
+                    rowsBatched = 0
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s.%s%d values " % (dbName, ctbPrefix, i)
+                    else:
+                        sql = "insert into "
+        if sql != pre_insert:
+            tsql.execute(sql)
+        tdLog.debug("insert data ............ [OK]")
+        return
+
+    def init_data(self, db: str = 'test', ctb_num: int = 10, rows_per_ctb: int = 10000, start_ts: int = 1537146000000, ts_step: int = 500):
+        # init
+        self.vgroups = 4
+        self.ctbNum = 10
+        self.rowsPerTbl = 10000
+        self.duraion = '1h'
+        
+        tdLog.printNoPrefix(
+            "======== prepare test env include database, stable, ctables, and insert data: ")
+        paraDict = {'dbName':     db,
+                    'dropFlag':   1,
+                    'vgroups':    2,
+                    'stbName':    'meters',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count': 1}, {'type': 'BIGINT', 'count': 1}, {'type': 'FLOAT', 'count': 1}, {'type': 'DOUBLE', 'count': 1}, {'type': 'smallint', 'count': 1}, {'type': 'tinyint', 'count': 1}, {'type': 'bool', 'count': 1}, {'type': 'binary', 'len': 10, 'count': 1}, {'type': 'nchar', 'len': 10, 'count': 1}],
+                    'tagSchema':   [{'type': 'INT', 'count': 1}, {'type': 'nchar', 'len': 20, 'count': 1}, {'type': 'binary', 'len': 20, 'count': 1}, {'type': 'BIGINT', 'count': 1}, {'type': 'smallint', 'count': 1}, {'type': 'DOUBLE', 'count': 1}],
+                    'ctbPrefix':  't',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     ctb_num,
+                    'rowsPerTbl': rows_per_ctb,
+                    'batchNum':   3000,
+                    'startTs':    start_ts,
+                    'tsStep':     ts_step}
+
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = ctb_num
+        paraDict['rowsPerTbl'] = rows_per_ctb
+
+        tdLog.info("create database")
+        self.create_database(tsql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"],
+                             vgroups=paraDict["vgroups"], replica=self.replicaVar, duration=self.duraion)
+
+        tdLog.info("create stb")
+        self.create_stable(tsql=tdSql, paraDict=paraDict)
+
+        tdLog.info("create child tables")
+        self.create_ctable(tsql=tdSql, dbName=paraDict["dbName"],
+                           stbName=paraDict["stbName"], ctbPrefix=paraDict["ctbPrefix"],
+                           ctbNum=paraDict["ctbNum"], ctbStartIdx=paraDict["ctbStartIdx"])
+        self.insert_data2(tsql=tdSql, dbName=paraDict["dbName"],
+                         ctbPrefix=paraDict["ctbPrefix"], ctbNum=paraDict["ctbNum"],
+                         rowsPerTbl=paraDict["rowsPerTbl"], batchNum=paraDict["batchNum"],
+                         startTs=paraDict["startTs"], tsStep=paraDict["tsStep"])
+        self.init_normal_tb(tdSql, paraDict['dbName'], 'norm_tb',
+                            paraDict['rowsPerTbl'], paraDict['startTs'], paraDict['tsStep'])
+
+    def check_select_asterisk_from_subquery_with_duplicate_aliasname(self):
+        sql = "select * from (select c8 as a, c9 as a from t1 order by ts desc limit 10)t;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0, 0, "binary9")
+        tdSql.checkData(0, 1, "nchar9")
+        sql = "select * from (select c8 as a, c9 as a, ts from t1 order by ts desc limit 10)t order by ts desc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0, 0, "binary9")
+        tdSql.checkData(0, 1, "nchar9")
+        sql = "select * from (select c8 as a, c9 as a, ts, t1 from t1 order by ts desc limit 10)t partition by t1 order by ts desc;"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkData(0, 0, "binary9")
+        tdSql.checkData(0, 1, "nchar9")
+        sql = " select * from (select a.c8, b.c8, a.ts, a.t1,b.t1 from t1 a, t3 b where a.ts = b.ts order by a.ts)ttt"
+        tdSql.query(sql, queryTimes=1)
+
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 3)
+
+    def test_nestedQuery2(self):
+        """Subquery alias name
+
+        1. Create dabase with vgroups 4
+        2. Create stable with various data types
+        3. Create 10 child tables under the stable
+        4. Insert data into the child tables, some columns contain null values
+        5. Select asterisk from subquery with duplicate alias name
+        6. Verify the query results
+
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_nestedQuery2.py
+
+        """
+        self.init_data()
+        self.check_select_asterisk_from_subquery_with_duplicate_aliasname()

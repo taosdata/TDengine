@@ -276,7 +276,13 @@
 ## 08-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_lastrow.py
+,,y,.,./ci/pytest.sh pytest ccases/09-DataQuerying/08-SubQuery/test_query_sub_interval.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_str.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_math.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_time.py
+,,y,.,./ci/pytest.sh pytest ccases/09-DataQuerying/08-SubQuery/test_nestedQuery_26.py
+
 ## 09-Having
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having.py
@@ -884,11 +890,6 @@
 #,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade_all.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py
@@ -898,7 +899,6 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_null.py
@@ -962,7 +962,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4382.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4403.py

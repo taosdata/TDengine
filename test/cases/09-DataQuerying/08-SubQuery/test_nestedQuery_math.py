@@ -17,25 +17,36 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from test_nestedQuery import TestNestedquery as NestedQueryHelper
 
-class TestNestedQueryStrCase:
+class TestNestedQueryMathCase:
 
-    def test_nestedQuery_str(self):
-        """summary: xxx
+    def test_nestedQuery_math(self):
+        """Subquery func math 
 
-        description: xxx
+        1. Create database and many super/child tables 
+        2. Insert data with random rows
+        3. Generate select clause list
+        4. Generate where clause list
+        5. Generate order by clause list
+        6. Generate limit clause list
+        7. Selected different sql clauses to form nested query
+        8. Replace math function:
+           - ABS/SQRT
+           - SIN/COS/TAN/ASIN/ACOS/ATAN
+           - POW/LOG
+           - FLOOR/CEIL/ROUND
+           - MAVG
+           - HYPERLOGLOG
+           - TAIL
+        9. Execute sql and check results
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_nestedQuery_math.py
 
         """
 
@@ -43,30 +54,30 @@ class TestNestedQueryStrCase:
         
         startTime = time.time() 
 
-        # self.function_before_26()       
+        #self.function_before_26()       
                
         # self.math_nest(['UNIQUE'])
         # self.math_nest(['MODE']) 
         # self.math_nest(['SAMPLE'])
                 
-        # self.math_nest(['ABS','SQRT'])     
-        # self.math_nest(['SIN','COS','TAN','ASIN','ACOS','ATAN'])        
-        # self.math_nest(['POW','LOG']) 
-        # self.math_nest(['FLOOR','CEIL','ROUND']) 
-        # self.math_nest(['MAVG'])  
-        # self.math_nest(['HYPERLOGLOG']) 
-        # self.math_nest(['TAIL']) 
+        nested_query_test = NestedQueryHelper()
+        nested_query_test.case_init()
+        nested_query_test.math_nest(['ABS','SQRT'])     
+        nested_query_test.math_nest(['SIN','COS','TAN','ASIN','ACOS','ATAN'])        
+        nested_query_test.math_nest(['POW','LOG']) 
+        nested_query_test.math_nest(['FLOOR','CEIL','ROUND']) 
+        nested_query_test.math_nest(['MAVG'])  
+        nested_query_test.math_nest(['HYPERLOGLOG']) 
+        nested_query_test.math_nest(['TAIL']) 
         # self.math_nest(['CSUM'])
         # self.math_nest(['statecount','stateduration'])
         # self.math_nest(['HISTOGRAM']) 
         
-        nested_query_test = NestedQueryHelper()
-        nested_query_test.case_init()
-        nested_query_test.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
-        nested_query_test.str_nest(['LENGTH','CHAR_LENGTH']) 
-        nested_query_test.str_nest(['SUBSTR'])   
-        nested_query_test.str_nest(['CONCAT']) 
-        nested_query_test.str_nest(['CONCAT_WS']) 
+        # self.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
+        # self.str_nest(['LENGTH','CHAR_LENGTH']) 
+        # self.str_nest(['SUBSTR'])   
+        # self.str_nest(['CONCAT']) 
+        # self.str_nest(['CONCAT_WS']) 
         # self.time_nest(['CAST']) #放到time里起来弄
         # self.time_nest(['CAST_1'])
         # self.time_nest(['CAST_2'])
