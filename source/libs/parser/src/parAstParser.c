@@ -1302,8 +1302,8 @@ static int32_t collectMetaKeyFromShowAlive(SCollectMetaKeyCxt* pCxt, SShowAliveS
   return code;
 }
 
-static int32_t collectMetaKeyFromCreateDatabaseStmt(SCollectMetaKeyCxt* pCxt, SCreateDatabaseStmt* pStmt) {
-  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_DB_CREATE,
+static int32_t collectMetaKeyFromSysPrivStmt(SCollectMetaKeyCxt* pCxt, EPrivType privType) {
+  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, privType,
                                 pCxt->pMetaCache);
 }
 
@@ -1523,9 +1523,20 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       return collectMetaKeyFromShowAlive(pCxt, (SShowAliveStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
-      return collectMetaKeyFromCreateDatabaseStmt(pCxt, (SCreateDatabaseStmt*)pStmt);
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_DB_CREATE);
     case QUERY_NODE_DROP_DATABASE_STMT:
       return collectMetaKeyFromDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
+    case QUERY_NODE_BALANCE_VGROUP_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_BALANCE);
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_BALANCE_LEADER);
+    case QUERY_NODE_MERGE_VGROUP_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_MERGE);
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_SPLIT);
+    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_REDISTRIBUTE);
     default:
       break;
   }

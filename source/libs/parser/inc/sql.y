@@ -461,7 +461,7 @@ priv_type(A) ::= SSMIGRATE DATABASE.                                            
 
 priv_type(A) ::= BALANCE VGROUP.                                                  { A = PRIV_SET_TYPE(PRIV_VG_BALANCE); }
 priv_type(A) ::= BALANCE VGROUP LEADER.                                           { A = PRIV_SET_TYPE(PRIV_VG_BALANCE_LEADER); }
-priv_type(A) ::= MERGER VGROUP.                                                   { A = PRIV_SET_TYPE(PRIV_VG_MERGER); }
+priv_type(A) ::= MERGE VGROUP.                                                   { A = PRIV_SET_TYPE(PRIV_VG_MERGE); }
 priv_type(A) ::= REDISTRIBUTE VGROUP.                                             { A = PRIV_SET_TYPE(PRIV_VG_REDISTRIBUTE); }
 priv_type(A) ::= SPLIT VGROUP.                                                    { A = PRIV_SET_TYPE(PRIV_VG_SPLIT); }
 
