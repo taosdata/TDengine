@@ -975,8 +975,8 @@ static void reportDeleteSql(SRequestObj* pRequest) {
     return;
   }
 
-  if (pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0 &&
-      pTscObj->pAppInfo->serverCfg.auditLevel == AUDIT_LEVEL_DATA) {
+  if (pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0 ||
+      pTscObj->pAppInfo->serverCfg.auditLevel < AUDIT_LEVEL_DATA) {
     tscDebug("[del report] audit delete is disabled");
     return;
   }
@@ -1029,8 +1029,8 @@ static void reportSelectSql(SRequestObj* pRequest) {
     return;
   }
 
-  if (pTscObj->pAppInfo->serverCfg.enableAuditSelect == 0 &&
-      pTscObj->pAppInfo->serverCfg.auditLevel == AUDIT_LEVEL_DATA) {
+  if (pTscObj->pAppInfo->serverCfg.enableAuditSelect == 0 ||
+      pTscObj->pAppInfo->serverCfg.auditLevel < AUDIT_LEVEL_DATA) {
     tscDebug("[sel report] audit select is disabled");
     return;
   }
@@ -1083,8 +1083,8 @@ static void reportInsertSql(SRequestObj* pRequest) {
     return;
   }
 
-  if (pTscObj->pAppInfo->serverCfg.enableAuditInsert == 0 &&
-      pTscObj->pAppInfo->serverCfg.auditLevel == AUDIT_LEVEL_DATA) {
+  if (pTscObj->pAppInfo->serverCfg.enableAuditInsert == 0 ||
+      pTscObj->pAppInfo->serverCfg.auditLevel < AUDIT_LEVEL_DATA) {
     tscDebug("[ins report] audit insert is disabled");
     return;
   }
@@ -1105,7 +1105,7 @@ static void reportInsertSql(SRequestObj* pRequest) {
   req.sqlLen = pRequest->sqlLen;
   TAOS_UNUSED(tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName));
   TAOS_UNUSED(tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName));
-  TAOS_UNUSED(tsnprintf(req.operation, AUDIT_OPERATION_LEN, "delete"));
+  TAOS_UNUSED(tsnprintf(req.operation, AUDIT_OPERATION_LEN, "insert"));
   int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
   void*   pReq = taosMemoryCalloc(1, tlen);
   if (pReq == NULL) {
@@ -1136,13 +1136,9 @@ void clientOperateReport(SRequestObj* pRequest) {
 
   if (QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
     reportDeleteSql(pRequest);
-  }
-
-  if (QUERY_NODE_SELECT_STMT == nodeType(pRequest->pQuery->pRoot)) {
+  } else if (QUERY_NODE_SELECT_STMT == nodeType(pRequest->pQuery->pRoot)) {
     reportSelectSql(pRequest);
-  }
-
-  if (QUERY_NODE_INSERT_STMT == nodeType(pRequest->pQuery->pRoot)) {
+  } else if (QUERY_NODE_INSERT_STMT == nodeType(pRequest->pQuery->pRoot)) {
     reportInsertSql(pRequest);
   }
 }

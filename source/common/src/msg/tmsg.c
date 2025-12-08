@@ -2620,7 +2620,6 @@ void tFreeSAuditReq(SAuditReq *pReq) { taosMemoryFreeClear(pReq->pSql); }
 int32_t tSerializeSBatchAuditReq(void *buf, int32_t bufLen, SBatchAuditReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
-  int32_t  lino;
   int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -2654,7 +2653,6 @@ _exit:
 int32_t tDeserializeSBatchAuditReq(void *buf, int32_t bufLen, SBatchAuditReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
-  int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
