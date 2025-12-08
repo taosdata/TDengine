@@ -411,11 +411,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
   if (code != 0) {
     goto _OVER;
-  } else {
-    pUser->failedLoginCount = 0;
-    pUser->lastLoginTime = now;
-    mndUpdateUser(pMnode, pUser, NULL);
-  }
+  } 
 
   if (connReq.db[0]) {
     char db[TSDB_DB_FNAME_LEN] = {0};

@@ -1000,9 +1000,6 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.lastLoginTime = userObj.createdTime;
-  userObj.lastFailedLoginTime = 0;
-  userObj.failedLoginCount = 0;
   userObj.sysInfo = 1;
   userObj.enable = 1;
   userObj.changePass = 2;
@@ -1218,9 +1215,6 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pUser->lastLoginTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pUser->lastFailedLoginTime, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pUser->failedLoginCount, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->superUser, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->sysInfo, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->enable, _OVER)
@@ -2007,9 +2001,6 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   mTrace("user:%s, perform update action, old row:%p new row:%p", pOld->user, pOld, pNew);
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
-  pOld->lastLoginTime = pNew->lastLoginTime;
-  pOld->lastFailedLoginTime = pNew->lastFailedLoginTime;
-  pOld->failedLoginCount = pNew->failedLoginCount;
   pOld->authVersion = pNew->authVersion;
   pOld->passVersion = pNew->passVersion;
   pOld->sysInfo = pNew->sysInfo;
@@ -2182,9 +2173,6 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.lastLoginTime = userObj.createdTime;
-  userObj.lastFailedLoginTime = 0;
-  userObj.failedLoginCount = 0;
   userObj.superUser = 0;  // pCreate->superUser;
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;

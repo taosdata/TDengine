@@ -12674,8 +12674,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.numTimeRanges = LIST_LENGTH(opts->pTimeRanges);
   alterReq.numDropIpRanges = LIST_LENGTH(opts->pDropIpRanges);
   alterReq.numDropTimeRanges = LIST_LENGTH(opts->pDropTimeRanges);
-
-  if (alterReq.numIpRanges > 0) {
+if (alterReq.numIpRanges > 0) {
     alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpRange));
     if (!alterReq.pIpRanges) {
       tFreeSAlterUserReq(&alterReq);
@@ -12689,10 +12688,17 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     }
   }
 
+  if (alterReq.numTimeRanges > 0) {
+    alterReq.pTimeRanges = taosMemoryMalloc(alterReq.numTimeRanges * sizeof(SDateTimeRange));
+    if (!alterReq.pTimeRanges) {
       tFreeSAlterUserReq(&alterReq);
+      return terrno;
     }
     int i = 0;
-    SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
+    SNode* pNode = NULL;
+    FOREACH(pNode, opts->pTimeRanges) {
+      SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
+      alterReq.pTimeRanges[i++] = node->range;
     }
   }
 
@@ -14466,6 +14472,10 @@ _return:
 }
 
 static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRealTableNode* pTriggerTable, STableMeta* pMeta, SCMCreateStreamReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  switch (pMeta->tableType) {
+    case TSDB_SUPER_TABLE:
       if (isVirtualSTable(pMeta)) {
         BIT_FLAG_SET_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB);
       }
@@ -14893,11 +14903,12 @@ static EDealRes placeHolderNeedFill(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
-                                               SCMCreateStreamReq* pReq) {
-// if FORCE_OUTPUT is set, build force output columns info in create stream request
+static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SNode*                 pNode = NULL;
   SValueNode*            pVal = NULL;
   SNodeList*             pProjection = ((SSelectStmt*)pStmt->pQuery)->pProjectionList;
+  SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)((SStreamTriggerNode*)pStmt->pTrigger)->pOptions;
   bool                   forceOut = pOptions ? pOptions->forceOutput : false;
 
   if (!forceOut) {
@@ -14940,6 +14951,7 @@ _return:
   parserError("createStreamReqBuildForceOutput failed, code:%d", code);
   nodesDestroyNode((SNode*)pVal);
   return code;
+
 }
 
 static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond) {
@@ -15007,13 +15019,14 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
   if (pOptions) {
     pPreFilter = pOptions->pPreFilter;
   }
-  PAR_ERR_JRET(
-      createSimpleSelectStmtImpl(pTriggerTable->table.dbName, pTriggerTable->table.tableName, NULL, pTriggerSelect));
-  PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pTrigger, NULL, COLLECT_COL_TYPE_COL,
-                                           &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
-                                             &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+  PAR_ERR_JRET(createSimpleSelectStmtImpl(pTriggerTable->table.dbName, pTriggerTable->table.tableName, NULL, pTriggerSelect));
+  // only collect columns appeared in trigger and tags in pre-filter
+  PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pTrigger, NULL, COLLECT_COL_TYPE_COL, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+  if (pPreFilter) {
+    PAR_ERR_JRET(nodesCollectColumnsFromNode(pPreFilter, NULL, COLLECT_COL_TYPE_TAG, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
   }
   // TODO(smj) : maybe we can remove tbname function from trigger select list, but some case will fail.
+  PAR_ERR_JRET(createTbnameFunction(&pFunc));
   PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc));
 
   return code;
@@ -15021,6 +15034,7 @@ _return:
   nodesDestroyNode((SNode*)pFunc);
   parserError("%s failed, code:%d", __func__, code);
   return code;
+  
 }
 
 // Do the translation of trigger select statement in create stream request

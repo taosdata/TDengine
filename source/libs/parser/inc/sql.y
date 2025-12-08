@@ -360,7 +360,7 @@ cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user
   }
 cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
 cmd ::= DROP USER user_name(A).                                                  { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
-
+cmd ::= ALTER DNODES RELOAD general_name(A).                                                 { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 
 cmd ::= CREATE TOKEN. {}
 
