@@ -278,8 +278,9 @@ void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
 
     r = uv_ip6_name(addr, buf, sizeof(buf));
     if (r != 0) {
-      uError("failed to get ip from sockaddr, err:%s", uv_strerror(r));
+      uError("failed to get ip from sockaddr6, err:%s", uv_strerror(r));
     }
+
     port = ntohs(addr->sin6_port);
   }
   sprintf(dst, "%s:%d", buf, port);

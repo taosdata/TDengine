@@ -265,6 +265,7 @@
 ## 04-OrderBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_double.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_order_by_select_list.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_limit.py
@@ -646,6 +647,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_tables.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_vgroups_ready.py -N 3
 
 # 24-Users
 
