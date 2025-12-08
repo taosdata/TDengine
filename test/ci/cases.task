@@ -265,7 +265,7 @@
 ## 04-OrderBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_double.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
-,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_order_by_select_list.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_order_by_select_list.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_limit.py
