@@ -1240,9 +1240,9 @@ int32_t shellGetGrantInfo(char *buf) {
     tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
-    
+
     trimStr(serverVersion, "trial");
-    
+
     if (strcmp(serverVersion, "community") == 0) {
       verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
@@ -1342,39 +1342,17 @@ TAOS *createConnect(SShellArgs *pArgs) {
   uint16_t port = 0;
   char    *user = NULL;
   char    *pwd = NULL;
-  int32_t  code = 0;
-  char    *dsnc = NULL;
+  TAOS    *taos = NULL;
 
   // set mode
   if (pArgs->connMode != CONN_MODE_NATIVE && pArgs->dsn) {
-    dsnc = strToLowerCopy(pArgs->dsn);
-    if (dsnc == NULL) {
-      return NULL;
-    }
-
-    char *cport = NULL;
-    char  error[512] = "\0";
-    code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
-    if (code) {
-      printf("%s dsn=%s\n", error, dsnc);
-      free(dsnc);
-      return NULL;
-    }
-
-    // default ws port
-    if (cport == NULL) {
-      if (user)
-        port = DEFAULT_PORT_WS_CLOUD;
-      else
-        port = DEFAULT_PORT_WS_LOCAL;
-    } else {
-      port = atoi(cport);
-    }
-
     // websocket
     memcpy(show, pArgs->dsn, 20);
     memcpy(show + 20, "...", 3);
     memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
+
+    // connect dsn
+    taos = taos_connect_with_dsn(pArgs->dsn);
 
   } else {
     host = (char *)pArgs->host;
@@ -1388,18 +1366,15 @@ TAOS *createConnect(SShellArgs *pArgs) {
     }
 
     sprintf(show, "host:%s port:%d ", host, port);
+
+    // connect normal
+    if (pArgs->auth) {
+      taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
+    } else {
+      taos = taos_connect(host, user, pwd, pArgs->database, port);
+    }
   }
 
-  // connect main
-  TAOS *taos = NULL;
-  if (pArgs->auth) {
-    taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
-  } else {
-    taos = taos_connect(host, user, pwd, pArgs->database, port);
-  }
-
-  // host user pointer in dsnc address
-  free(dsnc);
   return taos;
 }
 
