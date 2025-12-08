@@ -2644,7 +2644,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSINFO_0, strlen(TSDB_ROLE_SYSINFO_0) + 1, NULL, 0)) != 0) {
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, NULL, 0)) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 

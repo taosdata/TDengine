@@ -93,6 +93,8 @@ typedef enum {
   MND_OPER_CREATE_ROLE,
   MND_OPER_DROP_ROLE,
   MND_OPER_ALTER_ROLE,
+  MND_OPER_SSMIGRATE_DB,
+  MND_OPER_SHOW_DATABASES,
 } EOperType;
 
 typedef enum {
