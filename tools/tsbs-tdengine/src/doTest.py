@@ -64,6 +64,12 @@ class DoTest(BaseStep):
             log.out(f"  Equal SQL: {equalSql}")
             log.out(f"  Get Rows: {expectRows} diffRows: {diffRows}")
             
+            if expectRows == 0:
+                log.out(f"Expect Rows is 0, skip wait stream.")
+                conn.close()
+                metrics.set_status(self.scene.name, "Failed")
+                return
+
             if diffRows is not None:
                 expectRows += diffRows
         

@@ -82,7 +82,7 @@ testCases:
                              on a.ts = b.ts and a.fleet = b.fleet
                    )
                    where ts < '2025-01-01 11:00:00' 
-      diffRows: -1
+      diffRows: 0
 
     - scenarioId: "F8"
       querySql: select count(*) from db1.readings

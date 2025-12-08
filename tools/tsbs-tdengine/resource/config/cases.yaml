@@ -199,7 +199,7 @@ testCases:
             from db2.diagnostics partition by fleet 
             into db2.res_f2 
             as 
-              select cast(_tlocaltime/1000000 as timestamp), count(*) 
+              select cast(_tlocaltime/1000000 as timestamp) tlocaltime, count(*) cnt
                 from (
                       select last(status) last_status, fleet 
                         from db2.diagnostics 

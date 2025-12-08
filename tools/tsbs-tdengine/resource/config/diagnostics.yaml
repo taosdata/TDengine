@@ -75,7 +75,7 @@ testCases:
       querySql: select count(*) from db2.diagnostics
       dataRows: 9988779
       verifySql: select count(*) from db2.res_f2
-      expectRows: 8888
+      expectRows: 25
 
     - scenarioId: "F5"
       querySql: select count(*) from db2.diagnostics
