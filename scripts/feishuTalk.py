@@ -96,7 +96,7 @@ Others: {others}\n
     '''
 
     #json = get_msg(text)
-    if owner == "Platform TSDB Test":
+    if owner == "Platform TSDB-Query Test":
         json = get_query_msg(text)
     else:
         json = get_insert_stream_msg(text)
