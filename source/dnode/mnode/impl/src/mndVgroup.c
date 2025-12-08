@@ -1149,22 +1149,34 @@ SEpSet mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId) {
 }
 
 static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfRows = 0;
-  SVgObj *pVgroup = NULL;
-  int32_t cols = 0;
-  int64_t curMs = taosGetTimestampMs();
-  int32_t code = 0, lino = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SUserObj *pUser = NULL;
+  SVgObj   *pVgroup = NULL;
+  SDbObj   *pVgDb = NULL;
+  int32_t   cols = 0;
+  int64_t   curMs = taosGetTimestampMs();
+  int32_t   code = 0, lino = 0;
+  bool      showAnyVg = false;
 
+  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  if (pUser == NULL) return 0;
+  
+  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
+  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
+  showAnyVg = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, dbFName, NULL);
+
+  int64_t dbUid = 0;
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) {
-      return 0;
+      goto _OVER;
     }
   }
 
+  bool showVg = false;
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
     if (pShow->pIter == NULL) break;
@@ -1172,6 +1184,38 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     if (pDb != NULL && pVgroup->dbUid != pDb->uid) {
       sdbRelease(pSdb, pVgroup);
       continue;
+    }
+
+    if (!showAnyVg) {
+      if (pDb) {
+        if (dbUid != pDb->uid) {
+          if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, pDb->name, NULL)) {
+            sdbCancelFetch(pSdb, pShow->pIter);
+            sdbRelease(pSdb, pVgroup);
+            goto _OVER;
+          }
+          showAnyVg = true;
+        }
+      } else if (dbUid != pVgroup->dbUid) {
+        pVgDb = mndAcquireDb(pMnode, pVgroup->dbName);
+        if (pVgDb == NULL) {
+          sdbRelease(pSdb, pVgroup);
+          continue;
+        }
+        dbUid = pVgroup->dbUid;
+        if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, pVgDb->name, NULL)) {
+          showVg = false;
+          mndReleaseDb(pMnode, pVgDb);
+          sdbRelease(pSdb, pVgroup);
+          continue;
+        } else {
+          mndReleaseDb(pMnode, pVgDb);
+          showVg = true;
+        }
+      } else if (!showVg) {
+        sdbRelease(pSdb, pVgroup);
+        continue;
+      }
     }
 
     cols = 0;
@@ -1305,6 +1349,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     sdbRelease(pSdb, pVgroup);
   }
 _OVER:
+  mndReleaseUser(pMnode, pUser);
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
