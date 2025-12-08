@@ -101,7 +101,7 @@ def test_myfc(self):
     s.set_input_list(self.get_input_list(), None)
     # 检查预测结果应该全部为 1
     r = s.set_params(
-        {"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}
+        {"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}
     )
     r = s.execute()
 
