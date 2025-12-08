@@ -9,13 +9,9 @@ import threading
 from datetime import timezone, datetime
 
 
-class TestPrimaryTsBase:
+class PrimaryKeyBase:
     hostname = socket.gethostname()
 
-    def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
     def case_init(self):
         self.database = 'primary_db'
         self.testcasePath = os.path.split(__file__)[0]
@@ -27,6 +23,7 @@ class TestPrimaryTsBase:
         self.ts = 1630000000000
         
         if dropdb == 'yes':
+            tdSql.execute('''drop database if exists %s;'''%database)
             tdSql.execute('''create database %s VGROUPS %d;'''%(database,random.randint(1,10)))
             tdSql.execute('''use %s;'''%database)
         
@@ -90,7 +87,8 @@ class TestPrimaryTsBase:
         else:
             tdSql.execute('''use %s;'''%database)
 
-        if insertdata == 'yes':            
+        if insertdata == 'yes':
+            print(f"enter insert: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             for tag_i in range(1,11):
                 for column_i in range(41,51):    
                     tdSql.execute(f'''insert into {database}.stable_0_{tag_i}  (ts , q_int , q_bigint , q_smallint , q_tinyint ,q_int_unsigned , q_bigint_unsigned , q_smallint_unsigned , q_tinyint_unsigned , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values('{self.ts + 100000000}',  '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') 
@@ -163,7 +161,7 @@ class TestPrimaryTsBase:
                             ('{self.ts + column_i*600000000 + 6 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') 
                             ('{self.ts + 10000000000000 + 1 }', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i * updata_num}', '{column_i}', '{column_i * updata_num}', '{column_i * updata_num}', 0, 'binary.{column_i * updata_num}', 'nchar.{column_i * updata_num}', '{column_i * updata_num}') 
                             {database}.regular_table_6  (ts , ts_pk ) values('{self.ts + 100000000 + 10 }', '{column_i}')('{self.ts + column_i*600000000 + 16 }', '{column_i}') ('{self.ts + 10000000000000 + 11 }', '{column_i}');''' ) 
-           
+            print(f"end insert: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")   
         else:
             tdSql.execute('''use %s;'''%database)
 
@@ -394,7 +392,7 @@ class TestPrimaryTsBase:
             table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
             for i in table_list:
                 tdSql.query("select count(*) from {}.{};".format(database, i))
-                tdSql.checkData(0,0,96*once_insert_num)
+                tdSql.checkData(0,0,96*once_insert_num)        
                     
     def value_check(self,base_value,check_value):
         if base_value==check_value:
@@ -410,7 +408,7 @@ class TestPrimaryTsBase:
         tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         i = random.randint(0,5)
         cachesize = random.randint(1,100)
-        if i ==0:
+        if i ==0:ƒ
             tdLog.info("======this case test cachemodel none =========") 
         elif i ==1:
             tdLog.info("======this case test cachemodel last_row =========")
@@ -433,9 +431,7 @@ class TestPrimaryTsBase:
         self.fun_pk_twa(self.database,'derivative',',1s,0') 
         self.fun_pk_twa(self.database,'derivative',',1s,1') 
         self.fun_pk_unique(self.database,'unique','')  
-        self.fun_pk_last_init(self.database,'last','')  
-        self.fun_pk_last(self.database,'last','')  
-        self.fun_pk_last(self.database,'last_row','') 
+        self.fun_pk_last()
         self.fun_pk_first(self.database,'first','') 
         
         self.query_pk_fun(self.database,'') 
@@ -2501,7 +2497,7 @@ class TestPrimaryTsBase:
             sql = "select {}(ts{}) from {}.stable_0 group by tbname ".format(replace_fun,replace_num,db)
             self.explain_sql_pass(sql)
 
-    def fun_pk_last(self,db,replace_fun,replace_num): 
+    def fun_pk_last(self): 
         self.fun_pk_last_init(self.database,'last','') 
         self.fun_pk_last_init(self.database,'last_row','') 
                 
@@ -3188,35 +3184,3 @@ class TestPrimaryTsBase:
         self.fun_pk_str_1(self.database,'rtrim','') 
         self.fun_pk_str_1(self.database,'substr',',1') 
         self.fun_pk_str_1(self.database,'upper','') 
-
-    def test_primary_ts_base(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-
-        """
-
-        startTime = time.time() 
-        self.case_init()
-        self.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
-
-        self.query_pk(self.database,1) 
-        
-        endTime = time.time()
-        print("total time %ds" % (endTime - startTime))
-
-        #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
