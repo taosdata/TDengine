@@ -118,11 +118,6 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
   // Close temp file
   taosCloseFile(&pFile);
 
-#ifndef WINDOWS
-  // Set file permissions (600 - owner read/write only) for security
-  chmod(tempFile, 0600);
-#endif
-
   // Atomic replacement - rename temp file to target
   code = taosRenameFile(tempFile, filepath);
   if (code != 0) {
@@ -220,12 +215,18 @@ bool taosIsEncryptedFile(const char *filepath, int32_t *algorithm) {
 }
 
 /**
- * Write configuration file with encryption support.
- * 
+ * Write configuration file with encryption support using atomic file replacement.
+ *
  * This function writes a configuration file with optional encryption based on tsCfgKey.
  * If tsCfgKey is enabled (not empty), it encrypts the data using SM4 CBC algorithm
  * and writes it with an encryption header. Otherwise, it writes the file normally.
- * 
+ *
+ * Atomic file replacement strategy (same for both encrypted and plain files):
+ * 1. Write to temporary file: filepath.tmp
+ * 2. Sync temporary file to disk
+ * 3. Atomically rename temporary file to target filepath
+ * 4. Remove old file if rename succeeds
+ *
  * @param filepath Target file path
  * @param data Data buffer to write
  * @param dataLen Length of data to write
@@ -237,33 +238,46 @@ int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen
     return terrno;
   }
 
+  int32_t code = 0;
+  char    tempFile[PATH_MAX];
+  snprintf(tempFile, sizeof(tempFile), "%s.tmp", filepath);
+
   // Check if CFG_KEY encryption is enabled
   if (!tsCfgKeyEnabled || tsCfgKey[0] == '\0') {
-    // No encryption, write file normally
-    TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+    // No encryption, write file normally with atomic operation
+    TdFilePtr pFile = taosOpenFile(tempFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     if (pFile == NULL) {
       return terrno;
     }
 
     if (taosWriteFile(pFile, data, dataLen) != dataLen) {
-      int32_t code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
+      code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
       taosCloseFile(&pFile);
+      taosRemoveFile(tempFile);
       terrno = code;
       return code;
     }
 
-    if (taosFsyncFile(pFile) != 0) {
-      int32_t code = terrno;
+    code = taosFsyncFile(pFile);
+    if (code != 0) {
       taosCloseFile(&pFile);
+      taosRemoveFile(tempFile);
       return code;
     }
 
     taosCloseFile(&pFile);
+
+    // Atomic replacement - rename temp file to target
+    code = taosRenameFile(tempFile, filepath);
+    if (code != 0) {
+      taosRemoveFile(tempFile);
+      return code;
+    }
+
     return 0;
   }
 
   // Encryption enabled - encrypt data first
-  int32_t code = 0;
   int32_t cryptedDataLen = ENCRYPTED_LEN(dataLen);
   char *plainBuf = NULL;
   char *encryptedBuf = NULL;
@@ -303,7 +317,7 @@ int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen
     goto _cleanup;
   }
 
-  // Write encrypted file with header
+  // Write encrypted file with header (uses atomic operation internally)
   code = taosWriteEncryptFileHeader(filepath, TSDB_ENCRYPT_ALGO_SM4, encryptedBuf, cryptedDataLen);
 
 _cleanup:
