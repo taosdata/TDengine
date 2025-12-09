@@ -1376,6 +1376,352 @@ taos> select to_base64("你好 世界");
  5L2g5aW9IOS4lueVjA==        |
 ```
 
+#### FROM_BASE64
+
+```sql
+FROM_BASE64(expr)
+```
+
+**功能说明**: 解码 base64 编码的字符串。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select from_base64("SGVsbG8sIHdvcmxkIQ==");
+ from_base64("SGVsbG8sIHdvcmxkIQ==") |
+======================================
+ Hello, world!                       |
+Query OK, 1 row(s) in set (0.000786s)
+```
+
+### 哈希函数
+
+#### MD5
+
+```sql
+MD5(expr)
+```
+
+**功能说明**: 计算字符串的 MD5 128 位校验和。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select md5('mytext')\G;
+*************************** 1.row ***************************
+md5('mytext'): 947ef8c8db156a568d5974d71f7638f4
+Query OK, 1 row(s) in set (0.000522s)
+
+taos> insert into db.tb values(now, md5('mytext'));
+Insert OK, 1 row(s) affected (0.005111s)
+```
+
+#### SHA1 / SHA
+
+```sql
+SHA1(expr)
+```
+
+**功能说明**: 计算 SHA1 160 位校验和，具体可参考 RFC 3174。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+- SHA 与 SHA1 是同义词。
+
+**举例**:
+
+```sql
+taos> select sha('mytext')\G;
+*************************** 1.row ***************************
+sha('mytext'): 65d922aad93c7e165ed888a2ab85befe9841fd39
+Query OK, 1 row(s) in set (0.000658s)
+```
+
+#### SHA2
+
+```sql
+SHA2(expr, hash_length)
+```
+
+**功能说明**: 计算 SHA2 系列的哈希函数（SHA-224, SHA-256, SHA-384, and SHA-512）。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+- `hash_length`: 224, 256, 384, 512
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select sha2('mytext', 224)\G;
+*************************** 1.row ***************************
+sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
+Query OK, 1 row(s) in set (0.000569s)
+```
+
+### 脱敏函数
+
+#### MASK_FULL
+
+```sql
+MASK_FULL(str, replace_value)
+```
+
+**功能说明**: 将目标数据进行全脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_FULL('mytext', 'CONFIDENTIAL');
+ mask_full('mytext', 'CONFIDENTIAL') |
+======================================
+ CONFIDENTIAL                        |
+Query OK, 1 row(s) in set (0.002790s)
+```
+
+#### MASK_PARTIAL
+
+```sql
+MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
+```
+
+**功能说明**: 将目标数据进行部分脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_partial('mytext', 1, 2, '*');
+ mask_partial('mytext', 1, 2, '*') |
+====================================
+ *yte**                            |
+Query OK, 1 row(s) in set (0.002787s)
+```
+
+#### MASK_NONE
+
+```sql
+MASK_NONE(str)
+```
+
+**功能说明**: 将目标数据进行空脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_NONE('mytext');
+ mask_none('mytext') |
+======================
+ mytext              |
+Query OK, 1 row(s) in set (0.001474s)
+```
+
+### 加密函数
+
+#### SM4_ENCRYPT
+
+```sql
+SM4_ENCRYPT(str, key_str)
+```
+
+**功能说明**: 使用 SM4 算法对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**举例**:
+
+```sql
+taos> SELECT sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.003432s)
+```
+
+#### SM4_DECRYPT
+
+```sql
+SM4_DECRYPT(str, key_str)
+```
+
+**功能说明**: 使用 SM4 算法对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**举例**:
+见 `sm4_encrypt`。
+
+#### AES_ENCRYPT
+
+```sql
+AES_ENCRYPT(str, key_str[, init_vector])
+```
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`: 初始化向量
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**举例**:
+
+```sql
+taos> SELECT aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.000514s)
+```
+
+#### AES_DECRYPT
+
+```sql
+AES_DECRYPT(str, key_str[, init_vector])
+```
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`: 初始化向量
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**举例**:
+见 `aes_encrypt`。
+
 ### 类型转换函数
 
 转换函数将值从一种数据类型转换为另一种数据类型。
@@ -1634,6 +1980,7 @@ DAYOFWEEK(expr)
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
   
+
 **举例**：
 
 ```sql
@@ -1917,7 +2264,7 @@ taos> select weekofyear('2000-01-01');
 
 ## 选择函数
 
-### ​基础选择
+### 基础选择
 
 选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
 
