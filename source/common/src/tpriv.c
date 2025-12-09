@@ -25,7 +25,9 @@ static const char* privObjTypeNames[] = {
     "ROLE",    "RSMA", "TSMA",     "TOPIC", "STREAM",   "MOUNT", "AUDIT", "TOKEN",
 };
 
-// SYSDBA, SYSSEC, SYSAUDIT, SYSAUDIT_LOG, SYSINFO_0, SYSINFO_1
+/**
+ * N.B. increase the macro PRIV_INFO_TABLE_VERSION for any update of privInfoTable
+ */
 
 #define SYS_ADMIN_BASIC_ROLES (ROLE_SYSDBA | ROLE_SYSSEC | ROLE_SYSAUDIT)
 #define SYS_ADMIN_INFO1_ROLES (SYS_ADMIN_BASIC_ROLES | ROLE_SYSINFO_1)

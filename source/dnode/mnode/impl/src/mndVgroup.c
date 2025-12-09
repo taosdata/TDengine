@@ -1152,16 +1152,16 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
-  SUserObj *pUser = NULL;
   SVgObj   *pVgroup = NULL;
   SDbObj   *pVgDb = NULL;
   int32_t   cols = 0;
   int64_t   curMs = taosGetTimestampMs();
   int32_t   code = 0, lino = 0;
+  SUserObj *pUser = NULL;
   bool      showAnyVg = false;
 
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) return 0;
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  if (pUser == NULL) goto _OVER;
 
   char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
   (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
@@ -1341,7 +1341,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     sdbRelease(pSdb, pVgroup);
   }
 _OVER:
-  mndReleaseUser(pMnode, pUser);
+  if (pUser) mndReleaseUser(pMnode, pUser);
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
@@ -1452,8 +1452,8 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   bool      showAnyVg = false, showVg = false;
   int64_t   dbUid = 0;
 
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) return 0;
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  if (pUser == NULL) goto _exit;
 
   char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
   (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);

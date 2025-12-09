@@ -2677,9 +2677,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   mndTransDrop(pTrans);
 
 _OVER:
-  taosMemoryFree(userObj.passwords);
-  taosMemoryFree(userObj.pIpWhiteListDual);
-  taosMemoryFree(userObj.pTimeWhiteList);
+  mndUserFreeObj(&userObj);
   TAOS_RETURN(code);
 }
 

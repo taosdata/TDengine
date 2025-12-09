@@ -38,6 +38,7 @@ extern "C" {
 #define TSDB_ROLE_SYSINFO_0    "SYSINFO_0"
 #define TSDB_ROLE_SYSINFO_1    "SYSINFO_1"
 
+#define PRIV_INFO_TABLE_VERSION 1
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Legacy Privilege ====================

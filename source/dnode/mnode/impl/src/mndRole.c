@@ -33,7 +33,7 @@
 // clang-format on
 
 #define MND_ROLE_VER_NUMBER  1
-#define MND_ROLE_SYSROLE_VER 1  // increase if system role definition updated in privInfoTable
+#define MND_ROLE_SYSROLE_VER PRIV_INFO_TABLE_VERSION
 
 static SRoleMgmt roleMgmt = {0};
 static bool      isDeploy = false;
