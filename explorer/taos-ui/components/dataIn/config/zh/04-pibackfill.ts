@@ -86,6 +86,7 @@ export default {
       field: 'datasets',
       type: 'tabs',
       multiple: false,
+      valueField: 'only-choose-one$',
       name: 'datasets',
       children: [
         {
@@ -203,7 +204,6 @@ export default {
           }
         }
       ],
-      valueField: '667ad1c7-527b-4052-a586-772db76f0145',
       defaultValue: 'single-column'
     },
     {
