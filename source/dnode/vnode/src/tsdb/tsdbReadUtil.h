@@ -60,6 +60,7 @@ typedef enum {
   EXTERNAL_ROWS_PREV = 0x1,
   EXTERNAL_ROWS_MAIN = 0x2,
   EXTERNAL_ROWS_NEXT = 0x3,
+  EXTERNAL_ROWS_DONE = 0x4,
 } EContentData;
 
 typedef struct STsdbReaderInfo {

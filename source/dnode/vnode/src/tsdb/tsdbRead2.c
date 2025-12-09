@@ -5613,6 +5613,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     // here we only need one more row, so the capacity is set to be ONE.
     code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 1, pResBlock, idstr);
     TSDB_CHECK_CODE(code, lino, _end);
+    pReader->step = EXTERNAL_ROWS_PREV;
 
     if (order == TSDB_ORDER_ASC) {
       pCond->twindows = pCond->extTwindows[1];
@@ -6143,7 +6144,7 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
   code = pReader->code;
   TSDB_CHECK_CODE(code, lino, _end);
 
-  if (isEmptyQueryTimeWindow(&pReader->info.window) || pReader->step == EXTERNAL_ROWS_NEXT) {
+  if (isEmptyQueryTimeWindow(&pReader->info.window) || pReader->step == EXTERNAL_ROWS_DONE) {
     goto _end;
   }
 
@@ -6170,11 +6171,10 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pReader->innerReader[0] != NULL && pReader->step == 0) {
+  if (pReader->innerReader[0] != NULL && pReader->step == EXTERNAL_ROWS_PREV) {
     code = doTsdbNextDataBlock2(pReader->innerReader[0], hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    pReader->step = EXTERNAL_ROWS_PREV;
     if (*hasNext) {
       pStatus = &pReader->innerReader[0]->status;
       if (pStatus->composedDataBlock) {
@@ -6183,12 +6183,14 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
         acquired = false;
         TSDB_CHECK_CODE(code, lino, _end);
       }
-
+      pReader->step = EXTERNAL_ROWS_PREV;
       return code;
+    } else {
+      pReader->step = EXTERNAL_ROWS_MAIN;
     }
   }
 
-  if (pReader->step == EXTERNAL_ROWS_PREV) {
+  if (pReader->step == EXTERNAL_ROWS_MAIN) {
     // prepare for the main scan
     if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
       code = doOpenReaderImpl(pReader);
@@ -6197,8 +6199,6 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
     int32_t step = 1;
     resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->info.window.ekey, step);
     TSDB_CHECK_CODE(code, lino, _end);
-
-    pReader->step = EXTERNAL_ROWS_MAIN;
   }
 
   code = doTsdbNextDataBlock2(pReader, hasNext);
@@ -6211,10 +6211,13 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
       acquired = false;
       TSDB_CHECK_CODE(code, lino, _end);
     }
+    pReader->step = EXTERNAL_ROWS_MAIN;
     return code;
+  } else {
+    pReader->step = EXTERNAL_ROWS_NEXT;
   }
 
-  if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
+  if (pReader->step == EXTERNAL_ROWS_NEXT && pReader->innerReader[1] != NULL) {
     // prepare for the next row scan
     if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
       code = doOpenReaderImpl(pReader->innerReader[1]);
@@ -6227,7 +6230,6 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
     code = doTsdbNextDataBlock2(pReader->innerReader[1], hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    pReader->step = EXTERNAL_ROWS_NEXT;
     if (*hasNext) {
       pStatus = &pReader->innerReader[1]->status;
       if (pStatus->composedDataBlock) {
@@ -7162,5 +7164,33 @@ _end:
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 #endif
+  return code;
+}
+
+int32_t tsdbReaderMoveToNextStep(STsdbReader* pReader) {
+  if (pReader == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t lino = 0;
+  int32_t code = tsdbAcquireReader(pReader);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  if (pReader->step == 0) {
+    pReader->step = EXTERNAL_ROWS_PREV;
+  } else if (pReader->step == EXTERNAL_ROWS_PREV) {
+    pReader->step = EXTERNAL_ROWS_MAIN;
+  } else if (pReader->step == EXTERNAL_ROWS_MAIN) {
+    pReader->step = EXTERNAL_ROWS_NEXT;
+  } else if (pReader->step == EXTERNAL_ROWS_NEXT) {
+    pReader->step = EXTERNAL_ROWS_DONE;
+  }
+
+  code = tsdbReleaseReader(pReader);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    tsdbError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+  }
   return code;
 }

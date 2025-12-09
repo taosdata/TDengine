@@ -192,6 +192,7 @@ void     tsdbSetFilesetDelimited(STsdbReader *pReader);
 void     tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
 int32_t  tsdbReaderGetProgress(const STsdbReader *pReader, void **pBuf, uint64_t *pLen);
 int32_t  tsdbReaderSetProgress(STsdbReader *pReader, const void *buf, uint64_t len);
+int32_t  tsdbReaderMoveToNextStep(STsdbReader *pReader);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,

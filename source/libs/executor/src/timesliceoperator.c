@@ -866,12 +866,19 @@ static void saveBlockStatus(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBl
   pSliceInfo->pRemainRes = NULL;
 }
 
+static void timeSliceOptrNotifyDownstream(SOperatorInfo* pDownOptr) {
+  if (pDownOptr != NULL && pDownOptr->fpSet.notifyFn != NULL) {
+    pDownOptr->fpSet.notifyFn(pDownOptr, NULL);
+  }
+}
+
 static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock,
                             SExecTaskInfo* pTaskInfo, bool ignoreNull) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
+  bool         notified = false;
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
   SColumnInfoData* pPkCol = NULL;
@@ -891,6 +898,12 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
 
     if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
       continue;
+    }
+
+    if (!notified) {
+      // notify table scan reader to next step
+      timeSliceOptrNotifyDownstream(pOperator->pDownstream[0]);
+      notified = true;
     }
 
     if (ts == pSliceInfo->current) {
@@ -1240,6 +1253,14 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
+static int32_t notifyReaderToNextStep(struct SOperatorInfo* pOptr,
+                                      SOperatorParam* param) {
+  STableScanInfo* pTableScanInfo = (STableScanInfo*)pOptr->info;
+  TsdReader* pAPI = &pOptr->pTaskInfo->storageAPI.tsdReader;
+  pAPI->tsdReaderMoveToNextStep(pTableScanInfo->base.dataReader);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
@@ -1332,6 +1353,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
   //  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
 
+  downstream->fpSet.notifyFn = notifyReaderToNextStep;
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 

@@ -1918,10 +1918,14 @@ SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbUid, TSK
   QUERY_CHECK_CODE(code, lino, _end);
 
   bool hasNext = false;
-  code = pAPI->tsdReader.tsdNextDataBlock(pReader, &hasNext);
-  QUERY_CHECK_CODE(code, lino, _end);
+  while (true) {
+    code = pAPI->tsdReader.tsdNextDataBlock(pReader, &hasNext);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  if (hasNext) {
+    if (!hasNext) {
+      break;
+    }
+
     SSDataBlock* p = NULL;
     code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pReader, &p, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1930,6 +1934,18 @@ SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbUid, TSK
     QUERY_CHECK_CODE(code, lino, _end);
 
     pBlock->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+
+    bool hasValidRow = false;
+    for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+      if (!checkNullRow(&pTableScanOp->exprSupp, pBlock, i, true)) {
+        hasValidRow = true;
+        break;
+      }
+    }
+
+    if (hasValidRow) {
+      break;
+    }
   }
 
 _end:
