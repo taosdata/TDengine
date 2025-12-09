@@ -1353,7 +1353,6 @@ TAOS *createConnect(SShellArgs *pArgs) {
 
     // connect dsn
     taos = taos_connect_with_dsn(pArgs->dsn);
-
   } else {
     host = (char *)pArgs->host;
     user = (char *)pArgs->user;
