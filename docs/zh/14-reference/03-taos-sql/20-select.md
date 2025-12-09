@@ -304,7 +304,7 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 
 ## INTERP
 
-interp 子句是 INTERP 函数 (../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用；流计算不支持使用 RANGE，但需要与 EVERY 和 FILL 关键字一起使用。
+interp 子句是 [INTERP 函数](../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用；流计算不支持使用 RANGE，但需要与 EVERY 和 FILL 关键字一起使用。
 
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。

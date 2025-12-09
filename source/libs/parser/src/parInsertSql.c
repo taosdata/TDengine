@@ -3277,8 +3277,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
       }
     } else {
       pCxt->stmtTbNameFlag |= IS_FIXED_VALUE;
-      parserWarn("QID:0x%" PRIx64 ", table name is specified in sql, ignore the table name in bind param",
-                 pCxt->pComCxt->requestId);
+      parserTrace("QID:0x%" PRIx64 ", stmt tbname:%s is specified in sql", pCxt->pComCxt->requestId, pTbName->z);
       *pHasData = true;
     }
     return TSDB_CODE_SUCCESS;

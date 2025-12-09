@@ -150,7 +150,6 @@ void initTqAPI(SStoreTqReader* pTq) {
   //  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 
-  pTq->tqReaderSetVtableInfo = tqReaderSetVtableInfo;
 #endif
 }
 

@@ -35,6 +35,7 @@ typedef struct SVirtualTableScanInfo {
   int32_t        tagBlockId;
   int32_t        tagDownStreamId;
   bool           scanAllCols;
+  bool           useOrgTsCol;
   SArray*        pSortCtxList;
   tb_uid_t       vtableUid;  // virtual table uid, used to identify the vtable scan operator
 } SVirtualTableScanInfo;
@@ -402,6 +403,13 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
             }
             lastTs = *(int64_t*)pData;
           }
+          if (pInfo->virtualScanInfo.useOrgTsCol) {
+            int32_t slotKey = blockId << 16 | i;
+            void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
+            if (slotId) {
+              VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
+            }
+          }
           continue;
         }
         if (tsortIsNullVal(pTupleHandle, i)) {
@@ -724,7 +732,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t extractColMap(SNodeList* pNodeList, SSHashObj** pSlotMap, int32_t *tsSlotId, int32_t *orgTsSlotId, int32_t *tagBlockId) {
+int32_t extractColMap(SNodeList* pNodeList, SSHashObj** pSlotMap, int32_t *tsSlotId, int32_t *orgTsSlotId, int32_t *tagBlockId, bool* useOriginTs) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -736,6 +744,7 @@ int32_t extractColMap(SNodeList* pNodeList, SSHashObj** pSlotMap, int32_t *tsSlo
   *tsSlotId = -1;
   *orgTsSlotId = numOfCols;
   *tagBlockId = -1;
+  *useOriginTs = false;
   *pSlotMap = tSimpleHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   TSDB_CHECK_NULL(*pSlotMap, code, lino, _return, terrno);
 
@@ -748,6 +757,9 @@ int32_t extractColMap(SNodeList* pNodeList, SSHashObj** pSlotMap, int32_t *tsSlo
       *orgTsSlotId = i;
     } else if (pColNode->hasRef) {
       int32_t slotKey = pColNode->dataBlockId << 16 | pColNode->slotId;
+      if (pColNode->slotId == 0) {
+        *useOriginTs = true;
+      }
       VTS_ERR_JRET(tSimpleHashPut(*pSlotMap, &slotKey, sizeof(slotKey), &i, sizeof(i)));
     } else if (pColNode->colType == COLUMN_TYPE_TAG || '\0' == pColNode->tableAlias[0]) {
       // tag column or pseudo column's function
@@ -865,7 +877,8 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->sortBufSize =
       pVirtualScanInfo->bufPageSize * (numOfDownstream + 1);  // one additional is reserved for merged result.
   VTS_ERR_JRET(
-      extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId, &pVirtualScanInfo->orgTsSlotId, &pVirtualScanInfo->tagBlockId));
+      extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId,
+                    &pVirtualScanInfo->orgTsSlotId, &pVirtualScanInfo->tagBlockId, &pVirtualScanInfo->useOrgTsCol));
 
   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
 

@@ -17,19 +17,19 @@ Create the required Topic in the source cluster, which can subscribe to the enti
 
 Open the Explorer interface of the source cluster, click the "Data Subscription" menu on the left, then click "Add New Topic".
 
-![](../../assets/tdengine-3-01.png)
+![Add new topic](../../assets/tdengine-3-01.png)
 
 ### Step Two: Add a New Topic
 
 Enter the topic name, select the database to subscribe to.
 
-![](../../assets/tdengine-3-02.png)
+![Configure database subscription](../../assets/tdengine-3-02.png)
 
 ### Step Three: Copy the Topic's DSN
 
 Click the "Create" button, return to the topic list and copy the **DSN** of the topic for later use.
 
-![](../../assets/tdengine-3-03.png)
+![Copy topic DSN](../../assets/tdengine-3-03.png)
 
 ## Create Subscription Task
 
@@ -38,7 +38,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 1. Click the "Data Writing" menu on the left
 2. Click "Add Data Source"
 
-![](../../assets/tdengine-3-04.png)
+![Add data source](../../assets/tdengine-3-04.png)
 
 ### Step Two: Enter Data Source Information
 
@@ -48,8 +48,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 4. Paste the DSN copied in the preparation step into the **Topic DSN** field. For example: tmq+ws://root:taosdata@localhost:6041/topic
 5. After completing the above steps, click the "Connectivity Check" button to test connectivity with the source
 
-![](../../assets/tdengine-3-05.png)
-
+![Configure basic settings](../../assets/tdengine-3-05.png)
 
 ### Step Three: Fill in Subscription Settings and Submit Task
 
@@ -63,21 +62,21 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 8. Compression. Enable WebSocket compression support to reduce network bandwidth usage.
 9. Click the "Submit" button to submit the task
 
-![](../../assets/tdengine-3-06.png)
+![Configure subscription options](../../assets/tdengine-3-06.png)
 
 ## Monitor Task Execution
 
 After submitting the task, return to the data source page to view the task status. The task will first be added to the execution queue and will start running shortly.
 
-![](../../assets/tdengine-3-07.png)
+![Monitor task execution](../../assets/tdengine-3-07.png)
 
 Click the "View" button to monitor the dynamic statistical information of the task.
 
-![](../../assets/tdengine-3-08.png)
+![View current metrics](../../assets/tdengine-3-08.png)
 
 You can also click the left collapse button to expand the task's activity information. If the task runs abnormally, detailed explanations can be seen here.
 
-![](../../assets/tdengine-3-09.png)
+![View task activity](../../assets/tdengine-3-09.png)
 
 ## Advanced Usage
 

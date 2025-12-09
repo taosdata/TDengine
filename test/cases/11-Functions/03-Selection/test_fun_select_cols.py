@@ -920,6 +920,19 @@ class TestFunCols:
         tdSql.query(f'select count(1), cols(last(c0),c0)  from (select * from test.d0)')
         tdSql.query(f'select count(1), cols(last(c0),c0)  from (select *, tbname from test.meters) group by tbname')
         
+        tdSql.query(f'select last(mts)  from (select max(c0) as mc0, cols(max(c0), ts) as mts from test.meters group by tbname)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 1734574929004)
+        tdSql.query(f'select max(mc0) as max_c0, cols(max(mc0), mts) max_ts  from (select max(c0) as mc0, cols(max(c0), ts) as mts from test.meters group by tbname)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(0, 1, 1734574929004)
+        
+        tdSql.error(f'select last(ts)  from (select max(c0) as mc0, cols(max(c0), ts) as mts from test.meters group by tbname)')
+        tdSql.error(f'select max(mc0) as max_c0, cols(max(mc0), ts) max_ts  from (select max(c0) as mc0, cols(max(c0), ts) as mts from test.meters group by tbname)')
+        
         tdLog.info("subquery_test: orderby_test from meters")
         self.orderby_test("test.meters", "c0", False)
         tdLog.info("subquery_test: orderby_test from (select *, tbname from meters)")
