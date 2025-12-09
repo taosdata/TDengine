@@ -1440,17 +1440,51 @@ void calculateRstoreFinishTime(double rate, int64_t applyCount, char *restoreStr
 }
 
 static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfRows = 0;
-  SVgObj *pVgroup = NULL;
-  int32_t cols = 0;
-  int64_t curMs = taosGetTimestampMs();
-  int32_t code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SUserObj *pUser = NULL;
+  SVgObj   *pVgroup = NULL;
+  SDbObj   *pVgDb = NULL;
+  int32_t   cols = 0;
+  int64_t   curMs = taosGetTimestampMs();
+  int32_t   code = 0;
+  bool      showAnyVg = false, showVg = false;
+  int64_t   dbUid = 0;
+
+  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  if (pUser == NULL) return 0;
+
+  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
+  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
+  showAnyVg = mndCheckObjPrivilege(pMnode, pUser, MND_OPER_SHOW_VNODES, dbFName, NULL);
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
     if (pShow->pIter == NULL) break;
+
+    if (!showAnyVg) {
+      if (dbUid != pVgroup->dbUid) {
+        pVgDb = mndAcquireDb(pMnode, pVgroup->dbName);
+        if (pVgDb == NULL) {
+          sdbRelease(pSdb, pVgroup);
+          continue;
+        }
+        dbUid = pVgroup->dbUid;
+        if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_VNODES, pVgDb)) {
+          showVg = false;
+          mndReleaseDb(pMnode, pVgDb);
+          sdbRelease(pSdb, pVgroup);
+          continue;
+        } else {
+          mndReleaseDb(pMnode, pVgDb);
+          showVg = true;
+        }
+      } else if (!showVg) {
+        sdbRelease(pSdb, pVgroup);
+        continue;
+      }
+    }
 
     for (int32_t i = 0; i < pVgroup->replica && numOfRows < rows; ++i) {
       SVnodeGid       *pGid = &pVgroup->vnodeGid[i];
