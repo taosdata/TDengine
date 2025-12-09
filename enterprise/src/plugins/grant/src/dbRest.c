@@ -566,7 +566,11 @@ int32_t parseAuthQuota(const char *authQuotaStr, SAuthQuota *pAuthQuota) {
       if (pAuthQuota->idmpExtensionArray == NULL) {
         pAuthQuota->idmpExtensionArray = taosArrayInit(2, sizeof(SAuthQuotaExItem));
       }
-      taosArrayPush(pAuthQuota->idmpExtensionArray, &item);
+      if (taosArrayPush(pAuthQuota->idmpExtensionArray, &item) == NULL) {
+        uError("failed to add idmp extension item to array");
+        taosMemoryFree(copy);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     } else {
       SAuthQuotaExItem item;
       parseQuotaItem(key, value, &item.item);
@@ -574,7 +578,11 @@ int32_t parseAuthQuota(const char *authQuotaStr, SAuthQuota *pAuthQuota) {
       if (pAuthQuota->extensionArray == NULL) {
         pAuthQuota->extensionArray = taosArrayInit(2, sizeof(SAuthQuotaExItem));
       }
-      taosArrayPush(pAuthQuota->extensionArray, &item);
+      if (taosArrayPush(pAuthQuota->extensionArray, &item) == NULL) {
+        uError("failed to add extension item to array");
+        taosMemoryFree(copy);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
 
     pair = strtok_r(NULL, ";", &saveptr1);
@@ -709,11 +717,12 @@ _exit:
 }
 
 int32_t queryAuthServerAll() {
-  int32_t code = 0;
-  char   *authEnc = NULL;
-  char   *resp = NULL;
-  char   *jsonCopy = NULL;
-  SJson  *pJson = NULL;
+  int32_t   code = 0;
+  char     *authEnc = NULL;
+  char     *resp = NULL;
+  char     *jsonCopy = NULL;
+  SJson    *pJson = NULL;
+  SHashObj *pQueriedClusterHash = NULL;
 
   char sql[512];
   snprintf(sql, sizeof(sql), "select tags cluster_id,enables,auth_quota from auth.grantserver;");
@@ -779,6 +788,10 @@ int32_t queryAuthServerAll() {
   int32_t rows = pRowsItem ? (int32_t)cJSON_GetNumberValue((cJSON *)pRowsItem) : 0;
   if (rows <= 0) {
     uDebug("no auth quota data returned from database");
+    if (gAuthQuotaHash != NULL) {
+      taosHashClear(gAuthQuotaHash);
+      uInfo("cleared auth quota hash due to empty database result");
+    }
     code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
@@ -793,6 +806,18 @@ int32_t queryAuthServerAll() {
   int arraySize = cJSON_GetArraySize((cJSON *)pDataArray);
   uDebug("auth quota query returned %d rows", arraySize);
 
+  // query clusterId
+  if (gAuthQuotaHash != NULL && arraySize > 0) {
+    pQueriedClusterHash =
+        taosHashInit(arraySize * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (!pQueriedClusterHash) {
+      uError("failed to create temporary hash for queried clusterIds");
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+
+  // 第一步：收集所有查询到的 clusterId 并更新/添加到 hash
   for (int i = 0; i < arraySize; i++) {
     SJson *pRow = tjsonGetArrayItem(pDataArray, i);
     if (!pRow || !cJSON_IsArray((cJSON *)pRow)) {
@@ -809,13 +834,22 @@ int32_t queryAuthServerAll() {
       continue;
     }
 
-    char clusterId[GRANT_CLUSTER_ID_LEN + 1] = {0};
+    char        clusterId[GRANT_CLUSTER_ID_LEN + 1] = {0};
     const char *clusterIdStr = cJSON_GetStringValue((cJSON *)pClusterIdItem);
     if (!clusterIdStr || strlen(clusterIdStr) == 0) {
-      uWarn("skip row %d with empty cluster_id", i);
+      uError("skip row %d with empty cluster_id", i);
+      continue;
+    }
+    if (strlen(clusterIdStr) > GRANT_CLUSTER_ID_LEN) {
+      uError("skip row %d with cluster_id longer than %d", i, GRANT_CLUSTER_ID_LEN);
       continue;
     }
     tstrncpy(clusterId, clusterIdStr, sizeof(clusterId));
+
+    if (pQueriedClusterHash != NULL) {
+      int32_t dummy = 1;
+      taosHashPut(pQueriedClusterHash, clusterId, sizeof(clusterId), &dummy, sizeof(int32_t));
+    }
 
     bool enables = cJSON_IsTrue((cJSON *)pEnablesItem);
 
@@ -837,12 +871,58 @@ int32_t queryAuthServerAll() {
     }
 
     if (gAuthQuotaHash != NULL) {
-      int32_t putCode = taosHashPut(gAuthQuotaHash, clusterId, strlen(clusterId), &authQuota, sizeof(SAuthQuota));
+      int32_t putCode = taosHashPut(gAuthQuotaHash, clusterId, sizeof(clusterId), &authQuota, sizeof(SAuthQuota));
       if (putCode != TSDB_CODE_SUCCESS && !HASH_NODE_EXIST(putCode)) {
         uError("failed to put auth quota for cluster %s to hash, code:%d", clusterId, putCode);
       } else {
-        uDebug("auth quota loaded for cluster:%s, enable=%d", clusterId, enables);
+        uDebug("auth quota updated for cluster:%s, enable=%d", clusterId, enables);
       }
+    }
+  }
+
+  // remove stale clusterId
+  if (gAuthQuotaHash != NULL && pQueriedClusterHash != NULL) {
+    SArray *pClusterIdsToRemove = taosArrayInit(16, GRANT_CLUSTER_ID_LEN + 1);
+    if (pClusterIdsToRemove == NULL) {
+      uError("failed to allocate memory for clusterIds to remove");
+    } else {
+      void *pIter = taosHashIterate(gAuthQuotaHash, NULL);
+      while (pIter != NULL) {
+        size_t keyLen = 0;
+        char  *key = (char *)taosHashGetKey(pIter, &keyLen);
+
+        if (key && keyLen > 0 && keyLen <= GRANT_CLUSTER_ID_LEN + 1) {
+          void *pFound = taosHashGet(pQueriedClusterHash, key, keyLen);
+          if (pFound == NULL) {
+            char clusterId[GRANT_CLUSTER_ID_LEN + 1] = {0};
+            tstrncpy(clusterId, key, GRANT_CLUSTER_ID_LEN + 1);
+            if (taosArrayPush(pClusterIdsToRemove, clusterId) == NULL) {
+              uError("failed to add clusterId to remove array");
+              break;
+            }
+          }
+        }
+
+        pIter = taosHashIterate(gAuthQuotaHash, pIter);
+      }
+
+      int removeCount = taosArrayGetSize(pClusterIdsToRemove);
+      for (int i = 0; i < removeCount; i++) {
+        char clusterId[GRANT_CLUSTER_ID_LEN + 1] = {0};
+        tstrncpy(clusterId, (char *)taosArrayGet(pClusterIdsToRemove, i), sizeof(clusterId));
+        int32_t removeCode = taosHashRemove(gAuthQuotaHash, clusterId, sizeof(clusterId));
+        if (removeCode == TSDB_CODE_SUCCESS) {
+          uDebug("removed stale auth quota for cluster:%s", clusterId);
+        } else {
+          uWarn("failed to remove stale auth quota for cluster:%s, code:%d", clusterId, removeCode);
+        }
+      }
+
+      if (removeCount > 0) {
+        uInfo("removed %d stale auth quota entries from hash", removeCount);
+      }
+
+      taosArrayDestroy(pClusterIdsToRemove);
     }
   }
 
@@ -854,6 +934,9 @@ _exit:
   if (resp) taosMemoryFree(resp);
   if (jsonCopy) taosMemoryFree(jsonCopy);
   if (pJson) tjsonDelete(pJson);
+  if (pQueriedClusterHash != NULL) {
+    taosHashCleanup(pQueriedClusterHash);
+  }
 
   return code;
 }
@@ -1072,8 +1155,8 @@ void updateAuthServer(const char *clusterId, SAuthReqData *pAuthReqData) {
   tstrncpy(pTask->clusterId, clusterId, sizeof(pTask->clusterId));
   memcpy(&pTask->authReqData, pAuthReqData, sizeof(SAuthReqData));
 
-  TdThread      thread;
-  TdThreadAttr  attr;
+  TdThread     thread;
+  TdThreadAttr attr;
   taosThreadAttrInit(&attr);
   taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
 

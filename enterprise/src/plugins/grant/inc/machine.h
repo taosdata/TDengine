@@ -472,7 +472,10 @@ typedef struct {
   int16_t limitDnodes;
   int16_t limitStreams;
   int16_t limitSubscriptions;
-  int16_t reserve;
+  union {
+    int16_t reserve;
+    int16_t limitAuthClients;
+  };
   int32_t limitViews;
   int32_t expireDays[GRANT_OPT_MAX];
   int32_t dataIns[GRANT_UNIQ_KNOWN_DATAIN_VALS];  // known dataIns: 3 * sizeof(int32_t) * CONN_TYPE_MAX
@@ -578,7 +581,8 @@ typedef struct {
     int64_t p7;
     struct {
       int64_t bakRstExpireSec : 40;
-      int64_t reserve5 : 24;
+      int16_t limitAuthClients : 16;
+      int64_t reserve5 : 8;
     };
   };
   union {
