@@ -120,15 +120,17 @@ Hints are a means for users to control the optimization of individual statement 
 
 The currently supported Hints list is as follows:
 
-|    **Hint**   |    **Parameter**    |         **Description**           |       **Applicable Scope**         |
-| :-----------: | -------------- | -------------------------- | -----------------------------|
-| BATCH_SCAN    | None             | Use batch table reading         | Supertable JOIN statements             |
-| NO_BATCH_SCAN | None             | Use sequential table reading         | Supertable JOIN statements             |
-| SORT_FOR_GROUP| None             | Use sort method for grouping, conflicts with PARTITION_FIRST  | When partition by list includes regular columns  |
-| PARTITION_FIRST| None             | Use PARTITION to calculate groups before aggregation, conflicts with SORT_FOR_GROUP | When partition by list includes regular columns  |
-| PARA_TABLES_SORT| None             | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp  |
-| SMALLDATA_TS_SORT| None             | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance | When sorting supertable data by timestamp  |
-| SKIP_TSMA | None | Explicitly disable TSMA query optimization | Queries with Agg functions |
+|      **Hint**       | **Parameter** | **Description**                                                                                                                                                                       | **Applicable Scope**                            |
+|:-------------------:|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------|
+|     BATCH_SCAN      | None          | Use batch table reading                                                                                                                                                               | Supertable JOIN statements                      |
+|    NO_BATCH_SCAN    | None          | Use sequential table reading                                                                                                                                                          | Supertable JOIN statements                      |
+|   SORT_FOR_GROUP    | None          | Use sort method for grouping, conflicts with PARTITION_FIRST                                                                                                                          | When partition by list includes regular columns |
+|   PARTITION_FIRST   | None          | Use PARTITION to calculate groups before aggregation, conflicts with SORT_FOR_GROUP                                                                                                   | When partition by list includes regular columns |
+|  PARA_TABLES_SORT   | None          | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp       |
+|  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
+|      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
+| WIN_OPTIMIZE_BATCH  | None          | Optimize virtual table window query and process multiple windows in a batch when optimizing window queries on virtual tables.                                                         | Virtual table query with State Window           |
+| WIN_OPTIMIZE_SINGLE | None          | Optimize virtual table window query and process one window at a time when optimizing window queries on virtual tables.                                                                | Virtual table query with State Window           |
 
 Examples:
 
@@ -536,6 +538,7 @@ UNION [ALL] SELECT ...
 ```
 
 In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+
 1. Each SELECT clause must return results with the same number of columns;
 2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
 

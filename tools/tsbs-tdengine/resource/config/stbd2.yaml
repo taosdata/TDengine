@@ -1,0 +1,24 @@
+testCases:
+    # U1
+    - scenarioId: "D2"
+      querySql: select count(*) from db.stbd2;
+      dataRows: 40000
+      verifySql: select count(*) from db.res_d2;
+      expectRows: 6000
+      compare: ">="
+      delaySql: select 
+                    count(ts)  cnt,
+                    avg(delay) avg_val,
+                    min(delay) min_val,
+                    apercentile(delay, 10) p10,
+                    apercentile(delay, 50) p50,
+                    apercentile(delay, 90) p90,
+                    apercentile(delay, 95) p95,
+                    apercentile(delay, 99) p99,
+                    max(delay) max_val
+                  from ( 
+                         select ts,
+                                localtime,
+                                cast(localtime as bigint) - cast(ts as bigint) delay 
+                          from db.res_d2
+                       );

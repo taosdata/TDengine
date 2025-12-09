@@ -324,7 +324,7 @@ The LAG() function in Spark is used to obtain data from a previous row relative 
 
 3. Output the analysis results, as shown in the following table:
 
-    ![](../../assets/spark-01.png)
+    ![Output results](../../assets/spark-01.png)
 
 After Spark accesses the TDengine data source, it can further support complex data - processing functions such as cross - database analysis, intersection/union/difference operations of datasets, sub - query filtering with the WHERE clause, and normal - column JOIN.
 

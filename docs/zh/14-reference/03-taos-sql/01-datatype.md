@@ -59,9 +59,9 @@ description: 'TDengine TSDB 支持的数据类型：时间戳、浮点型、JSON
 
 TDengine TSDB 缺省的时间戳精度是毫秒，但通过在 `CREATE DATABASE` 时传递的 `PRECISION` 参数也可以支持微秒和纳秒。
 
-    ```sql
-    CREATE DATABASE db_name PRECISION 'ns';
-    ```
+```sql
+CREATE DATABASE db_name PRECISION 'ns';
+```
 
 ## DECIMAL
 

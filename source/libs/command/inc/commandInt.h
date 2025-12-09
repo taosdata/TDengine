@@ -35,7 +35,7 @@ extern "C" {
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
 #define EXPLAIN_DISTBLK_SCAN_FORMAT "Block Dist Scan on %s"
 #define EXPLAIN_LASTROW_SCAN_FORMAT "Last Row Scan on %s"
-#define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Row Scan on %s"
+#define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Scan on %s"
 #define EXPLAIN_PROJECTION_FORMAT "Projection"
 #define EXPLAIN_JOIN_FORMAT "%s"
 #define EXPLAIN_AGG_FORMAT "%s"
@@ -46,12 +46,16 @@ extern "C" {
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
 #define EXPLAIN_MERGE_INTERVAL_FORMAT "Merge Interval on Column %s"
 #define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT "Merge Aligned Interval on Column %s"
+#define EXPLAIN_EXTERNAL_FORMAT "External on Column %s"
+#define EXPLAIN_MERGE_EXTERNAL_FORMAT "Merge External on Column %s"
+#define EXPLAIN_MERGE_ALIGNED_EXTERNAL_FORMAT "Merge Aligned External on Column %s"
 #define EXPLAIN_FILL_FORMAT "Fill"
 #define EXPLAIN_SESSION_FORMAT "Session"
 #define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
+#define EXPLAIN_TAG_INDEX_FORMAT "Tag Index Filter: "
 #define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
 #define EXPLAIN_PRIM_CONDITIONS_FORMAT "Join Prim Cond: "
@@ -147,6 +151,7 @@ typedef struct SExplainGroup {
 typedef struct SExplainResNode {
   SNodeList*        pChildren;
   SPhysiNode*       pNode;
+  SSubplan*         pPlan;
   SArray*           pExecInfo; // Array<SExplainExecInfo>
 } SExplainResNode;
 

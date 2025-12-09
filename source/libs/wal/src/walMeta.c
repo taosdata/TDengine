@@ -182,7 +182,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
 
       // validate body
       int32_t cryptedBodyLen = logContent->head.bodyLen;
-      if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+      if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
         cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
       }
       recordLen = walCkHeadSz + cryptedBodyLen;
@@ -371,7 +371,67 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-static int32_t walLogEntriesComplete(const SWal* pWal) {
+static int32_t walRenameCorruptedDir(SWal* pWal) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char    oldPath[WAL_FILE_LEN];
+  char    newPath[WAL_FILE_LEN + 32];
+  int64_t now = taosGetTimestampMs();
+
+  // Close all open file handles before renaming the directory
+  // This is critical especially for Windows systems where open files prevent directory rename
+  if (pWal->pLogFile != NULL) {
+    wDebug("vgId:%d, closing log file before renaming corrupted directory", pWal->cfg.vgId);
+    (void)taosCloseFile(&pWal->pLogFile);
+    pWal->pLogFile = NULL;
+  }
+  if (pWal->pIdxFile != NULL) {
+    wDebug("vgId:%d, closing idx file before renaming corrupted directory", pWal->cfg.vgId);
+    (void)taosCloseFile(&pWal->pIdxFile);
+    pWal->pIdxFile = NULL;
+  }
+
+  // Build old and new directory paths
+  tstrncpy(oldPath, pWal->path, sizeof(oldPath));
+  snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, oldPath, now);
+
+  wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, oldPath, newPath);
+
+  // Rename the directory (taosRenameFile works for directories too)
+  if (taosRenameFile(oldPath, newPath) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, oldPath, newPath,
+           tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  // Clear the fileInfoSet
+  taosArrayClear(pWal->fileInfoSet);
+
+  // Recreate the WAL directory
+  if (taosMkDir(oldPath) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    wError("vgId:%d, failed to recreate WAL directory %s since %s", pWal->cfg.vgId, oldPath, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  // Reset WAL version information
+  pWal->vers.firstVer = -1;
+  pWal->vers.lastVer = -1;
+  pWal->writeCur = -1;
+  pWal->totSize = 0;
+
+  wInfo("vgId:%d, successfully renamed corrupted WAL directory and recreated a new one", pWal->cfg.vgId);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    wError("vgId:%d, failed to rename corrupted WAL directory since %s, at line:%d", pWal->cfg.vgId, tstrerror(code),
+           lino);
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t walLogEntriesComplete(SWal* pWal) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   bool    complete = true;
   int32_t fileIdx = -1;
@@ -393,7 +453,11 @@ static int32_t walLogEntriesComplete(const SWal* pWal) {
     wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], index:%" PRId64
            ", snaphot index:%" PRId64,
            pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer);
-    TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
+    if (tsWalDeleteOnCorruption) {
+      TAOS_RETURN(walRenameCorruptedDir(pWal));
+    } else {
+      TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
+    }
   } else {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
@@ -542,8 +606,11 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     code = walScanLogGetLastVer(pWal, fileIdx, &lastVer);
     if (lastVer < 0) {
       if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
-        wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, terrstr());
-        goto _exit;;
+        wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, tstrerror(code));
+        if (tsWalDeleteOnCorruption) {
+          TAOS_RETURN(walRenameCorruptedDir(pWal));
+        }
+        goto _exit;
       }
       // empty log file
       lastVer = pFileInfo->firstVer - 1;
@@ -708,7 +775,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
 
     int32_t plainBodyLen = ckHead.head.bodyLen;
     int32_t cryptedBodyLen = plainBodyLen;
-    if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+    if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
       cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
     }
     idxEntry.offset += sizeof(SWalCkHead) + cryptedBodyLen;

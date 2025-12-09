@@ -134,7 +134,8 @@ struct SExprSupp {
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
-  bool            hasWindowOrGroup;
+  bool            hasWindowOrGroup;    // denote that the function is used with time window or group
+  bool            hasWindow;           // denote that the function is used with time window
   bool            hasIndefRowsFunc;
 };
 
@@ -173,9 +174,11 @@ typedef struct SExchangeOperatorBasicParam {
   int32_t               srcOpType;
   bool                  tableSeq;
   SArray*               uidList;
+  bool                  isVtbWinScan;
   bool                  isVtbRefScan;
   bool                  isVtbTagScan;
   bool                  isNewDeployed; // used with newDeployedSrc
+  bool                  isNewParam;
   SOrgTbInfo*           colMap;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
@@ -305,6 +308,7 @@ typedef struct STableScanInfo {
   bool            virtualStableScan;
   SHashObj*       readerCache;
   bool            newReader;
+  SArray*         pBlockColMap;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -463,11 +467,6 @@ typedef struct SPartitionDataInfo {
 } SPartitionDataInfo;
 
 typedef struct STimeWindowAggSupp {
-  int8_t          calTrigger;
-  int8_t          calTriggerSaved;
-  int64_t         deleteMark;
-  int64_t         deleteMarkSaved;
-  int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
@@ -677,7 +676,7 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;
+  TSKEY       prevTs;  // previous timestamp
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
@@ -702,9 +701,9 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   }
 
   pRowSup->win.skey = pRowSup->win.ekey = 0;
-  pRowSup->prevTs = pRowSup->startRowIndex = 0;
-  pRowSup->numOfRows = pRowSup->groupId = 0;
-  resetNumNullRows(pRowSup);
+  pRowSup->prevTs = INT64_MIN;
+  pRowSup->startRowIndex = pRowSup->groupId = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = 0;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
@@ -941,7 +940,7 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
-int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);

@@ -7,28 +7,35 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-通过参数绑定方式写入数据时，能避免 SQL 语法解析的资源消耗，从而显著提升写入性能。参数绑定能提高写入效率的原因主要有以下几点：
+参数绑定（Prepared Statement）是一种预编译 SQL 语句并通过参数化方式传递数据的技术。
+参数绑定方式写入数据时，能避免 SQL 语法解析的资源消耗，从而显著提升写入性能。参数绑定能提高写入效率的原因主要有以下几点：
 
 - 减少解析时间：通过参数绑定，SQL 语句的结构在第一次执行时就已经确定，后续的执行只需要替换参数值，这样可以避免每次执行时都进行语法解析，从而减少解析时间。  
 - 预编译：当使用参数绑定时，SQL 语句可以被预编译并缓存，后续使用不同的参数值执行时，可以直接使用预编译的版本，提高执行效率。  
 - 减少网络开销：参数绑定还可以减少发送到数据库的数据量，因为只需要发送参数值而不是完整的 SQL 语句，特别是在执行大量相似的插入或更新操作时，这种差异尤为明显。
 
- 参数绑定支持多种语言 API [连接器](../../reference/connector/)
+参数绑定支持多种语言 API [连接器](../../reference/connector/)，
 
-**Tips: 数据写入推荐使用参数绑定方式**
+## 推荐写入方式
 
-   :::note
-   我们只推荐使用下面两种形式的 SQL 进行参数绑定写入：
+推荐使用参数绑定进行写入，并仅推荐以下两种 SQL 形式：
 
-    ```sql
-    一、确定子表存在，不带标签可以提升写入性能（如果子表不存在，该行为和 taos shell 不一致，taos shell 会以 tag 为 NULL 自动建表，stmt 会 报错，防止因错误设置表名而意外建表）
-       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)  
-    二、子表不存在，指定标签自动建表
-       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
-       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
-    ```
+##### 子表存在
 
-   :::
+确定子表存在，不带标签可以提升写入性能，如果子表不存在，该行为和 taos shell 不一致，taos shell 会以 tag 为 NULL 自动建表，stmt 会 报错，防止因错误设置表名而意外建表。
+
+```sql
+   1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
+```
+
+##### 子表不存在，指定标签自动建表
+
+```sql
+   1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+   2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+```
+
+## 示例
 
 下面我们继续以智能电表为例，展示各语言连接器使用参数绑定高效写入的功能：
 
@@ -39,7 +46,7 @@ import TabItem from "@theme/TabItem";
     - 执行批量插入操作，将这些数据行插入到对应的子表中。
 3. 最后打印实际插入表中的行数。
 
-## WebSocket 连接
+### WebSocket 连接
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -109,7 +116,7 @@ stmt2 绑定参数的示例代码如下（需要 TDengine TSDB v3.3.5.0 及以�
 </TabItem>
 </Tabs>
 
-## 原生连接
+### 原生连接
 
 <Tabs  defaultValue="java"  groupId="lang">
 <TabItem label="Java" value="java">

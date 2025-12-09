@@ -263,7 +263,6 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 | 14  | keep_version      | INT  | 此 vgroup 大于等于 keep_version 的 wal 日志不会被自动删除                                      |
 | 15  | keep_version_time | INT  | 此 vgroup 在 keep_version 上次被修改的时间                                                   |
 
-
 ## INS_CONFIGS
 
 系统配置参数。
@@ -325,11 +324,11 @@ TDengine TSDB 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供�
 
 | #   |   **列名** | **数据类型** | **说明** |
 |:----|:-----------|:------------|:--------|
-| 1   | user_name    | VARCHAR(24)       | 用户名
-| 2   | privilege    | VARCHAR(10)       | 权限描述
-| 3   | db_name      | VARCHAR(65)       | 数据库名称
-| 4   | table_name   | VARCHAR(193)      | 表名称
-| 5   | condition    | VARCHAR(49152)    | 子表权限过滤条件
+| 1   | user_name    | VARCHAR(24)       | 用户名 |
+| 2   | privilege    | VARCHAR(10)       | 权限描述 |
+| 3   | db_name      | VARCHAR(65)       | 数据库名称 |
+| 4   | table_name   | VARCHAR(193)      | 表名称 |
+| 5   | condition    | VARCHAR(49152)    | 子表权限过滤条件 |
 
 ## INS_DISK_USAGE
 

@@ -26,19 +26,19 @@ icinga2 是一款开源主机、网络监控软件，最初由 Nagios 网络监�
 
 重启 taosAdapter：
 
-```
+```bash
 sudo systemctl restart taosadapter
 ```
 
 重启 icinga2：
 
-```
+```bash
 sudo systemctl restart icinga2
 ```
 
 等待 10 秒左右后，使用 TDengine TSDB CLI 查询 TDengine TSDB 验证是否创建相应数据库并写入数据：
 
-```
+```sql
 taos> show databases;
               name              |
 =================================

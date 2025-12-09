@@ -132,24 +132,24 @@ wget
 
 在工具所在节点以 local 模式执行安装前检查
 
-```
+```shell
 ./taosprecheck
 ```
 
 以 SSH 模式在所有节点执行安装前检查
 
-```
+```shell
 ./taosprecheck -m ssh
 ```
 
 指定配置文件并以 SSH 模式在所有节点执行安装前检查
 
-```
+```shell
 ./taosprecheck -m ssh -f /path_to_file/precheck.cfg
 ```
 
 以 SSH 模式在所有节点执行安装前检查，开启日志 debug 级别
 
-```
+```shell
 ./taosprecheck -m ssh -l debug
 ```

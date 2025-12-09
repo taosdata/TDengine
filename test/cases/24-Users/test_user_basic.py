@@ -20,7 +20,8 @@ class TestUserBasic:
         tdSql.checkKeyData("root", 3, 1)
         tdSql.checkKeyData("root", 4, 1)
 
-        tdSql.execute(f"alter user root pass 'taosdata'")
+        tdSql.error(f"alter user root pass 'taosdata'")
+        tdSql.execute(f"alter user root pass '00AA11##'")
 
         tdSql.error(f"ALTER USER root SYSINFO 0")
         tdSql.error(f"ALTER USER root SYSINFO 1")

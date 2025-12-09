@@ -21,6 +21,7 @@ import time
 class TDTestCase(TBase):
 
     def prepare_vtables(self):
+        tdSql.execute("use test_vtable_alter;")
         tdSql.execute("drop table if exists vtb_virtual_stb;")
         tdSql.execute("drop table if exists vtb_virtual_stb_1;")
         tdSql.execute("drop table if exists vtb_virtual_ctb0;")
@@ -137,6 +138,8 @@ class TDTestCase(TBase):
         tdLog.info(f"prepare org tables.")
         tdSql.execute("drop database if exists test_vtable_alter;")
         tdSql.execute("create database test_vtable_alter;")
+        tdSql.execute("create database test_vtable_alter_us PRECISION 'us';")
+        tdSql.execute("create database test_vtable_alter_ns PRECISION 'ns';")
         tdSql.execute("use test_vtable_alter;")
 
         tdLog.info(f"prepare org super table.")
@@ -177,6 +180,12 @@ class TDTestCase(TBase):
         tdLog.info(f"prepare org normal table.")
         for i in range(30):
             tdSql.execute(f"CREATE TABLE `vtb_org_normal_{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32), varbinary_16_col varbinary(16), varbinary_32_col varbinary(32), geo_16_col geometry(16), geo_32_col geometry(32))")
+
+        tdSql.execute("use test_vtable_alter_ns;")
+        tdSql.execute(f"CREATE TABLE `vtb_org_normal_ns` (ts timestamp, int_col int, u_smallint_col int unsigned)")
+
+        tdSql.execute("use test_vtable_alter_us;")
+        tdSql.execute(f"CREATE TABLE `vtb_org_normal_us` (ts timestamp, int_col int, u_smallint_col int unsigned)")
 
         self.prepare_vtables()
 
@@ -385,12 +394,27 @@ class TDTestCase(TBase):
         # 1.7. add column with decimal type
         tdSql.error("alter vtable vtb_virtual_ntb0 add column extra_decimal decimal(38,38)")
 
+        # 1.8. add column with column reference from different database precision
+        tdSql.error("alter vtable vtb_virtual_ntb0 add column extra_int_col int from test_vtable_alter_us.vtb_org_normal_us.int_col;")
+
+        tdSql.error("alter vtable vtb_virtual_ntb0 add column extra_int_col int from test_vtable_alter_ns.vtb_org_normal_ns.int_col;")
+
+        # 1.9. change column reference from different database precision
+        tdSql.error("alter vtable vtb_virtual_ntb0 alter column int_col set test_vtable_alter_ns.vtb_org_normal_ns.int_col")
+
+        tdSql.error("alter vtable vtb_virtual_ntb0 alter column int_col set test_vtable_alter_us.vtb_org_normal_us.int_col")
+
         # 2. child table
         # 2.1. change column reference with wrong type
         tdSql.error("alter vtable vtb_virtual_ctb0 alter column int_col set vtb_org_child_19.tinyint_col")
 
         # 2.2. change column reference with non-exist column
         tdSql.error("alter vtable vtb_virtual_ctb0 alter column int_col set not_exist_org_table.int_col")
+
+        # 2.3 change column reference from different database precision
+        tdSql.error("alter vtable vtb_virtual_ctb0 alter column int_col set test_vtable_alter_ns.vtb_org_normal_ns.int_col")
+
+        tdSql.error("alter vtable vtb_virtual_ctb0 alter column int_col set test_vtable_alter_us.vtb_org_normal_us.int_col")
 
         # 3. super table
         # 3.1. add column with column reference

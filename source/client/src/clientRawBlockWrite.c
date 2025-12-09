@@ -246,7 +246,7 @@ end:
 }
 static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** pJson) {
   if (alterData == NULL || pJson == NULL) {
-    uError("invalid parameter in %s", __func__);
+    uError("invalid parameter in %s alterData:%p", __func__, alterData);
     return;
   }
   SMAlterStbReq req = {0};
@@ -278,6 +278,12 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
   switch (req.alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_ADD_COLUMN: {
+      if (taosArrayGetSize(req.pFields) != 1) {
+        uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
+        cJSON_Delete(json);
+        json = NULL;
+        goto end;
+      }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
@@ -348,6 +354,12 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
     }
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES: {
+      if (taosArrayGetSize(req.pFields) != 1) {
+        uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
+        cJSON_Delete(json);
+        json = NULL;
+        goto end;
+      }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
@@ -1746,6 +1758,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&dcoder);
   qDestroyQuery(pQuery);
+  taosArrayDestroy(req.pMultiTag);
   return code;
 }
 
@@ -2485,7 +2498,7 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     cJSON* pItem = NULL;
     processSimpleMeta(&metaRsp, &pItem);
     tDeleteMqMetaRsp(&metaRsp);
-    RAW_FALSE_CHECK(tmqAddJsonArrayItem(pMetaArr, pItem));
+    if (pItem != NULL) RAW_FALSE_CHECK(tmqAddJsonArrayItem(pMetaArr, pItem));
   }
 
   tDeleteMqBatchMetaRsp(&rsp);

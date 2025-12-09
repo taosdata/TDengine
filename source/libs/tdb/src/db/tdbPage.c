@@ -282,7 +282,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   if (szFull > szCell) {
     SPgno  pgno = *(SPgno *)(pCell + szCell - sizeof(SPgno));
     int    nLeft = szFull - szCell + sizeof(SPgno);
-    tdbFreeOvflPage(pgno, nLeft, pTxn, pBt);
+    (void)tdbFreeOvflPage(pgno, nLeft, pTxn, pBt);
   }
 
   ret = tdbPageFree(pPage, lidx, pCell, szCell);
@@ -471,6 +471,8 @@ _alloc_finish:
   pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
   TDB_PAGE_NFREE_SET(pPage, nFree - szCell - TDB_PAGE_OFFSET_SIZE(pPage));
   *ppCell = pCell;
+  ASSERT_CORE(pCell - pPage->pData >= 0 && pCell - pPage->pData <= pPage->pageSize, "pCell: %p, pData: %p, pageSize: %d", pCell, pPage->pData, pPage->pageSize);
+  ASSERT_CORE(pCell + szCell - pPage->pData > 0 && pCell + szCell - pPage->pData <= pPage->pageSize, "pCell: %p, pData: %p, pageSize: %d", pCell, pPage->pData, pPage->pageSize);
   return 0;
 }
 

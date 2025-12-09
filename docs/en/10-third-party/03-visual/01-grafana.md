@@ -273,7 +273,7 @@ Detailed introduction to the above features can be found at [Distinguished Queri
 With the foundational knowledge from earlier, we can configure a time-series data display Dashboard based on the TDengine data source.  
 Create a Dashboard on the Grafana main interface, click on **Add Query** to enter the panel query page:
 
-![](../../assets/grafana-01.png)
+![Create a dashboard](../../assets/grafana-01.png)
 
 As shown in the image above, select the `TDengine` data source in "Query", and enter the corresponding SQL in the query box below. Continuing with the example of smart meters, to display a beautiful curve, **virtual data is used here**.
 
@@ -287,7 +287,7 @@ Suppose we want to query the average current size over a period of time, with th
 
 In the custom variables at the top, if the value of `selected_groups` is set to 1, then querying the average value changes of all devices' current in the `meters` supertable with `groupid` 1 is shown in the following image:
 
-![](../../assets/grafana-02.png)
+![Filter by group](../../assets/grafana-02.png)
 
 :::note
 
@@ -304,7 +304,7 @@ Suppose we want to query the average current size over a period of time and disp
 
 After completing the settings, the display grouped by `groupid` is shown in the following image:
 
-![](../../assets/grafana-03.png)
+![Group results by tag](../../assets/grafana-03.png)
 
 > For information on how to use Grafana to create corresponding monitoring interfaces and more about using Grafana, please refer to the official [documentation](https://grafana.com/docs/) of Grafana.
 
@@ -317,7 +317,7 @@ After completing the settings, the display grouped by `groupid` is shown in the 
 
 On the data source configuration page, you can import the TDinsight panel for this data source, serving as a monitoring visualization tool for the TDengine cluster. If the TDengine server is version 3.0, please select `TDinsight for 3.x` for import. Note that TDinsight for 3.x requires running and configuring taoskeeper.
 
-![](../../assets/grafana-04.png)
+![Import TDinsight dashboard](../../assets/grafana-04.png)
 
 The Dashboard compatible with TDengine 2.* has been released on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
 
@@ -379,17 +379,17 @@ On the Grafana page, go to "Home" -> "Alerting" -> "Contact points" and create a
 "Name": Email Contact Point  
 "Integration": Select the contact type, here choose Email, fill in the email receiving address, and save the contact point after completion  
 
-![](../../assets/grafana-05.png)
+![Configure contact points](../../assets/grafana-05.png)
 
 ### Configure Notification Policies
 
 After configuring the contact points, you can see there is a Default Policy
 
-![](../../assets/grafana-06.png)
+![Configure notification policies](../../assets/grafana-06.png)
 
 Click on the right side "..." -> "Edit", then edit the default notification policy, a configuration window pops up:
 
-![](../../assets/grafana-07.png)
+![Edit notification policy](../../assets/grafana-07.png)
 
 Then configure the following parameters:
 
@@ -424,7 +424,7 @@ In "Define query and alert condition" configure the alert rule.
 
 After setting, you can see the image displayed below:
 
-![](../../assets/grafana-08.png)
+![Preview results](../../assets/grafana-08.png)
 
 Grafana's "Expression" (expression) supports various operations and calculations on data, which are divided into:
 
@@ -447,7 +447,7 @@ As shown in the screenshot above, here we set the maximum value to trigger an al
 
 #### Configure Rule Evaluation Strategy
 
-![](../../assets/grafana-09.png)
+![Configure evaluation behavior](../../assets/grafana-09.png)
 
 Complete the following configurations:  
 
@@ -457,7 +457,7 @@ Complete the following configurations:
 
 #### Configure Labels and Alert Channels
 
-![](../../assets/grafana-10.png)
+![Configure labels and notifications](../../assets/grafana-10.png)
 
 Complete the following configurations:  
 
@@ -466,6 +466,6 @@ Complete the following configurations:
 
 #### Configure Notification Text
 
-![](../../assets/grafana-11.png)
+![Configure annotations](../../assets/grafana-11.png)
 
 Set "Summary" and "Description", and if an alert is triggered, you will receive a notification.

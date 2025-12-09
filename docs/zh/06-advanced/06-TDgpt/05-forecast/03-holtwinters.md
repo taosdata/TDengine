@@ -27,7 +27,7 @@ HoltWinters 有两种不同的季节性组成部分，当季节变化在该时�
 
 针对 i32 列进行数据预测，输入列 i32 每 10 个点是一个周期，趋势参数采用乘法模型，季节参数采用乘法模型
 
-```
+```SQL
 FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 ```
 
@@ -46,8 +46,6 @@ SELECT _frowts, FORECAST(i32, "algo=holtwinters, period=10,trend=mul,seasonal=mu
 "res": res            // 具体的结果，按照列形式返回的结果。一般意义上包含了两列 [timestamp][fc_results]。
 }
 ```
-
-### 参考文献
 
 ### 参考文献
 

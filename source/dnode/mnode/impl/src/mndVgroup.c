@@ -14,10 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndVgroup.h"
 #include "audit.h"
 #include "mndArbGroup.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndEncryptAlgr.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -26,7 +28,6 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "mndVgroup.h"
 #include "tmisce.h"
 
 #define VGROUP_VER_NUMBER   1
@@ -341,7 +342,11 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashSuffix = pDb->cfg.hashSuffix;
   createReq.tsdbPageSize = pDb->cfg.tsdbPageSize;
   createReq.changeVersion = ++(pVgroup->syncConfChangeVer);
-  createReq.encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+  // createReq.encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+  memset(createReq.encryptAlgrName, 0, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  if (pDb->cfg.encryptAlgorithm > 0) {
+    mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, createReq.encryptAlgrName);
+  }
   int32_t code = 0;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
@@ -3036,8 +3041,9 @@ static int32_t mndAddAlterVgroupElectionBaselineActionToTrans(SMnode *pMnode, SV
 
   for(int32_t i = 0; i < 3; i++){
     if(i == index%3){
-    TAOS_CHECK_RETURN(
-        mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup, pVgroup->vnodeGid[i].dnodeId, 1500));
+      mInfo("trans:%d, balance leader to dnode:%d", pTrans->id, pVgroup->vnodeGid[i].dnodeId);
+      TAOS_CHECK_RETURN(mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup,
+                                                                      pVgroup->vnodeGid[i].dnodeId, 1500));
     }
     else{
     TAOS_CHECK_RETURN(
@@ -3079,8 +3085,7 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
   }
 
   if (exist && online) {
-    mInfo("trans:%d, vgid:%d leader to dnode:%d", pTrans->id, vgid, dnodeId);
-    
+    mInfo("trans:%d, vgid:%d force drop leader from dnode:%d", pTrans->id, vgid, dnodeId);    
     TAOS_CHECK_RETURN(mndAddAlterVgroupElectionBaselineActionToTrans(pMnode, pVgroup, pTrans, index));
 
     if ((code = mndAddBalanceVgroupLeaderAction(pMnode, pTrans, pVgroup, dnodeId)) != 0) {

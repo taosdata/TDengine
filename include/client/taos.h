@@ -155,6 +155,7 @@ typedef enum {
   TAOS_NOTIFY_PASSVER = 0,
   TAOS_NOTIFY_WHITELIST_VER = 1,
   TAOS_NOTIFY_USER_DROPPED = 2,
+  TAOS_NOTIFY_DATETIME_WHITELIST_VER = 3,
 } TAOS_NOTIFY_TYPE;
 
 /* -- implemented in the native interface, for internal component only, the API may change -- */
@@ -193,6 +194,16 @@ DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT int   taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+/**
+ * taos_connect_with_dsn
+ * Note: This API is currently not supported in this client library.
+ * It may be supported in future versions. Calls will return NULL and set terrno
+ * to an appropriate "not supported" error code.
+ *
+ * @param dsn Data Source Name string (reserved for future use)
+ * @return TAOS* connection handle on success; NULL if unsupported or on error
+ */
+DLL_EXPORT TAOS *taos_connect_with_dsn(const char *dsn);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
@@ -322,13 +333,19 @@ DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param
 /* -- implemented in the native interface, for internal component only, the API may change -- */
 typedef void (*__taos_async_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists,
                                             uint64_t *pWhiteLists);
+typedef void (*__taos_async_ip_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists, char **pWhiteLists);
+typedef __taos_async_ip_whitelist_fn_t __taos_async_whitelist_dual_stack_fn_t;
 
-typedef void (*__taos_async_whitelist_dual_stack_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists,
-                                                       char **pWhiteLists);
-
+// this function only fetch ipv4 whitelist
 DLL_EXPORT void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
-
+// this function fetch dual stack( both ipv4 and ipv6 ) whitelist
 DLL_EXPORT void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param);
+// this function fetch ip whitelist & blacklist, ipv4 and ipv6
+DLL_EXPORT void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param);
+
+typedef void (*__taos_async_datetime_whitelist_fn_t)(void *param, int code, TAOS *taos, int numOfWhiteLists, char **pWhiteLists);
+// this function fetch datetime whitelist & blacklist
+DLL_EXPORT void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param);
 
 /* ---- end ---- */
 
@@ -464,6 +481,12 @@ typedef enum {
 DLL_EXPORT TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen);
 DLL_EXPORT void               taos_write_crashinfo(int signum, void *sigInfo, void *context);
 DLL_EXPORT char              *getBuildInfo();
+/* ---- end ---- */
+
+/* -- taosadapter instance management -- */
+DLL_EXPORT int32_t taos_register_instance(const char *id, const char *type, const char *desc, int32_t expire);
+DLL_EXPORT int32_t taos_list_instances(const char *filter_type, char ***pList, int32_t *pCount);
+DLL_EXPORT void    taos_free_instances(char ***pList, int32_t pCount);
 /* ---- end ---- */
 
 #ifdef __cplusplus
