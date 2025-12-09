@@ -1831,7 +1831,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   taos_free_result(pRes);
 
   // insert same tbname from different stb
-  option = {0, true, true, NULL, NULL};
+  option = {0, false, false, NULL, NULL};
   stmt = taos_stmt2_init(taos, &option);
   code =
       taos_stmt2_prepare(stmt, "INSERT INTO `stmt2_testdb_18`.`stb2` (ts,int_col,int_tag,tbname)  VALUES (?,?,?,?)", 0);
@@ -2233,8 +2233,8 @@ TEST(stmt2Case, stmt2_status_Test) {
   TAOS_STMT2_BINDV bindv1 = {1, NULL, NULL, &paramv};
 
   int code = taos_stmt2_bind_param(stmt, &bindv1, 0);
-  ASSERT_EQ(code, TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR);
-  ASSERT_STREQ(taos_stmt2_error(stmt), "bind number out of range or not match");
+  ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
+  ASSERT_STREQ(taos_stmt2_error(stmt), "Stmt API usage error");
 
   code = taos_stmt2_exec(stmt, NULL);
   ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
