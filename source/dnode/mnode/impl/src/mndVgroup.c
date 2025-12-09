@@ -1160,6 +1160,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   SDbObj   *pDb = NULL;
   SUserObj *pUser = NULL;
   SDbObj   *pIterDb = NULL;
+  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
@@ -1415,6 +1416,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t   code = 0;
   SUserObj *pUser = NULL;
   SDbObj   *pDb = NULL, *pIterDb = NULL;
+  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 

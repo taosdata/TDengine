@@ -774,8 +774,13 @@ static int32_t collectMetaKeyFromShowDatabases(SCollectMetaKeyCxt* pCxt, SShowSt
 }
 
 static int32_t collectMetaKeyFromShowFunctions(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
-  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FUNCTIONS,
-                                 pCxt->pMetaCache);
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FUNCTIONS,
+                                         pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_FUNC_SHOW,
+                                  pCxt->pMetaCache);
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromShowIndexes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
@@ -1537,6 +1542,10 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_SPLIT);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_REDISTRIBUTE);
+    case QUERY_NODE_CREATE_FUNCTION_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_FUNC_CREATE);
+    case QUERY_NODE_DROP_FUNCTION_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_FUNC_DROP);
     default:
       break;
   }

@@ -273,6 +273,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   char           tmpBuf[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   SUserObj      *pUser = NULL;
   SDbObj        *pIterDb = NULL;
+  char           objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   bool           showAll = false, showIter = false;
   int64_t        dbUid = 0;
 

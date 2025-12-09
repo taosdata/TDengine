@@ -657,50 +657,10 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t   cols = 0;
   int32_t   code = 0, lino = 0;
   char      buf[TSDB_TYPE_STR_MAX_LEN];
-  SUserObj *pUser = NULL;
-  SDbObj   *pDb = NULL, *pIterDb = NULL;
-  bool      showAll = false, showIter = false;
-  char      owner[TSDB_USER_LEN] = {0};
-
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_FUNC_SHOW, NULL, _OVER);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_FUNC, pShow->pIter, (void **)&pFunc);
     if (pShow->pIter == NULL) break;
-
-    // do {
-    //   if (!showAll) {
-    //     if (pDb) {
-    //       if (dbUid != pDb->uid) {
-    //         if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (MND_OPER_SHOW_VNODES), pDb)) {
-    //           sdbCancelFetch(pSdb, pShow->pIter);
-    //           sdbRelease(pSdb, (pVgroup));
-    //           goto _exit;
-    //         }
-    //         showAll = 1;
-    //       }
-    //     } else if (dbUid != (pVgroup)->dbUid) {
-    //       pIterDb = mndAcquireDb(pMnode, (pVgroup->dbName));
-    //       if (pIterDb == ((void *)0)) {
-    //         sdbRelease(pSdb, (pVgroup));
-    //         continue;
-    //       }
-    //       dbUid = (pVgroup)->dbUid;
-    //       if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (MND_OPER_SHOW_VNODES), pIterDb)) {
-    //         showIter = 0;
-    //         mndReleaseDb(pMnode, pIterDb);
-    //         sdbRelease(pSdb, (pVgroup));
-    //         continue;
-    //       } else {
-    //         mndReleaseDb(pMnode, pIterDb);
-    //         showIter = 1;
-    //       }
-    //     } else if (!showIter) {
-    //       sdbRelease(pSdb, (pVgroup));
-    //       continue;
-    //     }
-    //   }
-    // } while (0);
 
     cols = 0;
 

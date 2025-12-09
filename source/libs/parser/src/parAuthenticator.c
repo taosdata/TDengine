@@ -573,6 +573,12 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_VG_SPLIT);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_VG_REDISTRIBUTE);
+    case QUERY_NODE_CREATE_FUNCTION_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_CREATE);
+    case QUERY_NODE_DROP_FUNCTION_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_DROP);
+    case QUERY_NODE_SHOW_FUNCTIONS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_SHOW);
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_ALTER);
     case QUERY_NODE_DROP_DATABASE_STMT:

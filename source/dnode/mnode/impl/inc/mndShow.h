@@ -65,7 +65,6 @@ extern "C" {
       code = terrno;                                                                  \
       goto LABEL;                                                                     \
     }                                                                                 \
-    char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};                                      \
     if (privInfo->objLevel == 0) {                                                    \
       (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);              \
     } else {                                                                          \
