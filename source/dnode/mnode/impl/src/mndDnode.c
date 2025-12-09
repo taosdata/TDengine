@@ -1767,13 +1767,27 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
   int64_t svrKeyUpdateTime = 0;
   int64_t dbKeyUpdateTime = 0;
 
-  code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+  if (tsEncryptKeysLoaded){
+    keyVersion = tsEncryptKeyVersion;
+    tstrncpy(svrKey, tsSvrKey, 128);
+    tstrncpy(dbKey, tsDbKey, 128);
+    tstrncpy(cfgKey, tsCfgKey, 128);
+    tstrncpy(metaKey, tsMetaKey, 128);
+    tstrncpy(dataKey, tsDataKey, 128);
+    algorithm = tsEncryptAlgorithmType;
+    fileVersion = tsEncryptFileVersion;
+    createTime = tsEncryptKeyCreateTime;
+    svrKeyUpdateTime = tsSvrKeyUpdateTime;
+    dbKeyUpdateTime = tsDbKeyUpdateTime;
+  }else {
+    code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
                               &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
-  if (code != 0) {
-    mError("failed to load encryption keys, since %s", tstrerror(code));
-    // If keys don't exist on mnode, return error
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _OVER;
+    if (code != 0) {
+      mError("failed to load encryption keys, since %s", tstrerror(code));
+      // If keys don't exist on mnode, return error
+      code = TSDB_CODE_FILE_CORRUPTED;
+      goto _OVER;
+    }
   }
 
   // Check if dnode needs update
