@@ -1163,12 +1163,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) goto _OVER;
-
-  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
-  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, NULL, dbFName, NULL);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VGROUPS, NULL, _OVER);
 
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
@@ -1423,12 +1418,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) goto _exit;
-
-  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
-  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VNODES, NULL, dbFName, NULL);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VNODES, NULL, _exit);
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);

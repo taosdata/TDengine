@@ -426,12 +426,7 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     }
   }
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) goto _OVER;
-
-  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
-  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_SSMIGRATES, NULL, dbFName, NULL);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_SSMIGRATES, NULL, _OVER);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SSMIGRATE, pShow->pIter, (void **)&pSsMigrate);

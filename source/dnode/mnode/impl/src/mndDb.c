@@ -3100,9 +3100,9 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
-  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
-  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  bool showAnyDb = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_DATABASES, NULL, dbFName, NULL);
+  char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
+  bool showAnyDb = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_DATABASES, NULL, objFName, NULL);
 
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {

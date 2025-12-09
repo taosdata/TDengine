@@ -56,7 +56,25 @@ extern "C" {
     }                                               \
   } while (0)
 
-#define MND_SHOW_CHECK_DB_PRIVILEGE(pDb, dbFName, pSdbObj, operType, label)       \
+#define MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(user, privType, owner, LABEL)                \
+  do {                                                                                \
+    code = mndAcquireUser(pMnode, (user), &pUser);                                    \
+    if (pUser == NULL) goto LABEL;                                                    \
+    SPrivInfo *privInfo = privInfoGet(privType);                                      \
+    if (!privInfo) {                                                                  \
+      code = terrno;                                                                  \
+      goto LABEL;                                                                     \
+    }                                                                                 \
+    char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};                                      \
+    if (privInfo->objLevel == 0) {                                                    \
+      (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);              \
+    } else {                                                                          \
+      (void)snprintf(objFName, sizeof(objFName), "%d.*.*", pUser->acctId);            \
+    }                                                                                 \
+    showAll = mndCheckObjPrivilege(pMnode, pUser, privType, (owner), objFName, NULL); \
+  } while (0)
+
+#define MND_SHOW_CHECK_DB_PRIVILEGE(pDb, dbFName, pSdbObj, operType, LABEL)       \
   do {                                                                            \
     if (!showAll) {                                                               \
       if (pDb) {                                                                  \
@@ -64,7 +82,7 @@ extern "C" {
           if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (operType), pDb)) {   \
             sdbCancelFetch(pSdb, pShow->pIter);                                   \
             sdbRelease(pSdb, (pSdbObj));                                          \
-            goto label;                                                           \
+            goto LABEL;                                                           \
           }                                                                       \
           showAll = true;                                                         \
         }                                                                         \

@@ -660,14 +660,9 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   SUserObj *pUser = NULL;
   SDbObj   *pDb = NULL, *pIterDb = NULL;
   bool      showAll = false, showIter = false;
-  int64_t   dbUid = 0;
+  char      owner[TSDB_USER_LEN] = {0};
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) goto _OVER;
-
-  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
-  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_FUNC_SHOW, NULL, dbFName, NULL);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_FUNC_SHOW, NULL, _OVER);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_FUNC, pShow->pIter, (void **)&pFunc);
