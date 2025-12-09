@@ -1468,6 +1468,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         pVgDb = mndAcquireDb(pMnode, pVgroup->dbName);
         if (pVgDb == NULL) {
           sdbRelease(pSdb, pVgroup);
+          pVgroup = NULL;
           continue;
         }
         dbUid = pVgroup->dbUid;
@@ -1475,6 +1476,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
           showVg = false;
           mndReleaseDb(pMnode, pVgDb);
           sdbRelease(pSdb, pVgroup);
+          pVgroup = NULL;
           continue;
         } else {
           mndReleaseDb(pMnode, pVgDb);
@@ -1482,6 +1484,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         }
       } else if (!showVg) {
         sdbRelease(pSdb, pVgroup);
+        pVgroup = NULL;
         continue;
       }
     }
@@ -1495,13 +1498,13 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->dnodeId, false);
       if (code != 0) {
         mError("vgId:%d, failed to set dnodeId, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
       if (code != 0) {
         mError("vgId:%d, failed to set vgId, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       // db_name
@@ -1516,7 +1519,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       code = colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
       if (code != 0) {
         mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       // dnode is online?
@@ -1526,6 +1529,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         break;
       }
       bool isDnodeOnline = mndIsDnodeOnline(pDnode, curMs);
+      sdbRelease(pSdb, pDnode);
 
       char       buf[20] = {0};
       ESyncState syncState = (isDnodeOnline) ? pGid->syncState : TAOS_SYNC_STATE_OFFLINE;
@@ -1534,7 +1538,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncState, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       int64_t roleTimeMs = (isDnodeOnline) ? pGid->roleTimeMs : 0;
@@ -1542,7 +1546,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
       if (code != 0) {
         mError("vgId:%d, failed to set roleTimeMs, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       int64_t startTimeMs = (isDnodeOnline) ? pGid->startTimeMs : 0;
@@ -1550,14 +1554,14 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&startTimeMs, false);
       if (code != 0) {
         mError("vgId:%d, failed to set startTimeMs, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       int64_t unappliedCount = pGid->syncCommitIndex - pGid->syncAppliedIndex;
@@ -1570,37 +1574,43 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore finish time, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&unappliedCount, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->bufferSegmentUsed, false);
       if (code != 0) {
         mError("vgId:%d, failed to set buffer segment used, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->bufferSegmentSize, false);
       if (code != 0) {
         mError("vgId:%d, failed to set buffer segment size, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
+        goto _exit;
       }
 
       numOfRows++;
-      sdbRelease(pSdb, pDnode);
     }
-
     sdbRelease(pSdb, pVgroup);
+    pShow->pIter = NULL;
+    pVgroup = NULL;
   }
-
+_exit:
+  if (pVgroup) sdbRelease(pSdb, pVgroup);
+  if (pShow->pIter) sdbCancelFetch(pSdb, pShow->pIter);
+  if (pUser) mndReleaseUser(pMnode, pUser);
+  if (code != 0) {
+    return code;
+  }
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
