@@ -957,7 +957,7 @@ static void dropOldPasswords(SUserObj *pUser) {
     reuseMax = 1; // keep at least one password
   }
 
-  int64_t now = taosGetTimestampSec();
+  int32_t now = taosGetTimestampSec();
   int32_t index = reuseMax;
   while(index < pUser->numOfPasswords) {
     SUserPassword *pPass = &pUser->passwords[index];
@@ -1209,7 +1209,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, pUser->numOfPasswords, _OVER)
   for (int32_t i = 0; i < pUser->numOfPasswords; i++) {
     SDB_SET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, sizeof(pUser->passwords[i].pass), _OVER)
-    SDB_SET_INT64(pRaw, dataPos, pUser->passwords[i].setTime, _OVER)
+    SDB_SET_INT32(pRaw, dataPos, pUser->passwords[i].setTime, _OVER)
   }
   SDB_SET_BINARY(pRaw, dataPos, pUser->salt, sizeof(pUser->salt), _OVER)
 
@@ -1450,7 +1450,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     for (int32_t i = 0; i < pUser->numOfPasswords; ++i) {
       SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, sizeof(pUser->passwords[i].pass), _OVER);
-      SDB_GET_INT64(pRaw, dataPos, &pUser->passwords[i].setTime, _OVER);
+      SDB_GET_INT32(pRaw, dataPos, &pUser->passwords[i].setTime, _OVER);
     }
     SDB_GET_BINARY(pRaw, dataPos, pUser->salt, sizeof(pUser->salt), _OVER)
   }
@@ -1459,7 +1459,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
   if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
-    pUser->passwords[0].setTime = pUser->updateTime / 1000;
+    pUser->passwords[0].setTime = (int32_t)(pUser->updateTime / 1000);
   }
 
   SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
