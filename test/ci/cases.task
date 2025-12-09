@@ -888,7 +888,6 @@
 
 ## system_test
 ### 2-query
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py
@@ -899,10 +898,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_null.py
