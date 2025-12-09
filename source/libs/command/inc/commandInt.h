@@ -204,6 +204,12 @@ do {                                                                \
   }                                                                 \
 } while(0)
 
+#define EXPLAIN_SUB_PLAN_LINE(_idx) \
+  do {                                                                                                                    \
+    tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "   InitPlan %d", (_idx));  \
+    varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE;                                                                \
+  } while (0)
+
 #define EXPLAIN_ROW_NEW(level, ...)                                                                               \
   do {                                                                                                            \
     if (isVerboseLine) {                                                                                          \

@@ -2028,6 +2028,7 @@ static EDealRes collectAndRewrite(SRewritePrecalcExprsCxt* pCxt, SNode** pNode) 
              pCxt->rewriteId);
     tstrncpy(pCol->colName, pRewrittenExpr->aliasName, TSDB_COL_NAME_LEN);
   }
+  tstrncpy(pCol->node.userAlias, pRewrittenExpr->userAlias, TSDB_COL_NAME_LEN);
   nodesDestroyNode(*pNode);
   *pNode = (SNode*)pCol;
   return DEAL_RES_IGNORE_CHILD;
@@ -2048,6 +2049,7 @@ static int32_t rewriteValueToOperator(SRewritePrecalcExprsCxt* pCxt, SNode** pNo
   SValueNode* pVal = (SValueNode*)*pNode;
   pOper->node.resType = pVal->node.resType;
   tstrncpy(pOper->node.aliasName, pVal->node.aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pOper->node.userAlias, pVal->node.userAlias, TSDB_COL_NAME_LEN);
   pOper->opType = OP_TYPE_ASSIGN;
   pOper->pRight = *pNode;
   *pNode = (SNode*)pOper;

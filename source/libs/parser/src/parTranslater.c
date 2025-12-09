@@ -22410,6 +22410,11 @@ static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
       pCxt->pSubQueries = NULL;
       break;
     }
+    case QUERY_NODE_EXPLAIN_STMT: {
+      SExplainStmt* pExplain = (SExplainStmt*)pNode;
+      transferSubQueries(pCxt, pExplain->pQuery);
+      break;
+    }
     default:
       break;
   }
