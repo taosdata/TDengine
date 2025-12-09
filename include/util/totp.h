@@ -36,7 +36,7 @@ int32_t taosGenerateTotpCode(const uint8_t *secret, size_t secretLen, int digits
 
 // verify TOTP code for given secret at current time with allowed window.
 // secret is a byte array, not a base32 string.
-// return 1 if the code is valid, 0 otherwise.
+// return 1 if the code is correct, 0 otherwise.
 int taosVerifyTotpCode(const uint8_t *secret, size_t secretLen, int32_t userCode, int digits, int window);
 
 // generate TOTP secret from seed

@@ -324,25 +324,10 @@ static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
 
 
 static bool verifyTotp(SUserObj *pUser, int32_t totpCode) {
-  int32_t code = 0;
-
-  bool allZero = true;
-  for (size_t i = 0; i < sizeof(pUser->totpsecret); i++) {
-    if (pUser->totpsecret[i] != 0) {
-      allZero = false;
-      break;
-    }
-  }
-
-  if (allZero) { // all TOTP secret is zero, means TOTP is not enabled for this user
+  if (!mndIsTotpEnabledUser(pUser)) {
     return true;
   }
-
-  if (taosVerifyTotpCode(pUser->totpsecret, sizeof(pUser->totpsecret), totpCode, 6, 1)) {
-    return true;
-  }
-
-  return false;
+  return taosVerifyTotpCode(pUser->totpsecret, sizeof(pUser->totpsecret), totpCode, 6, 1) != 0;
 }
 
 

@@ -4332,7 +4332,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasTotpseed && !taosIsComplexString(opts->totpseed)) {
+  if (opts->hasTotpseed && opts->totpseed[0] != 0 && !taosIsComplexString(opts->totpseed)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "TOTPSEED");
     return false;
   }

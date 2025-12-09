@@ -33,7 +33,7 @@ int taosGenerateTotpSecret(const char *seed, size_t seedLen, uint8_t *secret, si
 
 #else // WINDOWS
 
-// OpenSSL HMAC 函数
+// for OpenSSL HMAC functions
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 

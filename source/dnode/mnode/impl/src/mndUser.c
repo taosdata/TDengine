@@ -3751,6 +3751,17 @@ _exit:
   TAOS_RETURN(code);
 }
 
+
+bool mndIsTotpEnabledUser(SUserObj *pUser) {
+  for (int32_t i = 0; i < sizeof(pUser->totpsecret); i++) {
+    if (pUser->totpsecret[i] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
 static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -3794,6 +3805,11 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    flag = mndIsTotpEnabledUser(pUser) ? 1 : 0;
+    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
     cols++;
 
@@ -3897,6 +3913,11 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    flag = mndIsTotpEnabledUser(pUser) ? 1 : 0;
+    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
