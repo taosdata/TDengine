@@ -663,8 +663,12 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     if (pOperator->pOperatorGetParam) {
       uint64_t uid = ((SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value)->uid;
       (*pResBlock)->info.id.uid = uid;
+
+      qDebug("vtable scan uid:%" PRId64, (*pResBlock)->info.id.uid);
     } else {
       (*pResBlock)->info.id.uid = pInfo->virtualScanInfo.vtableUid;
+
+      qDebug("vtable scan vtb uid:%" PRId64, (*pResBlock)->info.id.uid);
     }
 
     VTS_ERR_JRET(doSetTagColumnData(pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock), (*pResBlock)->info.rows));

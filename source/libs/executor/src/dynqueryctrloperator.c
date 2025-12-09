@@ -1716,6 +1716,9 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           QUERY_CHECK_CODE(code, line, _return);
 
           if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
+            qDebug("dynQueryCtrl tb uid filter, info uid:%" PRId64 ", dyn tb uid:%" PRId64, info.uid,
+                   pInfo->vtbScan.dynTbUid);
+
             destroyColRefInfo(&info);
             continue;
           }
@@ -2202,6 +2205,9 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
       SStreamGroupValue* pValue = taosArrayGet(vals, i);
       if (pValue != NULL && pValue->isTbname) {
         pInfo->vtbScan.dynTbUid = pValue->uid;
+
+	qDebug("dynQueryCtrl dyn tb uid:%" PRId64, pInfo->vtbScan.dynTbUid);
+
         break;
       }
     }
