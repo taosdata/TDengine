@@ -17,6 +17,7 @@ import glob
 import os
 import time
 import platform
+import shutil
 
 def scanFiles(pattern):
     res = []
