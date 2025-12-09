@@ -292,6 +292,7 @@ typedef struct {
   EPrivType     privType;
   EPrivCategory category;
   EPrivObjType  objType;
+  int8_t        objLevel;  // 0: DB, function, 1: table, view
   uint8_t       sysType;
   const char*   name;
 } SPrivInfo;
@@ -398,8 +399,8 @@ bool    privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo);
 int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src);
 int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy);
 
-int32_t privObjKey(EPrivObjType objType, const char* dbFName, const char* tb, char* buf, int32_t bufLen);
-int32_t privObjKeyF(EPrivObjType objType, int32_t acctId, const char* dbName, const char* tb, char* buf,
+int32_t privObjKey(SPrivInfo *pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen);
+int32_t privObjKeyF(SPrivInfo *pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf,
                     int32_t bufLen);
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen);
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);

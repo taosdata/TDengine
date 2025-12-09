@@ -327,7 +327,7 @@ static int32_t mndRetrieveScan(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
   char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
   (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_SCANS, dbFName, NULL);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_SCANS, NULL, dbFName, NULL);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SCAN, pShow->pIter, (void **)&pScan);

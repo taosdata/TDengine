@@ -326,7 +326,7 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
 
   char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
   (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_COMPACTS, dbFName, NULL);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_COMPACTS, NULL, dbFName, NULL);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);

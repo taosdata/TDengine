@@ -2263,14 +2263,13 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     if (taosHashGetSize(pInfo->objPrivs) == 0) return TSDB_CODE_SUCCESS;
 
     if (pReq->tbName.type == TSDB_DB_NAME_T) {
-      int32_t klen =
-          privObjKeyF(privInfo->objType, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
+      int32_t klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
       SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
-      klen = privObjKey(privInfo->objType, "1.*", NULL, objKey, sizeof(objKey));
+      klen = privObjKey(privInfo, "1.*", NULL, objKey, sizeof(objKey));
       policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;

@@ -158,7 +158,7 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
           break;
         }
         default: {
-          int32_t keyLen = privObjKey(pPrivInfo->objType, "1.*", "*", objKey, sizeof(objKey));
+          int32_t keyLen = privObjKey(pPrivInfo, "1.*", "*", objKey, sizeof(objKey));
           if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
                                                                 true, HASH_ENTRY_LOCK))) {
             TAOS_CHECK_EXIT(terrno);

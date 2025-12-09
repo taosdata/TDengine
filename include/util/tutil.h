@@ -327,13 +327,14 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                                                 \
   } while (0)
 
-#define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2) \
-  do {                                                  \
-    int32_t __c = (CMD);                                \
-    if (__c != TSDB_CODE_SUCCESS) {                     \
-      sdbRelease(PTR1, PTR2);                           \
-      TAOS_RETURN(__c);                                 \
-    }                                                   \
+#define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2)     \
+  do {                                                      \
+    int32_t __c = (CMD);                                    \
+    if (__c != TSDB_CODE_SUCCESS) {                         \
+      sdbRelease(PTR1, PTR2);                               \
+      if (pShow->pIter) sdbCancelFetch(pSdb, pShow->pIter); \
+      TAOS_RETURN(__c);                                     \
+    }                                                       \
   } while (0)
 
 #define TAOS_CHECK_RETURN_WITH_FREE(CMD, PTR) \
