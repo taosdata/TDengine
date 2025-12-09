@@ -6,16 +6,15 @@ from typing import List
 from datetime import datetime
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
+
 COMPARE_DATA = 0
 COMPARE_LEN = 1
 
-class TestPartitionByCol:
-
+class TestPartitionByBasic:
+    #
+    # ------------------- col  ----------------
+    # 
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
-        
         cls.vgroups    = 4
         cls.ctbNum     = 10
         cls.rowsPerTbl = 10000
@@ -47,7 +46,6 @@ class TestPartitionByCol:
         return
 
     def insert_data(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs,tsStep):
-        tdLog.debug("start to insert data ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
         sql = pre_insert
@@ -70,8 +68,6 @@ class TestPartitionByCol:
                         sql = "insert into "
         if sql != pre_insert:
             tsql.execute(sql)
-        tdLog.debug("insert data ............ [OK]")
-        return
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -320,26 +316,7 @@ class TestPartitionByCol:
         tdSql.query('select first(ts), last(ts) from t0', queryTimes=1)
         tdSql.checkRows(1)
 
-    def test_partition_by_col(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-
-        """
-
+    def do_partition_by_col(self):
         self.prepareTestEnv()
         tdSql.execute('flush database test')
         #time.sleep(99999999)
@@ -349,7 +326,243 @@ class TestPartitionByCol:
         self.check_sort_for_partition_no_agg_limit()
         self.check_tsdb_read()
 
-        #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        print("\ndo do_partition_by_col ................ [passed]")
 
-event = threading.Event()
+    #
+    # ------------------- second ----------------
+    # 
+    def init_data(self):        
+        self.vgroups = 4
+        self.ctbNum = 10
+        self.rowsPerTbl = 10000
+        self.duraion = '1h'
+
+    def check_explain_res_no_row(self, plan_str_not_expect: str, res):
+        for row in res:
+            if str(row).find(plan_str_not_expect) >= 0:
+                tdLog.exit('plan: [%s] found in: [%s]' % (plan_str_not_expect, str(row)))
+    
+    def add_remove_partition_hint(self, sql: str) -> str:
+        return "select /*+ remove_partition() */ %s" % sql[6:]
+
+    def explain_sql_verbose(self, sql: str):
+        sql = "explain verbose true " + sql
+        tdSql.query(sql, queryTimes=1)
+        return tdSql.queryResult
+
+    def query_and_compare_first_rows(self, sql1, sql2):
+        dur = self.query_with_time(sql1)
+        tdLog.debug("sql1 query with time: [%f]" % dur)
+        res1 = tdSql.queryResult
+        dur = self.query_with_time(sql2)
+        tdLog.debug("sql2 query with time: [%f]" % dur)
+        res2 = tdSql.queryResult
+        if res1 is None or res2 is None:
+            tdLog.exit("res1 or res2 is None")
+        for i in range(0, min(len(res1), len(res2))):
+            if res1[i] != res2[i]:
+                tdLog.exit("compare failed for row: [%d], sqls: [%s] res1: [%s], sql2 : [%s] res2: [%s]" % (i, sql1, res1[i], sql2, res2[i]))
+        tdLog.debug("sql: [%s] and sql: [%s] have same results, rows: [%d]" % (sql1, sql2, min(len(res1), len(res2))))
+
+    def check_explain(self, sql):
+        sql_hint = self.add_hint(sql)
+        explain_res = self.explain_sql_verbose(sql)
+        #self.check_explain_res_has_row('SortMerge', explain_res)
+        #self.check_explain_res_has_row("blocking=0", explain_res)
+        explain_res = self.explain_sql_verbose(sql_hint)
+        self.check_explain_res_has_row('Merge', explain_res)
+        self.check_explain_res_has_row('blocking=0', explain_res)
+
+    def check_pipelined_agg_plan_with_slimit(self):
+        sql = 'select count(*), %s from meters partition by %s slimit 1'
+        self.check_explain(sql % ('c1','c1'))
+        self.check_explain(sql % ('c1,c2', 'c1,c2'))
+
+        # should fail
+        # self.check_explain(sql % ('t1', 'c1,t1'))
+        # self.check_explain(sql % ('t1', 'c1,tbname'))
+
+    def check_pipelined_agg_data_with_slimit(self):
+        sql_template = 'select %s from meters partition by %s %s'
+
+        sql_elems = [
+                ['count(*), min(c1), c2', 'c2', 'slimit 10', 'c2'],
+                ['count(*), c1, c2', 'c1, c2', 'slimit 100', 'c1,c2'],
+                ['count(*), c2, c1', 'c1, c2', 'slimit 1000', 'c1,c2'],
+                ['count(*), c4,c3', 'c3, c4', 'slimit 2000', 'c3,c4'],
+                ['count(*), c8,c6', 'c8, c6', 'slimit 3000', 'c8,c6'],
+                ['count(*), c1 +1 as a,c6', 'c1, c6', 'slimit 3000', 'a,c6'],
+                ['count(*), c1 +1 as a,c6', 'c1+1, c6', 'slimit 3000', 'a, c6'],
+                ]
+
+        for ele in sql_elems:
+            sql = sql_template % (ele[0], ele[1], ele[2])
+            sql_hint = self.add_hint(sql)
+            sql = self.add_order_by(sql, ele[3])
+            sql_no_slimit = sql_template % (ele[0], ele[1], '')
+
+            sql_no_slimit = self.add_order_by(sql_no_slimit, ele[3])
+            self.query_and_compare_first_rows(sql_hint, sql_no_slimit)
+
+    def check_remove_partition(self):
+        sql = 'select c1, count(*) from meters partition by c1 slimit 10'
+        explain_res = self.explain_sql_verbose(sql)
+        self.check_explain_res_no_row("Partition", explain_res)
+        self.check_explain_res_has_row("blocking=1", explain_res)
+
+        sql = 'select c1, count(*) from meters partition by c1,c2 slimit 10'
+        explain_res = self.explain_sql_verbose(sql)
+        self.check_explain_res_no_row("Partition", explain_res)
+        self.check_explain_res_has_row("blocking=1", explain_res)
+
+    def do_partition_by_col_agg(self):
+        self.init_data()
+        self.prepareTestEnv()
+        #time.sleep(99999999)
+        self.check_pipelined_agg_plan_with_slimit()
+        self.check_pipelined_agg_data_with_slimit()
+        self.check_remove_partition()
+        print("do do_partition_by_col agg ............ [passed]")
+
+    #
+    # ------------------- expr ----------------
+    # 
+    def do_partition_expr(self):
+        tdSql.prepare()
+        tdSql.execute(f'''create table sta(ts timestamp, f int, col2 bigint) tags(tg1 int, tg2 binary(20))''')
+        tdSql.execute(f"create table sta1 using sta tags(1, 'a')")
+        tdSql.execute(f"insert into sta1 values(1537146000001, 11, 110)")
+        tdSql.execute(f"insert into sta1 values(1537146000002, 12, 120)")
+        tdSql.execute(f"insert into sta1 values(1537146000003, 13, 130)")
+
+        tdSql.query("select _wstart, f+100, count(*) from db.sta partition by f+100 session(ts, 1a) order by _wstart");
+        tdSql.checkData(0, 1, 111.0)    
+        print("do partiotn by expr ................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    # 
+    def prepare_datas(self, stb_name , tb_nums , row_nums, dbname="db" ):
+        tdSql.execute(f'''create database {self.dbname} MAXROWS 4096 MINROWS 100''')
+        tdSql.execute(f'''use {self.dbname}''')
+        tdSql.execute(f'''CREATE STABLE {self.dbname}.{self.stable} (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` TINYINT, `location` VARCHAR(16))''')
+        
+        for i in range(self.tb_nums):
+            tbname = f"{self.dbname}.sub_{self.stable}_{i}"
+            ts = self.ts + i*10000
+            tdSql.execute(f"create table {tbname} using {self.dbname}.{self.stable} tags({i} ,'nchar_{i}')")
+            tdLog.info(f"create table {tbname} using {self.dbname}.{self.stable} tags({i} ,'nchar_{i}')")
+            if i < (self.tb_nums - 2):
+                for row in range(row_nums):
+                    ts = self.ts + row*1000
+                    tdSql.execute(f"insert into {tbname} values({ts} , {row/10}, {215 + (row % 100)})")
+
+                for null in range(5):
+                    ts =  self.ts + row_nums*1000 + null*1000
+                    tdSql.execute(f"insert into {tbname} values({ts} , NULL , NULL)")
+
+    def basic_query(self):
+        tdSql.query(f"select groupid, count(*) from {self.dbname}.{self.stable} partition by groupid interval(1d) limit 100")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 1, 1005)
+        
+        tdSql.query(f"select groupid, count(*) from {self.dbname}.{self.stable} partition by tbname interval(1d) order by groupid limit 100;")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 0, 0)   
+        tdSql.checkData(0, 1, 1005)   
+        tdSql.checkData(7, 0, 7)  
+        tdSql.checkData(7, 1, 1005)  
+        
+        tdSql.query(f"select groupid, count(*) from {self.dbname}.{self.stable} partition by tbname, groupid interval(5d) order by groupid limit 10")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 0, 0)   
+        tdSql.checkData(0, 1, 1005)   
+        tdSql.checkData(7, 0, 7)  
+        tdSql.checkData(7, 1, 1005)
+        
+        tdSql.query(f"select groupid, count(*), min(current) from {self.dbname}.{self.stable} partition by groupid interval(5d) order  by groupid limit 10;")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 0, 0)   
+        tdSql.checkData(0, 1, 1005)
+        tdSql.checkData(0, 2, 0)  
+        tdSql.checkData(7, 0, 7)  
+        tdSql.checkData(7, 1, 1005)
+        tdSql.checkData(7, 2, 0)
+        
+        tdSql.query(f"select groupid, min(current) from {self.dbname}.{self.stable} partition by groupid interval(5d) limit 100;")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 1, 0)
+        
+        tdSql.query(f"select groupid, avg(current) from {self.dbname}.{self.stable} partition by groupid interval(5d) limit 10000;")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 1, tdSql.getData(7, 1))
+
+        tdSql.query(f"select current, avg(current) from {self.dbname}.{self.stable} partition by current interval(5d) limit 100;")
+        tdSql.checkData(0, 0, tdSql.getData(0, 1)) 
+        
+        tdSql.query(f"select groupid, last(voltage), min(current) from {self.dbname}.{self.stable} partition by groupid interval(5d) limit 10")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 1, tdSql.getData(7, 1))
+        tdSql.checkData(0, 2, tdSql.getData(7, 2))
+        
+        tdSql.query(f"select groupid, min(current), min(voltage) from {self.dbname}.{self.stable} partition by tbname, groupid interval(5d) limit 100;")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 1, 0)   
+        tdSql.checkData(0, 2, 215)   
+        tdSql.checkData(7, 1, 0)  
+        tdSql.checkData(7, 2, 215)
+        
+        tdSql.query(f"select groupid, min(voltage), min(current) from {self.dbname}.{self.stable} partition by tbname, groupid interval(5d) limit 100;")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 2, 0)   
+        tdSql.checkData(0, 1, 215)   
+        tdSql.checkData(7, 2, 0)  
+        tdSql.checkData(7, 1, 215)           
+        
+    def do_partition_limit_interval(self):
+        # init
+        self.row_nums = 1000
+        self.tb_nums = 10
+        self.ts = 1537146000000
+        self.dbname = "db1"
+        self.stable = "meters"
+        
+        # prepare data
+        tdSql.prepare()
+        self.prepare_datas("stb",self.tb_nums,self.row_nums)
+        self.basic_query()
+    
+        print("do partiotn by interval ............... [passed]")
+
+    #
+    # ------------------- main ----------------
+    # 
+    def test_query_partitionby_basic(self):
+        """Partiton by basic
+
+        1. Partiton by normal columns
+        2. Partiton by tag columns
+        3. Partiton by with express
+        4. Partiton by with interval
+        5. Partiton by with aggregation
+        6. Partiton by with scalar
+        7. Partiton by with tbname
+        8. Partiton by with limit/slimit
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_by_col.py
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_by_col_agg.py
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_expr.py
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_limit_interval.py
+
+        """
+        self.do_partition_by_col()
+        self.do_partition_by_col_agg()
+        self.do_partition_expr()
+        self.do_partition_limit_interval()

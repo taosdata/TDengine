@@ -303,6 +303,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/14-Tags/test_tag_json.py
 ## 15-Explain
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_explain.py
+## 16-PartitionBy
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
 
@@ -886,7 +888,6 @@
 
 ## system_test
 ### 2-query
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_expr.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_project_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py
@@ -897,8 +898,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py
@@ -946,7 +945,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py
