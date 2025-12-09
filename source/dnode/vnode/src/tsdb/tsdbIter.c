@@ -694,6 +694,7 @@ int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger
     node = tRBTreePut(merger[0]->iterTree, iter->node);
     if (node == NULL) {
       taosMemoryFree(merger[0]);
+      merger[0] = NULL;
       return TSDB_CODE_INVALID_PARA;
     }
   }
