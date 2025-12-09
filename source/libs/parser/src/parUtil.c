@@ -634,7 +634,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
              valueStr);
     } else {
       qError("getInsTagsTableTargetNameFromOp: unsupported data type %d for placeholder", pVal->node.resType.type);
-      return TSDB_CODE_SUCCESS;
+      return TSDB_CODE_INVALID_PARA;
     }
   } else {
     if (NULL == pVal->literal || 0 == strcmp(pVal->literal, "")) {
