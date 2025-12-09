@@ -1162,7 +1162,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
   (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
-  
+
   char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
   (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
   showAnyVg = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, dbFName, NULL);
@@ -1189,7 +1189,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     if (!showAnyVg) {
       if (pDb) {
         if (dbUid != pDb->uid) {
-          if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, pDb->name, NULL)) {
+          if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_VGROUPS, pDb)) {
             sdbCancelFetch(pSdb, pShow->pIter);
             sdbRelease(pSdb, pVgroup);
             goto _OVER;
@@ -1203,7 +1203,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
           continue;
         }
         dbUid = pVgroup->dbUid;
-        if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, pVgDb->name, NULL)) {
+        if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_VGROUPS, pVgDb)) {
           showVg = false;
           mndReleaseDb(pMnode, pVgDb);
           sdbRelease(pSdb, pVgroup);
@@ -1332,18 +1332,10 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->mountVgId, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->keepVersion, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set keepVersion, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->keepVersion, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->keepVersionTime, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set keepVersionTime, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->keepVersionTime, false, pVgroup, pShow->pIter, _OVER);
 
     numOfRows++;
     sdbRelease(pSdb, pVgroup);

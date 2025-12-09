@@ -97,6 +97,7 @@ typedef enum {
   MND_OPER_SHOW_DATABASES,
   MND_OPER_SHOW_VGROUPS,
   MND_OPER_SHOW_VNODES,
+  MND_OPER_MAX // the max operation type
 } EOperType;
 
 typedef enum {

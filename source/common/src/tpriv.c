@@ -477,5 +477,7 @@ _exit:
 
 SPrivInfo* privInfoGet(EPrivType privType) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
-  return privType <= MAX_PRIV_TYPE ? privLookup[privType] : NULL;
+  SPrivInfo* result = (privType >= 0 && privType <= MAX_PRIV_TYPE) ? privLookup[privType] : NULL;
+  if (!result) terrno = TSDB_CODE_APP_ERROR;
+  return result;
 }
