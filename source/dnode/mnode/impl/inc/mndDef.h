@@ -290,7 +290,6 @@ typedef struct {
   int64_t  updateTime;
   int32_t  version;
   int32_t  urlLen;
-  int32_t  numOfAlgos;
   int32_t  status;
   SRWLatch lock;
   char*    url;
@@ -300,19 +299,25 @@ typedef struct {
   int32_t  id;
   int64_t  createdTime;
   int64_t  updateTime;
-  int32_t  version;
-  int32_t  nameLen;
   int32_t  status;
   int32_t  via;
+  int32_t  xnodeId;
+  int32_t  jobs;
   SRWLatch lock;
+  int32_t  nameLen;
   char*    name;
-  char*    sourceType;
+  int32_t  sourceType;
+  int32_t  sourceDsnLen;
   char*    sourceDsn;
-  char*    sinkType;
+  int32_t  sinkType;
+  int32_t  sinkDsnLen;
   char*    sinkDsn;
+  int32_t  parserLen;
   char*    parser;
-  SArray** labels;
-  int32_t  numOfLabels;
+  int32_t  reasonLen;
+  char*    reason;
+  // SArray** labels;
+  // int32_t  numOfLabels;
 } SXnodeTaskObj;
 
 typedef struct {

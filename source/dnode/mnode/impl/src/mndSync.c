@@ -394,7 +394,8 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  msmHandleBecomeNotLeader(pMnode);  
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLearner(const SSyncFSM *pFsm) {
@@ -415,7 +416,8 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  msmHandleBecomeNotLeader(pMnode);  
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLeader(const SSyncFSM *pFsm) {

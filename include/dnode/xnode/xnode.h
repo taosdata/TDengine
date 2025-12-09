@@ -67,4 +67,6 @@ void xndClose(SXnode *pXnode);
 
 int32_t mndOpenXnd(const SXnodeOpt *pOption);
 
+void mndCloseXnd();
+
 #endif /*_TD_BNODE_H_*/

@@ -26,6 +26,7 @@ int32_t mndInitXnode(SMnode* pMnode);
 void    mndCleanupXnode(SMnode* pMnode);
 void    mndRetrieveTasks(SMnode* pMnode, SArray* pFc, SArray* pAd);
 void    mndXnodeHandleBecomeLeader(SMnode* pMnode);
+void    mndXnodeHandleBecomeNotLeader();
 
 #ifdef __cplusplus
 }

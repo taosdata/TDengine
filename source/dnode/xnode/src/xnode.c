@@ -72,8 +72,9 @@ int32_t mndOpenXnd(const SXnodeOpt *pOption) {
   if ((code = xnodeMgmtStartXnoded(pXnode->dnodeId)) != 0) {
     xndError("failed to start xnoded since %s", tstrerror(code));
 
-    taosMemoryFree(pXnode);
     TAOS_RETURN(code);
   }
   return code;
 }
+
+void mndCloseXnd() { xnodeMgmtStopXnoded(); }
