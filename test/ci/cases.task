@@ -888,7 +888,6 @@
 
 ## system_test
 ### 2-query
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_project_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py

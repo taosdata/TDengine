@@ -532,7 +532,7 @@ class TestPartitionByBasic:
         self.prepare_datas("stb",self.tb_nums,self.row_nums)
         self.basic_query()
     
-        print("do partiotn by interval ............... [passed]")
+        print("do partition by interval .............. [passed]")
 
     #
     # ------------------- main ----------------
@@ -556,10 +556,10 @@ class TestPartitionByBasic:
         Jira: None
 
         History:
-            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_by_col.py
-            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_by_col_agg.py
-            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_expr.py
-            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_limit_interval.py
+            - 2025-12-09 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_by_col.py
+            - 2025-12-09 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_by_col_agg.py
+            - 2025-12-09 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_expr.py
+            - 2025-12-09 Alex Duan Migrated from uncatalog/system-test/2-query/test_partition_limit_interval.py
 
         """
         self.do_partition_by_col()
