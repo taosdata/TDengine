@@ -34,6 +34,9 @@
 #include "tjson.h"
 #include "tmisce.h"
 #include "tunit.h"
+#ifdef TD_ENTERPRISE
+#include "taoskInt.h"
+#endif
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 40
@@ -96,6 +99,9 @@ static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
+static int32_t mndProcessKeySyncReq(SRpcMsg *pReq);
+static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq);
+
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
 #else
@@ -130,6 +136,9 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DNODE, mndRetrieveDnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_DNODE, mndCancelGetNextDnode);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC, mndProcessKeySyncReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC_RSP, mndProcessKeySyncRsp);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -1721,3 +1730,106 @@ SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
   }
   return fqdns;
 }
+
+
+
+static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SKeySyncReq req = {0};
+  SKeySyncRsp rsp = {0};
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  code = tDeserializeSKeySyncReq(pReq->pCont, pReq->contLen, &req);
+  if (code != 0) {
+    mError("failed to deserialize key sync req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+
+  mInfo("received key sync req from dnode:%d, keyVersion:%d", req.dnodeId, req.keyVersion);
+
+#ifdef TD_ENTERPRISE
+  // Load mnode's encryption keys
+  char masterKeyFile[PATH_MAX] = {0};
+  snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+           TD_DIRSEP);
+  char derivedKeyFile[PATH_MAX] = {0};
+  snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+           TD_DIRSEP);
+  char    svrKey[129] = {0};
+  char    dbKey[129] = {0};
+  char    cfgKey[129] = {0};
+  char    metaKey[129] = {0};
+  char    dataKey[129] = {0};
+  int32_t algorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                              &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+  if (code != 0) {
+    mError("failed to load encryption keys, since %s", tstrerror(code));
+    // If keys don't exist on mnode, return error
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _OVER;
+  }
+
+  // Check if dnode needs update
+  if (req.keyVersion != keyVersion) {
+    mInfo("dnode:%d key version mismatch, mnode:%d, dnode:%d, will send keys", req.dnodeId, keyVersion, req.keyVersion);
+
+    rsp.keyVersion = keyVersion;
+    rsp.needUpdate = 1;
+    tstrncpy(rsp.svrKey, svrKey, sizeof(rsp.svrKey));
+    tstrncpy(rsp.dbKey, dbKey, sizeof(rsp.dbKey));
+    tstrncpy(rsp.cfgKey, cfgKey, sizeof(rsp.cfgKey));
+    tstrncpy(rsp.metaKey, metaKey, sizeof(rsp.metaKey));
+    tstrncpy(rsp.dataKey, dataKey, sizeof(rsp.dataKey));
+    rsp.algorithm = algorithm;
+    rsp.createTime = createTime;
+    rsp.svrKeyUpdateTime = svrKeyUpdateTime;
+    rsp.dbKeyUpdateTime = dbKeyUpdateTime;
+  } else {
+    mInfo("dnode:%d key version matches, version:%d", req.dnodeId, keyVersion);
+    rsp.keyVersion = keyVersion;
+    rsp.needUpdate = 0;
+  }
+#else
+  // Community edition - no encryption support
+  mWarn("enterprise features not enabled, key sync not supported");
+  rsp.keyVersion = 0;
+  rsp.needUpdate = 0;
+#endif
+
+  int32_t contLen = tSerializeSKeySyncRsp(NULL, 0, &rsp);
+  if (contLen < 0) {
+    code = contLen;
+    goto _OVER;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  contLen = tSerializeSKeySyncRsp(pHead, contLen, &rsp);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    code = contLen;
+    goto _OVER;
+  }
+
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pHead;
+
+_OVER:
+  if (code != 0) {
+    mError("failed to process key sync req, since %s", tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq) { return 0; }
