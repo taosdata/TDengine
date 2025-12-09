@@ -559,9 +559,10 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
         return terrno;
       }
 
-      if (TSDB_CODE_SUCCESS != tbase64_decode(*pData, (const uint8_t*)input, inputBytes, outputBytes)) {
-        taosMemoryFree(*pData);
-        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_INVALID_DATA_FMT);
+      if (TSDB_CODE_SUCCESS != tbase64_decode(*pData, (const uint8_t*)input, inputBytes, (VarDataLenT*)&outputBytes)) {
+        pVal->flag = CV_FLAG_NULL;
+
+        return TSDB_CODE_SUCCESS;
       }
       *nData = outputBytes;
     } else if (0 == strncasecmp(pToken->z, "to_base64(", 10)) {
@@ -755,8 +756,34 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_STRING != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      if (TK_NK_STRING != pToken->type && TK_NULL != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string or null expected", pToken->z);
+      } else if (TK_NULL == pToken->type) {
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_COMMA != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_STRING != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, "key string expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP == pToken->type) {
+          pVal->flag = CV_FLAG_NULL;
+
+          return TSDB_CODE_SUCCESS;
+        } else if (TK_NK_STRING == pToken->type) {
+          NEXT_VALID_TOKEN(*ppSql, *pToken);
+          if (TK_NK_RP == pToken->type) {
+            pVal->flag = CV_FLAG_NULL;
+
+            return TSDB_CODE_SUCCESS;
+          }
+        } else {
+          return buildSyntaxErrMsg(&pCxt->msg, "iv string expected", pToken->z);
+        }
       } else {
         inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
         input = tmpTokenBuf;
@@ -802,7 +829,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       int32_t bufLen = outputBytes + VARSTR_HEADER_SIZE + 1;
-      *pData = taosMemoryMalloc(bufLen);
+      *pData = taosMemoryCalloc(1, bufLen);
       if (NULL == *pData) {
         return terrno;
       }
@@ -827,8 +854,34 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_STRING != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      if (TK_NK_STRING != pToken->type && TK_NULL != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string or null expected", pToken->z);
+      } else if (TK_NULL == pToken->type) {
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_COMMA != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_STRING != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, "key string expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP == pToken->type) {
+          pVal->flag = CV_FLAG_NULL;
+
+          return TSDB_CODE_SUCCESS;
+        } else if (TK_NK_STRING == pToken->type) {
+          NEXT_VALID_TOKEN(*ppSql, *pToken);
+          if (TK_NK_RP == pToken->type) {
+            pVal->flag = CV_FLAG_NULL;
+
+            return TSDB_CODE_SUCCESS;
+          }
+        } else {
+          return buildSyntaxErrMsg(&pCxt->msg, "iv string expected", pToken->z);
+        }
       } else {
         inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
         input = tmpTokenBuf;
@@ -899,8 +952,27 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_STRING != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      if (TK_NK_STRING != pToken->type && TK_NULL != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string or null expected", pToken->z);
+      } else if (TK_NULL == pToken->type) {
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_COMMA != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_STRING != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, "key string expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP == pToken->type) {
+          pVal->flag = CV_FLAG_NULL;
+
+          return TSDB_CODE_SUCCESS;
+        } else {
+          return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+        }
       } else {
         inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
         input = tmpTokenBuf;
@@ -959,8 +1031,27 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_STRING != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+      if (TK_NK_STRING != pToken->type && TK_NULL != pToken->type) {
+        return buildSyntaxErrMsg(&pCxt->msg, "string or null expected", pToken->z);
+      } else if (TK_NULL == pToken->type) {
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_COMMA != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_STRING != pToken->type) {
+          return buildSyntaxErrMsg(&pCxt->msg, "key string expected", pToken->z);
+        }
+
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP == pToken->type) {
+          pVal->flag = CV_FLAG_NULL;
+
+          return TSDB_CODE_SUCCESS;
+        } else {
+          return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+        }
       } else {
         inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
         input = tmpTokenBuf;

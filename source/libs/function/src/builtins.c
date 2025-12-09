@@ -1027,7 +1027,7 @@ static int32_t translateBase64(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   SDataType* pRestType1 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
-  int32_t    outputLength = tbase64_encode_len(pRestType1->bytes);
+  int32_t    outputLength = tbase64_encode_len(pRestType1->bytes) + VARSTR_HEADER_SIZE;
 
   pFunc->node.resType = (SDataType){.bytes = outputLength, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
@@ -1037,7 +1037,7 @@ static int32_t translateBase64From(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   SDataType* pRestType1 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
-  int32_t    outputLength = tbase64_decode_len(pRestType1->bytes);
+  int32_t    outputLength = tbase64_decode_len(pRestType1->bytes) + VARSTR_HEADER_SIZE;
 
   pFunc->node.resType = (SDataType){.bytes = outputLength, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
@@ -1688,6 +1688,7 @@ static int32_t translateMaskFull(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   int32_t resLen = TMAX(orgLen, maskLen);
 
+  resLen += VARSTR_HEADER_SIZE;
   pFunc->node.resType = (SDataType){.bytes = resLen, .type = orgType};
 
   return TSDB_CODE_SUCCESS;
@@ -1699,6 +1700,7 @@ static int32_t translateMaskNone(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
 
+  orgLen += VARSTR_HEADER_SIZE;
   pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
 
   return TSDB_CODE_SUCCESS;
@@ -1710,7 +1712,7 @@ static int32_t translateOutAes(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
 
-  orgLen = taes_encrypt_len(orgLen);
+  orgLen = taes_encrypt_len(orgLen) + VARSTR_HEADER_SIZE;
 
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams > 2) {
@@ -1739,6 +1741,7 @@ static int32_t translateOutAesDe(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
+  orgLen += VARSTR_HEADER_SIZE;
   pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
 
   return TSDB_CODE_SUCCESS;
@@ -1750,7 +1753,7 @@ static int32_t translateOutSm4(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
 
-  orgLen = tsm4_encrypt_len(orgLen);
+  orgLen = tsm4_encrypt_len(orgLen) + VARSTR_HEADER_SIZE;
 
   pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
 
@@ -1763,6 +1766,7 @@ static int32_t translateOutSm4De(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
 
+  orgLen += VARSTR_HEADER_SIZE;
   pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
 
   return TSDB_CODE_SUCCESS;
@@ -7042,7 +7046,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -7077,7 +7081,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -7112,7 +7116,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -7140,7 +7144,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},

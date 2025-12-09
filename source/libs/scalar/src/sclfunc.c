@@ -2373,7 +2373,8 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     maskLen = maskLen * TSDB_NCHAR_SIZE;
   }
 
-  char *outputBuf = taosMemoryCalloc(orgLength + VARSTR_HEADER_SIZE, 1);
+  int32_t outLen = TMAX(orgLength, 1);
+  char   *outputBuf = taosMemoryCalloc(outLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
     SCL_ERR_RET(terrno);
   }
@@ -2408,13 +2409,13 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       needFreeFrom = true;
     }
 
-    for (int initialIdx = 0; initialIdx < initialLen; ++initialIdx) {
+    for (int initialIdx = 0; initialIdx < initialLen && initialIdx < outLen; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
     }
-    for (int initialIdx = initialLen; initialIdx < orgLen - finalLen; ++initialIdx) {
+    for (int initialIdx = initialLen; initialIdx < orgLen - finalLen && initialIdx < outLen; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, orgStr + initialIdx * maskLen, maskLen);
     }
-    for (int initialIdx = orgLen - finalLen; initialIdx < orgLen; ++initialIdx) {
+    for (int initialIdx = orgLen - finalLen; initialIdx < orgLen && initialIdx < outLen; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
     }
 
@@ -2885,7 +2886,7 @@ int32_t base64FunctionFrom(SScalarParam *pInput, int32_t inputNum, SScalarParam 
     char       *out = outputBuf + VARSTR_HEADER_SIZE;
     VarDataLenT outputLength = tbase64_decode_len(inputLen);
 
-    if (TSDB_CODE_SUCCESS != tbase64_decode(out, varDataVal(input), inputLen, outputLength)) {
+    if (TSDB_CODE_SUCCESS != tbase64_decode(out, varDataVal(input), inputLen, &outputLength)) {
       colDataSetNULL(pOutputData, i);
       continue;
     }

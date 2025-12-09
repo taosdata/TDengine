@@ -140,15 +140,15 @@ static void tbase64_build_decoding_table() {
   }
 }
 
-int32_t tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT out_len) {
+int32_t tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT *out_len) {
   (void)taosThreadOnce(&tbase64_decoding_table_building, tbase64_build_decoding_table);
 
   if (in_len % 4 != 0) {
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
-  if (input[in_len - 1] == '=') out_len--;
-  if (input[in_len - 2] == '=') out_len--;
+  if (in_len > 0 && input[in_len - 1] == '=') --*out_len;
+  if (in_len > 0 && input[in_len - 2] == '=') --*out_len;
 
   for (int i = 0, j = 0; i < in_len;) {
     uint32_t sextet_a = input[i] == '=' ? 0 & i++ : tbase64_decoding_table[input[i++]];
@@ -158,9 +158,9 @@ int32_t tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDat
 
     uint32_t triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) + (sextet_c << 1 * 6) + (sextet_d << 0 * 6);
 
-    if (j < out_len) out[j++] = (triple >> 2 * 8) & 0xFF;
-    if (j < out_len) out[j++] = (triple >> 1 * 8) & 0xFF;
-    if (j < out_len) out[j++] = (triple >> 0 * 8) & 0xFF;
+    if (j < *out_len) out[j++] = (triple >> 2 * 8) & 0xFF;
+    if (j < *out_len) out[j++] = (triple >> 1 * 8) & 0xFF;
+    if (j < *out_len) out[j++] = (triple >> 0 * 8) & 0xFF;
   }
 
   return TSDB_CODE_SUCCESS;

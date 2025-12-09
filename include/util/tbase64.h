@@ -27,7 +27,7 @@ int32_t base64_decode(const char *value, int32_t inlen, int32_t *outlen, uint8_t
 int32_t base64_encode(const uint8_t *value, int32_t vlen, char **result);
 
 void     tbase64_encode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT out_len);
-int32_t  tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT out_len);
+int32_t  tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT *out_len);
 uint32_t tbase64_encode_len(size_t in_len);
 uint32_t tbase64_decode_len(size_t in_len);
 
