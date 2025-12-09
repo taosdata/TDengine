@@ -2819,8 +2819,7 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
       // For interval window, we always apply sortPriKey optimization.
       // For session/event/state window, the output ts order will always be ASC.
       // If sort order is also asc, we apply optimization, otherwise we keep sort node to get correct output order.
-      if (pWindowLogicNode->node.groupAction == GROUP_ACTION_KEEP ||
-          (pWindowLogicNode->partType & WINDOW_PART_HAS) == 0) {
+      if ((pWindowLogicNode->partType & WINDOW_PART_HAS) == 0) {
         if (pWindowLogicNode->winType == WINDOW_TYPE_INTERVAL || sortOrder == ORDER_ASC) {
           return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
         }
