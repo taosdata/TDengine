@@ -70,9 +70,13 @@ export interface TransformExtractParseDataType {
 }
 
 export interface ParseType {
-  payload?: Recordable;
+  payload?: {
+    json?: string | string[] | Recordable[] | any;
+    [x: string]: any;
+  };
   value?: {
-    json?: string;
+    json?: string | string[] | Recordable[];
+    [x: string]: any;
   };
   [x: string]: any;
 }
