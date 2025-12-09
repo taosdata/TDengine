@@ -801,6 +801,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   }
 
+  int64_t delta = curMs / 1000 - statusReq.timestamp / 1000;
+  if (labs(delta) >= tsTimestampDeltaLimit) {
+    terrno = TSDB_CODE_TIME_UNSYNCED;
+    code = terrno;
+
+    pDnode->offlineReason = DND_REASON_TIME_UNSYNC;
+    mError("dnode:%d, not sync with cluster:%"PRId64" since %s, limit %"PRId64"s", statusReq.dnodeId, pMnode->clusterId,
+           tstrerror(code), tsTimestampDeltaLimit);
+    goto _OVER;
+  }
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
