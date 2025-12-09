@@ -20,6 +20,7 @@
 #include "mndDb.h"
 #include "mndDef.h"
 #include "mndDnode.h"
+#include "mndEncryptAlgr.h"
 #include "mndIndex.h"
 #include "mndIndexComm.h"
 #include "mndPrivilege.h"
@@ -616,7 +617,11 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
   pCreateReq->hashSuffix = pDb->cfg.hashSuffix;
   pCreateReq->tsdbPageSize = pDb->cfg.tsdbPageSize;
   pCreateReq->changeVersion = ++(pVgroup->syncConfChangeVer);
-  pCreateReq->encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+
+  memset(pCreateReq->encryptAlgrName, 0, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  if (pDb->cfg.encryptAlgorithm > 0) {
+    mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, pCreateReq->encryptAlgrName);
+  }
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica *pReplica = NULL;
