@@ -22,6 +22,7 @@ if(NOT DEFINED TD_ENTERPRISE_DIR)
 
 
 
+
   message(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
   message(STATUS "Source directory: " ${TD_SOURCE_DIR})
   message(STATUS "Support directory: " ${TD_SUPPORT_DIR})
