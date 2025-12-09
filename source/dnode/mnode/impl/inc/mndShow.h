@@ -56,6 +56,41 @@ extern "C" {
     }                                               \
   } while (0)
 
+#define MND_SHOW_CHECK_DB_PRIVILEGE(pDb, dbFName, pSdbObj, operType, label)       \
+  do {                                                                            \
+    if (!showAll) {                                                               \
+      if (pDb) {                                                                  \
+        if (dbUid != pDb->uid) {                                                  \
+          if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (operType), pDb)) {   \
+            sdbCancelFetch(pSdb, pShow->pIter);                                   \
+            sdbRelease(pSdb, (pSdbObj));                                          \
+            goto label;                                                           \
+          }                                                                       \
+          showAll = true;                                                         \
+        }                                                                         \
+      } else if (dbUid != (pSdbObj)->dbUid) {                                     \
+        pIterDb = mndAcquireDb(pMnode, (dbFName));                                \
+        if (pIterDb == NULL) {                                                    \
+          sdbRelease(pSdb, (pSdbObj));                                            \
+          continue;                                                               \
+        }                                                                         \
+        dbUid = (pSdbObj)->dbUid;                                                 \
+        if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (operType), pIterDb)) { \
+          showIter = false;                                                       \
+          mndReleaseDb(pMnode, pIterDb);                                          \
+          sdbRelease(pSdb, (pSdbObj));                                            \
+          continue;                                                               \
+        } else {                                                                  \
+          mndReleaseDb(pMnode, pIterDb);                                          \
+          showIter = true;                                                        \
+        }                                                                         \
+      } else if (!showIter) {                                                     \
+        sdbRelease(pSdb, (pSdbObj));                                              \
+        continue;                                                                 \
+      }                                                                           \
+    }                                                                             \
+  } while (0)
+
 int32_t mndInitShow(SMnode *pMnode);
 void    mndCleanupShow(SMnode *pMnode);
 void    mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp);

@@ -1157,18 +1157,19 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   int32_t   cols = 0;
   int64_t   curMs = taosGetTimestampMs();
   int32_t   code = 0, lino = 0;
+  SDbObj   *pDb = NULL;
   SUserObj *pUser = NULL;
-  bool      showAnyVg = false;
+  SDbObj   *pIterDb = NULL;
+  bool      showAll = false, showIter = false;
+  int64_t   dbUid = 0;
 
   code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) goto _OVER;
 
   char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
   (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAnyVg = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, dbFName, NULL);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VGROUPS, dbFName, NULL);
 
-  int64_t dbUid = 0;
-  SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) {
@@ -1176,7 +1177,6 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     }
   }
 
-  bool showVg = false;
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
     if (pShow->pIter == NULL) break;
@@ -1186,37 +1186,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       continue;
     }
 
-    if (!showAnyVg) {
-      if (pDb) {
-        if (dbUid != pDb->uid) {
-          if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_VGROUPS, pDb)) {
-            sdbCancelFetch(pSdb, pShow->pIter);
-            sdbRelease(pSdb, pVgroup);
-            goto _OVER;
-          }
-          showAnyVg = true;
-        }
-      } else if (dbUid != pVgroup->dbUid) {
-        pVgDb = mndAcquireDb(pMnode, pVgroup->dbName);
-        if (pVgDb == NULL) {
-          sdbRelease(pSdb, pVgroup);
-          continue;
-        }
-        dbUid = pVgroup->dbUid;
-        if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_VGROUPS, pVgDb)) {
-          showVg = false;
-          mndReleaseDb(pMnode, pVgDb);
-          sdbRelease(pSdb, pVgroup);
-          continue;
-        } else {
-          mndReleaseDb(pMnode, pVgDb);
-          showVg = true;
-        }
-      } else if (!showVg) {
-        sdbRelease(pSdb, pVgroup);
-        continue;
-      }
-    }
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pVgroup->dbName, pVgroup, MND_OPER_SHOW_VGROUPS, _OVER);
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1443,13 +1413,14 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
-  SUserObj *pUser = NULL;
   SVgObj   *pVgroup = NULL;
   SDbObj   *pVgDb = NULL;
   int32_t   cols = 0;
   int64_t   curMs = taosGetTimestampMs();
   int32_t   code = 0;
-  bool      showAnyVg = false, showVg = false;
+  SUserObj *pUser = NULL;
+  SDbObj   *pDb = NULL, *pIterDb = NULL;
+  bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
   code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
@@ -1457,37 +1428,13 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
   char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
   (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAnyVg = mndCheckObjPrivilege(pMnode, pUser, MND_OPER_SHOW_VNODES, dbFName, NULL);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_VNODES, dbFName, NULL);
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
     if (pShow->pIter == NULL) break;
 
-    if (!showAnyVg) {
-      if (dbUid != pVgroup->dbUid) {
-        pVgDb = mndAcquireDb(pMnode, pVgroup->dbName);
-        if (pVgDb == NULL) {
-          sdbRelease(pSdb, pVgroup);
-          pVgroup = NULL;
-          continue;
-        }
-        dbUid = pVgroup->dbUid;
-        if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_VNODES, pVgDb)) {
-          showVg = false;
-          mndReleaseDb(pMnode, pVgDb);
-          sdbRelease(pSdb, pVgroup);
-          pVgroup = NULL;
-          continue;
-        } else {
-          mndReleaseDb(pMnode, pVgDb);
-          showVg = true;
-        }
-      } else if (!showVg) {
-        sdbRelease(pSdb, pVgroup);
-        pVgroup = NULL;
-        continue;
-      }
-    }
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pVgroup->dbName, pVgroup, MND_OPER_SHOW_VNODES, _exit);
 
     for (int32_t i = 0; i < pVgroup->replica && numOfRows < rows; ++i) {
       SVnodeGid       *pGid = &pVgroup->vnodeGid[i];
@@ -1608,6 +1555,7 @@ _exit:
   if (pVgroup) sdbRelease(pSdb, pVgroup);
   if (pShow->pIter) sdbCancelFetch(pSdb, pShow->pIter);
   if (pUser) mndReleaseUser(pMnode, pUser);
+  if (pDb) mndReleaseDb(pMnode, pDb);
   if (code != 0) {
     return code;
   }

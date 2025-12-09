@@ -12,13 +12,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "audit.h"
 #include "mndSsMigrate.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "tmsgcb.h"
@@ -402,14 +402,18 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
 
 // retrieve ssmigrate
 int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode      *pMnode = pReq->info.node;
-  SSdb        *pSdb = pMnode->pSdb;
-  int32_t      numOfRows = 0;
+  SMnode        *pMnode = pReq->info.node;
+  SSdb          *pSdb = pMnode->pSdb;
+  int32_t        numOfRows = 0;
   SSsMigrateObj *pSsMigrate = NULL;
-  char        *sep = NULL;
-  SDbObj      *pDb = NULL;
-  int32_t      code = 0;
-  int32_t      lino = 0;
+  char          *sep = NULL;
+  SDbObj        *pDb = NULL;
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  SUserObj      *pUser = NULL;
+  SDbObj        *pIterDb = NULL;
+  bool           showAll = false, showIter = false;
+  int64_t        dbUid = 0;
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -422,9 +426,18 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     }
   }
 
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  if (pUser == NULL) goto _OVER;
+
+  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
+  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_SSMIGRATES, dbFName, NULL);
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SSMIGRATE, pShow->pIter, (void **)&pSsMigrate);
     if (pShow->pIter == NULL) break;
+
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pSsMigrate->dbname, pSsMigrate, MND_OPER_SHOW_SSMIGRATES, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;
@@ -514,9 +527,13 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   }
 
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
+  if (pUser) mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

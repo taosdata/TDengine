@@ -310,13 +310,6 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
   bool         showAll = false, showIter = false;
   int64_t      dbUid = 0;
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) goto _OVER;
-
-  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
-  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
-  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_COMPACTS, dbFName, NULL);
-
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
     if (sep &&
@@ -328,41 +321,18 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
     }
   }
 
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  if (pUser == NULL) goto _OVER;
+
+  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
+  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_COMPACTS, dbFName, NULL);
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
     if (pShow->pIter == NULL) break;
 
-    if (!showAll) {
-      if (pDb) {
-        if (dbUid != pDb->uid) {
-          if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_COMPACTS, pDb)) {
-            sdbCancelFetch(pSdb, pShow->pIter);
-            sdbRelease(pSdb, pCompact);
-            goto _OVER;
-          }
-          showAll = true;
-        }
-      } else if (dbUid != pCompact->dbUid) {
-        pIterDb = mndAcquireDb(pMnode, pCompact->dbname);
-        if (pIterDb == NULL) {
-          sdbRelease(pSdb, pCompact);
-          continue;
-        }
-        dbUid = pCompact->dbUid;
-        if (0 != mndCheckDbPrivilege(pMnode, pUser->name, MND_OPER_SHOW_COMPACTS, pIterDb)) {
-          showIter = false;
-          mndReleaseDb(pMnode, pIterDb);
-          sdbRelease(pSdb, pCompact);
-          continue;
-        } else {
-          mndReleaseDb(pMnode, pIterDb);
-          showIter = true;
-        }
-      } else if (!showIter) {
-        sdbRelease(pSdb, pCompact);
-        continue;
-      }
-    }
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pCompact->dbname, pCompact, MND_OPER_SHOW_COMPACTS, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;
@@ -395,9 +365,12 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
 
 _OVER:
   if (pUser) mndReleaseUser(pMnode, pUser);
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve compact at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 

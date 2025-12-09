@@ -21,6 +21,7 @@
 #include "mndScanDetail.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "tmsgcb.h"
@@ -305,6 +306,10 @@ static int32_t mndRetrieveScan(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   SDbObj   *pDb = NULL;
   int32_t   code = 0;
   int32_t   lino = 0;
+  SUserObj *pUser = NULL;
+  SDbObj   *pIterDb = NULL;
+  bool      showAll = false, showIter = false;
+  int64_t   dbUid = 0;
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -317,9 +322,18 @@ static int32_t mndRetrieveScan(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
   }
 
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  if (pUser == NULL) goto _OVER;
+
+  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
+  (void)snprintf(dbFName, sizeof(dbFName), "%d.*", pUser->acctId);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_SHOW_SCANS, dbFName, NULL);
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SCAN, pShow->pIter, (void **)&pScan);
     if (pShow->pIter == NULL) break;
+
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pScan->dbname, pScan, MND_OPER_SHOW_SCANS, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;
@@ -350,9 +364,13 @@ static int32_t mndRetrieveScan(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   }
 
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
+  if (pUser) mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
