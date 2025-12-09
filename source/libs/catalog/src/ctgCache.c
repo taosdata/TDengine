@@ -643,6 +643,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   if (colRefSize != 0) {
     (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize + schemaExtSize);
     TAOS_MEMCPY((*pTableMeta)->colRef, tmpRef, colRefSize);
+    (*pTableMeta)->numOfColRefs = numOfColRefs;  // Set numOfColRefs for virtual child table
+    (*pTableMeta)->rversion = rversion;          // Set rversion for virtual child table
   } else {
     (*pTableMeta)->colRef = NULL;
   }

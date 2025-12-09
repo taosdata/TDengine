@@ -2104,6 +2104,10 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->pRecalcRequestMap = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pTask->pRecalcRequestMap, code, lino, _end, terrno);
 
+  taosInitRWLatch(&pTask->userRecalcRequestLock);
+  pTask->pUserRecalcRequests = taosArrayInit(0, sizeof(SStreamRecalcReq));
+  QUERY_CHECK_NULL(pTask->pUserRecalcRequests, code, lino, _end, terrno);
+
   pTask->pHistoryCutoffTime = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pTask->pHistoryCutoffTime, code, lino, _end, terrno);
 
@@ -2312,6 +2316,11 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->pRecalcRequestMap = NULL;
   }
 
+  if (pTask->pUserRecalcRequests != NULL) {
+    taosArrayDestroy(pTask->pUserRecalcRequests);
+    pTask->pUserRecalcRequests = NULL;
+  }
+
   if (pTask->streamName != NULL) {
     taosMemoryFree(pTask->streamName);
     pTask->streamName = NULL;
@@ -2482,24 +2491,11 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       break;
     }
     case STREAM_MSG_USER_RECALC: {
-      SStreamMgmtRsp           *pRsp = (SStreamMgmtRsp *)pMsg;
-      SArray                   *pRecalcList = pRsp->cont.recalcList;
-      int32_t                   nRecalcReq = taosArrayGetSize(pRecalcList);
-      SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
-      QUERY_CHECK_NULL(pContext, code, lino, _end, TSDB_CODE_INVALID_PARA);
-      for (int32_t i = 0; i < nRecalcReq; i++) {
-        SStreamRecalcReq *pReq = TARRAY_GET_ELEM(pRecalcList, i);
-        int32_t           iter = 0;
-        void             *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
-        ST_TASK_DLOG("add user recalc request, start: %" PRId64 ", end: %" PRId64, pReq->start, pReq->end - 1);
-        while (px != NULL) {
-          SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-          STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
-          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, false);
-          QUERY_CHECK_CODE(code, lino, _end);
-          px = tSimpleHashIterate(pContext->pGroups, px, &iter);
-        }
-      }
+      SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
+      taosWLockLatch(&pTask->userRecalcRequestLock);
+      void *px = taosArrayAddAll(pTask->pUserRecalcRequests, pRsp->cont.recalcList);
+      taosWUnLockLatch(&pTask->userRecalcRequestLock);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       break;
     }
     default: {
@@ -4015,6 +4011,42 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextAddUserRecalc(SSTriggerRealtimeContext *pContext) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+  bool                needUnlock = false;
+
+  taosWLockLatch(&pTask->userRecalcRequestLock);
+  needUnlock = true;
+
+  SArray *pRecalcList = pTask->pUserRecalcRequests;
+  int32_t nUserRecalcs = taosArrayGetSize(pRecalcList);
+  for (int32_t i = 0; i < nUserRecalcs; i++) {
+    SStreamRecalcReq *pReq = TARRAY_GET_ELEM(pTask->pUserRecalcRequests, i);
+    int32_t           iter = 0;
+    void             *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+    ST_TASK_DLOG("add user recalc request, start: %" PRId64 ", end: %" PRId64, pReq->start, pReq->end - 1);
+    while (px != NULL) {
+      SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+      STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
+      code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+      px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+    }
+  }
+  taosArrayClear(pRecalcList);
+
+_end:
+  if (needUnlock) {
+    taosWUnLockLatch(&pTask->userRecalcRequestLock);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -4373,6 +4405,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     pContext->lastVirtTableInfoTime = now;
     goto _end;
   }
+
+  code = stRealtimeContextAddUserRecalc(pContext);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     stTriggerTaskNextTimeWindow(pTask, &pContext->periodWindow);
@@ -5964,6 +5999,10 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pReq->skey = pContext->pParamToFetch->wstart;
       pReq->ekey = pContext->pParamToFetch->wend;
       pReq->ver = pProgress->version;
+      if (pContext->pParamToFetch != TARRAY_DATA(pContext->pCalcReq->params)) {
+        int64_t prevEnd = (pContext->pParamToFetch - 1)->wend;
+        pReq->skey = TMAX(pReq->skey, prevEnd + 1);
+      }
       break;
     }
 
