@@ -33,6 +33,7 @@ typedef struct SMnode SMnode;
 typedef struct {
   int32_t  dnodeId;
   bool     deploy;
+  int32_t  version;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
   int8_t   numOfTotalReplicas;
@@ -67,6 +68,9 @@ void mndPreClose(SMnode *pMnode);
  */
 int32_t mndStart(SMnode *pMnode);
 
+bool mndNeedUpgrade(SMnode *pMnode, int32_t version);
+
+int32_t mndGetVersion(SMnode *pMnode);
 /**
  * @brief Stop mnode
  *
@@ -123,6 +127,8 @@ void mndGenerateMachineCode();
 int32_t mndDumpSdb();
 
 int32_t mndDeleteTrans();
+
+int32_t mndModifySdb(char *path);
 
 #ifdef __cplusplus
 }

@@ -245,6 +245,8 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   char      tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t   code = tNameExtractFullName(tbName, tbFName);
   if (code != 0) {
+    qDestroyBoundColInfo(tags);
+    taosMemoryFreeClear(tags);
     return code;
   }
 
@@ -256,6 +258,10 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   pStmt->bInfo.tbSuid = pTableMeta->suid;
   pStmt->bInfo.tbVgId = pTableMeta->vgId;
   pStmt->bInfo.tbType = pTableMeta->tableType;
+  if (pStmt->bInfo.boundTags && !pStmt->bInfo.tagsCached) {
+    qDestroyBoundColInfo(pStmt->bInfo.boundTags);
+    taosMemoryFreeClear(pStmt->bInfo.boundTags);
+  }
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
   pStmt->bInfo.tbNameFlag = tbNameFlag;

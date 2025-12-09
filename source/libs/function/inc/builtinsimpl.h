@@ -125,6 +125,7 @@ int32_t corrFuncMerge(SqlFunctionCtx* pCtx);
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t derivativeFunction(SqlFunctionCtx* pCtx);
+int32_t derivativeFunctionByRow(SArray* pCtxArray);
 
 bool    getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);

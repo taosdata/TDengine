@@ -48,6 +48,7 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -885,6 +886,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       code = vnodeProcessTrimReq(pVnode, ver, pReq, len, pRsp);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
+      case TDMT_VND_TRIM_WAL:
+      if (vnodeProcessTrimWalReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      break;
 #ifdef TD_ENTERPRISE
     case TDMT_VND_SSMIGRATE_FILESET:
       if (vnodeProcessSsMigrateFileSetReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
@@ -896,6 +900,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessKillSsMigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
 #endif
+
     /* TSDB */
     case TDMT_VND_SUBMIT: {
       METRICS_TIMING_BLOCK(pVnode->writeMetrics.apply_time, METRIC_LEVEL_LOW, {
@@ -1191,6 +1196,26 @@ _exit:
 }
 
 extern int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq);
+
+static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t code = 0;
+
+  vInfo("vgId:%d, process trim wal request, force clean expired WAL files by triggering commit with forceTrim",
+        pVnode->config.vgId);
+
+  // Trigger a commit with forceTrim flag
+  // This will properly calculate ver through sync layer and apply forceTrim during snapshot
+  code = vnodeAsyncCommitEx(pVnode, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to trigger trim wal commit since %s", pVnode->config.vgId, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, successfully triggered trim wal commit", pVnode->config.vgId);
+  }
+
+  return code;
+}
+
+extern int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now);
 
 static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t code = 0;
@@ -2380,6 +2405,9 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       continue;  // skip column data format
     }
+    if (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) {
+      continue;  // skip only crate table request
+    }
 
     code = metaGetInfo(pVnode->pMeta, pTbData->uid, &info, NULL);
     if (code) {
@@ -2426,6 +2454,10 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
   for (int32_t i = 0; i < numTbData; ++i) {
     int32_t        affectedRows = 0;
     SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
+
+    if (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) {
+      continue;
+    }
 
     if (hasBlob) {
       code = vnodeSubmitBlobData(pVnode, pTbData);
@@ -2530,7 +2562,7 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
   int32_t numRows = taosArrayGetSize(pTbData->aRowP);
   SRow  **aRow = (SRow **)TARRAY_DATA(pTbData->aRowP);
 
-  if (numRows <= 0) {
+  if (numRows <= 0 && (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) == 0) {
     code = TSDB_CODE_INVALID_MSG;
     vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " numRows:%d", TD_VID(pVnode), __func__,
            __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numRows);

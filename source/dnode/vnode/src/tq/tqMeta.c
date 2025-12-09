@@ -282,6 +282,7 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = TDB_CODE_SUCCESS;
+  SArray* tbUidList = NULL;
 
   SVnode* pVnode = pTq->pVnode;
   int32_t vgId = TD_VID(pVnode);
@@ -289,7 +290,8 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
   handle->pRef = walOpenRef(pVnode->pWal);
   TQ_NULL_GO_TO_END(handle->pRef);
 
-  SReadHandle reader = {
+  SReadHandle reader = {0};
+  reader = (SReadHandle){
       .vnode = pVnode,
       .initTableReader = true,
       .initTqReader = true,
@@ -330,24 +332,18 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
                                       (SSnapContext**)(&reader.sContext)));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
-    SArray* tbUidList = NULL;
-    int     ret = qGetTableList(handle->execHandle.execTb.suid, pVnode, handle->execHandle.execTb.node, &tbUidList,
-                                handle->execHandle.task);
-    if (ret != TDB_CODE_SUCCESS) {
-      tqError("qGetTableList error:%d handle %s consumer:0x%" PRIx64, ret, handle->subKey, handle->consumerId);
-      taosArrayDestroy(tbUidList);
-      return TSDB_CODE_SCH_INTERNAL_ERROR;
-    }
+    TQ_ERR_GO_TO_END(qGetTableList(handle->execHandle.execTb.suid, pVnode, handle->execHandle.execTb.node, &tbUidList,
+                                handle->execHandle.task));
     tqInfo("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pVnode->config.vgId,
            handle->execHandle.execTb.suid);
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
     TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
-    tqReaderSetTbUidList(handle->execHandle.pTqReader, tbUidList, NULL);
-    taosArrayDestroy(tbUidList);
+    TQ_ERR_GO_TO_END(tqReaderSetTbUidList(handle->execHandle.pTqReader, tbUidList, NULL));
   }
   handle->tableCreateTimeHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
 END:
+  taosArrayDestroy(tbUidList);
   return code;
 }
 
@@ -479,7 +475,7 @@ int32_t tqMetaOpenTdb(STQ* pTq) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = TDB_CODE_SUCCESS;
-  TQ_ERR_GO_TO_END(tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0, 0, NULL));
+  TQ_ERR_GO_TO_END(tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0, NULL));
   TQ_ERR_GO_TO_END(tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore, 0));
   TQ_ERR_GO_TO_END(tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore, 0));
   TQ_ERR_GO_TO_END(tdbTbOpen("tq.offset.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pOffsetStore, 0));
@@ -573,7 +569,7 @@ int32_t tqMetaTransform(STQ* pTq) {
   char*   offset = NULL;
   TQ_ERR_GO_TO_END(tqBuildFName(&offset, pTq->path, TQ_OFFSET_NAME));
 
-  TQ_ERR_GO_TO_END(tdbOpen(pTq->path, 16 * 1024, 1, &pMetaDB, 0, 0, NULL));
+  TQ_ERR_GO_TO_END(tdbOpen(pTq->path, 16 * 1024, 1, &pMetaDB, 0, NULL));
   TQ_ERR_GO_TO_END(tdbTbOpen("tq.db", -1, -1, NULL, pMetaDB, &pExecStore, 0));
   TQ_ERR_GO_TO_END(tdbTbOpen("tq.check.db", -1, -1, NULL, pMetaDB, &pCheckStore, 0));
 

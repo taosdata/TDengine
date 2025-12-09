@@ -1,2 +1,0 @@
-select pi('111');
-select pi(123);

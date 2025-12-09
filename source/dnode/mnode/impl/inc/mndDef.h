@@ -257,8 +257,10 @@ typedef struct {
 } SDnodeObj;
 
 typedef struct {
-  int32_t nameLen;
   char*   name;
+  int32_t nameLen;
+  char*   pStatus;
+  char*   pNote;
 } SAnodeAlgo;
 
 typedef struct {
@@ -321,9 +323,9 @@ typedef struct {
 } SBnodeObj;
 
 typedef struct {
-  int32_t dnodeId;
+  int32_t assignedDnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
-  int8_t  acked;
+  int8_t  assignAcked;
 } SArbAssignedLeader;
 
 typedef struct {
@@ -400,6 +402,14 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
+
+typedef struct {
+  int64_t lastLoginTime;        // in seconds
+  int64_t lastFailedLoginTime;  // in seconds
+  int32_t failedLoginCount;
+} SLoginInfo;
+
+
 typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
@@ -411,14 +421,27 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
   char    pass[TSDB_PASSWORD_LEN];
+  int64_t setTime;  // password set time, in seconds
+} SUserPassword;
+
+typedef struct {
+  char    user[TSDB_USER_LEN];
+
+  // passwords history, from newest to oldest,
+  // the latest one is the current password
+  int32_t        numOfPasswords;
+  SUserPassword* passwords;
+  char           salt[TSDB_PASSWORD_SALT_LEN + 1];
+
   char    acct[TSDB_USER_LEN];
-  int64_t createdTime;
-  int64_t updateTime;
+  char    totpsecret[TSDB_TOTP_SECRET_LEN];
+  int64_t createdTime;          // in milliseconds
+  int64_t updateTime;           // in milliseconds
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
+  int8_t  changePass;
   union {
     uint8_t flag;
     struct {
@@ -426,11 +449,29 @@ typedef struct {
       uint8_t reserve : 7;
     };
   };
+
+  int32_t sessionPerUser;
+  int32_t connectTime;      // unit is second
+  int32_t connectIdleTime;  // unit is second
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;   // unit is second
+  int32_t passwordReuseTime;  // unit is second
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;     // unit is second
+  int32_t passwordGraceTime;    // unit is second
+  int32_t inactiveAccountTime;  // unit is second
+  int32_t allowTokenNum;
+
   int32_t       acctId;
   int32_t       authVersion;
   int32_t       passVersion;
   int64_t       ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
+
+  int64_t             timeWhiteListVer;
+  SDateTimeWhiteList* pTimeWhiteList;
 
   SHashObj* readDbs;
   SHashObj* writeDbs;
@@ -584,6 +625,8 @@ typedef struct {
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
   int32_t   mountVgId;  // TS-5868
+  int64_t   keepVersion;  // WAL keep version, -1 for disabled
+  int64_t   keepVersionTime;  // WAL keep version time
 } SVgObj;
 
 
@@ -710,6 +753,15 @@ typedef struct {
   int32_t  funcVersion;
   SRWLatch lock;
 } SFuncObj;
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int64_t firstRegTime;
+  int64_t lastRegTime;
+  int32_t expire;
+} SInstanceObj;
 
 typedef struct {
   int64_t        id;
@@ -1032,6 +1084,7 @@ typedef struct {
     int32_t id;
   };
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* compactDetail;
   union {
@@ -1045,8 +1098,19 @@ typedef struct {
 } SCompactObj;
 
 typedef struct {
+  int32_t id;
+  char    algorithm_id[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  int16_t type;
+  int8_t  source;
+  char    ossl_algr_name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SEncryptAlgrObj;
+
+typedef struct {
   int32_t scanId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* scanDetail;
 } SScanObj;

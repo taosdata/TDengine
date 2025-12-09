@@ -99,6 +99,7 @@ taos -h tdengine -P 6030
 If TAOS_FQDN is set to the same as the hostname of the host, the effect is the same as "starting TDengine in host network mode".
 
 ## Launching the Cluster with Docker Compose
+
 Use the following Docker Compose configuration file to bring up a 3-node TDengine TSDB cluster.
 Contents of docker-compose.yaml:
 
@@ -150,4 +151,3 @@ taos> show dnodes
            3 | td3:6030                       |      0 |             85 | ready        | 2025-08-21 01:56:43.296 | 2025-08-21 01:56:43.491 |                                |
 Query OK, 3 row(s) in set (0.006355s)
 ```
-

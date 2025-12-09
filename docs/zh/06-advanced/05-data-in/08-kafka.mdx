@@ -6,6 +6,7 @@ sidebar_label: "Kafka"
 本节讲述如何通过 Explorer 界面创建数据迁移任务，从 Kafka 迁移数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
+
 Apache Kafka 是一个用于流处理、实时数据管道和大规模数据集成的开源分布式流系统。
 
 TDengine TSDB 可以高效地从 Kafka 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据流入库。
@@ -108,8 +109,8 @@ kcat <topic> \
 
 在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。默认值为 Earliest。
 
-* Earliest：用于请求最早的 offset。
-* Latest：用于请求最晚的 offset。
+- Earliest：用于请求最早的 offset。
+- Latest：用于请求最晚的 offset。
 
 在 **获取数据的最大时长** 中设置获取消息时等待数据不足的最长时间（以毫秒为单位），默认值为 100ms。
 

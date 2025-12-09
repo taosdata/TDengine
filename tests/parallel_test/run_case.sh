@@ -75,8 +75,9 @@ fi
 mkdir -p /var/lib/taos/subscribe
 mkdir -p /var/log/taos
 mkdir -p /var/lib/taos
+mkdir -p /etc/taos
 
-cd $CONTAINER_TESTDIR/tests/$exec_dir
+cd "$CONTAINER_TESTDIR/tests/${exec_dir}"|| { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/tests/${exec_dir}"; exit 1; }
 ulimit -c unlimited
 
 md5sum /usr/lib/libtaos.so.1
@@ -84,9 +85,9 @@ md5sum /home/TDinternal/debug/build/lib/libtaos.so
 md5sum /usr/lib/libtaosnative.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
-#get python connector and update: taospy and  taos-ws-py to latest
-pip3 install taospy==2.8.5
-pip3 install taos-ws-py==0.6.1
+#get python connector and update: taospy 2.8.6 taos-ws-py 0.6.3
+pip3 install taospy==2.8.6
+pip3 install taos-ws-py==0.6.3
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"
@@ -95,8 +96,13 @@ md5sum /home/TDinternal/debug/build/lib/libtaos.so
 md5sum /usr/lib/libtaosnative.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
-cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
-cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+if [ -d "/var/log/taos" ]; then
+    cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
+fi
+
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
+    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+fi
 
 if [ $RET -ne 0 ]; then
     pwd

@@ -5,7 +5,8 @@
 - 在 taosAdapter 配置文件（默认位置 /etc/taos/taosadapter.toml）中使能配置项
 
     ```toml
-    ...
+    # 写入 Schemaless 数据时自动创建数据库
+    smlAutoCreateDB = true
     [statsd]
     enable = true
     port = 6044
@@ -22,10 +23,11 @@
     deleteGauges = true
     deleteSets = true
     deleteTimings = true
-    ...
     ```
 
     其中 taosAdapter 默认写入的数据库名称为 `statsd`，也可以修改 taosAdapter 配置文件 db 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。修改过配置文件 taosAdapter 需重新启动。
+
+    `smlAutoCreateDB` 配置项用于使能自动创建数据库功能，设置为 true 时，taosAdapter 会在接收到数据时自动创建对应的数据库（如果不存在）。
 
 - 使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 StatsD 数据功能，具体细节请参考 taosAdapter 的参考手册
 
@@ -33,7 +35,7 @@
 
 使用 StatsD 需要下载其[源代码](https://github.com/statsd/statsd)。其配置文件请参考其源代码下载到本地的根目录下的示例文件 `exampleConfig.js` 进行修改。其中 \<taosAdapter's host> 填写运行 taosAdapter 的服务器域名或 IP 地址，\<port for StatsD> 请填写 taosAdapter 接收 StatsD 数据的端口（默认为 6044）。
 
-```
+```conf
 backends 部分添加 "./backends/repeater"
 repeater 部分添加 { host:'<taosAdapter's host>', port: <port for StatsD>}
 ```

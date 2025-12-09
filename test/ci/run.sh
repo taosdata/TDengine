@@ -115,7 +115,12 @@ while true; do
 done
 
 function prepare_cases() {
-    cat "$t_file" >>"$task_file"
+    {
+        # 1. 有数字的行按数字逆序排序
+        grep "^[0-9]" "$t_file" | sort -nr
+        # 2. 无数字且非注释且非空的行保持原顺序
+        grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$"
+    } > "$task_file"
     echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do
@@ -154,6 +159,66 @@ function get_remote_scp_command() {
     fi
 }
 
+function transfer_debug_dirs() {
+    # Skip when only local host
+    if [ ${#hosts[@]} -le 1 ]; then
+        return 0
+    fi
+
+    local i=0
+    while [ $i -lt ${#hosts[*]} ]; do
+        if is_local_host "${hosts[i]}"; then
+            local_work_dir="${workdirs[i]}"
+            break
+        fi
+        i=$((i + 1))
+    done
+
+    cd "$local_work_dir"
+    rm -rf debug.tar.gz
+    tar -czf debug.tar.gz \
+        debugSan/build/bin/taos* \
+        debugSan/build/bin/tmq_* \
+        debugSan/build/bin/sml_test \
+        debugSan/build/bin/get_db_name_test \
+        debugSan/build/bin/replay_test \
+        debugSan/build/bin/varbinary_test \
+        debugSan/build/bin/write_raw_block_test \
+        debugSan/build/lib/*.so \
+        debugSan/build/share \
+        debugSan/build/include \
+        debugNoSan/build/bin/taos* \
+        debugNoSan/build/bin/tmq_* \
+        debugNoSan/build/bin/sml_test \
+        debugNoSan/build/bin/get_db_name_test \
+        debugNoSan/build/bin/replay_test \
+        debugNoSan/build/bin/varbinary_test \
+        debugNoSan/build/bin/write_raw_block_test \
+        debugNoSan/build/lib/*.so \
+        debugNoSan/build/share \
+        debugNoSan/build/include
+
+    local index=0
+    while [ $index -lt ${#hosts[*]} ]; do
+        if ! is_local_host "${hosts[index]}"; then
+            # remove remote debug dir if exists
+            remote_cmd=$(get_remote_ssh_command "$index")
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugSan'"
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugNoSan'"
+            # transfer debug.tar.gz to remote
+            if [ -n "${passwords[index]}" ]; then
+                sshpass -p "${passwords[index]}" scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            else
+                scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            fi
+            # untar debug.tar.gz to remote
+            bash -c "${remote_cmd} \"tar -xzf '${workdirs[index]}/debug.tar.gz' -C '${workdirs[index]}' && rm -rf '${workdirs[index]}/debug.tar.gz'\""
+        fi
+        index=$((index + 1))
+    done
+
+    rm -rf debug.tar.gz
+}
 function clean_tmp() {
     local index=$1
     local cmd=""
@@ -197,7 +262,7 @@ function run_thread() {
         local case_redo_time
         case_redo_time=$(echo "$line" | cut -d, -f2)
         if [ -z "$case_redo_time" ]; then
-            case_redo_time=${DEFAULT_RETRY_TIME:-2}
+            case_redo_time=2 # ${DEFAULT_RETRY_TIME:-1}
         fi
         local case_build_san
         case_build_san=$(echo "$line" | cut -d, -f3)
@@ -380,7 +445,7 @@ function run_thread() {
             cat "$case_log_file"
             echo "====================================================="
             echo -e "\e[34m log file: $case_log_file \e[0m"
-            
+
             if [ -n "${web_server}" ]; then
                 echo "${web_server}/$test_log_dir/${case_file}.txt"
             fi
@@ -416,15 +481,17 @@ function run_thread() {
             fi
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
-                cmd="$runcase_script sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+                cmd="$runcase_script \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
             else
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
+            echo "tar sim.tar.gz cmd: $cmd"
             bash -c "$cmd"
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "scp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
                     cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
@@ -432,6 +499,7 @@ function run_thread() {
                 fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "cp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
                     cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
@@ -485,7 +553,14 @@ while [ $i -lt ${#hosts[*]} ]; do
     j=$((j + threads[i]))
     i=$((i + 1))
 done
+
+# prepare cases
 prepare_cases $j
+
+# transfer debug dirs
+echo "Transfer debug dirs...($(date))"
+transfer_debug_dirs
+echo "Transfer debug dirs done...($(date))"
 
 i=0
 while [ $i -lt ${#hosts[*]} ]; do

@@ -420,8 +420,8 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t
   return valid;
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
-  if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE ||
-      pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE_DUAL || taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
+  if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST ||
+      pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL || taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
       pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
@@ -440,33 +440,38 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   STrans*   pInst = pConn->pInst;
   STraceId* trace = &pHead->traceId;
 
-  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
-  static int64_t EXCEPTION_LIMIT_US = 1000 * 1000;
+  int64_t cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
+  int64_t threshold = tsRpcRecvLogThreshold * 1000 * 1000;  // in us
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
-    if (cost >= EXCEPTION_LIMIT_US) {
-      tGWarn("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
-             ", sid:%" PRId64,
-             transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-             (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
-    } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", sid:%" PRId64,
-              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
-    }
-  } else {
-    if (cost >= EXCEPTION_LIMIT_US) {
+    if (cost >= threshold) {
       tGWarn(
-          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold: %d, recv exception, "
           "seqNum:%" PRId64 ", sid:%" PRId64,
           transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-          pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+          (int)cost, (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%" PRId64
-              ", "
-              "sid:%" PRId64,
+      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold:%dus, seqNum:%" PRId64
+              ", sid:%" PRId64,
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+              (int)cost, (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
+    }
+  } else {
+    if (cost >= threshold) {
+      tGWarn(
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, "
+          "threshold:%d, recv exception, "
+          "seqNum:%" PRId64 ", sid:%" PRId64,
+          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+          pHead->noResp, pTransMsg->code, (int)(cost), (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
+    } else {
+      tGDebug(
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, threshold:%dus, "
+          "seqNum:%" PRId64
+          ", "
+          "sid:%" PRId64,
+          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+          pHead->noResp, pTransMsg->code, (int)(cost), (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
   }
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pInst), pTransMsg->info.handle, pConn,
@@ -2243,7 +2248,7 @@ _return2:
 }
 
 int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
-  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+  STrans* pInst = (STrans*)transInstAcquire(transGetInstMgt(), (int64_t)thandle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
@@ -2279,11 +2284,11 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
       break;
     }
   }
-  transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
 
   if (code != 0) {
     tError("ip-white-list update failed since %s", tstrerror(code));
   }
+  transInstRelease((int64_t)thandle);
   return code;
 }
 #else

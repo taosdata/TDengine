@@ -5,7 +5,8 @@ To configure taosAdapter to receive data from TCollector:
 - Enable the configuration in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
 
     ```toml
-    ...
+    # Automatically create the database when writing data with the schemaless feature if set to true.
+    smlAutoCreateDB = true
     [opentsdb_telnet]
     enable = true
     maxTCPConnections = 250
@@ -14,10 +15,11 @@ To configure taosAdapter to receive data from TCollector:
     ports = [6046, 6047, 6048, 6049]
     user = "root"
     password = "taosdata"
-    ...
     ```
 
     The default database name that taosAdapter writes to is `tcollector`, but you can specify a different name by modifying the dbs option in the taosAdapter configuration file. Fill in the user and password with the actual values configured in TDengine. After modifying the configuration file, taosAdapter needs to be restarted.
+
+    The `smlAutoCreateDB` configuration item is used to enable the automatic database creation feature. When set to true, taosAdapter will automatically create the corresponding database upon receiving data if it does not already exist.
 
 - You can also use taosAdapter command line arguments or set environment variables to enable the taosAdapter to receive tcollector data. For more details, please refer to the taosAdapter reference manual.
 

@@ -12,18 +12,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #define _DEFAULT_SOURCE
+
 #include "dmMgmt.h"
-#include "mnode.h"
-#include "osFile.h"
-#include "tconfig.h"
-#include "tglobal.h"
-#include "version.h"
-#include "tconv.h"
 #include "dmUtil.h"
+#include "mnode.h"
+#include "osEnv.h"
+#include "osFile.h"
 #include "qworker.h"
+#include "tconfig.h"
+#include "tconv.h"
+#include "tglobal.h"
 #include "tss.h"
+#include "version.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -54,6 +55,8 @@ static struct {
   bool         dumpConfig;
   bool         dumpSdb;
   bool         deleteTrans;
+  bool         modifySdb;
+  char         sdbJsonFile[PATH_MAX];
   bool         generateGrant;
   bool         memDbg;
 
@@ -73,6 +76,7 @@ static struct {
   char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
+extern int32_t cryptLoadProviders();
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
 static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
@@ -220,6 +224,19 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-mSdb") == 0) {
+      global.modifySdb = true;
+      if (i < argc - 1) {
+        i++;
+        if (strlen(argv[i]) >= PATH_MAX) {
+          printf("sdb.json file path is too long\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        tstrncpy(global.sdbJsonFile, argv[i], PATH_MAX);
+      } else {
+        printf("'-mSdb' requires sdb.json file path\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
     } else if (strcmp(argv[i], "-r") == 0) {
       generateNewMeta = true;
     } else if (strcmp(argv[i], "-E") == 0) {
@@ -380,7 +397,7 @@ static int32_t dmCheckSs() {
   code = tssCreateDefaultInstance();
   if (code != 0) {
     printf("failed to create default shared storage instance, error code=%d.\n", code);
-    tssUninit();
+    (void)tssUninit();
     return code;
   }
 
@@ -397,8 +414,8 @@ static int32_t dmCheckSs() {
     printf("shared storage configuration check finished with error.\n");
   }
 
-  tssCloseDefaultInstance();
-  tssUninit();
+  (void)tssCloseDefaultInstance();
+  (void)tssUninit();
 
   return code;
 }
@@ -579,6 +596,22 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
+  if (global.modifySdb) {
+    int32_t   code = 0;
+    TdFilePtr pFile;
+    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
+      printf("failed to modify sdb since taosd is running, please stop it first, reason:%s", tstrerror(code));
+      return code;
+    }
+
+    TAOS_CHECK_RETURN(mndModifySdb(global.sdbJsonFile));
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return 0;
+  }
+
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
@@ -588,6 +621,19 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   };
+
+  if (tsEncryptExtDir[0] != '\0') {
+#if defined(TD_ENTERPRISE)
+/*
+    if ((code = cryptLoadProviders()) != 0) {
+      dError("failed to load encrypt providers since %s", tstrerror(code));
+      taosCloseLog();
+      taosCleanupArgs();
+      return code;
+    }
+*/
+#endif
+  }
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {

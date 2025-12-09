@@ -967,6 +967,12 @@ static int32_t collectMetaKeyFromShowEncryptions(SCollectMetaKeyCxt* pCxt, SShow
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromShowEncryptAlgorithms(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ENCRYPT_ALGORITHMS,
+                                         pCxt->pMetaCache);
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowMounts(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MOUNTS,
                                  pCxt->pMetaCache);
@@ -1016,6 +1022,11 @@ static int32_t collectMetaKeyFromShowCreateRsma(SCollectMetaKeyCxt* pCxt, SShowC
 
 static int32_t collectMetaKeyFromShowApps(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_APPS,
+                                 pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromShowInstances(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_INSTANCES,
                                  pCxt->pMetaCache);
 }
 
@@ -1369,6 +1380,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowClusterMachines(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
       return collectMetaKeyFromShowEncryptions(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+      return collectMetaKeyFromShowEncryptAlgorithms(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_MOUNTS_STMT:
       return collectMetaKeyFromShowMounts(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
@@ -1383,6 +1396,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pStmt);
     case QUERY_NODE_SHOW_APPS_STMT:
       return collectMetaKeyFromShowApps(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
+      return collectMetaKeyFromShowInstances(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_USAGE_STMT:

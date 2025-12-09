@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -48,7 +48,7 @@ volatile int32_t    tsInitOnceRet = 0;
     ERR_VOID(TSDB_CODE_DLL_NOT_LOAD) \
   }                                  \
   if (fp == NULL) {                  \
-    ERR_VOID(TSDB_CODE_DLL_NOT_LOAD) \
+    ERR_VOID(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
 #define CHECK_PTR(fp)               \
@@ -56,7 +56,7 @@ volatile int32_t    tsInitOnceRet = 0;
     ERR_PTR(TSDB_CODE_DLL_NOT_LOAD) \
   }                                 \
   if (fp == NULL) {                 \
-    ERR_PTR(TSDB_CODE_DLL_NOT_LOAD) \
+    ERR_PTR(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
 #define CHECK_INT(fp)               \
@@ -64,7 +64,7 @@ volatile int32_t    tsInitOnceRet = 0;
     ERR_INT(TSDB_CODE_DLL_NOT_LOAD) \
   }                                 \
   if (fp == NULL) {                 \
-    ERR_INT(TSDB_CODE_DLL_NOT_LOAD) \
+    ERR_INT(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
 #define CHECK_BOOL(fp)               \
@@ -72,7 +72,7 @@ volatile int32_t    tsInitOnceRet = 0;
     ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD) \
   }                                  \
   if (fp == NULL) {                  \
-    ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD) \
+    ERR_BOOL(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
 #define CHECK_CONFRET(fp)               \
@@ -80,7 +80,7 @@ volatile int32_t    tsInitOnceRet = 0;
     ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
   }                                     \
   if (fp == NULL) {                     \
-    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
+    ERR_CONFRET(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
 setConfRet taos_set_config(const char *config) {
@@ -162,6 +162,15 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
 
   CHECK_PTR(fp_taos_connect_auth);
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
+}
+
+TAOS *taos_connect_with_dsn(const char *dsn) {
+  if (taos_init() != 0) {
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_with_dsn);
+  return (*fp_taos_connect_with_dsn)(dsn);
 }
 
 void taos_close(TAOS *taos) {
@@ -587,6 +596,16 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
   CHECK_VOID(fp_taos_fetch_whitelist_dual_stack_a);
   return (*fp_taos_fetch_whitelist_dual_stack_a)(taos, fp, param);
+}
+
+void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) {
+  CHECK_VOID(fp_taos_fetch_ip_whitelist_a);
+  return (*fp_taos_fetch_ip_whitelist_a)(taos, fp, param);
+}
+
+void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) {
+  CHECK_VOID(fp_taos_fetch_datetime_whitelist_a);
+  return (*fp_taos_fetch_datetime_whitelist_a)(taos, fp, param);
 }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {

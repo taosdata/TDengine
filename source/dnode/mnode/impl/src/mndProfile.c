@@ -46,7 +46,10 @@ typedef struct {
   SArray  *pQueries;  // SArray<SQueryDesc>
   char     userApp[TSDB_APP_NAME_LEN];
   uint32_t userIp;
+  SIpAddr  userDualIp;
   SIpAddr  addr;
+  char     sVer[TSDB_VERSION_LEN];
+  char     cInfo[CONNECTOR_INFO_LEN];
 } SConnObj;
 
 typedef struct {
@@ -70,7 +73,7 @@ typedef struct {
 #define CACHE_OBJ_KEEP_TIME 3  // s
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *ip, int32_t pid,
-                               const char *app, int64_t startTime);
+                               const char *app, int64_t startTime, const char *sVer);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan);
@@ -144,29 +147,21 @@ static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
     varDataLen(dst) = strlen(varDataVal(dst));
   }
 
-  if (pConn->addr.ipv4[0] != 0 && strncmp(pConn->addr.ipv4, none, strlen(none)) != 0) {
-    char   *ipstr = IP_ADDR_STR(&pConn->addr);
+  if (pConn->userDualIp.ipv4[0] != 0 && strncmp(pConn->userDualIp.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->userDualIp);
     int32_t len = strlen(ipstr);
     memcpy(varDataVal(dst), ipstr, len);
     varDataLen(dst) = len;
   }
   return;
 }
-static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
+static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp, char *cInfo) {
   if (connObj == NULL) {
     return;
   }
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
+  tstrncpy(connObj->cInfo, cInfo, sizeof(connObj->cInfo));
   connObj->userIp = userIp;
-}
-static int8_t emptyIpRange(SIpRange *pRange) {
-  int32_t  code = 0;
-  SIpRange node = {0};
-
-  if (memcmp(pRange, &node, sizeof(node)) == 0) {
-    return 1;
-  }
-  return 0;
 }
 static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   int32_t code = 0;
@@ -174,16 +169,14 @@ static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
     return;
   }
 
-  if (emptyIpRange(pRange)) return;
-
-  code = tIpUintToStr(pRange, &connObj->addr);
+  code = tIpUintToStr(pRange, &connObj->userDualIp);
   if (code != 0) {
     mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
     return;
   }
 }
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *pAddr, int32_t pid,
-                               const char *app, int64_t startTime) {
+                               const char *app, int64_t startTime, const char *sVer) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
@@ -211,6 +204,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   connObj.lastAccessTimeMs = connObj.loginTimeMs;
   tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
+  tstrncpy(connObj.sVer, sVer, TSDB_VERSION_LEN);
 
   SConnObj *pConn =
       taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), CACHE_OBJ_KEEP_TIME * 1000);
@@ -274,6 +268,41 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
   }
 }
 
+
+
+// TODO: if there are many connections, this function may be slow
+static int32_t mndCountUserConns(SMnode *pMnode, const char *user) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  SCacheIter   *pIter = taosCacheCreateIter(pMgmt->connCache);
+  if (pIter == NULL) {
+    mError("failed to create conn cache iterator");
+    return -1;
+  }
+
+  int32_t    count = 0;
+  SConnObj  *pConn = NULL;
+  while ((pConn = mndGetNextConn(pMnode, pIter)) != NULL) {
+    if (strncmp(pConn->user, user, TSDB_USER_LEN) == 0) {
+      count++;
+    }
+    mndReleaseConn(pMnode, pConn, true);
+  }
+
+  return count;
+}
+
+
+
+static bool constTimeEq(const char *a, const char *b, size_t len) {
+  volatile uint8_t res = 0;
+  for (size_t i = 0; i < len; i++) {
+    res |= a[i] ^ b[i];
+  }
+  return res == 0;
+}
+
+
+
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SUserObj       *pUser = NULL;
@@ -307,21 +336,80 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  int64_t now = taosGetTimestampSec();
+  if (pUser->passwordLifeTime > 0 && pUser->passwordGraceTime >= 0) {
+    int64_t lifeTime = now - pUser->passwords[0].setTime;
+    int64_t maxLifeTime = pUser->passwordLifeTime + pUser->passwordGraceTime;
+    if (lifeTime >= maxLifeTime) {
+      mGError("user:%s, failed to login from %s since password expired", pReq->info.conn.user, ip);
+      code = TSDB_CODE_MND_USER_PASSWORD_EXPIRED;
+      goto _OVER;
+    }
+  }
+
+  if (!isTimeInDateTimeWhiteList(pUser->pTimeWhiteList, now)) {
+    mGError("user:%s, failed to login from %s since not in date white list", pReq->info.conn.user, ip);
+    code = TSDB_CODE_MND_USER_DISABLED;
+    goto _OVER;
+  }
+
+  SLoginInfo loginInfo = {0};
+  mndGetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+  if (pUser->inactiveAccountTime >= 0 && (now - loginInfo.lastLoginTime >= pUser->inactiveAccountTime)) {
+    mGError("user:%s, failed to login from %s since inactive account", pReq->info.conn.user, ip);
+    code = TSDB_CODE_MND_USER_DISABLED;
+    goto _OVER;
+  }
+
+  if (pUser->failedLoginAttempts >= 0 & loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
+    if(now - loginInfo.lastFailedLoginTime < pUser->passwordLockTime) {
+      mGError("user:%s, failed to login from %s since too many login failures", pReq->info.conn.user, ip);
+      code = TSDB_CODE_MND_USER_DISABLED;
+      goto _OVER;
+    }
+  }
+
+  if (pUser->sessionPerUser >= 0) {
+    int32_t currentSessions = mndCountUserConns(pMnode, pReq->info.conn.user);
+    if (currentSessions >= pUser->sessionPerUser) {
+      mGError("user:%s, failed to login from %s since exceed max connections:%d", pReq->info.conn.user, ip, pUser->sessionPerUser);
+      code = TSDB_CODE_MND_TOO_MANY_CONNECTIONS;
+      goto _OVER;
+    }
+  }
+
   char tmpPass[TSDB_PASSWORD_LEN] = {0};
-  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+  (void)memcpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+  tmpPass[TSDB_PASSWORD_LEN - 1] = 0;
 
   if (pUser->passEncryptAlgorithm != 0) {
     if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       goto _OVER;
     }
-    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, pUser->salt, NULL), NULL, _OVER);
   }
 
-  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
-            connReq.passwd);
+  if (tsMndSkipGrant) {
+    loginInfo.lastLoginTime= now;
+  } else if (constTimeEq(tmpPass, pUser->passwords[0].pass, sizeof(tmpPass) - 1)) {
+    loginInfo.failedLoginCount = 0;
+    loginInfo.lastLoginTime= now;
+  } else {
+    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip, connReq.passwd);
+    if (pUser->failedLoginAttempts >= 0) {
+      if (loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
+        // if we can get here, it means the lock time has passed, so reset the counter
+        loginInfo.failedLoginCount = 0;
+      }
+      loginInfo.failedLoginCount++;
+      loginInfo.lastFailedLoginTime = now;
+    }
     code = TSDB_CODE_MND_AUTH_FAILURE;
+  }
+
+  mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+  if (code != 0) {
     goto _OVER;
   }
 
@@ -343,7 +431,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, &pReq->info.conn.cliAddr, connReq.pid,
-                        connReq.app, connReq.startTime);
+                        connReq.app, connReq.startTime, connReq.sVer);
   if (pConn == NULL) {
     code = terrno;
     mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip,
@@ -358,6 +446,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
+  connectRsp.mustChangePass = mndMustChangePassword(pUser) ? 1 : 0;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
@@ -370,6 +459,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.enableAuditDelete = tsEnableAuditDelete;
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
+  connectRsp.timeWhiteListVer = pUser->timeWhiteListVer;
 
   tstrncpy(connectRsp.sVer, td_version, sizeof(connectRsp.sVer));
   (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", td_version,
@@ -568,7 +658,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SConnObj *pConn = mndAcquireConn(pMnode, pBasic->connId);
     if (pConn == NULL) {
       pConn = mndCreateConn(pMnode, connInfo.user, CONN_TYPE__QUERY, &connInfo.cliAddr, pHbReq->app.pid,
-                            pHbReq->app.name, 0);
+                            pHbReq->app.name, 0, pHbReq->sVer);
       if (pConn == NULL) {
         mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
         code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -579,7 +669,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
     }
 
-    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp);
+    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp, pHbReq->cInfo);
     setUserInfoIpToConn(pConn, &pHbReq->userDualIp);
 
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
@@ -1016,6 +1106,23 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
+    char ver[TSDB_VERSION_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(ver, pConn->sVer);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
+    if (code != 0) {
+      mError("failed to set ver since %s", tstrerror(code));
+      return code;
+    }
+
+    char cInfo[CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(cInfo, pConn->cInfo);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)cInfo, false);
+    if (code != 0) {
+      mError("failed to set connector info since %s", tstrerror(code));
+      return code;
+    }
     numOfRows++;
   }
 
@@ -1049,7 +1156,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
     (void)tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
-              pQuery->reqRid);
+                    pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);

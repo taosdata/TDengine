@@ -342,6 +342,19 @@ between_time_range(ts, -604800, 0)
 
 当健康状态为空时，表示尚未有数据开始入库。
 
+## 任务断点恢复
+
+目前 taosX 大部分数据源支持从上次写入的断点中恢复
+
+* `TDengine 查询`/`MySQL`/`PostgreSql`/`Oracle`/`Microsoft SQL Server`/`MongoDB`：持久化记录上次查询的时间戳，在任务重新启动后，从记录的时间戳开始继续查询。
+* `TDengine 数据订阅`：依赖于 TDengine 的订阅功能自动记录消费进度。
+* `PI`/`InfluxDB`/`OpenTSDB`：持久化记录消息的时间戳，在任务重启后，从记录的时间戳重新开始消费数据。
+* `OPC-UA`/`OPC-DA`/`MQTT`：如果在高级功能中开启 `缓存实时数据`，则消费数据会优先使用写线程写入持久化磁盘，读线程再从磁盘中读取消息进行消费。
+* `Kafka`：依赖于 Kafka 服务自身提供的消费进度管理功能。
+* `CSV`：持久化记录文件名和已消费的行数，任务重新启动后从上次记录的行开始消费。
+* `AVEVA Historian`：查询历史数据时，会持久化记录任务读取的消息的时间戳，任务重新启动后，从记录的时间戳开始继续查询。
+* `SparkplugB`：目前不支持消息持久化和数据恢复。
+
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';

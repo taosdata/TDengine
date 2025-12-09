@@ -13,30 +13,30 @@ scan_dir = ""
 web_server = ""
 branch_name = ""
 
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:f:w:d:', [
-    'branch_name=', 'filesName=', 'webServer=', 'dir='])
+opts, args = getopt.gnu_getopt(
+    sys.argv[1:], "b:f:w:d:", ["branch_name=", "filesName=", "webServer=", "dir="]
+)
 for key, value in opts:
-    if key in ['-h', '--help']:
-        print(
-            'Usage: python3 scan.py -b <branch_name> -f <file_list>')
-        print('-b  branch name or PR ID to scan')
-        print('-f  change files list')
-        print('-w  web server')
-        print('-d  directory to scan')  
+    if key in ["-h", "--help"]:
+        print("Usage: python3 scan.py -b <branch_name> -f <file_list>")
+        print("-b  branch name or PR ID to scan")
+        print("-f  change files list")
+        print("-w  web server")
+        print("-d  directory to scan")
         sys.exit(0)
-    
-    if key in ['-b', '--branchName']:
+
+    if key in ["-b", "--branchName"]:
         branch_name = value
-    if key in ['-f', '--filesName']:
+    if key in ["-f", "--filesName"]:
         change_file_list = value
-    if key in ['-w', '--webServer']:
+    if key in ["-w", "--webServer"]:
         web_server = value
-    if key in ['-d', '--dir']:
+    if key in ["-d", "--dir"]:
         scan_dir = value
 
 
 # the base source code file path
-self_path =  os.path.dirname(os.path.realpath(__file__))
+self_path = os.path.dirname(os.path.realpath(__file__))
 
 # if ("community" in self_path):
 #     TD_project_path = self_path[:self_path.find("community")]
@@ -59,12 +59,11 @@ else:
     index_tests = self_path.find("test")
     if index_tests != -1:
         TD_project_path = self_path[:index_tests]
-    # Check if index_TDengine is valid and set work_path accordingly
+        # Check if index_TDengine is valid and set work_path accordingly
         index_TDengine = TD_project_path.find("TDengine")
         if index_TDengine != -1:
             work_path = TD_project_path[:index_TDengine]
             community_path = TD_project_path
-
 
 
 # log file path
@@ -105,24 +104,25 @@ SCAN_SKIP_FILE_LIST = [
     "source/libs/azure",
 ]
 
+
 class CommandExecutor:
     def __init__(self):
         self._process = None
 
     def execute(self, command, timeout=None):
         try:
-            self._process = subprocess.Popen(command,
-                                            shell=True,
-                                            stdout=subprocess.PIPE,
-                                            stderr=subprocess.PIPE)
+            self._process = subprocess.Popen(
+                command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
             stdout, stderr = self._process.communicate(timeout=timeout)
-            return stdout.decode('utf-8'), stderr.decode('utf-8')
+            return stdout.decode("utf-8"), stderr.decode("utf-8")
         except subprocess.TimeoutExpired:
             self._process.kill()
             self._process.communicate()
             raise Exception("Command execution timeout")
         except Exception as e:
             raise Exception("Command execution failed: %s" % e)
+
 
 def scan_files_path(source_file_path):
     """Walk directory and append candidate files under SCAN_DIRS."""
@@ -131,15 +131,15 @@ def scan_files_path(source_file_path):
             continue
         for file in files:
             file_path = os.path.join(root, file)
-            if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) \
-               and all(skip not in file_path for skip in SCAN_SKIP_FILE_LIST):
+            if file_path.endswith(('.c', '.h', '.cpp')) and all(skip not in file_path for skip in SCAN_SKIP_FILE_LIST):
                 all_file_path.append(file_path)
     logger.info("Found %s files" % len(all_file_path))
 
+
 def add_candidate_file(file_name):
     """Normalize a single file token from change list and append if valid.
-       - If absolute path provided: append it directly (if exists and not skipped).
-       - Otherwise, build path relative to TD_project_path/community or TD_project_path.
+    - If absolute path provided: append it directly (if exists and not skipped).
+    - Otherwise, build path relative to TD_project_path/community or TD_project_path.
     """
     # skip empty
     if not file_name:
@@ -150,7 +150,7 @@ def add_candidate_file(file_name):
         if not os.path.exists(file_name):
             logger.warning(f"Changed file not found (abs): {file_name}")
             return
-        if not (file_name.endswith(".c") or file_name.endswith(".h") or file_name.endswith(".cpp")):
+        if not file_name.endswith(('.c', '.h', '.cpp')):
             return
         if any(skip in file_name for skip in SCAN_SKIP_FILE_LIST):
             return
@@ -162,7 +162,7 @@ def add_candidate_file(file_name):
         return
 
     # skip by pattern
-    if not (file_name.endswith(".c") or file_name.endswith(".h") or file_name.endswith(".cpp")):
+    if not file_name.endswith(('.c', '.h', '.cpp')):
         return
     if any(skip in file_name for skip in SCAN_SKIP_FILE_LIST):
         return
@@ -181,16 +181,16 @@ def add_candidate_file(file_name):
         return
 
     all_file_path.append(candidate)
-    
+
+
 def input_files(change_files):
     """Read change list and process each token by add_candidate_file"""
-    with open(change_files, 'r') as file:
+    with open(change_files, "r") as file:
         for line in file:
             for file_name in line.strip().split():
                 add_candidate_file(file_name)
     logger.info(f"all_file_path:{all_file_path}")
     logger.info("Found %s files" % len(all_file_path))
-
 
 
 def save_scan_res(res_base_path, file_path, out, err):
@@ -199,42 +199,53 @@ def save_scan_res(res_base_path, file_path, out, err):
     ext_map = {".c": "-c", ".h": "-h", ".cpp": "-cpp"}
     suffix = ext_map.get(ext, ext)
     file_res_path = os.path.join(res_base_path, base.lstrip(os.sep) + suffix + ".txt")
-    if not os.path.exists(os.path.dirname(file_res_path)):
-        os.makedirs(os.path.dirname(file_res_path))
+    os.makedirs(os.path.dirname(file_res_path), exist_ok=True)
     logger.info("Save scan result to: %s" % file_res_path)
     with open(file_res_path, "w") as f:
         f.write(err)
         f.write(out)
     return file_res_path
 
+
 def write_csv(file_path, data):
     try:
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             writer = csv.writer(f)
             writer.writerows(data)
     except Exception as ex:
-        raise Exception("Failed to write the csv file: {} with msg: {}".format(file_path, repr(ex)))
-    
+        raise Exception(
+            "Failed to write the csv file: {} with msg: {}".format(file_path, repr(ex))
+        )
+
+
 def scan_one_file(file):
     cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
     logger.debug(f"cmd:{cmd}")
     try:
         stdout, stderr = CommandExecutor().execute(cmd)
         lines = stdout.split("\n")
-        scan_valid = len(lines) >= 2 and (lines[-2].endswith("matches.") or lines[-2].endswith("match."))
+        scan_valid = len(lines) >= 2 and (
+            lines[-2].endswith("matches.") or lines[-2].endswith("match.")
+        )
         if scan_valid:
             match_num = int(lines[-2].split(" ")[0])
             logger.info("The match lines of file %s: %s" % (file, match_num))
             this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
-            return [file, this_file_res_path, match_num, 'Pass' if match_num == 0 else 'Fail']
+            return [
+                file,
+                this_file_res_path,
+                match_num,
+                "Pass" if match_num == 0 else "Fail",
+            ]
         else:
             logger.warning("The result of scan is invalid for: %s" % file)
             this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
-            return [file, this_file_res_path, 0, 'Invalid']
+            return [file, this_file_res_path, 0, "Invalid"]
     except Exception as e:
         logger.error("Execute command failed: %s" % e)
-        return [file, "", 0, 'Error']
-    
+        return [file, "", 0, "Error"]
+
+
 if __name__ == "__main__":
     command_executor = CommandExecutor()
     # get all the c files path
@@ -258,7 +269,7 @@ if __name__ == "__main__":
         scan_files_path(scan_dir)
     else:
         for sub_dir in scan_dir_list:
-            abs_dir = os.path.join(TD_project_path,"community", sub_dir)
+            abs_dir = os.path.join(TD_project_path, "community", sub_dir)
             print(abs_dir)
             if os.path.exists(abs_dir):
                 scan_files_path(abs_dir)
@@ -268,7 +279,7 @@ if __name__ == "__main__":
     with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
         results = list(executor.map(scan_one_file, all_file_path))
     res.extend(results)
-    
+
     # for file in all_file_path:
     #     cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
     #     logger.debug(f"cmd:{cmd}")
@@ -309,11 +320,15 @@ if __name__ == "__main__":
     logger.info("Total scan files: %s" % len(res))
     logger.info("Total match lines: %s" % sum([item[2] for item in res]))
     logger.info(f"scan log file : {scan_result_log}")
-    logger.info("Pass files: %s" % len([item for item in res if item[3] == 'Pass']))
-    logger.info("Fail files: %s" % len([item for item in res if item[3] == 'Fail']))
-    fail_files = [item for item in res if item[3] == 'Fail']
+    logger.info("Pass files: %s" % len([item for item in res if item[3] == "Pass"]))
+    logger.info("Fail files: %s" % len([item for item in res if item[3] == "Fail"]))
+    fail_files = [item for item in res if item[3] in {'Fail', 'Invalid', 'Error'}]
 
-    logger.error(f"Total failed files: {len(fail_files)}")
+    if len(fail_files) > 0:
+        logger.error(f"Total failed files: {len(fail_files)}")
+    else:
+        logger.info("All files passed the scan.")
+    
     if web_server:
         # 打印 web_path
         for index, fail_item in enumerate(fail_files):
@@ -323,11 +338,15 @@ if __name__ == "__main__":
                 web_path_file = os.path.join(web_server, file_res_path[index_tests:])
             else:
                 web_path_file = file_res_path
-            logger.error(f"failed number: {index+1}, failed_result_file: {web_path_file}")
+            logger.error(
+                f"failed number: {index + 1}, failed_result_file: {web_path_file}"
+            )
     else:
         # 打印本地路径
         for index, fail_item in enumerate(fail_files):
-            logger.error(f"failed number: {index+1}, failed_result_file: {fail_item[1]}")
+            logger.error(
+                f"failed number: {index + 1}, failed_result_file: {fail_item[1]}"
+            )
 
     if len(fail_files) > 0:
         logger.error(f"Scan failed, please check the log file: {scan_result_log}")

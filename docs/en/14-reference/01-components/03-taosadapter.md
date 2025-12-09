@@ -42,6 +42,8 @@ The taosAdapter provides the following features:
   remote_read and remote_write are Prometheus's data read-write separation cluster solutions. Visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
 - node_exporter data collection and writing:
   node_exporter is an exporter of machine metrics. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
+- JSON data writing:
+  Supports writing JSON-formatted data to TDengine TSDB through the RESTful interface.
 - RESTful API:
   [RESTful API](../../client-libraries/rest-api/)
 
@@ -92,10 +94,10 @@ You can use any client that supports the HTTP protocol to write data in OpenTSDB
 
 ### OpenMetrics data collection and writing
 
-OpenMetrics is an open standard supported by CNCF (Cloud Native Computing Foundation) that focuses on standardizing the collection and transmission of metric data. 
+OpenMetrics is an open standard supported by CNCF (Cloud Native Computing Foundation) that focuses on standardizing the collection and transmission of metric data.
 It serves as one of the core specifications for monitoring and observability systems in the cloud-native ecosystem.
 
-Starting from version **3.3.7.0**, taosAdapter supports OpenMetrics v1.0.0 data collection and writing, 
+Starting from version **3.3.7.0**, taosAdapter supports OpenMetrics v1.0.0 data collection and writing,
 while maintaining compatibility with Prometheus 0.0.4 protocol to ensure seamless integration with the Prometheus ecosystem.
 
 To enable OpenMetrics data collection and writing, follow these steps:
@@ -117,6 +119,385 @@ An exporter used by Prometheus that exposes hardware and operating system metric
 - Enable configuration of taosAdapter node_exporter.enable
 - Set the relevant configuration for node_exporter
 - Restart taosAdapter
+
+### JSON data writing
+
+taosAdapter has supported writing JSON-formatted data to TDengine TSDB through the RESTful interface since version **3.4.0.0**. You can use any HTTP-compatible client to send JSON-formatted data to TDengine TSDB via the POST RESTful endpoint at `http://<fqdn>:6041/input_json/v1/{endpoint}`.
+
+The required JSON format is an array containing multiple rows of data, with each row being a JSON object. Each JSON object corresponds to a single data record. Data extraction can be defined through configuration files. If the input JSON format does not meet the requirements, it can be transformed using [JSONata](https://jsonata.org/) expressions(supports JSONata version 1.5.4).
+
+A sample configuration is as follows (default configuration file path: `/etc/taos/taosadapter.toml`):
+
+```toml
+[input_json]
+enable = true
+[[input_json.rules]]
+endpoint = "rule1"
+dbKey = "db"
+superTableKey = "stb"
+subTableKey = "table"
+timeKey = "time"
+timeFormat = "datetime"
+timezone = "UTC"
+transformation = '''
+$sort(
+    (
+        $ts := time;
+        $each($, function($value, $key) {
+            $key = "time" ? [] : (
+                $each($value, function($groupValue, $groupKey) {
+                    $each($groupValue, function($deviceValue, $deviceKey) {
+                        {
+                            "db": "test_input_json",
+                            "time": $ts,
+                            "location": $key,
+                            "groupid": $number($split($groupKey, "_")[1]),
+                            "stb": "meters",
+                            "table": $deviceKey,
+                            "current": $deviceValue.current,
+                            "voltage": $deviceValue.voltage,
+                            "phase": $deviceValue.phase
+                        }
+                    })[]
+                })[]
+            )
+        })
+    ).[*][*],
+    function($l, $r) {
+        $l.table > $r.table
+    }
+)
+'''
+fields = [
+    {key = "current", optional = false},
+    {key = "voltage", optional = false},
+    {key = "phase", optional = false},
+    {key = "location", optional = false},
+    {key = "groupid", optional = false},
+]
+```
+
+After modifying the configuration file, you need to restart the taosAdapter service for the changes to take effect.
+
+Complete configuration parameter description:
+
+- `input_json.enable`: Enable or disable the JSON data writing function (default value: `false`).
+- `input_json.rules`: An array defining JSON data writing rules, allowing multiple rules to be configured.
+  - `endpoint`: Specifies the endpoint name for the RESTful interface, allowing only uppercase and lowercase letters, numbers, as well as `_` and `-`.
+  - `db`: Specifies the target database name for writing data, prohibiting the inclusion of backticks `` ` ``.
+  - `dbKey`: Specifies the key name in the JSON object used to represent the database name. Cannot be configured simultaneously with `db`.
+  - `superTable`: Specifies the target supertable name for writing data, prohibiting the inclusion of backticks `` ` ``.
+  - `superTableKey`: Specifies the key name in the JSON object used to represent the supertable name. Cannot be configured simultaneously with `superTable`.
+  - `subTable`: Specifies the target subtable name for writing data.
+  - `subTableKey`: Specifies the key name in the JSON object used to represent the subtable name. Cannot be configured simultaneously with `subTable`.
+  - `timeKey`: Specifies the key name in the JSON object used to represent the timestamp. Defaults to `ts` if not set.
+  - `timeFormat`: Specifies the format for time parsing. Effective when timeKey is set. See [Time Parsing Format Description](#time-parsing-format-description) for supported formats.
+  - `timezone`: Specifies the timezone for the timestamp. Effective when timeKey is set. Uses IANA timezone format, defaulting to the timezone of the machine where taosAdapter is located.
+  - `transformation`: Uses JSONata expressions to transform the input JSON data to meet TDengine TSDB's data writing requirements. For specific syntax, refer to the [JSONata documentation](https://jsonata.org/).
+  - `fields`: Defines the list of fields to be written, with each field containing the following attributes:
+    - `key`: Specifies the key name in the JSON object used to represent the field value. Must match the database field name and cannot contain backticks `` ` ``.
+    - `optional`: Specifies whether the field is optional. The default value is `false`, indicating the field is mandatory. An error will occur if the `key` does not exist. If set to `true`, the field is optional, and no error will be generated if the `key` is missing; the column will be excluded from the generated SQL.
+
+Before writing data, ensure that the target database and supertable have been created. Assume the following database and supertable have been created:
+
+```sql
+create database test_input_json;
+create table test_input_json.meters (ts timestamp, current float, voltage int, phase float) tags (location nchar(64), `groupid` int);
+```
+
+Request example:
+
+```shell
+```shell
+curl -L 'http://localhost:6041/input_json/v1/rule1' \
+-u root:taosdata \
+-d '{"time":"2025-11-04 09:24:13.123","Los Angeles":{"group_1":{"d_001":{"current":10.5,"voltage":220,"phase":30},"d_002":{"current":15.2,"voltage":230,"phase":45},"d_003":{"current":8.7,"voltage":210,"phase":60}},"group_2":{"d_004":{"current":12.3,"voltage":225,"phase":15},"d_005":{"current":9.8,"voltage":215,"phase":75}}},"New York":{"group_1":{"d_006":{"current":11.0,"voltage":240,"phase":20},"d_007":{"current":14.5,"voltage":235,"phase":50}},"group_2":{"d_008":{"current":13.2,"voltage":245,"phase":10},"d_009":{"current":7.9,"voltage":220,"phase":80}}}}'
+```
+
+Response example:
+
+```json
+{
+  "code": 0,
+  "desc": "",
+  "affected": 9
+}
+```
+
+- `code`: Indicates the status code of the request. `0` indicates success, while non-`0` indicates failure.
+- `desc`: Provides a description of the request. If `code` is non-`0`, it includes error information.
+- `affected`: Indicates the number of records successfully written.
+
+Check the write result:
+
+```bash
+taos> select tbname,* from test_input_json.meters order by tbname asc;
+             tbname             |           ts            |       current        |   voltage   |        phase         |            location            |   groupid   |
+======================================================================================================================================================================
+ d_001                          | 2025-11-04 17:24:13.123 |                 10.5 |         220 |                   30 | Los Angeles                    |           1 |
+ d_002                          | 2025-11-04 17:24:13.123 |                 15.2 |         230 |                   45 | Los Angeles                    |           1 |
+ d_003                          | 2025-11-04 17:24:13.123 |                  8.7 |         210 |                   60 | Los Angeles                    |           1 |
+ d_004                          | 2025-11-04 17:24:13.123 |                 12.3 |         225 |                   15 | Los Angeles                    |           2 |
+ d_005                          | 2025-11-04 17:24:13.123 |                  9.8 |         215 |                   75 | Los Angeles                    |           2 |
+ d_006                          | 2025-11-04 17:24:13.123 |                   11 |         240 |                   20 | New York                       |           1 |
+ d_007                          | 2025-11-04 17:24:13.123 |                 14.5 |         235 |                   50 | New York                       |           1 |
+ d_008                          | 2025-11-04 17:24:13.123 |                 13.2 |         245 |                   10 | New York                       |           2 |
+ d_009                          | 2025-11-04 17:24:13.123 |                  7.9 |         220 |                   80 | New York                       |           2 |
+```
+
+The data has been successfully written to TDengine TSDB. Since TDengine is configured with the UTC+8 timezone, the time is displayed as `2025-11-04 17:24:13.123`.
+
+#### Time Parsing Format Description
+
+The following time format presets are available:
+
+- `unix`: Timestamp as integer or floating-point number in seconds
+- `unix_ms`: Timestamp as integer or floating-point number in milliseconds
+- `unix_us`: Timestamp as integer or floating-point number in microseconds
+- `unix_ns`: Timestamp as integer or floating-point number in nanoseconds
+- `ansic`: Time format as `Mon Jan _2 15:04:05 2006`
+- `rubydate`: Time format as `Mon Jan 02 15:04:05 -0700 2006`
+- `rfc822z`: Time format as `02 Jan 06 15:04 -0700`
+- `rfc1123z`: Time format as `Mon, 02 Jan 2006 15:04:05 -0700`
+- `rfc3339`: Time format as `2006-01-02T15:04:05Z07:00`
+- `rfc3339nano`: Time format as `2006-01-02T15:04:05.999999999Z07:00`
+- `stamp`: Time format as `Jan _2 15:04:05`
+- `stampmilli`: Time format as `Jan _2 15:04:05.000`
+- `datetime`: Time format as `2006-01-02 15:04:05.999999999`
+
+If these presets do not meet your requirements, you can extend the format using the [strftime parsing method](https://pkg.go.dev/github.com/ncruces/go-strftime@v1.0.0).
+
+#### Transformation Example Description
+
+For complex JSON data formats, you can use the `transformation` configuration with JSONata expressions to transform the input JSON data to meet TDengine TSDB's data writing requirements. You can use the [JSONata online editor](https://try.jsonata.org/) to debug and validate JSONata expressions.
+
+Assume the input JSON data is as follows:
+
+```json
+{
+    "time": "2025-11-04 09:24:13.123",
+    "Los Angeles": {
+        "group_1": {
+            "d_001": {
+                "current": 10.5,
+                "voltage": 220,
+                "phase": 30
+            },
+            "d_002": {
+                "current": 15.2,
+                "voltage": 230,
+                "phase": 45
+            },
+            "d_003": {
+                "current": 8.7,
+                "voltage": 210,
+                "phase": 60
+            }
+        },
+        "group_2": {
+            "d_004": {
+                "current": 12.3,
+                "voltage": 225,
+                "phase": 15
+            },
+            "d_005": {
+                "current": 9.8,
+                "voltage": 215,
+                "phase": 75
+            }
+        }
+    },
+    "New York": {
+        "group_1": {
+            "d_006": {
+                "current": 11.0,
+                "voltage": 240,
+                "phase": 20
+            },
+            "d_007": {
+                "current": 14.5,
+                "voltage": 235,
+                "phase": 50
+            }
+        },
+        "group_2": {
+            "d_008": {
+                "current": 13.2,
+                "voltage": 245,
+                "phase": 10
+            },
+            "d_009": {
+                "current": 7.9,
+                "voltage": 220,
+                "phase": 80
+            }
+        }
+    }
+}
+```
+
+Using the configuration from the example transformation expression, the converted data is as follows:
+
+```json
+[
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "Los Angeles",
+    "groupid": 1,
+    "stb": "meters",
+    "table": "d_001",
+    "current": 10.5,
+    "voltage": 220,
+    "phase": 30
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "Los Angeles",
+    "groupid": 1,
+    "stb": "meters",
+    "table": "d_002",
+    "current": 15.2,
+    "voltage": 230,
+    "phase": 45
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "Los Angeles",
+    "groupid": 1,
+    "stb": "meters",
+    "table": "d_003",
+    "current": 8.7,
+    "voltage": 210,
+    "phase": 60
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "Los Angeles",
+    "groupid": 2,
+    "stb": "meters",
+    "table": "d_004",
+    "current": 12.3,
+    "voltage": 225,
+    "phase": 15
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "Los Angeles",
+    "groupid": 2,
+    "stb": "meters",
+    "table": "d_005",
+    "current": 9.8,
+    "voltage": 215,
+    "phase": 75
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "New York",
+    "groupid": 1,
+    "stb": "meters",
+    "table": "d_006",
+    "current": 11,
+    "voltage": 240,
+    "phase": 20
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "New York",
+    "groupid": 1,
+    "stb": "meters",
+    "table": "d_007",
+    "current": 14.5,
+    "voltage": 235,
+    "phase": 50
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "New York",
+    "groupid": 2,
+    "stb": "meters",
+    "table": "d_008",
+    "current": 13.2,
+    "voltage": 245,
+    "phase": 10
+  },
+  {
+    "db": "test_input_json",
+    "time": "2025-11-04 09:24:13.123",
+    "location": "New York",
+    "groupid": 2,
+    "stb": "meters",
+    "table": "d_009",
+    "current": 7.9,
+    "voltage": 220,
+    "phase": 80
+  }
+]
+```
+
+It should be noted that the `$each` function in the transformation expression is used to iterate over the key-value pairs of a JSON Object. Although the documentation states that the return value of the `$each` function is an array, when there is only one key-value pair, the return value will be a single object instead of an array. Therefore, when using the `$each` function, it is necessary to wrap the result with `[]` to forcibly convert it into an array, ensuring consistency in subsequent processing.
+
+For details, please refer to the [JSONata documentation](https://docs.jsonata.org/predicate#singleton-array-and-value-equivalence).
+
+#### SQL Conversion Example
+
+Taking the reference configuration example, inputting the JSON data from the [Transformation Example Description](#transformation-example-description), the generated SQL is as follows:
+
+```sql
+insert into `test_input_json`.`meters`(`tbname`,`ts`,`current`,`voltage`,`phase`,`location`,`groupid`)values
+('d_001','2025-11-04T09:24:13.123Z',10.5,220,30,'Los Angeles',1)
+('d_002','2025-11-04T09:24:13.123Z',15.2,230,45,'Los Angeles',1)
+('d_003','2025-11-04T09:24:13.123Z',8.7,210,60,'Los Angeles',1)
+('d_004','2025-11-04T09:24:13.123Z',12.3,225,15,'Los Angeles',2)
+('d_005','2025-11-04T09:24:13.123Z',9.8,215,75,'Los Angeles',2)
+('d_006','2025-11-04T09:24:13.123Z',11,240,20,'New York',1)
+('d_007','2025-11-04T09:24:13.123Z',14.5,235,50,'New York',1)
+('d_008','2025-11-04T09:24:13.123Z',13.2,245,10,'New York',2)
+('d_009','2025-11-04T09:24:13.123Z',7.9,220,80,'New York',2)
+```
+
+SQL generation description:
+
+1. The timestamp in the generated SQL will be parsed and converted according to the configured `timeFormat` and `timezone`, and ultimately formatted in RFC3339nano format when concatenated into the SQL statement.
+2. Data will be grouped based on `db`, `superTable`, `subTable`, and the obtained `fields` (note that `optional` may be set to `true`, so the obtained data may not include all `fields`). After grouping, the data will be sorted in ascending time order before generating the SQL statement.
+3. The generated SQL statements will be concatenated to approach approximately 1MB in size for batch writing to improve write performance. If the data volume is too large, it will be split into multiple SQL statements for writing.
+
+#### Dry-run Mode
+
+To facilitate debugging and validating the correctness of JSON configuration rules, taosAdapter provides a dry run mode. This mode can be enabled by adding the query parameter `dry_run=true` to the write request. In dry-run mode, taosAdapter does not write data to TDengine TSDB but instead returns the converted JSON and generated SQL statements for user review and validation.
+
+Request example:
+
+```shell
+curl -L 'http://localhost:6041/input_json/v1/rule1?dry_run=true' \
+-u root:taosdata \
+-d '{"time":"2025-11-04 09:24:13.123","Los Angeles":{"group_1":{"d_001":{"current":10.5,"voltage":220,"phase":30},"d_002":{"current":15.2,"voltage":230,"phase":45},"d_003":{"current":8.7,"voltage":210,"phase":60}},"group_2":{"d_004":{"current":12.3,"voltage":225,"phase":15},"d_005":{"current":9.8,"voltage":215,"phase":75}}},"New York":{"group_1":{"d_006":{"current":11.0,"voltage":240,"phase":20},"d_007":{"current":14.5,"voltage":235,"phase":50}},"group_2":{"d_008":{"current":13.2,"voltage":245,"phase":10},"d_009":{"current":7.9,"voltage":220,"phase":80}}}}'
+```
+
+Response example:
+
+```json
+{
+  "code": 0,
+  "desc": "",
+  "json": "[{\"current\":10.5,\"db\":\"test_input_json\",\"groupid\":1,\"location\":\"Los Angeles\",\"phase\":30,\"stb\":\"meters\",\"table\":\"d_001\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":220},{\"current\":15.2,\"db\":\"test_input_json\",\"groupid\":1,\"location\":\"Los Angeles\",\"phase\":45,\"stb\":\"meters\",\"table\":\"d_002\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":230},{\"current\":8.7,\"db\":\"test_input_json\",\"groupid\":1,\"location\":\"Los Angeles\",\"phase\":60,\"stb\":\"meters\",\"table\":\"d_003\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":210},{\"current\":12.3,\"db\":\"test_input_json\",\"groupid\":2,\"location\":\"Los Angeles\",\"phase\":15,\"stb\":\"meters\",\"table\":\"d_004\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":225},{\"current\":9.8,\"db\":\"test_input_json\",\"groupid\":2,\"location\":\"Los Angeles\",\"phase\":75,\"stb\":\"meters\",\"table\":\"d_005\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":215},{\"current\":11,\"db\":\"test_input_json\",\"groupid\":1,\"location\":\"New York\",\"phase\":20,\"stb\":\"meters\",\"table\":\"d_006\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":240},{\"current\":14.5,\"db\":\"test_input_json\",\"groupid\":1,\"location\":\"New York\",\"phase\":50,\"stb\":\"meters\",\"table\":\"d_007\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":235},{\"current\":13.2,\"db\":\"test_input_json\",\"groupid\":2,\"location\":\"New York\",\"phase\":10,\"stb\":\"meters\",\"table\":\"d_008\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":245},{\"current\":7.9,\"db\":\"test_input_json\",\"groupid\":2,\"location\":\"New York\",\"phase\":80,\"stb\":\"meters\",\"table\":\"d_009\",\"time\":\"2025-11-04 09:24:13.123\",\"voltage\":220}]",
+  "sql": [
+    "insert into `test_input_json`.`meters`(`tbname`,`ts`,`current`,`voltage`,`phase`,`location`,`groupid`)values('d_001','2025-11-04T09:24:13.123Z',10.5,220,30,'Los Angeles',1)('d_002','2025-11-04T09:24:13.123Z',15.2,230,45,'Los Angeles',1)('d_003','2025-11-04T09:24:13.123Z',8.7,210,60,'Los Angeles',1)('d_004','2025-11-04T09:24:13.123Z',12.3,225,15,'Los Angeles',2)('d_005','2025-11-04T09:24:13.123Z',9.8,215,75,'Los Angeles',2)('d_006','2025-11-04T09:24:13.123Z',11,240,20,'New York',1)('d_007','2025-11-04T09:24:13.123Z',14.5,235,50,'New York',1)('d_008','2025-11-04T09:24:13.123Z',13.2,245,10,'New York',2)('d_009','2025-11-04T09:24:13.123Z',7.9,220,80,'New York',2)"
+  ]
+}
+```
+
+- `code`: Indicates the status code of the request. `0` indicates success, while non-`0` indicates failure.
+- `desc`: Provides a description of the request. If `code` is non-`0`, it includes error information.
+- `json`: Represents the converted JSON data.
+- `sql`: Represents the array of generated SQL statements.
 
 ### RESTful API
 
@@ -160,6 +541,17 @@ Starting from version 3.3.4.0, taosAdapter supports setting the number of concur
 
   Sets the maximum number of concurrent calls for C synchronous methods (`0` means using the number of CPU cores).
 
+### Registration Configuration
+
+Starting from version **3.4.0.0**, taosAdapter will register itself to the TDengine TSDB. It can be queried using the SQL statement `select * from performance_schema.perf_instances where type = 'taosadapter'`.
+
+The registration configuration parameters are as follows:
+
+- **`register.instance`**: The address of the taosAdapter instance, with a maximum length of 255 bytes. If not set or set to an empty string, the system will automatically generate it by concatenating the hostname and port number. If `ssl.enable` is true, a `https` protocol header will be prepended.
+- **`register.description`**: The description of the taosAdapter instance, with a maximum length of 511 bytes. The default value is an empty string.
+- **`register.duration`**: The registration interval for the taosAdapter instance, in seconds. The default value is 10 seconds. Every time this interval elapses, the instance will re-register to refresh its expiration time. This value must be greater than 0 and less than `register.expire`.
+- **`register.expire`**: The expiration time for the taosAdapter instance registration, in seconds. The default value is 30 seconds. If no registration refresh request is received within this time, the registration information will be deleted. This value must be greater than `register.duration`.
+
 ### Cross-Origin Configuration
 
 When making API calls from the browser, please configure the following Cross-Origin Resource Sharing (CORS) parameters based on your actual situation:
@@ -195,6 +587,7 @@ taosAdapter uses a connection pool to manage connections to TDengine, improving 
 - node_exporter data collection writing
 - OpenMetrics data collection and writing
 - Prometheus remote_read and remote_write
+- JSON data writing
 
 The configuration parameters for the connection pool are as follows:
 
@@ -361,16 +754,7 @@ The log can be configured with the following parameters:
   **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   SQL log rotation interval (Default: `24h`).
 
-1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
-2. Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
-
-The following is an example of setting the log level to debug through the curl command:
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 
 ### Third-party Data Source Configuration
 
@@ -684,6 +1068,110 @@ taosAdapter reports metrics to taosKeeper with these parameters:
 
   Retry interval (Default: `5s`)
 
+### Query Request Concurrency Limit Configuration
+
+Starting from version **3.3.6.29**/**3.3.8.3**, taosAdapter supports configuring concurrency limits for query requests to prevent excessive concurrent queries from exhausting system resources.
+When this feature is enabled, taosAdapter controls the number of concurrent query requests being processed simultaneously based on the configured concurrency limit. Requests exceeding the limit will enter a waiting state until processing resources become available.
+
+If the waiting time exceeds the configured timeout or the number of waiting requests exceeds the configured maximum waiting requests, taosAdapter will directly return an error response, indicating that there are too many requests.
+RESTful requests will return HTTP status code `503`, and WebSocket requests will return error code `0xFFFE`.
+
+This configuration affects the following interfaces:
+
+- **RESTful Interface**
+- **WebSocket SQL Execution Interface**
+
+Parameter Description
+
+- **`request.queryLimitEnable`**
+  - **When set to `true`**: Enables the query request concurrency limit feature.
+  - **When set to `false`**: Disables the query request concurrency limit feature (default value).
+- **`request.default.queryLimit`**
+  - Sets the default concurrency limit for query requests (default value: `0`, meaning no limit).
+- **`request.default.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit. Requests that time out while waiting will return an error directly. Default value: `900`.
+- **`request.default.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded. Requests exceeding this number will return an error directly. Default value: `0`, meaning no limit.
+- **`request.excludeQueryLimitSql`**
+  - Configures a list of SQL statements that are not subject to concurrency limits. Must start with `select` (case-insensitive).
+- **`request.excludeQueryLimitSqlRegex`**
+  - Configures a list of regular expressions for SQL statements that are not subject to concurrency limits.
+
+Customizable per User
+
+Configurable only via the configuration file:
+
+- **`request.users.<username>.queryLimit`**
+  - Sets the query request concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
+
+Example
+
+```toml
+[request]
+queryLimitEnable = true
+excludeQueryLimitSql = ["select 1","select server_version()"]
+excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']
+
+[request.default]
+queryLimit = 200
+queryWaitTimeout = 900
+queryMaxWait = 0
+
+[request.users.root]
+queryLimit = 100
+queryWaitTimeout = 200
+queryMaxWait = 10
+```
+
+- `queryLimitEnable = true` enables the query request concurrency limit feature.
+- `excludeQueryLimitSql = ["select 1","select server_version()"]` excludes two commonly used SQL queries for ping.
+- `excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']` excludes all SQL queries that query the information_schema database.
+- `request.default` configures the default query request concurrency limit to 200, wait timeout to 900 seconds, and maximum wait requests to 0 (unlimited).
+- `request.users.root` configures the query request concurrency limit for user root to 100, wait timeout to 200 seconds, and maximum wait requests to 10.
+
+When user root initiates a query request, taosAdapter will perform concurrency limit processing based on the above configuration.
+When the number of query requests exceeds 100, subsequent requests will enter a waiting state until resources are available.
+If the wait time exceeds 200 seconds or the number of waiting requests exceeds 10, taosAdapter will directly return an error response.
+
+When other users initiate query requests, the default concurrency limit configuration will be used for processing.
+Each user's configuration is independent and does not share the concurrency limit of `request.default`.
+For example, when user user1 initiates 200 concurrent query requests, user user2 can also initiate 200 concurrent query requests simultaneously without blocking.
+
+### Reject Query SQL Configuration
+
+Starting from **version 3.3.6.34 / 3.4.0.0**, taosAdapter supports rejecting specific query SQL statements through configuration, preventing the execution of unsafe or highly resource-consuming queries.  
+When this feature is enabled, taosAdapter checks each SQL statement that does **not** start with `insert` (case-insensitive). If the SQL matches any of the configured reject patterns, an error response is returned indicating that the query is forbidden.
+
+When a rejected SQL query is matched, the RESTful API returns HTTP status code `403`, and the WebSocket interface returns error code `0xFFFD`.  
+Meanwhile, taosAdapter prints a warning log containing details such as the SQL source, for example:
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+This configuration affects the following interfaces:
+
+- **RESTful interface**
+- **WebSocket SQL execution interface**
+
+Parameter Description
+
+- **`rejectQuerySqlRegex`**
+  - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
+  - Default: an empty list, meaning no queries are rejected.
+
+Example
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+
+The configuration `rejectQuerySqlRegex = ['(?i)^drop\\s+database\\s+.*','(?i)^drop\\s+table\\s+.*','(?i)^alter\\s+table\\s+.*']` rejects all `drop database`, `drop table`, and `alter table` queries, ignoring case.
+
 ### Environment Variables
 
 Configuration Parameters and their corresponding environment variables:
@@ -781,6 +1269,16 @@ Configuration Parameters and their corresponding environment variables:
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
+| `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
+| `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |
+| `register.instance`                   | `TAOS_ADAPTER_REGISTER_INSTANCE`                      |
+| `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
+| `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
+| `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
+| `request.excludeQueryLimitSql`        | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL`        |
+| `request.excludeQueryLimitSqlRegex`   | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL_REGEX`  |
+| `request.queryLimitEnable`            | `TAOS_ADAPTER_REQUEST_QUERY_LIMIT_ENABLE`             |
 | `restfulRowLimit`                     | `TAOS_ADAPTER_RESTFUL_ROW_LIMIT`                      |
 | `smlAutoCreateDB`                     | `TAOS_ADAPTER_SML_AUTO_CREATE_DB`                     |
 | `statsd.allowPendingMessages`         | `TAOS_ADAPTER_STATSD_ALLOW_PENDING_MESSAGES`          |
@@ -824,6 +1322,27 @@ taosAdapter deployed separately from taosd must be upgraded by upgrading the TDe
 
 Use the command rmtaos to remove the TDengine server software, including taosAdapter.
 
+## Dynamic Configuration
+
+### Dynamically Modify Log Level
+
+Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
+
+The following is an example of setting the log level to debug through the curl command:
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+### Monitor Configuration File Changes
+
+Starting from version **3.3.6.34**/**3.4.0.0**, taosAdapter supports monitoring configuration file changes and automatically updates the following configurations:
+
+- `log.level` log level parameter
+- `rejectQuerySqlRegex` rejected query SQL list configuration parameter
+
 ## IPv6 Support
 
 Starting from **version 3.3.6.13**, taosAdapter supports IPv6. No additional configuration is required.
@@ -835,8 +1354,8 @@ taosAdapter supports recording SQL requests to CSV files. Users can enable this 
 
 ### Configuration Parameters
 
-1. New configuration item `log.enableSqlToCsvLogging` (boolean, default: false) determines whether SQL logging is enabled. 
-When set to true, SQL records will be saved to CSV files. 
+1. New configuration item `log.enableSqlToCsvLogging` (boolean, default: false) determines whether SQL logging is enabled.
+When set to true, SQL records will be saved to CSV files.
 The recording start time is the service startup time, and the end time is `2300-01-01 00:00:00`.
 
 2. File naming follows the same rules as logs: `taosadapterSql_{instanceId}_{yyyyMMdd}.csv[.index]`
@@ -863,6 +1382,7 @@ curl --location --request POST 'http://127.0.0.1:6041/record_sql' \
 ```
 
 Supported parameters:
+
 - `start_time`: [Optional] Start time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to the current time if not specified.
 - `end_time`: [Optional] End time for recording, formatted as `yyyy-MM-dd HH:mm:ss`. Defaults to 2300-01-01 00:00:00 if not specified.
 - `location`: [Optional] Timezone for parsing start and end times, using IANA format (e.g., `Asia/Shanghai`). Defaults to the server's timezone.
@@ -899,26 +1419,26 @@ Successful response: HTTP code 200.
 
 1. If a task exists, the response is:
 
-```json
-{
-        "code": 0,
-        "message": "",
-        "start_time": "2025-07-23 17:00:00",
-        "end_time": "2025-07-23 18:00:00"
-}
-```
+   ```json
+   {
+           "code": 0,
+           "message": "",
+           "start_time": "2025-07-23 17:00:00",
+           "end_time": "2025-07-23 18:00:00"
+   }
+   ```
 
-- `start_time`: Configured start time of the canceled task (timezone: server's timezone).
-- `end_time`: Configured end time of the canceled task (timezone: server's timezone).
+   - `start_time`: Configured start time of the canceled task (timezone: server's timezone).
+   - `end_time`: Configured end time of the canceled task (timezone: server's timezone).
 
-2. If no task exists, the response is:
+1. If no task exists, the response is:
 
-```json
-{
-        "code": 0,
-        "message": ""
-}
-```
+   ```json
+   {
+           "code": 0,
+           "message": ""
+   }
+   ```
 
 ### Query Status
 
@@ -953,39 +1473,39 @@ Successful response: HTTP code 200 with the following structure:
 
 ### Recording Format
 
-Records are written before `taos_free_result` is executed or when the task ends (reaching the end time or being manually stopped). 
+Records are written before `taos_free_result` is executed or when the task ends (reaching the end time or being manually stopped).
 Records are stored in CSV format without headers. Each line includes the following fields:
 
 1. `TS`: Log timestamp (format: yyyy-MM-dd HH:mm:ss.SSSSSS, timezone: server's timezone).
-2. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes. 
-SQL containing special characters cannot be directly copied for use. Example:
+1. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes.
+   SQL containing special characters cannot be directly copied for use. Example:
 
-Original SQL:
+   Original SQL:
 
- ```sql
-   select * from t1
-   where c1 = "ab"
- ```
+    ```sql
+      select * from t1
+      where c1 = "ab"
+    ```
 
-CSV record:
+   CSV record:
 
    ```csv
    "select * from t1
    where c1 = ""ab"""
    ```
 
-3. `IP`: Client IP.
-4. `User`: Username executing the SQL.
-5. `ConnType`: Connection type (HTTP, WS).
-6. `QID`: Request ID (saved as hexadecimal).
-7. `ReceiveTime`: Time when the SQL was received (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
-8. `FreeTime`: Time when the SQL was released (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
-9. `QueryDuration(us)`: Time consumed from taos_query_a to callback completion (microseconds).
-10. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
-11. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
-12. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
-13. `SourcePort`: Client port. (Added in version 3.3.6.26 and above / 3.3.8.0 and above). 
-14. `AppName`: Client application name. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
+1. `IP`: Client IP.
+1. `User`: Username executing the SQL.
+1. `ConnType`: Connection type (HTTP, WS).
+1. `QID`: Request ID (saved as hexadecimal).
+1. `ReceiveTime`: Time when the SQL was received (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+1. `FreeTime`: Time when the SQL was released (format: `yyyy-MM-dd HH:mm:ss.SSSSSS`, timezone: server's timezone).
+1. `QueryDuration(us)`: Time consumed from taos_query_a to callback completion (microseconds).
+1. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
+1. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
+1. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
+1. `SourcePort`: Client port. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
+1. `AppName`: Client application name. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
 
 Example:
 
@@ -1349,6 +1869,43 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 | tmq_commit_offset_sync_total                        | DOUBLE    |         | Count of TMQ sync offset commits                         |
 | tmq_commit_offset_sync_success                      | DOUBLE    |         | Count of successful TMQ sync offset commits              |
 | endpoint                                            | NCHAR     | TAG     | Request endpoint                                         |
+
+</details>
+
+Starting from version **3.3.6.29**/**3.3.8.3**, the `adapter_request_limit` table has been added to record taosAdapter query request throttling metrics:
+
+<details>
+<summary>Details</summary>
+
+| field                 | type      | is\_tag | comment                                                                                                                            |
+|:----------------------|:----------|:--------|:-----------------------------------------------------------------------------------------------------------------------------------|
+| _ts                   | TIMESTAMP |         | Data collection timestamp                                                                                                          |
+| query_limit           | DOUBLE    |         | Maximum concurrency of query requests allowed to execute simultaneously                                                            |
+| query_max_wait        | DOUBLE    |         | Maximum number of queries allowed to wait in the queue for execution                                                               |
+| query_inflight        | DOUBLE    |         | Current number of queries being executed that are subject to concurrency limits                                                    |
+| query_wait_count      | DOUBLE    |         | Current number of queries waiting in the queue for execution                                                                       |
+| query_count           | DOUBLE    |         | Total number of query requests subject to concurrency limits received in this collection cycle                                     |
+| query_wait_fail_count | DOUBLE    |         | Number of query requests that failed due to waiting timeout or exceeding the maximum waiting queue length in this collection cycle |
+| endpoint              | NCHAR     | TAG     | Request endpoint                                                                                                                   |
+| user                  | NCHAR     | TAG     | Authenticated username that initiated the query request                                                                            |
+
+</details>
+
+Starting from version **3.4.0.0**, the `adapter_input_json` table has been added to record taosAdapter JSON write input metrics:
+
+<details>
+<summary>Details</summary>
+
+| field         | type      | is\_tag | comment                                |
+|:--------------|:----------|:--------|:---------------------------------------|
+| _ts           | TIMESTAMP |         | Data collection timestamp              |
+| total_rows    | DOUBLE    |         | Total number of rows in JSON write     |
+| success_rows  | DOUBLE    |         | Number of successfully written rows    |
+| fail_rows     | DOUBLE    |         | Number of failed rows in JSON write    |
+| inflight_rows | DOUBLE    |         | Number of rows currently being written |
+| affected_rows | DOUBLE    |         | Number of rows affected by JSON write  |
+| url_endpoint  | NCHAR     | TAG     | URL endpoint of the JSON write request |
+| endpoint      | NCHAR     | TAG     | Request taosAdapter endpoint           |
 
 </details>
 

@@ -1,4 +1,5 @@
 
+import argparse
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -14,7 +15,7 @@ from transformers.generation import validate_stopping_criteria, EosTokenCriteria
 from transformers.generation.utils import GenerateNonBeamOutput, GenerateEncoderDecoderOutput, GenerateDecoderOnlyOutput, GenerationConfig, GenerateOutput
 from transformers.utils import ModelOutput
 from flask import Flask, request, jsonify
-import argparse
+
 
 app = Flask(__name__)
 

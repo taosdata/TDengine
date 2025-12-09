@@ -68,10 +68,10 @@ static int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 
 static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
-  if (code != 0) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
+  // if (code != 0) {
+  //   rpcFreeCont(pMsg->pCont);
+  //   pMsg->pCont = NULL;
+  // }
   return code;
 }
 
@@ -317,6 +317,12 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   int32_t code = mndRefreshUserIpWhiteList(pMnode);
   if (code != 0) {
     mError("vgId:1, failed to refresh user ip white list since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndRefreshUserDateTimeWhiteList(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to refresh user date time white list since %s", tstrerror(code));
     mndSetRestored(pMnode, false);
   }
 

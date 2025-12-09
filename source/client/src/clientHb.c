@@ -159,6 +159,25 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
                  oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
+
+      if (pTscObj->dateTimeWhiteListInfo.fp) {
+        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        if (oldVer != pRsp->timeWhiteListVer) {
+          atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+          if (whiteListInfo->fp) {
+            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->timeWhiteListVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
+          }
+          tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
+                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+        }
+      } else {
+        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+        tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
+                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+      }
       releaseTscObj(pReq->connKey.tscRid);
     }
   }
@@ -1202,8 +1221,11 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     }
 
     tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
+    tstrncpy(pOneReq->cInfo, pTscObj->optionInfo.cInfo, sizeof(pOneReq->cInfo));
     pOneReq->userIp = pTscObj->optionInfo.userIp;
     pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
+    tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
+
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);

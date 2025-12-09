@@ -424,7 +424,7 @@ static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
 
-  if (pStmt->bInfo.boundCols) {
+  if (!pStmt->bInfo.boundColsCached) {
     tSimpleHashCleanup(pStmt->bInfo.boundCols);
     pStmt->bInfo.boundCols = NULL;
   }
@@ -1786,6 +1786,7 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
     if (pStmt->sql.autoCreateTbl) {
       pStmt->bInfo.tagsCached = true;
     }
+    pStmt->bInfo.boundColsCached = true;
 
     if (pStmt->queue.stopQueue) {
       STMT2_ELOG_E("stmt bind thread is stopped,cannot enqueue bind request");
@@ -2238,7 +2239,9 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     pStmt->affectedRows += pStmt->exec.affectedRows;
   }
 
-  fp(pStmt->options.userdata, res, code);
+  if (fp) {
+    fp(pStmt->options.userdata, res, code);
+  }
 
   while (0 == atomic_load_8((int8_t*)&pStmt->sql.siInfo.tableColsReady)) {
     taosUsleep(1);
@@ -2421,6 +2424,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   if (pStmt->sql.stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }
+  pStmt->bInfo.boundColsCached = false;
 
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 

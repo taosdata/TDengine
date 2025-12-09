@@ -4,7 +4,7 @@ title: 降采样存储
 description: 降采样存储使用说明
 ---
 
-Rollup SMA（Small Materialized Aggregation），简称 RSMA，是一种按时间窗口对用户数据降采样（downsampling）存储的 SMA，适用于原始数据保存时长较短，降采样数据保存时长较长的场景。降采样数据体积远小于原始数据，可大幅减少磁盘空间占用；查询时直接扫描降采样数据，响应速度更快。
+自 3.3.8.0 版本起，TDengine TSDB 企业版提供数据降采样存储功能。Rollup SMA（Small Materialized Aggregation），简称 RSMA，是一种按时间窗口对用户数据降采样（downsampling）存储的 SMA，适用于原始数据保存时长较短，降采样数据保存时长较长的场景。降采样数据体积远小于原始数据，可大幅减少磁盘空间占用；查询时直接扫描降采样数据，响应速度更快。
 
 ## 基本逻辑
 
@@ -22,14 +22,14 @@ Rollup SMA（Small Materialized Aggregation），简称 RSMA，是一种按时�
 ## 创建 RSMA
 
 ```sql
-CREATE RSMA [IF NOT EXISTS] rsma_name ON [dbname.]table_name FUNCTION([func_name(col_name)[,...]]) INTERVAL(interval1[,interval2]; 
+CREATE RSMA [IF NOT EXISTS] rsma_name ON [dbname.]table_name FUNCTION([func_name(col_name)[,...]]) INTERVAL(interval1[,interval2]);
 ```
 
 - 创建 RSMA 时需要指定 RSMA 名字，表名字，函数列表以及窗口大小。其中 RSMA 命名规则与表名字相同，最大长度限制为 193。
 - RSMA 只能基于超级表创建。如果超级表的列包含 blob 数据类型，暂不支持 RSMA。
 - 函数列表支持 `min, max, sum, avg, first, last`，函数参数必须为 1 个，函数参数必须为非主键普通列，不能为标签列。非数值类型的列不能指定 sum/avg 等数值计数函数。FUNCTION 参数可为空，未显式指定 func_name 的列默认函数为 last。非 Primary Key 复合主键列，func_name 仅支持 first/last，未显式指定默认函数为 last。
 - RSMA interval 至少指定 1 个，至多指定 2 个。取值范围为 [0, DB duration] 之间的整数，至少一个 非 0。Interval 1 取 0，表示 level 2 存储层级的数据不进行降采样存储；interval 2  取 0，表示 level 3 存储层级的数据不进行降采样存储。本文后续对 interval 的描述，如果没有特别说明，均为正整数。
-- RSMA 表的 interval 满足 `interval1 < interval2 <= duration`， 且必须指定单位，单位取值范围：a(毫秒)、b(纳秒)、h(小时)、m(分钟)、s(秒)、u(微秒)、d(天)。
+- RSMA 表的 interval 满足 `interval1 < interval2 <= duration`，且必须指定单位，单位取值范围：a(毫秒)、b(纳秒)、h(小时)、m(分钟)、s(秒)、u(微秒)、d(天)。
 - 跨文件边界的 interval 计算会增加系统的复杂性、资源消耗和文件碎片化，降低查询读取效率，并且带来的收益较低。因此，约定 DB duration 参数必须能够被 RSMA 表的 interval 整除。
 - 为保证 interval 1/2 窗口聚合结果相对于原始数据的正确性，约定 interval 2 必须为 interval 1 的整数倍。这可以保证 min/max/sum/first/last 结果的正确性，但无法保证 avg 结果的正确性，仍可能有误差。
 
@@ -95,11 +95,51 @@ start_opt ::= START WITH TIMESTAMP timestamp_literal
 end_opt ::= END WITH timestamp_literal
 end_opt ::= END WITH unix_timestamp
 end_opt ::= END WITH TIMESTAMP timestamp_literal
+
+示例：
+taos> rollup database d0 start with '2025-12-30 10:00:00.000' end with '2025-12-31 10:00:00.000';
+              result              |     id      |             reason             |
+==================================================================================
+ accepted                         |    53584270 | success                        |
+Query OK, 1 row(s) in set (0.009359s)
+
+taos> rollup d0.vgroups in (2,3) start with '2025-12-30 10:00:00.000';
+              result              |     id      |             reason             |
+==================================================================================
+ accepted                         |  1726039381 | success                        |
+Query OK, 1 row(s) in set (0.010345s)
 ```
 
 - 手动重算主要用于对不满足多级存储迁移条件的 level 2/3 存储层级的文件组进行降采样计算存储。
 - 可指定时间范围，可指定 database 或 vgroups。1）未指定时间范围时，计算 keep 在 [INT64_MIN, now] 之间的所有文件组；2）指定时间范围时，则计算时间范围内的文件组。3）rollup 后未写入新的数据，不会重复计算。4）如果 rollup 指定时间范围的文件组在 level 1 存储层级但是不满足向高存储层级迁移的条件，则不进行计算。5）rollup 针对 level 2/3 存储层级的文件组，如果满足上次 rollup 后有新数据写入或更新，或满足 level 2 向 level 3 存储层级迁移条件时，则进行计算。
 需要注意的是：如果需要重算的文件组已经在 s3 上，则重算生成的文件组会重新保存到本地，s3 远端的文件组不再生效。后续再触发 s3 上传时会报错，需要手工删除远端的文件组。该逻辑与 compact 操作是相同的。
+
+### 显示 RSMA 任务
+
+```sql
+show retentions;
+show retention {retention_id};
+
+示例：
+taos> show retentions;
+ retention_id |            db_name             |       start_time        | trigger_mode |     type     |
+========================================================================================================
+    857434526 | d0                             | 2025-10-11 11:26:04.649 | manual       | rollup       |
+Query OK, 1 row(s) in set (0.004885s)
+
+taos> show retention 857434526;
+ retention_id |  vgroup_id  |  dnode_id   | number_fileset |  finished   |       start_time        | progress(%) |    remain_time(s)     |
+==========================================================================================================================================
+    857434526 |           6 |           1 |              4 |           1 | 2025-10-11 11:26:04.649 |          24 |                    31 |
+    857434526 |           7 |           1 |              0 |           0 | 2025-10-11 11:26:04.649 |           0 |                     0 |
+Query OK, 2 row(s) in set (0.005828s)
+```
+
+### 中止 RSMA 任务
+
+```sql
+kill retention {retention_id};
+```
 
 ### 查询时使用 RSMA
 

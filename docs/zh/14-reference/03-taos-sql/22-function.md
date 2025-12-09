@@ -921,7 +921,7 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 FIND_IN_SET(expr1, expr2[, expr3])
 ```
 
-**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号, 不存在则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号，不存在则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
 
 **返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
 
@@ -1590,13 +1590,13 @@ DATE(expr)
 
 - 返回日期的格式为 `yyyy-mm-dd`。
 - 若 `expr` 为 NULL，返回 NULL。
-- 若 `expr` 为VARCHAR、NCHAR 类型但不符合 ISO8601/RFC3339 标准，返回NULL。
+- 若 `expr` 为 VARCHAR、NCHAR 类型但不符合 ISO8601/RFC3339 标准，返回 NULL。
 - 输入时间表达式的精度由所查询表的精度确定，未指定表，则精度为毫秒。
 - 输入与返回值的时区与客户端的系统时区一致，为避免转换时使用了非预期的时区，推荐在输入时间表达式中携带时区信息。
 
 **举例**：
 
-(注意：例中语句在UTC+0800时区执行，精度为毫秒)
+(注意：例中语句在 UTC+0800 时区执行，精度为毫秒)
 
 ```sql
 taos> select date(946656000000);
@@ -2595,7 +2595,7 @@ taos> SELECT NULLIF(1,1);
 NVL2(expr1, expr2, expr3)
 ```
 
-**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr1。
+**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr3。
 
 **返回结果类型**：依赖于使用的上下文。
 

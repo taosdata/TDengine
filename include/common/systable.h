@@ -74,6 +74,7 @@ extern "C" {
 #define TSDB_INS_TABLE_RSMAS               "ins_rsmas"
 #define TSDB_INS_TABLE_RETENTIONS          "ins_retentions"
 #define TSDB_INS_TABLE_RETENTION_DETAILS   "ins_retention_details"
+#define TSDB_INS_TABLE_ENCRYPT_ALGORITHMS  "ins_encrypt_algorithms"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"
@@ -82,6 +83,7 @@ extern "C" {
 #define TSDB_PERFS_TABLE_CONSUMERS     "perf_consumers"
 #define TSDB_PERFS_TABLE_OFFSETS       "perf_offsets"
 #define TSDB_PERFS_TABLE_TRANS         "perf_trans"
+#define TSDB_PERFS_TABLE_INSTANCES     "perf_instances"
 #define TSDB_PERFS_TABLE_APPS          "perf_apps"
 #define TSDB_PERFS_TABLE_WRITE_METRICS "perf_write_metrics"
 

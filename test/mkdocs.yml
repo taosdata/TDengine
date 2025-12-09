@@ -45,7 +45,7 @@ site_dir: site
 nav:
   - Home: index.md
   - Case list docs:
-    - 01-DataTypes: case_list_docs/DataTypes.md
+    - 01-Data Types: case_list_docs/DataTypes.md
     - 02-Databases:
         - 01-Create: case_list_docs/Databases/Create.md
         - 02-Drop: case_list_docs/Databases/Drop.md
@@ -55,84 +55,103 @@ nav:
         - 06-Precision: case_list_docs/Databases/Precision.md
         - 07-Flush: case_list_docs/Databases/Flush.md
     - 03-Tables:
-        - 01-NormalTables:
-            - 01-Create: case_list_docs/Tables/NormalTables/Create.md
-            - 02-Drop: case_list_docs/Tables/NormalTables/Drop.md
-            - 03-Alter: case_list_docs/Tables/NormalTables/Alter.md
-            - 04-Query: case_list_docs/Tables/NormalTables/Query.md
-        - 02-SubTables:
-            - 01-Create: case_list_docs/Tables/SubTables/Create.md
-            - 03-Alter: case_list_docs/Tables/SubTables/Alter.md
-            - 04-Query: case_list_docs/Tables/SubTables/Query.md
-    - 04-SuperTables:
+        - 01-NormalTables: case_list_docs/Tables/NormalTables.md
+        - 02-SubTables: case_list_docs/Tables/SubTables.md
+    - 04-Super Tables:
         - 01-Create: case_list_docs/SuperTables/Create.md
         - 02-Drop: case_list_docs/SuperTables/Drop.md
         - 03-Alter: case_list_docs/SuperTables/Alter.md
         - 04-Query: case_list_docs/SuperTables/Query.md
-    - 05-VirtualTables: case_list_docs/VirtualTables.md
-    - 06-DataIngestion:
-        - 01-Insert: case_list_docs/DataIngestion/Insert.md
-        - 02-Import: case_list_docs/DataIngestion/Import.md
-        - 03-Delete: case_list_docs/DataIngestion/Delete.md
-        - 04-Update: case_list_docs/DataIngestion/Update.md
-        - 05-Others: case_list_docs/DataIngestion/Others.md
-    - 07-DataQuerying:
-        - 01-Operator: case_list_docs/DataQuerying/Operator.md
+    - 05-Virtual Tables: case_list_docs/VirtualTables.md
+    - 06-Data Ingestion:
+        - 01-SQL:    case_list_docs/DataIngestion/SQL.md
+        - 02-STMT:   case_list_docs/DataIngestion/STMT.md
+        - 03-SML:    case_list_docs/DataIngestion/SML.md
+        - 04-Import: case_list_docs/DataIngestion/Import.md
+    - 07-Data Deletion: case_list_docs/DataDeletion.md
+    - 08-Data Compression: case_list_docs/DataCompression.md
+    - 09-Data Querying:
+        - 01-Select: case_list_docs/DataQuerying/Select.md
         - 02-Filter: case_list_docs/DataQuerying/Filter.md
         - 03-GroupBy: case_list_docs/DataQuerying/GroupBy.md
         - 04-OrderBy: case_list_docs/DataQuerying/OrderBy.md
         - 06-Limit: case_list_docs/DataQuerying/Limit.md
         - 07-SLimit: case_list_docs/DataQuerying/SLimit.md
         - 08-SubQuery: case_list_docs/DataQuerying/SubQuery.md
-        - 09-SelectList: case_list_docs/DataQuerying/SelectList.md
-        - 10-Union: case_list_docs/DataQuerying/Union.md
-        - 11-Interp: case_list_docs/DataQuerying/Interp.md
-        - 12-Having: case_list_docs/DataQuerying/Having.md
-        - 13-Distinct: case_list_docs/DataQuerying/Distinct.md
-        - 14-Explain: case_list_docs/DataQuerying/Explain.md
-        - 16-PsedoColumn: case_list_docs/DataQuerying/PsedoColumn.md
-        - 17-Tags: case_list_docs/DataQuerying/Tags.md
-        - 18-Regexp: case_list_docs/DataQuerying/Regexp.md
-        - 99-Others: case_list_docs/DataQuerying/Others.md
-    - 08-TagIndices: case_list_docs/TagIndices.md
-    - 09-DataDeletion: case_list_docs/DataDeletion.md
-    - 10-Functions:
-        - 01-SingleRow: case_list_docs/Functions/SingleRow.md
+        - 09-Having: case_list_docs/DataQuerying/Having.md
+        - 10-Distinct: case_list_docs/DataQuerying/Distinct.md
+        - 11-PseudoColumn: case_list_docs/DataQuerying/PseudoColumn.md
+        - 12-Interp: case_list_docs/DataQuerying/Interp.md
+        - 13-CaseWhen: case_list_docs/DataQuerying/CaseWhen.md
+        - 14-Tags: case_list_docs/DataQuerying/Tags.md
+        - 15-Explain: case_list_docs/DataQuerying/Explain.md
+        - 17-BiMode: case_list_docs/DataQuerying/BiMode.md
+    - 10-Operators:
+        - 01-Arithmetic: case_list_docs/Operators/Arithmetic.md
+        - 03-Json: case_list_docs/Operators/Json.md
+        - 04-Set: case_list_docs/Operators/Set.md
+        - 05-Comparison: case_list_docs/Operators/Comparison.md
+        - 06-Logical: case_list_docs/Operators/Logical.md
+    - 11-Functions:
+        - 01-Scalar: case_list_docs/Functions/Scalar.md
         - 02-Aggregate: case_list_docs/Functions/Aggregate.md
         - 03-Selection: case_list_docs/Functions/Selection.md
-        - 04-TimeseriesSpecfic: case_list_docs/Functions/TimeseriesSpecfic.md
-    - 11-TimeSeriesExtensions:
-        - 01-PartitionBy: case_list_docs/TimeSeriesExtensions/PartitionBy.md
-        - 02-Fill: case_list_docs/TimeSeriesExtensions/Fill.md
-        - 03-TimeWindow: case_list_docs/TimeSeriesExtensions/TimeWindow.md
-        - 05-EventWindow: case_list_docs/TimeSeriesExtensions/EventWindow.md
-        - 06-SessionWindow: case_list_docs/TimeSeriesExtensions/SessionWindow.md
-        - 07-CountWindow: case_list_docs/TimeSeriesExtensions/CountWindow.md
-    - 12-DataSubscription: case_list_docs/DataSubscription.md
-    - 13-SteamProcessing: case_list_docs/SteamProcessing.md
-    - 14-Operators: case_list_docs/Operators.md
-    - 15-JSONDataType: case_list_docs/JSONDataType.md
-    - 16-EscapeCharacters: case_list_docs/EscapeCharacters.md
-    - 17-NameLimits: case_list_docs/NameLimits.md
-    - 18-ReservedKeywords: case_list_docs/ReservedKeywords.md
-    - 19-ManageNodes:
-        - 01-Dnode: case_list_docs/ManageNodes/Dnode.md
-        - 02-Mnode: case_list_docs/ManageNodes/Mnode.md
-        - 03-Qnode: case_list_docs/ManageNodes/Qnode.md
-        - 04-Snode: case_list_docs/ManageNodes/Snode.md
-    - 20-Metadata: case_list_docs/Metadata.md
-    - 21-PerformanceData: case_list_docs/PerformanceData.md
-    - 22-Show: case_list_docs/Show.md
-    - 23-Users: case_list_docs/Users.md
-    - 24-Permissions: case_list_docs/Permissions.md
-    - 25-UDFs: case_list_docs/UDFs.md
-    - 26-TSMAs: case_list_docs/TSMAs.md
-    - 27-Troubleshooting: case_list_docs/Troubleshooting.md
-    - 29-JoinQueries: case_list_docs/JoinQueries.md
-    - 30-DataCompression: case_list_docs/DataCompression.md
-    - 31-Views: case_list_docs/Views.md
-    - 50-Others:
-        - 01-Valgrind: case_list_docs/Others/Valgrind.md
-  - Util funcs docs:
-      - new_test_framework:
-          - utils: util_funcs_docs/new_test_framework/utils.md
+        - 04-Timeseries: case_list_docs/Functions/Timeseries.md
+        - 05-Compare: case_list_docs/Functions/Compare.md
+        - 06-System: case_list_docs/Functions/System.md
+        - 07-Geometry: case_list_docs/Functions/Geometry.md
+    - 12-UDFs: case_list_docs/UDFs.md
+    - 13-TimeSeries-Ext:
+        - 01-PartitionBy: case_list_docs/TimeSeriesExt/PartitionBy.md
+        - 02-Fill: case_list_docs/TimeSeriesExt/Fill.md
+        - 03-TimeWindow: case_list_docs/TimeSeriesExt/TimeWindow.md
+        - 05-EventWindow: case_list_docs/TimeSeriesExt/EventWindow.md
+        - 06-SessionWindow: case_list_docs/TimeSeriesExt/SessionWindow.md
+        - 07-CountWindow: case_list_docs/TimeSeriesExt/CountWindow.md
+    - 14-Join Queries: case_list_docs/JoinQueries.md
+    - 15-Tag Indices: case_list_docs/TagIndices.md
+    - 16-Views: case_list_docs/Views.md
+    - 17-Data Subscription: 
+        - 01-Mgmt: case_list_docs/DataSubscription/Mgmt.md
+        - 02-Native: case_list_docs/DataSubscription/Native.md
+        - 04-MQTT: case_list_docs/DataSubscription/MQTT.md
+    - 18-Stream Processing:
+        - 01-Snode: case_list_docs/StreamProcessing/Snode.md
+        - 02-Stream: case_list_docs/StreamProcessing/Stream.md
+        - 03-TriggerMode: case_list_docs/StreamProcessing/TriggerMode.md
+        - 04-Options: case_list_docs/StreamProcessing/Options.md
+        - 05-Notify: case_list_docs/StreamProcessing/Notify.md
+        - 06-ResultSaved: case_list_docs/StreamProcessing/ResultSaved.md
+        - 07-SubQuery: case_list_docs/StreamProcessing/SubQuery.md
+        - 08-Recalc: case_list_docs/StreamProcessing/Recalc.md
+        - 20-UseCase: case_list_docs/StreamProcessing/UseCase.md
+        - 23-Compatibility: case_list_docs/StreamProcessing/Compatibility.md
+        - 30-OldPyCases: case_list_docs/StreamProcessing/OldPyCases.md
+        - 31-OldTsimCases: case_list_docs/StreamProcessing/OldTsimCases.md
+    - 19-TSMAs: case_list_docs/TSMAs.md
+    - 20-RSMAs: case_list_docs/RSMAs.md
+    - 21-Meta Data: case_list_docs/MetaData.md
+    - 22-Performance Data: case_list_docs/PerformanceData.md
+    - 23-Show Commands: case_list_docs/ShowCommands.md
+    - 24-Users: case_list_docs/Users.md
+    - 25-Privileges: case_list_docs/Privileges.md
+    - 26-Node Manager:
+        - 01-Dnode: case_list_docs/NodeManager/Dnode.md
+        - 02-Mnode: case_list_docs/NodeManager/Mnode.md
+        - 03-Qnode: case_list_docs/NodeManager/Qnode.md
+        - 04-Snode: case_list_docs/NodeManager/Snode.md
+        - 05-Bnode: case_list_docs/NodeManager/Bnode.md
+    - 27-Mount: case_list_docs/Mount.md
+    - 28-Except: case_list_docs/Except.md
+    - 29-Escape Characters: case_list_docs/Escape.md
+    - 30-Name & Limits: case_list_docs/NameLimits.md
+    - 70-Cluster: case_list_docs/Cluster.md
+    - 80-Components: 
+        - 01-Taosd: case_list_docs/Components/Taosd.md
+        - 02-Taosc: case_list_docs/Components/Taosc.md
+        - 10-TDgpt: case_list_docs/Components/TDgpt.md
+    - 81-Tools: 
+        - 01-Check: case_list_docs/Tools/Check.md
+        - 02-Taos: case_list_docs/Tools/Taos.md
+        - 03-Benchmark: case_list_docs/Tools/Benchmark.md
+        - 04-Taosdump: case_list_docs/Tools/Taosdump.md

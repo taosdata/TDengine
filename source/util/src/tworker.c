@@ -1076,7 +1076,7 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (taosThreadCreate(&pWorker->thread, &thAttr, (ThreadFp)tQueryAutoQWorkerThreadFp, pWorker) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    uError("create queryAutoWorker thread failed, error:%s", tstrerror(terrno));
     return terrno;
   }
   (void)taosThreadAttrDestroy(&thAttr);

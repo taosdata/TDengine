@@ -3841,7 +3841,7 @@ bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv
   return true;
 }
 
-bool getMaskPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
+bool getMarkPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
   pEnv->calcMemSize = sizeof(int32_t);
   return true;
 }
@@ -3873,7 +3873,7 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t anomalyCheckMaskFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t anomalyCheckMarkFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t p = *(int64_t*) colDataGetData(pInput->columnData, 5);
   colDataSetInt32(pOutput->columnData, pOutput->numOfRows, (int32_t *)&p);
   return TSDB_CODE_SUCCESS;
@@ -5370,8 +5370,10 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
   }
   
   qDebug("%s, stream curr win calc range, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
-  *winRangeValid = true;
-
+  if (winRangeValid) {
+    *winRangeValid = true;
+  }
+  
 _exit:
 
   if (code) {

@@ -133,7 +133,6 @@ func (gm *GeneralMetric) Init(c gin.IRouter) error {
 }
 
 func NewGeneralMetric(conf *config.Config) *GeneralMetric {
-
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -552,6 +551,17 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 					return fmt.Sprintf("task_%s_%s_%s", tagMap["taosx_id"], ds_name, tagMap["task_id"])
 				}
 			}
+			return ""
+		}
+	}
+	if strings.HasPrefix(stbName, "explorer_") {
+		switch stbName {
+		case "explorer_sys":
+			if checkKeysExist(tagMap, "endpoint") {
+				return fmt.Sprintf("explorer_sys_%s", tagMap["endpoint"])
+			}
+			return ""
+		default:
 			return ""
 		}
 	}

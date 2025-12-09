@@ -261,14 +261,11 @@ class TestAlterReplica:
     # main
     #
     def test_alter_replica(self):
-        """Alter Database Replica
+        """Alter database replica
 
         1. Alter replica basic operations
         2. Alter replica count from 1 to 3
         3. Alter replica count from 3 to 1
-
-        Catalog:
-            - Database:Alter
 
         Since: v3.0.0.0
 

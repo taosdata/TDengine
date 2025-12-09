@@ -1191,7 +1191,7 @@ static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateMaskPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateMarkPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes,
@@ -1200,9 +1200,49 @@ static int32_t translateMaskPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkCorrParamHelper(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (numOfParams >= 2) {
+    uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, numOfParams - 1))->type;
+    if (TSDB_DATA_TYPE_VARCHAR != optionType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "correlation function option should be varchar");
+    }
+
+    SNode* pOption = nodesListGetNode(pFunc->pParameterList, numOfParams - 1);
+    if (QUERY_NODE_VALUE != nodeType(pOption)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "correlation function option should be value");
+    }
+
+    SValueNode* pValue = (SValueNode*)pOption;
+    if (taosAnalyGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, "correlation function option should not include algo field");
+    }
+
+    pValue->notReserved = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateDtwPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
+                                    .type = TSDB_DATA_TYPE_DOUBLE,
+                                    .precision = pFunc->node.resType.precision};
+
+  return checkCorrParamHelper(pFunc, pErrBuf, len);
+}
+
+static int32_t translateDtwPathPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType =
+      (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_VARCHAR, .precision = pFunc->node.resType.precision};
+  return checkCorrParamHelper(pFunc, pErrBuf, len);
+}
+
 static int32_t translateIsFilledPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
   return TSDB_CODE_SUCCESS;
 }
@@ -2741,7 +2781,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "derivative",
     .type = FUNCTION_TYPE_DERIVATIVE,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 3,
@@ -2778,6 +2818,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = derivativeScalarFunction,
     .finalizeFunc = functionFinalize,
     .estimateReturnRowsFunc = derivativeEstReturnRows,
+    .processFuncByRow  = derivativeFunctionByRow,
   },
   {
     .name = "irate",
@@ -6335,11 +6376,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_impmask",
+    .name = "_impmark",
     .type = FUNCTION_TYPE_IMPUTATION_MARK,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateMaskPseudoColumn,
-    .getEnvFunc   = getMaskPseudoFuncEnv,
+    .translateFunc = translateMarkPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
@@ -6633,9 +6674,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = gconcatFunctionSetup,
     .processFunc  = gconcatFunction,
     .finalizeFunc = gconcatFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = gconcatInvertFunction,
-#endif
     /*
     .combineFunc  = gconcatCombine, // stream
     .pStateFunc = "group_concat",   // tsma
@@ -6649,13 +6687,68 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .createMergeParaFuc = gconcatCreateMergeParam
   },
   {
-    .name = "_anomalymask",
+    .name = "_anomalymark",
     .type = FUNCTION_TYPE_ANOMALY_MARK,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateMaskPseudoColumn,
-    .getEnvFunc   = getMaskPseudoFuncEnv,
+    .translateFunc = translateMarkPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = anomalyCheckMaskFunction,
+    .sprocessFunc = anomalyCheckMarkFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "dtw",
+    .type = FUNCTION_TYPE_DTW,
+    .classification = FUNC_MGT_TIMELINE_FUNC | 
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = -1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateDtwPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+      {
+    .name = "dtw_path",
+    .type = FUNCTION_TYPE_DTW_PATH,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | 
+                      FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = -1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateDtwPathPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+    {
+    .name = "tlcc",
+    .type = FUNCTION_TYPE_TLCC,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | 
+                      FUNC_MGT_PRIMARY_KEY_FUNC,
+    .translateFunc = translateDtwPathPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
 };

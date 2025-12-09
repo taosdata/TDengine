@@ -362,7 +362,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t walEndSnapshot(SWal *pWal) {
+int32_t walEndSnapshot(SWal *pWal, bool forceTrim) {
   int32_t code = 0, lino = 0;
 
   if (pWal->cfg.level == TAOS_WAL_SKIP) {
@@ -373,8 +373,8 @@ int32_t walEndSnapshot(SWal *pWal) {
   int64_t ver = pWal->vers.verInSnapshotting;
 
   wDebug("vgId:%d, wal end snapshot for index:%" PRId64 ", log retention:%" PRId64 " first index:%" PRId64
-         ", last index:%" PRId64,
-         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer);
+         ", last index:%" PRId64 ", keep version:%" PRId64 ", forceTrim:%d",
+         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer, pWal->keepVersion, forceTrim);
 
   if (ver == -1) {
     TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &lino, _exit);
@@ -399,6 +399,16 @@ int32_t walEndSnapshot(SWal *pWal) {
   if (pWal->cfg.retentionPeriod == 0 && hasTopic) {
     wInfo("vgId:%d, wal found ref index:%" PRId64 " in compatible mode, index:%" PRId64, pWal->cfg.vgId, refVer, ver);
     ver = TMIN(ver, refVer);
+  }
+
+  // check keepVersion constraint (skip if forceTrim is true)
+  if (!forceTrim && pWal->keepVersion >= 0) {
+    wInfo("vgId:%d, wal keep version constraint, keep version:%" PRId64 ", calculated ver:%" PRId64, pWal->cfg.vgId,
+          pWal->keepVersion, ver);
+    ver = TMIN(ver, pWal->keepVersion - 1);
+  } else if (forceTrim && pWal->keepVersion >= 0) {
+    wInfo("vgId:%d, wal force trim, ignore keep version constraint:%" PRId64 ", calculated ver:%" PRId64, 
+          pWal->cfg.vgId, pWal->keepVersion, ver);
   }
 
   // find files safe to delete
@@ -564,7 +574,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   char   *newBody = NULL;
   char   *newBodyEncrypted = NULL;
 
-  if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+  if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
 
     newBody = taosMemoryMalloc(cyptedBodyLen);
@@ -583,16 +593,17 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
 
-    SCryptOpts opts;
+    SCryptOpts opts = {0};
     opts.len = cyptedBodyLen;
     opts.source = newBody;
     opts.result = newBodyEncrypted;
     opts.unitLen = 16;
-    tstrncpy((char *)opts.key, pWal->cfg.encryptKey, ENCRYPT_KEY_LEN + 1);
+    opts.pOsslAlgrName = pWal->cfg.encryptData.encryptAlgrName;
+    tstrncpy((char *)opts.key, pWal->cfg.encryptData.encryptKey, ENCRYPT_KEY_LEN + 1);
 
     int32_t count = CBC_Encrypt(&opts);
-
-    // wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s",
+    if (count != opts.len) TAOS_CHECK_GOTO(code, &lino, _exit);
+    // wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s",
     //       pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 
     buf = newBodyEncrypted;
@@ -603,7 +614,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId,
             walGetLastFileFirstVer(pWal), strerror(ERRNO));
 
-    if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+    if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
       taosMemoryFreeClear(newBody);
       taosMemoryFreeClear(newBodyEncrypted);
     }
@@ -613,7 +624,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
-  if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+  if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     taosMemoryFreeClear(newBody);
     taosMemoryFreeClear(newBodyEncrypted);
   }

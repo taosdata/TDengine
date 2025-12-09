@@ -58,6 +58,16 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
+    case TSDB_CODE_PAR_ALGR_ID_TOO_LONG:
+      return "Algorithm ID too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_NAME_TOO_LONG:
+      return "Algorithm name too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_DESC_TOO_LONG:
+      return "Algorithm description too long, max lenght is 127 character";
+    case TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG:
+      return "Algorithm type too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG:
+      return "Algorithm OpenSSL name too long, max lenght is 63 character";
     case TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY:
       return "Password too short or empty";
     case TSDB_CODE_PAR_INVALID_PORT:
@@ -173,7 +183,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
       return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
-      return "_WSTART, _WEND, _WDURATION, and _ANOMALYMASK can only be used in window query";
+      return "_WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query";
     case TSDB_CODE_PAR_INVALID_TAGS_PC:
       return "Tags can only applied to super table and child table";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
@@ -278,6 +288,18 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid placeholder in create stream clause";
     case TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR:
       return "Invalid expr in order by clause: %s";
+    case TSDB_CODE_PAR_OPTION_DUPLICATED:
+      return "Option:%s duplicated";
+    case TSDB_CODE_PAR_INVALID_OPTION_VALUE:
+      return "Option:%s invalid value";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG:
+      return "Option:%s value too long, should be less than %d";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT:
+      return "Option:%s value too short, should be %d or longer";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG:
+      return "Option:%s value too big, should be less than %d";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL:
+      return "Option:%s value too small, should be %d or greater";
     default:
       return "Unknown error";
   }
@@ -1561,8 +1583,22 @@ int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
+
+  if (NULL == pMetaCache || NULL == pMetaCache->pVStbRefDbs) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   SArray* pRefs = NULL;
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pVStbRefDbs, (void**)&pRefs);
+
+  // Special handling for stmt scenario where slot is reserved but data is not filled
+  // In this case, getMetaDataFromHash returns INTERNAL_ERROR because value is nullPointer
+  if (TSDB_CODE_PAR_INTERNAL_ERROR == code) {
+    // Data not filled in cache (stmt scenario without putMetaDataToCache)
+    // Return table not exist to indicate VStbRefDbs is not available
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   if (TSDB_CODE_SUCCESS == code && NULL != pRefs) {
     *pOutput = pRefs;
   }

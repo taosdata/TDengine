@@ -86,10 +86,8 @@ int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType,
 
   mInfo("mndSendConsumerMsg type:%d consumer:0x%" PRIx64, msgType, consumerId);
   MND_TMQ_RETURN_CHECK(tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg));
-  return code;
 
 END:
-  taosMemoryFree(msg);
   return code;
 }
 

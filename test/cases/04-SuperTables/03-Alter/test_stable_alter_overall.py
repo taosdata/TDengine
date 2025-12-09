@@ -318,7 +318,7 @@ class TestAlterTable:
             for i in range(self.tbnum):
                 tdSql.error(f'alter table {self.stbname}_{i} rename column {key} {rename_str}')
     def test_alter_table(self):
-        """Alter Super/Normal Table Overall
+        """Alter super/normal table
 
         1. Alter super  table add/modify/drop columns and set tags for all datatypes
         2. Alter normal table add/modify/drop columns for all datatypes

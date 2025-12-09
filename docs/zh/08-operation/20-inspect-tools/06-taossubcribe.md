@@ -33,7 +33,7 @@ optional arguments:
 
 - `config`：工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。参数时配置文件默认路径为工具运行当前目录。
 - `backend`：后台运行安装工具，默认前台运行。
-- `ip`：TDengine TSDB 所在机器的对应IP地址。
+- `ip`：TDengine TSDB 所在机器的对应 IP 地址。
 - `show-data`：是否在 console 中打印订阅消息内容，默认打印。
 - `log-level`：输出日志级别，目前支持 debug 和 info，模式为 info。
 - `port`：TDengine TSDB 的 taosAdapter 服务对外开放端口，默认是 6041。
@@ -62,10 +62,10 @@ optional arguments:
 
 - `config`：工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。参数时配置文件默认路径为工具运行当前目录。
 - `backend`：后台运行安装工具，默认前台运行。
-- `ip`：TDengine TSDB 云服务的对应IP地址。
+- `ip`：TDengine TSDB 云服务的对应 IP 地址。
 - `show-data`：是否在 console 中打印订阅消息内容，默认打印。
 - `log-level`：输出日志级别，目前支持 debug 和 info，模式为 info。
-- `token`：连接 TSDB 云服务的token认证信息。
+- `token`：连接 TSDB 云服务的 token 认证信息。
 
 ### 配置文件使用说明
 
@@ -100,12 +100,12 @@ t1 = test_topic1
 
 消费部署在 192.168.0.1 服务器上的订阅服务
 
-```
+```shell
 ./taossubscribe local -i 192.168.0.1 -p 6041 -s
 ```
 
 消费部署在 192.168.0.1 云服务上的订阅服务
 
-```
+```shell
 ./taossubscribe local -i 192.168.0.1 -t [token_character] -s
 ```

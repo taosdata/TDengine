@@ -126,7 +126,7 @@ int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 int32_t dateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 bool getTimePseudoFuncEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-bool getMaskPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv);
+bool getMarkPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv);
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -134,7 +134,7 @@ int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-int32_t anomalyCheckMaskFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t anomalyCheckMarkFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 

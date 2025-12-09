@@ -623,8 +623,17 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
 void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
 
 int32_t transSetReadOption(uv_handle_t* handle);
-#endif
 
+int32_t transCachePut(int64_t refId, STrans* pTrans);
+int32_t transCacheGet(int64_t refId, STrans** pTrans);
+void    transCacheRemoveByRefId(int64_t refId);
+void    transCacheDestroy();
+
+STrans* transGetInst(int64_t mgtId, int64_t instId);
+
+STrans* transInstAcquire(int64_t mgtId, int64_t instId);
+void    transInstRelease(int64_t instId);
+#endif
 #ifdef __cplusplus
 }
 #endif
