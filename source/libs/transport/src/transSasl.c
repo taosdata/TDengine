@@ -97,7 +97,6 @@ void saslBufferClear(SSaslBuffer* buf) {
   saslBufferClearImpl(buf);
 }
 
-#if !defined(TD_ENTERPRISE)
 void saslLibInitImpl() {
   return;
 }
@@ -150,4 +149,4 @@ void saslBufferClearImpl(SSaslBuffer* buf) {
   return;
 }
 
-#endif
+//#endif
