@@ -1809,7 +1809,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
       goto _exit;
     }
 
-    if (tsEnableAuditCreateTable) {
+    if (tsEnableAudit && tsEnableAuditCreateTable && tsAuditLevel >= AUDIT_LEVEL_CHILDTABLE) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       if (str == NULL) {
         pRsp->code = terrno;
