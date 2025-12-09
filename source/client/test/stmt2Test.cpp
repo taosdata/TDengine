@@ -1786,7 +1786,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   taos_free_result(pRes);
 
   // insert same tbname from different stb
-  option = {0, true, true, NULL, NULL};
+  option = {0, false, false, NULL, NULL};
   stmt = taos_stmt2_init(taos, &option);
   code =
       taos_stmt2_prepare(stmt, "INSERT INTO `stmt2_testdb_18`.`stb2` (ts,int_col,int_tag,tbname)  VALUES (?,?,?,?)", 0);
@@ -3469,6 +3469,59 @@ TEST(stmt2Case, tbname) {
     do_query(taos, "drop table if exists stmt2_testdb_22.tb1");
     do_query(taos, "drop table if exists stmt2_testdb_22.tb2");
   }
+}
+
+TEST(stmt2Case, bool_bind) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_testdb_30");
+  do_query(taos, "create database stmt2_testdb_30");
+  do_query(taos, "use stmt2_testdb_30");
+  do_query(taos, "create stable stb(ts timestamp, c1 bool) tags(t1 bool,t2 bool,t3 bool,t4 bool)");
+
+  TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code = taos_stmt2_prepare(stmt, "insert into tb1 using stb tags(?,?,?,?) values(?, ?)", 0);
+  checkError(stmt, code);
+
+  int64_t ts[4] = {1591060628000, 1591060628100, 1591060628200, 1591060628300};
+  int8_t  c1[4] = {-7, 1, 0, -1};
+  // int             c1_len = sizeof(int);
+  TAOS_STMT2_BIND  tag[4] = {{TSDB_DATA_TYPE_BOOL, &c1[0], NULL, NULL, 1},
+                             {TSDB_DATA_TYPE_BOOL, &c1[1], NULL, NULL, 1},
+                             {TSDB_DATA_TYPE_BOOL, &c1[2], NULL, NULL, 1},
+                             {TSDB_DATA_TYPE_BOOL, &c1[3], NULL, NULL, 1}};
+  TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], NULL, NULL, 4},
+                                {TSDB_DATA_TYPE_BOOL, &c1[0], NULL, NULL, 4}};
+  TAOS_STMT2_BIND* tagv = &tag[0];
+  TAOS_STMT2_BIND* paramv = &params[0];
+  TAOS_STMT2_BINDV bindv = {1, NULL, &tagv, &paramv};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code);
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code);
+
+  do_query(taos, "flush database stmt2_testdb_30");
+
+  option = {0, true, true, NULL, NULL};
+  stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  code = taos_stmt2_prepare(stmt, "insert into tb2 using stb tags(?,?,?,?) values(?, ?)", 0);
+  checkError(stmt, code);
+
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code);
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code);
+  taos_stmt2_close(stmt);
+
+  do_query(taos, "flush database stmt2_testdb_30");
+  do_query(taos, "drop database if exists stmt2_testdb_30");
+  taos_close(taos);
 }
 
 #pragma GCC diagnostic pop
