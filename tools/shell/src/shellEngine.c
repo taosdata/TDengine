@@ -1305,39 +1305,17 @@ TAOS* createConnect(SShellArgs *pArgs) {
   uint16_t port = 0;
   char *   user = NULL;
   char *   pwd  = NULL;
-  int32_t  code = 0;
-  char *   dsnc = NULL;
+  TAOS    *taos = NULL;
 
   // set mode
   if (pArgs->connMode != CONN_MODE_NATIVE && pArgs->dsn) {
-      dsnc = strToLowerCopy(pArgs->dsn);
-      if (dsnc == NULL) {
-          return NULL;
-      }
-
-      char *cport = NULL;
-      char error[512] = "\0";
-      code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
-      if (code) {
-          printf("%s dsn=%s\n", error, dsnc);
-          free(dsnc);
-          return NULL;
-      }
-
-      // default ws port
-      if (cport == NULL) {
-          if (user)
-              port = DEFAULT_PORT_WS_CLOUD;
-          else
-              port = DEFAULT_PORT_WS_LOCAL;
-      } else {
-          port = atoi(cport);
-      }
-
       // websocket
       memcpy(show, pArgs->dsn, 20);
       memcpy(show + 20, "...", 3);
       memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
+
+    // connect dsn
+    taos = taos_connect_with_dsn(pArgs->dsn);
 
   } else {
 
@@ -1352,24 +1330,21 @@ TAOS* createConnect(SShellArgs *pArgs) {
       }
 
       sprintf(show, "host:%s port:%d ", host, port);
+
+    // connect normal
+    if (pArgs->auth) {
+      taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
+    } else {
+      taos = taos_connect(host, user, pwd, pArgs->database, port);
+    }
   }
 
-  // connect main
-  TAOS * taos = NULL;
-  if (pArgs->auth) {
-    taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
-  } else {
-    taos = taos_connect(host, user, pwd, pArgs->database, port);
-  }
-
-  // host user pointer in dsnc address
-  free(dsnc);
   return taos;
 }
 
 int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0;
-  printf(shell.info.clientVersion, shell.info.cusName, 
+  printf(shell.info.clientVersion, shell.info.cusName,
              workingMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
              taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
