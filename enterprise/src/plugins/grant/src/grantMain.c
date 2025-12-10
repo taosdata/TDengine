@@ -686,7 +686,7 @@ static int64_t grantSecFromExpireDay(int64_t curSec, int64_t expireDay) {
   return result > GRANT_EXPIRE_VALUE ? GRANT_EXPIRE_VALUE : result;
 }
 
-static void grantObjInit(SGrantUniqObj *pObj, bool official) {
+void grantObjInit(SGrantUniqObj *pObj, bool official) {
   pObj->flags = 0;
   for (int32_t i = 0; i < GRANT_UNIQ_TOKEN_NUM; ++i) {
     pObj->token[i] = 0;
