@@ -68,7 +68,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
-    case QUERY_NODE_CASE_WHEN: {
+    case QUERY_NODE_CASE_WHEN: 
+    case QUERY_NODE_REMOTE_VALUE: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = NULL;
       pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
@@ -733,7 +734,7 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   pScan->onlyMetaCtbIdx = false;
 
-  if (pScan->tableType == TSDB_CHILD_TABLE) {
+  if (pScan->tableType != TSDB_SUPER_TABLE) {
     pScan->onlyMetaCtbIdx = false;
     return TSDB_CODE_SUCCESS;
   }

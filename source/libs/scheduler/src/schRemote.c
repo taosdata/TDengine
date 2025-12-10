@@ -1123,6 +1123,7 @@ _return:
 
 int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarget) {
   *ppRes = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
   SSchJob* pJob = NULL;
   
   if (SCH_IS_PARENT_JOB(pTarget) && !SCH_JOB_GOT_SUB_JOBS(pTarget)) {
@@ -1146,10 +1147,10 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
     pJob = taosArrayGetP(pParent->subJobs, i);
     if (NULL == pJob || NULL == pJob->fetchTask) {
       SCH_JOB_ELOG("no fetchTask set in job, pJob:%p, fetchTask:%p", pJob, pJob ? pJob->fetchTask : NULL);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
 
-    SCH_ERR_RET(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
+    SCH_ERR_JRET(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
     
     memcpy(&pSource->addr, &pJob->resNode, sizeof(pSource->addr));
     pSource->clientId = pJob->fetchTask->clientId;
@@ -1160,14 +1161,21 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
     pSource->localExec = pJob->attr.localExec;
     if (NULL == taosArrayPush(*ppRes, &pSource)) {
       nodesDestroyNode((SNode *)pSource);
-      SCH_ERR_RET(terrno);
+      SCH_ERR_JRET(terrno);
     }
   }
 
   pJob = pTarget;
   SCH_TASK_DLOG("task query with %d subEndPoints", subJobNum);
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  if (code) {
+    taosArrayDestroyP(*ppRes, (FDelete)nodesDestroyNode);
+    *ppRes = NULL;
+  }
+  
+  return code;
 }
 
 int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType, void* param) {
@@ -1267,20 +1275,25 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {
         SCH_TASK_ELOG("tSerializeSSubQueryMsg get size, msgSize:%d", msgSize);
+        taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
         SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
       
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
+        taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
         SCH_ERR_JRET(terrno);
       }
 
       if (tSerializeSSubQueryMsg(msg, msgSize, &qMsg) < 0) {
         SCH_TASK_ELOG("tSerializeSSubQueryMsg failed, msgSize:%d", msgSize);
+        taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
         taosMemoryFree(msg);
         SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
+
+      taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
 
       persistHandle = true;
       int64_t refId = 0;

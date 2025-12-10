@@ -550,7 +550,16 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
 int32_t qwHandleSubQueryFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen) {
   int32_t code = 0;
   if (atomic_load_8(&ctx->subQRes.resGot)) {
-    *ppRes = ctx->subQRes.rsp;
+    SRetrieveTableRsp* pRsp = NULL;
+    int32_t tcode = qwMallocFetchRsp(!ctx->localExec, ctx->subQRes.dataLen, &pRsp);
+    if (tcode) {
+      qError("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", ctx->subQRes.dataLen, ctx->localExec, tstrerror(tcode));
+      return tcode;
+    }
+
+    memcpy(pRsp, ctx->subQRes.rsp, sizeof(*pRsp) + ctx->subQRes.dataLen);
+
+    *ppRes = pRsp;
     *dataLen = ctx->subQRes.dataLen;
     code = ctx->subQRes.code;
     QW_TASK_DLOG("subQ task already got res, rsp:%p, dataLen:%d, code:%d", *ppRes, *dataLen, code);

@@ -483,7 +483,14 @@ void schDumpSubJobsExecRes(SSchJob *pParent, SExecResult *pRes) {
     
     SCH_LOCK(SCH_WRITE, &pJob->resLock);
     if (pJob->execRes.res) {
-      void* p = taosArrayAddAll((SArray*)pRes->res, (SArray*)pJob->execRes.res);
+      if (pRes->res) {
+        void* p = taosArrayAddAll((SArray*)pRes->res, (SArray*)pJob->execRes.res);
+        SCH_JOB_DLOG("copy sub job %p execRes %p to output", pJob, pJob->execRes.res);
+      } else {
+        TSWAP(pRes->res, pJob->execRes.res);
+        pRes->msgType = pJob->execRes.msgType;
+        SCH_JOB_DLOG("move sub job %p execRes %p to output", pJob, pRes->res);
+      }
     }
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
   }
@@ -498,6 +505,9 @@ void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->msgType = pJob->execRes.msgType;
   pRes->numOfBytes = pJob->execRes.numOfBytes;
   pJob->execRes.res = NULL;
+  
+  SCH_JOB_DLOG("move job %p execRes %p to output", pJob, pRes->res);
+  
   if (SCH_JOB_GOT_SUB_JOBS(pJob)) {
     schDumpSubJobsExecRes(pJob, pRes);
   }
@@ -740,7 +750,10 @@ int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
         SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
         SCH_ERR_RET(terrno);
       }
+      SCH_JOB_DLOG("init job %p execRes %p", pJob, pJob->execRes.res);
     }
+
+    pJob->execRes.msgType = TDMT_SCH_QUERY;
 
     if (NULL == taosArrayAddBatch((SArray *)pJob->execRes.res, taosArrayGet(rsp->tbVerInfo, 0),
                                   taosArrayGetSize(rsp->tbVerInfo))) {
@@ -749,8 +762,6 @@ int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
     }
 
     taosArrayDestroy(rsp->tbVerInfo);
-
-    pJob->execRes.msgType = TDMT_SCH_QUERY;
 
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
   }
@@ -788,7 +799,7 @@ int32_t schLaunchJob(SSchJob *pJob) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCH_IS_PARENT_JOB(pJob) && SCH_JOB_GOT_SUB_JOBS(pJob)) {
+  if (SCH_IS_PARENT_JOB(pJob) && SCH_JOB_GOT_SUB_JOBS(pJob) && pJob->subJobExecIdx < taosArrayGetSize(pJob->subJobs)) {
     SCH_ERR_RET(schLaunchJobImpl(taosArrayGetP(pJob->subJobs, pJob->subJobExecIdx++)));
 
     return TSDB_CODE_SUCCESS;
@@ -815,10 +826,15 @@ void schFreeJobImpl(void *job) {
   SSchJob *pJob = job;
   uint64_t queryId = pJob->queryId;
   int64_t  refId = pJob->refId;
+  bool     isParentJob = SCH_IS_PARENT_JOB(pJob);
 
-  qTrace("QID:0x%" PRIx64 ", begin to free sch job, jobId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+  qTrace("QID:0x%" PRIx64 ", begin to free sch job, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
 
   schDropJobAllTasks(pJob);
+
+  if (SCH_JOB_GOT_SUB_JOBS(pJob)) {
+    taosArrayDestroyP(pJob->subJobs, schFreeJobImpl);
+  }
 
   int32_t numOfLevels = taosArrayGetSize(pJob->levels);
   for (int32_t i = 0; i < numOfLevels; ++i) {
@@ -850,16 +866,18 @@ void schFreeJobImpl(void *job) {
   taosHashCleanup(pJob->taskList);
 
   taosArrayDestroy(pJob->levels);
-  taosArrayDestroy(pJob->nodeList);
   taosArrayDestroy(pJob->dataSrcTasks);
 
   qExplainFreeCtx(pJob->explainCtx);
 
   destroyQueryExecRes(&pJob->execRes);
 
-  qDestroyQueryPlan(pJob->pDag);
-  (void)nodesReleaseAllocatorWeakRef(pJob->allocatorRefId);  // ignore error
-
+  if (isParentJob) {
+    taosArrayDestroy(pJob->nodeList);
+    qDestroyQueryPlan(pJob->pDag);
+    (void)nodesReleaseAllocatorWeakRef(pJob->allocatorRefId);  // ignore error
+  }
+  
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
   taosMemoryFreeClear(pJob->sql);
@@ -869,14 +887,14 @@ void schFreeJobImpl(void *job) {
   }
   taosMemoryFree(pJob);
 
-  if (refId > 0) {
+  if (refId > 0 && isParentJob) {
     int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
     if (jobNum == 0) {
       schCloseJobRef();
     }
   }
 
-  qTrace("QID:0x%" PRIx64 ", sch job freed, jobId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+  qTrace("QID:0x%" PRIx64 ", sch job freed, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
 }
 
 int32_t schJobFetchRows(SSchJob *pJob) {

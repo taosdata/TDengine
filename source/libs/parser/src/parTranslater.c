@@ -3865,6 +3865,7 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
         SRemoteValueNode* pValue = (SRemoteValueNode*)*pNode;
         pValue->val.flag |= VALUE_FLAG_VAL_UNSET;
         pValue->subQIdx = pCxt->pSubQueries->length - 1;
+        tstrncpy(pValue->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValue->val.node.userAlias));
         getScalarSubQueryResType(pSubQuery, &pValue->val.node.resType);
       }
     }
@@ -3880,7 +3881,13 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
 }
 
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
-  pCxt->errCode = updateExprSubQueryType(*pNode, pCxt->expSubQueryType);
+  if (pCxt->dual) {
+    parserError("scalar subq not supported in query without FROM");
+    pCxt->errCode = TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ;
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = updateExprSubQueryType(*pNode, pCxt->expSubQueryType);
+  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = translateSubquery(pCxt, *pNode);
   }
@@ -17602,6 +17609,7 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
     }
     if (NULL == taosArrayPush(pDst->pNsLevel, &pNew)) {
       parserError("taosArrayPush %d level %p NS failed", i, pNew);
+      taosArrayDestroy(pNew);
       return terrno;
     }
   }
@@ -17731,9 +17739,6 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
     int32_t tmpCode = mergeTranslateContextMetas(pCxt, &cxt);
     if (TSDB_CODE_SUCCESS == code) {
       code = tmpCode;
-    }
-    if (taosArrayGetSize(cxt.pNsLevel) > 0) {
-      taosArrayPopFrontBatch(cxt.pNsLevel, 1);
     }
     
     cxt.pSubQueries = NULL;

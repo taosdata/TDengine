@@ -2172,13 +2172,7 @@ int32_t sclExecRemoteValue(SRemoteValueNode *node, SScalarCtx *ctx, SScalarParam
   
   SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, node));
   
-  SScalarParam *param = taosMemoryCalloc(1, sizeof(SScalarParam));
-  if (NULL == param) {
-    sclError("calloc %d failed", (int32_t)sizeof(SScalarParam));
-    SCL_ERR_RET(terrno);
-  }
-  
-  SCL_ERR_JRET(sclInitParam((SNode*)node, param, ctx, &rowNum));
+  SCL_ERR_JRET(sclInitParam((SNode*)node, pOutput, ctx, &rowNum));
 
 _return:
 
@@ -2196,6 +2190,7 @@ EDealRes sclWalkRemoteValue(SNode *pNode, SScalarCtx *ctx) {
 
   if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
     ctx->code = terrno;
+    sclFreeParam(&output);
     return DEAL_RES_ERROR;
   }
 

@@ -588,7 +588,7 @@ typedef enum ESubQueryType {
 } ESubQueryType;
 
 typedef struct SSelectStmt {
-  ENodeType       type;  // QUERY_NODE_SELECT_STMT
+  SExprNode       node;
   ESubQueryType   subQType;
   bool            isDistinct;
   STimeWindow     timeRange;
@@ -652,7 +652,7 @@ typedef struct SSelectStmt {
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
 
 typedef struct SSetOperator {
-  ENodeType        type;  // QUERY_NODE_SET_OPERATOR
+  SExprNode        node;
   ESetOperatorType opType;
   ESubQueryType    subQType;
   SNodeList*       pSubQueries;   // non table subqueries

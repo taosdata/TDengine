@@ -4137,6 +4137,7 @@ int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SRemoteValueNode* pRes, SSData
   
   pRes->val.node.type = QUERY_NODE_VALUE;
   pRes->val.flag &= (~VALUE_FLAG_VAL_UNSET);
+  pRes->val.translate = true;
   
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
   if (colDataIsNull_s(pCol, 0)) {
@@ -4191,6 +4192,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
       SRemoteValueNode* pRemote = (SRemoteValueNode*)pParam->pRes;
       pRemote->val.node.type = QUERY_NODE_VALUE;
       pRemote->val.isNull = true;
+      pRemote->val.translate = true;
       pRemote->val.flag &= (~VALUE_FLAG_VAL_UNSET);
       taosArraySet(ctx->subResValues, pParam->subQIdx, &pParam->pRes);
     } else {
@@ -4210,7 +4212,6 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
       }
     }
   } else {
-    taosMemoryFree(pMsg->pData);
     ctx->code = rpcCvtErrCode(code);
     if (ctx->code != code) {
       qError("%s scl fetch rsp received, subQIdx:%d, error:%s, cvted error: %s", ctx->idStr, pParam->subQIdx,
@@ -4219,16 +4220,18 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
       qError("%s scl fetch rsp received, subQIdx:%d, error:%s", ctx->idStr, pParam->subQIdx, tstrerror(code));
     }
   }
+
+  taosMemoryFree(pMsg->pData);
   
   code = tsem_post(&pParam->pSubJobCtx->ready);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed to invoke post when scl fetch rsp is ready, code:%s", ctx->idStr, tstrerror(code));
+    qError("failed to invoke post when scl fetch rsp is ready, code:%s", tstrerror(code));
     return code;
   }
 
   blockDataDestroy(pResBlock);
 
-  return ctx->code;
+  return code;
 }
 
 

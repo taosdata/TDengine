@@ -1181,6 +1181,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_COLUMN:
       destroyExprNode((SExprNode*)pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE: 
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
@@ -1484,12 +1485,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pNotifyOptions->pWhere);
       break;
     }
-    case QUERY_NODE_REMOTE_VALUE: {
-      SRemoteValueNode* pValue = (SRemoteValueNode*)pNode;
-      pValue->val.node.type = QUERY_NODE_VALUE;
-      nodesDestroyNode((SNode *)&pValue->val);
-      break;
-    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -1501,6 +1496,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)pNode;
+      nodesDestroyList(pStmt->pSubQueries);
       nodesDestroyNode(pStmt->pTimeRange);
       nodesDestroyList(pStmt->pProjectionList);
       nodesDestroyList(pStmt->pProjectionBindList);
@@ -2389,6 +2385,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN:
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
+      nodesDestroyList(((SQueryPlan*)pNode)->pChildren);
       break;
     default:
       break;
@@ -2900,7 +2897,7 @@ bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
           QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type ||
-          QUERY_NODE_REMOTE_VALUE == type);
+          QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {

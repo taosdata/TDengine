@@ -358,6 +358,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
     }
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
+      qDebug("query execRes %p freed", pRes->res);
       taosArrayDestroy((SArray*)pRes->res);
       break;
     }
