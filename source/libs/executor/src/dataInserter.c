@@ -1525,7 +1525,18 @@ _end:
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(pVals);
 
-  return terrno;
+  if (terrno != 0) {
+    *ppReq = NULL;
+    if (pReq) {
+      tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+      taosMemoryFree(pReq);
+    }
+
+    return terrno;
+  }
+  *ppReq = pReq;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void destroySubmitReqWrapper(void* p) {
