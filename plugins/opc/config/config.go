@@ -52,8 +52,13 @@ type UaConnectConfig struct {
 }
 
 type DaConnectConfig struct {
-	Server string   `json:"server,omitempty" yaml:"server" toml:"server"` // opc server name
-	Nodes  []string `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`    // nodes to collect
+	Server                      string   `json:"server,omitempty" yaml:"server" toml:"server"` // opc server name
+	Nodes                       []string `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`    // nodes to collect
+	ReconnectTimes              int      `json:"reconnect_times,omitempty" yaml:"reconnect_times" toml:"reconnect_times"`
+	ReconnectInterval           int      `json:"reconnect_interval,omitempty" yaml:"reconnect_interval" toml:"reconnect_interval"`
+	AddTagRetryTimes            int      `json:"add_tag_retry_times,omitempty" yaml:"add_tag_retry_times" toml:"add_tag_retry_times"`
+	AddTagRetryInterval         int      `json:"add_tag_retry_interval,omitempty" yaml:"add_tag_retry_interval" toml:"add_tag_retry_interval"`
+	FailedReadsToForceReconnect int      `json:"failed_reads_to_force_reconnect,omitempty" yaml:"failed_reads_to_force_reconnect" toml:"failed_reads_to_force_reconnect"`
 }
 
 // PointsConfig is used for collecting points
