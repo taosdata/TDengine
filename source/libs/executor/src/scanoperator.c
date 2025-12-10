@@ -3000,7 +3000,7 @@ _end:
 }
 
 static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aFilterIdxs, void* pVnode,
-                                      SStorageAPI* pAPI, STagScanInfo* pInfo) {
+                                      SStorageAPI* pAPI, STagScanInfo* pInfo, void* pStreamRuntimeInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t numOfTables = taosArrayGetSize(aUidTags);
@@ -3021,7 +3021,7 @@ static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray*
   code = tagScanCreateResultData(&type, numOfTables, &output);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = scalarCalculate(pTagCond, pBlockList, &output, NULL, NULL);
+  code = scalarCalculate(pTagCond, pBlockList, &output, pStreamRuntimeInfo, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   bool* result = (bool*)output.columnData->pData;
@@ -3198,7 +3198,7 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
     bool ignoreFilterIdx = true;
     if (pInfo->pTagCond != NULL) {
       ignoreFilterIdx = false;
-      code = tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, aFilterIdxs, pInfo->readHandle.vnode, pAPI, pInfo);
+      code = tagScanFilterByTagCond(aUidTags, pInfo->pTagCond, aFilterIdxs, pInfo->readHandle.vnode, pAPI, pInfo, pTaskInfo->pStreamRuntimeInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       ignoreFilterIdx = true;
