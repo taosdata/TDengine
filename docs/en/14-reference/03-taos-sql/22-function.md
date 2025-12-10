@@ -1505,8 +1505,8 @@ MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
 **Applicable Data Types**:
 
 - `str`: VARCHAR.
-- `prefix_length`: The prefix lenght, an integer.
-- `suffix_length`: The suffix lenght, an integer.
+- `prefix_length`: The prefix length, an integer.
+- `suffix_length`: The suffix length, an integer.
 - `mask_char`: The masking character.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
