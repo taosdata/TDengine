@@ -150,9 +150,9 @@ int32_t sessMetricCreate(SSessMetric **ppMetric) {
 int32_t sessMetricUpdateLimit(SSessMetric *pMetric, ESessionType type, int32_t value) {
   int32_t code = 0;
 
-  taosThreadRwlockWrlock(&pMetric->lock);
+  (void)taosThreadRwlockWrlock(&pMetric->lock);
   code = sessFnSet[type].limitFn(&pMetric->limit[type], value);
-  taosThreadRwlockUnlock(&pMetric->lock);
+  (void)taosThreadRwlockUnlock(&pMetric->lock);
   return code;
 }
 
@@ -186,9 +186,9 @@ int32_t sessMetricCheck(SSessMetric *pMetric) {
 int32_t sessMetricCheckByType(SSessMetric *pMetric, ESessionType type) {
   int32_t code = 0;
 
-  taosThreadRwlockRdlock(&pMetric->lock);
+  (void)taosThreadRwlockRdlock(&pMetric->lock);
   code = sessMetricCheckByTypeImpl(pMetric, type);
-  taosThreadRwlockUnlock(&pMetric->lock);
+  (void)taosThreadRwlockUnlock(&pMetric->lock);
 
   return code;
 }
@@ -196,9 +196,9 @@ int32_t sessMetricCheckByType(SSessMetric *pMetric, ESessionType type) {
 int32_t sessMetricGet(SSessMetric *pMetric, ESessionType type, int32_t *pValue) {
   int32_t code = 0;
 
-  taosThreadRwlockRdlock(&pMetric->lock);
+  (void)taosThreadRwlockRdlock(&pMetric->lock);
   *pValue = pMetric->limit[type];
-  taosThreadRwlockUnlock(&pMetric->lock);
+  (void)taosThreadRwlockUnlock(&pMetric->lock);
 
   return code;
 }
@@ -206,7 +206,7 @@ int32_t sessMetricGet(SSessMetric *pMetric, ESessionType type, int32_t *pValue) 
 int32_t sessMetricUpdate(SSessMetric *pMetric, SSessParam *p) {
   int32_t code = 0;
   int32_t lino = 0;
-  taosThreadRwlockWrlock(&pMetric->lock);
+  (void)taosThreadRwlockWrlock(&pMetric->lock);
 
   code = sessMetricCheckByTypeImpl(pMetric, p->type);
   TAOS_CHECK_GOTO(code, &lino, _error);
@@ -214,7 +214,7 @@ int32_t sessMetricUpdate(SSessMetric *pMetric, SSessParam *p) {
   code = sessFnSet[p->type].updateFn(&pMetric->value[p->type], p->value);
 _error:
 
-  taosThreadRwlockUnlock(&pMetric->lock);
+  (void)taosThreadRwlockUnlock(&pMetric->lock);
   return code;
 }
 void sessMetricDestroy(SSessMetric *pMetric) {
@@ -245,7 +245,7 @@ int32_t sessMgtUpdataLimit(char *user, ESessionType type, int32_t value) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  code = taosThreadRwlockWrlock(&pMgt->lock);
+  (void)taosThreadRwlockWrlock(&pMgt->lock);
 
   SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
   if (ppMetric == NULL || *ppMetric == NULL) {
@@ -274,7 +274,7 @@ int32_t sessMgtUpdateUserMetric(char *user, SSessParam *pPara) {
   SSessionMgt *pMgt = &sessMgt;
 
   SSessMetric *pMetric = NULL;
-  taosThreadRwlockWrlock(&pMgt->lock);
+  (void)taosThreadRwlockWrlock(&pMgt->lock);
 
   SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
   if (ppMetric == NULL || *ppMetric == NULL) {
@@ -295,7 +295,7 @@ _error:
     uError("failed to update user session metric, line:%d, code:%d", lino, code);
   }
 
-  taosThreadRwlockUnlock(&pMgt->lock);
+  (void)taosThreadRwlockUnlock(&pMgt->lock);
   return code;
 }
 
