@@ -103,7 +103,7 @@ _return:
 }
 
 int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
-  char            buf[256] = {0};
+  char            buf[512] = {0};
   SQueryNodeAddr *pAddr = NULL;
 
   if (SCH_IS_LOCAL_EXEC_TASK(pJob, pTask)) {
@@ -1443,7 +1443,7 @@ _return:
 }
 
 int32_t schUpdateCurrentEpset(SSchTask *pTask, SSchJob *pJob) {
-  char            buf[256] = {0};
+  char            buf[512] = {0};
   SQueryNodeAddr *pAddr = NULL;
   int32_t         code = schGetTaskCurrentNodeAddr(pTask, pJob, &pAddr);
   if (code != TSDB_CODE_SUCCESS) {
