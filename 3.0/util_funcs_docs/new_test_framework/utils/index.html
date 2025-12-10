@@ -4896,6 +4896,17 @@
           
   
     <li class="md-nav__item">
+      <a href="#__init__.TDSql.checkDataMemLoop" class="md-nav__link">
+        checkDataMemLoop 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
       <a href="#__init__.TDSql.checkDataNoExist" class="md-nav__link">
         checkDataNoExist 
       </a>
@@ -6685,6 +6696,17 @@
     <li class="md-nav__item">
       <a href="#sql.TDSql.checkDataMemByLine" class="md-nav__link">
         checkDataMemByLine 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
+      <a href="#sql.TDSql.checkDataMemLoop" class="md-nav__link">
+        checkDataMemLoop 
       </a>
       
     </li>
@@ -14913,6 +14935,113 @@ or if the sql result does not match the expected data from CSV file.</p>
   
   
   
+<h4 id="__init__.TDSql.checkDataMemLoop" class="doc doc-heading">
+                  checkDataMemLoop(sql, mem, loopCount=120, waitTime=1)
+<a href="#__init__.TDSql.checkDataMemLoop" class="headerlink" title="Permanent link">&para;</a></h4>  
+        <div class="doc doc-contents ">
+
+        <p>Loop executes a SQL query and checks if the result matches the expected data.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sql</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The SQL query to be executed.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mem</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The expected data, represented as a list of lists.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="SystemExit">SystemExit</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the expected data is not a list of lists, or if the SQL result does not match the expected data.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h4 id="__init__.TDSql.checkDataNoExist" class="doc doc-heading">
                   checkDataNoExist(row, col, data)
 <a href="#__init__.TDSql.checkDataNoExist" class="headerlink" title="Permanent link">&para;</a></h4>  
@@ -15801,7 +15930,7 @@ in test cases.</p>
   
   
 <h4 id="__init__.TDSql.checkRowCol" class="doc doc-heading">
-                  checkRowCol(row, col)
+                  checkRowCol(row, col, exit=True)
 <a href="#__init__.TDSql.checkRowCol" class="headerlink" title="Permanent link">&para;</a></h4>  
         <div class="doc doc-contents ">
 
@@ -26570,6 +26699,113 @@ or if the sql result does not match the expected data from CSV file.</p>
   
   
   
+<h4 id="sql.TDSql.checkDataMemLoop" class="doc doc-heading">
+                  checkDataMemLoop(sql, mem, loopCount=120, waitTime=1)
+<a href="#sql.TDSql.checkDataMemLoop" class="headerlink" title="Permanent link">&para;</a></h4>  
+        <div class="doc doc-contents ">
+
+        <p>Loop executes a SQL query and checks if the result matches the expected data.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>sql</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The SQL query to be executed.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mem</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The expected data, represented as a list of lists.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="SystemExit">SystemExit</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the expected data is not a list of lists, or if the SQL result does not match the expected data.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h4 id="sql.TDSql.checkDataNoExist" class="doc doc-heading">
                   checkDataNoExist(row, col, data)
 <a href="#sql.TDSql.checkDataNoExist" class="headerlink" title="Permanent link">&para;</a></h4>  
@@ -27458,7 +27694,7 @@ in test cases.</p>
   
   
 <h4 id="sql.TDSql.checkRowCol" class="doc doc-heading">
-                  checkRowCol(row, col)
+                  checkRowCol(row, col, exit=True)
 <a href="#sql.TDSql.checkRowCol" class="headerlink" title="Permanent link">&para;</a></h4>  
         <div class="doc doc-contents ">
 
