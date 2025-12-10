@@ -75,7 +75,7 @@
       break;                                                            \
     }                                                                   \
     int32_t code = nodesCloneList((pSrc)->fldname, &((pDst)->fldname)); \
-    if (NULL == (pDst)->fldname) {                                      \
+    if (TSDB_CODE_SUCCESS != code) {                                    \
       return code;                                                      \
     }                                                                   \
   } while (0)
