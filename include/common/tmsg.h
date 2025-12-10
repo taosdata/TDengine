@@ -131,6 +131,7 @@ enum {
   CONN_TYPE__QUERY = 1,
   CONN_TYPE__TMQ,
   CONN_TYPE__UDFD,
+  CONN_TYPE__AUTH_TEST, // only for test authentication
   CONN_TYPE__MAX,
 };
 
@@ -1277,6 +1278,7 @@ typedef struct {
   char    passwd[TSDB_PASSWORD_LEN];
   int64_t startTime;
   char    sVer[TSDB_VERSION_LEN];
+  int32_t totpCode;
 } SConnectReq;
 
 int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
@@ -1290,7 +1292,6 @@ typedef struct {
   int8_t        superUser;
   int8_t        sysInfo;
   int8_t        connType;
-  int8_t        mustChangePass;
   SEpSet        epSet;
   int32_t       svrTimestamp;
   int32_t       passVer;

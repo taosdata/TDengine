@@ -330,6 +330,7 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
   handle->tableCreateTimeHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
 END:
+  reader.api.snapshotFn.destroySnapshot(reader.sContext);
   taosArrayDestroy(tbUidList);
   return code;
 }

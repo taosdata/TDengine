@@ -54,11 +54,28 @@ typedef struct SSubmitTbDataMsg {
   void*   pData;
 } SSubmitTbDataMsg;
 
+typedef struct SSubmitTbDataSendInfo {
+  SSubmitTbDataMsg msg;
+  SEpSet epSet;
+} SSubmitTbDataSendInfo;
+
+typedef struct SSubmitReqSendInfo {
+  SSubmitReq2* msg;
+  SEpSet epSet;
+} SSubmitReqSendInfo;
+
 static void destroySSubmitTbDataMsg(void* p) {
   if (p == NULL) return;
   SSubmitTbDataMsg* pVg = p;
   taosMemoryFree(pVg->pData);
   taosMemoryFree(pVg);
+}
+
+static void destroySSubmitTbDataSendInfo(void* p) {
+  if (p == NULL) return;
+  SSubmitTbDataSendInfo* pSendInfo = p;
+  taosMemoryFree(pSendInfo->msg.pData);
+  taosMemoryFree(pSendInfo);
 }
 
 typedef struct SDataInserterHandle {
@@ -848,7 +865,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
                                    const STSchema* pTSchema, int64_t uid, int32_t vgId, tb_uid_t suid) {
   SArray* pVals = NULL;
   SArray* pTagVals = NULL;
-  SSubmitReq2** ppReq = NULL;
+  SSubmitReqSendInfo** ppSendInfo = NULL;
   int32_t numOfBlks = 0;
 
   terrno = TSDB_CODE_SUCCESS;
@@ -929,35 +946,49 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
-    int32_t vgIdForTbName = 0;
-    code = inserterGetVgId(dbInfo, tbFullName, &vgIdForTbName);
+    SVgroupInfo vgInfo = {0};
+    code = inserterGetVgInfo(dbInfo, tbFullName, &vgInfo);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
     SSubmitReq2* pReq = NULL;
-    ppReq = taosHashGet(pHash, &vgIdForTbName, sizeof(int32_t));
-    if (ppReq == NULL) {
+    ppSendInfo = taosHashGet(pHash, &vgInfo.vgId, sizeof(int32_t));
+    if (ppSendInfo == NULL) {
+      SSubmitReqSendInfo* pSendInfo = taosMemoryCalloc(1, sizeof(SSubmitReqSendInfo));
+      if (NULL == pSendInfo) {
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        goto _end;
+      }
+      
       pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2));
       if (NULL == pReq) {
+        taosMemoryFree(pSendInfo);
         tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
 
       if (!(pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
+        taosMemoryFree(pReq);
+        taosMemoryFree(pSendInfo);
         tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
-      code = taosHashPut(pHash, &vgIdForTbName, sizeof(int32_t), &pReq, POINTER_BYTES);
+      
+      pSendInfo->msg = pReq;
+      pSendInfo->epSet = vgInfo.epSet;
+      code = taosHashPut(pHash, &vgInfo.vgId, sizeof(int32_t), &pSendInfo, POINTER_BYTES);
+      if (code != TSDB_CODE_SUCCESS) {
+        tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+        taosMemoryFree(pReq);
+        taosMemoryFree(pSendInfo);
+        terrno = code;
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        goto _end;
+      }
     } else {
-      pReq = *ppReq;
-    }
-
-    if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
-      tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
-      goto _end;
+      pReq = (*ppSendInfo)->msg;
     }
     SArray* TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
     if (!TagNames) {
@@ -1493,6 +1524,7 @@ _end:
 
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(pVals);
+
   if (terrno != 0) {
     *ppReq = NULL;
     if (pReq) {
@@ -1508,10 +1540,13 @@ _end:
 }
 
 static void destroySubmitReqWrapper(void* p) {
-  SSubmitReq2* pReq = *(SSubmitReq2**)p;
-  if (pReq != NULL) {
-    tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
-    taosMemoryFree(pReq);
+  SSubmitReqSendInfo* pSendInfo = *(SSubmitReqSendInfo**)p;
+  if (pSendInfo != NULL) {
+    if (pSendInfo->msg != NULL) {
+      tDestroySubmitReq(pSendInfo->msg, TSDB_MSG_FLG_ENCODE);
+      taosMemoryFree(pSendInfo->msg);
+    }
+    taosMemoryFree(pSendInfo);
   }
 }
 
@@ -1548,19 +1583,23 @@ int32_t dataBlocksToSubmitReqArray(SDataInserterHandle* pInserter, SArray* pMsgs
 
   size_t keyLen = 0;
   while ((iterator = taosHashIterate(pHash, iterator))) {
-    SSubmitReq2* pReq = *(SSubmitReq2**)iterator;
-    int32_t*     ctbVgId = taosHashGetKey(iterator, &keyLen);
+    SSubmitReqSendInfo* pReqSendInfo = *(SSubmitReqSendInfo**)iterator;
+    int32_t*            ctbVgId = taosHashGetKey(iterator, &keyLen);
 
-    SSubmitTbDataMsg* pMsg = taosMemoryCalloc(1, sizeof(SSubmitTbDataMsg));
-    if (NULL == pMsg) {
+    SSubmitTbDataSendInfo* pTbSendInfo = taosMemoryCalloc(1, sizeof(SSubmitTbDataSendInfo));
+    if (NULL == pTbSendInfo) {
       code = terrno;
       goto _end;
     }
-    code = submitReqToMsg(*ctbVgId, pReq, &pMsg->pData, &pMsg->len);
+    code = submitReqToMsg(*ctbVgId, pReqSendInfo->msg, &pTbSendInfo->msg.pData, &pTbSendInfo->msg.len);
     if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pTbSendInfo);
       goto _end;
     }
-    if (NULL == taosArrayPush(pMsgs, &pMsg)) {
+    pTbSendInfo->epSet = pReqSendInfo->epSet;
+    if (NULL == taosArrayPush(pMsgs, &pTbSendInfo)) {
+      taosMemoryFree(pTbSendInfo->msg.pData);
+      taosMemoryFree(pTbSendInfo);
       code = terrno;
       goto _end;
     }
@@ -2197,19 +2236,19 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
       }
       int32_t code = dataBlocksToSubmitReqArray(pInserter, pMsgs);
       if (code) {
-        taosArrayDestroyP(pMsgs, destroySSubmitTbDataMsg);
+        taosArrayDestroyP(pMsgs, destroySSubmitTbDataSendInfo);
         return code;
       }
       taosArrayClear(pInserter->pDataBlocks);
       for (int32_t i = 0; i < taosArrayGetSize(pMsgs); ++i) {
-        SSubmitTbDataMsg* pMsg = taosArrayGetP(pMsgs, i);
-        code = sendSubmitRequest(pInserter, NULL, pMsg->pData, pMsg->len,
-                                 pInserter->pParam->readHandle->pMsgCb->clientRpc, &pInserter->pNode->epSet);
-        taosMemoryFree(pMsg);
+        SSubmitTbDataSendInfo* pSendInfo = taosArrayGetP(pMsgs, i);
+        code = sendSubmitRequest(pInserter, NULL, pSendInfo->msg.pData, pSendInfo->msg.len,
+                                 pInserter->pParam->readHandle->pMsgCb->clientRpc, &pSendInfo->epSet);
+        taosMemoryFree(pSendInfo);
         if (code) {
           for (int j = i + 1; j < taosArrayGetSize(pMsgs); ++j) {
-            SSubmitTbDataMsg* pMsg2 = taosArrayGetP(pMsgs, j);
-            destroySSubmitTbDataMsg(pMsg2);
+            SSubmitTbDataSendInfo* pSendInfo2 = taosArrayGetP(pMsgs, j);
+            destroySSubmitTbDataSendInfo(pSendInfo2);
           }
           taosArrayDestroy(pMsgs);
           return code;
@@ -2218,8 +2257,8 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
         if (pInserter->submitRes.code) {
           for (int j = i + 1; j < taosArrayGetSize(pMsgs); ++j) {
-            SSubmitTbDataMsg* pMsg2 = taosArrayGetP(pMsgs, j);
-            destroySSubmitTbDataMsg(pMsg2);
+            SSubmitTbDataSendInfo* pSendInfo2 = taosArrayGetP(pMsgs, j);
+            destroySSubmitTbDataSendInfo(pSendInfo2);
           }
           taosArrayDestroy(pMsgs);
           return pInserter->submitRes.code;

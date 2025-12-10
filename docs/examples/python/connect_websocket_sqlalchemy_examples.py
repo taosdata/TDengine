@@ -8,7 +8,7 @@ warnings.filterwarnings(
     message="Dialect taosws:taosws will not make use of SQL compilation caching"
 )
 
-# ANCHOR: connect
+# ANCHOR: connect_sqlalchemy
 import taosws
 from sqlalchemy import create_engine
 from sqlalchemy import text

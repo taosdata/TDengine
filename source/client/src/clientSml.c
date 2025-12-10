@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "clientSml.h"
+#include "thash.h"
 
 #define RETURN_FALSE                                 \
   smlBuildInvalidDataMsg(msg, "invalid data", pVal); \
@@ -955,14 +956,36 @@ END:
   return code;
 }
 
-static int32_t smlProcessSchemaAction(SSmlHandle *info, SHashObj *schemaHash, SArray *cols,
-                                      SHashObj *schemaHashCheck, bool isTag, SRequestConnInfo *conn, STableMeta **tableMeta, SName *pName) {
+static int32_t smlBuildTempHash(SHashObj *hashTmp, STableMeta *pTableMeta, uint16_t start, uint16_t end) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  for (uint16_t i = start; i < end; i++) {
+    SML_CHECK_CODE(
+        taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES));
+  }
+
+END:
+  return code;
+}
+
+static int32_t smlProcessSchemaAction(SSmlHandle *info, SArray *cols, bool isTag, SRequestConnInfo *conn, STableMeta **tableMeta, SName *pName) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SHashObj *colHashTmp = taosHashInit((*tableMeta)->tableInfo.numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  SHashObj *tagHashTmp = taosHashInit((*tableMeta)->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  SML_CHECK_NULL(colHashTmp);
+  SML_CHECK_NULL(tagHashTmp);
+
   for (int j = 0; j < taosArrayGetSize(cols); ++j) {
     if (j == 0 && !isTag) continue;
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, j);
     SML_CHECK_NULL(kv);
+    SML_CHECK_CODE(smlBuildTempHash(tagHashTmp, *tableMeta, (*tableMeta)->tableInfo.numOfColumns,
+                                      (*tableMeta)->tableInfo.numOfColumns + (*tableMeta)->tableInfo.numOfTags));
+    SML_CHECK_CODE(smlBuildTempHash(colHashTmp, *tableMeta, 0, (*tableMeta)->tableInfo.numOfColumns));
+
+    SHashObj *schemaHashCheck = isTag ? colHashTmp : tagHashTmp;
+    SHashObj *schemaHash = isTag ? tagHashTmp : colHashTmp;
     if (taosHashGet(schemaHashCheck, kv->key, kv->keyLen) != NULL) {
       uError("SML:0x%" PRIx64 ", %s duplicated column %s", info->id, __FUNCTION__, kv->key);
       SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
@@ -978,6 +1001,8 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SHashObj *schemaHash, SA
   }
 
 END:
+  taosHashCleanup(colHashTmp);
+  taosHashCleanup(tagHashTmp);
   RETURN
 }
 
@@ -1078,36 +1103,24 @@ END:
   RETURN
 }
 
-static int32_t smlModifyTag(SSmlHandle *info, SHashObj *hashTmpCheck, SHashObj *hashTmp, SRequestConnInfo *conn,
+static int32_t smlModifyTag(SSmlHandle *info, SRequestConnInfo *conn,
                             SSmlSTableMeta *sTableData, SName *pName, STableMeta **pTableMeta) {
   int32_t       code = 0;
   int32_t       lino = 0;
   SML_CHECK_CODE(
-      smlProcessSchemaAction(info, hashTmp, sTableData->tags, hashTmpCheck, true, conn, pTableMeta, pName));
+      smlProcessSchemaAction(info, sTableData->tags, true, conn, pTableMeta, pName));
 END:
   RETURN
 }
 
-static int32_t smlModifyCols(SSmlHandle *info, SHashObj *hashTmpCheck, SHashObj *hashTmp, SRequestConnInfo *conn,
+static int32_t smlModifyCols(SSmlHandle *info, SRequestConnInfo *conn,
                              SSmlSTableMeta *sTableData, SName *pName, STableMeta **pTableMeta) {
   int32_t       code = 0;
   int32_t       lino = 0;
   SML_CHECK_CODE(
-      smlProcessSchemaAction(info, hashTmp, sTableData->cols, hashTmpCheck, false, conn, pTableMeta, pName));
+      smlProcessSchemaAction(info, sTableData->cols, false, conn, pTableMeta, pName));
 END:
   RETURN
-}
-
-static int32_t smlBuildTempHash(SHashObj *hashTmp, STableMeta *pTableMeta, uint16_t start, uint16_t end) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  for (uint16_t i = start; i < end; i++) {
-    SML_CHECK_CODE(
-        taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES));
-  }
-
-END:
-  return code;
 }
 
 static int32_t smlModifyDBSchemas(SSmlHandle *info) {
@@ -1118,8 +1131,6 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
   }
   int32_t     code = 0;
   int32_t     lino = 0;
-  SHashObj   *colHashTmp = NULL;
-  SHashObj   *tagHashTmp = NULL;
   STableMeta *pTableMeta = NULL;
 
   SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
@@ -1160,24 +1171,10 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         SML_CHECK_CODE(TSDB_CODE_SML_NOT_SUPPORT_PK);
       }
 
-      colHashTmp = taosHashInit(pTableMeta->tableInfo.numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
-                                true, HASH_NO_LOCK);
-      tagHashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
-                                true, HASH_NO_LOCK);
-      SML_CHECK_NULL(colHashTmp);
-      SML_CHECK_NULL(tagHashTmp);
-      SML_CHECK_CODE(smlBuildTempHash(tagHashTmp, pTableMeta, pTableMeta->tableInfo.numOfColumns,
-                                      pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags));
-      SML_CHECK_CODE(smlBuildTempHash(colHashTmp, pTableMeta, 0, pTableMeta->tableInfo.numOfColumns));
-
-      SML_CHECK_CODE(smlModifyTag(info, colHashTmp, tagHashTmp, &conn, sTableData, &pName, &pTableMeta));
-      SML_CHECK_CODE(smlModifyCols(info, tagHashTmp, colHashTmp, &conn, sTableData, &pName, &pTableMeta));
+      SML_CHECK_CODE(smlModifyTag(info, &conn, sTableData, &pName, &pTableMeta));
+      SML_CHECK_CODE(smlModifyCols(info, &conn, sTableData, &pName, &pTableMeta));
 
       needCheckMeta = true;
-      taosHashCleanup(colHashTmp);
-      taosHashCleanup(tagHashTmp);
-      colHashTmp = NULL;
-      tagHashTmp = NULL;
     } else {
       uError("SML:0x%" PRIx64 ", %s load table meta error:%s", info->id, __FUNCTION__, tstrerror(code));
       goto END;
@@ -1202,8 +1199,6 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
 END:
   taosHashCancelIterate(info->superTables, tmp);
-  taosHashCleanup(colHashTmp);
-  taosHashCleanup(tagHashTmp);
   taosMemoryFreeClear(pTableMeta);
   (void)catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);  // ignore refresh meta code if there is an error
   uError("SML:0x%" PRIx64 ", %s end failed:%d:%s, format:%d, needModifySchema:%d", info->id, __FUNCTION__, code,

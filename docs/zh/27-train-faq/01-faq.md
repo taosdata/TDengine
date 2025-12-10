@@ -14,7 +14,7 @@ description: 一些常见问题的解决方法汇总
 
 为了保证有足够的 debug 信息，如果问题能够重复，请修改 `/etc/taos/taos.cfg` 文件，最后面添加一行 `debugFlag 135`，然后重启 taosd, 重复问题，然后再递交。也可以通过如下 SQL 语句，临时设置 taosd 的日志级别。
 
-```sh
+```sql
   alter dnode <dnode_id> 'debugFlag' '135';
 ```
 
@@ -128,7 +128,7 @@ Windows 系统中一般是采用 GBK/GB18030 存储中文字符，而 TDengine T
 
 在 Windows 10 环境下运行 TDengine TSDB 客户端命令行工具 taos 时，若无法正常输入、显示中文，可以对客户端 taos.cfg 做如下配置：
 
-```sh
+```bash
 locale C 
 charset UTF-8
 ```
@@ -252,20 +252,20 @@ taosd 日志文件报错 Too many open file，是由于 taosd 打开文件数超
 
 2. 修改文件权限
 
-```sh
+```bash
 sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
 sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 
 3. 加载 plist 文件 (或重启系统后生效。launchd 在启动时会自动加载该目录的 plist)
 
-```sh
+```bash
 sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 
 4.确认更改后的限制
 
-```sh
+```bash
 launchctl limit maxfiles
 ```
 
