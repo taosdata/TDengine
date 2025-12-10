@@ -351,8 +351,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
-extern int32_t  clientConnRefPool;
-extern int32_t  timestampDeltaLimit;
+extern int32_t   clientConnRefPool;
 extern int64_t  lastClusterId;
 extern SHashObj* pTimezoneMap;
 

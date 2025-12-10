@@ -51,5 +51,4 @@
 /home/TDinternal/community/source/libs/planner/src/planPhysiCreater.c
 /home/TDinternal/community/source/libs/executor/src/sysscanoperator.c
 /home/TDinternal/community/source/libs/executor/src/executil.c
-/home/TDinternal/community/source/libs/scheduler/src/schTask.c
 /home/TDinternal/community/source/libs/parser/src/parAstCreater.c
