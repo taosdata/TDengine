@@ -2199,14 +2199,14 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
     QUERY_CHECK_CODE(code, line, _return);
   }
 
-  if (pPhyciNode->dynTbname) {
+  if (pPhyciNode->dynTbname && pTaskInfo && pTaskInfo->pStreamRuntimeInfo) {
     SArray* vals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
     for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
       SStreamGroupValue* pValue = taosArrayGet(vals, i);
       if (pValue != NULL && pValue->isTbname) {
         pInfo->vtbScan.dynTbUid = pValue->uid;
 
-	qTrace("dynQueryCtrl dyn tb uid:%" PRId64, pInfo->vtbScan.dynTbUid);
+        qTrace("dynQueryCtrl dyn tb uid:%" PRId64, pInfo->vtbScan.dynTbUid);
 
         break;
       }
@@ -2285,12 +2285,12 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
       if (pVtbScan->childTableList) {
         taosArrayClearEx(pVtbScan->childTableList, destroyColRefArray);
       }
-      if (pPhyciNode->dynTbname) {
+      if (pPhyciNode->dynTbname && pTaskInfo && pTaskInfo->pStreamRuntimeInfo) {
         SArray* vals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
         for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
           SStreamGroupValue* pValue = taosArrayGet(vals, i);
           if (pValue != NULL && pValue->isTbname && pValue->uid != pVtbScan->dynTbUid) {
-            qTrace("dynQueryCtrl dyn tb uid:%" PRId64 "reset to:%" PRId64, pVtbScan->dynTbUid, pValue->uid);
+            qTrace("dynQueryCtrl dyn tb uid:%" PRId64 " reset to:%" PRId64, pVtbScan->dynTbUid, pValue->uid);
 
             pVtbScan->dynTbUid = pValue->uid;
             break;
