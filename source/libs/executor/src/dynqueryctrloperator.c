@@ -2321,6 +2321,7 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   QUERY_CHECK_NULL(pOperator, code, line, _error, terrno)
 
+  pOperator->pPhyNode = pPhyciNode;
   pTaskInfo->dynamicTask = (int8_t)pPhyciNode->node.dynamicOp;
 
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
