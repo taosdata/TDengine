@@ -50,9 +50,7 @@ extern void sslBufferUnrefImpl(SSslBuffer* buf);
 
 int32_t transTlsCxtCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
 
-
-void transTlsCxtDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }
-
+void transTlsCtxDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }
 
 int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) { return sslInitImpl(pCtx, ppTLs); }
 void    sslDestroy(STransTLS* pTLs) { sslDestroyImpl(pTLs); }
@@ -194,7 +192,7 @@ void transTlsCxtUnref(SSslCtx* pCtx) {
 
   if (atomic_sub_fetch_32(&pCtx->refCount, 1) == 0) {
     tInfo("ref tls context %p, current refCount:%d, try to destroy", pCtx, atomic_load_32(&pCtx->refCount));
-    transTlsCxtDestroy(pCtx);
+    transTlsCtxDestroy(pCtx);
   } else {
     tInfo("ref tls context %p, current refCount:%d", pCtx, atomic_load_32(&pCtx->refCount));
   }

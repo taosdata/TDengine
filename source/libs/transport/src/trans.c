@@ -174,7 +174,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   return (void*)refId;
 _end:
   // if (pRpc->pSSLContext) {
-  //   transTlsCxtDestroy((SSslCtx*)pRpc->pSSLContext);
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
   // }
   taosMemoryFree(pRpc);
   terrno = code;
@@ -200,13 +200,13 @@ void rpcCloseImpl(void* arg) {
   }
 
   // if (pRpc->pSSLContext) {
-  //   transTlsCxtDestroy((SSslCtx*)pRpc->pSSLContext);
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
   //   pRpc->pSSLContext = NULL;
   // }
   transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
 
   // if (pRpc->pNewSSLContext != NULL) {
-  //   transTlsCxtDestroy((SSslCtx*)pRpc->pNewSSLContext);
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pNewSSLContext);
   //   pRpc->pNewSSLContext = NULL;
   // }
   taosMemoryFree(pRpc);

@@ -50,7 +50,7 @@ typedef struct {
 } SSslCtx;
 
 int32_t transTlsCxtCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
-void    transTlsCxtDestroy(SSslCtx* pCtx);
+void    transTlsCtxDestroy(SSslCtx* pCtx);
 
 void   transTlsCxtRef(SSslCtx* pCtx);
 void   transTlsCxtUnref(SSslCtx* pCtx);
