@@ -35,6 +35,7 @@ if(NOT DEFINED TD_ENTERPRISE_DIR)
   include(cmake/external.cmake)
 endif()
 
+
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 add_subdirectory(contrib)
 
