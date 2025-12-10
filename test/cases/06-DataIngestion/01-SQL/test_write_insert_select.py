@@ -27,9 +27,13 @@ class TestWriteInsertSelect:
 
         """
 
+
+        clusterComCheck.checkDnodes(2)
         self.Test1()
         tdStream.dropAllStreamsAndDbs()
         self.Test2()
+        tdStream.dropAllStreamsAndDbs()
+        self.Test3()
         tdStream.dropAllStreamsAndDbs()
         
     def Test1(self):
@@ -153,3 +157,31 @@ class TestWriteInsertSelect:
 
         tdLog.info(f"======== tbname isn't in first field")
         tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
+
+
+    def Test3(self):
+        tdLog.info(f"======== https://project.feishu.cn/taosdata_td/defect/detail/6570627479")
+        tdSql.execute(f"drop database if exists db3;")
+        tdSql.execute(f"create database db3 replica 1 vgroups 2 dnodes '1,2';")
+        tdSql.execute(f"use db3;")
+        tdSql.execute(
+            f"CREATE STABLE IF NOT EXISTS dst_smeters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(groupId INT, location BINARY(24));"
+        )
+
+        tdSql.execute(f"CREATE TABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT);")
+        tdSql.execute(f"INSERT INTO meters values('2021-04-19 08:00:07', 9, 9, 9)('2021-04-19 08:00:08', 10, 10, 10)('2021-04-19 08:00:07', 9, 9, 9);")
+        tdSql.execute(f"INSERT INTO db3.dst_smeters(tbname, groupId, location, ts, current, voltage, phase) select concat(tbname, to_char(ts, 'SS')), 1, 'Beijing', ts, current, voltage,phase as sub_table_name from db3.meters partition by tbname;")
+        tdSql.query(f"select tbname, groupId, location, ts, current, voltage, phase from db3.dst_smeters order by tbname;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "meters_07")
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, "Beijing")
+        tdSql.checkData(0, 3, "2021-04-19 08:00:07")
+        tdSql.checkData(0, 4, 9)
+        tdSql.checkData(0, 5, 9)
+        tdSql.checkData(0, 6, 9)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "meters_08")
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, "Beijing")
+        tdSql.checkData(0, 3, "2021-04-19 08:00:08")
