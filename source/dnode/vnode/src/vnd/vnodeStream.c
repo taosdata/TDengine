@@ -485,7 +485,7 @@ static int32_t addUidListToBlock(SArray* uidListAdd, void** block, int64_t ver, 
     if (code != 0) {
       return code;
     }
-    totalRows++;
+    (*totalRows)++;
   }
   return 0;
 }
@@ -509,7 +509,7 @@ static int32_t qStreamGetAddTable(SStreamTriggerReaderInfo* sStreamReaderInfo, S
       continue;
     }
     STREAM_CHECK_NULL_GOTO(taosArrayPush(uidListAdd, &info->uid), terrno);
-    ST_TASK_WLOG("%s real add table to list for uid:%" PRId64",code:%d", __func__, info->uid);
+    ST_TASK_WLOG("%s real add table to list for uid:%" PRId64, __func__, info->uid);
   }
 
 end:
@@ -536,7 +536,7 @@ static int32_t qStreamGetDelTable(SStreamTriggerReaderInfo* sStreamReaderInfo, S
       continue;
     }
     STREAM_CHECK_NULL_GOTO(taosArrayPush(uidListDel, uid), terrno);
-    ST_TASK_WLOG("%s real del table from list for uid:%" PRId64",code:%d", __func__, *uid);
+    ST_TASK_WLOG("%s real del table from list for uid:%" PRId64, __func__, *uid);
   }
 
 end:
@@ -769,6 +769,10 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   STREAM_CHECK_CONDITION_GOTO(tbType != TSDB_CHILD_TABLE && tbType != TSDB_VIRTUAL_CHILD_TABLE, TDB_CODE_SUCCESS);
   STREAM_CHECK_CONDITION_GOTO(suid != sStreamReaderInfo->suid, TDB_CODE_SUCCESS);
 
+  if (sStreamReaderInfo->isVtableStream) {
+    uidListAdd = taosArrayInit(8, sizeof(tb_uid_t));
+    STREAM_CHECK_NULL_GOTO(uidListAdd, terrno);
+  }
   if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || req.action == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
     if (atomic_load_8(&sStreamReaderInfo->isVtableOnlyTs) == 0 && !isColIdInList(sStreamReaderInfo->triggerCols, req.colId)) {    //todo calc cols
       ST_TASK_ILOG("stream reader scan alter table %s, colId %d not in trigger cols", req.tbName, req.colId);
@@ -782,10 +786,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
 
     uidList = taosArrayInit(8, sizeof(tb_uid_t));
     STREAM_CHECK_NULL_GOTO(uidList, terrno);
-    if (sStreamReaderInfo->isVtableStream) {
-      uidListAdd = taosArrayInit(8, sizeof(tb_uid_t));
-      STREAM_CHECK_NULL_GOTO(uidListAdd, terrno);
-    }
+    
     uidListDel = taosArrayInit(8, sizeof(tb_uid_t));
     STREAM_CHECK_NULL_GOTO(uidListDel, terrno);
     STREAM_CHECK_NULL_GOTO(taosArrayPush(uidList, &uid), terrno);
@@ -3174,6 +3175,10 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   buf = rpcMallocCont(size);
   size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp);
   printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.deleteBlock, __func__, "delete", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.dropBlock, __func__, "drop", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.addBlock, __func__, "add", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.retireBlock, __func__, "retire", ((SStreamTask*)pTask)->streamId);
 
 end:
   if (resultRsp.totalRows == 0) {
@@ -3228,6 +3233,8 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId);
   printDataBlock(resultRsp.dropBlock, __func__, "drop", ((SStreamTask*)pTask)->streamId);
   printDataBlock(resultRsp.deleteBlock, __func__, "delete", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.addBlock, __func__, "add", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.retireBlock, __func__, "retire", ((SStreamTask*)pTask)->streamId);
   printIndexHash(resultRsp.indexHash, pTask);
 
 end:
@@ -3246,6 +3253,8 @@ end:
   blockDataDestroy(resultRsp.dataBlock);
   blockDataDestroy(resultRsp.deleteBlock);
   blockDataDestroy(resultRsp.dropBlock);
+  blockDataDestroy(resultRsp.addBlock);
+  blockDataDestroy(resultRsp.retireBlock);
   tSimpleHashCleanup(resultRsp.indexHash);
 
   STREAM_PRINT_LOG_END_WITHID(code, lino);

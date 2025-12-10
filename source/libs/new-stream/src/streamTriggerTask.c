@@ -2479,7 +2479,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         pProgress->pCalcBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
         QUERY_CHECK_NULL(pProgress->pCalcBlock, code, lino, _end, terrno);
       }
-      atomic_store_64(&pTask->waitingMgmtReqId, -1);
+      atomic_store_64(&pTask-> waitingMgmtReqId, -1);
       atomic_store_8(&pTask->realtimeStarted, 0);
       break;
     }
