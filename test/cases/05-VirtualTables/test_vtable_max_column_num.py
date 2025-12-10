@@ -21,19 +21,19 @@ class TestVtableCreate:
         tdSql.execute("use test_vtable_max_column;")
         tdSql.execute("alter local 'maxSQLLength' '4194304'")
 
+        sql = "insert into "
         for i in range(32767):
             tdSql.execute(f"create table d_{i}(ts timestamp, double_col double)")
-            tdSql.execute(f"insert into d_{i} values(1696000000000, {i})")
-            tdSql.execute(f"insert into d_{i} values(1696000001000, {i+1})")
-
+            sql += f" d_{i} values(1696000000000, {i})"
+            sql += f" (1696000001000, {i+1})"
+        # execute
+        tdSql.execute(sql)
 
     def test_virtual_super_child_table_max_column(self):
-        """Create: virtual super/child table with max column num
+        """Virtual super/child table max column
 
         test create and query virtual super/child tables with max column num
 
-        Catalog:
-            - VirtualTable
 
         Since: v3.3.8.0
 
@@ -110,12 +110,9 @@ class TestVtableCreate:
         tdSql.checkData(3, 3, 32763)
 
     def test_virtual_normal_table_max_column(self):
-        """Create: virtual normal table with max column num
+        """Virtual normal table max column
 
         test create and query virtual normal tables with max column num
-
-        Catalog:
-            - VirtualTable
 
         Since: v3.3.8.0
 
@@ -152,12 +149,9 @@ class TestVtableCreate:
         tdSql.checkData(1, 3, 32763)
 
     def test_virtual_table_exceed_max_column(self):
-        """Create: virtual table exceed max column num
+        """Virtual table exceed max column
 
         test create virtual tables exceed max column num
-
-        Catalog:
-            - VirtualTable
 
         Since: v3.3.8.0
 
@@ -212,13 +206,11 @@ class TestVtableCreate:
         tdSql.error("ALTER TABLE vtb_virtual_ntb_alter_exceed_max_col ADD COLUMN col_32766 double;")
 
     def test_virtual_table_wide_org_tables_32767_cols(self):
-        """Create: virtual normal table from wide org tables with 32767 columns
-
+        """Virtual normal table wide origin table
+        
         test create and query virtual normal tables when org tables have 4096 columns
         (1 ts + 4095 double) and total mapped columns reach 32767
 
-        Catalog:
-            - VirtualTable
 
         Since: v3.3.8.0
 
@@ -243,6 +235,7 @@ class TestVtableCreate:
 
         tdLog.info(f"full_table_cnt={full_table_cnt}, remain_cols={remain_cols}")
 
+        insert_sql = "insert into "
         for t in range(full_table_cnt):
             base_idx = t * double_per_table
 
@@ -253,12 +246,12 @@ class TestVtableCreate:
             sql += ");"
             tdSql.execute(sql)
 
-            sql = f"insert into org_{t} values(1696000000000"
+            insert_sql += f" org_{t} values(1696000000000"
             for j in range(double_per_table):
                 col_idx = base_idx + j
-                sql += f", {col_idx}"
-            sql += ");"
-            tdSql.execute(sql)
+                insert_sql += f", {col_idx}"
+            insert_sql += ") "
+        tdSql.execute(insert_sql)
 
         if remain_cols > 0:
             t = full_table_cnt
@@ -299,12 +292,12 @@ class TestVtableCreate:
             tdSql.checkData(0, 1 + i, i)
 
     def test_virtual_table_error_case(self):
-        """Create: virtual table max column error cases
+        """Virtual table max column except
 
-        test create virtual tables with error cases
-
-        Catalog:
-            - VirtualTable
+        1. create virtual super table with max columns (exceed max)
+        2. create virtual super table with max bytes per row
+        3. create virtual normal table with max columns (exceed max)
+        4. create virtual normal table with max bytes per row
 
         Since: v3.3.8.0
 
