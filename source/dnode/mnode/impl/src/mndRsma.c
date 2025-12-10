@@ -1178,8 +1178,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   char             objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   bool             showAll = false;
 
-// #ifdef TD_ENTERPRISE
-#if 1
+#ifdef TD_ENTERPRISE
   pBuf = tmp;
   bufLen = sizeof(tmp) - VARSTR_HEADER_SIZE;
   if (pShow->numOfRows < 1) {
@@ -1279,6 +1278,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   pShow->numOfRows += numOfRows;
 
 _exit:
+  if(!pUser) mndReleaseUser(pMnode, pUser);
   if (code < 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);

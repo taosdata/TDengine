@@ -713,6 +713,8 @@ typedef struct {
   char           stb[TSDB_TABLE_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           dstTbName[TSDB_TABLE_FNAME_LEN];
+  char           createUser[TSDB_USER_LEN];
+  char           owner[TSDB_USER_LEN];
   int64_t        createdTime;
   int64_t        uid;
   int64_t        stbUid;

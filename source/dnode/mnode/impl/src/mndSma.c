@@ -33,7 +33,7 @@
 #include "tname.h"
 
 #define TSDB_SMA_VER_NUMBER   1
-#define TSDB_SMA_RESERVE_SIZE 64
+#define TSDB_SMA_RESERVE_SIZE 16
 
 static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma);
 static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw);
@@ -68,6 +68,7 @@ typedef struct SCreateTSMACxt {
   SStbObj            *pSrcStb;
   SSmaObj            *pSma;
   const SSmaObj      *pBaseSma;
+  const char         *createUser;
   const char         *streamName;
   const char         *targetStbFullName;
   SNodeList          *pProjects;
@@ -153,6 +154,8 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
     SDB_SET_BINARY(pRaw, dataPos, pSma->ast, pSma->astLen, _OVER)
   }
   SDB_SET_BINARY(pRaw, dataPos, pSma->baseSmaName, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pSma->createUser, TSDB_USER_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pSma->owner, TSDB_USER_LEN, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -239,6 +242,8 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pSma->ast, pSma->astLen, _OVER)
   }
   SDB_GET_BINARY(pRaw, dataPos, pSma->baseSmaName, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pSma->createUser, TSDB_USER_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pSma->owner, TSDB_USER_LEN, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
 
@@ -829,18 +834,19 @@ _OVER:
 }
 
 static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode  *pMnode = pReq->info.node;
-  SSdb    *pSdb = pMnode->pSdb;
-  int32_t  numOfRows = 0;
-  SSmaObj *pSma = NULL;
-  int32_t  cols = 0;
-  int32_t  code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SSmaObj  *pSma = NULL;
+  int32_t   cols = 0;
+  int32_t   code = 0;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return 0;
   }
+
   SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
     pIter->pSmaIter = sdbFetch(pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
@@ -960,6 +966,7 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   memcpy(pCxt->pSma->name, pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
   memcpy(pCxt->pSma->stb, pCxt->pCreateSmaReq->stb, TSDB_TABLE_FNAME_LEN);
   memcpy(pCxt->pSma->db, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
+  (void)snprintf(pCxt->pSma->createUser, sizeof(pCxt->pSma->createUser), "%s", pCxt->createUser);
   if (pCxt->pBaseSma) memcpy(pCxt->pSma->baseSmaName, pCxt->pBaseSma->name, TSDB_TABLE_FNAME_LEN);
   pCxt->pSma->createdTime = taosGetTimestampMs();
   pCxt->pSma->uid = mndGenerateUid(pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
@@ -1232,6 +1239,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
       .pSma = NULL,
       .pBaseSma = pBaseTsma,
       .pSrcStb = pStb,
+      .createUser = pReq->info.conn.user,
   };
 
   code = mndCreateTSMA(&cxt);
@@ -1406,8 +1414,14 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   int32_t          numOfRows = 0;
   SSmaObj         *pSma = NULL;
   SMnode          *pMnode = pReq->info.node;
-  int32_t          code = 0;
+  SSdb            *pSdb = pMnode->pSdb;
+  int32_t          code = 0, lino = 0;
+  SUserObj        *pUser = NULL;
+  char             objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool             showAll = false;
+  int64_t          dbUid = 0;
   SColumnInfoData *pColInfo;
+
   if (pShow->pIter == NULL) {
     pShow->pIter = taosMemoryCalloc(1, sizeof(SSmaAndTagIter));
   }
@@ -1416,7 +1430,23 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   }
   if (pShow->db[0]) {
     pDb = mndAcquireDb(pMnode, pShow->db);
+    if (!pDb) {
+      taosMemoryFreeClear(pShow->pIter);
+      return terrno;
+    }
   }
+
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (pReq->info.conn.user), &pUser));
+  SPrivInfo *privInfo = privInfoGet(PRIV_TSMA_SHOW);
+  if (!privInfo) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
+  showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, NULL, objFName, privInfo->objLevel == 0 ? NULL : "*");
+  if (!showAll && pShow->db[0] != 0) {
+    mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, pUser->name, pShow->db, privInfo->objLevel == 0 ? NULL : "*");
+  }
+
   SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
     pIter->pSmaIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
@@ -1433,6 +1463,29 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     SName   n = {0};
 
     code = tNameFromString(&n, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+    if (TSDB_CODE_SUCCESS != code) {
+      sdbRelease(pSdb, pSma);
+      if (pSrcDb) mndReleaseDb(pMnode, pSrcDb);
+      break;
+    }
+
+    if (!showAll) {
+      (void)snprintf(objFName, sizeof(objFName), "%s", pSma->db);
+      char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
+      bool  showIter = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, owner, objFName,
+                                           privInfo->objLevel == 0 ? NULL : "*");  // 1.db1.*
+      if (!showIter) {
+        showIter = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, owner, objFName,
+                                        privInfo->objLevel == 0 ? NULL : n.tname);  // 1.db1.tsma1
+        if (!showIter) {
+          sdbRelease(pSdb, pSma);
+          if (pSrcDb) mndReleaseDb(pMnode, pSrcDb);
+          continue;
+        }
+      }
+    }
+
     char smaName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     if (TSDB_CODE_SUCCESS == code) {
       STR_TO_VARSTR(smaName, (char *)tNameGetTableName(&n));
@@ -1546,6 +1599,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       numOfRows = code;
       break;
     }
+  }
+_exit:
+  if (code != 0) {
+    numOfRows = code;
   }
   mndReleaseDb(pMnode, pDb);
   pShow->numOfRows += numOfRows;
