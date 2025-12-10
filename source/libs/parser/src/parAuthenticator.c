@@ -509,38 +509,42 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       return authAlterVTable(pCxt, (SAlterTableStmt*)pStmt);
-    case QUERY_NODE_SHOW_DNODES_STMT:
-    case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
-    case QUERY_NODE_SHOW_QNODES_STMT:
-    case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
-    case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     // case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
-    case QUERY_NODE_SHOW_USERS_STMT:
-    case QUERY_NODE_SHOW_USERS_FULL_STMT:
-    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
-    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
-    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
-    case QUERY_NODE_SHOW_ROLES_STMT:
-    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
-    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
-    case QUERY_NODE_SHOW_USAGE_STMT:
+    case QUERY_NODE_SHOW_USERS_STMT:
+    case QUERY_NODE_SHOW_USERS_FULL_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_USER_SHOW);
+    case QUERY_NODE_SHOW_ROLES_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_SHOW);
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_SHOW_PRIVILEGES);
+    case QUERY_NODE_SHOW_DNODES_STMT:
+    case QUERY_NODE_SHOW_MNODES_STMT:
+    case QUERY_NODE_SHOW_QNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-      return TSDB_CODE_SUCCESS;
+      return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
+    case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
+    case QUERY_NODE_SHOW_LICENCES_STMT:
+    case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
+    case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_GRANTS_SHOW);
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
       return authShowTables(pCxt, (SShowStmt*)pStmt);
@@ -579,6 +583,20 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_DROP);
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_SHOW);
+    case QUERY_NODE_CREATE_DNODE_STMT:
+    case QUERY_NODE_CREATE_MNODE_STMT:
+    case QUERY_NODE_CREATE_QNODE_STMT:
+    case QUERY_NODE_CREATE_SNODE_STMT:
+    case QUERY_NODE_CREATE_BNODE_STMT:
+    case QUERY_NODE_CREATE_ANODE_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_NODE_CREATE);
+    case QUERY_NODE_DROP_DNODE_STMT:
+    case QUERY_NODE_DROP_MNODE_STMT:
+    case QUERY_NODE_DROP_QNODE_STMT:
+    case QUERY_NODE_DROP_SNODE_STMT:
+    case QUERY_NODE_DROP_BNODE_STMT:
+    case QUERY_NODE_DROP_ANODE_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_ALTER);
     case QUERY_NODE_DROP_DATABASE_STMT:
@@ -597,7 +615,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authObjPrivileges(pCxt, ((SScanDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_SCAN);
     case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SSsMigrateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_SSMIGRATE);
-    // check in mnode
+    case QUERY_NODE_SHOW_USAGE_STMT: // disk info
+      // check in mnode
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
     default:

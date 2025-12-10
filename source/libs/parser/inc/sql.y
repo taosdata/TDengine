@@ -532,6 +532,9 @@ priv_type(A) ::= CREATE TOTP.                                                   
 priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
 priv_type(A) ::= UPDATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_UPDATE); }
 
+priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
+priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
+priv_type(A) ::= SHOW PRIVILEGES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_PRIVILEGES); }
 priv_type(A) ::= GRANT SYSDBA PRIVILEGE.                                          { A = PRIV_SET_TYPE(PRIV_GRANT_SYSDBA); }
 priv_type(A) ::= REVOKE SYSDBA PRIVILEGE.                                         { A = PRIV_SET_TYPE(PRIV_REVOKE_SYSDBA); }
 priv_type(A) ::= GRANT SYSSEC PRIVILEGE.                                          { A = PRIV_SET_TYPE(PRIV_GRANT_SYSSEC); }
