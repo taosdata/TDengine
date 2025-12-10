@@ -1655,7 +1655,7 @@ if(${BUILD_LIBSASL})      # {
         PATCH_COMMAND
             COMMAND ./autogen.sh
         CONFIGURE_COMMAND
-            COMMAND ./configure -prefix=${_ins} --with-pic --enable-static --disable-shared --enable-plain --enable-anon --enable-scram --enable-login --enable-digest CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
+            COMMAND ./configure -prefix=${_ins} --with-pic --enable-static --disable-shared --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=on CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
         BUILD_COMMAND
             COMMAND make 
         INSTALL_COMMAND
