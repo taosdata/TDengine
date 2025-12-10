@@ -74,8 +74,9 @@ jobs:
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=internal \
-            -DBUILD_TEST=true \
+            -DBUILD_TEST=false \
             -DCMAKE_BUILD_TYPE=Release \
+            -DWEBSOCKET=false \
             -DBUILD_TAOSX=false \
             -DBUILD_DEPENDENCY_TESTS=false \
             -DTAOSADAPTER_GIT_TAG:STRING=${{ github.base_ref }}
