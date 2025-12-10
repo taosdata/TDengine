@@ -141,7 +141,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
       - "SCRAM-SHA-256": A more secure challenge-response mechanism.
       - "SCRAM-SHA-512": A stronger hash algorithm than SHA-256.
       - "GSSAPI": For Kerberos authentication.
-    Note: This field must be configured along with security.protocol, and its value depends on the SASL mechanisms enabled on the Kafka Broker.
+      Note: This field must be configured along with security.protocol, and its value depends on the SASL mechanisms enabled on the Kafka Broker.
     - sasl.username (string): The username for SASL authentication. Required for "PLAIN" or "SCRAM" mechanisms.
     - sasl.password (string): The password for SASL authentication.
 
@@ -376,11 +376,15 @@ This configuration is designed for TDengine database performance benchmarking. I
 - Verifying database schema design, resource planning, and performance under different hardware configurations.
 - Providing data support for capacity planning in industrial IoT and related fields.
 
+```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
+```
 
 The parameters tdengine, schema::name, schema::tbname, schema::tags, tdengine/create-child-table::batch, and tdengine/insert::concurrency can use their default values to further simplify the configuration.
 
+```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
+```
 
 ### CSV-Based Data Generation, STMT Write to TDengine Example
 
@@ -411,30 +415,32 @@ This configuration is designed for importing device metadata and historical data
 - System initialization: Initializing a batch of devices and historical data for a new monitoring system, for testing, demonstration, or retrospective analysis.
 - Data replay: Simulating real-time data streams by reinjecting historical data, for testing system processing or reproducing specific historical scenarios.
 
+```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_csv_stmt_insert_config}}
+```
 
 Where:
 
 - `ctb-tags.csv` file format:
 
-```csv
-groupid,location,tbname
-1,California.Campbell,d1
-2,Texas.Austin,d2
-3,NewYork.NewYorkCity,d3
-```
+   ```csv
+   groupid,location,tbname
+   1,California.Campbell,d1
+   2,Texas.Austin,d2
+   3,NewYork.NewYorkCity,d3
+   ```
 
 - `ctb-data.csv` file format:
 
-```csv
-tbname,ts,current,voltage,phase
-d1,1700000010000,5.23,221.5,146.2
-d3,1700000010000,8.76,219.8,148.7
-d2,1700000010000,12.45,223.1,147.3
-d3,1700000310000,9.12,220.3,149.1
-d2,1700000310000,11.87,222.7,145.8
-d1,1700000310000,4.98,220.9,147.9
-```
+   ```csv
+   tbname,ts,current,voltage,phase
+   d1,1700000010000,5.23,221.5,146.2
+   d3,1700000010000,8.76,219.8,148.7
+   d2,1700000010000,12.45,223.1,147.3
+   d3,1700000310000,9.12,220.3,149.1
+   d2,1700000310000,11.87,222.7,145.8
+   d1,1700000310000,4.98,220.9,147.9
+   ```
 
 ### Generator-Based Data Generation and Publishing to MQTT Broker Example
 
@@ -466,7 +472,9 @@ This configuration is designed for publishing simulated device data to an MQTT m
 - Rule engine testing: Test MQTT topic subscription and message routing rules using dynamic topics (e.g., routing by device location).
 - Real-time data stream simulation: Simulate real-time device data streams for testing stream processing frameworks.
 
+```yaml
 {{#include docs/doxgen/taosgen_config.md:mqtt_publish_config}}
+```
 
 ### Generator-Based Data Generation and Publishing to Kafka Broker Example
 
@@ -509,4 +517,6 @@ Use JSON or InfluxDB Line Protocol to serialize message bodies to verify the par
 - Disaster Recovery and High Availability Drills:
 In a multi-broker cluster, use high-concurrency writes to test Kafka's replica synchronization, leader election, and broker failover mechanisms.
 
+```yaml
 {{#include docs/doxgen/taosgen_config.md:kafka_produce_config}}
+```
