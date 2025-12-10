@@ -262,6 +262,10 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_TOKEN_NAME_LEN           32                                 // it is a null-terminated string
+#define TSDB_TOKEN_LEN                64                                 // it is a null-terminated string
+#define TSDB_TOKEN_PROVIDER_LEN       64                                 // it is a null-terminated string
+#define TSDB_TOKEN_EXTRA_INFO_LEN     1024                               // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
 #define TSDB_CLIENT_ID_LEN            256                                // it is a null-terminated string
 #define TSDB_CONSUMER_ID_LEN          32                                 // it is a null-terminated string

@@ -224,6 +224,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_EXPIRED,             "Account authorization
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_NOT_EXIST,           "Invalid account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ACCTS,           "Too many accounts")
 
+// mnode-token
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOKEN_NOT_AVAILABLE,       "Token not available")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOKEN_NOT_EXIST,           "Invalid token")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TOKENS,           "Too many tokens")
+
 // mnode-user
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_ALREADY_EXIST,       "User already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_NOT_EXIST,           "Invalid user")

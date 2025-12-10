@@ -252,6 +252,12 @@ const char* nodesNodeName(ENodeType type) {
       return "SetVgroupKeepVersionStmt";
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       return "TrimDbWalStmt";
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      return "CreateTokenStmt";
+    case QUERY_NODE_ALTER_TOKEN_STMT:
+      return "AlterTokenStmt";
+    case QUERY_NODE_DROP_TOKEN_STMT:
+      return "DropTokenStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
