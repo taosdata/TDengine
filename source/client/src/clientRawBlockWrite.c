@@ -298,6 +298,7 @@ static int32_t buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON
         uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
         cJSON_Delete(json);
         json = NULL;
+        code = TSDB_CODE_INVALID_PARA;
         goto end;
       }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
@@ -374,6 +375,7 @@ static int32_t buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON
         uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
         cJSON_Delete(json);
         json = NULL;
+        code = TSDB_CODE_INVALID_PARA;
         goto end;
       }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
@@ -569,7 +571,8 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       }
       char* buf = taosMemoryCalloc(bufSize, 1);
       RAW_NULL_CHECK(buf);
-      if (dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL) != TSDB_CODE_SUCCESS) {
+      code = dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
         uError("convert tag value to string failed");
         taosMemoryFree(buf);
         goto end;
@@ -693,6 +696,7 @@ static int32_t processAutoCreateTable(SMqDataRsp* rsp, char** string) {
 
     if (pCreateReq[iReq].type != TSDB_CHILD_TABLE && pCreateReq[iReq].type != TSDB_NORMAL_TABLE) {
       uError("%s failed. pCreateReq[iReq].type:%d invalid", __func__, pCreateReq[iReq].type);
+      code = TSDB_CODE_INVALID_PARA;
       goto end;
     }
   }
@@ -858,11 +862,13 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
         if (vAlterTbReq.tagType == TSDB_DATA_TYPE_JSON) {
           if (!tTagIsJson(vAlterTbReq.pTagVal)) {
+            code = TSDB_CODE_INVALID_PARA;
             uError("processAlterTable isJson false");
             goto end;
           }
           parseTagDatatoJson(vAlterTbReq.pTagVal, &buf, NULL);
           if (buf == NULL) {
+            code = TSDB_CODE_INVALID_PARA;
             uError("parseTagDatatoJson failed, buf == NULL");
             goto end;
           }
@@ -875,8 +881,8 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
           }
           buf = taosMemoryCalloc(bufSize, 1);
           RAW_NULL_CHECK(buf);
-          if (dataConverToStr(buf, bufSize, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL) !=
-              TSDB_CODE_SUCCESS) {
+          code = dataConverToStr(buf, bufSize, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL);
+          if (code != TSDB_CODE_SUCCESS) {
             uError("convert tag value to string failed");
             taosMemoryFree(buf);
             goto end;
@@ -897,6 +903,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
       int32_t nTags = taosArrayGetSize(vAlterTbReq.pMultiTag);
       if (nTags <= 0) {
+        code = TSDB_CODE_INVALID_PARA;
         uError("processAlterTable parse multi tags error");
         goto end;
       }
@@ -916,6 +923,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(member, "colName", tagName));
 
         if (pTagVal->tagType == TSDB_DATA_TYPE_JSON) {
+          code = TSDB_CODE_INVALID_PARA;
           uError("processAlterTable isJson false");
           goto end;
         }
@@ -929,8 +937,8 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
           }
           char* buf = taosMemoryCalloc(bufSize, 1);
           RAW_NULL_CHECK(buf);
-          if (dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL) !=
-              TSDB_CODE_SUCCESS) {
+          code = dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL);
+          if (code != TSDB_CODE_SUCCESS) {
             uError("convert tag value to string failed");
             taosMemoryFree(buf);
             goto end;
@@ -1412,6 +1420,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
           goto end;
         }
         if (NULL == taosArrayPush(pTagList, &ppTag)) {
+          code = terrno;
           tTagFree(ppTag);
           goto end;
         }
