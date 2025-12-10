@@ -212,7 +212,7 @@ static void initPrivLookup(void) {
   }
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType) {
+int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType, uint8_t* pObjLevel) {
   if (!privSet) goto _exit;
 
   (void)taosThreadOnce(&privInit, initPrivLookup);
@@ -222,6 +222,7 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
   bool hasLegacyPriv = false;
 
   EPrivObjType objectType = PRIV_OBJ_UNKNOWN;
+  uint8_t      objectLevel = 0;
 
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     uint64_t chunk = privSet->set[i];
@@ -250,6 +251,7 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
           hasObjectPriv = true;
           if (objectType == PRIV_OBJ_UNKNOWN) {
             objectType = privInfo->objType;
+            objectLevel = privInfo->objLevel;
           } else if (objectType != privInfo->objType) {
             return 2;
           }
@@ -282,6 +284,9 @@ _exit:
   }
   if (pObjType) {
     *pObjType = objectType;
+  }
+  if (pObjLevel) {
+    *pObjLevel = objectLevel;
   }
 
   return 0;

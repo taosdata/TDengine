@@ -1399,10 +1399,11 @@ typedef struct {
   union {
     uint32_t flag;
     struct {
-      uint32_t lock : 1;     // lock or unlock role
-      uint32_t add : 1;      // add or remove
-      uint32_t sysPriv : 1;  // system or object privileges
-      uint32_t reserve : 29;
+      uint32_t lock : 1;         // lock or unlock role
+      uint32_t add : 1;          // add or remove
+      uint32_t sysPriv : 1;      // system or object privileges
+      uint32_t targetLevel : 2;
+      uint32_t reserve : 27;
     };
   };
   union {

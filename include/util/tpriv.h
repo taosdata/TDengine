@@ -369,6 +369,13 @@ static FORCE_INLINE void privRemoveSet(SPrivSet* privSet1, const SPrivSet* privS
   }
 }
 
+static FORCE_INLINE bool privIsEmptySet(SPrivSet* privSet) {
+  for (int i = 0; i < PRIV_GROUP_CNT; i++) {
+    if (privSet->set[i] != 0) return false;
+  }
+  return true;
+}
+
 static FORCE_INLINE int32_t privTblPolicyGetIndex(SPrivTblPolicy* policy) {
   int32_t nCols = taosArrayGetSize(policy->cols);
   return policy->tagCond ? (nCols > 0 ? PRIV_TBL_POLICY_TAG_COLS : PRIV_TBL_POLICY_TAG)
@@ -391,7 +398,7 @@ static FORCE_INLINE void privTblPoliciesFree(void* pTblPolicies) {
   }
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType);
+int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType, uint8_t* pObjLevel);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 void    privInfoIterInit(SPrivInfoIter* pIter);

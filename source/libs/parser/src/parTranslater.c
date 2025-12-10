@@ -16376,6 +16376,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EPrivObjType  objType = PRIV_OBJ_UNKNOWN;
+      uint8_t       objLevel = 0;
       SPrivSet      privSet = pStmt->privileges.privSet;
       // The SQL "grant select, select(c0,c1) on d0.t1 to u1" is legal , and table-level and column-level privileges are
       // granted simultaneously. It is equivalent to "grant select on d0.t1 to u1" combined with "grant select(c0,c1) on
@@ -16384,7 +16385,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       if (pStmt->privileges.selectCols) privAddType(&privSet, PRIV_TBL_SELECT);
       if (pStmt->privileges.insertCols) privAddType(&privSet, PRIV_TBL_INSERT);
       if (pStmt->privileges.updateCols) privAddType(&privSet, PRIV_TBL_UPDATE);
-      int32_t conflict = checkPrivConflicts(&privSet, &category, &objType);
+      int32_t conflict = checkPrivConflicts(&privSet, &category, &objType, &objLevel);
       if (conflict == 1) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                        "System privileges and object privileges cannot be mixed");
@@ -16406,6 +16407,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         }
       } else {
         req.targetType = objType;
+        req.targetLevel = objLevel;
         TAOS_CHECK_EXIT(translateGrantFillPrivileges(pCxt, pStmt, &req));
         TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, objType, &req));
       }
