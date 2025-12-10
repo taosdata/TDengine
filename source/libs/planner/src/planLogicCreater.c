@@ -46,9 +46,10 @@ typedef struct SRewriteExprCxt {
   SNodeList* pExprs;
   bool*      pOutputs;
   bool       isPartitionBy;
+  bool       isOrderByPrimTs;
 } SRewriteExprCxt;
 
-static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy) {
+static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy, bool isOrderByPrimTs) {
   switch (pFunc->funcType) {
     case FUNCTION_TYPE_TBNAME:
       pCol->colType = COLUMN_TYPE_TBNAME;
@@ -61,14 +62,14 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_WSTART:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_START;
-      if (!isPartitionBy) {
+      if (!isPartitionBy || isOrderByPrimTs) {
         pCol->isPrimTs = true;
       }
       break;
     case FUNCTION_TYPE_WEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_END;
-      if (!isPartitionBy) {
+      if (!isPartitionBy || isOrderByPrimTs) {
         pCol->isPrimTs = true;
       }
       break;
@@ -130,7 +131,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
           pCol->node.relatedTo = ((SExprNode*)(*pNode))->relatedTo;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
+            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy, pCxt->isOrderByPrimTs);
           }
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pCol;
@@ -169,9 +170,16 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
 
 static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClause clause) {
   nodesWalkExpr(pExpr, doNameExpr, NULL);
-  bool            isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
-  SRewriteExprCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS, .pExprs = NULL, .pOutputs = NULL, .isPartitionBy = isPartitionBy};
+  bool isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
+  bool isOrderByPrimTs =
+      (pSelect->pOrderByList && pSelect->pOrderByList->length > 0)
+          ? (isPrimaryKeyImpl(((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr) ? true : false)
+          : false;
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = NULL,
+                         .pOutputs = NULL,
+                         .isPartitionBy = isPartitionBy,
+                         .isOrderByPrimTs = isOrderByPrimTs};
   cxt.errCode = nodesListMakeAppend(&cxt.pExprs, pExpr);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
@@ -204,9 +212,16 @@ static int32_t cloneRewriteExprs(SNodeList* pExprs, bool* pOutputs, SNodeList** 
 static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause,
                                      SNodeList** pRewriteExprs) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
-  bool            isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
-  SRewriteExprCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL, .isPartitionBy = isPartitionBy};
+  bool isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
+  bool isOrderByPrimTs =
+      (pSelect->pOrderByList && pSelect->pOrderByList->length > 0)
+          ? (isPrimaryKeyImpl(((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr) ? true : false)
+          : false;
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = pExprs,
+                         .pOutputs = NULL,
+                         .isPartitionBy = isPartitionBy,
+                         .isOrderByPrimTs = isOrderByPrimTs};
   if (NULL != pRewriteExprs) {
     cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
     if (NULL == cxt.pOutputs) {
@@ -223,14 +238,22 @@ static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ES
 
 static int32_t rewriteExpr(SNodeList* pExprs, SNode** pTarget) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
-  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL, .isPartitionBy = false};
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = pExprs,
+                         .pOutputs = NULL,
+                         .isPartitionBy = false,
+                         .isOrderByPrimTs = false};
   nodesRewriteExpr(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
 
 static int32_t rewriteExprs(SNodeList* pExprs, SNodeList* pTarget) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
-  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL, .isPartitionBy = false};
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = pExprs,
+                         .pOutputs = NULL,
+                         .isPartitionBy = false,
+                         .isOrderByPrimTs = false};
   nodesRewriteExprs(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
@@ -2554,7 +2577,7 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code) {
       SNode*            pNode = NULL;
       SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
-      setFirstSortKeyTsCol(firstSortKey);
+      // setFirstSortKeyTsCol(firstSortKey);
 
       if (isPrimaryKeyImpl(firstSortKey->pExpr)) pSort->node.outputTsOrder = firstSortKey->order;
       if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
