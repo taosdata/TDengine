@@ -261,7 +261,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_backquote.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_null.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_insert_select.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_kill.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_trim.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_high_availability.py -N 3
