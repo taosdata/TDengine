@@ -225,6 +225,10 @@ int8_t transShouldDoReloadTlsConfig(STlsCxtMgt *pMgt) {
   return ready;
 }
 
+int32_t sslGetCertificateImpl(STransTLS* pTls) { return TSDB_CODE_INVALID_CFG; }
+
+int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx) { return TSDB_CODE_INVALID_CFG; }
+
 #if !defined(TD_ENTERPRISE) 
 
 int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
@@ -232,10 +236,6 @@ int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return T
 //int32_t transTlsCtxCreateNewImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; } 
 
 void    transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
-
-int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx) {
-return TSDB_CODE_INVALID_CFG;
-}
 
 int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
 
@@ -252,8 +252,6 @@ int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_b
 
 int32_t sslReadImpl(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) { return TSDB_CODE_INVALID_CFG; }
 int8_t  sslIsInitedImpl(STransTLS* pTls) { return 0; }
-
-int32_t sslGetCertificateImpl(STransTLS* pTls) { return TSDB_CODE_INVALID_CFG; }
 
 int32_t sslBufferInitImpl(SSslBuffer* buf, int32_t cap) { return TSDB_CODE_INVALID_CFG; }
 void    sslBufferDestroyImpl(SSslBuffer* buf) { return; }
