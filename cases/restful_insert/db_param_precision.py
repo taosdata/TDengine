@@ -107,7 +107,7 @@ class TestComp(TDCase):
         self.tdRest.request(f"select * from {dbname}.ntb")
         ms_utc = datetime.datetime.utcfromtimestamp(ms_ts/1000).strftime("%Y-%m-%d %H:%M:%S.%f")
         
-        ts_ms = self.tdCom.delete_end_zero(ms_utc).replace(' ','T')+ "Z"
+        ts_ms = self.tdCom.delete_end_zero(ms_utc, "ms").replace(' ','T')+ "Z"
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], ts_ms)
         # TD-15674
         self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("us")[0]}, 1)')
@@ -123,7 +123,7 @@ class TestComp(TDCase):
         self.tdRest.request(f'insert into {dbname}.ntb values({us_ts}, 1)')
         self.tdRest.request(f"select * from {dbname}.ntb")
         us_utc = datetime.datetime.utcfromtimestamp(us_ts/1000000).strftime("%Y-%m-%d %H:%M:%S.%f")
-        ts_us = self.tdCom.delete_end_zero(us_utc).replace(' ','T') + "Z"
+        ts_us = self.tdCom.delete_end_zero(us_utc, "us").replace(' ','T') + "Z"
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], ts_us)
         # TD-15674
         self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("ms")[0]}, 1)')
@@ -139,7 +139,7 @@ class TestComp(TDCase):
         self.tdRest.request(f"select * from {dbname}.ntb")
         ns_timestamp = ns_ts % 1000000
         ns_utc = datetime.datetime.utcfromtimestamp(int(ns_ts/1000000)/1000).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + str(ns_timestamp)
-        ts_ns = self.tdCom.delete_end_zero(ns_utc).replace(' ','T') + "Z"
+        ts_ns = self.tdCom.delete_end_zero(ns_utc, "ns").replace(' ','T') + "Z"
         self.tdSql.checkEqual(self.tdRest.resp['data'][0][0], ts_ns)
         self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("ms")[0]}, 1)')
         self.tdRest.error(f'insert into {dbname}.ntb values({self.tdCom.genTs("us")[0]}, 1)')

@@ -80,25 +80,31 @@ def build_package(internal_root, new_version, branch_name) {
         . $HOME/.cargo/env
         ./new_ver_release.sh -v cluster -n ''' + new_version + ''' -V stable -d no -l full -b ''' + branch_name + ''' -c x64 -s 1 | tee ../ver-3.0.0.100.txt
     '''
-    sh '''
+}
+def build_package_for_ci(internal_root, work_dir) {
+    sh """
         date
-        rm -rf ${INTERNAL_ROOT}/community/debug
-		rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
-		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
-		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
-		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
-		cd ${INTERNAL_ROOT}/community/tests/ci
-        rm -rf ${INTERNAL_ROOT}/.externals/build/*
-        time ./container_build_newmachine.sh -w ${WORK_DIR} -e
-		cd ${INTERNAL_ROOT}/community/tests/parallel_test
-        rm -rf ${INTERNAL_ROOT}/.externals/build/*
-        time ./container_build.sh -w ${WORK_DIR} -e
-		rm -rf ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
-		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
-		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
-		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
-        rm -rf ${INTERNAL_ROOT}/.externals/build/*
-    '''
+        rm -rf ${internal_root}/community/debug
+
+        rm -rf ${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/libs3
+        rm -rf ${internal_root}/community/contrib/deps-download/libs3-prefix
+
+        cd ${internal_root}/community/tests/ci
+        rm -rf ${internal_root}/.externals/build/*
+        time ./container_build_newmachine.sh -w ${work_dir} -e
+
+        cd ${internal_root}/community/tests/parallel_test
+        rm -rf ${internal_root}/.externals/build/*
+        time ./container_build.sh -w ${work_dir} -e
+
+        rm -rf ${internal_root}/enterprise/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/deps-download/CMakeCache.txt
+        rm -rf ${internal_root}/community/contrib/libs3
+        rm -rf ${internal_root}/community/contrib/deps-download/libs3-prefix
+        rm -rf ${internal_root}/.externals/build/*
+    """
 }
 def check_cases_to_run() {
     def exitValue = 0
@@ -229,6 +235,9 @@ pipeline {
                             if (check_cases_to_run() == 0) {
                                 sync_source("${TDINTERNAL_BRANCH_NAME}", "${COMMUNITY_BRANCH_NAME}", "${INTERNAL_ROOT}")
                                 build_package("${INTERNAL_ROOT}", "${NEW_VERSION}","${TDINTERNAL_BRANCH_NAME}")
+                                if (env.ENABLE_ALL_CI == 'y' || env.ENABLE_LONGTIME_CI == 'y') {
+                                    build_package_for_ci("${INTERNAL_ROOT}", "${WORK_DIR}")
+                                }
                             } else {
                                 echo "no case to run"
                             }
