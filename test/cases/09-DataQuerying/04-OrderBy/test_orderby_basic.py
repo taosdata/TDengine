@@ -1,25 +1,97 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
-#
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
-#
-###################################################################
-
-# -*- coding: utf-8 -*-
-
 import time
 import copy
 import datetime
 import random
 from new_test_framework.utils import tdLog, tdSql
 
-class TestOrderby:
+class TestOrderByBasic:  
+    #
+    # ------------------- 1 ----------------
+    #         
+    def do_orderby_select_list(self):
+        tdLog.info(f"=============== Start test Order By Select List")
 
-    # get col value and total max min ...
+        tdSql.execute("create database if not exists db keep 3650;", show=1)
+        tdSql.execute("use db;", show=1)
+        tdSql.execute("create table tt (ts timestamp, v1 int, v2 int);", show=1)
+        tdSql.execute("""
+            insert into tt values 
+            ('2025-01-01 09:00:00',  1, -3),
+            ('2025-01-01 10:00:00', -2,  2),
+            ('2025-01-01 11:00:00',  3,  1);
+        """, show=1)
+
+        # 'vv' only exists in select list
+        tdSql.query("select ts, v1 as vv from tt order by vv asc", show=1)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, '2025-01-01 10:00:00')
+        tdSql.checkData(0, 1, -2)
+        tdSql.checkData(1, 0, '2025-01-01 09:00:00')
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, '2025-01-01 11:00:00')
+        tdSql.checkData(2, 1, 3)
+
+        # 'vv' only exists in select list
+        tdSql.query("select ts, v1 as vv from tt order by abs(vv) asc", show=1)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, '2025-01-01 09:00:00')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, '2025-01-01 10:00:00')
+        tdSql.checkData(1, 1, -2)
+        tdSql.checkData(2, 0, '2025-01-01 11:00:00')
+        tdSql.checkData(2, 1, 3)
+        
+        # 'v1' exists in both select list and table tt
+        # prefer to use column from select list
+        tdSql.query("select ts, v2 as v1 from tt order by v1 asc", show=1)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, '2025-01-01 09:00:00')
+        tdSql.checkData(0, 1, -3)
+        tdSql.checkData(1, 0, '2025-01-01 11:00:00')
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, '2025-01-01 10:00:00')
+        tdSql.checkData(2, 1, 2)
+
+        # 'v1' exists in both select list and table tt
+        # prefer to use column from table tt
+        tdSql.query("select ts, v2 as v1 from tt order by abs(v1) asc", show=1)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, '2025-01-01 09:00:00')
+        tdSql.checkData(0, 1, -3)
+        tdSql.checkData(1, 0, '2025-01-01 10:00:00')
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 0, '2025-01-01 11:00:00')
+        tdSql.checkData(2, 1, 1)
+
+        print("\ndo order by select list ............... [passed]")
+    #
+    # ------------------- 2 ----------------
+    #   
+    def do_orderby_memleak(self):
+        tdSql.execute("drop database if exists tms_memleak")
+        tdSql.execute("create database if not exists tms_memleak")
+        tdSql.execute('use tms_memleak')
+
+        tdSql.execute('create table st(ts timestamp, f int) tags (t int);')
+
+        tdSql.execute("insert into ct1 using st tags(1) values('2021-04-19 00:00:01', 1)('2021-04-19 00:00:02', 2)('2021-04-19 00:00:03', 3)('2021-04-19 00:00:04', 4)")
+
+        tdSql.execute("insert into ct2 using st tags(2) values('2021-04-20 00:00:01', 5)('2021-04-20 00:00:02', 6)('2021-04-20 00:00:03', 7)('2021-04-20 00:00:04', 8)")
+
+        tdSql.execute("insert into ct3 using st tags(3) values('2021-04-21 00:00:01', 5)('2021-04-21 00:00:02', 6)('2021-04-21 00:00:03', 7)('2021-04-21 00:00:04', 8)")
+
+        tdSql.execute("insert into ct4 using st tags(4) values('2021-04-22 00:00:01', 5)('2021-04-22 00:00:02', 6)('2021-04-22 00:00:03', 7)('2021-04-22 00:00:04', 8)")
+
+        tdSql.query("select * from st order by ts  limit 1 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.execute('drop database tms_memleak')
+
+        print("do order by memleak ................... [passed]")
+
+    #
+    # ------------------- 3 ----------------
+    #         
     def getColsValue(self, i, j):
         # c1 value
         if random.randint(1, 10) == 5:
@@ -132,6 +204,7 @@ class TestOrderby:
         self.c2Sum = None
 
         # create database  db
+        tdSql.execute("drop database if exists db")
         sql = f"create database db keep 36500d vgroups 2 precision 'us' "
         tdLog.info(sql)
         tdSql.execute(sql)
@@ -374,26 +447,7 @@ class TestOrderby:
         tdSql.checkData(3, 0, '2025-09-29 10:00:00.000')
 
     # run
-    def test_orderBy(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-
-        """
-
+    def do_orderby(self):
         # prepare env
         self.prepareEnv()
 
@@ -413,6 +467,45 @@ class TestOrderby:
 
         self.queryOrderByPriority()
 
-    # stop
-        #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        print("do test order by  ..................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    # 
+    def test_orderby_basic(self):
+        """Order by basic
+
+        1. Order by asc/desc
+        2. Order by expr abs()
+        3. Order by with limit
+        4. Order by multiple columns
+        5. Order by in sub query
+        6. Order by _wstart with interval
+        7. Order by with agg functions:
+            - count
+            - max
+            - min
+            - first
+            - last
+            - sum
+        8. Order by with ambiguous names
+        9. Order by same column from different tables
+        10. Order by priority when column exists in both select list and table
+        11. Order by on joined tables
+        12. Memleak for order by
+
+        Since: v3.3.6.34
+
+        Labels: common,ci
+
+        Jira: TD-38284
+
+        History:
+            - 2025-11-26 Tony Zhang add this test case for TD-38284
+            - 2025-12-09 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_tms_memleak.py
+            - 2025-12-09 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_orderBy.py
+
+        """
+        self.do_orderby_select_list()
+        self.do_orderby_memleak()
+        self.do_orderby()
