@@ -36,8 +36,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | AS                   | |
 | ASC                  | |
 | ASOF                 | |
-| ASYNC                | 3.3.6.0+ |
-| AT_ONCE              | |
+| ASYNC                | 3.3.6.0 - 3.3.7.0 |
+| AT_ONCE              | 3.0.0.0 - 3.3.7.0 |
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |
 | ASSIGN               | 3.3.6.0+ |
@@ -75,6 +75,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | CACHE                | |
 | CACHEMODEL           | |
 | CACHESIZE            | |
+| CALC_NOTIFY_ONLY     | 3.3.7.0+ |
 | CASE                 | |
 | CAST                 | |
 | CHANGE               | |
@@ -100,7 +101,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | CONSUMER             | |
 | CONSUMERS            | |
 | CONTAINS             | |
-| CONTINUOUS_WINDOW_CLOSE | 3.3.6.0+ |
+| CONTINUOUS_WINDOW_CLOSE | 3.3.6.0 - 3.3.7.0 |
 | COPY                 | |
 | COUNT                | |
 | COUNT_WINDOW         | |
@@ -121,6 +122,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | DEFERRED             | |
 | DELETE               | |
 | DELETE_MARK          | |
+| DELETE_OUTPUT_TABLE  | 3.3.7.0+ |
+| DELETE_RECALC        | 3.3.7.0+ |
 | DELIMITERS           | |
 | DESC                 | |
 | DESCRIBE             | |
@@ -148,11 +151,13 @@ description: TDengine TSDB 保留关键字的详细列表
 | ENCRYPTIONS          | |
 | END                  | |
 | EQ                   | |
+| EVENT_TYPE           | 3.3.7.0+ |
 | EVENT_WINDOW         | |
 | EVERY                | |
 | EXCEPT               | |
 | EXISTS               | |
-| EXPIRED              | |
+| EXPIRED              | 3.0.0.0 - 3.3.7.0 |
+| EXPIRED_TIME         | 3.3.7.0+ |
 | EXPLAIN              | |
 
 ### F
@@ -164,13 +169,15 @@ description: TDengine TSDB 保留关键字的详细列表
 | FILE                 | |
 | FILL                 | |
 | FILL_HISTORY         | |
+| FILL_HISTORY_FIRST   | 3.3.7.0+ |
 | FIRST                | |
 | FLOAT                | |
 | FLOW                 | 3.3.4.3+ |
 | FLUSH                | |
 | FOR                  | |
 | FORCE                | |
-| FORCE_WINDOW_CLOSE   | 3.3.4.3+ |
+| FORCE_OUTPUT         | 3.3.7.0+ |
+| FORCE_WINDOW_CLOSE   | 3.3.4.3 - 3.3.7.0 |
 | FROM                 | |
 | FROWTS               | 3.3.4.3+ |
 | FULL                 | |
@@ -204,6 +211,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | ID                   | |
 | IF                   | |
 | IGNORE               | |
+| IGNORE_DISORDER      | 3.3.7.0+ |
+| IGNORE_NODATA_TRIGGER| 3.3.7.0+ |
 | ILLEGAL              | |
 | IMMEDIATE            | |
 | IMPORT               | |
@@ -262,6 +271,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | LINEAR               | |
 | LOCAL                | |
 | LOGS                 | |
+| LOW_LATENCY_CALC     | 3.3.7.0+ |
 | LP                   | |
 | LSHIFT               | |
 | LT                   | |
@@ -298,6 +308,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | NOT                  | |
 | NOTIFY               | 3.3.6.0+ |
 | NOTIFY_HISTORY       | 3.3.6.0+ |
+| NOTIFY_OPTIONS       | 3.3.7.0+ |
 | NOTNULL              | |
 | NOW                  | |
 | NULL                 | |
@@ -312,10 +323,13 @@ description: TDengine TSDB 保留关键字的详细列表
 | OFFSET               | |
 | ON                   | |
 | ONLY                 | |
-| ON_FAILURE           | 3.3.6.0+ |
+| ON_FAILURE           | 3.3.6.0 - 3.3.7.0 |
+| ON_FAILURE_PAUSE     | 3.3.7.0+ |
+| OPTIONS              | 3.3.7.0+ |
 | OR                   | |
 | ORDER                | |
 | OUTER                | |
+| OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
 
 ### P
@@ -327,11 +341,13 @@ description: TDengine TSDB 保留关键字的详细列表
 | PARTITION            | |
 | PASS                 | |
 | PAUSE                | |
+| PERIOD               | 3.3.7.0+ |
 | PI                   | |
 | PLUS                 | |
 | PORT                 | |
 | POSITION             | |
 | PPS                  | |
+| PRE_FILTER           | 3.3.7.0+ |
 | PRECISION            | |
 | PREV                 | |
 | PRIMARY              | |
@@ -426,7 +442,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SUBSCRIPTIONS        | |
 | SUBSTR               | |
 | SUBSTRING            | |
-| SUBTABLE             | |
+| SUBTABLE             | 3.0.0.0 - 3.3.7.0 |
 | SYSINFO              | |
 | SYSTEM               | |
 
@@ -453,7 +469,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | TRAILING             | |
 | TRANSACTION          | |
 | TRANSACTIONS         | |
-| TRIGGER              | |
+| TRIGGER              | 3.0.0.0 - 3.3.7.0 |
 | TRIM                 | |
 | TRUE_FOR             | 3.3.6.0+ |
 | TSDB_PAGESIZE        | |
@@ -514,6 +530,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | WINDOW               | |
 | WINDOW_CLOSE         | |
 | WINDOW_OFFSET        | |
+| WINDOW_OPEN          | 3.3.7.0+ |
 | WITH                 | |
 | WRITE                | |
 | WSTART               | |
