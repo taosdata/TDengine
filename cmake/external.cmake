@@ -1632,6 +1632,8 @@ if(TD_WEBSOCKET)
     add_dependencies(build_externals ext_taosws)
 ENDIF()
 
+
+if(${TD_LINUX})
 if(${BUILD_LIBSASL})      # {
     if(${TD_LINUX})
         set(ext_sasl2 libsasl2.a)
@@ -1665,3 +1667,4 @@ if(${BUILD_LIBSASL})      # {
     )
     add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
+endif()
