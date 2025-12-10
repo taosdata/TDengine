@@ -461,3 +461,51 @@ class TestIntervalBugFix:
         tdSql.checkData(1, 3, 1763617918004)
         tdSql.checkData(1, 4, 6)
         
+        sql = f"select _wstart,_wend, sum(`status`) from (select ts, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc) session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+    
+        sql = f"select _wstart,_wend, sum(`status`) from (select _wstart as t2, last(`ts`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+    
+        sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`), _wstart as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart as t2, last(`ts`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+
+        sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`) as t2, _wstart, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc)  session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc)  session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = f"select _wstart,_wend, sum(`status`) from (select ts as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc) session(t1, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+    
+        sql = f"select _wstart,_wend, sum(`status`) from (select _wstart as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+    
+        sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`) as t1, _wstart as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t1, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+
+        sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`) as t1, _wstart as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc)  session(t2, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        
+        sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc)  session(t1, 500a);"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        

@@ -250,6 +250,9 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       }
       pNode->outputTsOrder = order;
       break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION: {
+      return;
+    }
     default:
       pNode->outputTsOrder = order;
       break;

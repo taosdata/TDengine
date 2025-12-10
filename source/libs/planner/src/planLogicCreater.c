@@ -2527,15 +2527,6 @@ static bool isPrimaryKeySort(SNodeList* pOrderByList) {
   return isPrimaryKeyImpl(pExpr);
 }
 
-static void setFirstSortKeyTsCol(SOrderByExprNode* firstSortKey) {
-  SNode* pExpr = firstSortKey->pExpr;
-  if (QUERY_NODE_COLUMN != nodeType(pExpr) || (PRIMARYKEY_TIMESTAMP_COL_ID != ((SColumnNode*)pExpr)->colId)) {
-    return;
-  }
-
-  ((SColumnNode*)pExpr)->isPrimTs = true;
-}
-
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pOrderByList) {
     return TSDB_CODE_SUCCESS;
@@ -2577,7 +2568,6 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code) {
       SNode*            pNode = NULL;
       SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
-      // setFirstSortKeyTsCol(firstSortKey);
 
       if (isPrimaryKeyImpl(firstSortKey->pExpr)) pSort->node.outputTsOrder = firstSortKey->order;
       if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
