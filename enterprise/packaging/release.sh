@@ -276,7 +276,8 @@ else
   ASSERT_NOT_CORE=true
 fi
   
-branch_taosadapter="3.0"
+branch_taosadapter=${branch_taosadapter:-"3.0"}
+
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]] || [[ "$cpuType" == "loongarch64" ]] ; then
   if [ "$verMode" == "edge" ]; then
