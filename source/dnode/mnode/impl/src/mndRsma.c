@@ -1174,13 +1174,41 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   void            *pIter = NULL;
   SSdb            *pSdb = pMnode->pSdb;
   SColumnInfoData *pColInfo = NULL;
-#ifdef TD_ENTERPRISE
+  SUserObj        *pUser = NULL;
+  char             objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool             showAll = false;
+
+// #ifdef TD_ENTERPRISE
+#if 1
   pBuf = tmp;
   bufLen = sizeof(tmp) - VARSTR_HEADER_SIZE;
   if (pShow->numOfRows < 1) {
+    TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (pReq->info.conn.user), &pUser));
+    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
+    SPrivInfo *privInfo = privInfoGet(PRIV_RSMA_SHOW);
+    if (!privInfo) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_SHOW, NULL, objFName, privInfo->objLevel == 0 ? NULL : "*"); // 1.*.*
+
     SRsmaObj *pObj = NULL;
     int32_t   index = 0;
     while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
+      if (!showAll) {
+        (void)snprintf(objFName, sizeof(objFName), "%s", pObj->dbFName);
+        char *owner = pObj->owner[0] != 0 ? pObj->owner : pObj->createUser;
+        bool  showIter = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_SHOW, owner, objFName,
+                                             privInfo->objLevel == 0 ? NULL : "*");  // 1.db1.*
+        if (!showIter) {
+          showIter = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_SHOW, owner, objFName,
+                                          privInfo->objLevel == 0 ? NULL : pObj->name);  // 1.db1.rsma1
+          if (!showIter) {
+            sdbRelease(pSdb, pObj);
+            continue;
+          }
+        }
+      }
+
       cols = 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
       qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);

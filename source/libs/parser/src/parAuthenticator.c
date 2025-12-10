@@ -619,6 +619,11 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       // check in mnode
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
+    case QUERY_NODE_SHOW_COMPACTS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
+    case QUERY_NODE_SHOW_SCANS_STMT:
+    case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      return TSDB_CODE_SUCCESS;
     default:
       break;
   }
