@@ -10,6 +10,7 @@ on:
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
+      - '!docs/examples/**'
       - 'tools/tdgpt/**'
       - 'source/libs/executor/src/forecastoperator.c'
       - 'source/libs/executor/src/anomalywindowoperator.c'
