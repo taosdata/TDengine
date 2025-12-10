@@ -203,6 +203,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
   TSDB_MGMT_TABLE_INSTANCE,
   TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS,
+  TSDB_MGMT_TABLE_TOKEN,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -340,6 +341,7 @@ typedef enum ENodeType {
   QUERY_NODE_DATE_TIME_RANGE,
   QUERY_NODE_IP_RANGE,
   QUERY_NODE_USER_OPTIONS,
+  QUERY_NODE_TOKEN_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -409,6 +411,9 @@ typedef enum ENodeType {
   QUERY_NODE_SCAN_VGROUPS_STMT,
   QUERY_NODE_TRIM_DATABASE_WAL_STMT,
   QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT,
+  QUERY_NODE_CREATE_TOKEN_STMT,
+  QUERY_NODE_ALTER_TOKEN_STMT,
+  QUERY_NODE_DROP_TOKEN_STMT,
 
   // placeholder for [154, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -517,6 +522,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_RETENTION_DETAILS_STMT,
   QUERY_NODE_SHOW_INSTANCES_STMT,
   QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT,
+  QUERY_NODE_SHOW_TOKENS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1431,7 +1437,7 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 typedef struct {
   int8_t createType;
   int8_t superUser;  // denote if it is a super user or not
-  int8_t ignoreExisting;
+  int8_t ignoreExists;
 
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USER_PASSWORD_LONGLEN];
@@ -1571,6 +1577,54 @@ typedef struct {
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 int32_t tDeserializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 void    tFreeSAlterUserReq(SAlterUserReq* pReq);
+
+typedef struct {
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int8_t  enable;
+  int8_t  ignoreExists;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+
+  int32_t sqlLen;
+  char*   sql;
+} SCreateTokenReq;
+
+int32_t tSerializeSCreateTokenReq(void* buf, int32_t bufLen, SCreateTokenReq* pReq);
+int32_t tDeserializeSCreateTokenReq(void* buf, int32_t bufLen, SCreateTokenReq* pReq);
+void    tFreeSCreateTokenReq(SCreateTokenReq* pReq);
+
+typedef struct {
+  char    name[TSDB_TOKEN_NAME_LEN];
+
+  int8_t hasEnable;
+  int8_t hasTtl;
+  int8_t hasProvider;
+  int8_t hasExtraInfo;
+
+  int8_t  enable;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+
+  int32_t     sqlLen;
+  char*       sql;
+} SAlterTokenReq;
+
+int32_t tSerializeSAlterTokenReq(void* buf, int32_t bufLen, SAlterTokenReq* pReq);
+int32_t tDeserializeSAlterTokenReq(void* buf, int32_t bufLen, SAlterTokenReq* pReq);
+void    tFreeSAlterTokenReq(SAlterTokenReq* pReq);
+
+typedef struct {
+  char    name[TSDB_TOKEN_NAME_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SDropTokenReq;
+
+int32_t tSerializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq);
+int32_t tDeserializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq);
+void    tFreeSDropTokenReq(SDropTokenReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];

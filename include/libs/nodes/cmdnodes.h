@@ -481,7 +481,7 @@ typedef struct SCreateUserStmt {
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t ignoreExisting;
+  int8_t  ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
@@ -528,6 +528,46 @@ typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
+
+typedef struct STokenOptions {
+  ENodeType type;
+
+  bool hasEnable;
+  bool hasTtl;
+  bool hasProvider;
+  bool hasExtraInfo;
+
+  int8_t  enable;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} STokenOptions;
+
+typedef struct SCreateTokenStmt {
+  ENodeType type;
+
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int8_t  enable;
+  int8_t  ignoreExists;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} SCreateTokenStmt;
+
+typedef struct SAlterTokenStmt {
+  ENodeType type;
+
+  char           name[TSDB_TOKEN_NAME_LEN];
+  STokenOptions* pTokenOptions;
+} SAlterTokenStmt;
+
+typedef struct SDropTokenStmt {
+  ENodeType type;
+
+  char      name[TSDB_TOKEN_NAME_LEN];
+} SDropTokenStmt;
+
 
 typedef struct SDropEncryptAlgrStmt {
   ENodeType type;

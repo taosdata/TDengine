@@ -3004,7 +3004,7 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
     TAOS_CHECK_EXIT(code);
   }
 
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExisting));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExists));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->totpseed));
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->changepass));
@@ -3080,7 +3080,7 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreExisting));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreExists));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->totpseed));
 
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->changepass));
@@ -3920,6 +3920,190 @@ void tFreeSAlterUserReq(SAlterUserReq *pReq) {
   taosMemoryFree(pReq->pTimeRanges);
   taosMemoryFree(pReq->pDropIpRanges);
   taosMemoryFree(pReq->pDropTimeRanges);
+  FREESQL();
+}
+
+int32_t tSerializeSCreateTokenReq(void* buf, int32_t bufLen, SCreateTokenReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->enable));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExists));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ttl));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->provider));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->extraInfo));
+
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCreateTokenReq(void* buf, int32_t bufLen, SCreateTokenReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->enable));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreExists));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ttl));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->provider));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->extraInfo));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void    tFreeSCreateTokenReq(SCreateTokenReq* pReq) {
+  FREESQL();
+}
+
+
+int32_t tSerializeSAlterTokenReq(void* buf, int32_t bufLen, SAlterTokenReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasEnable));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasTtl));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasProvider));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasExtraInfo));
+
+  if (pReq->hasEnable) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->enable));
+  }
+
+  if (pReq->hasTtl) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ttl));
+  }
+
+  if (pReq->hasProvider) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->provider));
+  }
+
+  if (pReq->hasExtraInfo) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->extraInfo));
+  }
+
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAlterTokenReq(void* buf, int32_t bufLen, SAlterTokenReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasEnable));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasTtl));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasProvider));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasExtraInfo));
+
+  if (pReq->hasEnable) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->enable));
+  }
+
+  if (pReq->hasTtl) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ttl));
+  }
+
+  if (pReq->hasProvider) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->provider));
+  }
+
+  if (pReq->hasExtraInfo) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->extraInfo));
+  }
+
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void    tFreeSAlterTokenReq(SAlterTokenReq* pReq) {
+  FREESQL();
+}
+
+int32_t tSerializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void    tFreeSDropTokenReq(SDropTokenReq* pReq) {
   FREESQL();
 }
 

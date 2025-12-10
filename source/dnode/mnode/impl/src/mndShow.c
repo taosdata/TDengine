@@ -98,6 +98,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USERS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_USER_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOKENS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TOKEN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {

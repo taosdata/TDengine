@@ -2608,7 +2608,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
 _OVER:
-  if (code == TSDB_CODE_MND_USER_ALREADY_EXIST && createReq.ignoreExisting) {
+  if (code == TSDB_CODE_MND_USER_ALREADY_EXIST && createReq.ignoreExists) {
     code = 0;
   } else if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create at line %d since %s", createReq.user, lino, tstrerror(code));
@@ -2782,38 +2782,6 @@ _OVER:
 
   tFreeSUpdateIpWhiteReq(&ipWhite);
   TAOS_RETURN(code);
-}
-
-
-
-void mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-user");
-  if (pTrans == NULL) {
-    mError("user:%s, failed to update since %s", pUser->user, terrstr());
-    return;
-  }
-  mInfo("trans:%d, used to update user:%s", pTrans->id, pUser->user);
-
-  SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  if (code < 0) {
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  mndTransDrop(pTrans);
 }
 
 
