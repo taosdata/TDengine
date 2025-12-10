@@ -154,6 +154,39 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return (*fp_taos_connect)(ip, user, pass, db, port);
 }
 
+TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_totp);
+  return (*fp_taos_connect_totp)(ip, user, pass, totp, db, port);
+}
+
+int taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    return TSDB_CODE_DLL_NOT_LOAD;
+  }
+  if (tsDriver == NULL) {
+    return TSDB_CODE_DLL_NOT_LOAD;
+  }
+  if (fp_taos_connect_test == NULL) {
+    return TSDB_CODE_DLL_FUNC_NOT_LOAD;
+  }
+  return (*fp_taos_connect_test)(ip, user, pass, totp, db, port);
+}
+
+TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_token);
+  return (*fp_taos_connect_token)(ip, token, db, port);
+}
+
 TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {
   if (taos_init() != 0) {
     terrno = TSDB_CODE_DLL_NOT_LOAD;

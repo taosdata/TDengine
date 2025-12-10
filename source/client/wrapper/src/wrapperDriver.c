@@ -95,6 +95,9 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_options, "taos_options");
   LOAD_FUNC(fp_taos_options_connection, "taos_options_connection");
   LOAD_FUNC(fp_taos_connect, "taos_connect");
+  LOAD_FUNC(fp_taos_connect_totp, "taos_connect_totp");
+  LOAD_FUNC(fp_taos_connect_token, "taos_connect_token");
+  LOAD_FUNC(fp_taos_connect_test, "taos_connect_test");
   LOAD_FUNC(fp_taos_connect_auth, "taos_connect_auth");
   LOAD_FUNC(fp_taos_connect_with_dsn, "taos_connect_with_dsn");
   LOAD_FUNC(fp_taos_close, "taos_close");
