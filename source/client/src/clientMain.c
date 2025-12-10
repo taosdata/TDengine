@@ -319,7 +319,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   }
 
   STscObj *pObj = NULL;
-  int32_t  code = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY, &pObj);
+  int32_t  code = taos_connect_internal(ip, user, pass, NULL, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {

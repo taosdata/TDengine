@@ -103,6 +103,8 @@ int32_t crc32Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOut
 int32_t findInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 int32_t likeInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 int32_t regexpInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t generateTotpSecretFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t generateTotpCodeFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 
 /* Conversion functions */
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
