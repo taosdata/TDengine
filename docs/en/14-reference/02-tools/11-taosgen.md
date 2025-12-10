@@ -377,13 +377,13 @@ This configuration is designed for TDengine database performance benchmarking. I
 - Providing data support for capacity planning in industrial IoT and related fields.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_config}}
 ```
 
 The parameters tdengine, schema::name, schema::tbname, schema::tags, tdengine/create-child-table::batch, and tdengine/insert::concurrency can use their default values to further simplify the configuration.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_simple}}
 ```
 
 ### CSV-Based Data Generation, STMT Write to TDengine Example
@@ -416,7 +416,7 @@ This configuration is designed for importing device metadata and historical data
 - Data replay: Simulating real-time data streams by reinjecting historical data, for testing system processing or reproducing specific historical scenarios.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_csv_stmt_insert_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_csv_stmt_insert_config}}
 ```
 
 Where:
@@ -473,7 +473,7 @@ This configuration is designed for publishing simulated device data to an MQTT m
 - Real-time data stream simulation: Simulate real-time device data streams for testing stream processing frameworks.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:mqtt_publish_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:mqtt_publish_config}}
 ```
 
 ### Generator-Based Data Generation and Publishing to Kafka Broker Example
@@ -518,5 +518,5 @@ Use JSON or InfluxDB Line Protocol to serialize message bodies to verify the par
 In a multi-broker cluster, use high-concurrency writes to test Kafka's replica synchronization, leader election, and broker failover mechanisms.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:kafka_produce_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:kafka_produce_config}}
 ```
