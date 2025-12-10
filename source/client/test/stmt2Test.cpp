@@ -1937,6 +1937,8 @@ TEST(stmt2Case, query) {
     AsyncArgs* aa = (AsyncArgs*)taosMemoryMalloc(sizeof(AsyncArgs));
     aa->async_affected_rows = 0;
     ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
+    // int code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = ?", 0);
+    // checkError(stmt, code);
 
     TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, (void*)aa};
 
