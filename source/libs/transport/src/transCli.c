@@ -1018,7 +1018,7 @@ static void cliConnSendAuthWithTLSCb(uv_write_t* req, int32_t status) {
     tDebug("%s conn:%p, failed to send sasl auth msg since %s", CONN_GET_INST_LABEL(conn), conn,
            uv_strerror(status));
     conn->broken = true;
-    transUnrefCliHandle(conn);
+    (void)transUnrefCliHandle(conn);
   } else {
     tTrace("%s conn:%p, send sasl auth msg success", CONN_GET_INST_LABEL(conn), conn);
   }
@@ -3065,7 +3065,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   if (pCtx && pCtx->syncMsgRef != 0) {
     STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
     if (pSyncMsg) {
-      taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+      (void)taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
     } else {
       tDebug("sync msg already release, not retry");
       return false;

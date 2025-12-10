@@ -145,7 +145,7 @@ int32_t transTlsCxtMgtAppend(STlsCxtMgt* pMgt, SSslCtx* pNewCtx) {
 
 
 void transTlsCxtMgtDestroy(STlsCxtMgt* pMgt) {
-  taosThreadRwlockDestroy(&pMgt->lock);
+  (void)taosThreadRwlockDestroy(&pMgt->lock);
   transTlsCxtUnref(pMgt->pTlsCtx);
   taosMemoryFree(pMgt);
   return;
@@ -182,8 +182,8 @@ void transTlsCxtRef(SSslCtx* pCtx) {
   if (pCtx == NULL) {
     return;
   }
-  atomic_fetch_add_32(&pCtx->refCount, 1);
-  tInfo("ref tls context %p, current refCount:%d", pCtx, atomic_load_32(&pCtx->refCount));
+  int32_t count = atomic_fetch_add_32(&pCtx->refCount, 1);
+  tInfo("ref tls context %p, current refCount:%d", pCtx, count + 1);
 }
 void transTlsCxtUnref(SSslCtx* pCtx) {
   if (pCtx == NULL) {
@@ -205,7 +205,7 @@ int8_t transDoReloadTlsConfig(STlsCxtMgt *pMgt, int32_t numOfThreads) {
     return 0;
   }
   if (atomic_add_fetch_32(&p->loadTlsCount, 1) >= numOfThreads) {
-    transTlsCxtMgtUpdate(p);
+    (void)transTlsCxtMgtUpdate(p);
 
     atomic_store_32(&p->loadTlsCount, 0); 
     atomic_store_8(&p->tlsLoading, 0);  
