@@ -53,7 +53,7 @@ module.exports = [
                   if (!remainingContent.startsWith(" ")) {
                     const lineContent = params.lines[child.lineNumber - 1];
                     const boldStartIndex = lineContent.indexOf(match[0]);
-                    const columnNumber = boldStartIndex + match[0].length;
+                    const columnNumber = boldStartIndex + match[0].length + 1;
 
                     if (boldStartIndex !== -1) {
                       onError({
