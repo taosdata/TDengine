@@ -141,6 +141,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
       - "SCRAM-SHA-256": A more secure challenge-response mechanism.
       - "SCRAM-SHA-512": A stronger hash algorithm than SHA-256.
       - "GSSAPI": For Kerberos authentication.
+
       Note: This field must be configured along with security.protocol, and its value depends on the SASL mechanisms enabled on the Kafka Broker.
     - sasl.username (string): The username for SASL authentication. Required for "PLAIN" or "SCRAM" mechanisms.
     - sasl.password (string): The password for SASL authentication.
