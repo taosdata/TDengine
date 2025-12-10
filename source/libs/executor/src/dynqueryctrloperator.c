@@ -1716,7 +1716,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           QUERY_CHECK_CODE(code, line, _return);
 
           if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
-            qDebug("dynQueryCtrl tb uid filter, info uid:%" PRId64 ", dyn tb uid:%" PRId64, info.uid,
+            qTrace("dynQueryCtrl tb uid filter, info uid:%" PRId64 ", dyn tb uid:%" PRId64, info.uid,
                    pInfo->vtbScan.dynTbUid);
 
             destroyColRefInfo(&info);
@@ -2206,7 +2206,7 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
       if (pValue != NULL && pValue->isTbname) {
         pInfo->vtbScan.dynTbUid = pValue->uid;
 
-	qDebug("dynQueryCtrl dyn tb uid:%" PRId64, pInfo->vtbScan.dynTbUid);
+	qTrace("dynQueryCtrl dyn tb uid:%" PRId64, pInfo->vtbScan.dynTbUid);
 
         break;
       }
@@ -2237,7 +2237,10 @@ _return:
 }
 
 static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
-  SDynQueryCtrlOperatorInfo* pDyn = pOper->info;
+  SDynQueryCtrlOperatorInfo*    pDyn = pOper->info;
+  SDynQueryCtrlPhysiNode const* pPhyciNode = pOper->pPhyNode;
+  SExecTaskInfo*                pTaskInfo = pOper->pTaskInfo;
+
   pOper->status = OP_NOT_OPENED;
 
   switch (pDyn->qType) {
@@ -2281,6 +2284,18 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
       }
       if (pVtbScan->childTableList) {
         taosArrayClearEx(pVtbScan->childTableList, destroyColRefArray);
+      }
+      if (pPhyciNode->dynTbname) {
+        SArray* vals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
+        for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
+          SStreamGroupValue* pValue = taosArrayGet(vals, i);
+          if (pValue != NULL && pValue->isTbname && pValue->uid != pVtbScan->dynTbUid) {
+            qTrace("dynQueryCtrl dyn tb uid:%" PRId64 "reset to:%" PRId64, pVtbScan->dynTbUid, pValue->uid);
+
+            pVtbScan->dynTbUid = pValue->uid;
+            break;
+          }
+        }
       }
       pVtbScan->curTableIdx = 0;
       pVtbScan->lastTableIdx = -1;
