@@ -954,7 +954,7 @@ static void* stmtBindThreadFunc(void* param) {
   setThreadName("stmt2Bind");
 
   STscStmt2* pStmt = (STscStmt2*)param;
-  STMT2_ILOG_E("stmt2 bind thread started");
+  STMT2_DLOG_E("stmt2 bind thread started");
 
   while (true) {
     SStmtQNode* asyncParam = NULL;
@@ -970,7 +970,7 @@ static void* stmtBindThreadFunc(void* param) {
     stmtAsyncOutput(pStmt, asyncParam);
   }
 
-  STMT2_ILOG_E("stmt2 bind thread stopped");
+  STMT2_DLOG_E("stmt2 bind thread stopped");
   return NULL;
 }
 
@@ -2545,12 +2545,12 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
-  STMT2_DLOG("stmt %p closed, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
+  STMT2_DLOG("stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
              ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
              ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64 " addBatchUs:%" PRId64
              ", execWaitUs:%" PRId64 ", execUseUs:%" PRId64,
-             pStmt, pStmt->sql.stbInterlaceMode, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo,
+             pStmt->sql.stbInterlaceMode, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo,
              pStmt->stat.parseSqlNum, pStmt->stat.bindDataNum, pStmt->seqIds[STMT_SETTBNAME], pStmt->seqIds[STMT_BIND],
              pStmt->seqIds[STMT_ADD_BATCH], pStmt->seqIds[STMT_EXECUTE], pStmt->stat.setTbNameUs,
              pStmt->stat.bindDataUs1, pStmt->stat.bindDataUs2, pStmt->stat.bindDataUs3, pStmt->stat.bindDataUs4,
@@ -2678,7 +2678,7 @@ int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
     STMT_ERRI_JRET(stmtFetchColFields2(stmt, nums, NULL));
   }
 
-  STMT2_TLOG("get param num success, nums:%d", *nums);
+  STMT2_DLOG("get param num success, nums:%d", *nums);
 
 _return:
 
