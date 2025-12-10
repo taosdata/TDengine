@@ -23,8 +23,6 @@
 #include "tmsgcb.h"
 #include "trpc.h"
 
-#include "xnode.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

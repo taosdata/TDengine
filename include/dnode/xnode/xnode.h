@@ -17,8 +17,8 @@
 #define _TD_XNODE_H_
 
 /** cflags: -L../../common/ */
-#include "tglobal.h"
 #include "common/tmsgcb.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +42,7 @@ typedef struct {
   SMsgCb  msgCb;
   int32_t dnodeId;
   int32_t proto;
+  SEp     ep;
 } SXnodeOpt;
 
 /* ------------------------ SXnode ------------------------ */
@@ -66,7 +67,6 @@ void xndClose(SXnode *pXnode);
 #endif
 
 int32_t mndOpenXnd(const SXnodeOpt *pOption);
-
 void mndCloseXnd();
 
 #endif /*_TD_BNODE_H_*/

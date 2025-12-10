@@ -62,11 +62,10 @@ SXnode       *xndInstance() { return &xnodeInstance; }
 
 int32_t mndOpenXnd(const SXnodeOpt *pOption) {
   int32_t code = 0;
-
   SXnode *pXnode = xndInstance();
   pXnode->dnodeId = pOption->dnodeId;
-  pXnode->protocol = (int8_t)pOption->proto;
-  pXnode->msgCb = pOption->msgCb;
+  // pXnode->protocol = (int8_t)pOption->proto;
+  // pXnode->msgCb = pOption->msgCb;
   // 1. 产生 runtime 数据结构，看是否需要清理，目测不需要清理，因为无状态; 尝试启动 xnoded, 如果已经启动，就直接退出。
   // 2. 执行 xnodeMgmtStartXnoded, 启动 xnoded
   if ((code = xnodeMgmtStartXnoded(pXnode->dnodeId)) != 0) {

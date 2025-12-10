@@ -297,7 +297,7 @@ typedef struct {
 
 typedef struct {
   int32_t  id;
-  int64_t  createdTime;
+  int64_t  createTime;
   int64_t  updateTime;
   int32_t  status;
   int32_t  via;
@@ -322,13 +322,17 @@ typedef struct {
 
 typedef struct {
   int32_t  id;
-  int32_t  tid;
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int32_t  version;
+  int32_t  taskId;
   int32_t  configLen;
-  SRWLatch lock;
   char*    config;
+  int32_t  via;
+  int32_t  xnodeId;
+  int32_t  status;
+  int32_t  reasonLen;
+  char*    reason;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
 } SXnodeJobObj;
 
 typedef struct {

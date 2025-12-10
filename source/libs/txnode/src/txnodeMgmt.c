@@ -311,8 +311,6 @@ _exit:
   if (code != 0) {
     xndError("xnoded start failed with code:%d, lino:%d", code, lino);
   }
-
-  xndInfo("xxxzgc start xnoded with dnodeId:%d", startDnodeId);
   return code;
 }
 /**
