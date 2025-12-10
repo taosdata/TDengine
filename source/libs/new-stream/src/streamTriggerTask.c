@@ -7515,6 +7515,7 @@ static void stRealtimeGroupDestroy(void *ptr) {
   }
   taosObjListClear(&pGroup->windows);
   taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
+  taosMemoryFreeClear(pGroup->pPendWinOpenNotify);
 
   taosMemFreeClear(*ppGroup);
 }
@@ -8088,6 +8089,16 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       void *px = taosArrayPush(pContext->pWindows, &newWin);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     }
+    if (pGroup->pendingWinOpen) {
+      QUERY_CHECK_CONDITION(TARRAY_SIZE(pContext->pWindows) == 1, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      SSTriggerWindow       *pWin = taosObjListGetHead(&pGroup->windows);
+      SSTriggerNotifyWindow *pNewWin = TARRAY_DATA(pContext->pWindows);
+      pNewWin->wrownum = pWin->wrownum;
+      pNewWin->pWinOpenNotify = pGroup->pPendWinOpenNotify;
+      pGroup->pendingWinOpen = false;
+      pGroup->pPendWinOpenNotify = NULL;
+      taosObjListClear(&pGroup->windows);
+    }
   }
 
   SSTriggerNotifyWindow *pWin = taosArrayGetLast(pContext->pWindows);
@@ -8207,6 +8218,16 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
       newWin.range = pWin->range;
       void *px = taosArrayPush(pContext->pWindows, &newWin);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
+    if (pGroup->pendingWinOpen) {
+      QUERY_CHECK_CONDITION(TARRAY_SIZE(pContext->pWindows) == 1, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      SSTriggerWindow       *pWin = taosObjListGetHead(&pGroup->windows);
+      SSTriggerNotifyWindow *pNewWin = TARRAY_DATA(pContext->pWindows);
+      pNewWin->wrownum = pWin->wrownum;
+      pNewWin->pWinOpenNotify = pGroup->pPendWinOpenNotify;
+      pGroup->pendingWinOpen = false;
+      pGroup->pPendWinOpenNotify = NULL;
+      taosObjListClear(&pGroup->windows);
     }
   }
 
@@ -8392,6 +8413,24 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
           (pTask->triggerType == STREAM_TRIGGER_COUNT && pTask->windowCount > pTask->windowSliding),
       code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
+  // add pending open window for TRUE FOR condition
+  int64_t trueFor = 0;
+  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    trueFor = pTask->stateTrueFor;
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    trueFor = pTask->eventTrueFor;
+  }
+  if ((trueFor > 0) && (pGroup->windows.neles > 0)) {
+    pWin = taosArrayGetLast(pContext->pWindows);
+    QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
+    if ((pWin->range.ekey & TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) &&
+        (pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey < trueFor) {
+      pGroup->pendingWinOpen = true;
+      pGroup->pPendWinOpenNotify = pWin->pWinOpenNotify;
+      pWin->pWinOpenNotify = NULL;
+    }
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -8493,11 +8532,20 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   int64_t numClosed = numWin - numUnclosed;
 
   int64_t initPendingSize = pGroup->pPendingCalcParams.neles;
+  int64_t trueFor = 0;
+  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    trueFor = pTask->stateTrueFor;
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    trueFor = pTask->eventTrueFor;
+  }
   // trigger all window open/close events
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pWindows); i++) {
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pWindows, i);
-    // window open event may have been triggered previously
-    if ((calcOpen || notifyOpen) && i >= nInitWins && !pContext->recovering) {
+    // check TRUE FOR condition
+    bool meetTrueFor =
+        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool ignore = (i < nInitWins) || !meetTrueFor;
+    if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
                                      .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
                                      .extraNotifyContent = pWin->pWinOpenNotify};
@@ -8518,12 +8566,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       }
     }
 
-    // check TRUE FOR condition and unclosed windows
-    bool ignore =
-        (i >= numClosed) || (pTask->ignoreNoDataTrigger && pWin->wrownum == 0) ||
-        (pTask->triggerType == STREAM_TRIGGER_STATE && pWin->range.ekey - pWin->range.skey < pTask->stateTrueFor) ||
-        (pTask->triggerType == STREAM_TRIGGER_EVENT && pWin->range.ekey - pWin->range.skey < pTask->eventTrueFor);
-
+    ignore = (i >= numClosed) || !meetTrueFor || (pTask->ignoreNoDataTrigger && pWin->wrownum == 0);
     if ((calcClose || notifyClose) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam param = {
           .triggerTime = now,
@@ -8750,6 +8793,11 @@ static int32_t stRealtimeGroupRemovePendingCalc(SSTriggerRealtimeGroup *pGroup, 
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
+  int64_t                   gap = 0;
+
+  if (pTask->triggerType == STREAM_TRIGGER_SESSION) {
+    gap = pTask->gap;
+  }
 
   if (pGroup->pPendingCalcParams.neles > 0) {
     ST_TASK_DLOG("remove pending calc params for group %" PRId64 " in range [%" PRId64 ", %" PRId64 "]", pGroup->gid,
@@ -8758,7 +8806,7 @@ static int32_t stRealtimeGroupRemovePendingCalc(SSTriggerRealtimeGroup *pGroup, 
     SObjListIter        iter = {0};
     taosObjListInitIter(&pGroup->pPendingCalcParams, &iter, TOBJLIST_ITER_FORWARD);
     while ((pParam = taosObjListIterNext(&iter)) != NULL) {
-      if (pParam->wstart <= pRange->ekey && pParam->wend >= pRange->skey) {
+      if (pParam->wstart <= pRange->ekey + gap && pParam->wend >= pRange->skey - gap) {
         // remove this param
         taosMemoryFreeClear(pParam->extraNotifyContent);
         taosObjListPopObj(&pGroup->pPendingCalcParams, pParam);
@@ -9065,7 +9113,7 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
   SSTriggerCalcParam       param = {0};
 
   bool    needCalc = (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN);
-  bool    needNotify = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN);
+  bool    needNotify = pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN);
   int64_t now = taosGetTimestampNs();
   if (needCalc || needNotify) {
     param.triggerTime = now;
