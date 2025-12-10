@@ -454,6 +454,10 @@ if [ ${send2feishu_enabled} == "True" ] ;then
     end_time_all=`date +%Y_%m%d_%H%M%S`
 
     if [ -f ${failed_case_file} ]; then
+        result='failed'
+    else
+        result='success'
+    fi
     case "${t_file}" in
       *query*)
         owner="Platform TSDB-Query Test"
