@@ -574,6 +574,7 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
   SDbObj       *pDb = NULL;
   SRsmaObj     *pObj = NULL;
+  SUserObj     *pUser = NULL;
   SMDropRsmaReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSMDropRsmaReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _exit);
@@ -592,14 +593,26 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
 
   SName name = {0};
   TAOS_CHECK_EXIT(tNameFromString(&name, pObj->dbFName, T_NAME_ACCT | T_NAME_DB));
-
-  char db[TSDB_TABLE_FNAME_LEN] = {0};
-  (void)tNameGetFullDbName(&name, db);
-  if (!(pDb = mndAcquireDb(pMnode, db))) {
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
+  if (!(pDb = mndAcquireDb(pMnode, pObj->dbFName))) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_EXIST);
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _exit);
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _exit);
+  const char *owner = pObj->owner[0] != 0 ? pObj->owner : pObj->createUser;
+  char        db[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)snprintf(db, sizeof(db), "%d.*", pUser->acctId);
+  bool hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_DROP, owner, db, "*");
+  if (!hasPrivilege) {
+    hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_DROP, owner, pObj->dbFName, "*");
+    if (!hasPrivilege) {
+      hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_DROP, owner, pObj->dbFName, pObj->name);
+      if (!hasPrivilege) {
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
+      }
+    }
+  }
 
   code = mndDropRsma(pMnode, pReq, pDb, pObj);
   if (code == TSDB_CODE_SUCCESS) {
@@ -614,6 +627,7 @@ _exit:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseRsma(pMnode, pObj);
+  mndReleaseUser(pMnode, pUser);
 #endif
   TAOS_RETURN(code);
 }
@@ -756,7 +770,9 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
 
   // already check select table/insert table/create rsma privileges in parser
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
-    TAOS_CHECK_EXIT(mndCheckObjPrivilege(pMnode, pUser, PRIV_DB_USE, NULL, "*", NULL));
+    if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_DB_USE, NULL, "*", NULL)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
+    }
   }
 
   pStb = mndAcquireStb(pMnode, createReq.tbFName);
@@ -778,6 +794,7 @@ _exit:
   if (pSma) mndReleaseRsma(pMnode, pSma);
   if (pStb) mndReleaseStb(pMnode, pStb);
   if (pDb) mndReleaseDb(pMnode, pDb);
+  if (pUser) mndReleaseUser(pMnode, pUser);
   tFreeSMCreateRsmaReq(&createReq);
 #endif
   TAOS_RETURN(code);
@@ -1194,7 +1211,8 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     if (!privInfo) {
       TAOS_CHECK_EXIT(terrno);
     }
-    showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_SHOW, NULL, objFName, privInfo->objLevel == 0 ? NULL : "*"); // 1.*.*
+    showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_SHOW, NULL, objFName,
+                                   privInfo->objLevel == 0 ? NULL : "*");  // 1.*.*
 
     SRsmaObj *pObj = NULL;
     int32_t   index = 0;
@@ -1284,7 +1302,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   pShow->numOfRows += numOfRows;
 
 _exit:
-  if(!pUser) mndReleaseUser(pMnode, pUser);
+  if (!pUser) mndReleaseUser(pMnode, pUser);
   if (code < 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
