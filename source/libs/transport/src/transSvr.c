@@ -766,7 +766,7 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
 
 static int8_t uvCheckConn(SSvrConn* pConn) {
   SWorkThrd* pThrd = pConn->hostThrd;
-  int8_t     status;
+  int8_t     status = 0;
   int8_t     forbiddenIp = 0;
 
   int8_t timeForbiddenIp = 0;
@@ -785,10 +785,10 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
   }
 
   if (forbiddenIp) {
-    IP_FORBIDDEN_SET_VAL(timeForbiddenIp, IP_FORBIDDEN_WHITE_LIST);
+    IP_FORBIDDEN_SET_VAL(status, IP_FORBIDDEN_WHITE_LIST);
   }
   if (timeForbiddenIp) {
-    IP_FORBIDDEN_SET_VAL(forbiddenIp, IP_FORBIDDEN_DATA_TIME_WHITE_LIST);
+    IP_FORBIDDEN_SET_VAL(status, IP_FORBIDDEN_DATA_TIME_WHITE_LIST);
   }
 
   return status;
