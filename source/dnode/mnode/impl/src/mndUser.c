@@ -1956,11 +1956,6 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
     goto _OVER;
   }
 
-  pNew->pTimeWhiteList = cloneDateTimeWhiteList(pUser->pTimeWhiteList);
-  if (pNew->pTimeWhiteList == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
 _OVER:
   taosRUnLockLatch(&pUser->lock);
   TAOS_RETURN(code);
