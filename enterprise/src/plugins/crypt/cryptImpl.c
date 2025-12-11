@@ -20,31 +20,11 @@
 #include "crypt.h"
 #include "sm4.h"
 
+#if defined(TD_ENTERPRISE) && defined(LINUX)
 int32_t Builtin_CBC_DecryptImpl(SCryptOpts *opts) {
-  int NewLen = 0;
-
-  int32_t count = 0;
-  while (count < opts->len) {
-    (void)SM4_CBC_Decrypt(opts->key, 16, opts->key, 16, opts->source + count, opts->unitLen, opts->result + count,
-                          &NewLen);
-    count += NewLen;
-  }
-  return count;
-}
-
-int32_t Builtin_CBC_EncryptImpl(SCryptOpts *opts) {
-  int NewLen = 0;
-
-  int32_t count = 0;
-  while (count < opts->len) {
-    (void)SM4_CBC_Encrypt(opts->key, 16, opts->key, 16, opts->source + count, opts->unitLen, opts->result + count,
-                          &NewLen);
-    count += NewLen;
-  }
-  return count;
-}
-
+#else
 int32_t CBC_DecryptImpl(SCryptOpts *opts) {
+#endif
   int NewLen = 0;
 
   int32_t count = 0;
@@ -56,7 +36,11 @@ int32_t CBC_DecryptImpl(SCryptOpts *opts) {
   return count;
 }
 
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+int32_t Builtin_CBC_EncryptImpl(SCryptOpts *opts) {
+#else
 int32_t CBC_EncryptImpl(SCryptOpts *opts) {
+#endif
   int NewLen = 0;
 
   int32_t count = 0;
@@ -69,11 +53,12 @@ int32_t CBC_EncryptImpl(SCryptOpts *opts) {
 }
 
 #if defined(TD_ENTERPRISE) && defined(LINUX)
-int32_t OSSL_CBC_EncryptImpl(SCryptOpts *opts) {
+int32_t CBC_EncryptImpl(SCryptOpts *opts) {
   int outlen = -1;
 
   if (opts == NULL) return -1;
   if (opts->pOsslAlgrName == NULL) return -1;
+  if (strlen(opts->pOsslAlgrName) == 0) return -1;
 
   EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
   if (ctx == NULL) {
@@ -119,7 +104,7 @@ out:
   return outlen;
 }
 
-int32_t OSSL_CBC_DecryptImpl(SCryptOpts *opts) {
+int32_t CBC_DecryptImpl(SCryptOpts *opts) {
   int outlen = -1;
 
   if (opts == NULL) return -1;
