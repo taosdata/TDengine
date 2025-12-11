@@ -1675,7 +1675,7 @@ AES_DECRYPT(str, key_str[, init_vector])
 
 **Example**:
 
-See `aes_encrypt`。
+See `aes_encrypt`.
 
 ### Conversion Functions
 
