@@ -1141,6 +1141,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   SSmaObj       *pSma = NULL;
   SSmaObj       *pBaseTsma = NULL;
   SStreamObj    *pStream = NULL;
+  SUserObj      *pUser = NULL;
   int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMCreateSmaReq createReq = {0};
 
@@ -1156,6 +1157,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
 
   mInfo("start to create tsma: %s", createReq.name);
   if ((code = mndCheckCreateSmaReq(&createReq)) != 0) goto _OVER;
+  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) goto _OVER;
 
   if (createReq.normSourceTbUid == 0) {
     pStb = mndAcquireStb(pMnode, createReq.stb);
@@ -1215,7 +1217,21 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
+  char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
+    if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_DB_USE, NULL, objFName, NULL)) {
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      goto _OVER;
+    }
+  }
+  if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_TBL_CREATE, NULL, objFName, NULL)) {
+    if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_TBL_CREATE, NULL, db, NULL)) {
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      goto _OVER;
+    }
+  }
 
   if (createReq.recursiveTsma) {
     pBaseTsma = sdbAcquire(pMnode->pSdb, SDB_SMA, createReq.baseTsmaName);
@@ -1255,6 +1271,7 @@ _OVER:
   mndReleaseSma(pMnode, pSma);
   mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pUser);
   tFreeSMCreateSmaReq(&createReq);
 
   TAOS_RETURN(code);
@@ -1341,6 +1358,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
   SDbObj      *pDb = NULL;
   SMnode      *pMnode = pReq->info.node;
   SStbObj     *pStb = NULL;
+  SUserObj    *pUser = NULL;
   if (tDeserializeSMDropSmaReq(pReq->pCont, pReq->contLen, &dropReq) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -1378,8 +1396,22 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
-    goto _OVER;
+  // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  //   goto _OVER;
+  // }
+  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) goto _OVER;
+  const char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
+  (void)snprintf(db, sizeof(db), "%d.*", pUser->acctId);
+  bool hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_DROP, owner, db, "*");
+  if (!hasPrivilege) {
+    hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_DROP, owner, pSma->db, "*");
+    if (!hasPrivilege) {
+      hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_DROP, owner, pSma->db, pSma->name);
+      if (!hasPrivilege) {
+        code = TSDB_CODE_MND_NO_RIGHTS;
+        goto _OVER;
+      }
+    }
   }
 
   if (hasRecursiveTsmasBasedOnMe(pMnode, pSma)) {
@@ -1406,6 +1438,7 @@ _OVER:
   mndReleaseStb(pMnode, pStb);
   mndReleaseSma(pMnode, pSma);
   mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pUser);
   TAOS_RETURN(code);
 }
 

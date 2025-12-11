@@ -457,6 +457,33 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
   return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
 }
 
+static int32_t authCreateTsma(SAuthCxt* pCxt, SCreateTSMAStmt* pStmt) {
+  int32_t code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_TBL_CREATE);
+  }
+  if (!pStmt->pOptions->recursiveTsma) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
+                               PRIV_TBL_SELECT);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
+                               PRIV_TBL_INSERT);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
+                               PRIV_STREAM_CREATE);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
+                               PRIV_TSMA_CREATE);
+    }
+  }
+
+  return code;
+}
+
 static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
   int32_t code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
   if (TSDB_CODE_SUCCESS == code) {
@@ -570,6 +597,11 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:
       return authDropView(pCxt, (SDropViewStmt*)pStmt);
+    case QUERY_NODE_CREATE_TSMA_STMT:
+      return authCreateTsma(pCxt, (SCreateTSMAStmt*)pStmt);
+    case QUERY_NODE_DROP_TSMA_STMT:
+      return authObjPrivileges(pCxt, ((SDropTSMAStmt*)pStmt)->dbName, ((SDropTSMAStmt*)pStmt)->tsmaName,
+                               PRIV_TSMA_DROP);
     case QUERY_NODE_CREATE_RSMA_STMT:
       return authCreateRsma(pCxt, (SCreateRsmaStmt*)pStmt);
     case QUERY_NODE_DROP_RSMA_STMT:
