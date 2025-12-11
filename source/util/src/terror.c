@@ -1022,6 +1022,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CIPHER_NOT_EXIST,          "Encrypt cipher not 
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out audit record")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_ENCRYPT,             "Audit database must be encrypted")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_WALFORCE,            "Audit database wal_level must be 2")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_KEEPFORCE,           "Audit database keep2 must be greater than 1825d")
 
 // VTABLE
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan internal error")

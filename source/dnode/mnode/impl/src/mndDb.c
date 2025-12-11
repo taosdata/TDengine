@@ -868,6 +868,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   };
   if (strlen(pCreate->encryptAlgrName) > 0) {
     if (strncasecmp(pCreate->encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
+      if (pCreate->isAudit == 1) {
+        code = TSDB_CODE_AUDIT_MUST_ENCRYPT;
+        mError("db:%s, failed to create, encrypt algorithm not match for audit db, %s", pCreate->db,
+               pCreate->encryptAlgrName);
+        TAOS_RETURN(code);
+      }
       dbObj.cfg.encryptAlgorithm = 0;
     } else {
       SEncryptAlgrObj *pEncryptAlgr = mndAcquireEncryptAlgrByAId(pMnode, pCreate->encryptAlgrName);
@@ -888,6 +894,19 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
+
+  if (pCreate->isAudit == 1) {
+    if (dbObj.cfg.daysToKeep2 < 2628000) {
+      code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
+      mError("db:%s, failed to create, keep not match for audit db, %d", pCreate->db, dbObj.cfg.daysToKeep2);
+      TAOS_RETURN(code);
+    }
+    if (dbObj.cfg.walLevel != 2) {
+      code = TSDB_CODE_AUDIT_MUST_WALFORCE;
+      mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.daysToKeep2);
+      TAOS_RETURN(code);
+    }
+  }
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
@@ -1049,7 +1068,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 #endif
-  mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
+  mInfo("db:%s, start to create, vgroups:%d, isAudit:%d, daysToKeep2:%d", createReq.db, createReq.numOfVgroups, createReq.isAudit, createReq.daysToKeep2);
 
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
