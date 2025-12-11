@@ -59,18 +59,17 @@ class Test_IDMP_Vehicle:
         # check stream status
         self.checkStreamStatus()
 
-        # insert trigger data
-        self.writeTriggerData()
+        # A 
+        self.triggerA_all()
+        self.verfiyA_all()
 
-        # verify results
-        self.verifyResults()
+        # B
+        self.triggerB_all()
+        self.verifyB_all()
 
-        # write trigger data again
-        self.writeTriggerDataAgain()
-
-        # verify results
-        self.verifyResultsAgain()
-
+        # C
+        self.triggerC_all()
+        self.verifyC_all()
 
         '''
         # restart dnode
@@ -142,39 +141,39 @@ class Test_IDMP_Vehicle:
 
         sqls = [
             # stream_stb1
-            "create stream if not exists `idmp`.`veh_stream_stb1`       interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER)                    notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
-            #"create stream if not exists `idmp`.`veh_stream_stb1_sub1`  interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER|FILL_HISTORY_FIRST) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream_stb1`       interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER)                    notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
+            #"create stream if not exists `idmp`.`veh_stream_stb1_sub1`  interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER|FILL_HISTORY_FIRST) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
 
             # stream1
-            "create stream if not exists `idmp`.`veh_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
-            "create stream if not exists `idmp`.`veh_stream1_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(delete_recalc)         notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
+            "create stream if not exists `idmp`.`veh_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`, _twend wend from idmp.`vt_1` where ts >= _twstart and ts <_twend",
+            "create stream if not exists `idmp`.`veh_stream1_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(delete_recalc)         notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`, _twend wend from idmp.`vt_1` where ts >= _twstart and ts <_twend",
             # stream2
-            "create stream if not exists `idmp`.`veh_stream2`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`veh_stream2_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream2`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream2_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_2`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream2_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream3
-            "create stream if not exists `idmp`.`veh_stream3`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_3` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`veh_stream3_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_3`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream3`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_3` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream3_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_3`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream3_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream4
-            "create stream if not exists `idmp`.`veh_stream4`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_4`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`veh_stream4_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_4` stream_options(DELETE_RECALC)         notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream4`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_4`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream4_sub1` event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_4` stream_options(DELETE_RECALC)         notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream4_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream5
-            "create stream if not exists `idmp`.`veh_stream5`      interval(5m) sliding(5m) from `idmp`.`vt_5`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`veh_stream5_sub1` interval(5m) sliding(5m) from `idmp`.`vt_5` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream5`      interval(5m) sliding(5m) from `idmp`.`vt_5`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream5_sub1` interval(5m) sliding(5m) from `idmp`.`vt_5` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream5_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream6
-            "create stream if not exists `idmp`.`veh_stream6`      interval(10m) sliding(5m) from `idmp`.`vt_6`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`veh_stream6_sub1` interval(10m) sliding(5m) from `idmp`.`vt_6` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream6`      interval(10m) sliding(5m) from `idmp`.`vt_6`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream6_sub1` interval(10m) sliding(5m) from `idmp`.`vt_6` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream6_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream7
-            "create stream if not exists `idmp`.`veh_stream7`      interval(5m) sliding(10m) from `idmp`.`vt_7`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
-            "create stream if not exists `idmp`.`veh_stream7_sub1` interval(5m) sliding(10m) from `idmp`.`vt_7` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream7`      interval(5m) sliding(10m) from `idmp`.`vt_7`                                       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
+            "create stream if not exists `idmp`.`veh_stream7_sub1` interval(5m) sliding(10m) from `idmp`.`vt_7` stream_options(IGNORE_NODATA_TRIGGER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream7_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from %%trows",
             # stream8 watermark 1m
-            "create stream if not exists `idmp`.`veh_stream8`      interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
-            "create stream if not exists `idmp`.`veh_stream8_sub1` interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream8`      interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream8_sub1` interval(10m) sliding(10m) from `idmp`.`vt_8`  stream_options(WATERMARK(1m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream8_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
             # stream9 watermark 5m
-            "create stream if not exists `idmp`.`veh_stream9`      interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
-            "create stream if not exists `idmp`.`veh_stream9_sub1` interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream9`      interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream9_sub1` interval(10m) sliding(10m) from `idmp`.`vt_9`  stream_options(WATERMARK(5m))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream9_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
             # stream10 expired_time 1h
-            "create stream if not exists `idmp`.`veh_stream10`      interval(10m) sliding(10m) from `idmp`.`vt_10`  stream_options(EXPIRED_TIME(1h)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream10`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
-            "create stream if not exists `idmp`.`veh_stream10_sub1` interval(10m) sliding(10m) from `idmp`.`vt_10`  stream_options(EXPIRED_TIME(1h))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream10_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream10`      interval(10m) sliding(10m) from `idmp`.`vt_10`  stream_options(EXPIRED_TIME(1h)|IGNORE_DISORDER) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream10`      as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
+            "create stream if not exists `idmp`.`veh_stream10_sub1` interval(10m) sliding(10m) from `idmp`.`vt_10`  stream_options(EXPIRED_TIME(1h))                 notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream10_sub1` as select _twstart as ts, count(*) as cnt, avg(`速度`) as `平均速度`,sum(`里程`) as `里程和` from %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -189,72 +188,97 @@ class Test_IDMP_Vehicle:
         print(f"check stream status successfully.")
 
     # 
-    # 4. write trigger data
+    # Round A
     #
-    def writeTriggerData(self):
+    def triggerA_all(self):
         print("write data ...")
         # stream_stb1
-        self.trigger_stream_stb1()
+        self.triggerA_stream_stb1()
         # stream1
-        self.trigger_stream1()
+        self.triggerA_stream1()
         # stream2
-        self.trigger_stream2()
+        self.triggerA_stream2()
         # stream3
-        self.trigger_stream3()  
+        self.triggerA_stream3()  
         # stream4
-        self.trigger_stream4()
+        self.triggerA_stream4()
         # stream5
-        self.trigger_stream5()
+        self.triggerA_stream5()
         # stream6
-        self.trigger_stream6()
+        self.triggerA_stream6()
         # stream7
-        self.trigger_stream7()
+        self.triggerA_stream7()
         # stream8
-        self.trigger_stream8()
+        self.triggerA_stream8()
         # stream9
-        self.trigger_stream9()
+        self.triggerA_stream9()
         # stream10
-        self.trigger_stream10()
+        self.triggerA_stream10()
 
-    # 
-    # 5. verify results
-    #
-    def verifyResults(self):
+    def verfiyA_all(self):  
+        print("wait 5s ...")
+        time.sleep(5)
+        print("verify A results ...")
         
-        print("wait 10s ...")
-        time.sleep(10)
-        print("verify results ...")
+        self.verifyA_stream1()
+        self.verifyA_stream1_sub1()
+        self.verifyA_stream2()
+        self.verifyA_stream3()
+        self.verifyA_stream3_sub1()
+        self.verifyA_stream4()
+        self.verifyA_stream5()
+        self.verifyA_stream6()
+        self.verifyA_stream7()
+        self.verifyA_stream8()
+        self.verifyA_stream9()
+        self.verifyA_stream10()
+        self.verifyA_stream_stb1()
+
+    # 
+    # Round B
+    #
+    # trigger
+    def triggerB_all(self):
+        self.triggerB_stream1()
+        self.triggerB_stream2()
+        self.triggerB_stream3()
+        self.triggerB_stream4()
+
+    # verify
+    def verifyB_all(self):
+        print("wait 2s ...")
+        time.sleep(2)
+        print("verify B results ...")
         
-        self.verify_stream1()
-        self.verify_stream2()
-        self.verify_stream3()
-        self.verify_stream3_sub1()
+        # stream1
+        self.verifyB_stream1_sub1()
+        # stream2
+        self.verifyB_stream2()
+        self.verifyB_stream2_sub1()
+        #steam4
+        self.verifyB_stream4()
+        self.verifyB_stream4_sub1()
 
-        self.verify_stream4()
-        self.verify_stream5()
-        self.verify_stream6()
-        self.verify_stream7()
-        self.verify_stream8()
-        self.verify_stream9()
-        self.verify_stream10()
-        self.verify_stream_stb1()
+        # stream3
+        #self.verifyA_stream3_again()
+        #self.verifyA_stream3_sub1_again()
 
     # 
-    # 6. write trigger data again
+    # Round C
     #
-    def writeTriggerDataAgain(self):
-        # stream3
-        self.trigger_stream3_again()
+    # trigger
+    def triggerC_all(self):
+        self.triggerC_stream1()
 
+    # verify
+    def verifyC_all(self):
+        print("wait 2s ...")
+        time.sleep(2)
+        print("verify C results ...")
 
-    # 
-    # 7. verify results again
-    #
-    def verifyResultsAgain(self):
-        pass
-        # stream3
-        #self.verify_stream3_again()
-        #self.verify_stream3_sub1_again()
+        # stream1
+        self.verifyC_stream1()
+        self.verifyC_stream1_sub1()        
 
     #
     # 8. restart dnode
@@ -293,13 +317,10 @@ class Test_IDMP_Vehicle:
             print(f"i={i} {row}")
             i += 1
 
-
-    # ---------------------   stream trigger    ----------------------
-
     #
     #  stream_stb1 trigger
     #
-    def trigger_stream_stb1(self):
+    def triggerA_stream_stb1(self):
         table = f"{self.db}.`vehicle_150100_001`"
         cols  = "ts,speed,mileage"
 
@@ -309,11 +330,12 @@ class Test_IDMP_Vehicle:
         count = 11
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
     #
-    #  stream1 trigger 
+    # ----------------------- stream 1 ------------------------------
     #
-    def trigger_stream1(self):
+    
+    # A
+    def triggerA_stream1(self):
         ts    = self.start
         table = f"{self.db}.`vehicle_110100_001`"
         cols  = "ts,speed"
@@ -333,53 +355,141 @@ class Test_IDMP_Vehicle:
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
         # win3 50 ~ 51 end-windows
         ts += 50 * self.step
         vals  = "10"
         count = 2
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        
+        #self.triggerB_stream1()
 
+    # base
+    def verifyA_stream1(self):
+        # check
+        result_sql = f"select * from idmp.`result_stream1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 7)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg(speed)
+        )
+
+        # sub
+        print("verify stream1 .................................. successfully.")
+
+    # sub1
+    def verifyA_stream1_sub1(self):
+        # check
+        result_sql = f"select * from idmp.`result_stream1_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 7)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg(speed)
+        )
+
+        # sub
+        print("verify stream1 sub1 ............................. successfully.")
+    
+    # B
+    def triggerB_stream1(self):
+        table = f"{self.db}.`vehicle_110100_001`"
         # delete win1 2 rows
         tdSql.deleteRows(table, f"ts >= {self.start + 1 * self.step} and ts <= {self.start + 2 * self.step}")
+    
+    # sub1
+    def verifyB_stream1_sub1(self):
+        # check
+        result_sql = f"select * from idmp.`result_stream1_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 5)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg(speed)
+        )
 
+        # sub
+        print("verify B stream1 sub1 ........................... successfully.")
+
+    # C
+    def triggerC_stream1(self):
+        table = f"{self.db}.`vehicle_110100_001`"
+        cols  = "ts,speed"
         # disorder
         ts    = self.start + (5 + 2 + 1) * self.step
         vals  = "130"
         count = 3
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        sql = f"insert into {table} ({cols}) values "
+        
+        ts, values = tdSql.genInsertVal(ts, self.step, count, vals)
+        sql += values
+
         # null 
         count = 10
         vals  = "null"
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        ts, values = tdSql.genInsertVal(ts, self.step, count, vals)
+        sql += values
 
         # null changed 65
         ts    = self.start + (5 + 2 + 1 + 3) * self.step
         count = 1
         vals  = "65"
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
+        ts, values = tdSql.genInsertVal(ts, self.step, count, vals)
+        sql += values
         # null changed 140
         count = 5
         vals  = "140"
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        ts, values = tdSql.genInsertVal(ts, self.step, count, vals)
+        sql += values
 
         # 130 change to null
         ts    = self.start
         vals  = "null"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        ts, values = tdSql.genInsertVal(ts, self.step, count, vals)
+        sql += values
 
         # trigger disorder event
         ts   += 50 * self.step
         vals  = "9"
         count = 1
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        ts, values = tdSql.genInsertVal(ts, self.step, count, vals)
+        sql += values
+        
+        tdSql.execute(sql, show=True)
 
+    # base
+    def verifyC_stream1(self):
+        self.verifyA_stream1()
+    
+    # sub1
+    def verifyC_stream1_sub1(self):
+        # check
+        result_sql = f"select * from idmp.`result_stream1_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 5)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg(speed)
+            # row2
+            and tdSql.compareData(1, 0, self.start + (5 + 2 + 1 + 3 + 1) * self.step) # ts
+            and tdSql.compareData(1, 1, 9)          # cnt
+            and tdSql.compareData(1, 2, 140)        # avg(speed)
+        )
 
+        print("verifyC stream1 sub1 ............................. successfully.")
+    
     #
-    #  stream2 trigger 
+    # ----------------------- stream 2 ------------------------------
     #
-    def trigger_stream2(self):
+    
+    # A
+    def triggerA_stream2(self):
         ts    = self.start
         table = f"{self.db}.`vehicle_110100_002`"
         cols  = "ts,speed"
@@ -392,28 +502,62 @@ class Test_IDMP_Vehicle:
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
-        # win2 10~5
+        # win2 10~15
         ts += 10 * self.step
         vals  = "130"
         count = 5
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
-
 
         # win3 50 ~ 51 end-windows
         ts += 50 * self.step
         vals  = "65"
         count = 2
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
+        
+    def verifyA_stream2(self):
+        # check
+        result_sql = f"select * from idmp.`result_stream2` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)          # cnt
+        )
 
+        # sub
+        self.verifyA_stream2_sub1()
 
+        print("verify stream2 .................................. successfully.")
+
+    # verify stream2 sub1
+    def verifyA_stream2_sub1(self):
+        # check
+        result_sql = f"select * from idmp.`result_stream2_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)                     # cnt
+        )        
+        print("verify stream2 sub1 ............................. successfully.")
+
+    # B (no effect for result)
+    def triggerB_stream2(self):
+        table = f"{self.db}.`vehicle_110100_002`"        
         # delete win1 3 rows
-        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 2 * self.step}") 
+        tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 2 * self.step}")
+        
+    def verifyB_stream2(self):
+        self.verifyA_stream2()
+
+    def verifyB_stream2_sub1(self):
+        self.verifyA_stream2_sub1()
+            
 
     #
     #  stream3 trigger 
     #
-    def trigger_stream3(self):
+    def triggerA_stream3(self):
         table = f"{self.db}.`vehicle_110100_003`"
         cols  = "ts,speed"
 
@@ -462,7 +606,7 @@ class Test_IDMP_Vehicle:
     #
     #  stream3 trigger 
     #
-    def trigger_stream3_again(self):
+    def triggerB_stream3(self):
 
         table = f"{self.db}.`vehicle_110100_003`"
         cols  = "ts,speed"
@@ -493,11 +637,12 @@ class Test_IDMP_Vehicle:
         count = 3
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
     #
-    #  stream4 trigger 
+    # ----------------------- stream 4 ------------------------------
     #
-    def trigger_stream4(self):
+    
+    # A
+    def triggerA_stream4(self):
         ts    = self.start
         table = f"{self.db}.`vehicle_110100_004`"
         cols  = "ts,speed"
@@ -510,7 +655,6 @@ class Test_IDMP_Vehicle:
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
         # win2 7~13
         vals  = "130"
         count = 5
@@ -519,35 +663,79 @@ class Test_IDMP_Vehicle:
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
-
-        # 20
+        # skip 20
         ts    = self.start + 20 * self.step
+        
+        # win3 20~30
         vals  = "140"
         count = 10
-        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)        
+        ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
         vals  = "70"
         count = 1
         ts    = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals)
 
+    # main
+    def verifyA_stream4(self, tables=None):
+        # check
+        result_sql = f"select * from idmp.`result_stream4` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 3
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)          # cnt
+            # row2
+            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
+            and tdSql.compareData(1, 1, 6)          # cnt
+            # row3
+            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
+            and tdSql.compareData(2, 1, 11)          # cnt
+        )
 
+        print(f"verify stream4 ................................. successfully.")
+     
+    # B
+    def verifyB_stream4(self):
+        self.verifyA_stream4() 
+
+    # sub1
+    def verifyB_stream4_sub1(self, tables=None):
+        # check
+        result_sql = f"select * from idmp.`result_stream4_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 4
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)          # cnt
+            # row2
+            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
+            and tdSql.compareData(1, 1, 6)          # cnt
+            # row3
+            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
+            and tdSql.compareData(2, 1, 11)          # cnt
+            # row4
+            and tdSql.compareData(3, 0, self.start + 24 * self.step) # ts
+            and tdSql.compareData(3, 1, 11 - 4)                      # cnt
+        )
+
+        print(f"verify stream4 sub1 ............................. successfully.")
+
+    # B
+    def triggerB_stream4(self):
+        table = f"{self.db}.`vehicle_110100_004`"
+        cols  = "ts,speed"
+        
         # delete 1~3
         tdSql.deleteRows(table, f"ts >= {self.start } and ts <= {self.start + 3 * self.step}") 
-        
         # delete 20 ~ 23
-        tdSql.deleteRows(table, f"ts >= {self.start + 20 * self.step } and ts <= {self.start + 23 * self.step}") 
-
-
-    #
-    #  stream4 trigger again
-    #
-    def trigger_stream4_again(self):
-        pass
+        tdSql.deleteRows(table, f"ts >= {self.start + 20 * self.step } and ts <= {self.start + 23 * self.step}")         
 
 
     #
     #  stream5 trigger 
     #
-    def trigger_stream5(self):
+    def triggerA_stream5(self):
         table = f"{self.db}.`vehicle_110100_005`"
         cols  = "ts,speed"
 
@@ -593,7 +781,7 @@ class Test_IDMP_Vehicle:
     #
     #  stream6 trigger 
     #
-    def trigger_stream6(self):
+    def triggerA_stream6(self):
         table = f"{self.db}.`vehicle_110100_006`"
         cols  = "ts,speed"
 
@@ -633,13 +821,13 @@ class Test_IDMP_Vehicle:
     #
     #  again stream6 trigger
     #
-    def trigger_stream6_again(self):
+    def triggerA_stream6_again(self):
         pass
 
     #
     #  stream7 trigger
     #
-    def trigger_stream7(self):
+    def triggerA_stream7(self):
         table = f"{self.db}.`vehicle_110100_007`"
         cols  = "ts,speed"
 
@@ -679,7 +867,7 @@ class Test_IDMP_Vehicle:
     #
     #  stream8 trigger
     #
-    def trigger_stream8(self):
+    def triggerA_stream8(self):
         
         table = f"{self.db}.`vehicle_110100_008`"
         cols  = "ts,speed,mileage"
@@ -732,7 +920,7 @@ class Test_IDMP_Vehicle:
     #
     #  stream9 trigger
     #
-    def trigger_stream9(self):
+    def triggerA_stream9(self):
         
         table = f"{self.db}.`vehicle_110100_009`"
         cols  = "ts,speed,mileage"
@@ -772,7 +960,7 @@ class Test_IDMP_Vehicle:
     #
     #  stream10 trigger
     #
-    def trigger_stream10(self):
+    def triggerA_stream10(self):
         
         table = f"{self.db}.`vehicle_110100_010`"
         cols  = "ts,speed,mileage"
@@ -810,7 +998,7 @@ class Test_IDMP_Vehicle:
     #
     # verify stream_stb1
     #
-    def verify_stream_stb1(self):
+    def verifyA_stream_stb1(self):
         # check data
         result_sql = f"select * from idmp.`result_stream_stb1` where `车辆ID`= '110100_011'"
         tdSql.checkResultsByFunc (
@@ -831,81 +1019,10 @@ class Test_IDMP_Vehicle:
 
         print(f"verify stream_stb1 ............................. successfully.")
 
-
-    #
-    # verify stream1
-    #
-    def verify_stream1(self):
-        # check
-        result_sql = f"select * from idmp.`result_stream1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 5)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg(speed)
-        )
-
-        # sub
-        self.verify_stream1_sub1()
-        print("verify stream1 .................................. successfully.")
-
-    # stream1 sub1
-    def verify_stream1_sub1(self):
-        # check
-        result_sql = f"select * from idmp.`result_stream1_sub1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.checkRows(2, show=True)
-            # row1
-            and tdSql.compareData(0, 0, self.start + 1 * self.step) # ts
-            and tdSql.compareData(0, 1, 4)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg(speed)
-            # row2
-            and tdSql.compareData(1, 0, self.start + (5 + 2 + 1 + 3 + 1) * self.step) # ts
-            and tdSql.compareData(1, 1, 9)          # cnt
-            and tdSql.compareData(1, 2, 140)        # avg(speed)
-        )
-
-        print("verify stream1 sub1 ............................. successfully.")
-
-
-    #
-    # verify stream2
-    #
-    def verify_stream2(self):
-        # check
-        result_sql = f"select * from idmp.`result_stream2` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
-        )
-
-        # sub
-        self.verify_stream2_sub1()
-
-        print("verify stream2 .................................. successfully.")
-
-
-    # verify stream2 sub1
-    def verify_stream2_sub1(self):
-        # check
-        result_sql = f"select * from idmp.`result_stream2_sub1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.checkRows(2, show=True)
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)                     # cnt
-        )        
-        print("verify stream2 sub1 ............................. successfully.")
-
-
     #
     # verify stream3
     #
-    def verify_stream3(self):
+    def verifyA_stream3(self):
         # check
         result_sql = f"select * from idmp.`result_stream3` "
         tdSql.checkResultsByFunc (
@@ -921,7 +1038,7 @@ class Test_IDMP_Vehicle:
 
         print("verify stream3 .................................. successfully.")
         
-    def verify_stream3_sub1(self, tables=None):
+    def verifyA_stream3_sub1(self, tables=None):
         # check
         result_sql = f"select * from idmp.`result_stream3_sub1` "
         # same with stream3
@@ -942,13 +1059,13 @@ class Test_IDMP_Vehicle:
     #
     # verify stream3 again
     #
-    def verify_stream3_again(self):
+    def verifyA_stream3_again(self):
         # check
-        self.verify_stream3()
+        self.verifyA_stream3()
         print("verify stream3 again ............................ successfully.")
 
 
-    def verify_stream3_sub1_again(self, tables=None):
+    def verifyA_stream3_sub1_again(self, tables=None):
         # check
         result_sql = f"select * from idmp.`result_stream3_sub1` "
         tdSql.checkResultsByFunc (
@@ -979,55 +1096,6 @@ class Test_IDMP_Vehicle:
         print(f"verify stream3 sub1 again ...................... successfully.")
 
 
-    #
-    # verify stream4
-    #
-    def verify_stream4(self, tables=None):
-        # check
-        result_sql = f"select * from idmp.`result_stream4` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 3
-            # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
-            # row2
-            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
-            and tdSql.compareData(1, 1, 6)          # cnt
-            # row3
-            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
-            and tdSql.compareData(2, 1, 11)          # cnt
-        )
-
-        # sub
-        self.verify_stream4_sub1()
-
-        print(f"verify stream4 ................................. successfully.")
-
-    def verify_stream4_sub1(self, tables=None):
-        # check
-        result_sql = f"select * from idmp.`result_stream4_sub1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 4
-            # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 6)          # cnt
-            # row2
-            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
-            and tdSql.compareData(1, 1, 6)          # cnt
-            # row3
-            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
-            and tdSql.compareData(2, 1, 11)          # cnt
-            # row4
-            and tdSql.compareData(3, 0, self.start + 24 * self.step) # ts
-            and tdSql.compareData(3, 1, 11 - 4)                      # cnt
-        )
-
-        print(f"verify stream4 sub1 ............................. successfully.")
-
-
-
     def getSlidingWindow(self, start, step, cnt):
         wins = []
         x = int(start/step)
@@ -1046,7 +1114,7 @@ class Test_IDMP_Vehicle:
     #
     # verify stream4 again
     #
-    def verify_stream4_again(self):
+    def verifyA_stream4_again(self):
         print("verify stream4 again ............................ successfully.")
 
     
@@ -1054,7 +1122,7 @@ class Test_IDMP_Vehicle:
     # verify stream5
     #
 
-    def verify_stream5(self):
+    def verifyA_stream5(self):
         # check data
         result_sql = f"select * from idmp.`result_stream5` "
         tdSql.checkResultsByFunc (
@@ -1097,7 +1165,7 @@ class Test_IDMP_Vehicle:
     # verify stream6
     #
 
-    def verify_stream6(self):
+    def verifyA_stream6(self):
         # check data
         sql = "select * from idmp.`result_stream6_sub1` "
         data = [
@@ -1127,14 +1195,14 @@ class Test_IDMP_Vehicle:
 
         print("verify stream6 ................................. successfully.")
 
-    def verify_stream6_again(self):
+    def verifyA_stream6_again(self):
         print("verify stream6 ................................. successfully.")
         
 
     #
     # verify stream7
     #
-    def verify_stream7(self):
+    def verifyA_stream7(self):
         # check data
         sql = f"select * from idmp.`result_stream7_sub1` "
         data = [
@@ -1162,7 +1230,7 @@ class Test_IDMP_Vehicle:
     #
     # verify stream8
     #
-    def verify_stream8(self):
+    def verifyA_stream8(self):
         # check data
         result_sql = f"select * from idmp.`result_stream8` "
         tdSql.checkResultsByFunc (
@@ -1176,11 +1244,11 @@ class Test_IDMP_Vehicle:
         )
 
         # sub1
-        self.verify_stream8_sub1()
+        self.verifyA_stream8_sub1()
         print(f"verify stream8 ................................. successfully.")
 
     # verify stream8_sub1
-    def verify_stream8_sub1(self):
+    def verifyA_stream8_sub1(self):
         # check data
         result_sql = f"select * from idmp.`result_stream8_sub1` "
         tdSql.checkResultsByFunc (
@@ -1199,7 +1267,7 @@ class Test_IDMP_Vehicle:
     #
     # verify stream9
     #
-    def verify_stream9(self):
+    def verifyA_stream9(self):
         # check data
         result_sql = f"select * from idmp.`result_stream9` "
         tdSql.checkResultsByFunc (
@@ -1215,7 +1283,7 @@ class Test_IDMP_Vehicle:
         print(f"verify stream9 ................................. successfully.")
 
     # verify stream9_sub1
-    def verify_stream9_sub1(self):
+    def verifyA_stream9_sub1(self):
         # check data
         result_sql = f"select * from idmp.`result_stream9_sub1` "
         tdSql.checkResultsByFunc (
@@ -1234,7 +1302,7 @@ class Test_IDMP_Vehicle:
     #
     # verify stream10
     #
-    def verify_stream10(self):
+    def verifyA_stream10(self):
         # check data
         result_sql = f"select * from idmp.`result_stream10` "
         tdSql.checkResultsByFunc (
@@ -1259,11 +1327,11 @@ class Test_IDMP_Vehicle:
         print(f"verify stream10 ................................ successfully.")
 
         # sub
-        self.verify_stream10_sub1()
+        self.verifyA_stream10_sub1()
 
 
     # verify stream10_sub1
-    def verify_stream10_sub1(self):
+    def verifyA_stream10_sub1(self):
         # check data
         result_sql = f"select * from idmp.`result_stream10_sub1` "
         tdSql.checkResultsByFunc (
