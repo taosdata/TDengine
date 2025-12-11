@@ -24,8 +24,11 @@ if (NOT ${TD_WINDOWS})
   DEP_ext_ssl(transport)
 endif()
 
-if (${BUILD_LIBSASL})
-  DEP_ext_sasl2(transport)
+
+if (${TD_LINUX})
+  if (${BUILD_LIBSASL})
+    DEP_ext_sasl2(transport)
+  endif()
 endif()
 
 if(${BUILD_WITH_UV_TRANS})
