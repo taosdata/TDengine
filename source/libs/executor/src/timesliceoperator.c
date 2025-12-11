@@ -1342,6 +1342,7 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
     taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
     pInfo->pPrevGroupKeys = NULL;
   }
+  return code;
 }
 
 static int32_t notifyReaderStepDone(struct SOperatorInfo* pOptr,
