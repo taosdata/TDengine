@@ -83,7 +83,7 @@ export default {
       label: 'Data Model Configuration',
       description:
         'Use the default configuration, or download and modify it before uploading. Configure the entry points or elements, the data model for entry, data filtering conditions, and transformation rules.',
-      field: 'datasets',
+      field: 'model',
       type: 'tabs',
       multiple: false,
       name: 'datasets',

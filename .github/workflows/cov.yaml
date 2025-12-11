@@ -44,6 +44,6 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/llvm-cov-merged.lcov
+          files: llvm-cov-merged.lcov
           fail_ci_if_error: true
           verbose: true

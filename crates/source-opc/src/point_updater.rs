@@ -27,7 +27,7 @@ pub struct PointsUpdater {
     opc_toml_path: String, // 生成 taosx-opc 的配置文件的路径
     update_by: UpdateBy,
     update_mode: UpdateMode,
-    update_interval: tokio::time::Interval,
+    update_interval: usize,
     cancel_token: CancellationToken,
     cur_list: Vec<DataSet>,
 }
@@ -59,13 +59,13 @@ impl PointsUpdater {
         };
 
         let update_mode = opc_config
-            .clone()
             .points
+            .as_ref()
             .map(|p| p.update_mode.unwrap_or(UpdateMode::None))
             .unwrap_or(UpdateMode::None);
         let update_interval = opc_config
-            .clone()
             .points
+            .as_ref()
             .map(|p| p.update_interval.unwrap_or(600))
             .unwrap_or(600);
 
@@ -75,7 +75,7 @@ impl PointsUpdater {
             opc_toml_path,
             update_by,
             update_mode,
-            update_interval: tokio::time::interval(Duration::from_secs(update_interval as u64)),
+            update_interval,
             cancel_token: token,
             cur_list: vec![],
         })
@@ -88,12 +88,19 @@ impl PointsUpdater {
         // set current dir to DATA_DIR
         let _ = std::env::set_current_dir(get_data_dir());
 
-        tracing::info!("update points thread started");
+        tracing::info!(
+            update_mode = ?self.update_mode,
+            update_interval = ?self.update_interval,
+            "update points thread started"
+        );
+        let mut update_interval =
+            tokio::time::interval(Duration::from_secs(self.update_interval as u64));
+
         loop {
             if self.cancel_token.is_cancelled() {
                 break;
             }
-            self.update_interval.tick().await;
+            update_interval.tick().await;
             if self.cancel_token.is_cancelled() {
                 break;
             }

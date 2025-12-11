@@ -861,8 +861,13 @@ func TestDAClient_Collect(t *testing.T) {
 		gotMessageCount = len(message)
 	}
 	connConf := config.DaConnectConfig{
-		Server: "Graybox.Simulator.1",
-		Nodes:  []string{"localhost"},
+		Server:                      "Graybox.Simulator.1",
+		Nodes:                       []string{"localhost"},
+		ReconnectTimes:              100,
+		ReconnectInterval:           1000,
+		AddTagRetryTimes:            100,
+		AddTagRetryInterval:         500,
+		FailedReadsToForceReconnect: 100,
 	}
 	collectConf := config.CollectConfig{
 		Da: config.DaCollectConfig{},

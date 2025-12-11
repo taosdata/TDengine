@@ -147,6 +147,7 @@ impl TryFrom<Dsn> for LushModelConfig {
                 let model: PiModelType = dsn
                     .params
                     .get("model")
+                    .or(dsn.params.get("only-choose-one$"))
                     .ok_or(anyhow!("Not found model in DSN params"))?
                     .as_str()
                     .try_into()?;

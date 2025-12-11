@@ -210,7 +210,6 @@ function submit() {
   extractFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
       transformerState.transResultName = props.itemData.columnname;
-      await submitExtract();
       await submitExtract(true);
 
       return true;
@@ -337,10 +336,18 @@ async function getParserData(data: any, isall: boolean | undefined) {
         transformerState.showResultTb = true;
       }
 
+      tableColumns.value = colLists.map((item: { name: string }) => {
+        const obj: Recordable = {};
+        const finalVal = tbdata.map((val: Recordable) => val[item.name]);
+        obj.name = item.name;
+        obj.value = finalVal.join('') ? finalVal.join(' ; ') : '';
+        return obj;
+      });
+
       transformerState.resultTbTitle = 'extractResTb';
       transformerState.transformResultTable = resultData;
       transformerState.stbDefaultColumns = colLists;
-
+      transformerState.activeColumns = tbdata.length > 0 ? Object.keys(tbdata[0]) : [];
       return;
     }
     tableColumns.value = colLists.map((item: { name: string }) => {
@@ -605,28 +612,13 @@ function getParserParams(isall?: boolean): Recordable {
           ? isall
             ? topparse.input
             : topparse.input.map((_item, index) => {
-                  return {
-                    [`${props.itemData.columnname}`]: topparse.input[index][props.itemData.columnname]
-                  };
-                })
+                return {
+                  [`${props.itemData.columnname}`]: topparse.input[index][props.itemData.columnname]
+                };
+              })
           : inputList
   };
 
-  if (!isall) {
-    switch (props.datasourceType) {
-      case 'mqtt':
-        if (parser.parser.parse && parser.parser.parse.payload) {
-          parser.parser.parse.payload.json = '';
-        }
-        break;
-      case 'kafka':
-      case 'mongodb':
-        if (parser.parser.parse && parser.parser.parse.value) {
-          parser.parser.parse.value.json = '';
-        }
-        break;
-    }
-  }
   return parser;
 }
 function deleteExtract() {

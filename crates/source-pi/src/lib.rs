@@ -556,6 +556,7 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
     let model = dsn
         .params
         .get("model")
+        .or(dsn.params.get("only-choose-one$"))
         .map(|s| s.as_str())
         .unwrap_or(SINGLE_COLUMN_MODEL);
     let is_af =

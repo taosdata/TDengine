@@ -3649,8 +3649,10 @@ version = "1.11.0"
 dependencies = [
  "anyhow",
  "futures",
+ "futures-test",
  "pin-project-lite",
  "tokio",
+ "tokio-test",
 ]
 
 [[package]]
@@ -3705,6 +3707,22 @@ name = "futures-task"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f90f7dce0722e95104fcb095585910c0977252f286e354b5e3bd38902cd99988"
+
+[[package]]
+name = "futures-test"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5961fb6311645f46e2cdc2964a8bfae6743fd72315eaec181a71ae3eb2467113"
+dependencies = [
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-macro",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "pin-project",
+]
 
 [[package]]
 name = "futures-util"
@@ -10851,6 +10869,19 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "tokio-test"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2468baabc3311435b55dd935f702f42cd1b8abb7e754fb7dfb16bd36aa88f9f7"
+dependencies = [
+ "async-stream",
+ "bytes",
+ "futures-core",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
