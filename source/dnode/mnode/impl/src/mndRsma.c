@@ -749,8 +749,15 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
   }
 
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+
+  // already check select table/insert table/create rsma privileges in parser
+  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
+    TAOS_CHECK_EXIT(mndCheckObjPrivilege(pMnode, pUser, PRIV_DB_USE, NULL, "*", NULL));
+  }
 
   pStb = mndAcquireStb(pMnode, createReq.tbFName);
   if (pStb == NULL) {
@@ -759,7 +766,6 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_EXIT(mndCheckRsmaConflicts(pMnode, pDb, &createReq));
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
   TAOS_CHECK_EXIT(mndCreateRsma(pMnode, pReq, pUser, pDb, pStb, &createReq));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
