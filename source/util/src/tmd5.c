@@ -319,9 +319,7 @@ int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len,
   if (iv) {
     AES_init_ctx_iv(&ctx, key, iv);
 
-    // for (int32_t block = 0; block < blocks; ++blocks) {
     AES_CBC_encrypt_buffer(&ctx, pBuf, encryptlen);
-    //}
   } else {
     AES_init_ctx(&ctx, key);
 
@@ -343,9 +341,7 @@ int32_t taosAesDecrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len,
   if (iv) {
     AES_init_ctx_iv(&ctx, key, iv);
 
-    // for (int32_t block = 0; block < blocks; ++blocks) {
     AES_CBC_decrypt_buffer(&ctx, pBuf, len);
-    //}
   } else {
     AES_init_ctx(&ctx, key);
 

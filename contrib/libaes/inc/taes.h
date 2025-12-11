@@ -64,7 +64,7 @@ void AES_ctx_set_iv(struct AES_ctx* ctx, const uint8_t* iv);
 void AES_ECB_encrypt(const struct AES_ctx* ctx, uint8_t* buf);
 void AES_ECB_decrypt(const struct AES_ctx* ctx, uint8_t* buf);
 
-#endif  // #if defined(ECB) && (ECB == !)
+#endif  // #if defined(ECB) && (ECB == 1)
 
 #if defined(CBC) && (CBC == 1)
 // buffer size MUST be mutile of AES_BLOCKLEN;
