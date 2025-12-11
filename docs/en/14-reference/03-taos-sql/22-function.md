@@ -1565,7 +1565,7 @@ SM4_ENCRYPT(str, key_str)
 
 **Applicable Data Types**:
 
-- `expr`: VARCHAR.
+- `str`: VARCHAR.
 - `key_str`: The key string.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
@@ -1613,7 +1613,7 @@ SM4_DECRYPT(str, key_str)
 
 **Example**:
 
-See `sm4_encrypt`。
+See `sm4_encrypt`.
 
 #### AES_ENCRYPT
 
