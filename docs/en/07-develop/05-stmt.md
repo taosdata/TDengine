@@ -85,7 +85,7 @@ The example code for stmt to bind parameters is as follows:
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/stmt_example.js}}
+{{#include docs/examples/node/websocketexample/stmt_example.js}}
 ```
 
 </TabItem>
