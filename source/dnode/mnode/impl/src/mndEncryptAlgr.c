@@ -305,8 +305,16 @@ static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode) {
   int32_t code = 0;
   STrans *pTrans = NULL;
 
-  mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr, mndSetAESEncryptAlgr, mndSetSM3EncryptAlgr,
-                                    mndSetSHAEncryptAlgr, mndSetSM2EncryptAlgr, mndSetRSAEncryptAlgr};
+  mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+                                    ,
+                                    mndSetAESEncryptAlgr,
+                                    mndSetSM3EncryptAlgr,
+                                    mndSetSHAEncryptAlgr,
+                                    mndSetSM2EncryptAlgr,
+                                    mndSetRSAEncryptAlgr
+#endif
+  };
 
   int32_t algrNum = sizeof(setFpArr) / sizeof(mndSetEncryptAlgrFp);
 

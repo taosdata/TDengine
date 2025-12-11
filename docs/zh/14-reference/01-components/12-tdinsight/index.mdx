@@ -37,8 +37,16 @@ TDengine TSDB 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、�
 
 ## 导入 TDinsightV3 仪表盘
 
-在 TDengine TSDB 数据源配置界面，依次点击“Dashboards”Tab、右上角“New”选项下的“Import”，输入“TDengine for 3.x”仪表盘的 Dashboard ID `18180`，进行导入。
-导入成功后可以进入这个 dashboard，在左上角“Log from”选项中选择 taosKeeper 中设置的记录监控指标的数据库就可以看到监控结果。
+- **推荐方式**：在配置好数据源后，点击“Settings”右侧的“Dashboards”，会显示数据源自带的仪表盘，然后选择“TDengine for 3.x”右侧的“Import”进行导入。  
+![TDinsight V3 import](./assets/import-tdinsightv3.webp)  
+
+- 使用 Dashboard ID 导入：在 Grafana 主界面左侧，依次点击“Dashboards”Tab、右上角“New”选项下的“Import”，输入“TDengine for 3.x”仪表盘的 Dashboard ID `18180`，进行导入。
+- 使用 JSON 配置导入：
+    1. 先去 [TDinsight for 3.x](https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/) 下载 JSON 文件。
+    2. 在 Grafana 主界面左侧，依次点击“Dashboards”Tab、右上角“New”选项下的“Import”。
+    3. 在“Import via dashboard JSON model”部分粘贴上刚才下载的 JSON 文件内容，最后点击“Import”导入。
+
+导入成功后可以进入这个 Dashboard，在左上角“Log from”选项中选择 taosKeeper 中设置的记录监控指标的数据库就可以看到监控结果。
 
 ## TDinsightV3 仪表盘详情
 
@@ -193,7 +201,7 @@ Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而
 
 下面三种方式都可以进行升级：
 
-- 用图形界面，若有新版本，可以在”TDengine TSDB Datasource“插件页面点击 update 升级。
+- 用图形界面，若有新版本，可以在“TDengine TSDB Datasource”插件页面点击 update 升级。
 - 按照手动安装步骤自行安装新的 Grafana 插件和 Dashboard。
 - 通过重新运行 `TDinsight.sh` 脚本升级到最新的 Grafana 插件和 TDinsight Dashboard。  
 
@@ -201,7 +209,7 @@ Grafana7.5 及以下版本，Dashboards 与 Alert rules 功能合在一起，而
 
 针对不同的安装方式，卸载时：
 
-- 用图形界面，在”TDengine TSDB Datasource“插件页面点击”Uninstall“卸载。
+- 用图形界面，在“TDengine TSDB Datasource”插件页面点击“Uninstall”卸载。
 - 通过 `TDinsight.sh` 脚本安装的 TDinsight，可以使用命令行 `TDinsight.sh -R` 清理相关资源。
 - 手动安装的 TDinsight，要完全卸载，需要按照顺序清理以下内容：
   1. Grafana 中的 TDinsight Dashboard。

@@ -189,8 +189,8 @@ typedef struct STscObj {
   SAppInstInfo*  pAppInfo;
   SHashObj*      pRequests;
   SPassInfo      passInfo;
-  SWhiteListInfo whiteListInfo;
-  SWhiteListInfo dateTimeWhiteListInfo;
+  SWhiteListInfo whiteListInfo;          // ip white list info
+  SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
   SOptionInfo    optionInfo;
 } STscObj;
@@ -354,8 +354,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
-extern int32_t  clientConnRefPool;
-extern int32_t  timestampDeltaLimit;
+extern int32_t   clientConnRefPool;
 extern int64_t  lastClusterId;
 extern SHashObj* pTimezoneMap;
 
@@ -398,7 +397,7 @@ typedef struct AsyncArg {
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
-int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* totp, const char* db,
                               uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);

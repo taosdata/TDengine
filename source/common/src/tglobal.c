@@ -426,6 +426,8 @@ int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
 int32_t tsStreamBatchRequestWaitMs = 5000;     // ms, default 5s
 
 bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show only table name and db name
+
+int64_t tsTimestampDeltaLimit = 900;  // s
 int32_t tsRpcRecvLogThreshold = 3;        // in seconds, default 3s
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 

@@ -9473,6 +9473,7 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pReq->passwd, TSDB_PASSWORD_LEN));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->startTime));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->sVer));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->totpCode));
   tEndEncode(&encoder);
 
 _exit:
@@ -9505,6 +9506,12 @@ int32_t tDeserializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_VERSION_NOT_COMPATIBLE);
   }
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->sVer));
+  // Check the client version from version 3.4.0.0
+  if (tDecodeIsEnd(&decoder)) {
+    tDecoderClear(&decoder);
+    TAOS_CHECK_EXIT(TSDB_CODE_VERSION_NOT_COMPATIBLE);
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->totpCode));
   tEndDecode(&decoder);
 
 _exit:
@@ -9599,10 +9606,8 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->timeWhiteListVer));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->mustChangePass));
   } else {
     pRsp->timeWhiteListVer = 0;
-    pRsp->mustChangePass = 0;
   }
 
   if (!tDecodeIsEnd(&decoder)) {

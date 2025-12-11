@@ -223,8 +223,8 @@ void dmCleanup() {
   dDebug("start to cleanup dnode env");
   SDnode *pDnode = dmInstance();
 
-#if defined(TD_ENTERPRISE)
-  // cryptUnloadProviders();
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+  cryptUnloadProviders();
 #endif
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;

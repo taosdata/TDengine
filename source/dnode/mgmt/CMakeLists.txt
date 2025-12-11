@@ -21,10 +21,6 @@ target_include_directories(
 
 target_link_libraries(taosd PUBLIC dnode crypt)
 
-if (NOT ${TD_WINDOWS})
-    DEP_ext_ssl(taosd)
-endif()
-
 if(TD_ENTERPRISE)
   if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
