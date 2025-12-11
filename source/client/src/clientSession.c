@@ -218,7 +218,7 @@ _error:
   return code;
 }
 void sessMetricDestroy(SSessMetric *pMetric) {
-  taosThreadRwlockDestroy(&pMetric->lock);
+  TAOS_UNUSED(taosThreadRwlockDestroy(&pMetric->lock));
   taosMemoryFree(pMetric);
 }
 
