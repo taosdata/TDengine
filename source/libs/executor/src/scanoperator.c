@@ -2539,6 +2539,7 @@ int32_t createTmqRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskI
   pInfo->pAPI = &pTaskInfo->storageAPI;
 
   pInfo->sContext = pHandle->sContext;
+  pHandle->sContext = NULL;  // transfer the ownership
   setOperatorInfo(pOperator, "RawScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
@@ -2623,38 +2624,6 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-static SSDataBlock* createStreamVtableBlock(SColMatchInfo* pMatchInfo, const char* idstr) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  SSDataBlock* pRes = NULL;
-
-  QUERY_CHECK_NULL(pMatchInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  code = createDataBlock(&pRes);
-  QUERY_CHECK_CODE(code, lino, _end);
-  int32_t numOfOutput = taosArrayGetSize(pMatchInfo->pList);
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    SColMatchItem* pItem = taosArrayGet(pMatchInfo->pList, i);
-    if (!pItem->needOutput) {
-      continue;
-    }
-    SColumnInfoData colInfo = createColumnInfoData(pItem->dataType.type, pItem->dataType.bytes, pItem->colId);
-    code = blockDataAppendColInfo(pRes, &colInfo);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s, id: %s", __func__, lino, tstrerror(code), idstr);
-    if (pRes != NULL) {
-      blockDataDestroy(pRes);
-    }
-    pRes = NULL;
-    terrno = code;
-  }
-  return pRes;
 }
 
  int32_t createTmqScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
@@ -2774,15 +2743,6 @@ _end:
     } else {
       pInfo->tqReader = pHandle->tqReader;
       QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-    }
-
-    if (pVtableInfos != NULL) {
-      // save vtable info into tqReader for vtable source scan
-      SSDataBlock* pResBlock = createStreamVtableBlock(&pInfo->matchInfo, idstr);
-      QUERY_CHECK_CODE(code, lino, _error);
-      code = pAPI->tqReaderFn.tqReaderSetVtableInfo(pInfo->tqReader, pHandle->vnode, pAPI, pVtableInfos, &pResBlock,
-                                                    idstr);
-      QUERY_CHECK_CODE(code, lino, _error);
     }
 
     pInfo->pUpdateInfo = NULL;

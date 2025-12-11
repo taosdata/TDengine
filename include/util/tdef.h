@@ -307,7 +307,7 @@ typedef enum ELogicConditionType {
 #define TSDB_ENCRYPT_ALGR_DESC_LEN          128
 #define TSDB_ENCRYPT_ALGR_TYPE_LEN          64
 #define TSDB_ENCRYPT_ALGR_SM4_NAME          "SM4-CBC:SM4"
-#define TSDB_MNODE_BUILTIN_DATA_VERSION     2
+#define TSDB_MNODE_BUILTIN_DATA_VERSION     1
 
 #define TSDB_VIEW_NAME_LEN  193
 #define TSDB_VIEW_FNAME_LEN (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
@@ -333,9 +333,29 @@ typedef enum ELogicConditionType {
 #define TSDB_AUTH_LEN              16
 #define TSDB_PASSWORD_MIN_LEN      8
 #define TSDB_PASSWORD_MAX_LEN      255
-#define TSDB_PASSWORD_LEN          32
-#define TSDB_USET_PASSWORD_LEN     129
-#define TSDB_USET_PASSWORD_LONGLEN 256
+#define TSDB_PASSWORD_LEN          32   // this is the length after encryption
+#define TSDB_PASSWORD_SALT_LEN     31   // length of salt used in password encryption, excluding the terminator '\0'
+#define TSDB_USER_PASSWORD_LEN     129
+#define TSDB_USER_PASSWORD_LONGLEN 256
+#define TSDB_TOTP_SECRET_LEN       32
+#define TSDB_USER_TOTPSEED_MIN_LEN 8    // minimum length for TOTP seed, excluding the terminator '\0'
+#define TSDB_USER_TOTPSEED_MAX_LEN 255  // maximum length for TOTP seed, excluding the terminator '\0'
+#define TSDB_USER_SESSION_PER_USER_DEFAULT      32
+#define TSDB_USER_CONNECT_TIME_DEFAULT          (480 * 60)  // 480 minutes
+#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     (30 * 60)   // 30 minutes
+#define TSDB_USER_CALL_PER_SESSION_DEFAULT      10
+#define TSDB_USER_VNODE_PER_CALL_DEFAULT        10
+#define TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
+#define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    (1440 * 60)        // 1440 minutes
+#define TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT    (90 * 1440 * 60)   // 90 days
+#define TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT   (7 * 1440 * 60)    // 7 days
+#define TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT   (30 * 1440 * 60)   // 30 days
+#define TSDB_USER_PASSWORD_REUSE_TIME_MAX       (365 * 1440 * 60)  // 365 days
+#define TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT    5
+#define TSDB_USER_PASSWORD_REUSE_MAX_MAX        100
+#define TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT (90 * 1440 * 60)  // 90 days
+#define TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT       3
+
 #define TSDB_VERSION_LEN           32
 #define TSDB_LABEL_LEN             16
 #define TSDB_JOB_STATUS_LEN        32

@@ -19,6 +19,7 @@
 #include "osSemaphore.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "totp.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -336,6 +337,67 @@ TEST(clientCase, connect_Test) {
   taos_free_result(pRes);
 
   taos_close(pConn);
+}
+
+
+TEST(clientCase, connect_totp_Test) {
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
+  }
+
+  uint8_t secret[64] = {0};
+  size_t secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
+
+  TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totpseed 'AAbb1122'");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+  taos_close(pConn);
+
+
+  int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
+  pConn = taos_connect_totp("localhost", "totp_u", "taosdata", "123456", NULL, 0);
+  if (pConn != NULL) {
+    (void)printf("connect to server with wrong totp");
+    taos_close(pConn);
+  }
+
+  int code = taos_connect_test("localhost", "totp_u", "taosdata", "123456", NULL, 0);
+  if (code != TSDB_CODE_MND_WRONG_TOTP_CODE) {
+    (void)printf("test connect to server with wrong totp return wrong code:%d\n", code);
+    taos_close(pConn);
+  }
+
+  char totp[16] = {0};
+  (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
+  pConn = taos_connect_totp("localhost", "totp_u", "taosdata", totp, NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server with totp, reason:%s\n", taos_errstr(NULL));
+  }
+
+  pRes = taos_query(pConn, "show users");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  taos_close(pConn);
+
+  totpCode = taosGenerateTotpCode(secret, secretLen, 6);
+  (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
+  code = taos_connect_test("localhost", "totp_u", "taosdata", totp, NULL, 0);
+  if (code != 0) {
+    (void)printf("test connect to server with correct totp return wrong code:%d\n", code);
+  }
+}
+
+
+TEST(clientCase, connect_with_dsn_Test) {
+  TAOS* pConn = taos_connect_with_dsn(NULL);
+  ASSERT_EQ(pConn, nullptr);
 }
 
 TEST(clientCase, create_user_Test) {

@@ -154,6 +154,39 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return (*fp_taos_connect)(ip, user, pass, db, port);
 }
 
+TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_totp);
+  return (*fp_taos_connect_totp)(ip, user, pass, totp, db, port);
+}
+
+int taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    return TSDB_CODE_DLL_NOT_LOAD;
+  }
+  if (tsDriver == NULL) {
+    return TSDB_CODE_DLL_NOT_LOAD;
+  }
+  if (fp_taos_connect_test == NULL) {
+    return TSDB_CODE_DLL_FUNC_NOT_LOAD;
+  }
+  return (*fp_taos_connect_test)(ip, user, pass, totp, db, port);
+}
+
+TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_token);
+  return (*fp_taos_connect_token)(ip, token, db, port);
+}
+
 TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {
   if (taos_init() != 0) {
     terrno = TSDB_CODE_DLL_NOT_LOAD;
@@ -162,6 +195,15 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
 
   CHECK_PTR(fp_taos_connect_auth);
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
+}
+
+TAOS *taos_connect_with_dsn(const char *dsn) {
+  if (taos_init() != 0) {
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_with_dsn);
+  return (*fp_taos_connect_with_dsn)(dsn);
 }
 
 void taos_close(TAOS *taos) {
@@ -587,6 +629,16 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
 void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
   CHECK_VOID(fp_taos_fetch_whitelist_dual_stack_a);
   return (*fp_taos_fetch_whitelist_dual_stack_a)(taos, fp, param);
+}
+
+void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) {
+  CHECK_VOID(fp_taos_fetch_ip_whitelist_a);
+  return (*fp_taos_fetch_ip_whitelist_a)(taos, fp, param);
+}
+
+void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) {
+  CHECK_VOID(fp_taos_fetch_datetime_whitelist_a);
+  return (*fp_taos_fetch_datetime_whitelist_a)(taos, fp, param);
 }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {

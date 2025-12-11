@@ -73,6 +73,7 @@ void    calcIntervalAutoOffset(SInterval* interval);
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision, bool negativeAllow);
 
+int32_t taosParseShortWeekday(const char* str);
 int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, timezone_t tz);
 char    getPrecisionUnit(int32_t precision);
 
