@@ -61,7 +61,7 @@ class Test_IDMP_Vehicle:
 
         # A 
         self.triggerA_all()
-        self.verfiyA_all()
+        self.verifyA_all()
 
         # B
         self.triggerB_all()
@@ -215,7 +215,7 @@ class Test_IDMP_Vehicle:
         # stream10
         self.triggerA_stream10()
 
-    def verfiyA_all(self):  
+    def verifyA_all(self):
         print("wait 5s ...")
         time.sleep(5)
         print("verify A results ...")
@@ -255,7 +255,7 @@ class Test_IDMP_Vehicle:
         # stream2
         self.verifyB_stream2()
         self.verifyB_stream2_sub1()
-        #steam4
+        #stream4
         self.verifyB_stream4()
         self.verifyB_stream4_sub1()
 
