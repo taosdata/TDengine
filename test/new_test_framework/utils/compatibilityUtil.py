@@ -548,7 +548,7 @@ class CompatibilityBase:
         tdLog.info(tdsql.queryResult)
         # tdsql.checkRows(tableNumbers)
         
-        if base_version >= "3.3.6.0":
+        if self.version_compare(base_version, "3.3.6.0") >= 0:
             tdsql.query(f"select last(*) from test.meters")
             tdLog.info(tdsql.queryResult)
             tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
