@@ -534,7 +534,6 @@ static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* use
   return len;
 }
 void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
-
   if (!(rpcDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -768,8 +767,8 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
   SWorkThrd* pThrd = pConn->hostThrd;
   int8_t     status = 0;
   int8_t     forbiddenIp = 0;
+  int8_t     timeForbiddenIp = 0;
 
-  int8_t timeForbiddenIp = 0;
   if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
@@ -1886,7 +1885,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   pConn->hostThrd = pThrd;
 
   if (pInst->enableSSL) {
-    SSslCtx *pCxt = NULL;
+    SSslCtx* pCxt = NULL;
     code = transTlsCxtMgtGet(pInst->pTlsMgt, &pCxt);
     TAOS_CHECK_GOTO(code, &lino, _end);
 
@@ -2370,14 +2369,14 @@ void uvHandleUpdateDataTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
     }
   }
 
-  uvDataTimeWhiteListDebug(thrd->pDataTimeWhiteList); 
+  uvDataTimeWhiteListDebug(thrd->pDataTimeWhiteList);
   if (code == 0) {
     thrd->pDataTimeWhiteList->ver = req->ver;
     thrd->enableDataTimeWhiteList = 1;
   } else {
     tError("failed to update ip-white-list since %s", tstrerror(code));
   }
-  //uvDataTimeWhiteListToStr(thrd->pDataTimeWhiteList, user, &pBuf);
+  // uvDataTimeWhiteListToStr(thrd->pDataTimeWhiteList, user, &pBuf);
 _error:
   if (code != 0) {
     tError("failed to update data-time-white-list since %s", tstrerror(code));
@@ -2763,7 +2762,6 @@ int32_t transReloadServerTlsConfig(void* handle) {
 
   code = transTlsCxtMgtCreateNewCxt(pInst->pTlsMgt, TAOS_CONN_SERVER);
   TAOS_CHECK_GOTO(code, &lino, _error);
-  
 
   SServerObj* svrObj = pInst->tcphandle;
   for (int i = 0; i < svrObj->numOfThreads; i++) {
