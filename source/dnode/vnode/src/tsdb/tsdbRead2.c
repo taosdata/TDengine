@@ -5750,6 +5750,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     // here we only need one more row, so the capacity is set to be ONE.
     code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 1, pResBlock, idstr);
     TSDB_CHECK_CODE(code, lino, _end);
+    pReader->step = EXTERNAL_ROWS_PREV;
 
     if (order == TSDB_ORDER_ASC) {
       pCond->twindows = pCond->extTwindows[1];
@@ -6286,7 +6287,7 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   code = pReader->code;
   TSDB_CHECK_CODE(code, lino, _end);
 
-  if (isEmptyQueryTimeWindow(&pReader->info.window) || pReader->step == EXTERNAL_ROWS_NEXT) {
+  if (isEmptyQueryTimeWindow(&pReader->info.window) || pReader->step == EXTERNAL_ROWS_DONE) {
     goto _end;
   }
 
@@ -6313,11 +6314,11 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pReader->innerReader[0] != NULL && pReader->step == 0) {
+  if (pReader->innerReader[0] != NULL && pReader->step == EXTERNAL_ROWS_PREV &&
+      !pReader->currentStepDone) {
     code = doTsdbNextDataBlock2(pReader->innerReader[0], hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    pReader->step = EXTERNAL_ROWS_PREV;
     if (*hasNext) {
       pStatus = &pReader->innerReader[0]->status;
       if (pStatus->composedDataBlock) {
@@ -6326,28 +6327,38 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
         acquired = false;
         TSDB_CHECK_CODE(code, lino, _end);
       }
-
       return code;
     }
   }
 
-  if (pReader->step == EXTERNAL_ROWS_PREV) {
-    // prepare for the main scan
+  if ((pReader->step == EXTERNAL_ROWS_PREV &&
+      (pReader->currentStepDone || !*hasNext)) ||
+      pReader->step < EXTERNAL_ROWS_PREV) {
+    /*
+      PREV scan is done or has no more data or doesn't exist, 
+      move to the MAIN scan and prepare for it
+    */
+    pReader->step = EXTERNAL_ROWS_MAIN;
+    pReader->currentStepDone = false;
     if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
       code = doOpenReaderImpl(pReader);
     }
-
-    int32_t step = 1;
-    resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->info.window.ekey, step);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    pReader->step = EXTERNAL_ROWS_MAIN;
+    if (pReader->innerReader[0] != NULL) {
+      int32_t step = 1;
+      resetAllDataBlockScanInfo(pReader->status.pTableMap,
+                                pReader->innerReader[0]->info.window.ekey,
+                                step);
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
   }
 
   code = doTsdbNextDataBlock2(pReader, hasNext);
   TSDB_CHECK_CODE(code, lino, _end);
 
   if (*hasNext) {
+    pStatus = &pReader->status;
     if (pStatus->composedDataBlock) {
       tsdbTrace("tsdb/read: %p, unlock read mutex", pReader);
       code = tsdbReleaseReader(pReader);
@@ -6357,20 +6368,29 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     return code;
   }
 
-  if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
-    // prepare for the next row scan
-    if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
+  if (pReader->step == EXTERNAL_ROWS_MAIN && !*hasNext &&
+      pReader->innerReader[1] != NULL) {
+    /*
+      MAIN has no more data, prepare for the NEXT scan
+    */
+    pReader->step = EXTERNAL_ROWS_NEXT;
+    pReader->currentStepDone = false;
+    if (tSimpleHashGetSize(pReader->innerReader[1]->status.pTableMap) > 0) {
       code = doOpenReaderImpl(pReader->innerReader[1]);
     }
-
-    int32_t step = -1;
-    resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->info.window.ekey, step);
     TSDB_CHECK_CODE(code, lino, _end);
 
+    int32_t step = -1;
+    resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap,
+                              pReader->info.window.ekey, step);
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+  if (pReader->innerReader[1] != NULL && pReader->step == EXTERNAL_ROWS_NEXT &&
+      !pReader->currentStepDone) {
     code = doTsdbNextDataBlock2(pReader->innerReader[1], hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    pReader->step = EXTERNAL_ROWS_NEXT;
     if (*hasNext) {
       pStatus = &pReader->innerReader[1]->status;
       if (pStatus->composedDataBlock) {
@@ -6379,7 +6399,6 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
         acquired = false;
         TSDB_CHECK_CODE(code, lino, _end);
       }
-
       return code;
     }
   }
@@ -7342,4 +7361,28 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
   tsdbReaderClose2(pTsIter->pReader);
 
   taosMemoryFree(pIter);
+}
+
+int32_t tsdbReaderStepDone(STsdbReader* pReader) {
+  if (pReader == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t lino = 0;
+  int32_t code = tsdbAcquireReader(pReader);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  pReader->currentStepDone = true;
+  if (pReader->step == EXTERNAL_ROWS_NEXT) {
+    pReader->step = EXTERNAL_ROWS_DONE;
+  }
+
+  code = tsdbReleaseReader(pReader);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    tsdbError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }

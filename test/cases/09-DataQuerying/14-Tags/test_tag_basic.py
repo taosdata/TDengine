@@ -565,7 +565,7 @@ class TestTagBasic:
         tdSql.execute(f"insert into ctt12 using stt1 tags(2, '1bb') values(now, 2);")
         tdSql.execute(f"insert into ctt13 using stt1 tags(3, '1cc') values(now, 3);")
         tdSql.execute(f"insert into ctt14 using stt1 tags(4, '1dd') values(now, 4);")
-        tdSql.execute(f"insert into ctt14 values(now, 5);")
+        tdSql.execute(f"insert into ctt14 values(now+1s, 5);")
 
         tdSql.execute(
             f"create table stt2(ts timestamp, f int) tags (t int, b varchar(10));"

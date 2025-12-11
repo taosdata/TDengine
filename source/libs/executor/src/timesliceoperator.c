@@ -885,12 +885,20 @@ static void saveBlockStatus(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBl
   pSliceInfo->pRemainRes = NULL;
 }
 
+static int32_t timeSliceOptrNotifyDownstream(SOperatorInfo* pDownOptr) {
+  if (pDownOptr != NULL && pDownOptr->fpSet.notifyFn != NULL) {
+    return pDownOptr->fpSet.notifyFn(pDownOptr, NULL);
+  }
+  return TSDB_CODE_INVALID_PARA;
+}
+
 static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock,
                             SExecTaskInfo* pTaskInfo, bool ignoreNull) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
+  bool         notified = false;
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
   SColumnInfoData* pPkCol = NULL;
@@ -910,6 +918,13 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
 
     if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
       continue;
+    }
+
+    if (!notified) {
+      // notify table scan reader to next step
+      code = timeSliceOptrNotifyDownstream(pOperator->pDownstream[0]);
+      QUERY_CHECK_CODE(code, lino, _end);
+      notified = true;
     }
 
     if (ts == pSliceInfo->current) {
@@ -1077,6 +1092,10 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                 order = TSDB_ORDER_ASC;
 
   if (checkWindowBoundReached(pSliceInfo)) {
+    int32_t code = timeSliceOptrNotifyDownstream(pOperator->pDownstream[0]);
+    if (code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
     return;
   }
 
@@ -1323,7 +1342,23 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
     taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
     pInfo->pPrevGroupKeys = NULL;
   }
+}
 
+static int32_t notifyReaderStepDone(struct SOperatorInfo* pOptr,
+                                      SOperatorParam* param) {
+  (void)param;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pOptr->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pTableScanInfo = (STableScanInfo*)pOptr->info;
+    TsdReader* pAPI = &pOptr->pTaskInfo->storageAPI.tsdReader;
+    code = pAPI->tsdReaderStepDone(pTableScanInfo->base.dataReader);
+  }
+  if (pOptr->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    STableMergeScanInfo* pTableMergeScanInfo =
+      (STableMergeScanInfo*)pOptr->info;
+    TsdReader* pAPI = &pOptr->pTaskInfo->storageAPI.tsdReader;
+    code = pAPI->tsdReaderStepDone(pTableMergeScanInfo->base.dataReader);
+  }
   return code;
 }
 
@@ -1407,10 +1442,16 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     STableScanInfo*      pScanInfo = (STableScanInfo*)downstream->info;
     SQueryTableDataCond* cond = &pScanInfo->base.cond;
     cond->type = TIMEWINDOW_RANGE_EXTERNAL;
-    code = getQueryExtWindow(&cond->twindows, &pInfo->win, &cond->twindows, cond->extTwindows);
+    code = getQueryExtWindow(&cond->twindows, &pInfo->win,
+                             &cond->twindows, cond->extTwindows);
     QUERY_CHECK_CODE(code, lino, _error);
+    /*
+      We can only handle normal table scan here. For merge scan, there is no way
+      to do prev/next scan since data from different tables/vnodes are merged
+      together.
+    */
   }
-  
+
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
@@ -1421,7 +1462,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
 
   //  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
   setOperatorResetStateFn(pOperator, resetTimeSliceOperState);
-  
+
+  setOperatorNotifyFn(downstream, notifyReaderStepDone);
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
