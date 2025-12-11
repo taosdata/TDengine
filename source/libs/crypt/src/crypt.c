@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "crypt.h"
+#include "taes.h"
 
 extern int32_t CBC_DecryptImpl(SCryptOpts *opts);
 extern int32_t CBC_EncryptImpl(SCryptOpts *opts);
@@ -130,4 +131,57 @@ int32_t taosSm4Decrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len)
   count = pkcs7_padding_data_length(pBuf, count, SM4_BLOCKLEN);
 
   return count;
+}
+
+uint32_t taes_encrypt_len(int32_t len) {
+  uint32_t paddedlen = len + AES_BLOCKLEN - (len % AES_BLOCKLEN);
+
+  return paddedlen;
+}
+
+int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
+  uint32_t       encryptlen = taes_encrypt_len(len);
+  int32_t        blocks = encryptlen / AES_BLOCKLEN;
+  struct AES_ctx ctx;
+
+  pkcs7_padding_pad_buffer(key, keylen, AES_BLOCKLEN);
+  pkcs7_padding_pad_buffer(pBuf, len, AES_BLOCKLEN);
+
+  if (iv) {
+    AES_init_ctx_iv(&ctx, key, iv);
+
+    AES_CBC_encrypt_buffer(&ctx, pBuf, encryptlen);
+  } else {
+    AES_init_ctx(&ctx, key);
+
+    for (int32_t block = 0; block < blocks; ++block) {
+      AES_ECB_encrypt(&ctx, pBuf + block * AES_BLOCKLEN);
+    }
+  }
+
+  return encryptlen;
+}
+
+int32_t taosAesDecrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
+  int32_t        blocks = len / AES_BLOCKLEN;
+  size_t         datalen = 0;
+  struct AES_ctx ctx;
+
+  pkcs7_padding_pad_buffer(key, keylen, AES_BLOCKLEN);
+
+  if (iv) {
+    AES_init_ctx_iv(&ctx, key, iv);
+
+    AES_CBC_decrypt_buffer(&ctx, pBuf, len);
+  } else {
+    AES_init_ctx(&ctx, key);
+
+    for (int32_t block = 0; block < blocks; ++block) {
+      AES_ECB_decrypt(&ctx, pBuf + block * AES_BLOCKLEN);
+    }
+  }
+
+  datalen = pkcs7_padding_data_length(pBuf, len, AES_BLOCKLEN);
+
+  return datalen;
 }
