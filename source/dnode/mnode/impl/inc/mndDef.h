@@ -404,8 +404,8 @@ typedef struct {
 
 
 typedef struct {
-  int64_t lastLoginTime;        // in seconds
-  int64_t lastFailedLoginTime;  // in seconds
+  int32_t lastLoginTime;        // in seconds
+  int32_t lastFailedLoginTime;  // in seconds
   int32_t failedLoginCount;
 } SLoginInfo;
 
@@ -422,7 +422,7 @@ typedef struct {
 
 typedef struct {
   char    pass[TSDB_PASSWORD_LEN];
-  int64_t setTime;  // password set time, in seconds
+  int32_t setTime;  // password set time, in seconds
 } SUserPassword;
 
 typedef struct {

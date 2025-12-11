@@ -46,7 +46,6 @@
 /home/TDinternal/community/source/libs/executor/src/tsort.c
 /home/TDinternal/community/source/dnode/mnode/impl/src/mndStb.c
 /home/TDinternal/community/source/libs/function/src/builtinsimpl.c
-/home/TDinternal/community/source/libs/parser/src/parUtil.c
 /home/TDinternal/community/source/dnode/vnode/src/meta/metaEntry2.c
 /home/TDinternal/community/source/libs/planner/src/planPhysiCreater.c
 /home/TDinternal/community/source/libs/executor/src/sysscanoperator.c

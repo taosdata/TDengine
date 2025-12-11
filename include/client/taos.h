@@ -204,6 +204,9 @@ DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char 
  * @return TAOS* connection handle on success; NULL if unsupported or on error
  */
 DLL_EXPORT TAOS *taos_connect_with_dsn(const char *dsn);
+DLL_EXPORT TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+DLL_EXPORT int   taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
