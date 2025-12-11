@@ -474,10 +474,6 @@ static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
   return code;
 }
 
-static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
   return checkAuth(pCxt, NULL, NULL, type, NULL);
 }
@@ -577,7 +573,11 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_RSMA_STMT:
       return authCreateRsma(pCxt, (SCreateRsmaStmt*)pStmt);
     case QUERY_NODE_DROP_RSMA_STMT:
-      return authDropRsma(pCxt, (SDropRsmaStmt*)pStmt);
+      return authObjPrivileges(pCxt, ((SDropRsmaStmt*)pStmt)->dbName, ((SDropRsmaStmt*)pStmt)->rsmaName,
+                               PRIV_RSMA_DROP);
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      return authObjPrivileges(pCxt, ((SAlterRsmaStmt*)pStmt)->dbName, ((SAlterRsmaStmt*)pStmt)->rsmaName,
+                               PRIV_RSMA_ALTER);
     case QUERY_NODE_CREATE_DATABASE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_DB_CREATE);
     case QUERY_NODE_BALANCE_VGROUP_STMT:
