@@ -1,4 +1,5 @@
-pandas==1.5.0
+pandas==2.2.0
+scipy==1.15.0
 scikit-learn==1.5.2
 outlier-utils==0.0.5
 statsmodels==0.14.4
