@@ -47,6 +47,15 @@ int32_t CBC_DecryptImpl(SCryptOpts *opts) {
   memcpy(opts->result, opts->source, opts->len);
   return opts->len;
 }
+
+int32_t Builtin_CBC_EncryptImpl(SCryptOpts *opts) {
+  memcpy(opts->result, opts->source, opts->len);
+  return opts->len;
+}
+int32_t Builtin_CBC_DecryptImpl(SCryptOpts *opts) {
+  memcpy(opts->result, opts->source, opts->len);
+  return opts->len;
+}
 #endif
 
 static void pkcs7_padding_pad_buffer(uint8_t *buffer, size_t data_length, uint8_t modulus) {
