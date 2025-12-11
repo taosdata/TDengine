@@ -3519,7 +3519,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
 
       if (taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
         mInfo("user:%s already has role:%s", pUser->user, pAlterReq->roleName);
-        TAOS_CHECK_EXIT(0);
+        goto _exit;
       }
       int32_t nSubRoles = taosHashGetSize(pUser->roles);
       if (nSubRoles >= TSDB_MAX_SUBROLE) {
@@ -3533,7 +3533,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
           taosHashPut(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1, &flag, sizeof(flag)));
     } else {
       if (!taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
-        TAOS_CHECK_EXIT(0);
+        goto _exit;
       }
       TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
       TAOS_CHECK_EXIT(taosHashRemove(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1));
