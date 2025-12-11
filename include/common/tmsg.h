@@ -1386,6 +1386,7 @@ typedef struct {
   SArray*  selectCols;  // SColIdNameKV, for table privileges
   SArray*  insertCols;  // SColIdNameKV, for table privileges
   SArray*  updateCols;  // SColIdNameKV, for table privileges
+  // delete can only specify rowSpan and cannot specify columns
   char*    tagCond;     // for table privileges
   int32_t  tagCondLen;  // for table privileges:
   uint32_t selectHash;  // for table privileges: Murmurhash32 of colId list, 0 if selectCols is NULL

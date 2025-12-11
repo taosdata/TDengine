@@ -2257,30 +2257,55 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     return TSDB_CODE_SUCCESS;
   } else if (PRIV_CATEGORY_OBJECT == privInfo->category) {
     char objKey[TSDB_PRIV_MAX_KEY_LEN];
+#if 0
     if (privInfo->privType >= PRIV_TBL_SELECT && privInfo->privType <= PRIV_TBL_DELETE) {
       return TSDB_CODE_SUCCESS;
     }
+#endif
     if (taosHashGetSize(pInfo->objPrivs) == 0) return TSDB_CODE_SUCCESS;
 
+    int32_t klen = 0;
     if (pReq->tbName.type == TSDB_DB_NAME_T) {
-      int32_t klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, "*", NULL, objKey, sizeof(objKey));
       SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
-      klen = privObjKey(privInfo, "1.*", NULL, objKey, sizeof(objKey));
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
       policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
       }
-    } else if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+      return TSDB_CODE_SUCCESS;
     }
-    return TSDB_CODE_SUCCESS;
-  } else {
+    if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, "*", "*", objKey, sizeof(objKey));
+      SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, "*", objKey, sizeof(objKey));
+      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      klen =
+          privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname, objKey, sizeof(objKey));
+      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
     ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo->category, privInfo->name);
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
+
 
 #ifdef PRIV_TODO
   switch (pReq->type) {

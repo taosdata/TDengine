@@ -452,8 +452,8 @@ typedef struct {
 
   char    acct[TSDB_USER_LEN];
   char    totpsecret[TSDB_TOTP_SECRET_LEN];
-  int64_t createdTime;          // in milliseconds
-  int64_t updateTime;           // in milliseconds
+  int64_t createdTime;  // in milliseconds
+  int64_t updateTime;   // in milliseconds
   int64_t uid;
   int8_t  superUser;
   int8_t  sysInfo;
@@ -481,10 +481,10 @@ typedef struct {
   int32_t inactiveAccountTime;  // unit is second
   int32_t allowTokenNum;
 
-  int32_t       acctId;
-  int32_t       authVersion;
-  int32_t       passVersion;
-  int64_t       ipWhiteListVer;
+  int32_t           acctId;
+  int32_t           authVersion;
+  int32_t           passVersion;
+  int64_t           ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 
   int64_t             timeWhiteListVer;
@@ -494,8 +494,12 @@ typedef struct {
                              // persist.
   SHashObj* roles;
 
-  SPrivSet  sysPrivs;
-  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies
+  SPrivSet sysPrivs;
+  /**
+   * N.B. The privileges of "select/insert/update/delete tables without specifiy tags or cols or rowSpan" are also
+   * stored in objPrivs.
+   */
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
   // row level privileges
   SHashObj* selectRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* insertRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
@@ -542,8 +546,12 @@ typedef struct {
     };
   };
 
-  SPrivSet  sysPrivs;
-  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies
+  SPrivSet sysPrivs;
+  /**
+   * N.B. The privileges of "select/insert/update/delete tables without specifiy tags or cols or rowSpan" are also
+   * stored in objPrivs.
+   */
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
   // row level privileges
   SHashObj* selectRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* insertRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
