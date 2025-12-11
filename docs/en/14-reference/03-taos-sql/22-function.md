@@ -1403,7 +1403,7 @@ Insert OK, 1 row(s) affected (0.005111s)
 SHA1(expr)
 ```
 
-**Function Description**: Calculates an SHA-1 160-bit checksum for the sting `expr`, as described in RFC 3174 (Secure Hash Algorithm).
+**Function Description**: Calculates an SHA-1 160-bit checksum for the string `expr`, as described in RFC 3174 (Secure Hash Algorithm).
 
 **Return Type**: VARCHAR.
 
@@ -1505,8 +1505,8 @@ MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
 **Applicable Data Types**:
 
 - `str`: VARCHAR.
-- `prefix_length`: The prefix length, an integer.
-- `suffix_length`: The suffix length, an integer.
+- `prefix_length`: The number of characters to mask from the beginning of the string.
+- `suffix_length`: The number of characters to mask from the end of the string.
 - `mask_char`: The masking character.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
@@ -1627,7 +1627,7 @@ AES_ENCRYPT(str, key_str[, init_vector])
 
 **Applicable Data Types**:
 
-- `expr`: VARCHAR.
+- `str`: VARCHAR.
 - `key_str`: The key string.
 - `init_vector`: The initialization vector.
 
@@ -1661,7 +1661,7 @@ AES_DECRYPT(str, key_str[, init_vector])
 
 **Applicable Data Types**:
 
-- `expr`: VARCHAR.
+- `str`: VARCHAR.
 - `key_str`: The key string.
 - `init_vector`: The initialization vector.
 

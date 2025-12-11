@@ -1,6 +1,12 @@
 #ifndef _TD_AES_H
 #define _TD_AES_H
 
+/*
+ * This is a modified version of the tiny-AES-c project.
+ * Original source: https://github.com/kokke/tiny-AES-C
+ * The original code is released into the public domain.
+ */
+
 #include <stddef.h>
 #include <stdint.h>
 

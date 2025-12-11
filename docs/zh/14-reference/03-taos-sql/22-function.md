@@ -1551,6 +1551,8 @@ MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
 **适用数据类型**:
 
 - `str`: VARCHAR.
+- `prefix_length`: 从字符串开头要屏蔽的字符数。
+- `suffix_length`: 从字符串末尾要屏蔽的字符数。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
