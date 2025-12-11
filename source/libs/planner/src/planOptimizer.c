@@ -228,14 +228,14 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       if (pNode == pNodeForcePropagate) {
         pNode->outputTsOrder = order;
         break;
-      } else
+      } else {
         return;
+      }
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       pNode->outputTsOrder = order;
       break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       if (((SWindowLogicNode*)pNode)->winType == WINDOW_TYPE_INTERVAL && pNode->groupAction != GROUP_ACTION_KEEP) {
-        order = TSDB_ORDER_NONE;
         return;
       }
       // Window output ts order default to be asc, and changed when doing sort by primary key optimization.
