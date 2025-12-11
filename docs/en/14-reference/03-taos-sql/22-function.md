@@ -1369,7 +1369,7 @@ Query OK, 1 row(s) in set (0.000786s)
 MD5(expr)
 ```
 
-**Function Description**: Calculates an MD5 128-bit checksum for the sting `expr`.
+**Function Description**: Calculates an MD5 128-bit checksum for the string `expr`.
 
 **Return Type**: VARCHAR.
 
