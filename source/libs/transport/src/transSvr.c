@@ -777,7 +777,6 @@ void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
 }
 
 void uvOnTimeoutCb(uv_timer_t* handle) {
-  // opt
   SSvrConn* pConn = handle->data;
   tError("conn:%p, time out", pConn);
 }
