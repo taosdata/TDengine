@@ -329,12 +329,13 @@ typedef struct {
 
 typedef struct {
   char       name[TSDB_TOKEN_NAME_LEN];
+  char       token[TSDB_TOKEN_LEN];
   char       provider[TSDB_TOKEN_PROVIDER_LEN];
   char       user[TSDB_USER_LEN];
   char       extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
   int8_t     enabled;
-  int64_t    expireTime;
-  int64_t    createdTime;
+  int32_t    expireTime;  // in seconds
+  int32_t    createdTime; // in seconds
   SRWLatch   lock;
 } STokenObj;
 

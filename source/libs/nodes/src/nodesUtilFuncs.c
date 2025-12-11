@@ -877,6 +877,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       code = makeNode(type, sizeof(SShowSsMigratesStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_TOKENS_STMT:
+      code = makeNode(type, sizeof(SShowTokensStmt), &pNode);
+      break;
     case QUERY_NODE_KILL_QUERY_STMT:
       code = makeNode(type, sizeof(SKillQueryStmt), &pNode);
       break;
@@ -1920,6 +1923,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      break;
+    case QUERY_NODE_SHOW_TOKENS_STMT:
       break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT: {
       SShowTransactionDetailsStmt* pStmt = (SShowTransactionDetailsStmt*)pNode;

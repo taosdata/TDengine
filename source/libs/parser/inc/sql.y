@@ -369,7 +369,7 @@ cmd ::= ALTER DNODES RELOAD general_name(A).                                    
 %type token_option                                                               { STokenOptions* }
 token_option(A) ::= PROVIDER NK_STRING(B).                                       { A = mergeTokenOptions(pCxt, NULL, NULL); setTokenOptionsProvider(pCxt, A, &B); }
 token_option(A) ::= ENABLE NK_INTEGER(B).                                        { A = mergeTokenOptions(pCxt, NULL, NULL);  A->enable = taosStr2Int8(B.z, NULL, 10); A->hasEnable = true; }
-token_option(A) ::= TTL NK_INTEGER(B).                                           { A = mergeTokenOptions(pCxt, NULL, NULL);  A->ttl = taosStr2Int32(B.z, NULL, 10); A->hasTtl = true; }
+token_option(A) ::= TTL NK_INTEGER(B).                                           { A = mergeTokenOptions(pCxt, NULL, NULL);  A->ttl = taosStr2Int32(B.z, NULL, 10) * 86400; A->hasTtl = true; }
 token_option(A) ::= EXTRA_INFO NK_STRING(B).                                     { A = mergeTokenOptions(pCxt, NULL, NULL); setTokenOptionsExtraInfo(pCxt, A, &B); }
 
 %type token_options                                                              { STokenOptions* }
@@ -953,6 +953,7 @@ cmd ::= SHOW db_name_cond_opt(A) DISK_INFO.                                     
 cmd ::= SHOW SCANS.                                                               { pCxt->pRootNode = createShowScansStmt(pCxt, QUERY_NODE_SHOW_SCANS_STMT); }
 cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW SSMIGRATES.                                                          { pCxt->pRootNode = createShowSsMigratesStmt(pCxt, QUERY_NODE_SHOW_SSMIGRATES_STMT); }
+cmd ::= SHOW TOKENS.                                                              { pCxt->pRootNode = createShowTokensStmt(pCxt, QUERY_NODE_SHOW_TOKENS_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
