@@ -29,6 +29,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
+#include "totp.h"
 
 // clang-format on
 
@@ -958,7 +959,7 @@ static void dropOldPasswords(SUserObj *pUser) {
     reuseMax = 1; // keep at least one password
   }
 
-  int64_t now = taosGetTimestampSec();
+  int32_t now = taosGetTimestampSec();
   int32_t index = reuseMax;
   while(index < pUser->numOfPasswords) {
     SUserPassword *pPass = &pUser->passwords[index];
@@ -1307,7 +1308,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, pUser->numOfPasswords, _OVER)
   for (int32_t i = 0; i < pUser->numOfPasswords; i++) {
     SDB_SET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, sizeof(pUser->passwords[i].pass), _OVER)
-    SDB_SET_INT64(pRaw, dataPos, pUser->passwords[i].setTime, _OVER)
+    SDB_SET_INT32(pRaw, dataPos, pUser->passwords[i].setTime, _OVER)
   }
   SDB_SET_BINARY(pRaw, dataPos, pUser->salt, sizeof(pUser->salt), _OVER)
 
@@ -1563,7 +1564,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     for (int32_t i = 0; i < pUser->numOfPasswords; ++i) {
       SDB_GET_BINARY(pRaw, dataPos, pUser->passwords[i].pass, sizeof(pUser->passwords[i].pass), _OVER);
-      SDB_GET_INT64(pRaw, dataPos, &pUser->passwords[i].setTime, _OVER);
+      SDB_GET_INT32(pRaw, dataPos, &pUser->passwords[i].setTime, _OVER);
     }
     SDB_GET_BINARY(pRaw, dataPos, pUser->salt, sizeof(pUser->salt), _OVER)
   }
@@ -1572,7 +1573,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
   if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
-    pUser->passwords[0].setTime = pUser->updateTime / 1000;
+    pUser->passwords[0].setTime = (int32_t)(pUser->updateTime / 1000);
   }
 
   SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
@@ -2507,7 +2508,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   if (pCreate->totpseed[0] != 0) {
-    // TODO: generate totp seed
+    int len = taosGenerateTotpSecret(pCreate->totpseed, 0, userObj.totpsecret, sizeof(userObj.totpsecret));
+    if (len < 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_INVALID_OPTION_VALUE, &lino, _OVER);
+    }
   }
 
   userObj.createdTime = taosGetTimestampMs();
@@ -2682,7 +2686,6 @@ _OVER:
 }
 
 
-
 static int32_t mndCheckPasswordFmt(const char *pwd) {
   if (strcmp(pwd, "taosdata") == 0) {
     return 0;
@@ -2706,26 +2709,26 @@ static int32_t mndCheckPasswordFmt(const char *pwd) {
     return TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
   }
 
-  int32_t upper = 0, lower = 0, number = 0, special = 0;
-  for (int32_t i = 0; i < len; ++i) {
-    if (taosIsBigChar(pwd[i])) {
-      upper = 1;
-    } else if (taosIsSmallChar(pwd[i])) {
-      lower = 1;
-    } else if (taosIsNumberChar(pwd[i])) {
-      number = 1;
-    } else if (taosIsSpecialChar(pwd[i])) {
-      special = 1;
-    } else {
-      return TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    }
+  if (taosIsComplexString(pwd)) {
+    return 0;
   }
 
-  if (upper + lower + number + special < 3) {
-    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+}
+
+
+
+static int32_t mndCheckTotpSeedFmt(const char *seed) {
+  int32_t len = strlen(seed);
+  if (len < TSDB_USER_TOTPSEED_MIN_LEN) {
+    return TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT;
   }
 
-  return 0;
+  if (taosIsComplexString(seed)) {
+    return 0;
+  }
+
+  return TSDB_CODE_PAR_INVALID_OPTION_VALUE;
 }
 
 
@@ -2912,6 +2915,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.isImport != 1) {
     code = mndCheckPasswordFmt(createReq.pass);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+
+  if (createReq.totpseed[0] != 0) {
+    code = mndCheckTotpSeedFmt(createReq.totpseed);
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -3618,7 +3626,11 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.hasTotpseed) {
-    // TODO: totp seed to secret
+    if (alterReq.totpseed[0] == 0) { // clear totp secret
+      memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
+    } else if (taosGenerateTotpSecret(alterReq.totpseed, 0, newUser.totpsecret, sizeof(newUser.totpsecret)) < 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_PAR_INVALID_OPTION_VALUE, &lino, _OVER);
+    }
   }
 
   if (alterReq.hasEnable) {
@@ -4161,6 +4173,17 @@ _exit:
   TAOS_RETURN(code);
 }
 
+
+bool mndIsTotpEnabledUser(SUserObj *pUser) {
+  for (int32_t i = 0; i < sizeof(pUser->totpsecret); i++) {
+    if (pUser->totpsecret[i] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
 static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -4206,6 +4229,11 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    flag = mndIsTotpEnabledUser(pUser) ? 1 : 0;
+    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
     cols++;
 
@@ -4326,6 +4354,11 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    flag = mndIsTotpEnabledUser(pUser) ? 1 : 0;
+    COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);

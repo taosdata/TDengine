@@ -126,31 +126,11 @@ static bool isValidSimplePassword(const char* password) {
 
 
 
-static bool isComplexString(const char* str) {
-  int hasUpper = 0, hasLower = 0, hasDigit = 0, hasSpecial = 0;
-
-  for (char c = *str; c != 0; c = *(++str)) {
-    if (taosIsBigChar(c)) {
-      hasUpper = 1;
-    } else if (taosIsSmallChar(c)) {
-      hasLower = 1;
-    } else if (taosIsNumberChar(c)) {
-      hasDigit = 1;
-    } else if (taosIsSpecialChar(c)) {
-      hasSpecial = 1;
-    }
-  }
-
-  return (hasUpper + hasLower + hasDigit + hasSpecial) >= 3;
-}
-
-
-
 static bool isValidStrongPassword(const char* password) {
   if (strcmp(password, "taosdata") == 0) {
     return true;
   }
-  return isComplexString(password);
+  return taosIsComplexString(password);
 }
 
 
@@ -4371,6 +4351,11 @@ void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
   }
   pUserOptions->hasTotpseed = true;
 
+  if (pTotpseed == NULL) { // clear TOTP secret
+    memset(pUserOptions->totpseed, 0, sizeof(pUserOptions->totpseed));
+    return;
+  }
+
   if (pTotpseed->n >= sizeof(pUserOptions->totpseed) * 2) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED", sizeof(pUserOptions->totpseed));
     return;
@@ -4443,7 +4428,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasTotpseed && !isComplexString(opts->totpseed)) {
+  if (opts->hasTotpseed && opts->totpseed[0] != 0 && !taosIsComplexString(opts->totpseed)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "TOTPSEED");
     return false;
   }
@@ -5399,6 +5384,8 @@ SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataTy
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef);
   CHECK_MAKE_NODE(pTagDef);
   COPY_STRING_FORM_ID_TOKEN(pTagDef->tagName, pTagName);
+  int32_t nameLen = strdequote(pTagDef->tagName);
+  pTagDef->tagName[nameLen] = '\0';
   pTagDef->dataType = dataType;
   pTagDef->pTagExpr = tagExpression;
   return (SNode*)pTagDef;

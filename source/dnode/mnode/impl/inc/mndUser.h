@@ -62,6 +62,7 @@ int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 
 void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
+bool mndIsTotpEnabledUser(SUserObj *pUser);
 
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq);

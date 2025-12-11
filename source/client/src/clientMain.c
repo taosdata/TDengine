@@ -319,7 +319,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   }
 
   STscObj *pObj = NULL;
-  int32_t  code = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY, &pObj);
+  int32_t  code = taos_connect_internal(ip, user, pass, NULL, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
@@ -332,6 +332,12 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     terrno = code;
   }
 
+  return NULL;
+}
+
+TAOS *taos_connect_with_dsn(const char *dsn) {
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  tscError("taos_connect_with_dsn not supported");
   return NULL;
 }
 
@@ -2574,7 +2580,19 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  int32_t    code = TSDB_CODE_SUCCESS;
   STMT2_DLOG_E("start to bind param");
+
+  // check query bind number
+  bool isQuery = (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt)));
+  if (isQuery) {
+    if (bindv->count != 1 || bindv->bind_cols[0]->num != 1) {
+      terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+      STMT2_ELOG_E("query only support one table and one row bind");
+      return terrno;
+    }
+  }
+
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     STMT2_ELOG_E("async bind param is still working, please try again later");
     terrno = TSDB_CODE_TSC_STMT_API_ERROR;
@@ -2588,34 +2606,32 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     pStmt->execSemWaited = true;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < bindv->count; ++i) {
-    if (bindv->tbnames && bindv->tbnames[i]) {
-      code = stmtSetTbName2(stmt, bindv->tbnames[i]);
+    SVCreateTbReq *pCreateTbReq = NULL;
+    if (!isQuery) {
+      STMT2_TLOG("start to bind %dth table", i);
+      if (bindv->tbnames && bindv->tbnames[i]) {
+        code = stmtSetTbName2(stmt, bindv->tbnames[i]);
+        if (code) {
+          terrno = code;
+          STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
+          return terrno;
+        }
+      }
+
+      if (bindv->tags && bindv->tags[i]) {
+        code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
+      } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
+        code = stmtCheckTags2(stmt, &pCreateTbReq);
+      } else if (pStmt->sql.autoCreateTbl) {
+        code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
+      }
+
       if (code) {
         terrno = code;
-        STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
+        STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
         return terrno;
       }
-    }
-
-    SVCreateTbReq *pCreateTbReq = NULL;
-    if (bindv->tags && bindv->tags[i]) {
-      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-    } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
-      code = stmtCheckTags2(stmt, &pCreateTbReq);
-    } else if (pStmt->sql.autoCreateTbl) {
-      // if (pStmt->sql.autoCreateTbl) {
-      //   pStmt->sql.autoCreateTbl = false;
-      //   STMT2_WLOG_E("sql is autoCreateTbl, but no tags");
-      // }
-      code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
-    }
-
-    if (code) {
-      terrno = code;
-      STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
-      return terrno;
     }
 
     if (bindv->bind_cols && bindv->bind_cols[i]) {
@@ -2623,12 +2639,6 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
-        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
-      }
-
-      if (!stmt2IsInsert(stmt) && bind->num > 1) {
-        STMT2_ELOG_E("only one row data allowed for query");
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         return terrno;
       }
@@ -2722,6 +2732,8 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  STMT2_DLOG_E("start to get fields");
+
   if (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type ||
       (pStmt->sql.type == 0 && stmt2IsInsert(stmt))) {
     return stmtGetStbColFields2(stmt, count, fields);

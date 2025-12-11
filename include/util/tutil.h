@@ -382,6 +382,9 @@ bool taosIsBigChar(char c);
 bool taosIsSmallChar(char c);
 bool taosIsNumberChar(char c);
 bool taosIsSpecialChar(char c);
+// check if the string is a complex string, a complex string contains
+// at least 3 types of characters: upper, lower, digit, special
+bool taosIsComplexString(const char* str);
 
 #ifdef __cplusplus
 }
