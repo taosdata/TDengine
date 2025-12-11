@@ -33,6 +33,7 @@
 #include "trpc.h"
 #include "tversion.h"
 #include "version.h"
+#include "ttime.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -318,7 +319,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   }
 
   STscObj *pObj = NULL;
-  int32_t  code = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY, &pObj);
+  int32_t  code = taos_connect_internal(ip, user, pass, NULL, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
@@ -331,6 +332,12 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     terrno = code;
   }
 
+  return NULL;
+}
+
+TAOS *taos_connect_with_dsn(const char *dsn) {
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  tscError("taos_connect_with_dsn not supported");
   return NULL;
 }
 
@@ -369,6 +376,13 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
       TSC_ERR_RET(taosThreadMutexUnlock(&pObj->mutex));
       break;
     }
+    case TAOS_NOTIFY_DATETIME_WHITELIST_VER: {
+      TSC_ERR_RET(taosThreadMutexLock(&pObj->mutex));
+      pObj->dateTimeWhiteListInfo.fp = fp;
+      pObj->dateTimeWhiteListInfo.param = param;
+      TSC_ERR_RET(taosThreadMutexUnlock(&pObj->mutex));
+      break;
+    }
     default: {
       terrno = TSDB_CODE_INVALID_PARA;
       releaseTscObj(*(int64_t *)taos);
@@ -397,12 +411,12 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
     return code;
   }
 
-  SGetUserWhiteListRsp wlRsp;
-  if (TSDB_CODE_SUCCESS != tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) {
+  SGetUserIpWhiteListRsp wlRsp;
+  if (TSDB_CODE_SUCCESS != tDeserializeSGetUserIpWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp)) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
-    tFreeSGetUserWhiteListRsp(&wlRsp);
+    tFreeSGetUserIpWhiteListRsp(&wlRsp);
     return terrno;
   }
 
@@ -411,7 +425,7 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pInfo);
-    tFreeSGetUserWhiteListRsp(&wlRsp);
+    tFreeSGetUserIpWhiteListRsp(&wlRsp);
     return terrno;
   }
 
@@ -425,7 +439,7 @@ int32_t fetchWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pInfo);
-  tFreeSGetUserWhiteListRsp(&wlRsp);
+  tFreeSGetUserIpWhiteListRsp(&wlRsp);
   return code;
 }
 
@@ -492,7 +506,7 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   pSendInfo->requestObjRefId = 0;
   pSendInfo->param = pParam;
   pSendInfo->fp = fetchWhiteListCallbackFn;
-  pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST;
+  pSendInfo->msgType = TDMT_MND_GET_USER_IP_WHITELIST;
 
   SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
   if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, NULL, pSendInfo)) {
@@ -502,28 +516,33 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   return;
 }
 
-typedef struct SFetchWhiteListDualStackInfo {
+
+
+typedef struct SFetchIpWhiteListInfo {
   int64_t connId;
+  bool supportNeg;
   void   *userParam;
 
-  __taos_async_whitelist_dual_stack_fn_t userCbFn;
-} SFetchWhiteListDualStackInfo;
+  __taos_async_ip_whitelist_fn_t userCbFn;
+} SFetchIpWhiteListInfo;
 
-int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
+
+
+int32_t fetchIpWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   int32_t lino = 0;
   char  **pWhiteLists = NULL;
 
-  SGetUserWhiteListRsp wlRsp = {0};
+  SGetUserIpWhiteListRsp wlRsp = {0};
 
-  SFetchWhiteListDualStackInfo *pInfo = (SFetchWhiteListDualStackInfo *)param;
-  TAOS                         *taos = &pInfo->connId;
+  SFetchIpWhiteListInfo *pInfo = (SFetchIpWhiteListInfo *)param;
+  TAOS *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  if ((code = tDeserializeSGetUserWhiteListDualRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
+  if ((code = tDeserializeSGetUserIpWhiteListDualRsp(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
@@ -533,8 +552,12 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
+  int32_t numWhiteLists =0;
   for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
     SIpRange *pIpRange = &wlRsp.pWhiteListsDual[i];
+    if (!pInfo->supportNeg && pIpRange->neg) {
+      continue;
+    }
     SIpAddr   ipAddr = {0};
 
     code = tIpUintToStr(pIpRange, &ipAddr);
@@ -546,20 +569,28 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
       TAOS_CHECK_GOTO(code, &lino, _error);
     }
     if (ipAddr.type == 0) {
-      snprintf(ip, IP_RESERVE_CAP, "%s/%d", ipAddr.ipv4, ipAddr.mask);
+      if (pInfo->supportNeg) {
+        snprintf(ip, IP_RESERVE_CAP, "%c %s/%d", pIpRange->neg ? '-' : '+', ipAddr.ipv4, ipAddr.mask);
+      } else {
+        snprintf(ip, IP_RESERVE_CAP, "%s/%d", ipAddr.ipv4, ipAddr.mask);
+      }
     } else {
       if (ipAddr.ipv6[0] == 0) {
         memcpy(ipAddr.ipv6, "::", 2);
       }
-      snprintf(ip, IP_RESERVE_CAP, "%s/%d", ipAddr.ipv6, ipAddr.mask);
+      if (pInfo->supportNeg) {
+        snprintf(ip, IP_RESERVE_CAP, "%c %s/%d", pIpRange->neg ? '-' : '+', ipAddr.ipv6, ipAddr.mask);
+      } else {
+        snprintf(ip, IP_RESERVE_CAP, "%s/%d", ipAddr.ipv6, ipAddr.mask);
+      }
     }
-    pWhiteLists[i] = ip;
+    pWhiteLists[numWhiteLists++] = ip;
   }
 
-  pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
+  pInfo->userCbFn(pInfo->userParam, code, taos, numWhiteLists, pWhiteLists);
 _error:
   if (pWhiteLists != NULL) {
-    for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
+    for (int32_t i = 0; i < numWhiteLists; i++) {
       taosMemFree(pWhiteLists[i]);
     }
     taosMemoryFree(pWhiteLists);
@@ -567,10 +598,13 @@ _error:
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pInfo);
-  tFreeSGetUserWhiteListDualRsp(&wlRsp);
+  tFreeSGetUserIpWhiteListDualRsp(&wlRsp);
   return code;
 }
-void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
+
+
+
+static void taosFetchIpWhiteList(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param, bool supportNeg) {
   if (NULL == taos) {
     fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
     return;
@@ -606,7 +640,168 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
     return;
   }
 
-  SFetchWhiteListDualStackInfo *pParam = taosMemoryMalloc(sizeof(SFetchWhiteListDualStackInfo));
+  SFetchIpWhiteListInfo *pParam = taosMemoryMalloc(sizeof(SFetchIpWhiteListInfo));
+  if (pParam == NULL) {
+    fp(param, terrno, taos, 0, NULL);
+    taosMemoryFree(pReq);
+    releaseTscObj(connId);
+    return;
+  }
+
+  pParam->connId = connId;
+  pParam->supportNeg = supportNeg;
+  pParam->userCbFn = fp;
+  pParam->userParam = param;
+
+  SMsgSendInfo *pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (pSendInfo == NULL) {
+    fp(param, terrno, taos, 0, NULL);
+    taosMemoryFree(pParam);
+    taosMemoryFree(pReq);
+    releaseTscObj(connId);
+    return;
+  }
+
+  pSendInfo->msgInfo = (SDataBuf){.pData = pReq, .len = msgLen, .handle = NULL};
+  pSendInfo->requestId = generateRequestId();
+  pSendInfo->requestObjRefId = 0;
+  pSendInfo->param = pParam;
+  pSendInfo->fp = fetchIpWhiteListCallbackFn;
+  pSendInfo->msgType = TDMT_MND_GET_USER_IP_WHITELIST_DUAL;
+
+  SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
+  if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, NULL, pSendInfo)) {
+    tscWarn("failed to async send msg to server");
+  }
+  releaseTscObj(connId);
+  return;
+}
+
+
+
+void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
+  taosFetchIpWhiteList(taos, fp, param, false);
+}
+
+
+
+void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) {
+  taosFetchIpWhiteList(taos, fp, param, true);
+}
+
+
+typedef struct SFetchDateTimeWhiteListInfo {
+  int64_t                              connId;
+  void                                *userParam;
+  __taos_async_datetime_whitelist_fn_t userCbFn;
+} SFetchDateTimeWhiteListInfo;
+
+
+
+static const char* weekdays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+int32_t fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
+  int32_t lino = 0;
+  char  **pWhiteLists = NULL;
+
+  SUserDateTimeWhiteList wlRsp = {0};
+
+  SFetchDateTimeWhiteListInfo *pInfo = (SFetchDateTimeWhiteListInfo *)param;
+  TAOS *taos = &pInfo->connId;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if ((code = tDeserializeSUserDateTimeWhiteList(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(char *));
+  if (pWhiteLists == NULL) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  int32_t numWhiteLists =0;
+  for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
+    SDateTimeWhiteListItem *item = &wlRsp.pWhiteLists[i];
+
+    char *p = taosMemCalloc(1, 128);
+    if (p == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+
+    int duration = item->duration / 60;
+
+    if (item->absolute) {
+      struct STm tm;
+      (void)taosTs2Tm(item->start, TSDB_TIME_PRECISION_SECONDS, &tm, NULL);
+      snprintf(p, 128, "%c %04d-%02d-%02d %02d:%02d %d", item->neg ? '-' : '+', tm.tm.tm_year + 1900, tm.tm.tm_mon + 1, tm.tm.tm_mday, tm.tm.tm_hour, tm.tm.tm_min, duration);
+    } else {
+      int day = item->start / 86400;
+      int hour = (item->start % 86400) / 3600;
+      int minute = (item->start % 3600) / 60;
+      snprintf(p, 128, "%c %s %02d:%02d %d", item->neg ? '-' : '+', weekdays[day], hour, minute, duration);
+    }
+    pWhiteLists[numWhiteLists++] = p;
+  }
+
+  pInfo->userCbFn(pInfo->userParam, code, taos, numWhiteLists, pWhiteLists);
+_error:
+  if (pWhiteLists != NULL) {
+    for (int32_t i = 0; i < numWhiteLists; i++) {
+      taosMemFree(pWhiteLists[i]);
+    }
+    taosMemoryFree(pWhiteLists);
+  }
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pInfo);
+  tFreeSUserDateTimeWhiteList(&wlRsp);
+  return code;
+}
+
+
+
+void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) {
+  if (NULL == taos) {
+    fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
+    return;
+  }
+  int64_t connId = *(int64_t *)taos;
+
+  STscObj *pTsc = acquireTscObj(connId);
+  if (NULL == pTsc) {
+    fp(param, TSDB_CODE_TSC_DISCONNECTED, taos, 0, NULL);
+    return;
+  }
+
+  SGetUserWhiteListReq req;
+  (void)memcpy(req.user, pTsc->user, TSDB_USER_LEN);
+  int32_t msgLen = tSerializeSGetUserWhiteListReq(NULL, 0, &req);
+  if (msgLen < 0) {
+    fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
+    releaseTscObj(connId);
+    return;
+  }
+
+  void *pReq = taosMemoryMalloc(msgLen);
+  if (pReq == NULL) {
+    fp(param, terrno, taos, 0, NULL);
+    releaseTscObj(connId);
+    return;
+  }
+
+  if (tSerializeSGetUserWhiteListReq(pReq, msgLen, &req) < 0) {
+    fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
+    taosMemoryFree(pReq);
+    releaseTscObj(connId);
+    return;
+  }
+
+  SFetchDateTimeWhiteListInfo *pParam = taosMemoryMalloc(sizeof(SFetchDateTimeWhiteListInfo));
   if (pParam == NULL) {
     fp(param, terrno, taos, 0, NULL);
     taosMemoryFree(pReq);
@@ -631,8 +826,8 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
   pSendInfo->requestId = generateRequestId();
   pSendInfo->requestObjRefId = 0;
   pSendInfo->param = pParam;
-  pSendInfo->fp = fetchWhiteListDualStackCallbackFn;
-  pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST_DUAL;
+  pSendInfo->fp = fetchDateTimeWhiteListCallbackFn;
+  pSendInfo->msgType = TDMT_MND_GET_USER_DATETIME_WHITELIST;
 
   SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
   if (TSDB_CODE_SUCCESS != asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, NULL, pSendInfo)) {
@@ -641,6 +836,8 @@ void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_s
   releaseTscObj(connId);
   return;
 }
+
+
 
 void taos_close_internal(void *taos) {
   if (taos == NULL) {
@@ -2383,7 +2580,19 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  int32_t    code = TSDB_CODE_SUCCESS;
   STMT2_DLOG_E("start to bind param");
+
+  // check query bind number
+  bool isQuery = (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt)));
+  if (isQuery) {
+    if (bindv->count != 1 || bindv->bind_cols[0]->num != 1) {
+      terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+      STMT2_ELOG_E("query only support one table and one row bind");
+      return terrno;
+    }
+  }
+
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     STMT2_ELOG_E("async bind param is still working, please try again later");
     terrno = TSDB_CODE_TSC_STMT_API_ERROR;
@@ -2397,34 +2606,32 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     pStmt->execSemWaited = true;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < bindv->count; ++i) {
-    if (bindv->tbnames && bindv->tbnames[i]) {
-      code = stmtSetTbName2(stmt, bindv->tbnames[i]);
+    SVCreateTbReq *pCreateTbReq = NULL;
+    if (!isQuery) {
+      STMT2_TLOG("start to bind %dth table", i);
+      if (bindv->tbnames && bindv->tbnames[i]) {
+        code = stmtSetTbName2(stmt, bindv->tbnames[i]);
+        if (code) {
+          terrno = code;
+          STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
+          return terrno;
+        }
+      }
+
+      if (bindv->tags && bindv->tags[i]) {
+        code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
+      } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
+        code = stmtCheckTags2(stmt, &pCreateTbReq);
+      } else if (pStmt->sql.autoCreateTbl) {
+        code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
+      }
+
       if (code) {
         terrno = code;
-        STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
+        STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
         return terrno;
       }
-    }
-
-    SVCreateTbReq *pCreateTbReq = NULL;
-    if (bindv->tags && bindv->tags[i]) {
-      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-    } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
-      code = stmtCheckTags2(stmt, &pCreateTbReq);
-    } else if (pStmt->sql.autoCreateTbl) {
-      // if (pStmt->sql.autoCreateTbl) {
-      //   pStmt->sql.autoCreateTbl = false;
-      //   STMT2_WLOG_E("sql is autoCreateTbl, but no tags");
-      // }
-      code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
-    }
-
-    if (code) {
-      terrno = code;
-      STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
-      return terrno;
     }
 
     if (bindv->bind_cols && bindv->bind_cols[i]) {
@@ -2432,12 +2639,6 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
-        code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
-        return terrno;
-      }
-
-      if (!stmt2IsInsert(stmt) && bind->num > 1) {
-        STMT2_ELOG_E("only one row data allowed for query");
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
         return terrno;
       }
@@ -2531,6 +2732,8 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  STMT2_DLOG_E("start to get fields");
+
   if (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type ||
       (pStmt->sql.type == 0 && stmt2IsInsert(stmt))) {
     return stmtGetStbColFields2(stmt, count, fields);

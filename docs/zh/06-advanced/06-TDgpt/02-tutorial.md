@@ -4,7 +4,6 @@ sidebar_label: "安装部署"
 description: 使用 docker、云服务、安装包体验 TDgpt
 ---
 
-import PkgListV3 from "/components/PkgListV3";
 import PkgListV37 from "/components/PkgListV37";
 
 本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt

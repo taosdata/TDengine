@@ -74,6 +74,11 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
+  if (pTscObj->connType == CONN_TYPE__AUTH_TEST) {
+    // auth test connection, no need to process connect rsp
+    goto End;
+  }
+
   SConnectRsp connectRsp = {0};
   if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
     code = TSDB_CODE_TSC_INVALID_VERSION;
@@ -87,7 +92,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   int32_t now = taosGetTimestampSec();
   int32_t delta = abs(now - connectRsp.svrTimestamp);
-  if (delta > timestampDeltaLimit) {
+  if (delta > tsTimestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
     tscError("time diff:%ds is too big", delta);
     goto End;

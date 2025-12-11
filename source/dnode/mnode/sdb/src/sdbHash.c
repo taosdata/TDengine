@@ -94,6 +94,8 @@ const char *sdbTableName(ESdbType type) {
       return "rsma";
     case SDB_INSTANCE:
       return "instance";
+    case SDB_ENCRYPT_ALGORITHMS:
+      return "encrypt_algr";
     default:
       return "undefine";
   }
