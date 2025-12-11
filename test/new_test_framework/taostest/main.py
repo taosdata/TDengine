@@ -1,5 +1,4 @@
 import os
-import signal
 from typing import Union
 
 from .frame import TaosTestFrame
@@ -11,10 +10,7 @@ from ..utils.log import tdLog
 import json
 import argparse
 import sys
-from dotenv import load_dotenv
 import pathlib
-from colorama import init
-
 
 def get_dotenv_file() -> Union[None, str]:
     """
