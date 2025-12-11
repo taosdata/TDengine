@@ -94,7 +94,7 @@ class TDTestCase:
 
             cb.verifyData(corss_major_version)
 
-            cb.verifyBackticksInTaosSql(bPath)
+            cb.verifyBackticksInTaosSql(bPath,base_version)
 
             tdLog.printNoPrefix(f"Compatibility test cycle with base version {base_version} completed successfully")
 
