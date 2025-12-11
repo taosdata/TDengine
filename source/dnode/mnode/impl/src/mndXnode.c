@@ -196,11 +196,11 @@ static SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj) {
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, pObj->id, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pObj->version, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->urlLen, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->url, pObj->urlLen, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->status, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->createTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
 
@@ -240,16 +240,15 @@ static SSdbRow *mndXnodeActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_INT32(pRaw, dataPos, &pObj->id, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pObj->version, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pObj->urlLen, _OVER)
-
   if (pObj->urlLen > 0) {
     pObj->url = taosMemoryCalloc(pObj->urlLen, 1);
     if (pObj->url == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pObj->url, pObj->urlLen, _OVER)
   }
+  SDB_GET_INT32(pRaw, dataPos, &pObj->status, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->createTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
 
@@ -298,7 +297,6 @@ static int32_t mndXnodeActionUpdate(SSdb *pSdb, SXnodeObj *pOld, SXnodeObj *pNew
 
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
-  pOld->version = pNew->version;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -348,9 +346,7 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
 
   SXnodeObj xnodeObj = {0};
   xnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE);
-  xnodeObj.createdTime = taosGetTimestampMs();
-  xnodeObj.updateTime = xnodeObj.createdTime;
-  xnodeObj.version = 0;
+
   xnodeObj.urlLen = pCreate->urlLen;
   if (xnodeObj.urlLen > TSDB_XNODE_URL_LEN) {
     code = TSDB_CODE_MND_XNODE_TOO_LONG_URL;
@@ -360,7 +356,10 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
   if (xnodeObj.url == NULL) goto _OVER;
   (void)memcpy(xnodeObj.url, pCreate->url, pCreate->urlLen);
 
-  mInfo("create xnode, xnode.id:%d, xnode.url: %s, xnode.time:%ld", xnodeObj.id, xnodeObj.url, xnodeObj.createdTime);
+  xnodeObj.status = 0;
+  xnodeObj.createTime = taosGetTimestampMs();
+  xnodeObj.updateTime = xnodeObj.createTime;
+  mInfo("create xnode, xnode.id:%d, xnode.url: %s, xnode.time:%ld", xnodeObj.id, xnodeObj.url, xnodeObj.createTime);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode");
   if (pTrans == NULL) {
@@ -1169,7 +1168,7 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (code != 0) goto _end;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createTime, false);
     if (code != 0) goto _end;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1494,12 +1493,18 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   if (xnodeObj.config == NULL) goto _OVER;
   (void)memcpy(xnodeObj.config, pCreate->config, pCreate->configLen);
 
-  xnodeObj.via = -1;
-  xnodeObj.xnodeId = -1;
-  xnodeObj.status = XNODE_STATUS_STOPPED;
+  xnodeObj.via = pCreate->via;
+  xnodeObj.xnodeId = pCreate->xnodeId;
+  xnodeObj.status = pCreate->status;
 
-  xnodeObj.reasonLen = 0;
-  xnodeObj.reason = NULL;
+  xnodeObj.reasonLen = pCreate->reasonLen;
+  if (xnodeObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+    code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+    goto _OVER;
+  }
+  xnodeObj.reason = taosMemoryCalloc(1, pCreate->reasonLen);
+  if (xnodeObj.reason == NULL) goto _OVER;
+  (void)memcpy(xnodeObj.reason, pCreate->reason, pCreate->reasonLen);
 
   xnodeObj.createTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createTime;
@@ -1834,69 +1839,6 @@ _end:
 static void mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_XNODE_AGENT);
-}
-
-static int32_t mndDecodeAlgoList(SJson *pJson, SXnodeObj *pObj) {
-  int32_t code = 0;
-  int32_t protocol = 0;
-  double  tmp = 0;
-  char    buf[TSDB_ANALYTIC_ALGO_NAME_LEN + 1] = {0};
-
-  code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
-  if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-  protocol = (int32_t)(tmp * 1000);
-  if (protocol != 100 && protocol != 1000) return TSDB_CODE_MND_XNODE_INVALID_PROTOCOL;
-
-  code = tjsonGetDoubleValue(pJson, "version", &tmp);
-  pObj->version = (int32_t)(tmp * 1000);
-#if 0
-  if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-  if (pObj->version <= 0) return TSDB_CODE_MND_XNODE_INVALID_VERSION;
-#endif
-
-  SJson *details = tjsonGetObjectItem(pJson, "details");
-  if (details == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-  int32_t numOfDetails = tjsonGetArraySize(details);
-
-  // pObj->algos = taosMemoryCalloc(ANALY_ALGO_TYPE_END, sizeof(SArray *));
-  // if (pObj->algos == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
-  // pObj->numOfAlgos = ANALY_ALGO_TYPE_END;
-  // for (int32_t i = 0; i < ANALY_ALGO_TYPE_END; ++i) {
-  //   pObj->algos[i] = taosArrayInit(4, sizeof(SXnodeAlgo));
-  //   if (pObj->algos[i] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  // }
-
-  for (int32_t d = 0; d < numOfDetails; ++d) {
-    SJson *detail = tjsonGetArrayItem(details, d);
-    if (detail == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-    code = tjsonGetStringValue2(detail, "type", buf, sizeof(buf));
-    if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    // EAnalAlgoType type = taosAnalyAlgoInt(buf);
-    // if (type < 0 || type >= ANALY_ALGO_TYPE_END) return TSDB_CODE_MND_XNODE_INVALID_ALGO_TYPE;
-
-    SJson *algos = tjsonGetObjectItem(detail, "algo");
-    if (algos == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-    int32_t numOfAlgos = tjsonGetArraySize(algos);
-    for (int32_t a = 0; a < numOfAlgos; ++a) {
-      SJson *algo = tjsonGetArrayItem(algos, a);
-      if (algo == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-      code = tjsonGetStringValue2(algo, "name", buf, sizeof(buf));
-      if (code < 0) return TSDB_CODE_MND_XNODE_INVALID_PROTOCOL;
-
-      // SXnodeAlgo algoObj = {0};
-      // algoObj.nameLen = strlen(buf) + 1;
-      // if (algoObj.nameLen <= 1) return TSDB_CODE_INVALID_JSON_FORMAT;
-      // algoObj.name = taosMemoryCalloc(algoObj.nameLen, 1);
-      // tstrncpy(algoObj.name, buf, algoObj.nameLen);
-
-      // if (taosArrayPush(pObj->algos[type], &algoObj) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-
-  return 0;
 }
 
 SJson *taosGetTasks(const char *url) {

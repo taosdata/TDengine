@@ -376,6 +376,8 @@ SNode*  dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resource
 SNode*  dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
 SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,
                                       SNode* pNodeOptions);
+SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
+                                  SNode* pSource, SNode* pSink, SNode* pNode);
 /** end @section xnode */
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);

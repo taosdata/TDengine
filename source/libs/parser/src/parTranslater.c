@@ -12576,15 +12576,49 @@ static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const c
   return NULL;
 }
 
+static int32_t xnodeTaskStatusStrToNum(const char* status) {
+  if (status == NULL) {
+    return -1;
+  }
+
+  static const struct {
+    const char* str;
+    int         value;
+  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Failed", 2},
+             {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
+
+  for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+    if (strcasecmp(status, map[i].str) == 0) {
+      return map[i].value;
+    }
+  }
+  return -1;
+}
+
 static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobStmt* pStmt) {
   printf("translateCreateXnodeJob on task:%d\n", pStmt->tid);
   SMCreateXnodeJobReq createReq = {0};
-
   const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
   if (config == NULL) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
   }
   createReq.tid = pStmt->tid;
+
+  createReq.via = pStmt->options->via;
+
+  const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnode_id != NULL) {
+    createReq.xnodeId = atoi(xnode_id);
+  }
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL) {
+    createReq.status = xnodeTaskStatusStrToNum(status);
+    if (createReq.status < 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status");
+    }
+  }
+
   createReq.configLen = strlen(config) + 1;
   if (createReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
     return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
@@ -12594,6 +12628,19 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tstrncpy(createReq.config, config, createReq.configLen);
+
+  const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+  if (reason != NULL) {
+    createReq.reasonLen = strlen(reason) + 1;
+    if (createReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+      return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+    }
+    createReq.reason = taosMemoryCalloc(createReq.reasonLen, 1);
+    if (createReq.reason == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(createReq.reason, reason, createReq.reasonLen);
+  }
 
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_JOB, (FSerializeFunc)tSerializeSMCreateXnodeJobReq, &createReq);

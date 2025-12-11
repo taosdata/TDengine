@@ -192,18 +192,22 @@ xnode_task_source(A) ::= TOPIC topic_name(B).                                   
 xnode_task_sink(A) ::= NK_STRING(B).                                              { A = createXnodeSinkAsDsn(pCxt, &B); }
 xnode_task_sink(A) ::= DATABASE db_name(B).                                       { A = createXnodeSinkAsDatabase(pCxt, &B); }
 
-xnode_task_options(A) ::= NK_ID(C) NK_STRING(D).                                  { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
-xnode_task_options(A) ::= NK_ID(C) NK_EQ NK_STRING(D).                            { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_STRING(D).            { A = setXnodeTaskOption(pCxt, B, &C, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ NK_STRING(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) NK_EQ NK_STRING(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) NK_EQ NK_STRING(D).  { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+%type xnode_task_opt_v                                                            { SToken }
+%destructor xnode_task_opt_v                                                      { }
+xnode_task_opt_v(A) ::=  NK_STRING(B).                                            { A = B; }
+xnode_task_opt_v(A) ::=  NK_INTEGER(B).                                           { A = B; }
+xnode_task_options(A) ::= NK_ID(C) xnode_task_opt_v(D).                           { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= NK_ID(C) NK_EQ xnode_task_opt_v(D).                     { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) xnode_task_opt_v(D).     { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ xnode_task_opt_v(D).          { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) NK_EQ xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) NK_EQ xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
 xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
 xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
-xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
-xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_EQ NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D).    { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 
 with_task_options_opt(A) ::= .                                                    { A = NULL; }
 with_task_options_opt(A) ::= WITH xnode_task_options(B).                          { A = B; }
@@ -243,18 +247,18 @@ cmd ::= DROP XNODE xnode_resource_type(A) where_clause_opt(C).                  
 cmd ::= DROP XNODE xnode_resource_type(A) ON NK_INTEGER(B) where_clause_opt(C).   { pCxt->pRootNode = dropXnodeResourceOn(pCxt, A, &B, C); }
 
 /* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
-cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
-                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+%type xnode_resource_v                                                            { SToken }
+%destructor xnode_resource_v                                                      { }
+xnode_resource_v(A) ::=  NK_STRING(B).                                            { A = B; }
+xnode_resource_v(A) ::=  NK_INTEGER(B).                                           { A = B; }
+cmd ::= ALTER XNODE xnode_resource_type(A) xnode_resource_v(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
 
 cmd ::= SHOW XNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_XNODES_STMT); }
 /* show xnode tasks */
 /* show xnode agents */
 /* show xnode jobs */
 cmd ::= SHOW XNODE xnode_resource_type(A).                                        { pCxt->pRootNode = createShowXNodeResourcesStmt(pCxt, A); }
-
-/* create xnode shards
-cmd ::= CREATE XNODE xnode_resource_type(A) ON NK_STRING(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
-                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }

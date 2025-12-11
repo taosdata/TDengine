@@ -482,7 +482,6 @@ typedef struct {
   ENodeType    type;
   // xTaskOptions opts;
   // taosX Agent ID.
-
   int32_t via;
   char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
   char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];

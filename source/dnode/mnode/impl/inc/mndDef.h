@@ -286,24 +286,16 @@ typedef struct {
  */
 typedef struct {
   int32_t  id;
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int32_t  version;
   int32_t  urlLen;
-  int32_t  status;
-  SRWLatch lock;
   char*    url;
+  int32_t  status;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
 } SXnodeObj;
 
 typedef struct {
   int32_t  id;
-  int64_t  createTime;
-  int64_t  updateTime;
-  int32_t  status;
-  int32_t  via;
-  int32_t  xnodeId;
-  int32_t  jobs;
-  SRWLatch lock;
   int32_t  nameLen;
   char*    name;
   int32_t  sourceType;
@@ -314,8 +306,15 @@ typedef struct {
   char*    sinkDsn;
   int32_t  parserLen;
   char*    parser;
+  int32_t  via;
+  int32_t  xnodeId;
+  int32_t  jobs;
+  int32_t  status;
   int32_t  reasonLen;
   char*    reason;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
 } SXnodeTaskObj;

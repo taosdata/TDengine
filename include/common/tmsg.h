@@ -3154,7 +3154,7 @@ int32_t xDeserializeTaskOptions(SDecoder* decoder, xTaskOptions* options);
 typedef struct {
   int32_t sqlLen;
   char*   sql;
-
+  int32_t      xnodeId;
   CowStr       name;
   xTaskSource  source;
   xTaskSink    sink;
@@ -3191,10 +3191,15 @@ void    tFreeSMUpdateXnodeTaskReq(SMUpdateXnodeTaskReq* pReq);
 
 typedef struct {
   int32_t tid;
-  int32_t sqlLen;
+  int32_t via;
+  int32_t xnodeId;
+  int32_t status;
   int32_t configLen;
-  char*   sql;
   char*   config;
+  int32_t reasonLen;
+  char*   reason;
+  int32_t sqlLen;
+  char*   sql;
 } SMCreateXnodeJobReq;
 int32_t tSerializeSMCreateXnodeJobReq(void* buf, int32_t bufLen, SMCreateXnodeJobReq* pReq);
 int32_t tDeserializeSMCreateXnodeJobReq(void* buf, int32_t bufLen, SMCreateXnodeJobReq* pReq);
