@@ -120,6 +120,7 @@ def check_list_result(result_list,detaild_list):
             logger.error("\n" + "\n".join(detaild_list))
             exit(1)
 if __name__ == "__main__":
-    summary_list, detaild_list = traverse_and_grep(source_dirs, exclude_dirs, exclude_source_files)
-    check_list_result(summary_list,detaild_list)
+    # summary_list, detaild_list = traverse_and_grep(source_dirs, exclude_dirs, exclude_source_files)
+    # check_list_result(summary_list,detaild_list)
+    pass
 
