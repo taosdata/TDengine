@@ -398,7 +398,8 @@ static FORCE_INLINE void privTblPoliciesFree(void* pTblPolicies) {
   }
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType, uint8_t* pObjLevel);
+int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
+                           uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 void    privInfoIterInit(SPrivInfoIter* pIter);

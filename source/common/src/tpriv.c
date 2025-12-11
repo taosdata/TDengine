@@ -146,7 +146,7 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_SHOW_SSMIGRATES, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, SYS_ADMIN_INFO1_ROLES, "SHOW SSMIGRATES"},
 
     // Table Privileges
-    {PRIV_TBL_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 1, ROLE_SYSDBA | ROLE_SYSAUDIT_LOG, "CREATE TABLE"},
+    {PRIV_TBL_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, ROLE_SYSDBA | ROLE_SYSAUDIT_LOG, "CREATE TABLE"},
     {PRIV_TBL_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TABLE, 1, ROLE_SYSDBA, "DROP TABLE"},
     {PRIV_TBL_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TABLE, 1, ROLE_SYSDBA, "ALTER TABLE"},
     {PRIV_TBL_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TABLE, 1, SYS_ADMIN_INFO_ROLES, "SHOW TABLES"},
@@ -212,17 +212,22 @@ static void initPrivLookup(void) {
   }
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType, uint8_t* pObjLevel) {
-  if (!privSet) goto _exit;
-
+int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
+                           uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
+
+  if (!privSet) return TSDB_CODE_PAR_INTERNAL_ERROR;
+
+  int32_t          code = 0;
+  const SPrivInfo* privInfo = NULL;
 
   bool hasSystemPriv = false;
   bool hasObjectPriv = false;
   bool hasLegacyPriv = false;
 
+  EPrivType    lastPriv = PRIV_TYPE_UNKNOWN;
   EPrivObjType objectType = PRIV_OBJ_UNKNOWN;
-  uint8_t      objectLevel = 0;
+  uint8_t      objectLevel = -1;
 
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     uint64_t chunk = privSet->set[i];
@@ -233,40 +238,55 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
       EPrivType privType = (i << 6) + bitPos;
       chunk &= ~(1ULL << bitPos);
 
-      const SPrivInfo* privInfo = privLookup[privType];
+      privInfo = privLookup[privType];
       if (privInfo == NULL) continue;
 
       switch (privInfo->category) {
         case PRIV_CATEGORY_SYSTEM: {
           if (hasObjectPriv || hasLegacyPriv) {
-            return 1;
+            code = 1;
+            goto _exit;
           }
           hasSystemPriv = true;
+          lastPriv = privInfo->privType;
           break;
         }
         case PRIV_CATEGORY_OBJECT: {
           if (hasSystemPriv || hasLegacyPriv) {
-            return 1;
+            code = 1;
+            goto _exit;
           }
-          hasObjectPriv = true;
           if (objectType == PRIV_OBJ_UNKNOWN) {
             objectType = privInfo->objType;
             objectLevel = privInfo->objLevel;
           } else if (objectType != privInfo->objType) {
-            return 2;
+            code = 2;
+            goto _exit;
+          } else if (objectLevel != privInfo->objLevel) {
+            code = 3;
+            goto _exit;
           }
+          hasObjectPriv = true;
+          lastPriv = privInfo->privType;
           break;
         }
         case PRIV_CATEGORY_LEGACY: {
           if (hasSystemPriv || hasObjectPriv) {
-            return 1;
+            code = 1;
+            goto _exit;
           }
-          hasLegacyPriv = true;
           if (objectType == PRIV_OBJ_UNKNOWN) {
             objectType = privInfo->objType;
+            objectLevel = privInfo->objLevel;
           } else if (objectType != privInfo->objType) {
-            return 2;
+            code = 2;
+            goto _exit;
+          } else if (objectLevel != privInfo->objLevel) {
+            code = 3;
+            goto _exit;
           }
+          hasLegacyPriv = true;
+          lastPriv = privInfo->privType;
           break;
         }
         default:
@@ -276,6 +296,12 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
   }
 
 _exit:
+  if (code != 0) {
+    if (conflict0) *conflict0 = lastPriv;
+    if (conflict1 && privInfo) *conflict1 = privInfo->privType;
+    return code;
+  }
+
   if (pCategory) {
     *pCategory = hasSystemPriv   ? PRIV_CATEGORY_SYSTEM
                  : hasObjectPriv ? PRIV_CATEGORY_OBJECT

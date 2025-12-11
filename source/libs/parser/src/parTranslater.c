@@ -16109,10 +16109,13 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 }
 
 static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pStmt, EPrivCategory category,
-                                         EPrivObjType objType, SAlterRoleReq* pReq) {
+                                         SAlterRoleReq* pReq) {
   SName       name = {0};
   STableMeta* pTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
+
+  EPrivObjType objType = pReq->targetType;
+  int32_t      objLevel = pReq->targetLevel;
 
   if (objType < PRIV_OBJ_DB || objType >= PRIV_OBJ_MAX) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid object type for privileges");
@@ -16123,22 +16126,20 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
                                    "Target name cannot be empty for non-system privileges");
   }
 
-  if (strncmp(pStmt->objName, "*", 2) == 0) {
-    if (pStmt->tabName[0] == '\0') {
-      if (objType != PRIV_OBJ_DB) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Table name cannot be empty for non-database level privileges");
-      }
-      goto _exit;
-    } else if (strncmp(pStmt->tabName, "*", 2) == 0) {
-      if (objType == PRIV_OBJ_DB) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Table name should be empty for database level privileges");
-      }
-      goto _exit;
-    } else {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
+  if (objLevel == 0) {
+    if (pStmt->tabName[0] != '\0') {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Table name should be empty for database level privileges");
     }
+  } else if (objLevel > 0) {
+    if (pStmt->tabName[0] == '\0') {
+      pStmt->tabName[0] = '*';
+      pStmt->tabName[1] = '\0';
+    }
+  }
+
+  if (strncmp(pStmt->objName, "*", 2) == 0 && strncmp(pStmt->tabName, "*", 2) != 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
   }
 
   if (IS_SYS_DBNAME(pStmt->objName)) {
@@ -16384,12 +16385,14 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   (void)snprintf(req.principal, TSDB_ROLE_LEN, "%s", pStmt->principal);
 
   switch (req.alterType) {
-#ifdef TD_ENTERPRISE
+// #ifdef TD_ENTERPRISE
+#if 1
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EPrivObjType  objType = PRIV_OBJ_UNKNOWN;
       uint8_t       objLevel = 0;
       SPrivSet      privSet = pStmt->privileges.privSet;
+      EPrivType     conflict0 = PRIV_TYPE_UNKNOWN, conflict1 = PRIV_TYPE_UNKNOWN;
       // The SQL "grant select, select(c0,c1) on d0.t1 to u1" is legal , and table-level and column-level privileges are
       // granted simultaneously. It is equivalent to "grant select on d0.t1 to u1" combined with "grant select(c0,c1) on
       // d0.t1 to u1". And "revoke select on d0.t1 from u1" will revoked the table-level and column-level privileges
@@ -16397,13 +16400,31 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       if (pStmt->privileges.selectCols) privAddType(&privSet, PRIV_TBL_SELECT);
       if (pStmt->privileges.insertCols) privAddType(&privSet, PRIV_TBL_INSERT);
       if (pStmt->privileges.updateCols) privAddType(&privSet, PRIV_TBL_UPDATE);
-      int32_t conflict = checkPrivConflicts(&privSet, &category, &objType, &objLevel);
-      if (conflict == 1) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                       "System privileges and object privileges cannot be mixed");
-      } else if (conflict == 2) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                       "Object privileges of different types cannot be mixed");
+      int32_t conflict = checkPrivConflicts(&privSet, &category, &objType, &objLevel, &conflict0, &conflict1);
+      if (conflict > 0) {
+        SPrivInfo* info0 = privInfoGet(conflict0);
+        SPrivInfo* info1 = privInfoGet(conflict1);
+        if (!info0 || !info1) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, terrno);
+        }
+        if (conflict == 1) {
+          if (info0->category != PRIV_CATEGORY_SYSTEM) {
+            TSWAP(info0, info1);
+          }
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                         "System privileges and object privileges cannot be mixed: %s, %s", info0->name,
+                                         info1->name);
+        } else if (conflict == 2) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                         "Object privileges of different types cannot be mixed: %s, %s", info0->name,
+                                         info1->name);
+        } else if (conflict == 3) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                         "Object privileges of different levels cannot be mixed: %s, %s", info0->name,
+                                         info1->name);
+        }
+      } else if (conflict != 0) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, conflict);
       }
       req.privileges.privSet = pStmt->privileges.privSet;
       if (category == PRIV_CATEGORY_SYSTEM) {
@@ -16421,7 +16442,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         req.targetType = objType;
         req.targetLevel = objLevel;
         TAOS_CHECK_EXIT(translateGrantFillPrivileges(pCxt, pStmt, &req));
-        TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, objType, &req));
+        TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, &req));
       }
       break;
     }

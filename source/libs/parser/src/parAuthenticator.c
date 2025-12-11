@@ -33,6 +33,7 @@ typedef struct SAuthRewriteCxt {
 } SAuthRewriteCxt;
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
+static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type);
 
 static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
                                bool isView, bool effective, SUserAuthInfo* pAuth) {
@@ -457,7 +458,20 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
 }
 
 static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
-  return TSDB_CODE_SUCCESS;
+  int32_t code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
+                             PRIV_TBL_SELECT);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
+                             PRIV_TBL_INSERT);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
+                             PRIV_RSMA_CREATE);
+  }
+  return code;
 }
 
 static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {

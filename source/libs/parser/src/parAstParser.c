@@ -1361,6 +1361,22 @@ static int32_t collectMetaKeyFromCreateRsmaStmt(SCollectMetaKeyCxt* pCxt, SCreat
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
+                                  pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                  PRIV_TBL_SELECT, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                  PRIV_TBL_INSERT, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                  PRIV_RSMA_CREATE, pCxt->pMetaCache);
+  }
   return code;
 }
 
