@@ -739,7 +739,7 @@ int32_t getNumOfRowsInTimeWinUnsorted(SDataBlockInfo* pDataBlockInfo, TSKEY* pPr
                                       int32_t startPos) {
   int32_t rows = pDataBlockInfo->rows;
   for (int32_t i = startPos; i < pDataBlockInfo->rows; ++i) {
-    if (pPrimaryColumn[i] >= win->skey && pPrimaryColumn[i] < win->ekey) {
+    if (pPrimaryColumn[i] >= win->skey && pPrimaryColumn[i] <= win->ekey) {
       continue;
     } else {
       return i - startPos;
