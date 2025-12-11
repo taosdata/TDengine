@@ -226,6 +226,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   SSubplan* pPlan = NULL;
   int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to parse subplan from msg, msg:%s code:%s", (char*) msg, tstrerror(code));
     terrno = code;
     return NULL;
   }
