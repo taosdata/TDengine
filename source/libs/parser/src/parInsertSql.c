@@ -512,8 +512,41 @@ static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
 #endif
 }
 
+static int32_t parseSingleStrParam(SInsertParseContext* pCxt, const char** ppSql, SToken* pToken, SColVal* pVal,
+                                   char* tokenBuf, int32_t* inputBytes, bool* final) {
+  NEXT_VALID_TOKEN(*ppSql, *pToken);
+  if (TK_NK_LP != pToken->type) {
+    return buildSyntaxErrMsg(&pCxt->msg, "( expected", pToken->z);
+  }
+
+  NEXT_VALID_TOKEN(*ppSql, *pToken);
+  if (TK_NULL == pToken->type) {
+    NEXT_VALID_TOKEN(*ppSql, *pToken);
+    if (TK_NK_RP == pToken->type) {
+      pVal->flag = CV_FLAG_NULL;
+
+      *final = true;
+      return TSDB_CODE_SUCCESS;
+    } else {
+      return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+    }
+  } else if (TK_NK_STRING != pToken->type) {
+    return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
+  }
+
+  *inputBytes = trimString(pToken->z, pToken->n, tokenBuf, TSDB_MAX_BYTES_PER_ROW);
+
+  NEXT_VALID_TOKEN(*ppSql, *pToken);
+  if (TK_NK_RP != pToken->type) {
+    return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken* pToken, SColVal* pVal,
                            SSchema* pSchema) {
+  int32_t   code = 0;
   int32_t   bytes = pSchema->bytes;
   uint8_t** pData = &pVal->value.pData;
   uint32_t* nData = &pVal->value.nData;
@@ -521,35 +554,19 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
   if (TK_NK_ID == pToken->type) {
     char*   input = NULL;
     int32_t inputBytes = 0;
+    int32_t outputBytes = 0;
     char    tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW];
+    bool    final = false;
 
     if (0 == strncasecmp(pToken->z, "from_base64(", 12)) {
-      NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_LP != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "( expected", pToken->z);
+      code = parseSingleStrParam(pCxt, ppSql, pToken, pVal, tmpTokenBuf, &inputBytes, &final);
+      if (TSDB_CODE_SUCCESS != code || final) {
+        return code;
       }
 
-      NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NULL == pToken->type) {
-        NEXT_VALID_TOKEN(*ppSql, *pToken);
-        if (TK_NK_RP == pToken->type) {
-          pVal->flag = CV_FLAG_NULL;
-
-          return TSDB_CODE_SUCCESS;
-        }
-      } else if (TK_NK_STRING != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
-      }
-
-      inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
       input = tmpTokenBuf;
 
-      NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_RP != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
-      }
-
-      int32_t outputBytes = tbase64_decode_len(inputBytes);
+      outputBytes = tbase64_decode_len(inputBytes);
       if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
@@ -566,32 +583,14 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
       *nData = outputBytes;
     } else if (0 == strncasecmp(pToken->z, "to_base64(", 10)) {
-      NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_LP != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "( expected", pToken->z);
+      code = parseSingleStrParam(pCxt, ppSql, pToken, pVal, tmpTokenBuf, &inputBytes, &final);
+      if (TSDB_CODE_SUCCESS != code || final) {
+        return code;
       }
 
-      NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NULL == pToken->type) {
-        NEXT_VALID_TOKEN(*ppSql, *pToken);
-        if (TK_NK_RP == pToken->type) {
-          pVal->flag = CV_FLAG_NULL;
-
-          return TSDB_CODE_SUCCESS;
-        }
-      } else if (TK_NK_STRING != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
-      }
-
-      inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
       input = tmpTokenBuf;
 
-      NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_RP != pToken->type) {
-        return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
-      }
-
-      int32_t outputBytes = tbase64_encode_len(inputBytes);
+      outputBytes = tbase64_encode_len(inputBytes);
       if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
