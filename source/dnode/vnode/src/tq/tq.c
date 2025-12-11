@@ -672,6 +672,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         continue;
       }
       if (req.subType == TOPIC_SUB_TYPE__COLUMN && strcmp(req.qmsg, pHandle->execHandle.execCol.qmsg) != 0) {
+        tqInfo("vgId:%d, topic:%s, subscribe qmsg changed from %s to %s, need recreate handle", pTq->pVnode->config.vgId,
+               pHandle->subKey, pHandle->execHandle.execCol.qmsg, req.qmsg);
         tqUnregisterPushHandle(pTq, pHandle);
         STqHandle handle = {0};
         ret = tqMetaCreateHandle(pTq, &req, &handle);
