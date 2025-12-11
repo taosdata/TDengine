@@ -148,11 +148,11 @@ class TestOthersOldCaseTaosdshell:
             tdSql.query(f"create table {self.sdb}.ct1 using {self.sdb}.stb tags(1000);create table {self.sdb}.ct2 using {self.sdb}.stb tags(2000);create table {self.sdb}.ct3 using {self.sdb}.stb tags(3000);")
             tdSql.query(f"create stream s1 interval(10m) sliding(10m) from {self.sdb}.stb partition by tbname into {self.sdb}.output_stb as select _twstart AS startts, min(k), max(k), sum(k) from %%trows;")
         
-        #TD-19944 -Q=3
-        # tdsqlN=tdCom.newTdSql()
+            #TD-19944 -Q=3
+            # tdsqlN=tdCom.newTdSql()
 
-        tdSql.query(f"select * from {self.sdb}.stb")
-        tdSql.query(f"select * from {self.db}.stb")
+            tdSql.query(f"select * from {self.sdb}.stb")
+            tdSql.query(f"select * from {self.db}.stb")
 
     # def insert1(self):
     #     pass
