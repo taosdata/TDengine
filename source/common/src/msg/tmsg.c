@@ -6178,6 +6178,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactEndTime));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
 
   tEndEncode(&encoder);
 
@@ -6286,8 +6287,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isAudit));
   } else {
     pReq->encryptAlgrName[0] = '\0';
+    pReq->isAudit = 0;
   }
 
   tEndDecode(&decoder);
@@ -6347,6 +6350,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
   tEndEncode(&encoder);
 
 _exit:
@@ -6430,8 +6434,10 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isAudit));
   } else {
     pReq->encryptAlgrName[0] = '\0';
+    pReq->isAudit = 0;
   }
   
   tEndDecode(&decoder);
@@ -8295,6 +8301,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->compactTimeOffset));
   TAOS_CHECK_RETURN(tEncodeU8(encoder, pRsp->flags));
   TAOS_CHECK_RETURN(tEncodeCStr(encoder, pRsp->algorithmsId));
+  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->isAudit));
 
   return 0;
 }
@@ -8410,6 +8417,10 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pRsp->algorithmsId));
+    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->isAudit));
+  } else {
+    pRsp->algorithmsId[0] = '\0';
+    pRsp->isAudit = 0;
   }
 
   return 0;

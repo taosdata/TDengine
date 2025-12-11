@@ -570,6 +570,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_DB_WITH_ARBITRATOR 0
 #define TSDB_MIN_DB_WITH_ARBITRATOR     0
 #define TSDB_MAX_DB_WITH_ARBITRATOR     1
+#define TSDB_MIN_DB_IS_AUDIT            0
+#define TSDB_MAX_DB_IS_AUDIT            1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
