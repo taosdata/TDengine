@@ -1788,6 +1788,23 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _OVER;
     }
+    
+    // First load: copy to global variables
+    tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
+    tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
+    tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
+    tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
+    tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
+    tsEncryptAlgorithmType = algorithm;
+    tsEncryptFileVersion = fileVersion;
+    tsEncryptKeyVersion = keyVersion;
+    tsEncryptKeyCreateTime = createTime;
+    tsSvrKeyUpdateTime = svrKeyUpdateTime;
+    tsDbKeyUpdateTime = dbKeyUpdateTime;
+    
+    // Mark keys as loaded (should be last to avoid race condition)
+    tsEncryptKeysLoaded = true;
+    mInfo("encryption keys loaded successfully, keyVersion:%d", keyVersion);
   }
 
   // Check if dnode needs update

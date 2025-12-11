@@ -18,6 +18,14 @@
 #include "tgrant.h"
 #include "thttp.h"
 #include "streamMsg.h"
+#ifdef TD_ENTERPRISE
+#include "taoskInt.h"
+#endif
+
+// Encryption key expiration constants
+#define ENCRYPT_KEY_EXPIRE_DAYS      30
+#define MILLISECONDS_PER_DAY         (24 * 3600 * 1000)
+#define ENCRYPT_KEY_EXPIRE_THRESHOLD ((int64_t)ENCRYPT_KEY_EXPIRE_DAYS * MILLISECONDS_PER_DAY)
 
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
@@ -77,11 +85,73 @@ static void *dmKeySyncThreadFp(void *param) {
 
     // Sync keys periodically (every 30 seconds) or on first run
     if (interval >= 30000 || lastTime == 0) {
-      dmSendKeySyncReq(pMgmt);
-      lastTime = curTime;
+      if (tsEncryptKeysLoaded) {
+        // Check if encryption keys are expired
+        int64_t svrKeyAge = curTime - tsSvrKeyUpdateTime;
+        int64_t dbKeyAge = curTime - tsDbKeyUpdateTime;
 
-      // After first successful sync, we can break if keys are synchronized
-      // But we keep checking periodically for updates
+        if (svrKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD || dbKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD) {
+          dWarn("encryption keys may be expired, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
+                " days, attempting reload",
+                svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+#ifdef TD_ENTERPRISE
+          // Try to reload keys from file
+          char masterKeyFile[PATH_MAX] = {0};
+          char derivedKeyFile[PATH_MAX] = {0};
+          snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                   TD_DIRSEP, TD_DIRSEP);
+          snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                   TD_DIRSEP, TD_DIRSEP);
+
+          char    svrKey[129] = {0};
+          char    dbKey[129] = {0};
+          char    cfgKey[129] = {0};
+          char    metaKey[129] = {0};
+          char    dataKey[129] = {0};
+          int32_t algorithm = 0;
+          int32_t fileVersion = 0;
+          int32_t keyVersion = 0;
+          int64_t createTime = 0;
+          int64_t svrKeyUpdateTime = 0;
+          int64_t dbKeyUpdateTime = 0;
+
+          int32_t code =
+              taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                                   &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+          if (code == 0) {
+            // Update global variables with reloaded keys
+            tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
+            tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
+            tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
+            tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
+            tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
+            tsEncryptAlgorithmType = algorithm;
+            tsEncryptFileVersion = fileVersion;
+            tsEncryptKeyVersion = keyVersion;
+            tsEncryptKeyCreateTime = createTime;
+            tsSvrKeyUpdateTime = svrKeyUpdateTime;
+            tsDbKeyUpdateTime = dbKeyUpdateTime;
+
+            // Check if keys are still expired after reload
+            svrKeyAge = curTime - tsSvrKeyUpdateTime;
+            dbKeyAge = curTime - tsDbKeyUpdateTime;
+            if (svrKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD || dbKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD) {
+              dError("encryption keys are still expired after reload, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
+                     " days, please rotate keys",
+                     svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+            } else {
+              dInfo("successfully reloaded encryption keys, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64 " days",
+                    svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+            }
+          } else {
+            dError("failed to reload encryption keys since %s", tstrerror(code));
+          }
+#endif
+        }
+      } else {
+        dmSendKeySyncReq(pMgmt);
+      }
+      lastTime = curTime;
     }
   }
   return NULL;
