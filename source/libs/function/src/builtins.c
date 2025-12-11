@@ -1694,7 +1694,7 @@ static int32_t translateMaskFull(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateMaskNone(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateMaskAsInputStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
@@ -7009,7 +7009,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
-    .translateFunc = translateMaskNone,
+    .translateFunc = translateMaskAsInputStr,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = maskPartialFunction,
@@ -7030,7 +7030,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
-    .translateFunc = translateMaskNone,
+    .translateFunc = translateMaskAsInputStr,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = maskNoneFunction,
