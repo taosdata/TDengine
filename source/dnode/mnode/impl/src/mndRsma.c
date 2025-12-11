@@ -994,11 +994,26 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
   }
 
   if (!(pDb = mndAcquireDb(pMnode, pObj->dbFName))) {
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_EXIST);
   }
 
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+  const char *owner = pObj->owner[0] != 0 ? pObj->owner : pObj->createUser;
+  char        db[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)snprintf(db, sizeof(db), "%d.*", pUser->acctId);
+  bool hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_ALTER, owner, db, "*");
+  if (!hasPrivilege) {
+    hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_ALTER, owner, pObj->dbFName, "*");
+    if (!hasPrivilege) {
+      hasPrivilege = mndCheckObjPrivilege(pMnode, pUser, PRIV_RSMA_ALTER, owner, pObj->dbFName, pObj->name);
+      if (!hasPrivilege) {
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
+      }
+    }
+  }
 
   (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
 
@@ -1007,7 +1022,6 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
   TAOS_CHECK_EXIT(mndAlterRsma(pMnode, pReq, pUser, pDb, pStb, &req, pObj));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1022,6 +1036,7 @@ _exit:
   if (pObj) mndReleaseRsma(pMnode, pObj);
   if (pStb) mndReleaseStb(pMnode, pStb);
   if (pDb) mndReleaseDb(pMnode, pDb);
+  if (pUser) mndReleaseUser(pMnode, pUser);
   tFreeSMAlterRsmaReq(&req);
 #endif
   TAOS_RETURN(code);
