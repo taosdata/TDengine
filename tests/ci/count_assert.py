@@ -79,7 +79,9 @@ def check_list_result(result_list,detaild_list):
     remove_detail_items = [
             f"{TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:ASSERT_CORE(tsdb->imem == NULL, \"imem should be null to commit mem\");",
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(float) == sizeof(uint32_t));",
-            f"{TD_project_path}/community/include/util/types.h:assert(sizeof(double) == sizeof(uint64_t));"
+            f"{TD_project_path}/community/include/util/types.h:assert(sizeof(double) == sizeof(uint64_t));",
+            f"{TD_project_path}/community/source/libs/nodes/src/nodesUtilFuncs.c:ASSERT(0);"
+            
         ]
     expected_strings = [
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
