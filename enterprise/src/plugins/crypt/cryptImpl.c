@@ -20,11 +20,7 @@
 #include "crypt.h"
 #include "sm4.h"
 
-#if defined(TD_ENTERPRISE) && defined(LINUX)
 int32_t Builtin_CBC_DecryptImpl(SCryptOpts *opts) {
-#else
-int32_t CBC_DecryptImpl(SCryptOpts *opts) {
-#endif
   int NewLen = 0;
 
   int32_t count = 0;
@@ -36,11 +32,7 @@ int32_t CBC_DecryptImpl(SCryptOpts *opts) {
   return count;
 }
 
-#if defined(TD_ENTERPRISE) && defined(LINUX)
 int32_t Builtin_CBC_EncryptImpl(SCryptOpts *opts) {
-#else
-int32_t CBC_EncryptImpl(SCryptOpts *opts) {
-#endif
   int NewLen = 0;
 
   int32_t count = 0;
