@@ -1529,7 +1529,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsMaxTsmaCalcDelay = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tsmaDataDeleteMark");
-  tsmaDataDeleteMark = pItem->i32;
+  tsmaDataDeleteMark = pItem->i64;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "safetyCheckLevel");
   tsSafetyCheckLevel = pItem->i32;
