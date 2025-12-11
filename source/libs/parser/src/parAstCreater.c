@@ -3541,6 +3541,16 @@ _err:
   return NULL;
 }
 
+SNode* createShowTokensStmt(SAstCreateContext* pCxt, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowTokensStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
   if (pStmt == NULL) {
     return NULL;
@@ -4667,7 +4677,9 @@ SNode* createCreateTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, SToken
   CHECK_NAME(checkTokenName(pCxt, pTokenName));
   CHECK_NAME(checkUserName(pCxt, pUserName));
 
-  if (!isValidTokenOptions(pCxt, opts)) {
+  if (opts == NULL) {
+    opts = createDefaultTokenOptions(pCxt);
+  } else if (!isValidTokenOptions(pCxt, opts)) {
     goto _err;
   }
 

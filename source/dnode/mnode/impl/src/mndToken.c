@@ -15,10 +15,12 @@
 
 #define _DEFAULT_SOURCE
 
+#include "audit.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndToken.h"
 
 #define TOKEN_VER_NUMBER   1
 #define TOKEN_RESERVE_SIZE 64
@@ -35,12 +37,13 @@ static SSdbRaw *mndTokenActionEncode(STokenObj *pObj) {
 
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pObj->name, sizeof(pObj->name), _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->token, sizeof(pObj->token), _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->user, sizeof(pObj->user), _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->provider, sizeof(pObj->provider), _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->extraInfo, sizeof(pObj->extraInfo), _OVER)
   SDB_SET_INT8(pRaw, dataPos, pObj->enabled, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pObj->expireTime, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->createdTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->expireTime, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TOKEN_RESERVE_SIZE, _OVER)
 
 _OVER:
@@ -87,12 +90,13 @@ static SSdbRow *mndTokenActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pObj->name, sizeof(pObj->name), _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pObj->token, sizeof(pObj->token), _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pObj->user, sizeof(pObj->user), _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pObj->provider, sizeof(pObj->provider), _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pObj->extraInfo, sizeof(pObj->extraInfo), _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pObj->enabled, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pObj->expireTime, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pObj->createdTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pObj->expireTime, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, TOKEN_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pObj->lock);
 
@@ -137,63 +141,163 @@ static int32_t mndTokenActionUpdate(SSdb *pSdb, STokenObj *pOld, STokenObj *pNew
 
 
 
-static int32_t mndCreateToken(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SCreateTokenReq *pCreate) {
-  int32_t code = -1;
+static int32_t countUserTokens(SMnode *pMnode, const char *user) {
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  STokenObj *pToken = NULL;
+  int32_t    count = 0;
+
+  while (true) {
+    pIter = sdbFetch(pSdb, SDB_TOKEN, pIter, (void **)&pToken);
+    if (pIter == NULL) break;
+
+    if (taosStrcasecmp(pToken->user, user) == 0) {
+      count++;
+    }
+
+    sdbRelease(pSdb, pToken);
+  }
+
+  return count;
+}
+
+
+
+static void generateToken(char *token, size_t len) {
+  const char* set = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  int32_t     setLen = 62;
+  for (int32_t i = 0; i < len - 1; ++i) {
+    token[i] = set[taosSafeRand() % setLen];
+  }
+  token[len - 1] = 0;
+}
+
+
+
+static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SRpcMsg *pReq) {
+  int32_t code = 0, lino = 0;
 
   STokenObj tokenObj = {0};
-  tokenObj.createdTime = taosGetTimestampMs();
+  tstrncpy(tokenObj.name, pCreate->name, sizeof(tokenObj.name));
+  tstrncpy(tokenObj.user, pCreate->user, sizeof(tokenObj.user));
+  tstrncpy(tokenObj.provider, pCreate->provider, sizeof(tokenObj.provider));
+  tstrncpy(tokenObj.extraInfo, pCreate->extraInfo, sizeof(tokenObj.extraInfo));
+  tokenObj.enabled    = pCreate->enable;
+  tokenObj.createdTime = taosGetTimestampSec();
+  tokenObj.expireTime = (pCreate->ttl > 0) ? (tokenObj.createdTime + pCreate->ttl) : 0;
+  generateToken(tokenObj.token, sizeof(tokenObj.token));
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-token");
   if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _OVER;
+    mError("token:%s, failed to create since %s", pCreate->name, terrstr());
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  mInfo("trans:%d, used to create token:%s", pTrans->id, pCreate->name);
+
+  SSdbRaw *pCommitRaw = mndTokenActionEncode(&tokenObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
-  mInfo("trans:%d, to create token from:%s", pTrans->id, pCreate->user);
+  /*
+  if ((code = userCacheUpdateWhiteList(pMnode, &userObj)) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+    */
 
-  code = 0;
+  mndTransDrop(pTrans);
 
 _OVER:
-  mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
 
 
 
 static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
-  SMnode          *pMnode = pReq->info.node;
-  int32_t          code = -1;
-  STokenObj       *pObj = NULL;
-  SDnodeObj       *pDnode = NULL;
+  SMnode         *pMnode = pReq->info.node;
+  int32_t         code = 0, lino = 0;
+  STokenObj      *pToken = NULL;
+  SUserObj       *pOperUser = NULL;
+  SUserObj       *pTokenUser = NULL;
   SCreateTokenReq createReq = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSCreateTokenReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
+  if (tDeserializeSCreateTokenReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
+    goto _OVER;
+  }
 
   mInfo("token from user:%s, start to create", createReq.user);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOKEN), NULL, _OVER);
 
-  /*
-  pObj = mndAcquireToken(pMnode, createReq.dnodeId);
-  if (pObj != NULL) {
-    code = terrno = TSDB_CODE_MND_TOKEN_ALREADY_EXIST;
-    goto _OVER;
-  } else if (terrno != TSDB_CODE_MND_TOKEN_NOT_EXIST) {
-    code = terrno;
+  if (createReq.name[0] == '\0') {
+    code = TSDB_CODE_MND_INVALID_TOKEN_NAME;
     goto _OVER;
   }
-    */
+
+  code = mndAcquireToken(pMnode, createReq.name, &pToken);
+  if (pToken != NULL) {
+    code = TSDB_CODE_MND_TOKEN_ALREADY_EXIST;
+    goto _OVER;
+  }
+
+  code = mndAcquireUser(pMnode, createReq.user, &pTokenUser);
+  if (pTokenUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
+  }
+
+  if (pTokenUser->allowTokenNum > 0) {
+    int32_t num = countUserTokens(pMnode, createReq.user);
+    if (num >= pTokenUser->allowTokenNum) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_TOKENS, &lino, _OVER);
+    }
+  }
+
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
+  }
+
+  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, createReq.user), NULL, _OVER);
+
+  code = mndCreateToken(pMnode, &createReq, pReq);
+  if (code == 0) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+
+  char detail[256] = {0};
+  (void)tsnprintf(detail, sizeof(detail), "enable:%d, provider:%s", createReq.enable, createReq.provider);
+  auditRecord(pReq, pMnode->clusterId, "createToken", "", createReq.name, detail, strlen(detail));
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to create token from user %s since %s", createReq.user, tstrerror(code));
-    TAOS_RETURN(code);
+  if (code == TSDB_CODE_MND_TOKEN_ALREADY_EXIST && createReq.ignoreExists) {
+    code = 0;
+  } else if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("token:%s, failed to create at line %d since %s", createReq.name, lino, tstrerror(code));
   }
 
-  //  mndReleaseToken(pMnode, pObj);
+  mndReleaseToken(pMnode, pToken);
+  mndReleaseUser(pMnode, pTokenUser);
+  mndReleaseUser(pMnode, pOperUser);
   tFreeSCreateTokenReq(&createReq);
 
   TAOS_RETURN(code);
+}
+
+
+
+static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
+
+_OVER:
+  return 0;
 }
 
 
@@ -216,14 +320,6 @@ static int32_t mndDropToken(SMnode *pMnode, SRpcMsg *pReq, STokenObj *pObj) {
 _OVER:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
-}
-
-
-
-static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
-
-_OVER:
-  return 0;
 }
 
 
@@ -277,37 +373,50 @@ static int32_t mndRetrieveTokens(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t   lino = 0;
   int32_t   numOfRows = 0;
   STokenObj *pToken = NULL;
-  int32_t   cols = 0;
-  int8_t    flag = 0;
-  char     *pWrite = NULL;
-  char     *buf = NULL;
-  char     *varstr = NULL;
+  char      buf[TSDB_TOKEN_EXTRA_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_TOKEN, pShow->pIter, (void **)&pToken);
     if (pShow->pIter == NULL) break;
 
-    cols = 0;
+    int32_t cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    char             name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
-    //STR_WITH_MAXSIZE_TO_VARSTR(name, pToken->user, pShow->pMeta->pSchemas[cols].bytes);
-    COL_DATA_SET_VAL_GOTO((const char *)name, false, pToken, pShow->pIter, _exit);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pToken->name, pShow->pMeta->pSchemas[cols].bytes);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pToken, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    //COL_DATA_SET_VAL_GOTO((const char *)&pToken->superUser, false, pToken, pShow->pIter, _exit);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pToken->token, pShow->pMeta->pSchemas[cols].bytes);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pToken, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    //COL_DATA_SET_VAL_GOTO((const char *)&pUser->enable, false, pUser, pShow->pIter, _exit);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pToken->user, pShow->pMeta->pSchemas[cols].bytes);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pToken, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    //COL_DATA_SET_VAL_GOTO((const char *)&pUser->sysInfo, false, pUser, pShow->pIter, _exit);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pToken->provider, pShow->pMeta->pSchemas[cols].bytes);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pToken, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    // COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, pShow->pIter, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pToken->enabled, false, pToken, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    int64_t tm = (int64_t)pToken->createdTime * 1000;
+    COL_DATA_SET_VAL_GOTO((const char *)&tm, false, pToken, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    tm = (int64_t)pToken->expireTime * 1000;
+    COL_DATA_SET_VAL_GOTO((const char *)&tm, false, pToken, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pToken->extraInfo, pShow->pMeta->pSchemas[cols].bytes);
+    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pToken, pShow->pIter, _exit);
 
     numOfRows++;
     sdbRelease(pSdb, pToken);
@@ -315,8 +424,6 @@ static int32_t mndRetrieveTokens(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
   pShow->numOfRows += numOfRows;
 _exit:
-  taosMemoryFreeClear(buf);
-  taosMemoryFreeClear(varstr);
   if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
@@ -335,7 +442,7 @@ static void mndCancelGetNextToken(SMnode *pMnode, void *pIter) {
 
 int32_t mndInitToken(SMnode *pMnode) {
   SSdbTable table = {
-      .sdbType = SDB_BNODE,
+      .sdbType = SDB_TOKEN,
       .keyType = SDB_KEY_INT32,
       .encodeFp = (SdbEncodeFp)mndTokenActionEncode,
       .decodeFp = (SdbDecodeFp)mndTokenActionDecode,

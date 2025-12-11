@@ -730,6 +730,10 @@ typedef struct SShowSsMigratesStmt {
   ENodeType type;
 } SShowSsMigratesStmt;
 
+typedef struct SShowTokensStmt {
+  ENodeType type;
+} SShowTokensStmt;
+
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
   SNode*    pTransactionId;

@@ -445,6 +445,7 @@ static SKeyword keywordTable[] = {
     {"OSSL_ALGR_NAME",       TK_OSSL_ALGR_NAME},
     {"PROVIDER",             TK_PROVIDER},
     {"EXTRA_INFO",           TK_EXTRA_INFO},
+    {"TOKENS",               TK_TOKENS},
 };
 // clang-format on
 

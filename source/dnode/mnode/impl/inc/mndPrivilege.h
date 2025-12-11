@@ -41,6 +41,7 @@ int32_t mndEnableIpWhiteList(SMnode *pMnode);
 int32_t mndFetchIpWhiteList(SIpWhiteList *ipList, char **buf);
 int32_t mndEnableTimeWhiteList(SMnode *pMnode);
 int32_t mndSetUserDateTimeWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SUserDateTimeWhiteList *pWhiteListRsp);
+int32_t mndCheckTokenPrivilege(SUserObj* pOperUser, const char *user);
 
 #ifdef __cplusplus
 }
