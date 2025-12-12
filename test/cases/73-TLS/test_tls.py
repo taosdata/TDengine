@@ -92,8 +92,8 @@ class TestTLSDemo:
         cli.query("show databases")
 
 
-    def updateTls(self, cli):
-        cli.execute("alter dnodes reload tls") 
+    # def updateTls(self, cli):
+    #     #cli.execute("alter dnodes reload tls") 
     def test_tls_demo(self):
         """summary: xxx
 
