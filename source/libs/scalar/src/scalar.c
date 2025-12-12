@@ -1469,9 +1469,11 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
     for (int32_t i = 0; i < rowNum; ++i) {
       bool *whenValue = (bool *)colDataGetData(pWhen->columnData, (pWhen->numOfRows > 1 ? i : 0));
       if (*whenValue) {
-        SCL_ERR_JRET(colDataSetVal(output->columnData, i,
-                                   colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)),
-                                   colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? i : 0))));
+        if (colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? i : 0))) {
+          SCL_ERR_JRET(colDataSetVal(output->columnData, i,  NULL, true));
+        } else {
+          SCL_ERR_JRET(colDataSetVal(output->columnData, i,  colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)), false));
+        }
         if (0 == i && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && rowNum > 1) {
           SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
           break;

@@ -1828,6 +1828,11 @@ _err:
 
 SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
+  if (isSubQueryNode(pStart) || isSubQueryNode(pEnd) || isSubQueryNode(pInterval)) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  
   if (NULL == pInterval) {
     if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
       return createInterpTimeAround(pCxt, pStart, NULL, pEnd);
@@ -1841,11 +1846,17 @@ _err:
 
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
+  nodesDestroyNode(pInterval);
   return NULL;
 }
 
 SNode* createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint) {
   CHECK_PARSER_STATUS(pCxt);
+  if (isSubQueryNode(pPoint)) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  
   return createOperatorNode(pCxt, OP_TYPE_EQUAL, createPrimaryKeyCol(pCxt, NULL), pPoint);
 _err:
   nodesDestroyNode(pPoint);

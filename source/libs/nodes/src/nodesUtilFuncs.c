@@ -1487,6 +1487,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
+      nodesDestroyList(pStmt->pSubQueries);
       nodesDestroyList(pStmt->pProjectionList);
       nodesDestroyNode(pStmt->pLeft);
       nodesDestroyNode(pStmt->pRight);

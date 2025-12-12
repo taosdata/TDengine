@@ -25,6 +25,7 @@ extern "C" {
 
 #define nodeType(nodeptr)              (((const SNode*)(nodeptr))->type)
 #define setNodeType(nodeptr, nodetype) (((SNode*)(nodeptr))->type = (nodetype))
+#define isSubQueryNode(nodeptr) (nodeptr && ((QUERY_NODE_SELECT_STMT == nodeType(nodeptr)) || (QUERY_NODE_SET_OPERATOR == nodeType(nodeptr))))
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 

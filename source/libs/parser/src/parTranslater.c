@@ -463,7 +463,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
 };
 // clang-format on
 
-static int32_t  translateSubquery(STranslateContext* pCxt, SNode* pNode);
+static int32_t  translateTableSubquery(STranslateContext* pCxt, SNode* pNode);
+static int32_t  translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode);
 static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal);
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc);
@@ -1108,6 +1109,7 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   taosHashCleanup(pCxt->pDbs);
   taosHashCleanup(pCxt->pTables);
   taosHashCleanup(pCxt->pTargetTables);
+  nodesDestroyList(pCxt->pSubQueries);
 }
 
 static bool isSelectStmt(SNode* pCurrStmt) {
@@ -3865,6 +3867,7 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
         SRemoteValueNode* pValue = (SRemoteValueNode*)*pNode;
         pValue->val.flag |= VALUE_FLAG_VAL_UNSET;
         pValue->subQIdx = pCxt->pSubQueries->length - 1;
+        tstrncpy(pValue->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValue->val.node.aliasName));
         tstrncpy(pValue->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValue->val.node.userAlias));
         getScalarSubQueryResType(pSubQuery, &pValue->val.node.resType);
       }
@@ -3889,7 +3892,7 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
     pCxt->errCode = updateExprSubQueryType(*pNode, pCxt->expSubQueryType);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = translateSubquery(pCxt, *pNode);
+    pCxt->errCode = translateExprSubqueryImpl(pCxt, *pNode);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = rewriteExpSubQuery(pCxt, pNode, *pNode);
@@ -6177,7 +6180,7 @@ static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool 
   SSelectStmt*    pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
   int32_t         code = TSDB_CODE_SUCCESS;
 
-  PAR_ERR_JRET(translateSubquery(pCxt, pTempTable->pSubquery));
+  PAR_ERR_JRET(translateTableSubquery(pCxt, pTempTable->pSubquery));
 
   if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && isSelectStmt(pCxt->pCurrStmt)) {
     if(pSubStmt->isEmptyResult) {
@@ -17708,54 +17711,57 @@ static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateCon
   return TSDB_CODE_SUCCESS;
 }
 
-
-static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
+static int32_t translateTableSubquery(STranslateContext* pCxt, SNode* pNode) {
   int32_t    code = TSDB_CODE_SUCCESS;
   
-  if (SQL_CLAUSE_FROM == pCxt->currClause) {
-    ESqlClause currClause = pCxt->currClause;
-    SNode*     pCurrStmt = pCxt->pCurrStmt;
-    int32_t    currLevel = pCxt->currLevel;
-    pCxt->currLevel = ++(pCxt->levelNo);
-    code = translateQuery(pCxt, pNode);
-    pCxt->currClause = currClause;
-    pCxt->pCurrStmt = pCurrStmt;
-    pCxt->currLevel = currLevel;
-  } else {
-    STranslateContext cxt = {0};
-    cxt.isExprSubQ = true;
-    
-    code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
-    if (TSDB_CODE_SUCCESS == code) {
-      cxt.pSubQueries = pCxt->pSubQueries;
-      code = setCurrLevelNsFromParent(pCxt, &cxt);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = translateQuery(&cxt, pNode);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      updateContextFromSubQ(pCxt, pNode, &cxt);
-    }
-    int32_t tmpCode = mergeTranslateContextMetas(pCxt, &cxt);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = tmpCode;
-    }
-    
-    cxt.pSubQueries = NULL;
-    destroyTranslateContext(&cxt);
+  ESqlClause currClause = pCxt->currClause;
+  SNode*     pCurrStmt = pCxt->pCurrStmt;
+  int32_t    currLevel = pCxt->currLevel;
+  pCxt->currLevel = ++(pCxt->levelNo);
+  code = translateQuery(pCxt, pNode);
+  pCxt->currClause = currClause;
+  pCxt->pCurrStmt = pCurrStmt;
+  pCxt->currLevel = currLevel;
 
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListAppend(pCxt->pSubQueries, pNode);
-    }
-    if (pCxt->isCorrelatedSubQ) {
-      parserError("Correlated subQuery not supported now");
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
-    }
-    if (pCxt->hasLocalSubQ) {
-      parserError("Only query with FROM supported now");
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
-    }
+  return code;
+}
+
+static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  STranslateContext cxt = {0};
+  cxt.isExprSubQ = true;
+  
+  code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
+  if (TSDB_CODE_SUCCESS == code) {
+    cxt.pSubQueries = pCxt->pSubQueries;
+    code = setCurrLevelNsFromParent(pCxt, &cxt);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateQuery(&cxt, pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    updateContextFromSubQ(pCxt, pNode, &cxt);
+  }
+  int32_t tmpCode = mergeTranslateContextMetas(pCxt, &cxt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tmpCode;
+  }
+  
+  cxt.pSubQueries = NULL;
+  destroyTranslateContext(&cxt);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListAppend(pCxt->pSubQueries, pNode);
+  }
+  if (pCxt->isCorrelatedSubQ) {
+    parserError("Correlated subQuery not supported now");
+    code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+  }
+  if (pCxt->hasLocalSubQ) {
+    parserError("Only query with FROM supported now");
+    code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+  }
+    
   return code;
 }
 
@@ -22439,7 +22445,7 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
     pQuery->pPrevRoot = cxt.pPrevRoot;
     pQuery->pPostRoot = cxt.pPostRoot;
   }
-  if (TSDB_CODE_SUCCESS == code && cxt.pSubQueries && cxt.pSubQueries->length > 0) {
+  if (cxt.pSubQueries && cxt.pSubQueries->length > 0) {
     transferSubQueries(&cxt, pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
