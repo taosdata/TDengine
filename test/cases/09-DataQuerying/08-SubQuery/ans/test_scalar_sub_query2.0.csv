@@ -1,0 +1,1555 @@
+
+taos> use db1;
+Database changed.
+
+taos> select (select 0 from st1 limit 1) from st1;
+ (select 0 from st1 limit 1) |
+==============================
+                           0 |
+                           0 |
+                           0 |
+                           0 |
+                           0 |
+                           0 |
+
+taos> select (select 1 from st1 limit 1) from st1;
+ (select 1 from st1 limit 1) |
+==============================
+                           1 |
+                           1 |
+                           1 |
+                           1 |
+                           1 |
+                           1 |
+
+taos> select (select 2 from st1 limit 1) from st1;
+ (select 2 from st1 limit 1) |
+==============================
+                           2 |
+                           2 |
+                           2 |
+                           2 |
+                           2 |
+                           2 |
+
+taos> select (select 0 from st1 limit 1) a from st1;
+           a           |
+========================
+                     0 |
+                     0 |
+                     0 |
+                     0 |
+                     0 |
+                     0 |
+
+taos> select (select 1 from st1 limit 1) a from st1;
+           a           |
+========================
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+
+taos> select (select 2 from st1 limit 1) a from st1;
+           a           |
+========================
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+
+taos> select distinct (select 0 from st1 limit 1) from st1;
+ (select 0 from st1 limit 1) |
+==============================
+                           0 |
+
+taos> select distinct (select 1 from st1 limit 1) from st1;
+ (select 1 from st1 limit 1) |
+==============================
+                           1 |
+
+taos> select distinct (select 2 from st1 limit 1) from st1;
+ (select 2 from st1 limit 1) |
+==============================
+                           2 |
+
+taos> select distinct (select 0 from st1 limit 1), f1 from st1;
+ (select 0 from st1 limit 1) |     f1      |
+============================================
+                           0 |           6 |
+                           0 |           4 |
+                           0 |           3 |
+                           0 |           5 |
+                           0 |           2 |
+                           0 |           1 |
+
+taos> select distinct (select 1 from st1 limit 1), f1 from st1;
+ (select 1 from st1 limit 1) |     f1      |
+============================================
+                           1 |           2 |
+                           1 |           6 |
+                           1 |           5 |
+                           1 |           1 |
+                           1 |           3 |
+                           1 |           4 |
+
+taos> select distinct (select 2 from st1 limit 1), f1 from st1;
+ (select 2 from st1 limit 1) |     f1      |
+============================================
+                           2 |           4 |
+                           2 |           2 |
+                           2 |           1 |
+                           2 |           6 |
+                           2 |           5 |
+                           2 |           3 |
+
+taos> select distinct tags (select 0 from st1 limit 1) + 1 from st1;
+ (select 0 from st1 limit 1) + 1 |
+==================================
+                               1 |
+
+taos> select distinct tags (select 1 from st1 limit 1) + 1 from st1;
+ (select 1 from st1 limit 1) + 1 |
+==================================
+                               2 |
+
+taos> select distinct tags (select 2 from st1 limit 1) + 1 from st1;
+ (select 2 from st1 limit 1) + 1 |
+==================================
+                               3 |
+
+taos> select (select 0 from st1 limit 1), (select 0 from st1 limit 1) from st1;
+ (select 0 from st1 limit 1) | (select 0 from st1 limit 1) |
+============================================================
+                           0 |                           0 |
+                           0 |                           0 |
+                           0 |                           0 |
+                           0 |                           0 |
+                           0 |                           0 |
+                           0 |                           0 |
+
+taos> select (select 1 from st1 limit 1), (select 1 from st1 limit 1) from st1;
+ (select 1 from st1 limit 1) | (select 1 from st1 limit 1) |
+============================================================
+                           1 |                           1 |
+                           1 |                           1 |
+                           1 |                           1 |
+                           1 |                           1 |
+                           1 |                           1 |
+                           1 |                           1 |
+
+taos> select (select 2 from st1 limit 1), (select 2 from st1 limit 1) from st1;
+ (select 2 from st1 limit 1) | (select 2 from st1 limit 1) |
+============================================================
+                           2 |                           2 |
+                           2 |                           2 |
+                           2 |                           2 |
+                           2 |                           2 |
+                           2 |                           2 |
+                           2 |                           2 |
+
+taos> select abs((select 0 from st1 limit 1)) from st1;
+ abs((select 0 from st1 limit 1)) |
+===================================
+                                0 |
+                                0 |
+                                0 |
+                                0 |
+                                0 |
+                                0 |
+
+taos> select abs((select 1 from st1 limit 1)) from st1;
+ abs((select 1 from st1 limit 1)) |
+===================================
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+                                1 |
+
+taos> select abs((select 2 from st1 limit 1)) from st1;
+ abs((select 2 from st1 limit 1)) |
+===================================
+                                2 |
+                                2 |
+                                2 |
+                                2 |
+                                2 |
+                                2 |
+
+taos> select abs((select 0 from st1 limit 1) + 1) from st1;
+ abs((select 0 from st1 limit 1) + 1) |
+=======================================
+                                    1 |
+                                    1 |
+                                    1 |
+                                    1 |
+                                    1 |
+                                    1 |
+
+taos> select abs((select 1 from st1 limit 1) + 1) from st1;
+ abs((select 1 from st1 limit 1) + 1) |
+=======================================
+                                    2 |
+                                    2 |
+                                    2 |
+                                    2 |
+                                    2 |
+                                    2 |
+
+taos> select abs((select 2 from st1 limit 1) + 1) from st1;
+ abs((select 2 from st1 limit 1) + 1) |
+=======================================
+                                    3 |
+                                    3 |
+                                    3 |
+                                    3 |
+                                    3 |
+                                    3 |
+
+taos> select sum((select 0 from st1 limit 1)) from st1;
+ sum((select 0 from st1 limit 1)) |
+===================================
+                                0 |
+
+taos> select sum((select 1 from st1 limit 1)) from st1;
+ sum((select 1 from st1 limit 1)) |
+===================================
+                                6 |
+
+taos> select sum((select 2 from st1 limit 1)) from st1;
+ sum((select 2 from st1 limit 1)) |
+===================================
+                               12 |
+
+taos> select case when (select 0 from st1 limit 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+ case when (select 0 from st1 limit 1) > 0 then 1 else 2 end |        sum(f1)        |
+======================================================================================
+                                                           2 |                     5 |
+                                                           2 |                     1 |
+                                                           2 |                     3 |
+                                                           2 |                     4 |
+                                                           2 |                     6 |
+                                                           2 |                     2 |
+
+taos> select case when (select 1 from st1 limit 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+ case when (select 1 from st1 limit 1) > 0 then 1 else 2 end |        sum(f1)        |
+======================================================================================
+                                                           1 |                     5 |
+                                                           1 |                     1 |
+                                                           1 |                     3 |
+                                                           1 |                     4 |
+                                                           1 |                     6 |
+                                                           1 |                     2 |
+
+taos> select case when (select 2 from st1 limit 1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+ case when (select 2 from st1 limit 1) > 0 then 1 else 2 end |        sum(f1)        |
+======================================================================================
+                                                           1 |                     5 |
+                                                           1 |                     1 |
+                                                           1 |                     3 |
+                                                           1 |                     4 |
+                                                           1 |                     6 |
+                                                           1 |                     2 |
+
+taos> select case when 1 = 1 then 2 / (select 0 from st1 limit 1) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then 2 / (select 0 from st1 limit 1) else 2 end |        sum(f1)        |
+==========================================================================================
+ NULL                                                            |                     5 |
+ NULL                                                            |                     1 |
+ NULL                                                            |                     3 |
+ NULL                                                            |                     4 |
+ NULL                                                            |                     6 |
+ NULL                                                            |                     2 |
+
+taos> select case when 1 = 1 then 2 / (select 1 from st1 limit 1) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then 2 / (select 1 from st1 limit 1) else 2 end |        sum(f1)        |
+==========================================================================================
+ 2                                                               |                     5 |
+ 2                                                               |                     1 |
+ 2                                                               |                     3 |
+ 2                                                               |                     4 |
+ 2                                                               |                     6 |
+ 2                                                               |                     2 |
+
+taos> select case when 1 = 1 then 2 / (select 2 from st1 limit 1) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then 2 / (select 2 from st1 limit 1) else 2 end |        sum(f1)        |
+==========================================================================================
+ 1                                                               |                     5 |
+ 1                                                               |                     1 |
+ 1                                                               |                     3 |
+ 1                                                               |                     4 |
+ 1                                                               |                     6 |
+ 1                                                               |                     2 |
+
+taos> select case when 0 = 1 then 1 else (select 0 from st1 limit 1) is null end, sum(f1) from st1 group by f1;
+ case when 0 = 1 then 1 else (select 0 from st1 limit 1) is null  |        sum(f1)        |
+===========================================================================================
+                                                                0 |                     5 |
+                                                                0 |                     1 |
+                                                                0 |                     3 |
+                                                                0 |                     4 |
+                                                                0 |                     6 |
+                                                                0 |                     2 |
+
+taos> select case when 0 = 1 then 1 else (select 1 from st1 limit 1) is null end, sum(f1) from st1 group by f1;
+ case when 0 = 1 then 1 else (select 1 from st1 limit 1) is null  |        sum(f1)        |
+===========================================================================================
+                                                                0 |                     5 |
+                                                                0 |                     1 |
+                                                                0 |                     3 |
+                                                                0 |                     4 |
+                                                                0 |                     6 |
+                                                                0 |                     2 |
+
+taos> select case when 0 = 1 then 1 else (select 2 from st1 limit 1) is null end, sum(f1) from st1 group by f1;
+ case when 0 = 1 then 1 else (select 2 from st1 limit 1) is null  |        sum(f1)        |
+===========================================================================================
+                                                                0 |                     5 |
+                                                                0 |                     1 |
+                                                                0 |                     3 |
+                                                                0 |                     4 |
+                                                                0 |                     6 |
+                                                                0 |                     2 |
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = (select 0 from st1 limit 1) order by 1;
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and a.f1 > (select 0 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and a.f1 > (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and a.f1 > (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and b.f1 = (select 0 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and b.f1 = (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and b.f1 = (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and b.f1 = (select 0 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and b.f1 = (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and b.f1 = (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and a.f1 = (select 0 from st1 limit 1) order by 1;
+
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and a.f1 = (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and a.f1 = (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and b.f1 > (select 0 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and b.f1 > (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and b.f1 > (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and a.f1 != (select 0 from st1 limit 1) order by 1;
+
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and a.f1 != (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and a.f1 != (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and b.f1 <= (select 0 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and b.f1 <= (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and b.f1 <= (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and a.f1 != (select 0 from st1 limit 1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and a.f1 != (select 1 from st1 limit 1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and a.f1 != (select 2 from st1 limit 1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and b.f1 <= (select 0 from st1 limit 1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and b.f1 <= (select 1 from st1 limit 1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and b.f1 <= (select 2 from st1 limit 1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit (select 0 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 0 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit (select 1 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 1 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit (select 2 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 2 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit (select 0 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 0 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit (select 1 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 1 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit (select 2 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 2 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b on a.f1 = (select 0 from st1 limit 1) window_offset(-1d, 1d) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left window join st1 b on a.f1 = (select 1 from st1 limit 1) window_offset(-1d, 1d) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left window join st1 b on a.f1 = (select 2 from st1 limit 1) window_offset(-1d, 1d) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right window join st1 b on b.f1 = (select 0 from st1 limit 1) window_offset(-1d, 1d) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right window join st1 b on b.f1 = (select 1 from st1 limit 1) window_offset(-1d, 1d) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right window join st1 b on b.f1 = (select 2 from st1 limit 1) window_offset(-1d, 1d) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit (select 0 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 0 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit (select 1 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 1 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit (select 2 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 2 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit (select 0 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 0 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit (select 1 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 1 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit (select 2 from st1 limit 1) order by 1;
+
+DB error: syntax error near "(select 2 from st1 limit 1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and a.f1 = (select 0 from st1 limit 1) order by 1;
+
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and a.f1 = (select 1 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and a.f1 = (select 2 from st1 limit 1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+
+taos> select f1 from st1 where f1 != (select 0 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 != (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 != (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 = (select 0 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where f1 = (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from st1 where f1 = (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           2 |
+
+taos> select f1 from st1 where f1 in ((select 0 from st1 limit 1)) order by 1;
+
+DB error: syntax error near "(select 0 from st1 limit 1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 in ((select 1 from st1 limit 1)) order by 1;
+
+DB error: syntax error near "(select 1 from st1 limit 1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 in ((select 2 from st1 limit 1)) order by 1;
+
+DB error: syntax error near "(select 2 from st1 limit 1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not in ((select 0 from st1 limit 1)) order by 1;
+
+DB error: syntax error near "(select 0 from st1 limit 1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not in ((select 1 from st1 limit 1)) order by 1;
+
+DB error: syntax error near "(select 1 from st1 limit 1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not in ((select 2 from st1 limit 1)) order by 1;
+
+DB error: syntax error near "(select 2 from st1 limit 1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 like ((select 0 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 like ((select 1 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 like ((select 2 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 not like ((select 0 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 not like ((select 1 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 not like ((select 2 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 match ((select 0 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 match ((select 1 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 match ((select 2 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 nmatch ((select 0 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 nmatch ((select 1 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where f1 nmatch ((select 2 from st1 limit 1)) order by 1;
+
+DB error: Invalid operation [0x80000200] 
+taos> select f1 from st1 where (select 0 from st1 limit 1) is null order by 1;
+
+taos> select f1 from st1 where (select 1 from st1 limit 1) is null order by 1;
+
+taos> select f1 from st1 where (select 2 from st1 limit 1) is null order by 1;
+
+taos> select f1 from st1 where (select 0 from st1 limit 1) is not null order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where (select 1 from st1 limit 1) is not null order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where (select 2 from st1 limit 1) is not null order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where abs((select 0 from st1 limit 1)) > 0 order by 1;
+
+taos> select f1 from st1 where abs((select 1 from st1 limit 1)) > 0 order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where abs((select 2 from st1 limit 1)) > 0 order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 > (select 0 from st1 limit 1) or f1 < (select 0 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 > (select 1 from st1 limit 1) or f1 < (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 > (select 2 from st1 limit 1) or f1 < (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 between (select 0 from st1 limit 1) and (select 0 from st1 limit 1) + 1 order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from st1 where f1 between (select 1 from st1 limit 1) and (select 1 from st1 limit 1) + 1 order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+
+taos> select f1 from st1 where f1 between (select 2 from st1 limit 1) and (select 2 from st1 limit 1) + 1 order by 1;
+     f1      |
+==============
+           2 |
+           3 |
+
+taos> select f1 from st1 where (select 0 from st1 limit 1) > 0 and f1 > (select 0 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where (select 1 from st1 limit 1) > 0 and f1 > (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where (select 2 from st1 limit 1) > 0 and f1 > (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by (select 0 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by (select 0 from st1 limit 1) + 1 order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by (select 1 from st1 limit 1) + 1 order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by (select 2 from st1 limit 1) + 1 order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by tbname, (select 0 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by tbname, (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 partition by tbname, (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select avg(f1) from st1 INTERVAL((select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL((select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL((select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL((select 0 from st1 limit 1)d);
+
+DB error: syntax error near "(select 0 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL((select 1 from st1 limit 1)d);
+
+DB error: syntax error near "(select 1 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL((select 2 from st1 limit 1)d);
+
+DB error: syntax error near "(select 2 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, (select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, (select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, (select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, (select 0 from st1 limit 1)d);
+
+DB error: syntax error near "(select 0 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, (select 1 from st1 limit 1)d);
+
+DB error: syntax error near "(select 1 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, (select 2 from st1 limit 1)d);
+
+DB error: syntax error near "(select 2 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) FILL((select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) FILL((select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) FILL((select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, (select 0 from st1 limit 1));
+
+DB error: Fill value can only accept constant [0x80002605] 
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, (select 1 from st1 limit 1));
+
+DB error: Fill value can only accept constant [0x80002605] 
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, (select 2 from st1 limit 1));
+
+DB error: Fill value can only accept constant [0x80002605] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING((select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING((select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING((select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING((select 0 from st1 limit 1)h);
+
+DB error: syntax error near "(select 0 from st1 limit 1)h);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING((select 1 from st1 limit 1)h);
+
+DB error: syntax error near "(select 1 from st1 limit 1)h);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING((select 2 from st1 limit 1)h);
+
+DB error: syntax error near "(select 2 from st1 limit 1)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, (select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, (select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, (select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, (select 0 from st1 limit 1)h);
+
+DB error: syntax error near "(select 0 from st1 limit 1)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, (select 1 from st1 limit 1)h);
+
+DB error: syntax error near "(select 1 from st1 limit 1)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, (select 2 from st1 limit 1)h);
+
+DB error: syntax error near "(select 2 from st1 limit 1)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION((select 0 from st1 limit 1), 1d);
+
+DB error: syntax error near "(select 0 from st1 limit 1), 1d);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION((select 1 from st1 limit 1), 1d);
+
+DB error: syntax error near "(select 1 from st1 limit 1), 1d);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION((select 2 from st1 limit 1), 1d);
+
+DB error: syntax error near "(select 2 from st1 limit 1), 1d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW((select 0 from st1 limit 1));
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW((select 1 from st1 limit 1));
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW((select 2 from st1 limit 1));
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, (select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, (select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, (select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR((select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR((select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR((select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR((select 0 from st1 limit 1)d);
+
+DB error: syntax error near "(select 0 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR((select 1 from st1 limit 1)d);
+
+DB error: syntax error near "(select 1 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR((select 2 from st1 limit 1)d);
+
+DB error: syntax error near "(select 2 from st1 limit 1)d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= (select 0 from st1 limit 1) END WITH f1 <= (select 0 from st1 limit 1) + 1;
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= (select 1 from st1 limit 1) END WITH f1 <= (select 1 from st1 limit 1) + 1;
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= (select 2 from st1 limit 1) END WITH f1 <= (select 2 from st1 limit 1) + 1;
+
+taos> select avg(f1) from st1 COUNT_WINDOW((select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW((select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW((select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW((select 0 from st1 limit 1), (select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1), (select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW((select 1 from st1 limit 1), (select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1), (select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW((select 2 from st1 limit 1), (select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1), (select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, (select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, (select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, (select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select avg(f1) from st1 group by (select 0 from st1 limit 1);
+          avg(f1)          |
+============================
+                       3.5 |
+
+taos> select avg(f1) from st1 group by (select 1 from st1 limit 1);
+          avg(f1)          |
+============================
+                       3.5 |
+
+taos> select avg(f1) from st1 group by (select 2 from st1 limit 1);
+          avg(f1)          |
+============================
+                       3.5 |
+
+taos> select avg(f1) from st1 group by f1, (select 0 from st1 limit 1);
+          avg(f1)          |
+============================
+                         2 |
+                         6 |
+                         3 |
+                         5 |
+                         4 |
+                         1 |
+
+taos> select avg(f1) from st1 group by f1, (select 1 from st1 limit 1);
+          avg(f1)          |
+============================
+                         1 |
+                         5 |
+                         2 |
+                         3 |
+                         4 |
+                         6 |
+
+taos> select avg(f1) from st1 group by f1, (select 2 from st1 limit 1);
+          avg(f1)          |
+============================
+                         6 |
+                         1 |
+                         4 |
+                         3 |
+                         2 |
+                         5 |
+
+taos> select avg(f1) from st1 group by (select 0 from st1 limit 1) + 1;
+          avg(f1)          |
+============================
+                       3.5 |
+
+taos> select avg(f1) from st1 group by (select 1 from st1 limit 1) + 1;
+          avg(f1)          |
+============================
+                       3.5 |
+
+taos> select avg(f1) from st1 group by (select 2 from st1 limit 1) + 1;
+          avg(f1)          |
+============================
+                       3.5 |
+
+taos> select avg(f1) from st1 group by f1 having avg((select 0 from st1 limit 1)) > 0;
+
+taos> select avg(f1) from st1 group by f1 having avg((select 1 from st1 limit 1)) > 0;
+          avg(f1)          |
+============================
+                         5 |
+                         1 |
+                         3 |
+                         4 |
+                         6 |
+                         2 |
+
+taos> select avg(f1) from st1 group by f1 having avg((select 2 from st1 limit 1)) > 0;
+          avg(f1)          |
+============================
+                         5 |
+                         1 |
+                         3 |
+                         4 |
+                         6 |
+                         2 |
+
+taos> select avg(f1) from st1 group by f1 having (select 0 from st1 limit 1) > 0;
+
+taos> select avg(f1) from st1 group by f1 having (select 1 from st1 limit 1) > 0;
+          avg(f1)          |
+============================
+                         5 |
+                         1 |
+                         3 |
+                         4 |
+                         6 |
+                         2 |
+
+taos> select avg(f1) from st1 group by f1 having (select 2 from st1 limit 1) > 0;
+          avg(f1)          |
+============================
+                         5 |
+                         1 |
+                         3 |
+                         4 |
+                         6 |
+                         2 |
+
+taos> select avg(f1) from st1 group by f1 having avg((select 0 from st1 limit 1) + 1) > 0;
+          avg(f1)          |
+============================
+                         5 |
+                         1 |
+                         3 |
+                         4 |
+                         6 |
+                         2 |
+
+taos> select avg(f1) from st1 group by f1 having avg((select 1 from st1 limit 1) + 1) > 0;
+          avg(f1)          |
+============================
+                         5 |
+                         1 |
+                         3 |
+                         4 |
+                         6 |
+                         2 |
+
+taos> select avg(f1) from st1 group by f1 having avg((select 2 from st1 limit 1) + 1) > 0;
+          avg(f1)          |
+============================
+                         5 |
+                         1 |
+                         3 |
+                         4 |
+                         6 |
+                         2 |
+
+taos> select interp(f1) from st1 range((select 0 from st1 limit 1)) FILL(PREV);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range((select 1 from st1 limit 1)) FILL(PREV);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range((select 2 from st1 limit 1)) FILL(PREV);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range((select 0 from st1 limit 1), (select 0 from st1 limit 1)) every(1d);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range((select 1 from st1 limit 1), (select 1 from st1 limit 1)) every(1d);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range((select 2 from st1 limit 1), (select 2 from st1 limit 1)) every(1d);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range(now - 1d, now, (select 0 from st1 limit 1)) every(1d);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range(now - 1d, now, (select 1 from st1 limit 1)) every(1d);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range(now - 1d, now, (select 2 from st1 limit 1)) every(1d);
+
+DB error: Expr subquery not supported in current clause [0x8000269D] 
+taos> select interp(f1) from st1 range(now - 1d, now) every((select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every((select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every((select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every((select 0 from st1 limit 1)m);
+
+DB error: syntax error near "(select 0 from st1 limit 1)m);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every((select 1 from st1 limit 1)m);
+
+DB error: syntax error near "(select 1 from st1 limit 1)m);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every((select 2 from st1 limit 1)m);
+
+DB error: syntax error near "(select 2 from st1 limit 1)m);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill((select 0 from st1 limit 1));
+
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill((select 1 from st1 limit 1));
+
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill((select 2 from st1 limit 1));
+
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, (select 0 from st1 limit 1));
+
+DB error: Fill value can only accept constant [0x80002605] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, (select 1 from st1 limit 1));
+
+DB error: Fill value can only accept constant [0x80002605] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, (select 2 from st1 limit 1));
+
+DB error: Fill value can only accept constant [0x80002605] 
+taos> select f1 from tb1 order by (select 0 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by (select 1 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by (select 2 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by (select 0 from st1 limit 1) desc;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by (select 1 from st1 limit 1) desc;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by (select 2 from st1 limit 1) desc;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by f1 + (select 0 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by f1 + (select 1 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by f1 + (select 2 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from st1 order by f1, (select 0 from st1 limit 1);
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 order by f1, (select 1 from st1 limit 1);
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 order by f1, (select 2 from st1 limit 1);
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from tb1 order by abs((select 0 from st1 limit 1));
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by abs((select 1 from st1 limit 1));
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 order by abs((select 2 from st1 limit 1));
+     f1      |
+==============
+           1 |
+
+taos> select avg(f1) from tb1 order by sum((select 0 from st1 limit 1));
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select avg(f1) from tb1 order by sum((select 1 from st1 limit 1));
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select avg(f1) from tb1 order by sum((select 2 from st1 limit 1));
+          avg(f1)          |
+============================
+                         1 |
+
+taos> select f1 from st1 limit (select 0 from st1 limit 1);
+
+DB error: syntax error near "(select 0 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 limit (select 1 from st1 limit 1);
+
+DB error: syntax error near "(select 1 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 limit (select 2 from st1 limit 1);
+
+DB error: syntax error near "(select 2 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 limit 1 offset (select 0 from st1 limit 1);
+
+DB error: syntax error near "(select 0 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 limit 1 offset (select 1 from st1 limit 1);
+
+DB error: syntax error near "(select 1 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 limit 1 offset (select 2 from st1 limit 1);
+
+DB error: syntax error near "(select 2 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit (select 0 from st1 limit 1);
+
+DB error: syntax error near "(select 0 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit (select 1 from st1 limit 1);
+
+DB error: syntax error near "(select 1 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit (select 2 from st1 limit 1);
+
+DB error: syntax error near "(select 2 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 soffset (select 0 from st1 limit 1);
+
+DB error: syntax error near "(select 0 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 soffset (select 1 from st1 limit 1);
+
+DB error: syntax error near "(select 1 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 soffset (select 2 from st1 limit 1);
+
+DB error: syntax error near "(select 2 from st1 limit 1);" [0x80002600] 
+taos> select f1 from st1 where f1 > (select 0 from st1 limit 1) union select f1 from st1 order by f1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 > (select 1 from st1 limit 1) union select f1 from st1 order by f1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 > (select 2 from st1 limit 1) union select f1 from st1 order by f1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 union all select (select 0 from st1 limit 1) from st1 order by f1;
+     f1      |
+==============
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 union all select (select 1 from st1 limit 1) from st1 order by f1;
+     f1      |
+==============
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 union all select (select 2 from st1 limit 1) from st1 order by f1;
+     f1      |
+==============
+           1 |
+           2 |
+           2 |
+           2 |
+           2 |
+           2 |
+           2 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from tb1 union select f1 from tb1 order by (select 0 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 union select f1 from tb1 order by (select 1 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 union select f1 from tb1 order by (select 2 from st1 limit 1);
+     f1      |
+==============
+           1 |
+
+taos> select f1 from tb1 union all select f1 from tb1 limit (select 0 from st1 limit 1);
+
+DB error: syntax error near "(select 0 from st1 limit 1);" [0x80002600] 
+taos> select f1 from tb1 union all select f1 from tb1 limit (select 1 from st1 limit 1);
+
+DB error: syntax error near "(select 1 from st1 limit 1);" [0x80002600] 
+taos> select f1 from tb1 union all select f1 from tb1 limit (select 2 from st1 limit 1);
+
+DB error: syntax error near "(select 2 from st1 limit 1);" [0x80002600] 

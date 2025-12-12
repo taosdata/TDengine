@@ -4,8 +4,8 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery:
-    caseName = "test_scalar_sub_query"
+class TestScalarSubQuery1:
+    caseName = "test_scalar_sub_query1"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
     subIdx = 0
@@ -20,13 +20,14 @@ class TestScalarSubQuery:
         "select {scalarSql}",
         "select {scalarSql} from {tableName}",
         "select {scalarSql} a from {tableName}",
+        "select tags {scalarSql} from {tableName}",
         "select distinct {scalarSql} from {tableName}",
         "select distinct {scalarSql}, f1 from {tableName}",
         "select distinct tags {scalarSql} + 1 from {tableName}",
         "select {scalarSql}, {scalarSql} from {tableName}",
         "select 1, {scalarSql} from {tableName} order by ts",
-        "select {scalarSql}, * from {tableName} order by ts",
-        "select {scalarSql} * {scalarSql}, * from {tableName} order by ts", 
+        "select {scalarSql}, * from {tableName} order by ts, f1",
+        "select {scalarSql} * {scalarSql}, * from {tableName} order by ts, f1", 
         "select {funcName}({scalarSql}) from {tableName}",
         "select {funcName}({scalarSql} + 1) from {tableName}",
         "select {funcName}({scalarSql} + 1) + 2 from {tableName}",
@@ -52,27 +53,29 @@ class TestScalarSubQuery:
         "select f1, {scalarSql}, avg({scalarSql}) from {tableName} group by f1",
 
         # from
-        "select f1, {scalarSql} + 1 from {tableName} a join {ntableName} b on a.ts = b.ts and a.f1 = {scalarSql}",
-        "select {scalarSql} + 1, avg({scalarSql} + 2) from {tableName} a left join {ntableName} b on a.ts = b.ts and a.f1 = {scalarSql}",
-        "select a.*, {scalarSql}, b.* from {tableName} a left join {ntableName} b on a.ts = b.ts and b.f1 = {scalarSql}",
+        "select b.f1, {scalarSql} + 1 from {tableName} a join {tableName} b on a.ts = b.ts and a.f1 = {scalarSql} order by b.f1",
+        "select {scalarSql} + 1, avg({scalarSql} + 2) from {tableName} a left join {tableName} b on a.ts = b.ts and a.f1 = {scalarSql}",
+        "select a.*, {scalarSql}, b.* from {tableName} a left join {tableName} b on a.ts = b.ts and b.f1 = {scalarSql} order by a.ts, a.f1",
 
         # where
-        "select f1 from {tableName} where f1 != {scalarSql}",
-        "select f1, {scalarSql} from {tableName} where f1 = {scalarSql}",
+        "select f1 from {tableName} where f1 != {scalarSql} order by f1",
+        "select f1, {scalarSql} from {tableName} where f1 = {scalarSql} order by f1",
         "select f1 from {tableName} where f1 in ({scalarSql})",
         "select f1 from {tableName} where f1 not in ({scalarSql})",
-        "select {scalarSql} from {tableName} where {scalarSql} is null",
-        "select {scalarSql} from {tableName} where {scalarSql} is not null",
-        "select f1, cast({scalarSql} as varchar) from {tableName} where abs({scalarSql}) > 0",
-        "select f1, {scalarSql} from {tableName} where f1 > {scalarSql} or f1 < {scalarSql}",
-        "select f1, {scalarSql} from {tableName} where f1 between {scalarSql} and {scalarSql} + 1",
-        "select {scalarSql}, {scalarSql} > 0 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql}",
+        "select {scalarSql} from {tableName} where {scalarSql} is null order by f1",
+        "select {scalarSql} from {tableName} where {scalarSql} is not null order by f1",
+        "select f1, cast({scalarSql} as varchar) from {tableName} where abs({scalarSql}) > 0 order by f1",
+        "select f1, {scalarSql} from {tableName} where f1 > {scalarSql} or f1 < {scalarSql} order by f1",
+        "select f1, {scalarSql} from {tableName} where f1 between {scalarSql} and {scalarSql} + 1 order by f1",
+        "select {scalarSql}, {scalarSql} > 0 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql} order by f1",
+
+        #union
     ]
 
     scalarSqls = [
         "(select 1)",
         "(select f1 from {tableName})",
-        "(select f1 from {tableName} order by ts limit 1)",
+        "(select f1 from {tableName} order by ts, f1 limit 1)",
         "(select count(*) from {tableName})",
         "(select null from {tableName})",
         "(select * from {tableName})",
@@ -80,16 +83,16 @@ class TestScalarSubQuery:
         "(select avg(f1) from {tableName})",
         "(select last(*) from {tableName})",
         "(select max(f1) from {tableName} partition by f1)",
-        "(select a.ts from {tableName} a join {ntableName} b on a.ts = b.ts)",
+        "(select a.ts from {tableName} a join {tableName} b on a.ts = b.ts)",
         "(select sum(f1) from {tableName} interval(1d))",
-        "(select f1 from {tableName} union select f1 from {ntableName})",
-        "(select f1 from {tableName} union all select f1 from {ntableName})",
+        "(select f1 from {tableName} union select f1 from {tableName})",
+        "(select f1 from {tableName} union all select f1 from {tableName})",
     ]
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_scalar_sub_query(self):
+    def test_scalar_sub_query1(self):
         """scalar sub query test case
         
         1. Prepare data.
@@ -159,7 +162,7 @@ class TestScalarSubQuery:
                 for self.subIdx in range(len(self.scalarSqls)):
                     self.querySql = self.subSqls[self.mainIdx].replace("{scalarSql}", self.scalarSqls[self.subIdx])
                     self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
-                    self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
+                    #self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
                     # ensure exactly one trailing semicolon
                     self.querySql = self.querySql.rstrip().rstrip(';') + ';'
                     tdLog.info(f"generated sql: {self.querySql}")
