@@ -69,7 +69,17 @@ class TestScalarSubQuery1:
         "select f1, {scalarSql} from {tableName} where f1 between {scalarSql} and {scalarSql} + 1 order by f1",
         "select {scalarSql}, {scalarSql} > 0 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql} order by f1",
 
+        # partition
+        "select f1 from {tableName} partition by f1, {scalarSql} order by f1",
+        "select f1 from {tableName} partition by f1 having({scalarSql} > 1) order by f1",
+        "select f1 from {tableName} partition by f1 having(sum({scalarSql}) > 3) order by f1",
+
+        # group
+        "select sum(f1) from {tableName} group by {scalarSql}, f1 having({scalarSql} > 2) order by 1",
+
         #union
+        "select f1 from {tableName} union select {scalarSql} from {tableName} order by f1",
+        "select {scalarSql} a from {tableName} union all select {scalarSql} b from {tableName} order by a",
     ]
 
     scalarSqls = [
