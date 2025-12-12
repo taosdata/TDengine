@@ -36,7 +36,7 @@ static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorE
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode);
 
 int32_t connUpdateSessMgtMetric(int64_t connId, SSessParam* pParam);
-int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
+//int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -3405,8 +3405,6 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
 
-  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = -1};
-  code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
 
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {

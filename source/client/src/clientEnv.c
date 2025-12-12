@@ -724,6 +724,9 @@ void doDestroyRequest(void *p) {
     tscError("failed to destroy semaphore");
   }
 
+  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = -1};
+  code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
+
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->targetTableList);
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);

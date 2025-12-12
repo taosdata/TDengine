@@ -454,6 +454,8 @@ void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
 
+int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
+
 int32_t tzInit();
 void    tzCleanup();
 

@@ -377,8 +377,8 @@ void sessMgtDestroy() {
   void *p = taosHashIterate(pMgt->pSessMetricMap, NULL);
   while (p) {
     SSessMetric *pMetric = *(SSessMetric **)p;
-    p = taosHashIterate(pMgt->pSessMetricMap, p);
     sessMetricDestroy(pMetric);
+    p = taosHashIterate(pMgt->pSessMetricMap, p);
   }
 
   code = taosThreadRwlockDestroy(&pMgt->lock);
