@@ -366,6 +366,7 @@ int32_t sessMgtRemoveUser(char *user) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 _error:
+  code = taosThreadRwlockUnlock(&pMgt->lock);
   return code;
 }
 
