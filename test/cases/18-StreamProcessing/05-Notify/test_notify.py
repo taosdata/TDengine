@@ -1921,6 +1921,7 @@ class TestStreamNotifyTrigger:
                 "insert into ct0 values ('2025-01-01 00:00:02.000', 8, 7);",
                 "insert into ct0 values ('2025-01-01 00:00:03.000', 9, 7);",
                 "insert into ct0 values ('2025-01-01 00:00:04.000', 10, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:05.000', 11, 8);",
             ]
 
             tdSql.executes(sqls)
@@ -1945,7 +1946,6 @@ class TestStreamNotifyTrigger:
         def insert2(self):
             tdLog.info(f"=============== insert2 data into ct0 close windows data")
             sqls = [
-                "insert into ct0 values ('2025-01-01 00:00:05.000', 11, 8);",
                 "insert into ct0 values ('2025-01-01 00:00:06.000', 5, 1);",
             ]
 
@@ -1992,6 +1992,11 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== insert3 data into ct0 open window data")
             sqls = [
                 "insert into ct0 values ('2025-01-01 00:00:07.000', 11, 8);",
+                "insert into ct0 values ('2025-01-01 00:00:08.000', 11, 8);",
+                "insert into ct0 values ('2025-01-01 00:00:09.000', 11, 8);",
+                "insert into ct0 values ('2025-01-01 00:00:10.000', 11, 8);",
+                "insert into ct0 values ('2025-01-01 00:00:11.000', 11, 8);",
+                "insert into ct0 values ('2025-01-01 00:00:12.000', 11, 8);",
             ]
 
             tdSql.executes(sqls)

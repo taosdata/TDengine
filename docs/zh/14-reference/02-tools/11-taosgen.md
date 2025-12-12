@@ -13,7 +13,7 @@ taosgen 目前支持 Linux 和 macOS 系统。
 taosgen 相比 taosBenchmark，具有以下优势和改进：
 
 - 提供作业编排能力，作业支持 DAG 依赖关系，能模拟真实业务流程。
-- 支持多种目标/协议（TDengine、MQTT），可用于数据库写入、消息发布等多种场景。
+- 支持多种目标/协议（TDengine、MQTT、Kafka），可用于数据库写入、消息发布等多种场景。
 - 更丰富的数据生成方式。支持 lua 表达式生成数据，便于模拟真实业务数据。
 - 支持即时数据生成，无需预先生成大批量数据文件，节省准备时间和模拟真实场景。
 - 支持使用多种时间间隔策略控制数据写入操作，如根据数据产生的真实时间“播放”数据。
@@ -55,9 +55,9 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -P/--port             | 指定要连接的服务器的端口号，默认值为 6030 |
 | -u/--user             | 指定用于连接服务器的用户名，默认为 root |
 | -p/--password         | 指定用于连接服务器的密码，默认值为 taosdata |
-| -c/--yaml-config-file | 指定 yaml 格式配置文件的路径 |
+| -c/--config-file      | 指定 yaml 格式配置文件的路径 |
 | -?/--help             | 显示帮助信息并退出|
-| -V/--version          | 显示版本信息并退出。不能与其它参数混用 |
+| -V/--version          | 显示版本信息并退出，不能与其它参数混用 |
 
 提示：当没有指定参数运行 taosgen 时，默认会创建 TDengine 数据库 tsbench、超级表 meters、1 万张子表，并为每张子表批量写入 1 万条数据。
 
@@ -65,10 +65,11 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ### 整体结构
 
-配置文件分为："tdengine"、"mqtt"、"schema"、"concurrency"、"jobs" 五部分。
+配置文件分为："tdengine"、"mqtt"、"kafka"、"schema"、"concurrency"、"jobs" 几部分。
 
 - tdengine：描述 TDengine 数据库的相关配置参数。
 - mqtt：描述 MQTT Broker 的相关配置参数。
+- kafka：描述 Kafka Broker 的相关配置参数。
 - schema：描述数据定义和生成的相关配置参数。
 - concurrency：描述作业执行的并发度。
 - jobs：列表结构，描述所有作业的具体相关参数。
@@ -100,9 +101,8 @@ taosgen -h 127.0.0.1 -c config.yaml
   - dsn（字符串）：表示要连接的 TDengine 数据库的 DSN 地址，默认值为：taos+ws://root:taosdata@localhost:6041/tsbench。
   - drop_if_exists（布尔）：表示数据库已存在时是否删除该数据库，默认为 true。
   - props（字符串）：表示数据库支持的创建数据库的属性信息。
-  例如，precision ms vgroups 20 replica 3 keep 3650 分别设置了虚拟组数量、副本数及数据保留期限。
-    - precision：
-      指定数据库的时间精度，可选值为："ms"、"us"、"ns"。
+    例如，`precision ms vgroups 20 replica 3 keep 3650` 分别设置了虚拟组数量、副本数及数据保留期限。
+    - precision：指定数据库的时间精度，可选值为："ms"、"us"、"ns"。
     - vgroups：指定数据库的虚拟组的个数。
     - replica：指定数据库的副本格式。
   - pool：连接池配置，包含如下属性：
@@ -115,17 +115,36 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 - mqtt：描述 MQTT Broker 的相关配置参数，它包括以下属性：
   - uri（字符串）：MQTT Broker 的 uri 地址，默认值为 tcp://localhost:1883。
-  - username（字符串）：登录 Broker 的用户名。
+  - user（字符串）：登录 Broker 的用户名。
   - password（字符串）：登录 Broker 的密码。
-  - topic（字符串）：要发布消息的 MQTT Topic，默认值为 tsbench/`{table}`。支持通过占位符语法发布到动态主题，占位符语法如下：
-    - `{table}`：表示表名数据
-    - `{column}`：表示列数据，column 是列字段名称
   - client_id（字符串）：客户端唯一标识符前缀，默认值为 taosgen。
-  - qos（整数）：QoS 等级，取值范围为 0、1、2，默认为 0。
   - keep_alive（整数）：超时没有消息发送后会发送心跳，单位为秒，默认值为 5。
   - clean_session（布尔）：是否清除就会话状态，默认值为 true。
-  - retain（布尔）：MQTT Broker 是否保留最后一条消息，默认值为 false。
   - max_buffered_messages（整数）：客户端的最大缓冲消息数，默认值为 10000。
+
+#### Kafka 参数
+
+- kafka：描述 Kafka Broker 的相关配置参数，它包括以下属性：
+  - bootstrap_servers (字符串)：Kafka 集群地址列表，格式为 "host:port"，多个地址用逗号分隔。
+  - client_id（字符串）：客户端唯一标识符前缀，默认值为 taosgen。
+  - topic (字符串)：指定要写入的 Kafka Topic 名称。
+  - rdkafka_options（映射）：可指定底层 librdkafka 库支持的可选参数，如：security.protocol、sasl.mechanisms、sasl.username、sasl.password。
+    - security.protocol (字符串)：指定客户端与 Kafka 集群之间通信的安全协议。可选值：
+      - "plaintext"：明文传输，无加密（默认，若未配置）。
+      - "ssl"：使用 SSL/TLS 加密通信。
+      - "sasl_plaintext"：使用 SASL 进行身份验证，但通信为明文。
+      - "sasl_ssl"：使用 SASL 进行身份验证，并使用 SSL/TLS 加密通信。
+      - 默认值：未设置（即等效于 "plaintext"）。
+    - sasl.mechanism (字符串)：当 security.protocol 设置为 "sasl_plaintext" 或 "sasl_ssl" 时，指定使用的 SASL 身份验证机制。常见可选值：
+      - "PLAIN"：简单的用户名/密码验证，常用于外部身份提供商或基本认证。
+      - "SCRAM-SHA-256"：基于挑战 - 响应的更安全机制，比 PLAIN 更安全。
+      - "SCRAM-SHA-512"：比 SHA-256 更强的哈希算法。
+      - "GSSAPI"：用于 Kerberos 认证。
+      注意：此字段必须与 security.protocol 同时配置，且其值取决于 Kafka Broker 端启用的 SASL 机制。
+    - sasl.username (字符串)：SASL 身份验证的用户名。当使用 "PLAIN" 或 "SCRAM" 机制时需要提供。
+    - sasl.password (字符串)：SASL 身份验证的密码。
+
+    更多参数请参考 [librdkafka 配置文档](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md)。
 
 #### schema 参数
 
@@ -233,8 +252,9 @@ taosgen -h 127.0.0.1 -c config.yaml
 - `tdengine/create-database`：用于创建 TDengine 数据库
 - `tdengine/create-super-table`：用于创建 TDengine 超级表
 - `tdengine/create-child-table`：用于创建 TDengine 超级表的子表
-- `tdengine/insert-data`：用于向指定的 TDengine 数据库中写入数据
-- `mqtt/publish-data`：用于向指定的 MQTT Broker 发布数据
+- `tdengine/insert`：用于向指定的 TDengine 数据库中写入数据
+- `mqtt/publish`：用于向指定的 MQTT Broker 发布数据
+- `kafka/produce`：用于向指定的 Kafka Broker 发布数据
 每个行动在调用时可通过 with 字段传入参数，具体参数内容因行动类型而异。
 
 ### 创建 TDengine 数据库行动的格式
@@ -263,7 +283,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ### 写入 TDengine 数据行动的格式
 
-`tdengine/insert-data` 行动用于将数据写入到指定的子表中。它支持从生成器或 CSV 文件两种来源获取子表名称、普通列数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据写入过程，具备高度灵活性和可配置性。
+`tdengine/insert` 行动用于将数据写入到指定的子表中。它支持从生成器或 CSV 文件两种来源获取子表名称、普通列数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据写入过程，具备高度灵活性和可配置性。
 
 - schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。
 - format（字符串）：描述数据写入时使用的格式，可选值为：sql、stmt，默认使用 stmt。
@@ -295,13 +315,43 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ### 发布 MQTT 数据行动的格式
 
-`mqtt/publish-data` 行动用于将数据发布到指定的 topic 中。它支持从生成器或 CSV 文件两种来源获取数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据发布过程，具备高度灵活性和可配置性。
+`mqtt/publish` 行动用于将数据发布到指定的 topic 中。它支持从生成器或 CSV 文件两种来源获取数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据发布过程，具备高度灵活性和可配置性。
 
 - schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。
 - format（字符串）：描述数据发布时使用的格式，目前仅支持 json，默认值为 json。
 - concurrency（整数）：并发发布数据的线程数量，默认值为 8。
-- failure_handling（可选）：描述同“写入 TDengine 数据行动的格式”中的同名参数。
-- time_interval：描述同“写入 TDengine 数据行动的格式”中的同名参数。
+- failure_handling：参数说明请参考 [写入 TDengine 数据行动的格式](#写入-tdengine-数据行动的格式) 中的同名参数。
+- time_interval：参数说明请参考 [写入 TDengine 数据行动的格式](#写入-tdengine-数据行动的格式) 中的同名参数。
+- topic（字符串）：要发布消息的 MQTT Topic，默认值为 tsbench/`{table}`。支持通过占位符语法发布到动态主题，占位符语法如下：
+  - `{table}`：表示表名数据
+  - `{column}`：表示列数据，column 是列字段名称
+- qos（整数）：QoS 等级，取值范围为 0、1、2，默认为 0。
+- retain（布尔）：MQTT Broker 是否保留最后一条消息，默认值为 false。
+- tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
+- records_per_message（整数）：每条消息包含的记录数，默认为 1。
+
+### 发布 Kafka 数据行动的格式
+
+`kafka/produce` 行动用于将数据发布到指定的 topic 中。它支持从生成器或 CSV 文件两种来源获取数据，并允许用户通过多种时间戳策略控制数据的时间属性。此外，还提供了丰富的写入控制策略以优化数据发布过程，具备高度灵活性和可配置性。
+
+- schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。
+- concurrency（整数）：并发发布数据的线程数量，默认值为 8。
+- failure_handling：参数说明请参考 [写入 TDengine 数据行动的格式](#写入-tdengine-数据行动的格式) 中的同名参数。
+- time_interval：参数说明请参考 [写入 TDengine 数据行动的格式](#写入-tdengine-数据行动的格式) 中的同名参数。
+- key_pattern (字符串)：消息 Key 的组成模式，支持通过占位符语法生成动态 key，默认值为 `{table}`，占位符语法如下：
+  - `{table}`：表示表名数据
+  - `{column}`：表示列数据，column 是列字段名称
+- key_serializer (字符串)：消息 Key 的序列化方式，支持 "string-utf8"、"int8"、"uint8"、"int16"、"uint16"、"int32"、"uint32"、"int64"、"uint64"，默认为 "string-utf8"，控制如何将 key_pattern 解析后的结果序列化为 Kafka 消息的 key 字节流。
+  - "string-utf8":  将模板替换后的结果视为字符串，直接以 UTF-8 编码生成字节流。
+  - 整数：将字段模板替换后的结果解析为整数。仅支持单个字段占位符，序列化时使用该整数类型，并以大端序（big-endian）格式编码为二进制数据发送。
+- value_serializer (字符串)：消息 Value 的序列化方式，支持 "json"、"influx"，默认为 "json"。
+- acks (字符串)：生产者确认机制设置，如 "all"、"1"、"0"，默认为 "0"；
+  - "all"：生产者必须等待 ISR（In-Sync Replicas，同步副本集）中的所有副本都成功接收到消息并将其写入本地日志后，才会认为消息发送成功。
+  - "1"：生产者只需要等待分区 Leader 副本成功接收到消息并将其写入本地日志（Log），就会认为消息发送成功，并立即向应用程序返回确认。
+  - "0"：生产者完全不等待任何确认。一旦消息被成功发送到网络（甚至只是放入了生产者的发送缓冲区），就立即认为发送成功。
+- compression (字符串)：消息压缩类型，支持 "none"、"gzip"、"snappy"、"lz4"、"zstd"，默认为 "none"。
+- tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
+- records_per_message（整数）：每条消息包含的记录数，默认为 1。
 
 ## 配置文件示例
 
@@ -334,13 +384,13 @@ taosgen -h 127.0.0.1 -c config.yaml
 - 为工业物联网等领域的系统容量规划提供数据支撑。
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_config}}
 ```
 
-其中，tdengine、schema::name、sschema::tbname、schema::tags、tdengine/create-child-table::batch、tdengine/insert-data::concurrency 可以使用默认值，进一步简化配置。
+其中，tdengine、schema::name、schema::tbname、schema::tags、tdengine/create-child-table::batch、tdengine/insert::concurrency 可以使用默认值，进一步简化配置。
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_simple}}
 ```
 
 ### CSV 文件方式生成数据 STMT 方式写入 TDengine 实例
@@ -373,7 +423,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 - 数据回放：通过重新注入历史数据，模拟实时数据流，用于测试系统处理能力或重现特定历史场景。
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_csv_stmt_insert_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_csv_stmt_insert_config}}
 ```
 
 其中：
@@ -407,18 +457,19 @@ d1,1700000310000,4.98,220.9,147.9
 
 - MQTT 配置参数
   - 连接信息：使用 URI 描述连接 MQTT Broker 的信息。
-  - 主题配置 (topic): 使用动态主题 factory/`{table}`/`{location}`，其中：
-    - `{table}` 占位符将被实际生成的子表名称替换。
-    - `{location}` 占位符将被生成的 location 列值替换，实现按设备位置发布到不同主题。
-  - qos: 服务质量等级设置为 1（至少交付一次）。
+
 - schema 配置参数
   - 名称：指定 schema 的名称。
-  - 表名称：定义生成一万张表名称的规则，格式为 d0 到 d9999。虽然不直接创建数据库表，此处表作为逻辑概念用来组织数据。
+  - 表名称：定义生成一万张逻辑表的名称规则，格式为 d0 到 d9999，用于组织和标识生成的数据。
   - 表字段结构信息：定义数据表结构，包含 4 个普通列（电流、电压、相位、设备位置）。
     - 时间戳：配置了时间戳生成策略，从指定时间戳 1700000000000 (2023-11-14 22:13:20 UTC) 开始，以 5 分钟的步长递增。
     - 时序数据：current、phase 和 location 使用指定范围的随机数，voltage 使用正弦波模拟。
-  - 数据生成行为：使用交错模式写入，每张表写入 1 万条记录，每批写入请求最大行数为 1000 行。
-- 数据发布：使用 8 线程并发向 MQTT Broker 发布数据，提高吞吐量。
+  - 数据生成行为：使用交错模式写入，每张表写入 1 万条记录，每批写入请求最大行数为 1 万行。
+- 数据发布：使用 8 线程并发向 MQTT Broker 主题发布数据，提高吞吐量。
+  - 主题配置 (topic): 使用动态主题 factory/`{table}`/`{location}`，其中：
+    - `{table}` 占位符将被实际生成的子表名称替换。
+    - `{location}` 占位符将被生成的 location 列值替换，实现按设备位置发布到不同主题。
+  - qos：服务质量等级设置为 1（至少交付一次）。
 
 场景说明：
 
@@ -430,5 +481,50 @@ d1,1700000310000,4.98,220.9,147.9
 - 实时数据流模拟：模拟实时产生的设备数据流，用于测试流处理框架的数据消费和处理能力。
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:mqtt_publish_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:mqtt_publish_config}}
+```
+
+### 生成器方式生成数据并发布数据到 Kafka Broker 示例
+
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位、位置四个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据发布到 Kafka。
+
+配置详解：
+
+- Kafka 配置参数
+  - 连接信息：使用 bootstrap_servers 描述连接 Kafka Broker 的信息。
+  - 主题配置 (topic)：使用主题 factory-electric-meter。
+
+- schema 配置参数
+  - 名称：指定 schema 的名称。
+  - 表名称：定义生成一万张逻辑表的名称规则，格式为 d0 到 d9999，用于组织和标识生成的数据。
+  - 表字段结构信息：定义数据表结构，包含 4 个普通列（电流、电压、相位、设备位置）。
+    - 时间戳：配置了时间戳生成策略，从指定时间戳 1700000000000 (2023-11-14 22:13:20 UTC) 开始，以 5 分钟的步长递增。
+    - 时序数据：current、phase 和 location 使用指定范围的随机数，voltage 使用正弦波模拟。
+  - 数据生成行为：使用交错模式写入，每张表写入 1 万条记录，每批写入请求最大行数为 1 万行。
+- 数据发布：使用 8 线程并发向 Kafka Broker 发布数据，提高吞吐量。
+  - acks：消息确认等级，此示例设为 '1'，表示仅需 Leader 确认。
+
+场景说明：
+
+此配置专为向 Kafka 消息代理发布模拟设备数据而设计。它适用于以下场景：
+
+- Kafka 生产者性能压测：
+模拟大规模设备并发写入场景，测试 Kafka Broker 的吞吐能力、网络带宽占用及生产者端的资源消耗，验证不同压缩算法（如 gzip, zstd）对性能的影响。
+- 流处理系统集成测试：
+向 Kafka 发布结构化的设备数据流，用于测试基于 Flink、Spark Streaming、ksqlDB 或 Pulsar Functions 等流处理引擎的数据接入、窗口计算、状态管理与实时告警功能。
+- 物联网平台数据接入验证：
+快速构建一个高并发的设备数据注入环境，模拟万台智能电表上报数据，验证 IoT 平台后端服务从 Kafka 消费数据、解析、入库（如时序数据库 TDengine）的完整链路稳定性。
+- 规则引擎与消息路由测试：
+利用 Kafka 主题的分层命名（如 factory-electric-meter）和消息 Key（如 `{table}` 表示设备 ID），测试基于 Kafka Connect 或自定义消费者组的消息过滤、多路复用、按设备标签（location）进行动态路由的能力。
+- 实时数据管道压力测试：
+模拟持续高频率的时序数据流（每 5 分钟/条 × 10,000 台设备），评估从 Kafka 到下游系统（如数据湖、数仓、监控面板）的端到端延迟、积压情况和消费速率匹配度。
+- 安全认证机制验证：
+配置 SASL_SSL 和 SCRAM-SHA-256 认证，用于测试启用了身份验证和加密传输的 Kafka 集群在真实生产环境下的客户端连接稳定性与安全性。
+- 数据格式兼容性测试：
+使用 JSON 或 InfluxDB Line Protocol 格式序列化消息体，验证下游消费者或中间件对不同数据格式的解析能力，确保协议兼容性和字段映射正确性。
+- 灾备与高可用演练：
+在多 Broker 集群环境下，通过高并发写入测试 Kafka 的副本同步、Leader 选举、Broker 故障转移等高可用机制的表现，确保数据不丢失、服务不间断。
+
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:kafka_produce_config}}
 ```

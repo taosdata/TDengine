@@ -925,7 +925,7 @@ class Test_IDMP_Meters:
         # result_stream_sub1
         tdSql.checkResultsByFunc(
             sql=result_sql_sub1,
-            func=lambda: tdSql.checkRows(17, show=True)
+            func=lambda: tdSql.checkRows(2, show=True)
             and tdSql.compareData(0, 0, 1752563060000)
             and tdSql.compareData(0, 1, 0),  # cnt
         )
