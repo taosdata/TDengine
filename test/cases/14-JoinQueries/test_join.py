@@ -1336,7 +1336,7 @@ class TestJoin:
             - 2025-5-7 Simon Guan migrated from tsim/parser/join.sim
             - 2025-10-21 Alex Duan Migrated from 25-JoinQueries/test_join2.py
             - 2025-10-21 Alex Duan Migrated from uncatalog/system-test/2-query/test_join.py
-            - 2025-12-10 Alex Duan Migrated from uncatalog/system-test/2-query/test_join.py
+            - 2025-12-10 Alex Duan Migrated from uncatalog/system-test/2-query/test_stbJoin.py
 
         """
         self.do_sim_join()
