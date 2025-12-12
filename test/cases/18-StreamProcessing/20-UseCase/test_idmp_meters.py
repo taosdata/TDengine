@@ -75,6 +75,11 @@ class Test_IDMP_Meters:
 
         # verify results
         self.verifyResultsAgain()
+        
+        # C
+        self.triggerC_all()
+        self.verifyC_all()
+        
 
         """
         # restart dnode
@@ -301,8 +306,8 @@ class Test_IDMP_Meters:
     # 5. verify results
     #
     def verifyResults(self):
-        print("wait 10s ...")
-        time.sleep(10)
+        print("wait 5s ...")
+        time.sleep(5)
         print("verifyResults ...")
         self.verify_stream1()
         self.verify_stream2()
@@ -360,6 +365,28 @@ class Test_IDMP_Meters:
         self.checkStreamStatus()
 
         tdLog.info("dnode restarted successfully.")
+
+    # 
+    # Round C
+    #
+    # trigger
+    def triggerC_all(self):
+        self.triggerC_stream6()
+        self.triggerC_stream7()
+
+    # verify
+    def verifyC_all(self):
+        print("wait 2s ...")
+        time.sleep(2)
+        print("verify C results ...")
+
+        # stream6
+        self.verifyC_stream6()
+        # stream7
+        self.verifyC_stream7()
+        self.verifyC_stream7_sub3()
+        self.verifyC_stream7_sub4()
+        self.verifyC_stream7_sub5()
 
     #
     # 9. write trigger after restart
@@ -717,12 +744,15 @@ class Test_IDMP_Meters:
         count = 5
         orderVals = [4000]
         ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
-
+        
+    def triggerC_stream6(self):
+        table = "asset01.`em-6`"
+        step = 1 * 60 * 1000  # 1 minute        
         # delete
         count = 15
         sql = f"delete from {table} where ts >= {self.start2} and ts < {self.start2 + count * step}"
         print(sql)
-        tdSql.execute(sql)
+        tdSql.execute(sql)            
 
     #
     #  stream7 trigger
@@ -786,6 +816,10 @@ class Test_IDMP_Meters:
         fixedVals = "502, 502, 502"
         tdSql.insertFixedVal(table, self.updateTs7, step, count, cols, fixedVals)
 
+    def triggerC_stream7(self):
+        table = "asset01.`em-7`"
+        step = 1 * 60 * 1000  # 1 minute
+        
         # del 400
         count = 2
         sql = f"delete from {table} where ts >= {self.delTs7} and ts < {self.delTs7 + count * step};"
@@ -810,7 +844,7 @@ class Test_IDMP_Meters:
         # sql = f"delete from asset01.`em-8` where ts >= {self.start2}"
         # tdSql.execute(sql)
 
-        time.sleep(5)
+        #time.sleep(5)
 
         # write order
         count = 20
@@ -1407,6 +1441,9 @@ class Test_IDMP_Meters:
     def verify_stream6_again(self):
         # disorder update and del no effected for count windows
         self.verify_stream6()
+        
+    def verifyC_stream6(self):
+        self.verify_stream6()        
 
     #
     # verify stream7
@@ -1481,7 +1518,7 @@ class Test_IDMP_Meters:
         print("verify stream7_sub3 ............................ successfully.")
 
     #
-    # verify stream7
+    # verify stream7 again
     #
     def verify_stream7_again(self):
 
@@ -1533,7 +1570,60 @@ class Test_IDMP_Meters:
         # check data
         tdSql.checkDataMemLoop(result_sql, data)
         
-        print("verify stream7_again ............................. successfully.")
+        print("verify stream7_again ............................. successfully.") 
+
+    def verifyC_stream7(self):
+        # check
+        self.verify_stream7(checkSub=False)
+
+    def verifyC_stream7_sub3(self):
+        # upate sub3
+        result_sql = f"select * from tdasset.`result_stream7_sub3` "
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, 1752574680000)
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 502)
+            and tdSql.compareData(0, 3, 1004),
+        )
+        print("verifyC_stream7_sub3 ............................. successfully.")
+
+    def verifyC_stream7_sub4(self):
+        # del sub4
+        result_sql = f"select * from tdasset.`result_stream7_sub4` "
+        data = [
+            # ts          cnt    
+            [1752574200000, 2, 100, 200],
+            [1752574320000, 2, 200, 400],
+            [1752574560000, 2, 400, 800],
+            [1752574680000, 2, 502, 1004],
+            [1752574800000, 2, 600, 1200]
+        ]        
+        tdSql.checkResultsByFunc(
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        # check data
+        tdSql.checkDataMemLoop(result_sql, data)
+        print("verifyC_stream7_sub4 ............................. successfully.")
+
+    def verifyC_stream7_sub5(self):
+        # del sub5        
+        result_sql = f"select * from tdasset.`result_stream7_sub5` "
+        data = [
+            # ts          cnt    
+            [1752574560000, 2, 400, 800],
+            [1752574680000, 2, 502, 1004]
+        ]        
+        tdSql.checkResultsByFunc(
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        # check data
+        tdSql.checkDataMemLoop(result_sql, data)
+        
+        print("verifyC_stream7_sub5 ............................. successfully.")
 
     #
     # verify stream8
