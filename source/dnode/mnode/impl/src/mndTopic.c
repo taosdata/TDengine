@@ -47,6 +47,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
+static int32_t processAst(SMqTopicObj *topicObj, const char *ast);
 
 int32_t mndInitTopic(SMnode *pMnode) {
   SSdbTable table = {
@@ -168,6 +169,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SSdbRow *    pRow = NULL;
   SMqTopicObj *pTopic = NULL;
   void *       buf = NULL;
+  char*        ast = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto TOPIC_DECODE_OVER;
@@ -214,36 +216,47 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   if (sver < 4) {
     int32_t astLen = 0;
     SDB_GET_INT32(pRaw, dataPos, &astLen, TOPIC_DECODE_OVER);
-    dataPos += astLen;
-  }
-
-  SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  if (len) {
-    pTopic->physicalPlan = taosMemoryCalloc(len, sizeof(char));
-    if (pTopic->physicalPlan == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto TOPIC_DECODE_OVER;
-    }
-    SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len, TOPIC_DECODE_OVER);
-  } else {
-    pTopic->physicalPlan = NULL;
-  }
-
-  SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  if (len) {
-    buf = taosMemoryMalloc(len);
-    if (buf == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto TOPIC_DECODE_OVER;
-    }
-    SDB_GET_BINARY(pRaw, dataPos, buf, len, TOPIC_DECODE_OVER);
-    if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
-      goto TOPIC_DECODE_OVER;
+    if (astLen) {
+      ast = taosMemoryCalloc(astLen, sizeof(char));
+      if (ast == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto TOPIC_DECODE_OVER;
+      }
+      SDB_GET_BINARY(pRaw, dataPos, ast, astLen, TOPIC_DECODE_OVER);
+      terrno = processAst(pTopic, ast);
+      if (terrno != TSDB_CODE_SUCCESS) {
+        goto TOPIC_DECODE_OVER;
+      }
     }
   } else {
-    pTopic->schema.nCols = 0;
-    pTopic->schema.version = 0;
-    pTopic->schema.pSchema = NULL;
+    SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
+    if (len) {
+      pTopic->physicalPlan = taosMemoryCalloc(len, sizeof(char));
+      if (pTopic->physicalPlan == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto TOPIC_DECODE_OVER;
+      }
+      SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len, TOPIC_DECODE_OVER);
+    } else {
+      pTopic->physicalPlan = NULL;
+    }
+
+    SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
+    if (len) {
+      buf = taosMemoryMalloc(len);
+      if (buf == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto TOPIC_DECODE_OVER;
+      }
+      SDB_GET_BINARY(pRaw, dataPos, buf, len, TOPIC_DECODE_OVER);
+      if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
+        goto TOPIC_DECODE_OVER;
+      }
+    } else {
+      pTopic->schema.nCols = 0;
+      pTopic->schema.version = 0;
+      pTopic->schema.pSchema = NULL;
+    }
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
@@ -251,6 +264,8 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 
 TOPIC_DECODE_OVER:
   taosMemoryFreeClear(buf);
+  taosMemoryFreeClear(ast);
+
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("topic:%s, failed to decode from raw:%p since %s", pTopic == NULL ? "null" : pTopic->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
