@@ -1022,6 +1022,8 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.passwordGraceTime = -1;
   userObj.inactiveAccountTime = -1;
   userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+  userObj.tokenNum = 0;
+
   userObj.pTimeWhiteList = taosMemoryCalloc(1, sizeof(SDateTimeWhiteList));
   if (userObj.pTimeWhiteList == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _ERROR);
@@ -1039,6 +1041,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.passwordLockTime = -1;
     userObj.inactiveAccountTime = -1;
     userObj.allowTokenNum = -1;
+    userObj.tokenNum = 0;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
@@ -1380,6 +1383,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, pUser->passwordGraceTime, _OVER);
   SDB_SET_INT32(pRaw, dataPos, pUser->inactiveAccountTime, _OVER);
   SDB_SET_INT32(pRaw, dataPos, pUser->allowTokenNum, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->tokenNum, _OVER);
 
   SDB_SET_INT32(pRaw, dataPos, pUser->pTimeWhiteList->num, _OVER);
   for (int32_t i = 0; i < pUser->pTimeWhiteList->num; i++) {
@@ -1775,6 +1779,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     pUser->passwordGraceTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
     pUser->inactiveAccountTime = pUser->superUser ? -1 : TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
     pUser->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+    pUser->tokenNum = 0;
     pUser->pTimeWhiteList = taosMemCalloc(1, sizeof(SDateTimeWhiteList));
     if (pUser->pTimeWhiteList == NULL) {
     }
@@ -1794,6 +1799,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &pUser->passwordGraceTime, _OVER);
     SDB_GET_INT32(pRaw, dataPos, &pUser->inactiveAccountTime, _OVER);
     SDB_GET_INT32(pRaw, dataPos, &pUser->allowTokenNum, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->tokenNum, _OVER);
 
     int32_t num = 0;
     SDB_GET_INT32(pRaw, dataPos, &num, _OVER);
@@ -2021,6 +2027,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->passwordGraceTime = pNew->passwordGraceTime;
   pOld->inactiveAccountTime = pNew->inactiveAccountTime;
   pOld->allowTokenNum = pNew->allowTokenNum;
+  pOld->tokenNum = pNew->tokenNum;
 
   pOld->numOfPasswords = pNew->numOfPasswords;
   TSWAP(pOld->passwords, pNew->passwords);
@@ -2196,6 +2203,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.passwordGraceTime = pCreate->passwordGraceTime;
   userObj.inactiveAccountTime = pCreate->inactiveAccountTime;
   userObj.allowTokenNum = pCreate->allowTokenNum;
+  userObj.tokenNum = 0;
 
   if (pCreate->numIpRanges == 0) {
     TAOS_CHECK_GOTO(createDefaultIpWhiteList(&userObj.pIpWhiteListDual), &lino, _OVER);

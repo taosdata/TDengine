@@ -141,29 +141,6 @@ static int32_t mndTokenActionUpdate(SSdb *pSdb, STokenObj *pOld, STokenObj *pNew
 
 
 
-// TODO: optimize for large number of tokens
-static int32_t countUserTokens(SMnode *pMnode, const char *user) {
-  SSdb     *pSdb = pMnode->pSdb;
-  void     *pIter = NULL;
-  STokenObj *pToken = NULL;
-  int32_t    count = 0;
-
-  while (true) {
-    pIter = sdbFetch(pSdb, SDB_TOKEN, pIter, (void **)&pToken);
-    if (pIter == NULL) break;
-
-    if (taosStrcasecmp(pToken->user, user) == 0) {
-      count++;
-    }
-
-    sdbRelease(pSdb, pToken);
-  }
-
-  return count;
-}
-
-
-
 static void generateToken(char *token, size_t len) {
   const char* set = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   int32_t     setLen = 62;
@@ -175,8 +152,9 @@ static void generateToken(char *token, size_t len) {
 
 
 
-static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SRpcMsg *pReq) {
+static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SUserObj *pUser, SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
+  STrans  *pTrans = NULL;
 
   STokenObj tokenObj = {0};
   tstrncpy(tokenObj.name, pCreate->name, sizeof(tokenObj.name));
@@ -188,26 +166,33 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SRpcMsg 
   tokenObj.expireTime = (pCreate->ttl > 0) ? (tokenObj.createdTime + pCreate->ttl) : 0;
   generateToken(tokenObj.token, sizeof(tokenObj.token));
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-token");
+  SUserObj newUser = {0};
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+  newUser.tokenNum++;
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-token");
   if (pTrans == NULL) {
-    mError("token:%s, failed to create since %s", pCreate->name, terrstr());
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   mInfo("trans:%d, used to create token:%s", pTrans->id, pCreate->name);
 
+  // token commit log
   SSdbRaw *pCommitRaw = mndTokenActionEncode(&tokenObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
+  if (pCommitRaw == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
+  TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), &lino, _OVER);
   TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  // user commit log
+  pCommitRaw = mndUserActionEncode(&newUser);
+  if (pCommitRaw == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
+  TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), &lino, _OVER);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
+  
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
 
   /*
   if ((code = userCacheUpdateWhiteList(pMnode, &userObj)) != 0) {
@@ -216,9 +201,16 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SRpcMsg 
   }
     */
 
-  mndTransDrop(pTrans);
-
 _OVER:
+  if (code != 0) {
+    if (pTrans == NULL) {
+      mError("token:%s, failed to create at line %d since %s", pCreate->name, lino, tstrerror(code));
+    } else {
+      mError("trans:%d, failed to create token:%s at line %d since %s", pTrans->id, pCreate->name, lino, tstrerror(code));
+    }
+  }
+  mndTransDrop(pTrans);
+  mndUserFreeObj(&newUser);
   TAOS_RETURN(code);
 }
 
@@ -255,11 +247,8 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
   }
 
-  if (pTokenUser->allowTokenNum > 0) {
-    int32_t num = countUserTokens(pMnode, createReq.user);
-    if (num >= pTokenUser->allowTokenNum) {
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_TOKENS, &lino, _OVER);
-    }
+  if (pTokenUser->allowTokenNum > 0 && pTokenUser->tokenNum >= pTokenUser->allowTokenNum) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_TOKENS, &lino, _OVER);
   }
 
   code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
@@ -267,9 +256,9 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
   }
 
-  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, createReq.user), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, createReq.user), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndCreateToken(pMnode, &createReq, pReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCreateToken(pMnode, &createReq, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char auditLog[256] = {0};
@@ -301,32 +290,22 @@ static int32_t mndTokenDupObj(STokenObj *pOld, STokenObj* pNew) {
 
 
 
-static int32_t mndAlterToken(SMnode *pMnode, STokenObj *pNew, SRpcMsg *pReq) {
-  int32_t code = 0;
+static int32_t mndAlterToken(SMnode *pMnode, STokenObj *pToken, SRpcMsg *pReq) {
+  int32_t code = 0, lino = 0;
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-token");
   if (pTrans == NULL) {
-    mError("token:%s, failed to alter since %s", pNew->name, terrstr());
-    TAOS_RETURN(terrno);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-  mInfo("trans:%d, used to alter token:%s", pTrans->id, pNew->name);
+  mInfo("trans:%d, used to alter token:%s", pTrans->id, pToken->name);
 
-  SSdbRaw *pCommitRaw = mndTokenActionEncode(pNew);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(terrno);
+  SSdbRaw *pCommitRaw = mndTokenActionEncode(pToken);
+  if (pCommitRaw == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
-  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  if (code < 0) {
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(terrno);
-  }
+  TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), &lino, _OVER);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
 
   /*
   if ((code = userCacheUpdateWhiteList(pMnode, pNew)) != 0) {
@@ -335,8 +314,16 @@ static int32_t mndAlterToken(SMnode *pMnode, STokenObj *pNew, SRpcMsg *pReq) {
   }
     */
 
+_OVER:
+  if (code != 0) {
+    if (pTrans == NULL) {
+      mError("token:%s, failed to drop at line %d since %s", pToken->name, lino, tstrerror(code));
+    } else {
+      mError("trans:%d, failed to drop token:%s at line %d since %s", pTrans->id, pToken->name, lino, tstrerror(code));
+    }
+  }
   mndTransDrop(pTrans);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 
@@ -408,35 +395,51 @@ _OVER:
 
 
 
-static int32_t mndDropToken(SMnode *pMnode, SRpcMsg *pReq, STokenObj *pToken) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-token");
+static int32_t mndDropToken(SMnode *pMnode, STokenObj* pToken, SUserObj* pUser, SRpcMsg *pReq) {
+  STrans *pTrans = NULL;
+  int32_t code = 0, lino = 0;
+
+  SUserObj newUser = {0};
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+  newUser.tokenNum--;
+  
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-token");
   if (pTrans == NULL) {
-    mError("token:%s, failed to drop since %s", pToken->name, terrstr());
-    TAOS_RETURN(terrno);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   mInfo("trans:%d, used to drop token:%s", pTrans->id, pToken->name);
 
+  // token commit log
   SSdbRaw *pCommitRaw = mndTokenActionEncode(pToken);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(terrno);
+  if (pCommitRaw == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) < 0) {
-    mndTransDrop(pTrans);
-    TAOS_RETURN(terrno);
-  }
+  TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), &lino, _OVER);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED), &lino, _OVER);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(terrno);
+  // user commit log
+  pCommitRaw = mndUserActionEncode(&newUser);
+  if (pCommitRaw == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
+  TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), &lino, _OVER);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
+  
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
 
 //  userCacheRemoveUser(pToken->name);
 
+_OVER:
+  if (code != 0) {
+    if (pTrans == NULL) {
+      mError("token:%s, failed to drop at line %d since %s", pToken->name, lino, tstrerror(code));
+    } else {
+      mError("trans:%d, failed to drop token:%s at line %d since %s", pTrans->id, pToken->name, lino, tstrerror(code));
+    }
+  }
   mndTransDrop(pTrans);
-  TAOS_RETURN(0);
+  mndUserFreeObj(&newUser);
+  TAOS_RETURN(code);
 }
 
 
@@ -446,6 +449,7 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
   int32_t        code = 0, lino = 0;
   STokenObj     *pToken = NULL;
   SUserObj      *pOperUser = NULL;
+  SUserObj      *pTokenUser = NULL;
   SDropTokenReq  dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSDropTokenReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -458,24 +462,30 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  code = mndAcquireUser(pMnode, pToken->user, &pTokenUser);
+  if (pTokenUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
+  }
+
   code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
   if (pOperUser == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
   }
 
-  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, pToken->user), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, pToken->user), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndDropToken(pMnode, pReq, pToken), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndDropToken(pMnode, pToken, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   auditRecord(pReq, pMnode->clusterId, "dropToken", "", dropReq.name, dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("token:%s, failed to drop since %s", dropReq.name, tstrerror(code));
+    mError("token:%s, failed to drop at line %d since %s", dropReq.name, lino, tstrerror(code));
   }
 
   mndReleaseToken(pMnode, pToken);
+  mndReleaseUser(pMnode, pTokenUser);
   mndReleaseUser(pMnode, pOperUser);
   tFreeSDropTokenReq(&dropReq);
   TAOS_RETURN(code);

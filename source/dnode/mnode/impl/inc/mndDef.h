@@ -480,6 +480,7 @@ typedef struct {
   int32_t passwordGraceTime;    // unit is second
   int32_t inactiveAccountTime;  // unit is second
   int32_t allowTokenNum;
+  int32_t tokenNum;
 
   int32_t       acctId;
   int32_t       authVersion;
