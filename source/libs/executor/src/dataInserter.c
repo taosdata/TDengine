@@ -303,6 +303,14 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
 static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserterInfo* pInserterInfo) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
+  int64_t           key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  
+  // Check if key already exists to avoid unnecessary allocation
+  SInsertTableInfo** ppExisting = taosHashGet(gStreamGrpTableHash, key, sizeof(key));
+  if (ppExisting != NULL && *ppExisting != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SInsertTableInfo* res = taosMemoryCalloc(1, sizeof(SInsertTableInfo));
   if (res == NULL) {
     return terrno;
@@ -326,7 +334,6 @@ static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserter
   code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &res->pSchema);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
   code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableInfo*));
   if (code == TSDB_CODE_DUP_KEY) {
     freeCacheTbInfo(&res);
