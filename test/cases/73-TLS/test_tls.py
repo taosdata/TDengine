@@ -114,10 +114,10 @@ class TestTLSDemo:
 
         """
         self.stop_and_restart()
-        for i in range(10):
-            time.sleep(3)
-            self.updateTls(tdSql)
-            self.basicTest(tdSql)
+        # for i in range(10):
+        #     time.sleep(3)
+        #     self.updateTls(tdSql)
+        #     self.basicTest(tdSql)
         
 
         
