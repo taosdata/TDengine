@@ -264,12 +264,14 @@ static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
   return code;
 }
 
+#if 0
 static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
   if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->userName, TSDB_DEFAULT_USER)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   SNode*      pTagCond = NULL;
@@ -526,8 +528,15 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSetOperator(pCxt, (SSetOperator*)pStmt);
     case QUERY_NODE_SELECT_STMT:
       return authSelect(pCxt, (SSelectStmt*)pStmt);
+    case QUERY_NODE_CREATE_ROLE_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_CREATE);
+    case QUERY_NODE_DROP_ROLE_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_DROP);
+    case QUERY_NODE_CREATE_USER_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
     case QUERY_NODE_DROP_USER_STMT:
-      return authDropUser(pCxt, (SDropUserStmt*)pStmt);
+      // return authDropUser(pCxt, (SDropUserStmt*)pStmt);
+      return authSysPrivileges(pCxt, pStmt, PRIV_USER_DROP);  // root has SYSDBA role with USER_DROP privilege
     case QUERY_NODE_DELETE_STMT:
       return authDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:
@@ -638,6 +647,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_DROP);
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_SHOW);
+    case QUERY_NODE_GRANT_STMT:
     case QUERY_NODE_CREATE_DNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
     case QUERY_NODE_CREATE_QNODE_STMT:

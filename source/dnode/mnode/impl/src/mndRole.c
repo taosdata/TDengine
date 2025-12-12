@@ -295,15 +295,6 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateTbs));
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteTbs));
 
-  int32_t nParentUsers = taosHashGetSize(pObj->parentUsers);
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentUsers));
-  if (nParentUsers > 0) {
-    void *pIter = NULL;
-    while ((pIter = taosHashIterate(pObj->parentUsers, pIter))) {
-      char *userName = taosHashGetKey(pIter, NULL);
-      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, userName));
-    }
-  }
   int32_t nParentRoles = taosHashGetSize(pObj->parentRoles);
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParentRoles));
   if (nParentRoles > 0) {
@@ -373,20 +364,6 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteTbs));
-
-  char    userName[TSDB_USER_LEN] = {0};
-  int32_t nParentUsers = 0;
-  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nParentUsers));
-  if (nParentUsers > 0) {
-    if (!(pObj->parentUsers =
-              taosHashInit(nParentUsers, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    for (int32_t i = 0; i < nParentUsers; ++i) {
-      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, userName));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->parentUsers, userName, strlen(userName) + 1, NULL, 0));
-    }
-  }
 
   char    roleName[TSDB_ROLE_LEN] = {0};
   int32_t nParentRoles = 0;
@@ -515,7 +492,6 @@ void mndRoleFreeObj(SRoleObj *pObj) {
     taosHashCleanup(pObj->insertTbs);
     taosHashCleanup(pObj->updateTbs);
     taosHashCleanup(pObj->deleteTbs);
-    taosHashCleanup(pObj->parentUsers);
     taosHashCleanup(pObj->parentRoles);
     taosHashCleanup(pObj->subRoles);
     pObj->objPrivs = NULL;
@@ -527,7 +503,6 @@ void mndRoleFreeObj(SRoleObj *pObj) {
     pObj->insertTbs = NULL;
     pObj->updateTbs = NULL;
     pObj->deleteTbs = NULL;
-    pObj->parentUsers = NULL;
     pObj->parentRoles = NULL;
     pObj->subRoles = NULL;    
   }
@@ -560,7 +535,6 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   TSWAP(pOld->insertTbs, pNew->insertTbs);
   TSWAP(pOld->updateTbs, pNew->updateTbs);
   TSWAP(pOld->deleteTbs, pNew->deleteTbs);
-  TSWAP(pOld->parentUsers, pNew->parentUsers);
   TSWAP(pOld->parentRoles, pNew->parentRoles);
   TSWAP(pOld->subRoles, pNew->subRoles);
   taosWUnLockLatch(&pOld->lock);
@@ -680,67 +654,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t mndRoleDropParentUser(SMnode *pMnode, STrans *pTrans, SUserObj *pObj) {
-  int32_t   code = 0, lino = 0;
-  SSdb     *pSdb = pMnode->pSdb;
-  SRoleObj *pRole = NULL;
-  void     *pIter = NULL;
-
-  while ((pIter = taosHashIterate(pObj->roles, pIter))) {
-    if ((code = mndAcquireRole(pMnode, (const char *)pIter, &pRole))) {
-      TAOS_CHECK_EXIT(code);
-    }
-    SRoleObj newRole = {0};
-    TAOS_CHECK_EXIT(mndRoleDupObj(pRole, &newRole));
-    code = taosHashRemove(newRole.parentUsers, pObj->user, strlen(pObj->user) + 1);
-    if (code == TSDB_CODE_NOT_FOUND) {
-      mndRoleFreeObj(&newRole);
-      continue;
-    }
-    if (code != 0) {
-      mndRoleFreeObj(&newRole);
-      TAOS_CHECK_EXIT(code);
-    }
-    SSdbRaw *pCommitRaw = mndRoleActionEncode(&newRole);
-    if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-      mndRoleFreeObj(&newRole);
-      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
-    }
-    if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY))) {
-      mndRoleFreeObj(&newRole);
-      TAOS_CHECK_EXIT(code);
-    }
-    mndReleaseRole(pMnode, pRole);
-    pRole = NULL;
-    mndRoleFreeObj(&newRole);
-  }
-_exit:
-  if (pIter) taosHashCancelIterate(pObj->roles, pIter);
-  if (pRole) mndReleaseRole(pMnode, pRole);
-  if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  TAOS_RETURN(code);
-}
-
-int32_t mndRoleGrantToUser(SMnode *pMnode, STrans *pTrans, SRoleObj *pRole, SUserObj *pUser) {
-  int32_t  code = 0, lino = 0;
-  SRoleObj newRole = {0};
-  TAOS_CHECK_EXIT(mndRoleDupObj(pRole, &newRole));
-  TAOS_CHECK_EXIT(taosHashPut(newRole.parentUsers, pUser->user, strlen(pUser->user) + 1, NULL, 0));
-  SSdbRaw *pCommitRaw = mndRoleActionEncode(&newRole);
-  if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-_exit:
-  if (code < 0) {
-    mError("role:%s, failed at line %d to grant to user:%s since %s", pRole->name, lino, pUser->user, tstrerror(code));
-  }
-  mndRoleFreeObj(&newRole);
-  TAOS_RETURN(code);
-}
-
 static int32_t mndDropParentRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj) {  // TODO
   return 0;
 }
@@ -847,7 +760,6 @@ int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->updateTbs, &pNew->updateTbs));
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->deleteTbs, &pNew->deleteTbs));
   // TODO: alterTbs?
-  TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentUsers, &pNew->parentUsers));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentRoles, &pNew->parentRoles));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->subRoles, &pNew->subRoles));
 _exit:

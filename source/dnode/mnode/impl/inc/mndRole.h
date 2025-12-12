@@ -35,8 +35,6 @@ int32_t mndAcquireRole(SMnode *pMnode, const char *roleName, SRoleObj **ppRole);
 void    mndReleaseRole(SMnode *pMnode, SRoleObj *pRole);
 void    mndRoleFreeObj(SRoleObj *pObj);
 int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew);
-int32_t mndRoleDropParentUser(SMnode *pMnode, STrans *pTrans, SUserObj *pObj);
-int32_t mndRoleGrantToUser(SMnode *pMnode, STrans *pTrans, SRoleObj *pRole, SUserObj *pUser);
 int64_t mndGetRoleLastUpd();
 void    mndSetRoleLastUpd(int64_t updateTime);
 bool    mndNeedRetrieveRole(SUserObj *pUser);

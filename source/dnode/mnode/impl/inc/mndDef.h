@@ -566,7 +566,6 @@ typedef struct {
   // SHashObj* alterTbs;   // k:tbFName, v: empty
   SHashObj* useDbs;
 
-  SHashObj* parentUsers;
   SHashObj* parentRoles;  // not supported yet
   SHashObj* subRoles;     // not supported yet
   SRWLatch  lock;

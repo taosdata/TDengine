@@ -3179,9 +3179,6 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     TAOS_RETURN(terrno);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  if (pRole) {
-    TAOS_CHECK_EXIT(mndRoleGrantToUser(pMnode, pTrans, pRole, pNew));
-  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -4072,11 +4069,6 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     TAOS_RETURN(terrno);
   }
   if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) < 0) {
-    mndTransDrop(pTrans);
-    TAOS_RETURN(terrno);
-  }
-
-  if (mndRoleDropParentUser(pMnode, pTrans, pUser) < 0) {
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
@@ -5103,14 +5095,20 @@ int32_t mndUserDropRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj) {
   SUserObj *pUser = NULL;
   void     *pIter = NULL;
 
-  while ((pIter = taosHashIterate(pObj->parentUsers, pIter))) {
-    if ((code = mndAcquireUser(pMnode, (const char *)pIter, &pUser))) {
-      TAOS_CHECK_EXIT(code);
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    SHashObj *pRole = taosHashGet(pUser->roles, pObj->name, strlen(pObj->name) + 1);
+    if (!pRole) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
+      continue;
     }
+
     SUserObj newUser = {0};
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
     code = taosHashRemove(newUser.roles, pObj->name, strlen(pObj->name) + 1);
     if (code == TSDB_CODE_NOT_FOUND) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
       mndUserFreeObj(&newUser);
       continue;
     }
@@ -5127,13 +5125,13 @@ int32_t mndUserDropRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj) {
       mndUserFreeObj(&newUser);
       TAOS_CHECK_EXIT(code);
     }
-    mndReleaseUser(pMnode, pUser);
+    sdbRelease(pSdb, pUser);
     pUser = NULL;
     mndUserFreeObj(&newUser);
   }
 _exit:
-  if (pIter) taosHashCancelIterate(pObj->parentUsers, pIter);
-  if (pUser) mndReleaseUser(pMnode, pUser);
+  if (pIter) sdbCancelFetch(pSdb, pIter);
+  if (pUser) sdbRelease(pSdb, pUser);
   if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
