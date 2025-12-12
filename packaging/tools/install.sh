@@ -71,6 +71,11 @@ fi
 update_flag=0
 prompt_force=0
 
+# NOTE: The following systemd/sysvinit detection logic is only for compatibility with legacy systems
+# (e.g., CentOS 6, Debian 7, Ubuntu 14.04 and earlier). However, this product officially requires at least
+# glibc 2.17 (CentOS 7+/Debian 8+/Ubuntu 16.04+), which all use systemd by default.
+# The sysvinit branches are now obsolete and can be safely removed in the future.
+
 initd_mod=0
 service_mod=2
 if ps aux | grep -v grep | grep systemd &>/dev/null; then
@@ -116,7 +121,7 @@ elif echo $osinfo | grep -qwi "centos"; then
 elif echo $osinfo | grep -qwi "fedora"; then
   #  echo "This is fedora system"
   os_type=2
-elif echo $osinfo | grep -qwi "Linx"; then
+elif echo $osinfo | grep -qwi "Linux"; then
   #  echo "This is Linx system"
   os_type=1
   service_mod=0
@@ -823,7 +828,7 @@ function clean_service_on_systemd() {
     ${csudo}systemctl stop $1 &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable $1 &>/dev/null || echo &>/dev/null
-  ${csudo}rm -f ${service_config}
+  # ${csudo}rm -f ${service_config}
 }
 
 function install_service_on_systemd() {
@@ -838,10 +843,18 @@ function install_service_on_systemd() {
     fi
   fi
 
-  if [ -f ${cfg_source_dir}/$1.service ]; then
-    ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
-  fi
+  local service_file="${cfg_source_dir}/$1.service"
+  local target_file="${service_config_dir}/$1.service"
 
+  if [ -f "$service_file" ]; then
+    if [ -f "$target_file" ]; then
+      ${csudo}cp "$service_file" "${target_file}.new"
+      log info_color "Old $1.service detected, new version saved as $1.service.new"
+    else
+      ${csudo}cp "$service_file" "$target_file"
+      log info_color "Installed $1.service"
+    fi
+  fi
   # # set default malloc config for cluster(enterprise) and edge(community)
   # if [ "$verMode" == "cluster" ] && [ "$ostype" == "Linux" ]; then
   #   if [ "$1" = "taosd" ] || [ "$1" = "taosadapter" ]; then
