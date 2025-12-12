@@ -94,7 +94,7 @@ class TestIntervalBugFix:
         
         # interval window: subquery is interval window with order by
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -105,7 +105,7 @@ class TestIntervalBugFix:
          
         # interval window: subquery is interval window with order by
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -116,7 +116,7 @@ class TestIntervalBugFix:
 
         # interval window: subquery is interval window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s)) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -127,7 +127,7 @@ class TestIntervalBugFix:
         
         # interval window: subquery is interval window with order by desc on non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -137,14 +137,14 @@ class TestIntervalBugFix:
         tdSql.checkData(2, 1, 45)
         
         sql = f"select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc;"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(20)
         tdSql.checkData(0, 1, 1763617920000)
         tdSql.checkData(19, 1, 1763617916000)
 
         # interval window: subquery is union all window with order by desc
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`), `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s)) order by _wstart desc) interval(3s)"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(1, 0, 1763617917000)
@@ -152,7 +152,7 @@ class TestIntervalBugFix:
  
         # interval window: subquery is union all window with order by asc
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`), `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s)) order by _wstart asc) interval(3s)"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(1, 0, 1763617917000)
@@ -168,7 +168,7 @@ class TestIntervalBugFix:
         
         # interval window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -181,7 +181,7 @@ class TestIntervalBugFix:
         
         # interval window: subquery is state window with order by desc
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 desc) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -194,7 +194,7 @@ class TestIntervalBugFix:
         
         # interval window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 asc) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -207,7 +207,7 @@ class TestIntervalBugFix:
 
         # interval window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) interval(3s);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617914000)
         tdSql.checkData(0, 1, 15)
@@ -225,7 +225,7 @@ class TestIntervalBugFix:
         
         # session window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617916000)
         tdSql.checkData(0, 1, 15)
@@ -238,7 +238,7 @@ class TestIntervalBugFix:
         
         # session window: subquery is state window with order by desc
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 desc) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617916000)
         tdSql.checkData(0, 1, 15)
@@ -290,7 +290,7 @@ class TestIntervalBugFix:
         
         # state window: subquery is state window with order by default
         sql = f"select _wstart, sum(`status`) from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 asc) state_window(status);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617916000)
         tdSql.checkData(0, 1, 5)
@@ -301,7 +301,7 @@ class TestIntervalBugFix:
         
         # state window: subquery is state window with order by desc
         sql = f"select _wstart, _wend, sum(`status`) from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) state_window(status);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617916004)
         tdSql.checkData(0, 1, 1763617916000)
@@ -322,7 +322,7 @@ class TestIntervalBugFix:
         tdSql.error(sql)
         
         sql = f"select _wstart, first(`status`), ts from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) state_window(status);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617916004)
         tdSql.checkData(0, 1, 1)
@@ -335,7 +335,7 @@ class TestIntervalBugFix:
         tdSql.checkData(2, 2, 1763617922000)
         
         sql = f"select _wstart, first(ts), last(ts) from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 asc) state_window(status);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, 1763617916000)
         tdSql.checkData(0, 1, 1763617916000)
@@ -349,7 +349,7 @@ class TestIntervalBugFix:
         
         # count window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) count_window(5);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617916000)
         tdSql.checkData(0, 1, 5)
@@ -362,7 +362,7 @@ class TestIntervalBugFix:
         
         # count window: subquery is state window with order by desc
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 desc) count_window(5);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 1763617923004)
         tdSql.checkData(0, 1, 15)
@@ -383,14 +383,14 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) event_window start with status > 1 end with status > 4;"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1763617918000)
         tdSql.checkData(0, 1, 37)
         
         # event window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 desc) event_window start with status > 1 end with status > 4;"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1763617923004)
         tdSql.checkData(0, 1, 5)
@@ -405,7 +405,7 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) event_window start with status%3 == 1 end with status%3 == 0;"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1763617916000)
         tdSql.checkData(0, 1, 18)
@@ -415,7 +415,7 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by desc
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 desc) event_window start with status%3 == 1 end with status%3 == 0;"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1763617923003)
         tdSql.checkData(0, 1, 10)
@@ -433,7 +433,7 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 asc) event_window start with status%2 == 0 end with status%2 == 1;"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 1763617918000)
         tdSql.checkData(0, 1, 13)
@@ -448,7 +448,7 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by desc
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1 desc) event_window start with status%2 == 0 end with status%2 == 1;"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 1763617923003)
         tdSql.checkData(0, 1, 7)
@@ -462,50 +462,50 @@ class TestIntervalBugFix:
         tdSql.checkData(1, 4, 6)
         
         sql = f"select _wstart,_wend, sum(`status`) from (select ts, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
     
         sql = f"select _wstart,_wend, sum(`status`) from (select _wstart as t2, last(`ts`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
     
         sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`), _wstart as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
         sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart as t2, last(`ts`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
 
         sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`) as t2, _wstart, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc)  session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
         sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc)  session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
         sql = f"select _wstart,_wend, sum(`status`) from (select ts as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc) session(t1, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
     
         sql = f"select _wstart,_wend, sum(`status`) from (select _wstart as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
     
         sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`) as t1, _wstart as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t1, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
         sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by _wstart desc) session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
 
         sql = f"select _wstart,_wend, sum(`status`) from (select last(`ts`) as t1, _wstart as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc)  session(t2, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
         sql = f"select _wstart,_wend, sum(`status`) from (select  _wstart as t1, last(`ts`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc)  session(t1, 500a);"
-        tdSql.query(sql)
+        tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
