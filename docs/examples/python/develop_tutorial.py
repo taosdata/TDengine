@@ -51,3 +51,4 @@ for row in result:
 # output:
 # [datetime.datetime(2018, 10, 3, 14, 38, 5), 10.3]
 # [datetime.datetime(2018, 10, 3, 14, 38, 10), 10.3]
+# ANCHOR_END: iter

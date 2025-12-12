@@ -17,7 +17,7 @@ Before telegraf can write data into TDengine cloud service, you need to firstly 
 Supposed that you use Ubuntu system:
 
 ```bash
-{{#include docs/examples/thirdparty/install-telegraf.sh:null:nrc}}
+{{#include docs/examples/thirdparty/install-telegraf.sh::nrc}}
 ```
 
 After installation, telegraf service should have been started. Lets stop it:
@@ -44,13 +44,13 @@ You are expected to replace `<url>` and `<token>` with real TDengine cloud URL a
 Then run this command to generate new telegraf.conf.
 
 ```bash
-{{#include docs/examples/thirdparty/gen-telegraf-conf.sh:null:nrc}}
+{{#include docs/examples/thirdparty/gen-telegraf-conf.sh::nrc}}
 ```
 
 Edit section "outputs.http".
 
 ```toml
-{{#include docs/examples/thirdparty/telegraf-conf.toml:null:nrc}}
+{{#include docs/examples/thirdparty/telegraf-conf.toml::nrc}}
 ```
 
 The resulting configuration will collect CPU and memory data and sends it to TDengine database named "telegraf". Database "telegraf" must be created first through TDengine Cloud explorer.
