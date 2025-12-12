@@ -16639,6 +16639,13 @@ static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaS
   int32_t code = 0, lino = 0;
   pStmt->pRsmaMeta = NULL;
   TAOS_CHECK_EXIT(getRsma(pCxt, pStmt->rsmaName, (SRsmaInfoRsp**)&pStmt->pRsmaMeta));
+  if (!pStmt->hasPrivilege) {
+    SRsmaInfoRsp* pRsma = (SRsmaInfoRsp*)pStmt->pRsmaMeta;
+    const char*   user = pCxt->pParseCxt->pEffectiveUser ? pCxt->pParseCxt->pEffectiveUser : pCxt->pParseCxt->pUser;
+    if (strncmp(pRsma->owner, user, TSDB_USER_LEN) != 0) {
+      return TSDB_CODE_PAR_PERMISSION_DENIED;
+    }
+  }
 _exit:
   return code;
 #else

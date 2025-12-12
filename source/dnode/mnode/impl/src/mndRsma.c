@@ -1047,6 +1047,7 @@ static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SStbObj *pStb, SRsmaInfoRsp *pRsp
   pRsp->id = pObj->uid;
   (void)snprintf(pRsp->name, sizeof(pRsp->name), "%s", pObj->name);
   (void)snprintf(pRsp->tbFName, sizeof(pRsp->tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
+  (void)snprintf(pRsp->owner, sizeof(pRsp->owner), "%s", pObj->owner[0] != 0 ? pObj->owner : pObj->createUser);
   pRsp->version = pObj->version;
   pRsp->tbType = pObj->tbType;
   pRsp->intervalUnit = pObj->intervalUnit;

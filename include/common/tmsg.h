@@ -4966,6 +4966,7 @@ typedef struct {
   int64_t    id;
   char       name[TSDB_TABLE_NAME_LEN];
   char       tbFName[TSDB_TABLE_FNAME_LEN];
+  char       owner[TSDB_USER_LEN];
   int32_t    code;
   int32_t    version;
   int8_t     tbType;

@@ -1585,6 +1585,7 @@ int32_t tSerializeRsmaInfoRsp(void *buf, int32_t bufLen, SRsmaInfoRsp *pReq) {
   }
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->interval[0]));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->interval[1]));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->owner));
 
   tEndEncode(&encoder);
 _exit:
@@ -1644,6 +1645,9 @@ int32_t tDeserializeRsmaInfoRsp(void *buf, int32_t bufLen, SRsmaInfoRsp *pReq) {
   }
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->interval[0]));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->interval[1]));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->owner));
+  }
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);

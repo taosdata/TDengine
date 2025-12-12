@@ -498,6 +498,16 @@ static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
   return code;
 }
 
+static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
+  int32_t code = authObjPrivileges(pCxt, ((SShowCreateRsmaStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SShowCreateRsmaStmt*)pStmt)->dbName, ((SShowCreateRsmaStmt*)pStmt)->rsmaName,
+                             PRIV_RSMA_SHOW_CREATE);
+  }
+  if (code == 0) pStmt->hasPrivilege = true;
+  return 0;  // return 0 and check owner later since rsma ctgCatalog not implemented yet
+}
+
 static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
   return checkAuth(pCxt, NULL, NULL, type, NULL);
 }
@@ -607,6 +617,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_ALTER_RSMA_STMT:
       return authObjPrivileges(pCxt, ((SAlterRsmaStmt*)pStmt)->dbName, ((SAlterRsmaStmt*)pStmt)->rsmaName,
                                PRIV_RSMA_ALTER);
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+      return authShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_DB_CREATE);
     case QUERY_NODE_BALANCE_VGROUP_STMT:
