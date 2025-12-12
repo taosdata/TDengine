@@ -5903,6 +5903,11 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
   }
 }
 
+/*
+  Resume the suspended reader. If the reader is TIMEWINDOW_RANGE_EXTERNAL type,
+  we need to resume its inner readers as well. We can choose correct reader to
+  open according to the step value.
+*/
 int32_t tsdbReaderResume2(STsdbReader* pReader) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
@@ -6190,9 +6195,8 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
     }
   }
 
-  if ((pReader->step == EXTERNAL_ROWS_PREV &&
-       (pReader->currentStepDone || !*hasNext)) ||
-      pReader->step == EXTERNAL_ROWS_INIT) {
+  if (pReader->step == EXTERNAL_ROWS_PREV &&
+      (pReader->currentStepDone || !*hasNext)) {
     /*
       PREV scan is done or has no more data or doesn't exist,
       move to the MAIN scan and prepare for it
