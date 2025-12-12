@@ -79,7 +79,7 @@ pub(crate) fn message_to_sql<'a>(
                     m.sql_insert_part(precision, with_meta, with_field_names, database_name)
                         .into_iter()
                         .map(|(sql_part, row_count, table_not_in_cache, start, end)| {
-                            let batch = m.records.slice(start, end - start + 1);
+                            let batch = m.records.slice(start, end - start);
                             (sql_part, row_count, table_not_in_cache, batch)
                         })
                 })
@@ -203,7 +203,7 @@ pub fn recordbatch_to_sql(
                 }
             })
             .map(|(sql_part, row_count, start, end)| {
-                let batch = batch.slice(start, end - start + 1);
+                let batch = batch.slice(start, end - start);
                 (sql_part, row_count, batch)
             })
             .collect_vec();

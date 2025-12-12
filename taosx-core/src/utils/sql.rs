@@ -728,6 +728,23 @@ pub fn sql_max_var_length(batch: &RecordBatch) -> Vec<usize> {
     lengths
 }
 
+/// Converts a RecordBatch into a vector of SQL values.
+///
+/// For example, given a RecordBatch with two columns, one of type Int32 and one of type Float64,
+/// the function will return a vector of SQL values in the format `"values(100,0.1)(101,NULL)"`.
+///
+/// If `with_field_names` is true, the function will include the field names in the SQL values.
+/// For example: `"(ts, val) values(100,0.1)(101,NULL)"`.
+///
+/// Returns a vector of SQL values, item is `(String, usize, usize, usize)` tuple:
+/// - 0: SQL value string
+/// - 1: Rows contained in the SQL value string
+/// - 2: Start index of the SQL value string in the original batch
+/// - 3: End index of the SQL value string in the original batch
+///
+/// Note that:
+/// 1. The SQL values string is not a complete valid SQL.
+/// 2. [start, end) is the range of rows in the original batch that the SQL value string represents. It's left inclusive and right exclusive.
 pub fn sql_values_from_record_batch(
     batch: &RecordBatch,
     precision: taos::Precision,
@@ -758,25 +775,33 @@ pub fn sql_values_from_record_batch(
     let vec = Vec::with_capacity(1);
     let mut rows = 0;
     let mut start = 0;
+    let values_prefix_len = if with_field_names {
+        names.len() + 9 // 9 = "() values".len()
+    } else {
+        6 // "values".len()
+    };
+
+    let new_cursor = |cap: usize| -> std::io::Cursor<Vec<u8>> {
+        let mut cursor = std::io::Cursor::new(Vec::<u8>::with_capacity(cap + values_prefix_len));
+        if with_field_names {
+            let _ = write!(cursor, "({}) values", names).inspect_err(|e| {
+                tracing::error!("Cursor io should never error: {}", e);
+            });
+        } else {
+            let _ = cursor.write(b"values").inspect_err(|e| {
+                tracing::error!("Cursor io should never error: {}", e);
+            });
+        }
+        cursor
+    };
 
     let (mut vec, cursor) =
         (0..batch.num_rows()).try_fold((vec, None), |(mut vec, cursor), row| {
             if columns[0].is_null(row) {
                 return Ok((vec, cursor));
             }
-            let mut cursor = cursor.unwrap_or_else(|| {
-                let mut cursor = std::io::Cursor::new(Vec::<u8>::with_capacity(256));
-                if with_field_names {
-                    let _ = write!(cursor, "({}) values", names).inspect_err(|e| {
-                        tracing::error!("Cursor io should never error: {}", e);
-                    });
-                } else {
-                    let _ = cursor.write(b"values").inspect_err(|e| {
-                        tracing::error!("Cursor io should never error: {}", e);
-                    });
-                }
-                cursor
-            });
+            let mut cursor = cursor.unwrap_or_else(|| new_cursor(1_000));
+            let cursor_start = cursor.position() as usize;
             cursor.write_all(b"(")?;
             #[allow(clippy::needless_range_loop)]
             for col in column_has_value.iter() {
@@ -1075,21 +1100,39 @@ pub fn sql_values_from_record_batch(
                 }
             }
             cursor.write_all(b")")?;
-            rows += 1;
             cursor.flush()?;
-            if cursor.position() > 900_000 {
-                let values = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
-                vec.push((values, rows, start, row));
-                rows = 0;
-                start = row + 1;
-                Ok((vec, None))
+            let cursor_pos = cursor.position() as usize;
+            if cursor_pos >= MAX_SQL_LENGTH - 12 {
+                // Reach max length, start next sql part.
+                let mut bytes = cursor.into_inner();
+
+                // Copy the excess bytes to a new cursor.
+                let mut new_cursor = new_cursor(bytes.len() - cursor_start);
+                new_cursor.write_all(&bytes[cursor_start..])?;
+                debug_assert_eq!(
+                    new_cursor.position() as usize,
+                    bytes.len() + values_prefix_len - cursor_start
+                );
+
+                // Truncate the original cursor to not include the excess bytes.
+                bytes.truncate(cursor_start);
+                // Original cursor is now truncated and ready to be converted to sql string.
+                let sql = unsafe { String::from_utf8_unchecked(bytes) };
+                // Partial sql contains rows [start, row), not include the last.
+                vec.push((sql, rows, start, row));
+
+                // Put new_cursor here to be used in the next iteration.
+                rows = 1;
+                start = row;
+                Ok((vec, Some(new_cursor)))
             } else {
+                rows += 1;
                 Ok((vec, Some(cursor)))
             }
         })?;
     if let Some(cursor) = cursor {
         let values = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
-        vec.push((values, rows, start, batch.num_rows() - 1));
+        vec.push((values, rows, start, batch.num_rows()));
     }
 
     Ok(vec)
@@ -1683,7 +1726,7 @@ mod tests {
         let values = sql_values_from_record_batch(&batch, taos::Precision::Nanosecond, false)?;
         assert_eq!(
             values,
-            vec![("values(100,0.1)(101,NULL)".to_string(), 2, 0, 1)]
+            vec![("values(100,0.1)(101,NULL)".to_string(), 2, 0, 2)]
         );
         Ok(())
     }
@@ -1725,7 +1768,7 @@ mod tests {
             .unwrap()
             .into_iter()
             .map(|(sql, size, start, end)| {
-                let batch = batch.slice(start, end - start + 1);
+                let batch = batch.slice(start, end - start);
                 (sql, size, batch)
             })
             .collect::<Vec<_>>();
@@ -1742,6 +1785,138 @@ mod tests {
     }
 
     #[test]
+    fn test_values_to_sqls_with_max_sql_len() {
+        // 0. Case 0
+        //
+        // Generate record batch as:
+        //
+        // | ts  | value        |
+        // | --- | ---          |
+        // | 100 | base64(200k) |
+        // | 100 | base64(200k) |
+        // | 100 | base64(200k) |
+        // | 100 | base64(200k) |
+        // | 100 | base64(200k) |
+        // | 100 | base64(200k) |
+        //
+        // It should generate two SQL statements:
+        //
+        // It contains 6 records, each record contains a 200k base64 string.
+        //
+        // It could be split into two SQL statements, each containing 3 records.        //
+        //
+        let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101, 102, 103, 104, 105]));
+        use base64::Engine;
+        let engine = base64::engine::general_purpose::STANDARD;
+        let bytes = [1; 200_000];
+        let b64 = engine.encode(bytes);
+        const FAKE_BINARY_LEN: usize = 266668;
+        assert_eq!(b64.len(), FAKE_BINARY_LEN);
+        let values: Vec<&[u8]> = vec![b64.as_bytes(); 6];
+        let value_array: ArrayRef = Arc::new(BinaryArray::from_vec(values));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("ts", ts_array, false),
+            ("value", value_array, true),
+        ])
+        .unwrap();
+        let values = sql_values_from_record_batch(&batch, taos::Precision::Nanosecond, false)
+            .unwrap()
+            .into_iter()
+            .map(|(sql, size, start, end)| {
+                println!(
+                    "sql: {}, size: {}, start: {}, end: {}",
+                    sql.len(),
+                    size,
+                    start,
+                    end
+                );
+                let batch = batch.slice(start, end - start);
+                (sql, size, batch)
+            })
+            .collect::<Vec<_>>();
+
+        println!("values len: {}", values.len());
+        for (sql, size, batch) in &values {
+            assert_eq!(&sql[..7], "values(");
+            println!(
+                "sql: {}, size: {}, batch len: {}",
+                sql.len(),
+                size,
+                batch.num_rows()
+            );
+            assert_eq!(sql.len(), (FAKE_BINARY_LEN + 10) * size);
+            assert_eq!(batch.num_rows(), *size);
+        }
+        let sqls = values_to_sqls(&values);
+        assert_eq!(sqls.len(), 2);
+        for (sql, _, _, _) in sqls {
+            assert!(
+                sql.len() <= MAX_SQL_LENGTH,
+                "expect len < {}, got: {}",
+                MAX_SQL_LENGTH,
+                sql.len()
+            );
+        }
+
+        // Case 1. SQL parts concat
+        let first = batch.slice(0, 2);
+        let second = batch.slice(0, 1);
+        let third = batch.slice(0, 4);
+        let forth = batch.slice(0, 4);
+        let batches = [first, second, third, forth];
+        let values = batches
+            .iter()
+            .flat_map(|batch| {
+                sql_values_from_record_batch(batch, taos::Precision::Nanosecond, false)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(sql, size, start, end)| {
+                        println!(
+                            "sql: {}, size: {}, start: {}, end: {}",
+                            sql.len(),
+                            size,
+                            start,
+                            end
+                        );
+                        let batch = batch.slice(start, end - start);
+                        (sql, size, batch)
+                    })
+            })
+            .collect::<Vec<_>>();
+
+        println!("values len: {}", values.len());
+        for (sql, size, batch) in &values {
+            assert_eq!(&sql[..7], "values(");
+            println!(
+                "sql: {}, size: {}, batch len: {}",
+                sql.len(),
+                size,
+                batch.num_rows()
+            );
+            // "values" + "(100,'{SQL_PART}')".len() * size
+            assert_eq!(sql.len(), (FAKE_BINARY_LEN + 8) * size + 6);
+            assert_eq!(batch.num_rows(), *size);
+        }
+        let sizes = values.iter().map(|(_, size, _)| *size).collect::<Vec<_>>();
+        assert_eq!(sizes, vec![2, 1, 3, 1, 3, 1]);
+
+        let sqls = values_to_sqls(&values);
+        assert_eq!(sqls.len(), 5);
+        for (sql, size, rows, batch) in &sqls {
+            assert!(
+                sql.len() <= MAX_SQL_LENGTH,
+                "expect len < {}, got: {}",
+                MAX_SQL_LENGTH,
+                sql.len()
+            );
+            assert_eq!(*rows, batch.iter().map(|b| b.num_rows()).sum::<usize>());
+            println!("sql: {}, size: {}, rows: {}", sql.len(), size, rows);
+        }
+        let sizes = sqls.iter().map(|(_, _, rows, _)| *rows).collect::<Vec<_>>();
+        assert_eq!(sizes, vec![3, 3, 1, 3, 1]);
+    }
+
+    #[test]
     fn test_valid_sql_or_none() {
         let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101]));
         let value_array: ArrayRef = Arc::new(Float64Array::from(vec![Some(0.1), None]));
@@ -1755,7 +1930,7 @@ mod tests {
             .unwrap()
             .into_iter()
             .map(|(sql, size, start, end)| {
-                let batch = batch.slice(start, end - start + 1);
+                let batch = batch.slice(start, end - start);
                 (sql, size, batch)
             })
             .collect::<Vec<_>>();
@@ -1783,7 +1958,7 @@ mod tests {
                 "(`ts`,`value`) values(100,0.1)(101,NULL)".to_string(),
                 2,
                 0,
-                1
+                2
             )]
         );
         Ok(())
