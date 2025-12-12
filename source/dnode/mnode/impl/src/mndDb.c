@@ -1854,6 +1854,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
+  SUserObj  *pUser = NULL;
   SDropDbReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -1870,7 +1871,17 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _OVER);
+  if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb))) {
+    if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser))) {
+      goto _OVER;
+    }
+    char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
+    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
+    if (!mndCheckObjPrivilege(pMnode, pUser, PRIV_DB_DROP, NULL, objFName, NULL)) {
+      code = TSDB_CODE_MND_NO_RIGHTS;
+      goto _OVER;
+    }
+  }
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
@@ -1937,6 +1948,7 @@ _OVER:
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
 
+  mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
   tFreeSDropDbReq(&dropReq);
   TAOS_RETURN(code);

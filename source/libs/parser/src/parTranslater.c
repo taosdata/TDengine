@@ -16138,7 +16138,7 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
     }
   }
 
-  if (strncmp(pStmt->objName, "*", 2) == 0 && strncmp(pStmt->tabName, "*", 2) != 0) {
+  if (strncmp(pStmt->objName, "*", 2) == 0 && pStmt->tabName[0] != 0 && strncmp(pStmt->tabName, "*", 2) != 0) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
   }
 
@@ -16155,10 +16155,12 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name should be empty for database level privileges");
       }
-      SDbCfgInfo dbCfg = {0};
-      if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST, "Failed to get database %s since %s",
-                                       pStmt->objName, tstrerror(code));
+      if (strncmp(pStmt->objName, "*", 2) != 0) {
+        SDbCfgInfo dbCfg = {0};
+        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
+                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
+        }
       }
       break;
     }

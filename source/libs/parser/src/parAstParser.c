@@ -1269,11 +1269,12 @@ static int32_t collectMetaKeyFromScanVgroups(SCollectMetaKeyCxt* pCxt, SScanVgro
 
 static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if ('\0' != pStmt->objName[0]) {
+  bool    isRealObj = ('\0' != pStmt->objName[0] && strncmp(pStmt->objName, "*", TSDB_OBJ_NAME_LEN) != 0);
+  if (isRealObj) {
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->objName, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if ('\0' != pStmt->tabName[0]) {
+    if (isRealObj && '\0' != pStmt->tabName[0] && strncmp(pStmt->tabName, "*", TSDB_TABLE_NAME_LEN) != 0) {
       return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
     }
   }
