@@ -36,6 +36,11 @@ class TestInterp2:
         tdSql.execute("create stable if not exists test.ts5941(ts timestamp, c1 int, c2 int) tags (t1 varchar(30));")
         tdSql.execute("create table if not exists test.ts5941_child using test.ts5941 tags ('testts5941');")
 
+        tdSql.execute("create table if not exists ntb (ts timestamp, c1 int)")
+        tdSql.execute("create table if not exists stb (ts timestamp, c1 int) tags (gid int)")
+        tdSql.execute("create table if not exists ctb1 using stb tags (1)")
+        tdSql.execute("create table if not exists ctb2 using stb tags (2)")
+
         tdLog.printNoPrefix("==========step2:insert data")
 
         tdSql.execute(f"insert into test.td32727 values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar', 5, 5, 5, 5)")
@@ -55,6 +60,40 @@ class TestInterp2:
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:05', 5, 5)")
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:10', 10, 10)")
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:15', 15, 15)")
+
+        tdSql.execute("""
+            insert into ntb values
+            ("2025-12-12 12:00:00", 1)
+            ("2025-12-12 12:03:00", null)
+            ("2025-12-12 12:04:00", null)
+            ("2025-12-12 12:05:00", null)
+            ("2025-12-12 12:08:00", 2)
+            ("2025-12-12 12:09:00", null)
+            ("2025-12-12 12:10:00", null)
+            ("2025-12-12 12:11:00", 3)
+        """)
+
+        tdSql.execute("""
+            insert into ctb1 values
+            ("2025-12-12 12:00:00", 1)
+            ("2025-12-12 12:03:00", null)
+            ("2025-12-12 12:04:00", null)
+            ("2025-12-12 12:05:00", null)
+            ("2025-12-12 12:08:00", 2)
+            ("2025-12-12 12:09:00", null)
+            ("2025-12-12 12:10:00", null)
+            ("2025-12-12 12:11:00", 3)
+        """)
+
+        tdSql.execute("""
+            insert into ctb2 values
+            ("2025-12-12 12:13:00", null)
+            ("2025-12-12 12:14:00", null)
+            ("2025-12-12 12:15:00", null)
+            ("2025-12-12 12:18:00", 2)
+            ("2025-12-12 12:19:00", null)
+            ("2025-12-12 12:20:00", 3);
+        """)
 
     def test_normal_query_new(self):
         """test interp query
@@ -113,5 +152,26 @@ class TestInterp2:
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1) every(2s) fill(prev, 99);")
         tdSql.error("create stream s1 trigger force_window_close into test.s1res as select _irowts, interp(c1), interp(c2)from test.td32727 partition by tbname range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(1s) fill(near, 1, 1);")
 
+    def test_interp_fill_ignore_null(self):
+        """Interp query fill with non-null values
 
+        1. testing fill(prev/next) try to fill nulls with non-null values only
+        
+        Catalog:
+            - Query:Interp
 
+        Since: v3.3.6.34
+
+        Labels: common,ci
+
+        History:
+            - 2025-12-12 Tony Zhang created
+
+        """
+        testCase = "interp_fill_ignore_null"
+        # read sql from .sql file and execute
+        tdLog.info("test normal query ignoring null.")
+        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
+        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
+
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
