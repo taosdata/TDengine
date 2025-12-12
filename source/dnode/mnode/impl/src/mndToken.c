@@ -26,6 +26,172 @@
 #define TOKEN_RESERVE_SIZE 64
 
 
+typedef struct {
+  SHashObj *tokens; // key: token name, value: SCachedTokenInfo*
+  TdThreadRwlock rw;
+} STokenCache;
+
+static STokenCache tokenCache;
+
+
+static int32_t tokenCacheInit() {
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+
+  SHashObj *tokens = taosHashInit(128, hashFn, 1, HASH_ENTRY_LOCK);
+  if (tokens == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  tokenCache.tokens = tokens;
+  (void)taosThreadRwlockInit(&tokenCache.rw, NULL);
+  TAOS_RETURN(0);
+}
+
+
+
+static void tokenCacheCleanup() {
+  if (tokenCache.tokens == NULL) {
+    return;
+  }
+
+  void *pIter = taosHashIterate(tokenCache.tokens, NULL);
+  while (pIter) {
+    SCachedTokenInfo *ti = *(SCachedTokenInfo **)pIter;
+    if (ti != NULL) {
+      taosMemoryFree(ti);
+    }
+    pIter = taosHashIterate(tokenCache.tokens, pIter);
+  }
+  taosHashCleanup(tokenCache.tokens);
+  (void)taosThreadRwlockDestroy(&tokenCache.rw);
+}
+
+
+
+static int32_t tokenCacheAdd(const STokenObj* token) {
+  SCachedTokenInfo* ti = taosMemoryCalloc(1, sizeof(SCachedTokenInfo));
+  if (ti == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  tstrncpy(ti->user, token->user, sizeof(ti->user));
+  ti->expireTime = token->expireTime;
+  ti->enabled = token->enabled;
+
+  (void)taosThreadRwlockWrlock(&tokenCache.rw);
+  int32_t code = taosHashPut(tokenCache.tokens, token->token, sizeof(token->token) - 1, &ti, sizeof(ti));
+  taosThreadRwlockUnlock(&tokenCache.rw);
+
+  if (code != 0) {
+    taosMemoryFree(ti);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(0);
+}
+
+
+
+static int32_t tokenCacheUpdate(const STokenObj* token) {
+  SCachedTokenInfo* ti = NULL;
+
+  (void)taosThreadRwlockWrlock(&tokenCache.rw);
+  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token->token, sizeof(token->token) - 1);
+  if (pp != NULL && *pp != NULL) {
+    ti = *pp;
+  } else {
+    ti = taosMemoryCalloc(1, sizeof(SCachedTokenInfo));
+    if (ti == NULL) {
+      taosThreadRwlockUnlock(&tokenCache.rw);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    tstrncpy(ti->user, token->user, sizeof(ti->user));
+
+    int32_t code = taosHashPut(tokenCache.tokens, token->token, sizeof(token->token) - 1, &ti, sizeof(ti));
+    if (code != 0) {
+      taosMemoryFree(ti);
+      taosThreadRwlockUnlock(&tokenCache.rw);
+      TAOS_RETURN(code);
+    }
+  }
+
+  ti->expireTime = token->expireTime;
+  ti->enabled = token->enabled;
+
+  taosThreadRwlockUnlock(&tokenCache.rw);
+  TAOS_RETURN(0);
+}
+
+
+
+static void tokenCacheRemove(const char* token) {
+  (void)taosThreadRwlockWrlock(&tokenCache.rw);
+  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1);
+  if (pp != NULL) {
+    if (taosHashRemove(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1) != 0) {
+      mDebug("failed to remove token %s from token cache", token);
+    } else {
+      taosMemoryFree(*pp);
+    }
+  }
+  taosThreadRwlockUnlock(&tokenCache.rw);
+}
+
+
+
+int32_t mndTokenCacheRebuild(SMnode *pMnode) {
+  int32_t    code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+
+  (void)taosThreadRwlockWrlock(&tokenCache.rw);
+  while (1) {
+    STokenObj* token = NULL;
+    pIter = sdbFetch(pSdb, SDB_TOKEN, pIter, (void**)&token);
+    if (pIter == NULL) {
+      break;
+    }
+    
+    SCachedTokenInfo* ti = taosMemoryCalloc(1, sizeof(SCachedTokenInfo));
+    if (ti == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+
+    tstrncpy(ti->user, token->user, sizeof(ti->user));
+    ti->expireTime = token->expireTime;
+    ti->enabled = token->enabled;
+
+    code = taosHashPut(tokenCache.tokens, token->token, sizeof(token->token) - 1, &ti, sizeof(ti));
+    if (code != 0) {
+      taosMemoryFree(ti);
+      goto _OVER;
+    }
+  }
+
+_OVER:
+  taosThreadRwlockUnlock(&tokenCache.rw);
+  if (code < 0) {
+    mError("failed to rebuild token cache at line %d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+
+
+SCachedTokenInfo* mndGetCachedTokenInfo(const char* token, SCachedTokenInfo* ti) {
+  (void)taosThreadRwlockRdlock(&tokenCache.rw);
+  SCachedTokenInfo** pp = (SCachedTokenInfo**)taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1);
+  if (pp != NULL && *pp != NULL) {
+    (void)memcpy(ti, *pp, sizeof(SCachedTokenInfo));
+  } else {
+    ti = NULL;
+  }
+  taosThreadRwlockUnlock(&tokenCache.rw);
+  return ti;
+}
+
+
+
 static SSdbRaw *mndTokenActionEncode(STokenObj *pObj) {
   int32_t code = 0, lino = 0;
 
@@ -194,12 +360,7 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SUserObj
   
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
 
-  /*
-  if ((code = userCacheUpdateWhiteList(pMnode, &userObj)) != 0) {
-    mndTransDrop(pTrans);
-    TAOS_CHECK_GOTO(code, &lino, _OVER);
-  }
-    */
+  TAOS_CHECK_GOTO(tokenCacheAdd(&tokenObj), &lino, _OVER);
 
 _OVER:
   if (code != 0) {
@@ -307,19 +468,14 @@ static int32_t mndAlterToken(SMnode *pMnode, STokenObj *pToken, SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
 
-  /*
-  if ((code = userCacheUpdateWhiteList(pMnode, pNew)) != 0) {
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
-    */
+  TAOS_CHECK_GOTO(tokenCacheUpdate(pToken), &lino, _OVER);
 
 _OVER:
   if (code != 0) {
     if (pTrans == NULL) {
-      mError("token:%s, failed to drop at line %d since %s", pToken->name, lino, tstrerror(code));
+      mError("token:%s, failed to alter at line %d since %s", pToken->name, lino, tstrerror(code));
     } else {
-      mError("trans:%d, failed to drop token:%s at line %d since %s", pTrans->id, pToken->name, lino, tstrerror(code));
+      mError("trans:%d, failed to alter token:%s at line %d since %s", pTrans->id, pToken->name, lino, tstrerror(code));
     }
   }
   mndTransDrop(pTrans);
@@ -427,7 +583,7 @@ static int32_t mndDropToken(SMnode *pMnode, STokenObj* pToken, SUserObj* pUser, 
   
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
 
-//  userCacheRemoveUser(pToken->name);
+  tokenCacheRemove(pToken->token);
 
 _OVER:
   if (code != 0) {
@@ -580,9 +736,11 @@ static void mndCancelGetNextToken(SMnode *pMnode, void *pIter) {
 
 
 int32_t mndInitToken(SMnode *pMnode) {
+  TAOS_CHECK_RETURN(tokenCacheInit());
+
   SSdbTable table = {
       .sdbType = SDB_TOKEN,
-      .keyType = SDB_KEY_INT32,
+      .keyType = SDB_KEY_BINARY,
       .encodeFp = (SdbEncodeFp)mndTokenActionEncode,
       .decodeFp = (SdbDecodeFp)mndTokenActionDecode,
       .insertFp = (SdbInsertFp)mndTokenActionInsert,
@@ -602,6 +760,7 @@ int32_t mndInitToken(SMnode *pMnode) {
 
 
 void mndCleanupToken(SMnode *pMnode) {
+  tokenCacheCleanup();
 }
 
 
@@ -625,37 +784,3 @@ void mndReleaseToken(SMnode *pMnode, STokenObj *pToken) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pToken);
 }
-
-/*
-void mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-user");
-  if (pTrans == NULL) {
-    mError("user:%s, failed to update since %s", pUser->user, terrstr());
-    return;
-  }
-  mInfo("trans:%d, used to update user:%s", pTrans->id, pUser->user);
-
-  SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  if (code < 0) {
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  mndTransDrop(pTrans);
-}
-
-
-*/

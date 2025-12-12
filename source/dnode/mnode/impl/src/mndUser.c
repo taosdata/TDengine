@@ -2451,7 +2451,7 @@ _OVER:
 
 
 static int32_t buildRetrieveDateTimeWhiteListRsp(SRetrieveDateTimeWhiteListRsp *pRsp) {
-  (void)taosThreadRwlockWrlock(&userCache.rw);
+  (void)taosThreadRwlockRdlock(&userCache.rw);
   
   int32_t count = taosHashGetSize(userCache.users);
   pRsp->pUsers = taosMemoryCalloc(count, sizeof(SUserDateTimeWhiteList));
@@ -2696,7 +2696,7 @@ _OVER:
 
 
 static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
-  (void)taosThreadRwlockWrlock(&userCache.rw);
+  (void)taosThreadRwlockRdlock(&userCache.rw);
 
   int32_t count = taosHashGetSize(userCache.users);
   pUpdate->pUserIpWhite = taosMemoryCalloc(count, sizeof(SUpdateUserIpWhite));
