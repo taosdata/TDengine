@@ -168,6 +168,68 @@ taos> select (select f1 from tb1 union select f1 from tb1) a from tb1;
 taos> select (select f1 from tb1 union all select f1 from tb1) a from tb1;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select 1) from tb1;
+
+DB error: Not supported subquery as expr [0x8000269B] 
+taos> select tags (select f1 from tb1) from tb1;
+ (select f1 from tb1) |
+=======================
+                    1 |
+
+taos> select tags (select f1 from tb1 order by ts, f1 limit 1) from tb1;
+ (select f1 from tb1 order by ts, f1 limit 1) |
+===============================================
+                                            1 |
+
+taos> select tags (select count(*) from tb1) from tb1;
+ (select count(*) from tb1) |
+=============================
+                          1 |
+
+taos> select tags (select null from tb1) from tb1;
+ (select null from tb1) |
+=========================
+ NULL                   |
+
+taos> select tags (select * from tb1) from tb1;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select 2 from tb1) from tb1;
+  (select 2 from tb1)  |
+========================
+                     2 |
+
+taos> select tags (select avg(f1) from tb1) from tb1;
+ (select avg(f1) from tb1) |
+============================
+                         1 |
+
+taos> select tags (select last(*) from tb1) from tb1;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select max(f1) from tb1 partition by f1) from tb1;
+ (select max(f1) from tb1 partition by f1) |
+============================================
+                                         1 |
+
+taos> select tags (select a.ts from tb1 a join tb1 b on a.ts = b.ts) from tb1;
+ (select a.ts from tb1 a join tb1 b on a.ts = b.ts) |
+=====================================================
+ 2025-12-01 00:00:00.000 |
+
+taos> select tags (select sum(f1) from tb1 interval(1d)) from tb1;
+ (select sum(f1) from tb1 interval(1d)) |
+=========================================
+                                      1 |
+
+taos> select tags (select f1 from tb1 union select f1 from tb1) from tb1;
+ (select f1 from tb1 union select f1 from tb1) |
+================================================
+                                             1 |
+
+taos> select tags (select f1 from tb1 union all select f1 from tb1) from tb1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select distinct (select 1) from tb1;
 
 DB error: Not supported subquery as expr [0x8000269B] 
@@ -2668,6 +2730,54 @@ DB error: More than 1 row returned in subquery as expr [0x8000269A]
 taos> select (select f1 from tb2 union all select f1 from tb2) a from tb2;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select 1) from tb2;
+
+DB error: Not supported subquery as expr [0x8000269B] 
+taos> select tags (select f1 from tb2) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from tb2 order by ts, f1 limit 1) from tb2;
+ (select f1 from tb2 order by ts, f1 limit 1) |
+===============================================
+                                            2 |
+
+taos> select tags (select count(*) from tb2) from tb2;
+ (select count(*) from tb2) |
+=============================
+                          2 |
+
+taos> select tags (select null from tb2) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select * from tb2) from tb2;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select 2 from tb2) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select avg(f1) from tb2) from tb2;
+ (select avg(f1) from tb2) |
+============================
+                       2.5 |
+
+taos> select tags (select last(*) from tb2) from tb2;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select max(f1) from tb2 partition by f1) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select a.ts from tb2 a join tb2 b on a.ts = b.ts) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select sum(f1) from tb2 interval(1d)) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from tb2 union select f1 from tb2) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from tb2 union all select f1 from tb2) from tb2;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select distinct (select 1) from tb2;
 
 DB error: Not supported subquery as expr [0x8000269B] 
@@ -4884,6 +4994,54 @@ taos> select (select f1 from tb3 union select f1 from tb3) a from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select (select f1 from tb3 union all select f1 from tb3) a from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select 1) from tb3;
+
+DB error: Not supported subquery as expr [0x8000269B] 
+taos> select tags (select f1 from tb3) from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from tb3 order by ts, f1 limit 1) from tb3;
+ (select f1 from tb3 order by ts, f1 limit 1) |
+===============================================
+                                            4 |
+
+taos> select tags (select count(*) from tb3) from tb3;
+ (select count(*) from tb3) |
+=============================
+                          3 |
+
+taos> select tags (select null from tb3) from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select * from tb3) from tb3;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select 2 from tb3) from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select avg(f1) from tb3) from tb3;
+ (select avg(f1) from tb3) |
+============================
+                         5 |
+
+taos> select tags (select last(*) from tb3) from tb3;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select max(f1) from tb3 partition by f1) from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select a.ts from tb3 a join tb3 b on a.ts = b.ts) from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select sum(f1) from tb3 interval(1d)) from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from tb3 union select f1 from tb3) from tb3;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from tb3 union all select f1 from tb3) from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select distinct (select 1) from tb3;
@@ -7184,6 +7342,68 @@ taos> select (select f1 from tba union select f1 from tba) a from tba;
            0 |
 
 taos> select (select f1 from tba union all select f1 from tba) a from tba;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select 1) from tba;
+
+DB error: Not supported subquery as expr [0x8000269B] 
+taos> select tags (select f1 from tba) from tba;
+ (select f1 from tba) |
+=======================
+                    0 |
+
+taos> select tags (select f1 from tba order by ts, f1 limit 1) from tba;
+ (select f1 from tba order by ts, f1 limit 1) |
+===============================================
+                                            0 |
+
+taos> select tags (select count(*) from tba) from tba;
+ (select count(*) from tba) |
+=============================
+                          1 |
+
+taos> select tags (select null from tba) from tba;
+ (select null from tba) |
+=========================
+ NULL                   |
+
+taos> select tags (select * from tba) from tba;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select 2 from tba) from tba;
+  (select 2 from tba)  |
+========================
+                     2 |
+
+taos> select tags (select avg(f1) from tba) from tba;
+ (select avg(f1) from tba) |
+============================
+                         0 |
+
+taos> select tags (select last(*) from tba) from tba;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select max(f1) from tba partition by f1) from tba;
+ (select max(f1) from tba partition by f1) |
+============================================
+                                         0 |
+
+taos> select tags (select a.ts from tba a join tba b on a.ts = b.ts) from tba;
+ (select a.ts from tba a join tba b on a.ts = b.ts) |
+=====================================================
+ 2025-12-01 00:00:00.000 |
+
+taos> select tags (select sum(f1) from tba interval(1d)) from tba;
+ (select sum(f1) from tba interval(1d)) |
+=========================================
+                                      0 |
+
+taos> select tags (select f1 from tba union select f1 from tba) from tba;
+ (select f1 from tba union select f1 from tba) |
+================================================
+                                             0 |
+
+taos> select tags (select f1 from tba union all select f1 from tba) from tba;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select distinct (select 1) from tba;
@@ -9657,6 +9877,68 @@ taos> select (select f1 from tbb union select f1 from tbb) a from tbb;
 taos> select (select f1 from tbb union all select f1 from tbb) a from tbb;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select 1) from tbb;
+
+DB error: Not supported subquery as expr [0x8000269B] 
+taos> select tags (select f1 from tbb) from tbb;
+ (select f1 from tbb) |
+=======================
+                    1 |
+
+taos> select tags (select f1 from tbb order by ts, f1 limit 1) from tbb;
+ (select f1 from tbb order by ts, f1 limit 1) |
+===============================================
+                                            1 |
+
+taos> select tags (select count(*) from tbb) from tbb;
+ (select count(*) from tbb) |
+=============================
+                          1 |
+
+taos> select tags (select null from tbb) from tbb;
+ (select null from tbb) |
+=========================
+ NULL                   |
+
+taos> select tags (select * from tbb) from tbb;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select 2 from tbb) from tbb;
+  (select 2 from tbb)  |
+========================
+                     2 |
+
+taos> select tags (select avg(f1) from tbb) from tbb;
+ (select avg(f1) from tbb) |
+============================
+                         1 |
+
+taos> select tags (select last(*) from tbb) from tbb;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select max(f1) from tbb partition by f1) from tbb;
+ (select max(f1) from tbb partition by f1) |
+============================================
+                                         1 |
+
+taos> select tags (select a.ts from tbb a join tbb b on a.ts = b.ts) from tbb;
+ (select a.ts from tbb a join tbb b on a.ts = b.ts) |
+=====================================================
+ 2025-12-02 00:00:00.000 |
+
+taos> select tags (select sum(f1) from tbb interval(1d)) from tbb;
+ (select sum(f1) from tbb interval(1d)) |
+=========================================
+                                      1 |
+
+taos> select tags (select f1 from tbb union select f1 from tbb) from tbb;
+ (select f1 from tbb union select f1 from tbb) |
+================================================
+                                             1 |
+
+taos> select tags (select f1 from tbb union all select f1 from tbb) from tbb;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select distinct (select 1) from tbb;
 
 DB error: Not supported subquery as expr [0x8000269B] 
@@ -12117,6 +12399,70 @@ taos> select (select f1 from tbe union select f1 from tbe) a from tbe;
 
 taos> select (select f1 from tbe union all select f1 from tbe) a from tbe;
 
+taos> select tags (select 1) from tbe;
+
+DB error: Not supported subquery as expr [0x8000269B] 
+taos> select tags (select f1 from tbe) from tbe;
+ (select f1 from tbe) |
+=======================
+ NULL                 |
+
+taos> select tags (select f1 from tbe order by ts, f1 limit 1) from tbe;
+ (select f1 from tbe order by ts, f1 limit 1) |
+===============================================
+ NULL                                         |
+
+taos> select tags (select count(*) from tbe) from tbe;
+ (select count(*) from tbe) |
+=============================
+                          0 |
+
+taos> select tags (select null from tbe) from tbe;
+ (select null from tbe) |
+=========================
+ NULL                   |
+
+taos> select tags (select * from tbe) from tbe;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select 2 from tbe) from tbe;
+  (select 2 from tbe)  |
+========================
+ NULL                  |
+
+taos> select tags (select avg(f1) from tbe) from tbe;
+ (select avg(f1) from tbe) |
+============================
+ NULL                      |
+
+taos> select tags (select last(*) from tbe) from tbe;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select max(f1) from tbe partition by f1) from tbe;
+ (select max(f1) from tbe partition by f1) |
+============================================
+ NULL                                      |
+
+taos> select tags (select a.ts from tbe a join tbe b on a.ts = b.ts) from tbe;
+ (select a.ts from tbe a join tbe b on a.ts = b.ts) |
+=====================================================
+ NULL                                               |
+
+taos> select tags (select sum(f1) from tbe interval(1d)) from tbe;
+ (select sum(f1) from tbe interval(1d)) |
+=========================================
+ NULL                                   |
+
+taos> select tags (select f1 from tbe union select f1 from tbe) from tbe;
+ (select f1 from tbe union select f1 from tbe) |
+================================================
+ NULL                                          |
+
+taos> select tags (select f1 from tbe union all select f1 from tbe) from tbe;
+ (select f1 from tbe union all select f1 from tbe) |
+====================================================
+ NULL                                              |
+
 taos> select distinct (select 1) from tbe;
 
 DB error: Not supported subquery as expr [0x8000269B] 
@@ -13743,6 +14089,60 @@ taos> select (select f1 from st1 union select f1 from st1) a from st1;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select (select f1 from st1 union all select f1 from st1) a from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select 1) from st1;
+
+DB error: Not supported subquery as expr [0x8000269B] 
+taos> select tags (select f1 from st1) from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from st1 order by ts, f1 limit 1) from st1;
+ (select f1 from st1 order by ts, f1 limit 1) |
+===============================================
+                                            1 |
+                                            1 |
+                                            1 |
+
+taos> select tags (select count(*) from st1) from st1;
+ (select count(*) from st1) |
+=============================
+                          6 |
+                          6 |
+                          6 |
+
+taos> select tags (select null from st1) from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select * from st1) from st1;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select 2 from st1) from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select avg(f1) from st1) from st1;
+ (select avg(f1) from st1) |
+============================
+                       3.5 |
+                       3.5 |
+                       3.5 |
+
+taos> select tags (select last(*) from st1) from st1;
+
+DB error: More than 1 column returned in subquery as expr [0x80002699] 
+taos> select tags (select max(f1) from st1 partition by f1) from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select a.ts from st1 a join st1 b on a.ts = b.ts) from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select sum(f1) from st1 interval(1d)) from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from st1 union select f1 from st1) from st1;
+
+DB error: More than 1 row returned in subquery as expr [0x8000269A] 
+taos> select tags (select f1 from st1 union all select f1 from st1) from st1;
 
 DB error: More than 1 row returned in subquery as expr [0x8000269A] 
 taos> select distinct (select 1) from st1;
