@@ -94,7 +94,7 @@ class TDTestCase:
 
         cb.verifyData(corss_major_version=False)
 
-        cb.verifyBackticksInTaosSql(self.getBuildPath())
+        cb.verifyBackticksInTaosSql(self.getBuildPath(),lastBigVersion)
 
         
 
