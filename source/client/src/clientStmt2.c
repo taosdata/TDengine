@@ -407,6 +407,11 @@ static int32_t stmtPrintBindv(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bindv, int32_t 
   int32_t    count = 0;
   int32_t    code = 0;
 
+  if (bindv == NULL) {
+    STMT2_TLOG("bindv is NULL, col_idx:%d, isTags:%d", col_idx, isTags);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (col_idx >= 0) {
     count = 1;
     STMT2_TLOG("single col bind, col_idx:%d", col_idx);
