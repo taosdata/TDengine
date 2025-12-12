@@ -920,6 +920,11 @@ static void checkForVgroupSplit(SMnode *pMnode, SMqConsumerObj *pConsumer, SHash
   }
 }
 
+static bool isOffLine(int32_t hbStatus, int32_t pollStatus, SMqConsumerObj *pConsumer) {
+  return hbStatus * tsMqRebalanceInterval * 1000 >= pConsumer->sessionTimeoutMs ||
+               pollStatus * tsMqRebalanceInterval * 1000 >= pConsumer->maxPollIntervalMs;
+}
+
 static int32_t checkOneConsumer(SMqConsumerObj *pConsumer, SMnode *pMnode, SRpcMsg *pMsg, SHashObj *rebSubHash) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -939,8 +944,7 @@ static int32_t checkOneConsumer(SMqConsumerObj *pConsumer, SMnode *pMnode, SRpcM
     if (taosArrayGetSize(pConsumer->currentTopics) == 0) {  // unsubscribe or close
       MND_TMQ_RETURN_CHECK(
           mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
-    } else if (hbStatus * tsMqRebalanceInterval * 1000 >= pConsumer->sessionTimeoutMs ||
-               pollStatus * tsMqRebalanceInterval * 1000 >= pConsumer->maxPollIntervalMs) {
+    } else if (isOffLine(hbStatus, pollStatus, pConsumer)) {
       mInfo("tmq rebalance for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64
             ", hb lost cnt:%d, or long time no poll cnt:%d",
             pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime,
@@ -949,7 +953,7 @@ static int32_t checkOneConsumer(SMqConsumerObj *pConsumer, SMnode *pMnode, SRpcM
     } else {
       checkForVgroupSplit(pMnode, pConsumer, rebSubHash);
     }
-  } else if (status == MQ_CONSUMER_STATUS_REBALANCE) {
+  } else if (status == MQ_CONSUMER_STATUS_REBALANCE && !isOffLine(hbStatus, pollStatus, pConsumer)) {
     MND_TMQ_RETURN_CHECK(buildRebInfo(rebSubHash, pConsumer->rebNewTopics, 1, pConsumer));
     MND_TMQ_RETURN_CHECK(buildRebInfo(rebSubHash, pConsumer->rebRemovedTopics, 0, pConsumer));
   } else {
@@ -1070,11 +1074,6 @@ static int32_t buildRebOutput(SMnode *pMnode, SMqRebInputObj *rebInput, SMqRebOu
     mInfo("tmq rebalance sub topic:%s has no consumers sub yet", key);
   } else {
     MND_TMQ_RETURN_CHECK(tCloneSubscribeObj(pSub, &rebOutput->pSub));
-    // code = checkConsumer(pMnode, rebOutput->pSub);
-    // if(code != 0){
-    //   taosRUnLockLatch(&pSub->lock);
-    //   goto END;
-    // }
     rebInput->oldConsumerNum = taosHashGetSize(rebOutput->pSub->consumerHash);
 
     mInfo("tmq rebalance sub topic:%s has %d consumers sub till now", key,
@@ -1344,7 +1343,7 @@ static int32_t checkoutOneConsumer(STrans *pTrans, SMqConsumerObj *pConsumer, bo
   bool found3 = checkTopic(pConsumer->rebNewTopics, topicName);
   if (found1 || found2 || found3) {
     if (deleteConsumer) {
-      MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+      MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, CONSUMER_CLEAR, NULL, NULL, &pConsumerNew));
       MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
       tDeleteSMqConsumerObj(pConsumerNew);
       pConsumerNew = NULL;

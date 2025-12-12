@@ -174,10 +174,10 @@ typedef enum {
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE_REB = 1,  // update after rebalance
+  CONSUMER_CLEAR      = 0,
+  CONSUMER_UPDATE_REB,      // update after rebalance
   CONSUMER_ADD_REB,         // add    after rebalance
   CONSUMER_REMOVE_REB,      // remove after rebalance
-  CONSUMER_UPDATE_REC,      // update after recover
   CONSUMER_UPDATE_SUB,      // update after subscribe req
   CONSUMER_INSERT_SUB,
 } ECsmUpdateType;

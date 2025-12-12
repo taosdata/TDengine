@@ -689,7 +689,7 @@ static int32_t checkConsumer(STrans *pTrans, SMqConsumerObj *pConsumer, bool del
   bool found3 = checkTopic(pConsumer->rebNewTopics, topicName);
   if (found1 || found2 || found3) {
     if (deleteConsumer) {
-      MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+      MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, CONSUMER_CLEAR, NULL, NULL, &pConsumerNew));
       MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
       tDeleteSMqConsumerObj(pConsumerNew);
       pConsumerNew = NULL;

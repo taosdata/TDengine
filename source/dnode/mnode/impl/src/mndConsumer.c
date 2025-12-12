@@ -175,7 +175,7 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   mInfo("consumer:0x%" PRIx64 " needs to be cleared, status %s", pClearMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
-  MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+  MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, CONSUMER_CLEAR, NULL, NULL, &pConsumerNew));
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
   MND_TMQ_NULL_CHECK(pTrans);
@@ -906,6 +906,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer", pOldConsumer->consumerId);
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB) {
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
+    pOldConsumer->status = MQ_CONSUMER_STATUS_READY;
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
     mInfo("tmq rebalance consumer:0x%" PRIx64 " rebalance update, only rebalance time", pOldConsumer->consumerId);
   } else if (pNewConsumer->updateType == CONSUMER_ADD_REB) {
