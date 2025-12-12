@@ -49,7 +49,7 @@ CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS 
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
 
-![](../../assets/seeq-01.png)
+![Create tables in TDengine](../../assets/seeq-01.png)
 
 **Step 2**, Construct data in TDengine.
 
@@ -244,7 +244,7 @@ The source code is hosted on [GitHub Repository](https://github.com/sangshuduo/t
 
 Log in to the Seeq service page and create a new Seeq Workbench. By selecting data sources from search results and choosing different tools as needed, you can display data or make predictions. For detailed usage methods, refer to the [official knowledge base](https://support.seeq.com/space/KB/146440193/Seeq+Workbench).
 
-![](../../assets/seeq-02.png)
+![Create Seeq Workbench](../../assets/seeq-02.png)
 
 ### Further Data Analysis with Seeq Data Lab Server
 
@@ -313,7 +313,7 @@ plt.show()
 
 Program output results:
 
-![](../../assets/seeq-03.png)
+![Output results](../../assets/seeq-03.png)
 
 ### Solution Summary
 

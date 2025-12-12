@@ -235,7 +235,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 ![时间窗口示意图](./pic/time_window.webp)
 
-###### 注意
+**注意** ：
 
 1. INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用，因此，下面的 SQL 语句是非法的：
 
@@ -249,7 +249,7 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
-###### 使用时间窗口需要注意
+**使用时间窗口需要注意** ：
 
 1. 聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。
 2. 使用 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
@@ -337,7 +337,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 2. 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
 3. INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
 
-###### 注意
+**注意** ：
 
 1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。
 2. 针对每次查询，系统可返回不超过 1 千万条具有插值的结果。

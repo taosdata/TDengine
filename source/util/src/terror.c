@@ -171,14 +171,19 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_PARAM_ERROR,     "Invalid compress para
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR,     "Invalid compress level param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JSON")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PERIOD_UNIT,      "Invalid period unit")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PERIOD_RANGE,     "Invalid period range")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_VTABLE,      "Invalid drop vtable")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN_REF,       "Invalid column reference")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SLIDING_OFFSET,   "Invalid sliding offset")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET,  "Invalid interval offset")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOTP_CODE,        "Invalid TOTP code")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
 
 // mnode-common
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_CONNECTIONS,     "User has too many connections")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_REQ_REJECTED,             "Request rejected")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                "Insufficient privilege for operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          "Data expired")
@@ -187,6 +192,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          "Invalid connection id
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_DISABLED,            "User is disabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PLATFORM,         "Unsupported feature on this platform")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RETURN_VALUE_NULL,        "Return value is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_EXPIRED,    "User password expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INTERNAL_ERROR,           "Mnode internal error")
 
 // mnode-sdb
@@ -229,10 +235,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEDGE_EXIST,         "User already have this priviledge")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_HOST_EXIST,          "Host already exist in ip white list")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_HOST_NOT_EXIST,      "Host not exist in ip white list")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_HOST,       "Too many host in ip white list")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_LOCAL_HOST_NOT_DROP,  "Host can not be dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_REUSE,      "Password reuse detected")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_WRONG_TOTP_CODE,          "Wrong TOTP code")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE,   "Too many ranges in IP white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_TIME_RANGE, "Too many ranges in date time white list")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
@@ -376,6 +382,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO,      "Anode too many algori
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME, "Anode too long algorithm name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algorithm type")
 
+// mnode encrypt
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST,       "Encrypt algorithm not exists in list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_INVALID_ENCRYPT_ALGR_TYPE,    "Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode, Digests, Asymmetric_Ciphers now")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALGR_EXIST,                   "Encryption algorithm already exists, please keep algorithm_id unique")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH,       "Encryption algorithm type not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ENCRYPT_ALGR_FORMAT,    "Invalid encryption algorithm format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_IN_USE,          "Encryption algorithm in use")
+
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_RSP_IS_NULL,         "Analysis service response is NULL")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_CANT_ACCESS,         "Analysis service can't access")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ALGO_NOT_FOUND,          "Analysis algorithm is missing")
@@ -477,6 +491,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No Snode is available")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL,   "Request is not matched with local dnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV, "Failed to load encryption provider")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -839,13 +854,24 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,             "Invalid table t
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS,    "More than 1 column returned in subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS,    "More than 1 row returned in subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ,             "Not supported subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ,    "Current sql does not support subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE,       "Expr subquery not supported in current clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max length is 127 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG,         "Algorithm type too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG,    "Algorithm OpenSSL name too long, max length is 63 character")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_DUPLICATED,          "Option duplicated")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OPTION_VALUE,       "Invalid option value")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG,      "Option value too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT,     "Option value too short")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too big")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
@@ -997,6 +1023,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open
 
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_NO_METRIC_EXIST,           "No metrics exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CIPHER_NOT_EXIST,          "Encrypt cipher not exists in loaded provider")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_INVALID_PARA,        "Invalid crypt parameter")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_FAIL_NEW_CXT,        "Failed to new crypt context")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_FAIL_INIT,           "Failed to init crypt")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_FAIL_EXEC,           "Failed to exec crypt")
 
 //AUDIT
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")

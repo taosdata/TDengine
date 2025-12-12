@@ -308,6 +308,7 @@ typedef struct STableScanInfo {
   bool            virtualStableScan;
   SHashObj*       readerCache;
   bool            newReader;
+  SArray*         pBlockColMap;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -675,7 +676,7 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;
+  TSKEY       prevTs;  // previous timestamp
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
@@ -700,9 +701,9 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   }
 
   pRowSup->win.skey = pRowSup->win.ekey = 0;
-  pRowSup->prevTs = pRowSup->startRowIndex = 0;
-  pRowSup->numOfRows = pRowSup->groupId = 0;
-  resetNumNullRows(pRowSup);
+  pRowSup->prevTs = INT64_MIN;
+  pRowSup->startRowIndex = pRowSup->groupId = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = 0;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);

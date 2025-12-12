@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 
 
-from new_test_framework.utils import tdLog, tdSql, TDSql, TDSetSql
+from new_test_framework.utils import tdLog, tdSql, TDSql, TDSetSql, clusterComCheck
 from time import sleep
 from taos.tmq import Consumer
 import threading
@@ -184,8 +184,9 @@ class TestPerformanceSchema:
         t1 = self.myThread(self) 
         t1.start()
 
+        sleep(5) #wait for transaction to be created and dropped
         tdSql.query('select * from performance_schema.perf_trans')
-        tdSql.checkRows(0)
+        clusterComCheck.checkTransactions(300)
         
         tdSql.query('describe performance_schema.perf_trans')
         tdSql.checkRows(10)

@@ -35,6 +35,7 @@ class TestStreamTagCache:
         """
         tdSql.execute("alter dnode 1 'stableTagFilterCache' '1'")
         tdSql.execute("alter dnode 1 'tagFilterCache' '1'")
+        tdSql.execute("alter dnode 1 'metaDebugFlag' '135'")
         tdStream.createSnode()
         self.check_all_types_basic()
         self.check_all_types_alter()
@@ -46,13 +47,13 @@ class TestStreamTagCache:
         tdSql.query(f"""select uid from information_schema.ins_stables
             where stable_name = '{tb_name}' and db_name = '{db_name}'""")
         suid = tdSql.getColData(0)[0]
-        return findTaosdLog(f"suid:{suid}.*stable tag filter cache", retry=retry)
+        return findTaosdLog(f"suid:{suid}.*add uid list to stable tag filter cache", retry=retry)
 
     def normal_tag_cache_log_counter(self, db_name, tb_name, retry=5) -> int:
         tdSql.query(f"""select uid from information_schema.ins_stables
             where stable_name = '{tb_name}' and db_name = '{db_name}'""")
         suid = tdSql.getColData(0)[0]
-        return findTaosdLog(f"suid:{suid}.*normal tag filter cache", retry=retry)
+        return findTaosdLog(f"suid:{suid}.*add uid list to normal tag filter cache", retry=retry)
 
     def check_all_types_basic(self):
         db_name = "test_basic"

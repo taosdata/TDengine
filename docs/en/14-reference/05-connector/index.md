@@ -14,11 +14,11 @@ import VerifyMacOS from "../../assets/resources/_verify_macos.mdx";
 import ConnectorType from "../../assets/resources/_connector_type.mdx";
 import PlatformSupported from "../../assets/resources/_platform_supported.mdx";
 
-<ConnectorType /> 
+<ConnectorType />
 
 ## Supported Platforms
 
-<PlatformSupported /> 
+<PlatformSupported />
 
 ## Version Support
 
@@ -37,7 +37,6 @@ TDengine version updates often add new features. The list below shows the best m
 
 The following table outlines the support for TDengine TSDB features across different connectors:
 
-
 ### WebSocket/Native Connections
 
 | **Feature**              | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** | **C/C++** |
@@ -54,7 +53,6 @@ The following table outlines the support for TDengine TSDB features across diffe
 Due to differences in database framework specifications across programming languages, it does not mean that all C/C++ interfaces require corresponding encapsulation support.
 :::
 
-
 :::warning
 
 - Regardless of the programming language connector used, for TDengine TSDB version 2.0 and above, it is recommended that each thread of a database application establishes an independent connection or creates a thread-based connection pool. This avoids mutual interference of the "USE statement" state within the connection between threads (however, the connection's query and write operations are thread-safe).
@@ -64,7 +62,6 @@ Due to differences in database framework specifications across programming langu
 ### REST API
 
 Supports **Execute SQL**
-
 
 ## Install Client Driver
 

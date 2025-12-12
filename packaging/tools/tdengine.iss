@@ -55,6 +55,7 @@ Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{app}\driver"; Flags: igNoreversion
 Source: {#MyAppSourceDir}\taos_odbc\*; DestDir: "{app}\taos_odbc"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -82,8 +83,8 @@ RunOnceId: "deltaosadapter"; Filename: {sys}\sc.exe; Parameters: "delete taosada
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
-    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};C:\{#CusName}"; \
-    Check: NeedsAddPath('C:\{#CusName}')
+    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{#MyAppInstallDir}"; \
+    Check: NeedsAddPath('{#MyAppInstallDir}')
 
 [Code]
 function NeedsAddPath(Param: string): boolean;

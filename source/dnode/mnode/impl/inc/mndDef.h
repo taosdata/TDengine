@@ -169,7 +169,8 @@ typedef enum {
   DND_REASON_STATUS_MONITOR_SLOW_LOG_THRESHOLD_NOT_MATCH,
   DND_REASON_STATUS_MONITOR_SLOW_LOG_SQL_MAX_LEN_NOT_MATCH,
   DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH,
-  DND_REASON_OTHERS
+  DND_REASON_OTHERS,
+  DND_REASON_TIME_UNSYNC
 } EDndReason;
 
 typedef enum {
@@ -401,6 +402,14 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
+
+typedef struct {
+  int32_t lastLoginTime;        // in seconds
+  int32_t lastFailedLoginTime;  // in seconds
+  int32_t failedLoginCount;
+} SLoginInfo;
+
+
 typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
@@ -412,14 +421,27 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
   char    pass[TSDB_PASSWORD_LEN];
+  int32_t setTime;  // password set time, in seconds
+} SUserPassword;
+
+typedef struct {
+  char    user[TSDB_USER_LEN];
+
+  // passwords history, from newest to oldest,
+  // the latest one is the current password
+  int32_t        numOfPasswords;
+  SUserPassword* passwords;
+  char           salt[TSDB_PASSWORD_SALT_LEN + 1];
+
   char    acct[TSDB_USER_LEN];
-  int64_t createdTime;
-  int64_t updateTime;
+  char    totpsecret[TSDB_TOTP_SECRET_LEN];
+  int64_t createdTime;          // in milliseconds
+  int64_t updateTime;           // in milliseconds
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
+  int8_t  changePass;
   union {
     uint8_t flag;
     struct {
@@ -427,11 +449,29 @@ typedef struct {
       uint8_t reserve : 7;
     };
   };
+
+  int32_t sessionPerUser;
+  int32_t connectTime;      // unit is second
+  int32_t connectIdleTime;  // unit is second
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;   // unit is second
+  int32_t passwordReuseTime;  // unit is second
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;     // unit is second
+  int32_t passwordGraceTime;    // unit is second
+  int32_t inactiveAccountTime;  // unit is second
+  int32_t allowTokenNum;
+
   int32_t       acctId;
   int32_t       authVersion;
   int32_t       passVersion;
   int64_t       ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
+
+  int64_t             timeWhiteListVer;
+  SDateTimeWhiteList* pTimeWhiteList;
 
   SHashObj* readDbs;
   SHashObj* writeDbs;
@@ -1056,6 +1096,16 @@ typedef struct {
     };
   };
 } SCompactObj;
+
+typedef struct {
+  int32_t id;
+  char    algorithm_id[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  int16_t type;
+  int8_t  source;
+  char    ossl_algr_name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SEncryptAlgrObj;
 
 typedef struct {
   int32_t scanId;

@@ -181,8 +181,6 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
-  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
-                                   1);  // TODO: check the return value
 
 _OVER:
   mndTransDrop(pTrans);
@@ -759,7 +757,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         goto _OVER;
       }
 
-      mError("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
+      mWarn("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
       if (err == TSDB_CODE_MND_DNODE_NOT_EXIST) {
         terrno = err;
         goto _OVER;
@@ -770,7 +768,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
   }
 
-  pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
+  pMnode->ipWhiteVer = mndGetIpWhiteListVersion(pMnode);
+  pMnode->timeWhiteVer = mndGetTimeWhiteListVersion(pMnode);
 
   int64_t analVer = sdbGetTableVer(pMnode->pSdb, SDB_ANODE);
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
@@ -783,7 +782,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
-                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
+                   pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
+                   encryptKeyChanged || enableWhiteListChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
@@ -796,6 +796,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   }
 
+  int64_t delta = curMs / 1000 - statusReq.timestamp / 1000;
+  if (labs(delta) >= tsTimestampDeltaLimit) {
+    terrno = TSDB_CODE_TIME_UNSYNCED;
+    code = terrno;
+
+    pDnode->offlineReason = DND_REASON_TIME_UNSYNC;
+    mError("dnode:%d, not sync with cluster:%"PRId64" since %s, limit %"PRId64"s", statusReq.dnodeId, pMnode->clusterId,
+           tstrerror(code), tsTimestampDeltaLimit);
+    goto _OVER;
+  }
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
@@ -922,6 +932,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
+    statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -1018,8 +1029,6 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
-  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
-                                   1);  // TODO: check the return value
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
