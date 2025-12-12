@@ -427,7 +427,7 @@ SDbObj *mndAcquireDb(SMnode *pMnode, const char *db) {
   return pDb;
 }
 
-static SDbObj *mndAcquireAuditDb(SMnode *pMnode) {
+SDbObj *mndAcquireAuditDb(SMnode *pMnode) {
   SSdb      *pSdb = pMnode->pSdb;
   SDbObj    *pDb = NULL;
   void      *pIter = NULL;
@@ -935,7 +935,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     }
     if (dbObj.cfg.walLevel != 2) {
       code = TSDB_CODE_AUDIT_MUST_WALFORCE;
-      mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.daysToKeep2);
+      mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
   }
@@ -1477,6 +1477,24 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     goto _OVER;
+  }
+
+  if (pDb->cfg.isAudit == 1) {
+    if (alterReq.daysToKeep2 < 2628000) {
+      code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
+      mError("db:%s, failed to alter, keep not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
+      TAOS_RETURN(code);
+    }
+    if (alterReq.walLevel != 2) {
+      code = TSDB_CODE_AUDIT_MUST_WALFORCE;
+      mError("db:%s, failed to alter, walLevel not match for audit db, %d", alterReq.db, alterReq.walLevel);
+      TAOS_RETURN(code);
+    }
+    if (alterReq.isAudit == 0) {
+      code = TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE;
+      mError("db:%s, failed to alter, is not allowed to change audit db, %d", alterReq.db, alterReq.isAudit);
+      TAOS_RETURN(code);
+    }
   }
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb), NULL, _OVER);
