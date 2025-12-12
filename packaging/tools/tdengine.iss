@@ -82,8 +82,8 @@ RunOnceId: "deltaosadapter"; Filename: {sys}\sc.exe; Parameters: "delete taosada
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
-    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};C:\{#CusName}"; \
-    Check: NeedsAddPath('C:\{#CusName}')
+    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{#MyAppInstallDir}"; \
+    Check: NeedsAddPath('{#MyAppInstallDir}')
 
 [Code]
 function NeedsAddPath(Param: string): boolean;
