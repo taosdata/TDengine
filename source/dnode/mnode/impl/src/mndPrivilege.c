@@ -39,9 +39,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-bool mndHasObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, const char *objFName, const char *tbName) {
-  return true;
-}
 bool mndCheckObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, const char *owner, const char *objFName,
                           const char *tbName) {
   return true;

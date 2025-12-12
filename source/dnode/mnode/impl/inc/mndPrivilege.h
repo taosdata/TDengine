@@ -26,7 +26,6 @@ int32_t mndInitPrivilege(SMnode *pMnode);
 void    mndCleanupPrivilege(SMnode *pMnode);
 
 bool mndMustChangePassword(SUserObj *pUser);
-bool mndHasObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, const char *objFName, const char *tbName);
 bool mndCheckObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, const char *owner, const char *objFName, const char *tbName);
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);

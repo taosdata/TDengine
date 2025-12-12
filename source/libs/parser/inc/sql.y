@@ -452,6 +452,7 @@ priv_type(A) ::= ALTER.                                                         
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
 priv_type(A) ::= ALTER DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_ALTER); }
 priv_type(A) ::= DROP DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_DROP); }
+priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
 priv_type(A) ::= FLUSH DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
 priv_type(A) ::= COMPACT DATABASE.                                                { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
@@ -603,9 +604,9 @@ priv_type(A) ::= SHOW APPS.                                                     
 priv_type_tbl_dml(A) ::= SELECT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_SELECT); }
 priv_type_tbl_dml(A) ::= SELECT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
 priv_type_tbl_dml(A) ::= INSERT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_INSERT); }
-priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, B, NULL, NULL); }
+priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, NULL, B, NULL); }
 priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
-priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, B, NULL, NULL); }
+priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }
 priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 
