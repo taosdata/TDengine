@@ -369,7 +369,11 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
   opts.source = DM_KEY_INDICATOR;
   opts.result = result;
   opts.unitLen = 16;
-  (void)Builtin_CBC_Encrypt(&opts);
+  if (Builtin_CBC_Encrypt(&opts) <= 0) {
+    code = terrno;
+    encryptError("failed to encrypt checkCode, since %s", tstrerror(code));
+    goto _OVER;
+  }
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
@@ -488,7 +492,11 @@ static int32_t dmCompareEncryptKey(char *file, char *key, bool toLogFile) {
   opts.source = content;
   opts.result = result;
   opts.unitLen = 16;
-  (void)Builtin_CBC_Decrypt(&opts);
+  if (Builtin_CBC_Decrypt(&opts) <= 0) {
+    code = terrno;
+    encryptError("failed to decrypt checkCode since %s", tstrerror(code));
+    goto _OVER;
+  }
 
   if (strcmp(opts.result, DM_KEY_INDICATOR) != 0) {
     code = TSDB_CODE_DNODE_ENCRYPTKEY_CHANGED;

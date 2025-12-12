@@ -511,7 +511,7 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
     tstrncpy((char *)opts.key, cfg->encryptData.encryptKey, sizeof(opts.key));
 
     int32_t count = CBC_Decrypt(&opts);
-    if (count != opts.len) return count;
+    if (count != opts.len) return terrno;
     // wDebug("CBC Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
 
     (void)memcpy(pHead->head.body, newBody, plainBodyLen);

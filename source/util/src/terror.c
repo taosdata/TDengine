@@ -1017,6 +1017,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_NO_METRIC_EXIST,           "No metrics exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CIPHER_NOT_EXIST,          "Encrypt cipher not exists in loaded provider")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_INVALID_PARA,        "Invalid crypt parameter")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_FAIL_NEW_CXT,        "Failed to new crypt context")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_FAIL_INIT,           "Failed to init crypt")
+TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_FAIL_EXEC,           "Failed to exec crypt")
 
 //AUDIT
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")
