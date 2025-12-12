@@ -59,6 +59,15 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
         snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pVal->literal);
       }
       break;
+    case FUNCTION_TYPE_WDURATION:
+      pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
+      break;
+    case FUNCTION_TYPE_GROUP_KEY:
+      pCol->colType = COLUMN_TYPE_GROUP_KEY;
+      break;
+    case FUNCTION_TYPE_IS_WINDOW_FILLED:
+      pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
+      break;
     case FUNCTION_TYPE_WSTART:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_START;
@@ -73,16 +82,12 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
         pCol->isPrimTs = true;
       }
       break;
-    case FUNCTION_TYPE_WDURATION:
-      pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
-      break;
-    case FUNCTION_TYPE_GROUP_KEY:
-      pCol->colType = COLUMN_TYPE_GROUP_KEY;
-      break;
-    case FUNCTION_TYPE_IS_WINDOW_FILLED:
-      pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
-      break;
     default:
+      if (isPrimaryKeyImpl((SNode*)pFunc)) {
+        if (!isPartitionBy || isOrderByPrimTs) {
+          pCol->isPrimTs = true;
+        }
+      }
       break;
   }
 }
@@ -1748,7 +1753,7 @@ static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStm
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
-  pWindow->node.inputTsOrder = pWindow->winType == WINDOW_TYPE_INTERVAL ? ORDER_UNKNOWN : ORDER_ASC;
+  pWindow->node.inputTsOrder = ORDER_UNKNOWN;
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs);

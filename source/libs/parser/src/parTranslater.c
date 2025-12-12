@@ -1386,7 +1386,7 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
 
 bool isPrimaryKeyImpl(SNode* pExpr) {
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    return ((PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId) && ((SColumnNode*)pExpr)->isPrimTs);
+    return ((SColumnNode*)pExpr)->isPrimTs;
   } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType ||
@@ -1745,6 +1745,7 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
   SNode*          pNode;
   SExprNode*      pFoundExpr = NULL;
+  bool            foundPrimTs = false;
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
@@ -1753,10 +1754,12 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       }
       pFoundExpr = pExpr;
       *pFound = true;
-    } else if (!(*pFound) && isPrimaryKeyImpl(pNode) && isInternalPrimaryKey(pCol)) {
+    }
+    if (!foundPrimTs && isPrimaryKeyImpl(pNode) && isInternalPrimaryKey(pCol)) {
       pFoundExpr = pExpr;
       pCol->isPrimTs = true;
       *pFound = true;
+      foundPrimTs = true;
     }
   }
   if (pFoundExpr) {
