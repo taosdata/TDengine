@@ -1519,6 +1519,7 @@ end:
 void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
+    rpcFreeCont(pMsg->pCont);
     qError("pMsg->info.ahandle is NULL");
     return;
   }
