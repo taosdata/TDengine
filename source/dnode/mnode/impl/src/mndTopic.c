@@ -183,7 +183,6 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   if (pRow == NULL) goto TOPIC_DECODE_OVER;
 
   pTopic = sdbGetRowObj(pRow);
-  mError("topicmemory %p decoding topic", pTopic);
   if (pTopic == NULL) goto TOPIC_DECODE_OVER;
 
   int32_t len = 0;
@@ -283,7 +282,7 @@ static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic) {
 
 static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
   if (pTopic == NULL) return 0;
-  mDebug("topicmemory %p topic:%s perform delete action", pTopic, pTopic->name);
+  mDebug("%p topic:%s perform delete action", pTopic, pTopic->name);
   taosMemoryFreeClear(pTopic->sql);
   taosMemoryFreeClear(pTopic->physicalPlan);
   if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
