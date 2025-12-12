@@ -177,6 +177,13 @@ Below are the business error codes for each module.
 | 0x80000340 | Account already exists                                       | (Enterprise only) Internal error                             | Report issue                                                 |
 | 0x80000342 | Invalid account options                                      | (Enterprise only) Operation not supported                    | Confirm if the operation is correct                          |
 | 0x80000344 | Invalid account                                              | Account does not exist                                       | Confirm if the account is correct                            |
+| 0x80000348 | Token not available                                          | Internal error                                               | Report issue                                                 |
+| 0x80000349 | Token not exist                                              | Token not exist                                              | Confirm is the token name is correct                         |
+| 0x8000034A | Token already exist                                          | Token already exist                                          | User a new token name                                        |
+| 0x8000034B | Too many tokens                                              | User has created too many tokens                             | Increase limitation or remove unused tokens                  |
+| 0x8000034C | Invalid token name                                           | Token name is invalid                                        | Use a correct token name                                     |
+| 0x8000034D | Token expired                                                | Token is expired                                             | Set a new expire time                                        |
+| 0x8000034E | Token Disabled                                               | Token is disabled                                            | Enable the token                                             |
 | 0x80000350 | User already exists                                          | Create user, duplicate creation                              | Confirm if the operation is correct                          |
 | 0x80000351 | Invalid user                                                 | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x80000352 | Invalid user format                                          | Incorrect format                                             | Confirm if the operation is correct                          |
