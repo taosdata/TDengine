@@ -40,7 +40,7 @@ _OVER:
 }
 
 
-
+int32_t mndCheckTokenPrivilege(SUserObj* pOperUser, const char *user) { return 0; }
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) { return 0; }
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) { return 0; }

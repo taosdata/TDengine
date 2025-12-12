@@ -55,6 +55,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
 
@@ -717,6 +718,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-token", mndInitToken, mndCleanupToken));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-privilege", mndInitPrivilege, mndCleanupPrivilege));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct));

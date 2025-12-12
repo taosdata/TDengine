@@ -90,6 +90,9 @@ typedef enum {
   MND_OPER_ROLLUP_DB,
   MND_OPER_SHOW_STB,
   MND_OPER_ALTER_RSMA,
+  MND_OPER_CREATE_TOKEN,
+  MND_OPER_ALTER_TOKEN,
+  MND_OPER_DROP_TOKEN,
 } EOperType;
 
 typedef enum {
@@ -323,6 +326,18 @@ typedef struct {
 } SBnodeObj;
 
 typedef struct {
+  char       name[TSDB_TOKEN_NAME_LEN];
+  char       token[TSDB_TOKEN_LEN];
+  char       provider[TSDB_TOKEN_PROVIDER_LEN];
+  char       user[TSDB_USER_LEN];
+  char       extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+  int8_t     enabled;
+  int32_t    expireTime;  // in seconds
+  int32_t    createdTime; // in seconds
+  SRWLatch   lock;
+} STokenObj;
+
+typedef struct {
   int32_t assignedDnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
   int8_t  assignAcked;
@@ -463,6 +478,7 @@ typedef struct {
   int32_t passwordGraceTime;    // unit is second
   int32_t inactiveAccountTime;  // unit is second
   int32_t allowTokenNum;
+  int32_t tokenNum;
 
   int32_t       acctId;
   int32_t       authVersion;

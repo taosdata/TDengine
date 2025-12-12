@@ -96,6 +96,8 @@ const char *sdbTableName(ESdbType type) {
       return "instance";
     case SDB_ENCRYPT_ALGORITHMS:
       return "encrypt_algr";
+    case SDB_TOKEN:
+      return "token";
     default:
       return "undefine";
   }
