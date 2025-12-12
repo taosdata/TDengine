@@ -610,6 +610,8 @@ static int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeT
   mDebug("xtask:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
+  pOld->via = pNew->via;
+  pOld->status = pNew->status;
   pOld->updateTime = pNew->updateTime;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -932,6 +934,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
     goto _OVER;
   }
+  // todo: 首次带上必须添加用户名密码
 
   mndStartXnoded(pMnode);
 
@@ -955,9 +958,6 @@ static int32_t mndUpdateXnode(SMnode *pMnode, SXnodeObj *pXnode, SRpcMsg *pReq) 
   SXnodeObj xnodeObj = {0};
   xnodeObj.id = pXnode->id;
   xnodeObj.updateTime = taosGetTimestampMs();
-
-  // code = mndGetXnodeAlgoList(pXnode->url, &xnodeObj);
-  // if (code != 0) goto _OVER;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-xnode");
   if (pTrans == NULL) {
@@ -1306,8 +1306,12 @@ static void mndCancelGetNextXnodeTask(SMnode *pMnode, void *pIter) {
 }
 
 static void mndFreeXnodeJob(SXnodeJobObj *pObj) {
-  taosMemoryFreeClear(pObj->config);
-  taosMemoryFreeClear(pObj->reason);
+  if (NULL != pObj->config) {
+    taosMemoryFreeClear(pObj->config);
+  }
+  if (NULL != pObj->reason) {
+    taosMemoryFreeClear(pObj->reason);
+  }
 }
 
 static SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
@@ -1432,6 +1436,25 @@ static int32_t mndXnodeJobActionUpdate(SSdb *pSdb, SXnodeJobObj *pOld, SXnodeJob
   mDebug("xnode tid:%d, jid:%d, perform update action, old row:%p new row:%p", pOld->taskId, pOld->id, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
+  pOld->via = pNew->via;
+  pOld->xnodeId = pNew->xnodeId;
+  pOld->status = pNew->status;
+  if (pNew->configLen > 0) {
+    int32_t newLen = pNew->configLen;
+    pNew->configLen = pOld->configLen;
+    pOld->configLen = newLen;
+    char *newConfig = pNew->config;
+    pNew->config = pOld->config;
+    pOld->config = newConfig;
+  }
+  if (pNew->reasonLen > 0) {
+    int32_t newLen = pNew->reasonLen;
+    pNew->reasonLen = pOld->reasonLen;
+    pOld->reasonLen = newLen;
+    char *newReason = pNew->reason;
+    pNew->reason = pOld->reason;
+    pOld->reason = newReason;
+  }
   pOld->updateTime = pNew->updateTime;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -1480,37 +1503,37 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   int32_t code = -1;
   STrans *pTrans = NULL;
 
-  SXnodeJobObj xnodeObj = {0};
-  xnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_JOB);
-  xnodeObj.taskId = pCreate->tid;
+  SXnodeJobObj jobObj = {0};
+  jobObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_JOB);
+  jobObj.taskId = pCreate->tid;
 
-  xnodeObj.configLen = pCreate->configLen;
-  if (xnodeObj.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+  jobObj.configLen = pCreate->configLen;
+  if (jobObj.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
     code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
     goto _OVER;
   }
-  xnodeObj.config = taosMemoryCalloc(1, pCreate->configLen);
-  if (xnodeObj.config == NULL) goto _OVER;
-  (void)memcpy(xnodeObj.config, pCreate->config, pCreate->configLen);
+  jobObj.config = taosMemoryCalloc(1, pCreate->configLen);
+  if (jobObj.config == NULL) goto _OVER;
+  (void)memcpy(jobObj.config, pCreate->config, pCreate->configLen);
 
-  xnodeObj.via = pCreate->via;
-  xnodeObj.xnodeId = pCreate->xnodeId;
-  xnodeObj.status = pCreate->status;
+  jobObj.via = pCreate->via;
+  jobObj.xnodeId = pCreate->xnodeId;
+  jobObj.status = pCreate->status;
 
-  xnodeObj.reasonLen = pCreate->reasonLen;
-  if (xnodeObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+  jobObj.reasonLen = pCreate->reasonLen;
+  if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
     code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
     goto _OVER;
   }
-  xnodeObj.reason = taosMemoryCalloc(1, pCreate->reasonLen);
-  if (xnodeObj.reason == NULL) goto _OVER;
-  (void)memcpy(xnodeObj.reason, pCreate->reason, pCreate->reasonLen);
+  jobObj.reason = taosMemoryCalloc(1, pCreate->reasonLen);
+  if (jobObj.reason == NULL) goto _OVER;
+  (void)memcpy(jobObj.reason, pCreate->reason, pCreate->reasonLen);
 
-  xnodeObj.createTime = taosGetTimestampMs();
-  xnodeObj.updateTime = xnodeObj.createTime;
+  jobObj.createTime = taosGetTimestampMs();
+  jobObj.updateTime = jobObj.createTime;
 
-  mDebug("create xnode job, id:%d, tid:%d, config:%s, time:%ld", xnodeObj.id, xnodeObj.taskId, xnodeObj.config,
-         xnodeObj.createTime);
+  mDebug("create xnode job, id:%d, tid:%d, config:%s, time:%ld", jobObj.id, jobObj.taskId, jobObj.config,
+         jobObj.createTime);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode-job");
   if (pTrans == NULL) {
@@ -1521,20 +1544,77 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to create xnode job on %d as jid:%d", pTrans->id, pCreate->tid, xnodeObj.id);
+  mInfo("trans:%d, used to create xnode job on %d as jid:%d", pTrans->id, pCreate->tid, jobObj.id);
 
-  TAOS_CHECK_GOTO(mndSetCreateXnodeJobRedoLogs(pTrans, &xnodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeJobUndoLogs(pTrans, &xnodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeJobCommitLogs(pTrans, &xnodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeJobRedoLogs(pTrans, &jobObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeJobUndoLogs(pTrans, &jobObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeJobCommitLogs(pTrans, &jobObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
   code = 0;
 
 _OVER:
-  mndFreeXnodeJob(&xnodeObj);
+  mndFreeXnodeJob(&jobObj);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
+
+static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pOld, SMUpdateXnodeJobReq *pUpdate) {
+  mInfo("xnode job:%d, start to update", pUpdate->jid);
+  int32_t      code = -1;
+  STrans      *pTrans = NULL;
+  bool         isConfigChange = false;
+  bool         isReasonChange = false;
+  SXnodeJobObj jobObj = *pOld;
+  jobObj.id = pUpdate->jid;
+  if (pUpdate->via > 0) {
+    jobObj.via = pUpdate->via;
+  }
+  if (pUpdate->xnodeId > 0) {
+    jobObj.xnodeId = pUpdate->xnodeId;
+  }
+  if (pUpdate->status >= 0) {
+    jobObj.status = pUpdate->status;
+  }
+  if (pUpdate->configLen > 0) {
+    jobObj.configLen = pUpdate->configLen;
+    jobObj.config = taosMemoryCalloc(1, pUpdate->configLen);
+    if (jobObj.config == NULL) goto _OVER;
+    (void)memcpy(jobObj.config, pUpdate->config, pUpdate->configLen);
+    isConfigChange = true;
+  }
+  if (pUpdate->reasonLen > 0) {
+    jobObj.reasonLen = pUpdate->reasonLen;
+    jobObj.reason = taosMemoryCalloc(1, pUpdate->reasonLen);
+    if (jobObj.reason == NULL) goto _OVER;
+    (void)memcpy(jobObj.reason, pUpdate->reason, pUpdate->reasonLen);
+    isReasonChange = true;
+  }
+  jobObj.updateTime = taosGetTimestampMs();
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-xnode");
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+  mInfo("trans:%d, used to update xnode job:%d", pTrans->id, jobObj.id);
+
+  TAOS_CHECK_GOTO(mndSetCreateXnodeJobCommitLogs(pTrans, &jobObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  code = 0;
+
+_OVER:
+  if (isConfigChange && NULL != jobObj.config) {
+    taosMemoryFree(jobObj.config);
+  }
+  if (isReasonChange && NULL != jobObj.reason) {
+    taosMemoryFree(jobObj.reason);
+  }
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 void mndReleaseXnodeTaskJob(SMnode *pMnode, SXnodeJobObj *pObj) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pObj);
@@ -1612,7 +1692,6 @@ static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
   printf("xnode create task slice request received, contLen:%d", pReq->contLen);
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = -1;
-  SXnodeJobObj       *pObj = NULL;
   SMCreateXnodeJobReq createReq = {0};
 
   if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
@@ -1636,16 +1715,45 @@ static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("xnode task job on tid:%d, failed to create since %s", createReq.tid, tstrerror(code));
+    mError("xnode task job on task id:%d, failed to create since %s", createReq.tid, tstrerror(code));
   }
 
-  mndReleaseXnodeTaskJob(pMnode, pObj);
   tFreeSMCreateXnodeJobReq(&createReq);
   TAOS_RETURN(code);
 }
+
 static int32_t mndProcessUpdateXnodeJobReq(SRpcMsg *pReq) {
-  // TODO: update xnode task job
   printf("xnode update task slice request received, contLen:%d", pReq->contLen);
+  SMnode             *pMnode = pReq->info.node;
+  int32_t             code = -1;
+  SXnodeJobObj       *pObj = NULL;
+  SMUpdateXnodeJobReq updateReq = {0};
+
+  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+    mError("failed to create xnode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeJobReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
+
+  pObj = mndAcquireXnodeJob(pMnode, updateReq.jid);
+  if (pObj == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  code = mndUpdateXnodeJob(pMnode, pReq, pObj, &updateReq);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("xnode task job on jid:%d, failed to update since %s", updateReq.jid, tstrerror(code));
+  }
+
+  mndReleaseXnodeJob(pMnode, pObj);
+  tFreeSMUpdateXnodeJobReq(&updateReq);
+  TAOS_RETURN(code);
+
   return 0;
 }
 static int32_t mndProcessDropXnodeJobReq(SRpcMsg *pReq) {

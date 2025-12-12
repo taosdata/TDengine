@@ -540,7 +540,7 @@ typedef struct {
   SXTaskSource*      source;
   SXTaskSink*        sink;
   SXnodeTaskOptions* options;
-} SXnodeTaskAlterStmt;
+} SAlterXnodeTaskStmt;
 typedef struct {
   ENodeType type;
   char      name[TSDB_TABLE_NAME_LEN + 3];
@@ -553,6 +553,11 @@ typedef struct {
   int32_t            tid;
   SXnodeTaskOptions* options;
 } SCreateXnodeJobStmt;
+typedef struct {
+  ENodeType          type;
+  int32_t            jid;
+  SXnodeTaskOptions* options;
+} SAlterXnodeJobStmt;
 typedef struct {
   ENodeType          type;
   int32_t            jid;

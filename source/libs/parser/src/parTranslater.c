@@ -12584,7 +12584,7 @@ static int32_t xnodeTaskStatusStrToNum(const char* status) {
   static const struct {
     const char* str;
     int         value;
-  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Failed", 2},
+  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
              {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
 
   for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
@@ -12645,6 +12645,57 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_JOB, (FSerializeFunc)tSerializeSMCreateXnodeJobReq, &createReq);
   tFreeSMCreateXnodeJobReq(&createReq);
+  return code;
+}
+
+static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStmt* pStmt) {
+  printf("translateAlterXnodeJob on task:%d\n", pStmt->jid);
+  SMUpdateXnodeJobReq updateReq = {0};
+  updateReq.jid = pStmt->jid;
+  updateReq.via = pStmt->options->via;
+
+  const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnode_id != NULL) {
+    updateReq.xnodeId = atoi(xnode_id);
+  }
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL) {
+    updateReq.status = xnodeTaskStatusStrToNum(status);
+    if (updateReq.status < 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status");
+    }
+  }
+
+  const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
+  if (NULL != config) {
+    updateReq.configLen = strlen(config) + 1;
+    if (updateReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+      return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+    }
+    updateReq.config = taosMemoryCalloc(updateReq.configLen, 1);
+    if (updateReq.config == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(updateReq.config, config, updateReq.configLen);
+  }
+
+  const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+  if (reason != NULL) {
+    updateReq.reasonLen = strlen(reason) + 1;
+    if (updateReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+      return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+    }
+    updateReq.reason = taosMemoryCalloc(updateReq.reasonLen, 1);
+    if (updateReq.reason == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(updateReq.reason, reason, updateReq.reasonLen);
+  }
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_JOB, (FSerializeFunc)tSerializeSMUpdateXnodeJobReq, &updateReq);
+  tFreeSMUpdateXnodeJobReq(&updateReq);
   return code;
 }
 
@@ -16657,6 +16708,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_XNODE_JOB_STMT:
       code = translateCreateXnodeJob(pCxt, (SCreateXnodeJobStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_XNODE_JOB_STMT:
+      code = translateAlterXnodeJob(pCxt, (SAlterXnodeJobStmt*)pNode);
       break;
     case QUERY_NODE_DROP_XNODE_JOB_STMT:
       code = translateDropXnodeJob(pCxt, (SDropXnodeJobStmt*)pNode);

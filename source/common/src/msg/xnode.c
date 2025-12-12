@@ -596,7 +596,7 @@ int32_t tSerializeSMCreateXnodeJobReq(void *buf, int32_t bufLen, SMCreateXnodeJo
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->config, pReq->configLen));
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->reasonLen));
-  if (pReq->configLen > 0) {
+  if (pReq->reasonLen > 0) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->reason, pReq->reasonLen));
   }
   tEndEncode(&encoder);
@@ -645,6 +645,73 @@ void tFreeSMCreateXnodeJobReq(SMCreateXnodeJobReq *pReq) {
   taosMemoryFreeClear(pReq->config);
   taosMemoryFreeClear(pReq->reason);
 }
+
+int32_t tSerializeSMUpdateXnodeJobReq(void *buf, int32_t bufLen, SMUpdateXnodeJobReq *pReq) {
+  printf("serializeUpdateXnodeTaskJob: %d\n", pReq->jid);
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  // 0. sql
+  ENCODESQL();
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->jid));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->via));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->xnodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->status));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->configLen));
+  if (pReq->configLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->config, pReq->configLen));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->reasonLen));
+  if (pReq->reasonLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->reason, pReq->reasonLen));
+  }
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMUpdateXnodeJobReq(void *buf, int32_t bufLen, SMUpdateXnodeJobReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  DECODESQL();
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->jid));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->via));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->xnodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->status));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->configLen));
+  if (pReq->configLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->config, NULL));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->reasonLen));
+  if (pReq->reasonLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->reason, NULL));
+  }
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMUpdateXnodeJobReq(SMUpdateXnodeJobReq *pReq) {}
 
 int32_t tSerializeSMDropXnodeJobReq(void *buf, int32_t bufLen, SMDropXnodeJobReq *pReq) {
   printf("serializeDropXnodeTaskJob with jid:%d, tid:%d\n", pReq->jid, pReq->tid);

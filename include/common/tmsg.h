@@ -431,17 +431,18 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_BNODE_STMT,
   QUERY_NODE_CREATE_XNODE_STMT,        // XNode
   QUERY_NODE_DROP_XNODE_STMT,          // XNode
-  QUERY_NODE_UPDATE_XNODE_STMT,        // XNode for taosx
+  QUERY_NODE_UPDATE_XNODE_STMT,        // XNode
   QUERY_NODE_XNODE_TASK_OPTIONS,       // XNode task options
   QUERY_NODE_XNODE_TASK_SOURCE_OPT,    // XNode task source
   QUERY_NODE_XNODE_TASK_SINK_OPT,      // XNode task sink
-  QUERY_NODE_CREATE_XNODE_AGENT_STMT,  // XNode agent
   QUERY_NODE_CREATE_XNODE_TASK_STMT,   // XNode task
-  QUERY_NODE_DROP_XNODE_TASK_STMT,     // XNode task
-  QUERY_NODE_DROP_XNODE_AGENT_STMT,    // XNode agent
   QUERY_NODE_ALTER_XNODE_TASK_STMT,    // XNode task
+  QUERY_NODE_DROP_XNODE_TASK_STMT,     // XNode task
   QUERY_NODE_CREATE_XNODE_JOB_STMT,    // XNode task job
+  QUERY_NODE_ALTER_XNODE_JOB_STMT,     // XNode task
   QUERY_NODE_DROP_XNODE_JOB_STMT,      // XNode task job
+  QUERY_NODE_CREATE_XNODE_AGENT_STMT,  // XNode agent
+  QUERY_NODE_DROP_XNODE_AGENT_STMT,    // XNode agent
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -3204,6 +3205,22 @@ typedef struct {
 int32_t tSerializeSMCreateXnodeJobReq(void* buf, int32_t bufLen, SMCreateXnodeJobReq* pReq);
 int32_t tDeserializeSMCreateXnodeJobReq(void* buf, int32_t bufLen, SMCreateXnodeJobReq* pReq);
 void    tFreeSMCreateXnodeJobReq(SMCreateXnodeJobReq* pReq);
+
+typedef struct {
+  int32_t jid;
+  int32_t via;
+  int32_t xnodeId;
+  int32_t status;
+  int32_t configLen;
+  char*   config;
+  int32_t reasonLen;
+  char*   reason;
+  int32_t sqlLen;
+  char*   sql;
+} SMUpdateXnodeJobReq;
+int32_t tSerializeSMUpdateXnodeJobReq(void* buf, int32_t bufLen, SMUpdateXnodeJobReq* pReq);
+int32_t tDeserializeSMUpdateXnodeJobReq(void* buf, int32_t bufLen, SMUpdateXnodeJobReq* pReq);
+void    tFreeSMUpdateXnodeJobReq(SMUpdateXnodeJobReq* pReq);
 
 typedef struct {
   int32_t jid;

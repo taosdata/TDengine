@@ -4381,19 +4381,16 @@ SNode* alterXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* 
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode task name should not be NULL");
     goto _err;
   }
-  if (pSource == NULL || pSink == NULL) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode task source and sink should not be NULL");
-    goto _err;
-  }
-  if (nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT || nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT) {
+  if ((pSource != NULL && nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT) ||
+      (pSink != NULL && nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT)) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                             "xnode task source and sink should be valid nodes");
     goto _err;
   }
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_TASK_STMT, (SNode**)&pStmt);
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_XNODE_TASK_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
+  SAlterXnodeTaskStmt* pTaskStmt = (SAlterXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else if (pResourceName->type == TK_NK_ID) {
@@ -4431,57 +4428,37 @@ _err:
   return NULL;
 }
 
-SNode* alterXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
-                                        SNode* pSink, SNode* pNode) {
+SNode* alterXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pNode) {
   SNode* pStmt = NULL;
   if (pResourceName == NULL) {
     pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode task name should not be NULL");
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode job id should not be NULL");
     goto _err;
   }
-  if (pSource == NULL || pSink == NULL) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode task source and sink should not be NULL");
+  if (pNode == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode job options should not be NULL");
     goto _err;
   }
-  if (nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT || nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode task source and sink should be valid nodes");
+  if (pResourceName->type != TK_NK_INTEGER) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode job id should be integer");
     goto _err;
   }
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_TASK_STMT, (SNode**)&pStmt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_XNODE_JOB_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
-  if (pResourceName->type == TK_NK_STRING) {
-    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
-  } else if (pResourceName->type == TK_NK_ID) {
-    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
-  } else {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid xnode name type: %d",
-                                            pResourceName->type);
-    goto _err;
-  }
 
-  if (pSource != NULL) {
-    SXTaskSource* source = (SXTaskSource*)(pSource);
-    printf("createXnodeTaskWithOptionsDirectly param source: %s:%s\n", xGetTaskSourceTypeAsStr(&source->source),
-           xGetTaskSourceStr(&source->source));
-    pTaskStmt->source = source;
+  SAlterXnodeJobStmt* pJobStmt = (SAlterXnodeJobStmt*)pStmt;
+  char                buf[8] = {0};
+  COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
+  pJobStmt->jid = atoi(buf);
+
+  if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+    SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+    // printXnodeTaskOptions(&options->opts);
+    pJobStmt->options = options;
   }
-  if (pSink != NULL) {
-    SXTaskSink* sink = (SXTaskSink*)(pSink);
-    printf("createXnodeTaskWithOptionsDirectly param sink: %s:%s\n", xGetTaskSinkTypeAsStr(&sink->sink),
-           xGetTaskSinkStr(&sink->sink));
-    pTaskStmt->sink = sink;
-  }
-  if (pNode != NULL) {
-    if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
-      SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
-      // printXnodeTaskOptions(&options->opts);
-      pTaskStmt->options = options;
-    }
-  }
-  return (SNode*)pTaskStmt;
+  return (SNode*)pJobStmt;
 _err:
   if (pStmt != NULL) {
     nodesDestroyNode(pStmt);
@@ -4502,7 +4479,7 @@ SNode* alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType res
       break;
     }
     case XNODE_JOB: {
-      return alterXnodeJobWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
+      return alterXnodeJobWithOptionsDirectly(pCxt, pResourceName, pNode);
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
