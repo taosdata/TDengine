@@ -736,7 +736,11 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         val.nData = output;
 
       } else {
-        memcpy(&val.i64, bindData.buffer, colLen);
+        uint8_t* buf = (uint8_t*)bindData.buffer;
+        if (TSDB_DATA_TYPE_BOOL == pTagSchema->type && *buf > 1) {
+          *buf = 1;
+        }
+        memcpy(&val.i64, buf, colLen);
       }
       if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
         code = TSDB_CODE_PAR_VALUE_TOO_LONG;
