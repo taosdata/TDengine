@@ -931,14 +931,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       code = tqProcessOffsetCommitReq(pVnode->pTq, ver, pReq, len);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
-    case TDMT_VND_TMQ_ADD_CHECKINFO:
-      code = tqProcessAddCheckInfoReq(pVnode->pTq, ver, pReq, len);
-      TSDB_CHECK_CODE(code, lino, _err);
-      break;
-    case TDMT_VND_TMQ_DEL_CHECKINFO:
-      code = tqProcessDelCheckInfoReq(pVnode->pTq, ver, pReq, len);
-      TSDB_CHECK_CODE(code, lino, _err);
-      break;
 #endif
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;

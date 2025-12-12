@@ -981,12 +981,6 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
 
-  if (tqCheckColModifiable(pMeta->pVnode->pTq, pEntry->uid, pColumn->colId) != 0) {
-    metaError("vgId:%d, %s failed at %s:%d since column %s is not modifiable, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, pReq->colName, version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
-  }
   tColumn = *pColumn;
 
   // do drop column
@@ -1130,12 +1124,6 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
   }
 
-  if (tqCheckColModifiable(pMeta->pVnode->pTq, pEntry->uid, pColumn->colId) != 0) {
-    metaError("vgId:%d, %s failed at %s:%d since column %s is not modifiable, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, pColumn->name, version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(TSDB_CODE_VND_COL_SUBSCRIBED);
-  }
 
   // do update column name
   pEntry->version = version;
@@ -1239,13 +1227,6 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
               version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
-  }
-
-  if (tqCheckColModifiable(pMeta->pVnode->pTq, pEntry->uid, pColumn->colId) != 0) {
-    metaError("vgId:%d, %s failed at %s:%d since column %s is not modifiable, version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, pReq->colName, version);
-    metaFetchEntryFree(&pEntry);
-    TAOS_RETURN(TSDB_CODE_VND_COL_SUBSCRIBED);
   }
 
   if (rowSize + pReq->colModBytes - pColumn->bytes > TSDB_MAX_BYTES_PER_ROW) {
