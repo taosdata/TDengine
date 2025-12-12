@@ -72,6 +72,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->getProgress = (int32_t (*)(const void*, void**, uint64_t*))tsdbReaderGetProgress;
   pReader->setProgress = (int32_t (*)(void*, const void*, uint64_t))tsdbReaderSetProgress;
+  pReader->tsdReaderStepDone = (int32_t (*)(void*))tsdbReaderStepDone;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {

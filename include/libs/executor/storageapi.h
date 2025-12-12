@@ -215,6 +215,7 @@ typedef struct TsdReader {
 
   int32_t (*getProgress)(const void* pReader, void** pBuf, uint64_t* pLen);
   int32_t (*setProgress)(void *pReader, const void *pBuf, uint64_t len);
+  int32_t (*tsdReaderStepDone)(void *pReader);
 } TsdReader;
 
 typedef struct SStoreCacheReader {
