@@ -433,11 +433,14 @@ SDbObj *mndAcquireAuditDb(SMnode *pMnode) {
   void      *pIter = NULL;
   ESdbStatus objStatus = 0;
 
+  mTrace("Acquire Audit Db");
+
   while (1) {
     pIter = sdbFetchAll(pSdb, SDB_DB, pIter, (void **)&pDb, &objStatus, true);
     if (pIter == NULL) break;
-
+    mTrace("Acquire Audit Db %s, %d", pDb->name, pDb->cfg.isAudit);
     if (pDb->cfg.isAudit == 1) {
+      sdbCancelFetch(pSdb, pIter);
       break;
     }
 

@@ -806,9 +806,20 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    encryptKeyChanged = pDnode->encryptionKeyChksum != statusReq.clusterCfg.encryptionKeyChksum;
   bool    enableWhiteListChanged = statusReq.clusterCfg.enableWhiteList != (tsEnableWhiteList ? 1 : 0);
   bool    analVerChanged = (analVer != statusReq.analVer);
-  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
+  bool    auditDBChanged = false;
+  char    auditDB[TSDB_DB_FNAME_LEN] = {0};
+  SDbObj *pDb = mndAcquireAuditDb(pMnode);
+  if (pDb != NULL) {
+    mTrace("set audit db %s", pDb->name);
+    tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
+    mndReleaseDb(pMnode, pDb);
+  }
+
+  if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+
+  bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
@@ -959,9 +970,13 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
     statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
-    SDbObj *pDb = mndAcquireAuditDb(pMnode);
-    tstrncpy(statusRsp.auditDB, pDb->name, TSDB_DB_FNAME_LEN);
-    mndReleaseDb(pMnode, pDb);
+    mTrace("set audit db in status req");
+    if (pDb != NULL) {
+      mTrace("set audit db %s", auditDB);
+      tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
+      mndReleaseDb(pMnode, pDb);
+    }
+    // TODO dmchen get audit db token
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
