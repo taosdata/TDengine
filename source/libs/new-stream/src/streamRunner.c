@@ -1014,9 +1014,11 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 
 end:
 
-  if (TSDB_CODE_SUCCESS == code && ((pExec->pOutBlock && pExec->pOutBlock->info.rows > 0)) || createTable) {
+  if (TSDB_CODE_SUCCESS == code && ((pExec->pOutBlock && pExec->pOutBlock->info.rows > 0) || createTable)) {
     if (!pExec->pOutBlock || pExec->pOutBlock->info.rows == 0) {
-      ST_TASK_DLOG("output block is empty but createTable is true, do stRunnerOutputBlock to initTableInfo, gid:%" PRId64, pReq->gid);
+      ST_TASK_DLOG(
+          "output block is empty but createTable is true, do stRunnerOutputBlock to initTableInfo, gid:%" PRId64,
+          pReq->gid);
     }
     code = stRunnerOutputBlock(pTask, pExec, pExec->pOutBlock, &createTable);
     TAOS_CHECK_GOTO(code, &lino, end);
@@ -1026,7 +1028,7 @@ end:
       blockDataCleanup(pExec->pOutBlock);
     }
   }
-  
+
   ST_TASK_DLOG("execId %d stop to run, gid:%" PRId64, pExec->runtimeInfo.execId, pReq->gid);
   
   stRunnerTaskReleaseExec(pTask, pExec);
