@@ -959,6 +959,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
     statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
+    SDbObj *pDb = mndAcquireAuditDb(pMnode);
+    tstrncpy(statusRsp.auditDB, pDb->name, TSDB_DB_FNAME_LEN);
+    mndReleaseDb(pMnode, pDb);
+
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
     contLen = tSerializeSStatusRsp(pHead, contLen, &statusRsp);

@@ -22,8 +22,11 @@
 typedef struct {
   SAuditCfg       cfg;
   SArray *records;
-  TdThreadMutex lock;
+  TdThreadMutex   recordLock;
   int32_t         dnodeId;
+  TdThreadMutex   infoLock;
+  char            auditDB[TSDB_DB_FNAME_LEN];
+  char            auditToken[AUDIT_TOKEN_LEN];
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/

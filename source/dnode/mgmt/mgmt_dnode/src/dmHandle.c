@@ -24,6 +24,7 @@
 #include "stream.h"
 
 extern SConfig *tsCfg;
+extern void setAuditDbNameToken(char *pDb, char *pToken);
 
 SMonVloadInfo tsVinfo = {0};
 SMnodeLoad    tsMLoad = {0};
@@ -208,6 +209,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         pMgmt->pData->dnodeVer = statusRsp.dnodeVer;
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
+        setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken);
       }
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);

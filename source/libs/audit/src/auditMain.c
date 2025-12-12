@@ -29,29 +29,40 @@ SAudit tsAudit = {0};
 char* tsAuditUri = "/audit_v2";
 char* tsAuditBatchUri = "/audit-batch";
 
-int32_t auditInit(const SAuditCfg *pCfg) {
-  tsAudit.cfg = *pCfg;
-  tsAudit.records = taosArrayInit(0, sizeof(SAuditRecord *));
-  if(tsAudit.records == NULL) return terrno;
-  return taosThreadMutexInit(&tsAudit.lock, NULL);
-}
-
-void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
-
-static FORCE_INLINE void auditDeleteRecord(SAuditRecord * record) {
+static FORCE_INLINE void auditDeleteRecord(SAuditRecord *record) {
   if (record) {
     taosMemoryFree(record->detail);
     taosMemoryFree(record);
   }
 }
 
+int32_t auditInit(const SAuditCfg *pCfg) {
+  int32_t code = 0;
+  tsAudit.cfg = *pCfg;
+  tsAudit.records = taosArrayInit(0, sizeof(SAuditRecord *));
+  if(tsAudit.records == NULL) return terrno;
+  if (taosThreadMutexInit(&tsAudit.infoLock, NULL) != 0) {
+    taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
+    return -1;
+  }
+  if (taosThreadMutexInit(&tsAudit.recordLock, NULL) != 0) {
+    (void)taosThreadMutexDestroy(&tsAudit.infoLock);
+    taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
+    return -1;
+  }
+  return 0;
+}
+
+void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
+
 void auditCleanup() {
   tsLogFp = NULL;
-  (void)taosThreadMutexLock(&tsAudit.lock);
+  (void)taosThreadMutexLock(&tsAudit.recordLock);
   taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
-  (void)taosThreadMutexUnlock(&tsAudit.lock);
+  (void)taosThreadMutexUnlock(&tsAudit.recordLock);
   tsAudit.records = NULL;
-  (void)taosThreadMutexDestroy(&tsAudit.lock);
+  (void)taosThreadMutexDestroy(&tsAudit.recordLock);
+  (void)taosThreadMutexDestroy(&tsAudit.infoLock);
 }
 
 extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 

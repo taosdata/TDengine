@@ -2358,6 +2358,8 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->ipWhiteVer));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->analVer));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteVer));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->auditDB));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->auditToken));
   tEndEncode(&encoder);
 
 _exit:
@@ -2416,6 +2418,10 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->timeWhiteVer));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->auditDB));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->auditToken));
   }
 
   tEndDecode(&decoder);
