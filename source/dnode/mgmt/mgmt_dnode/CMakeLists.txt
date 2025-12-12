@@ -20,6 +20,14 @@ target_include_directories(
   PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PUBLIC "${GRANT_CFG_INCLUDE_DIR}"
 )
+
+if(TD_ENTERPRISE)
+  target_include_directories(
+    mgmt_dnode
+    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
+  )
+endif()
+
 target_link_libraries(
   mgmt_dnode node_util dmodule
 )

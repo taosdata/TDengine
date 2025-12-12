@@ -20,3 +20,10 @@ target_include_directories(
   dnode
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+if(TD_ENTERPRISE)
+  target_include_directories(
+    dnode
+    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
+  )
+endif()
