@@ -1692,7 +1692,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pTokenOptions);
       break;
     }
-    break;
     case QUERY_NODE_DROP_USER_STMT:     // no pointer field
     case QUERY_NODE_USE_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
