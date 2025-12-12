@@ -141,6 +141,7 @@ static int32_t mndTokenActionUpdate(SSdb *pSdb, STokenObj *pOld, STokenObj *pNew
 
 
 
+// TODO: optimize for large number of tokens
 static int32_t countUserTokens(SMnode *pMnode, const char *user) {
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
