@@ -75,14 +75,16 @@ class PrimaryKeyBase:
                     q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
 
             #child table
+            sql = "create table "
             for tag_i in range(1,11):
-                tdSql.execute(f'''create table {database}.stable_0_{tag_i} using {database}.stable_0 tags('stable_0_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
-                tdSql.execute(f'''create table {database}.stable_1_{tag_i} using {database}.stable_1 tags('stable_1_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
-                tdSql.execute(f'''create table {database}.stable_2_{tag_i} using {database}.stable_2 tags('stable_2_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary2.{tag_i}' , 'nchar2.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
-                tdSql.execute(f'''create table {database}.stable_3_{tag_i} using {database}.stable_3 tags('stable_3_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary3.{tag_i}' , 'nchar3.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
-                tdSql.execute(f'''create table {database}.stable_4_{tag_i} using {database}.stable_4 tags('stable_4_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary4.{tag_i}' , 'nchar4.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
-                tdSql.execute(f'''create table {database}.stable_5_{tag_i} using {database}.stable_5 tags('stable_5_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary5.{tag_i}' , 'nchar5.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
-                tdSql.execute(f'''create table {database}.stable_6_{tag_i} using {database}.stable_6 tags('stable_6_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary6.{tag_i}' , 'nchar6.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ;''' )
+                sql += f''' {database}.stable_0_{tag_i} using {database}.stable_0 tags('stable_0_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') '''
+                sql += f''' {database}.stable_1_{tag_i} using {database}.stable_1 tags('stable_1_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary1.{tag_i}' , 'nchar1.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ''' 
+                sql += f''' {database}.stable_2_{tag_i} using {database}.stable_2 tags('stable_2_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary2.{tag_i}' , 'nchar2.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ''' 
+                sql += f''' {database}.stable_3_{tag_i} using {database}.stable_3 tags('stable_3_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary3.{tag_i}' , 'nchar3.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ''' 
+                sql += f''' {database}.stable_4_{tag_i} using {database}.stable_4 tags('stable_4_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary4.{tag_i}' , 'nchar4.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ''' 
+                sql += f''' {database}.stable_5_{tag_i} using {database}.stable_5 tags('stable_5_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 0 , 'binary5.{tag_i}' , 'nchar5.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ''' 
+                sql += f''' {database}.stable_6_{tag_i} using {database}.stable_6 tags('stable_6_{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}', '{tag_i}' , '{tag_i}' , 1 , 'binary6.{tag_i}' , 'nchar6.{tag_i}' , '{tag_i}', '{tag_i}' ,'{tag_i}') ''' 
+            tdSql.execute(sql)
 
         else:
             tdSql.execute('''use %s;'''%database)
@@ -422,25 +424,6 @@ class PrimaryKeyBase:
             tdLog.info("======this case test cachemodel both =========")
             sql = "alter database %s cachemodel 'both' cachesize %d;"  %(database,cachesize)
             tdSql.query(sql,queryTimes=1)
-
-    def query_pk(self,database,num=1):
-
-        self.fun_pk_interp(self.database,'interp','') 
-        self.multiple_agg_groupby(self.database,1) 
-        self.fun_pk_diff(self.database,'diff','') 
-        self.fun_pk_twa(self.database,'derivative',',1s,0') 
-        self.fun_pk_twa(self.database,'derivative',',1s,1') 
-        self.fun_pk_unique(self.database,'unique','')  
-        self.fun_pk_last()
-        self.fun_pk_first(self.database,'first','') 
-        
-        self.query_pk_fun(self.database,'') 
-        
-        self.touying_pk_1(self.database,1) 
-        self.touying_pk_where(self.database,'') 
-        self.touying_pk_where(self.database,'tags') 
-        self.touying_pk_where(self.database,'distinct') 
-        self.count_pk(self.database,1) 
 
     def count_pk(self,db,num=1):
         stable_list = ['stable_1','stable_2','stable_3','stable_4','stable_5','stable_6']
@@ -3141,7 +3124,7 @@ class PrimaryKeyBase:
             tdSql.query(sql)
             self.explain_sql_pass(sql)
 
-    def query_pk_fun(self,database,num=1):
+    def query_pk_fun(self, database):
         self.fun_pk_num_1(self.database,'','') 
         self.fun_pk_num_agg(self.database,'count','') 
         self.fun_pk_num_agg(self.database,'sum','') 

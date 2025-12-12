@@ -40,7 +40,7 @@ class TestPrimaryKeyBasic:
     def do_primary_ts_base_2(self):
         self.base.fun_pk_last() 
         self.base.fun_pk_first(self.base.database,'first','')         
-        self.base.query_pk_fun(self.base.database,'') 
+        self.base.query_pk_fun(self.base.database) 
         self.base.touying_pk_1(self.base.database,1) 
         print("do primary base 2 ..................... [passed]")
         
