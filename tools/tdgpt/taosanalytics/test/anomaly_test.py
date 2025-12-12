@@ -134,7 +134,7 @@ class AnomalyDetectionTest(unittest.TestCase):
         s2 = loader.get_service("ksigma")
 
         s1.set_params({"k": 1})
-        self.assertNotEqual(s1.period, s2.period)
+        self.assertNotEqual(s1.k_val, s2.k_val)
 
     def __load_remote_data_for_ad(self):
         """load the remote data for anomaly detection"""
