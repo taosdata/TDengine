@@ -1128,7 +1128,7 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
+  printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 

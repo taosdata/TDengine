@@ -42,15 +42,22 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
     case JOB_TASK_STATUS_SUCC:
       break;
     case JOB_TASK_STATUS_FAIL:
-      SCH_RET(schProcessOnJobFailure(pJob, (param ? *(int32_t*)param : 0)));
+      code = schProcessOnJobFailure(pJob, (param ? *(int32_t*)param : 0));
+      if (SCH_IS_SUBQ_JOB(pJob)) {
+        SCH_RET(schProcessOnJobFailure((SSchJob*)pJob->parent, (param ? *(int32_t*)param : 0)));
+      } else {
+        SCH_RET(code);
+      }
       break;
     case JOB_TASK_STATUS_DROP:
       (void)schProcessOnJobDropped(pJob, *(int32_t*)param); // ignore error
 
-      if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
-        SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
-      } else {
-        SCH_JOB_TLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
+      if (SCH_IS_PARENT_JOB(pJob)) {
+        if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
+          SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
+        } else {
+          SCH_JOB_TLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
+        }
       }
       break;
     default: {

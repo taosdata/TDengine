@@ -42,6 +42,9 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin);
 int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
 void    tfreeSParseQueryRes(void* p);
+int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type);
+void    getScalarSubQueryResType(SNode* pNode, SDataType* pType);
+int32_t validateScalarSubQuery(SNode* pNode);
 
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);

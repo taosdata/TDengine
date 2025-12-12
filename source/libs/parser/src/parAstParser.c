@@ -120,6 +120,8 @@ typedef struct SCollectMetaKeyFromExprCxt {
 } SCollectMetaKeyFromExprCxt;
 
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt);
+static int32_t collectMetaKeyFromSetOperator(SCollectMetaKeyCxt* pCxt, SSetOperator* pStmt);
+static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* pStmt);
 
 static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFunctionNode* pFunc) {
   switch (fmGetFuncType(pFunc->functionName)) {
@@ -269,6 +271,10 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
       return collectMetaKeyFromTempTable(pCxt, (STempTableNode*)pNode);
     case QUERY_NODE_OPERATOR:
       return collectMetaKeyFromOperator(pCxt, (SOperatorNode*)pNode);
+    case QUERY_NODE_SET_OPERATOR:
+      return collectMetaKeyFromSetOperator(pCxt->pComCxt, (SSetOperator*)pNode);
+    case QUERY_NODE_SELECT_STMT:
+      return collectMetaKeyFromSelect(pCxt->pComCxt, (SSelectStmt*)pNode);
     default:
       break;
   }

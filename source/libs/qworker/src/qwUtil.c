@@ -333,6 +333,10 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   taosArrayDestroy(ctx->tbInfo);
 
+  if (ctx->subQRes.resGot) {
+    qwFreeFetchRsp(ctx, ctx->subQRes.rsp);
+  }
+  
   if (gMemPoolHandle && ctx->memPoolSession) {
     qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession, true);
     ctx->memPoolSession = NULL;

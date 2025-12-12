@@ -23,7 +23,16 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
+typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SRemoteValueNode*);
+
 typedef struct SFilterInfo SFilterInfo;
+
+typedef struct SScalarExtraInfo {
+  void*   pStreamInfo;
+  void*   pStreamRange;
+  void*   pSubJobCtx;
+  sclFetchFromRemote fp;
+} SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
 
@@ -38,13 +47,10 @@ int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 /*
 pDst need to freed in caller
 */
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void *pExtraParam,
-                        void *streamTsRange);
-int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,
-                               int32_t rowEndIdx, const void *pExtraParam, void *streamTsRange);
-void    sclFreeParam(SScalarParam *param);
-int32_t scalarAssignPlaceHolderRes(SColumnInfoData *pResColData, int64_t offset, int64_t rows, int16_t funcId,
-                                   const void *pExtraParams);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra);
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, SScalarExtraInfo* pExtra);
+void    sclFreeParam(SScalarParam* param);
+int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams);
 int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);
 
@@ -189,6 +195,9 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
 int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange,
                                    bool *winRangeValid, int32_t type);
 int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins);
+
+extern threadlocal SScalarExtraInfo gTaskScalarExtra;
+
 
 #ifdef __cplusplus
 }

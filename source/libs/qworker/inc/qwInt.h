@@ -152,6 +152,14 @@ typedef struct SQWJobInfo {
   SHashObj*           pSessions;
 } SQWJobInfo;
 
+typedef struct SQWSubQRes {
+  void*   rsp;
+  int32_t dataLen;
+  int32_t code;
+  int8_t  resGot;
+  int8_t  fetchFromSink;
+} SQWSubQRes;
+
 typedef struct SQWTaskCtx {
   SRWLatch lock;
   int8_t   phase;
@@ -161,6 +169,7 @@ typedef struct SQWTaskCtx {
   int8_t   needFetch;
   int8_t   localExec;
   int8_t   dynamicTask;
+  int8_t   subQuery;
   int32_t  queryMsgType;
   int32_t  fetchMsgType;
   int32_t  level;
@@ -192,6 +201,7 @@ typedef struct SQWTaskCtx {
 
   void      *memPoolSession;
   SQWJobInfo *pJobInfo;
+  SQWSubQRes  subQRes;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
@@ -566,6 +576,7 @@ void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bo
 int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);
 void    qwFreeTaskHandle(SQWTaskCtx *ctx);
 void    qwFreeSinkHandle(SQWTaskCtx *ctx);
+int32_t qwChkSaveSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd);
 
 #ifdef __cplusplus
 }

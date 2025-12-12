@@ -1361,6 +1361,7 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
   if (NULL != pStmtName) {
     snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
+  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
