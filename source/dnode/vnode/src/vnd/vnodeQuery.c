@@ -169,6 +169,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       schema = mer1.me.stbEntry.schemaRow;
       schemaTag = mer1.me.stbEntry.schemaTag;
       metaRsp.suid = mer1.me.uid;
+      metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
       break;
     }
     case TSDB_CHILD_TABLE:

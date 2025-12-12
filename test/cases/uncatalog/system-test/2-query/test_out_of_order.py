@@ -19,6 +19,7 @@ import time
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 class TestOutOfOrder:
+    updatecfgDict = {'maxSQLLength':14194304,'debugFlag': 131}
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
 

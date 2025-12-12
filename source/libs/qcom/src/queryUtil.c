@@ -114,8 +114,13 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
   return rowLen <= maxLen;
 }
 
-bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
-  if (!pSchema || !VALIDNUMOFCOLS(numOfCols)) {
+bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual) {
+  if (!pSchema) {
+    qError("invalid numOfCols: %d", numOfCols);
+    return false;
+  }
+
+  if ((isVirtual && !VALIDNUMOFCOLSVIRTUAL(numOfCols)) || (!isVirtual && !VALIDNUMOFCOLS(numOfCols))) {
     qError("invalid numOfCols: %d", numOfCols);
     return false;
   }
@@ -131,7 +136,7 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
     return false;
   }
 
-  if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
+  if (!doValidateSchema(pSchema, numOfCols, isVirtual ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW)) {
     qError("validate schema columns failed");
     return false;
   }
