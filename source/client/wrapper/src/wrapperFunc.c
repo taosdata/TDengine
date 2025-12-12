@@ -937,8 +937,8 @@ char *getBuildInfo() {
   return (*fp_getBuildInfo)();
 }
 
-int32_t taos_connect_is_alive(TAOS *taos) {
-  CHECK_INT(fp_taos_connect_is_alive);
-  return (*fp_taos_connect_is_alive)(taos);
-}
+// int32_t taos_connect_is_alive(TAOS *taos) {
+//   CHECK_INT(fp_taos_connect_is_alive);
+//   return (*fp_taos_connect_is_alive)(taos);
+// }
 
