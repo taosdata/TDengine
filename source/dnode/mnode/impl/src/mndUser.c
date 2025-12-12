@@ -1914,6 +1914,7 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   (void)memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
   pNew->updateTime = taosGetTimestampMs();
+  taosInitRWLatch(&pNew->lock);
 
   pNew->passwords = NULL;
   pNew->readDbs = NULL;
@@ -2786,14 +2787,14 @@ _OVER:
 
 
 
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
   int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-user");
   if (pTrans == NULL) {
-    mError("user:%s, failed to alter since %s", pOld->user, terrstr());
+    mError("user:%s, failed to alter since %s", pNew->user, terrstr());
     TAOS_RETURN(terrno);
   }
-  mInfo("trans:%d, used to alter user:%s", pTrans->id, pOld->user);
+  mInfo("trans:%d, used to alter user:%s", pTrans->id, pNew->user);
 
   SSdbRaw *pCommitRaw = mndUserActionEncode(pNew);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -3116,7 +3117,6 @@ _OVER:
 static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SSdb         *pSdb = pMnode->pSdb;
-  void         *pIter = NULL;
   int32_t       code = 0;
   int32_t       lino = 0;
   SUserObj     *pUser = NULL;
@@ -3396,7 +3396,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
   }
 
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
+  code = mndAlterUser(pMnode, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 #if 0
