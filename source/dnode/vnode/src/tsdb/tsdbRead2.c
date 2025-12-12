@@ -6192,9 +6192,9 @@ int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
 
   if ((pReader->step == EXTERNAL_ROWS_PREV &&
        (pReader->currentStepDone || !*hasNext)) ||
-      pReader->step < EXTERNAL_ROWS_PREV) {
+      pReader->step == EXTERNAL_ROWS_INIT) {
     /*
-      PREV scan is done or has no more data or doesn't exist, 
+      PREV scan is done or has no more data or doesn't exist,
       move to the MAIN scan and prepare for it
     */
     pReader->step = EXTERNAL_ROWS_MAIN;

@@ -1263,8 +1263,8 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
 }
 
 static int32_t notifyReaderStepDone(struct SOperatorInfo* pOptr,
-                                      SOperatorParam* param) {
-  (void)param;
+                                    SOperatorParam* param) {
+  (void)param;  // not used
   int32_t code = TSDB_CODE_SUCCESS;
   if (pOptr->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = (STableScanInfo*)pOptr->info;

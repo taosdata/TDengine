@@ -57,6 +57,7 @@ typedef enum {
 } EReaderStatus;
 
 typedef enum {
+  EXTERNAL_ROWS_INIT = 0x0,
   EXTERNAL_ROWS_PREV = 0x1,
   EXTERNAL_ROWS_MAIN = 0x2,
   EXTERNAL_ROWS_NEXT = 0x3,
