@@ -90,7 +90,6 @@ def check_list_result(result_list,detaild_list):
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbPage.c:ASSERT_CORE(pCell + szCell - pPage->pData > 0 && pCell + szCell - pPage->pData <= pPage->pageSize, \"pCell: %p, pData: %p, pageSize: %d\", pCell, pPage->pData, pPage->pageSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbPager.c:ASSERT_CORE(pgno <= pPager->dbFileSize, \"pgno:%u exceeds dbFileSize:%u.\", pgno, pPager->dbFileSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbPager.c:ASSERT_CORE(*ppgno <= pPager->dbFileSize, \"pgno:%u exceeds dbFileSize:%u.\", *ppgno, pPager->dbFileSize);",
-            f"{TD_project_path}/community/source/libs/nodes/src/nodesUtilFuncs.c:ASSERT(0);",
         ]
     expected_strings = [
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
