@@ -1477,7 +1477,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
   showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, NULL, objFName, privInfo->objLevel == 0 ? NULL : "*");
   if (!showAll && pShow->db[0] != 0) {
-    mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, pUser->name, pShow->db, privInfo->objLevel == 0 ? NULL : "*");
+    showAll = mndCheckObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, pUser->name, pShow->db, privInfo->objLevel == 0 ? NULL : "*");
   }
 
   SSmaAndTagIter *pIter = pShow->pIter;

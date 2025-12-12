@@ -467,10 +467,7 @@ static int32_t authCreateTsma(SAuthCxt* pCxt, SCreateTSMAStmt* pStmt) {
       code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
                                PRIV_TBL_SELECT);
     }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
-                               PRIV_TBL_INSERT);
-    }
+
     if (TSDB_CODE_SUCCESS == code) {
       code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
                                PRIV_STREAM_CREATE);

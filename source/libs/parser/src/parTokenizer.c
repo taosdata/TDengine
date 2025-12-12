@@ -199,6 +199,7 @@ static SKeyword keywordTable[] = {
     {"NEXT",                 TK_NEXT},
     {"NEAR",                 TK_NEAR},
     {"NMATCH",               TK_NMATCH},
+    {"NODE",                 TK_NODE},
     {"NONE",                 TK_NONE},
     {"NOT",                  TK_NOT},
     {"NOW",                  TK_NOW},
