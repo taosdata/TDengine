@@ -20,6 +20,13 @@ class TestScalarSubQuery2:
     func_3_param = ["percentile", "nvl2"]
     func_nc_param = ["concat", "concat_ws", "greatest", "least"]
 
+    unsupportedSqls = [
+        "create stream stm1 interval(1d) sliding(1d) from tb1 partition by {scalarSql} into out1 as select * from {tableName}",
+        "create stream stm1 interval(1d) sliding(1d) from tb1 into out2 as select ts, {scalarSql} from {tableName}",
+        "create topic topic1 as select {scalarSql} from {tableName}",
+        "insert into tbb select now, {scalarSql} from tb1",        
+    ]
+
     speCFuncSqls = [
         "select position({scalarSql} in 'abc') from {tableName}",
         "select position('a' in {scalarSql}) from {tableName}",
@@ -233,7 +240,8 @@ class TestScalarSubQuery2:
         self.execFuncCase()
      
     def prepareData(self):
-        tdLog.info("create database db1")
+        tdLog.info("start to prepare data for scalar sub query test case")
+        tdSql.execute(f"create snode on dnode 1")
         tdSql.execute(f"drop database if exists db1")
         tdSql.execute(f"create database db1")
         tdSql.execute(f"use db1")
@@ -286,6 +294,19 @@ class TestScalarSubQuery2:
 
                 self.generated_queries_file.write(self.querySql.strip() + "\n")
                 self.generated_queries_file.flush()
+
+        for self.mainIdx in range(len(self.unsupportedSqls)):
+            self.querySql = self.unsupportedSqls[self.mainIdx].replace("{scalarSql}", self.scalarSqls[1])
+            self.querySql = self.querySql.replace("{tableName}", "tb3")
+            # ensure exactly one trailing semicolon
+            self.querySql = self.querySql.rstrip().rstrip(';') + ';'
+            tdLog.info(f"generated sql: {self.querySql}")
+
+            self.saved_count += 1
+            self._query_saved_count = self.saved_count
+
+            self.generated_queries_file.write(self.querySql.strip() + "\n")
+            self.generated_queries_file.flush()
 
         self.generated_queries_file.close()
         tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
