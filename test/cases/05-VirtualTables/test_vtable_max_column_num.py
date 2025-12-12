@@ -59,7 +59,7 @@ class TestVtableCreate:
         tdLog.info(f"test create virtual child tables.")
         sql = "CREATE VTABLE vtb_virtual_child_max_col_1 ("
         for i in range(32763):
-            sql += f"col_{i} from d_{i}.double_col"
+            sql += f"col_{i} from d_{i%100}.double_col"
             if i != 32762:
                 sql += ", "
         sql += ") USING vtb_virtual_stb_max_col TAGS (1);"
@@ -69,7 +69,7 @@ class TestVtableCreate:
         tdLog.info(f"test create virtual child tables.")
         sql = "CREATE VTABLE vtb_virtual_child_max_col_2 ("
         for i in range(32763):
-            sql += f"col_{i} from d_{i}.double_col"
+            sql += f"col_{i} from d_{i%100}.double_col"
             if i != 32762:
                 sql += ", "
         sql += ") USING vtb_virtual_stb_max_col TAGS (1);"
@@ -81,12 +81,12 @@ class TestVtableCreate:
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1696000000000)
         tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 4097)
-        tdSql.checkData(0, 3, 32762)
+        tdSql.checkData(0, 2, 97)
+        tdSql.checkData(0, 3, 62)
         tdSql.checkData(1, 0, 1696000001000)
         tdSql.checkData(1, 1, 2)
-        tdSql.checkData(1, 2, 4098)
-        tdSql.checkData(1, 3, 32763)
+        tdSql.checkData(1, 2, 98)
+        tdSql.checkData(1, 3, 63)
 
         tdLog.info(f"test query virtual super tables.")
         tdSql.query("SELECT ts, col_1, col_4097, col_32762 FROM vtb_virtual_stb_max_col order by ts;")
@@ -94,20 +94,20 @@ class TestVtableCreate:
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1696000000000)
         tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 4097)
-        tdSql.checkData(0, 3, 32762)
+        tdSql.checkData(0, 2, 97)
+        tdSql.checkData(0, 3, 62)
         tdSql.checkData(1, 0, 1696000000000)
         tdSql.checkData(1, 1, 1)
-        tdSql.checkData(1, 2, 4097)
-        tdSql.checkData(1, 3, 32762)
+        tdSql.checkData(1, 2, 97)
+        tdSql.checkData(1, 3, 62)
         tdSql.checkData(2, 0, 1696000001000)
         tdSql.checkData(2, 1, 2)
-        tdSql.checkData(2, 2, 4098)
-        tdSql.checkData(2, 3, 32763)
+        tdSql.checkData(2, 2, 98)
+        tdSql.checkData(2, 3, 63)
         tdSql.checkData(3, 0, 1696000001000)
         tdSql.checkData(3, 1, 2)
-        tdSql.checkData(3, 2, 4098)
-        tdSql.checkData(3, 3, 32763)
+        tdSql.checkData(3, 2, 98)
+        tdSql.checkData(3, 3, 63)
 
     def test_virtual_normal_table_max_column(self):
         """Virtual normal table max column
@@ -131,7 +131,7 @@ class TestVtableCreate:
 
         sql = "CREATE VTABLE `vtb_virtual_ntb_max_col` (ts timestamp"
         for i in range(32766):
-            sql += f", col_{i} double from d_{i}.double_col"
+            sql += f", col_{i} double from d_{i%100}.double_col"
         sql += ")"
         tdSql.execute(sql)
 
@@ -141,12 +141,12 @@ class TestVtableCreate:
         tdSql.checkCols(4)  # ts + 32766 double cols
         tdSql.checkData(0, 0, 1696000000000)
         tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 4097)
-        tdSql.checkData(0, 3, 32762)
+        tdSql.checkData(0, 2, 97)
+        tdSql.checkData(0, 3, 62)
         tdSql.checkData(1, 0, 1696000001000)
         tdSql.checkData(1, 1, 2)
-        tdSql.checkData(1, 2, 4098)
-        tdSql.checkData(1, 3, 32763)
+        tdSql.checkData(1, 2, 98)
+        tdSql.checkData(1, 3, 63)
 
     def test_virtual_table_exceed_max_column(self):
         """Virtual table exceed max column
@@ -176,7 +176,7 @@ class TestVtableCreate:
 
         sql = "CREATE VTABLE vtb_virtual_ntb_exceed_max_col (ts timestamp"
         for i in range(32767):
-            sql += f", col_{i} double from d_{i}.double_col"
+            sql += f", col_{i} double from d_{i%100}.double_col"
         sql += ")"
         tdSql.error(sql)
 
@@ -190,7 +190,7 @@ class TestVtableCreate:
 
         sql = "CREATE VTABLE vtb_virtual_ntb_alter_exceed_max_col (ts timestamp"
         for i in range(32766):
-            sql += f", col_{i} double from d_{i}.double_col"
+            sql += f", col_{i} double from d_{i%100}.double_col"
         sql += ")"
         tdSql.execute(sql)
 
@@ -375,3 +375,26 @@ class TestVtableCreate:
         tdSql.execute("ALTER VTABLE vtb_virtual_ntb_max_col_no_error ADD COLUMN var_col_last varchar(1);")
         tdSql.execute("ALTER VTABLE vtb_virtual_ntb_max_col_no_error MODIFY COLUMN var_col_last varchar(22265);")
         tdSql.error("ALTER VTABLE vtb_virtual_ntb_max_col_no_error MODIFY COLUMN var_col_last varchar(22266);")
+
+        # Case 5: create virtual table with column reference table exceed 1000
+        sql = "CREATE STABLE `vtb_virtual_stb_max_col_exceed_ref` (ts timestamp"
+        for i in range(32763):
+            sql += f", col_{i} double"
+        sql += ") TAGS (id int) VIRTUAL 1;"
+        tdSql.execute(sql)
+
+        tdLog.info(f"test create virtual child tables.")
+        sql = "CREATE VTABLE vtb_virtual_child_exceed_ref ("
+        for i in range(32763):
+            sql += f"col_{i} from d_{i%1001}.double_col"
+            if i != 32762:
+                sql += ", "
+        sql += ") USING vtb_virtual_stb_max_col_exceed_ref TAGS (1);"
+        tdSql.error(sql)
+
+        sql = "CREATE VTABLE `vtb_virtual_ntb_max_col_exceed_ref` (ts timestamp"
+        for i in range(32766):
+            sql += f", col_{i} double from d_{i%1001}.double_col"
+        sql += ")"
+        tdSql.error(sql)
+
