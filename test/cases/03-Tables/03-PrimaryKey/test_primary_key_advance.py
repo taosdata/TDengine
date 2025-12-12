@@ -27,15 +27,14 @@ class TestPrimaryKeyBasic:
         self.base = PrimaryKeyBase()
         self.base.case_init()
         self.base.dropandcreateDB_primary_key(self.base.database, 1 , 1 ,'yes','yes','no')
-        
-    def do_primary_ts_base_3(self):
-        self.base.touying_pk_where(self.base.database,'') 
-        print("do primary base 3 ..................... [passed]")
 
-    def do_primary_ts_base_4(self):
-        self.base.touying_pk_where(self.base.database,'distinct')
-        print("do primary base 4 ..................... [passed]")
-
+    def do_primary_ts_base_2(self):
+        self.base.fun_pk_last() 
+        self.base.fun_pk_first(self.base.database,'first','')         
+        self.base.query_pk_fun(self.base.database) 
+        self.base.touying_pk_1(self.base.database,1) 
+        print("do primary base 2 ..................... [passed]")
+                
     def do_primary_ts_base_5(self):
         self.base.touying_pk_where(self.base.database, 'tags')
         self.base.count_pk(self.base.database, 1) 
@@ -63,12 +62,10 @@ class TestPrimaryKeyBasic:
         Jira: None
 
         History:
-            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_primary_ts_base_3.py
-            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_primary_ts_base_4.py
+            - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_primary_ts_base_2.py
             - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_primary_ts_base_5.py
 
         """
         self.do_init()
-        self.do_primary_ts_base_3()
-        self.do_primary_ts_base_4()
+        self.do_primary_ts_base_2()
         self.do_primary_ts_base_5()
