@@ -1938,7 +1938,7 @@ TEST(stmt2Case, query) {
     aa->async_affected_rows = 0;
     ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
     // int code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = ?", 0);
-    // checkError(stmt, code);
+    // checkError(stmt, code, __FILE__, __LINE__);
 
     TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, (void*)aa};
 
@@ -4387,7 +4387,7 @@ TEST(stmt2Case, bool_bind) {
   ASSERT_NE(stmt, nullptr);
 
   int code = taos_stmt2_prepare(stmt, "insert into tb1 using stb tags(?,?,?,?) values(?, ?)", 0);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   int64_t ts[4] = {1591060628000, 1591060628100, 1591060628200, 1591060628300};
   int8_t  c1[4] = {-7, 1, 0, -1};
@@ -4402,9 +4402,9 @@ TEST(stmt2Case, bool_bind) {
   TAOS_STMT2_BIND* paramv = &params[0];
   TAOS_STMT2_BINDV bindv = {1, NULL, &tagv, &paramv};
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
   code = taos_stmt2_exec(stmt, NULL);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   do_query(taos, "flush database stmt2_testdb_30");
 
@@ -4413,12 +4413,12 @@ TEST(stmt2Case, bool_bind) {
   ASSERT_NE(stmt, nullptr);
 
   code = taos_stmt2_prepare(stmt, "insert into tb2 using stb tags(?,?,?,?) values(?, ?)", 0);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
 
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
   code = taos_stmt2_exec(stmt, NULL);
-  checkError(stmt, code);
+  checkError(stmt, code, __FILE__, __LINE__);
   taos_stmt2_close(stmt);
 
   do_query(taos, "flush database stmt2_testdb_30");
