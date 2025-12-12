@@ -25,6 +25,7 @@ extern "C" {
 int32_t mndInitDb(SMnode *pMnode);
 void    mndCleanupDb(SMnode *pMnode);
 SDbObj *mndAcquireDb(SMnode *pMnode, const char *db);
+SDbObj *mndAcquireAuditDb(SMnode *pMnode);
 void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
 int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
 int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);

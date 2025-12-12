@@ -142,6 +142,9 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
   pTscObj->pAppInfo->serverCfg.monitorParas = connectRsp.monitorParas;
   pTscObj->pAppInfo->serverCfg.enableAuditDelete = connectRsp.enableAuditDelete;
+  pTscObj->pAppInfo->serverCfg.enableAuditSelect = connectRsp.enableAuditSelect;
+  pTscObj->pAppInfo->serverCfg.enableAuditInsert = connectRsp.enableAuditInsert;
+  pTscObj->pAppInfo->serverCfg.auditLevel = connectRsp.auditLevel;
   tscDebug("monitor paras from connect rsp, clusterId:0x%" PRIx64 ", threshold:%d scope:%d",
            connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;

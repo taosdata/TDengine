@@ -489,6 +489,7 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
   int32_t           code = 0;
   int32_t           lino = 0;
   SKillRetentionReq req = {0};  // reuse SKillCompactReq
+  int64_t           tss = taosGetTimestampMs();
 
   if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &req)) != 0) {
     TAOS_RETURN(code);
@@ -510,12 +511,17 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char    obj[TSDB_INT32_ID_LEN] = {0};
-  int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pObj->id);
-  if ((uint32_t)nBytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "killRetention", pObj->dbname, obj, req.sql, req.sqlLen);
-  } else {
-    mError("retention:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char    obj[TSDB_INT32_ID_LEN] = {0};
+    int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pObj->id);
+    if ((uint32_t)nBytes < sizeof(obj)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "killRetention", pObj->dbname, obj, req.sql, req.sqlLen, duration, 0);
+    } else {
+      mError("retention:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -888,7 +894,12 @@ static void mndRetentionPullup(SMnode *pMnode) {
 }
 
 static int32_t mndTrimDbDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
+  int64_t tss = taosGetTimestampMs();
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
+    return 0;
+  }
+
+  if (tsAuditLevel < AUDIT_LEVEL_CLUSTER) {
     return 0;
   }
 
@@ -910,7 +921,11 @@ static int32_t mndTrimDbDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb
     sqlLen = tsnprintf(sql, sizeof(sql), "trim db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
                        tw->ekey);
   }
-  auditRecord(NULL, pMnode->clusterId, "autoTrimDB", name.dbname, "", sql, sqlLen);
+
+  int64_t tse = taosGetTimestampMs();
+  double  duration = (double)(tse - tss);
+  duration = duration / 1000;
+  auditRecord(NULL, pMnode->clusterId, "autoTrimDB", name.dbname, "", sql, sqlLen, duration, 0);
 
   return 0;
 }

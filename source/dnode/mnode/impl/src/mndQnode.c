@@ -310,6 +310,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   SQnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SMCreateQnodeReq createReq = {0};
+  int64_t          tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
@@ -333,10 +334,15 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   code = mndCreateQnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[33] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[33] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen, duration, 0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
@@ -445,6 +451,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   int32_t        code = -1;
   SQnodeObj     *pObj = NULL;
   SMDropQnodeReq dropReq = {0};
+  int64_t        tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
@@ -466,10 +473,14 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   code = mndDropQnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[33] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
-
-  auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[33] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

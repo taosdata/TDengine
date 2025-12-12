@@ -700,6 +700,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   SMnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SMCreateMnodeReq createReq = {0};
+  int64_t          tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
@@ -733,12 +734,17 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   code = mndCreateMnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char    obj[40] = {0};
-  int32_t bytes = snprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
-  if ((uint32_t)bytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
-  } else {
-    mError("mnode:%d, failed to audit create req since %s", createReq.dnodeId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char    obj[40] = {0};
+    int32_t bytes = snprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
+    if ((uint32_t)bytes < sizeof(obj)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen, duration, 0);
+    } else {
+      mError("mnode:%d, failed to audit create req since %s", createReq.dnodeId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
 
 _OVER:
@@ -854,6 +860,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   int32_t        code = -1;
   SMnodeObj     *pObj = NULL;
   SMDropMnodeReq dropReq = {0};
+  int64_t        tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
@@ -890,10 +897,15 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   code = mndDropMnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[40] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[40] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

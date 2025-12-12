@@ -548,6 +548,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   SMqTopicObj      *pTopic = NULL;
   SDbObj           *pDb = NULL;
   SCMCreateTopicReq createTopicReq = {0};
+  int64_t           tss = taosGetTimestampMs();
 
   PRINT_LOG_START
   if (tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq) != 0) {
@@ -593,7 +594,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  {
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     SName dbname = {0};
     int32_t ret = tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
     if (ret != 0){
@@ -604,8 +605,12 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     if (ret != 0){
       mError("failed to parse topic name:%s, ret:%d", createTopicReq.name, ret);
     }
-    auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname,
-                createTopicReq.sql, strlen(createTopicReq.sql));
+
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname, createTopicReq.sql,
+                strlen(createTopicReq.sql), duration, 0);
   }
 
 END:
@@ -754,6 +759,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   int32_t        code = 0;
   SMqTopicObj *pTopic = NULL;
   STrans      *pTrans = NULL;
+  int64_t        tss = taosGetTimestampMs();
 
   PRINT_LOG_START
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -800,12 +806,19 @@ END:
     return code;
   }
 
-  SName name = {0};
-  int32_t ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  if (ret != 0) {
-    mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(ret));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName   name = {0};
+    int32_t ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    if (ret != 0) {
+      mError("topic:%s, failed to drop since %s", dropReq.name, tstrerror(ret));
+    }
+
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen, duration,
+                0);
   }
-  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
   tFreeSMDropTopicReq(&dropReq);
 

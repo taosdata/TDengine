@@ -90,6 +90,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_COMPACT_INTERVAL,
   DB_OPTION_COMPACT_TIME_RANGE,
   DB_OPTION_COMPACT_TIME_OFFSET,
+  DB_OPTION_IS_AUDIT,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
