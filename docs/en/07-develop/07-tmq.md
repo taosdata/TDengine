@@ -290,7 +290,7 @@ After subscribing to a topic, consumers can start receiving and processing messa
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/tmq_seek_example.js:subscribe}}
+{{#include docs/examples/node/websocketexample/tmq_seek_example.js}}
 ```
 
 </TabItem>
