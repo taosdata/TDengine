@@ -222,6 +222,7 @@ typedef struct TsdReader {
   int32_t  (*tsdNextFirstLastTsBlock)(void *pIter, SSDataBlock *pRes, bool* hasNext);
   void     (*tsdDestroyFirstLastTsIter)(void *pIter);
 
+  int32_t (*tsdReaderStepDone)(void *pReader);
 } TsdReader;
 
 typedef struct SStoreCacheReader {
