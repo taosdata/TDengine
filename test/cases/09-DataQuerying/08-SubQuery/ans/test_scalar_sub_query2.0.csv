@@ -1249,31 +1249,31 @@ taos> select avg(f1) from st1 group by f1 having avg((select 2 from st1 limit 1)
 
 taos> select interp(f1) from st1 range((select 0 from st1 limit 1)) FILL(PREV);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range((select 1 from st1 limit 1)) FILL(PREV);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range((select 2 from st1 limit 1)) FILL(PREV);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range((select 0 from st1 limit 1), (select 0 from st1 limit 1)) every(1d);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range((select 1 from st1 limit 1), (select 1 from st1 limit 1)) every(1d);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range((select 2 from st1 limit 1), (select 2 from st1 limit 1)) every(1d);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range(now - 1d, now, (select 0 from st1 limit 1)) every(1d);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range(now - 1d, now, (select 1 from st1 limit 1)) every(1d);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range(now - 1d, now, (select 2 from st1 limit 1)) every(1d);
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> select interp(f1) from st1 range(now - 1d, now) every((select 0 from st1 limit 1));
 
 DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
@@ -1555,13 +1555,13 @@ taos> select f1 from tb1 union all select f1 from tb1 limit (select 2 from st1 l
 DB error: syntax error near "(select 2 from st1 limit 1);" [0x80002600] 
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 partition by (select 1 from tb3 limit 1) into out1 as select * from tb3;
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 into out2 as select ts, (select 1 from tb3 limit 1) from tb3;
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> create topic topic1 as select (select 1 from tb3 limit 1) from tb3;
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> insert into tbb select now, (select 1 from tb3 limit 1) from tb1;
 
-DB error: Expr subquery not supported in current clause [0x8000269D] 
+DB error: Expr subquery not supported in current clause [0x800026A8] 
