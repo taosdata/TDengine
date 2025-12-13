@@ -12589,23 +12589,8 @@ static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStm
 static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTaskStmt* pStmt) {
   SMUpdateXnodeTaskReq updateReq = {0};
   updateReq.tid = pStmt->tid;
-  // if (pStmt->name[0] != '\0') {
-    updateReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
-  // }
+  updateReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
 
-  updateReq.via = pStmt->options->via;
-  const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
-  if (xnodeId != NULL) {
-    updateReq.xnodeId = atoi(xnodeId);
-  }
-  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
-  if (status != NULL) {
-    updateReq.status = xnodeTaskStatusStrToNum(status);
-  }
-  const char* jobs = getXnodeTaskOptionByName(pStmt->options, "jobs");
-  if (jobs != NULL) {
-    updateReq.jobs = atoi(jobs);
-  }
   if (pStmt->source != NULL) {
     updateReq.source = xCloneTaskSourceRef(&pStmt->source->source);
   }
@@ -12613,13 +12598,28 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     updateReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
   }
 
-  const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
-  if (parser != NULL) {
-    updateReq.parser = xCreateCowStr(strlen(parser), parser, true);
-  }
-  const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
-  if (reason != NULL) {
-    updateReq.reason = xCreateCowStr(strlen(reason), reason, true);
+  if (pStmt->options != NULL) {
+    updateReq.via = pStmt->options->via;
+    const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+    if (xnodeId != NULL) {
+      updateReq.xnodeId = atoi(xnodeId);
+    }
+    const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+    if (status != NULL) {
+      updateReq.status = xnodeTaskStatusStrToNum(status);
+    }
+    const char* jobs = getXnodeTaskOptionByName(pStmt->options, "jobs");
+    if (jobs != NULL) {
+      updateReq.jobs = atoi(jobs);
+    }
+    const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
+    if (parser != NULL) {
+      updateReq.parser = xCreateCowStr(strlen(parser), parser, true);
+    }
+    const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+    if (reason != NULL) {
+      updateReq.reason = xCreateCowStr(strlen(reason), reason, true);
+    }
   }
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_TASK, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
