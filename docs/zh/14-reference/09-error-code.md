@@ -141,7 +141,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000023A | reached the maximum connection timeout limit      | conn 超时                   | 检查 conn 超时设置|
 | 0x8000023B | reached the maximum connection idle timeout limit | conn 空闲超时              |  无              |
 | 0x8000023C | reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
-| 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |      
+| 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |
 | 0x800002FF | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 #### mnode
