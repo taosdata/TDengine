@@ -305,16 +305,16 @@ int32_t xDeserializeTaskSink(SDecoder *decoder, xTaskSink *sink) {
   }
   int32_t code = 0;
   int32_t lino;
-  int32_t type;
-  TAOS_CHECK_EXIT(tDecodeI32(decoder, &type));
-  switch (type) {
-    case XNODE_TASK_SINK_DSN:
-    case XNODE_TASK_SINK_DATABASE:
-      sink->type = type;
-      break;
-    default:
-      TAOS_RETURN(TSDB_CODE_MND_XNODE_INVALID_MSG);
-  }
+  // int32_t type;
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &sink->type));
+  // switch (type) {
+  //   case XNODE_TASK_SINK_DSN:
+  //   case XNODE_TASK_SINK_DATABASE:
+  //     sink->type = type;
+  //     break;
+  //   default:
+  //     TAOS_RETURN(TSDB_CODE_MND_XNODE_INVALID_MSG);
+  // }
   TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &sink->cstr, true));
 _exit:
   return code;
