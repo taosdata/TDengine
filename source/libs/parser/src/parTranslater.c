@@ -12454,6 +12454,24 @@ static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const c
   return NULL;
 }
 
+static int32_t xnodeTaskStatusStrToNum(const char* status) {
+  if (status == NULL) {
+    return -1;
+  }
+
+  static const struct {
+    const char* str;
+    int         value;
+  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
+             {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
+
+  for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+    if (strcasecmp(status, map[i].str) == 0) {
+      return map[i].value;
+    }
+  }
+  return -1;
+}
 
 static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
   printf("translateCreateXnode: %s\n", pStmt->url);
@@ -12602,26 +12620,6 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_TASK, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
   tFreeSMUpdateXnodeTaskReq(&updateReq);
   return code;
-}
-
-
-static int32_t xnodeTaskStatusStrToNum(const char* status) {
-  if (status == NULL) {
-    return -1;
-  }
-
-  static const struct {
-    const char* str;
-    int         value;
-  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
-             {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
-
-  for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
-    if (strcasecmp(status, map[i].str) == 0) {
-      return map[i].value;
-    }
-  }
-  return -1;
 }
 
 static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobStmt* pStmt) {
