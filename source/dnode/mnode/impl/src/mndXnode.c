@@ -849,41 +849,41 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
   if (pUpdate->jobs >= 0) {
     taskObj.jobs = pUpdate->jobs;
   }
-  if (pUpdate->name->len > 0) {
-    taskObj.nameLen = pUpdate->name->len;
-    taskObj.name = taosMemoryCalloc(1, pUpdate->name->len);
+  if (pUpdate->name.len > 0) {
+    taskObj.nameLen = pUpdate->name.len;
+    taskObj.name = taosMemoryCalloc(1, pUpdate->name.len);
     if (taskObj.name == NULL) goto _OVER;
-    (void)memcpy(taskObj.name, pUpdate->name->ptr, pUpdate->name->len);
+    (void)memcpy(taskObj.name, pUpdate->name.ptr, pUpdate->name.len);
     isNameChange = true;
   }
-  if (pUpdate->source->cstr->len > 0) {
-    taskObj.sourceType = pUpdate->source->type;
-    taskObj.sourceDsnLen = pUpdate->source->cstr->len;
-    taskObj.sourceDsn = taosMemoryCalloc(1, pUpdate->source->cstr->len);
+  if (pUpdate->source.cstr.len > 0) {
+    taskObj.sourceType = pUpdate->source.type;
+    taskObj.sourceDsnLen = pUpdate->source.cstr.len;
+    taskObj.sourceDsn = taosMemoryCalloc(1, pUpdate->source.cstr.len);
     if (taskObj.sourceDsn == NULL) goto _OVER;
-    (void)memcpy(taskObj.sourceDsn, pUpdate->source->cstr->ptr, pUpdate->source->cstr->len);
+    (void)memcpy(taskObj.sourceDsn, pUpdate->source.cstr.ptr, pUpdate->source.cstr.len);
     isSourceChange = true;
   }
-  if (pUpdate->sink->cstr->len > 0) {
-    taskObj.sinkType = pUpdate->sink->type;
-    taskObj.sinkDsnLen = pUpdate->sink->cstr->len;
-    taskObj.sinkDsn = taosMemoryCalloc(1, pUpdate->sink->cstr->len);
+  if (pUpdate->sink.cstr.len > 0) {
+    taskObj.sinkType = pUpdate->sink.type;
+    taskObj.sinkDsnLen = pUpdate->sink.cstr.len;
+    taskObj.sinkDsn = taosMemoryCalloc(1, pUpdate->sink.cstr.len);
     if (taskObj.sinkDsn == NULL) goto _OVER;
-    (void)memcpy(taskObj.sinkDsn, pUpdate->sink->cstr->ptr, pUpdate->sink->cstr->len);
+    (void)memcpy(taskObj.sinkDsn, pUpdate->sink.cstr.ptr, pUpdate->sink.cstr.len);
     isSinkChange = true;
   }
-  if (pUpdate->parser->cstr->len > 0) {
-    taskObj.parserLen = pUpdate->parser->cstr->len;
-    taskObj.parser = taosMemoryCalloc(1, pUpdate->parser->cstr->len);
+  if (pUpdate->parser.cstr.len > 0) {
+    taskObj.parserLen = pUpdate->parser.cstr.len;
+    taskObj.parser = taosMemoryCalloc(1, pUpdate->parser.cstr.len);
     if (taskObj.parser == NULL) goto _OVER;
-    (void)memcpy(taskObj.parser, pUpdate->parser->cstr->ptr, pUpdate->parser->cstr->len);
+    (void)memcpy(taskObj.parser, pUpdate->parser.cstr.ptr, pUpdate->parser.cstr.len);
     isParserChange = true;
   }
-  if (pUpdate->reason->len > 0) {
-    taskObj.reasonLen = pUpdate->reason->len;
-    taskObj.reason = taosMemoryCalloc(1, pUpdate->reason->len);
+  if (pUpdate->reason.len > 0) {
+    taskObj.reasonLen = pUpdate->reason.len;
+    taskObj.reason = taosMemoryCalloc(1, pUpdate->reason.len);
     if (taskObj.reason == NULL) goto _OVER;
-    (void)memcpy(taskObj.reason, pUpdate->reason->ptr, pUpdate->reason->len);
+    (void)memcpy(taskObj.reason, pUpdate->reason.ptr, pUpdate->reason.len);
     isReasonChange = true;
   }
   taskObj.updateTime = taosGetTimestampMs();
@@ -901,8 +901,17 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
   code = 0;
 
 _OVER:
-  if (isSourceChange && NULL != taskObj.source) {
-    taosMemoryFree(taskObj.source);
+  if (isNameChange && NULL != taskObj.name) {
+    taosMemoryFree(taskObj.name);
+  }
+  if (isSourceChange && NULL != taskObj.sourceDsn) {
+    taosMemoryFree(taskObj.sourceDsn);
+  }
+  if (isSinkChange && NULL != taskObj.sinkDsn) {
+    taosMemoryFree(taskObj.sinkDsn);
+  }
+  if (isParserChange && NULL != taskObj.parser) {
+    taosMemoryFree(taskObj.parser);
   }
   if (isReasonChange && NULL != taskObj.reason) {
     taosMemoryFree(taskObj.reason);

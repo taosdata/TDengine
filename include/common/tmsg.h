@@ -3166,18 +3166,18 @@ int32_t tDeserializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnod
 void    tFreeSMCreateXnodeTaskReq(SMCreateXnodeTaskReq* pReq);
 
 typedef struct {
-  int32_t tid;
-  CowStr       name;
-  int32_t via;
-  int32_t xnodeId;
-  int32_t status;
-  int32_t jobs;
-  xTaskSource  source;
-  xTaskSink    sink;
-  CowStr  parser;
-  CowStr reason;
-  int32_t sqlLen;
-  char*   sql;
+  int32_t     tid;
+  CowStr      name;
+  int32_t     via;
+  int32_t     xnodeId;
+  int32_t     status;
+  int32_t     jobs;
+  xTaskSource source;
+  xTaskSink   sink;
+  CowStr      parser;
+  CowStr      reason;
+  int32_t     sqlLen;
+  char*       sql;
 } SMUpdateXnodeTaskReq;
 int32_t tSerializeSMUpdateXnodeTaskReq(void* buf, int32_t bufLen, SMUpdateXnodeTaskReq* pReq);
 int32_t tDeserializeSMUpdateXnodeTaskReq(void* buf, int32_t bufLen, SMUpdateXnodeTaskReq* pReq);
