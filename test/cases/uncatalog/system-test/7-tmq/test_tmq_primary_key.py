@@ -59,8 +59,8 @@ class TestCase:
                         print(element)
                     if len(data) != 2:
                         tdLog.exit(f"fetchall len != 2")
-                    if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 0, 1),
-                                (datetime(2022, 11, 22, 12, 41, 9, 68000), 6, 1)]:
+                    if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 0, 1),
+                                (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 6, 1)]:
                         tdLog.exit(f"data error")
 
                 consumer.commit(res)
@@ -107,18 +107,18 @@ class TestCase:
                     if index == 0:
                         if len(data) != 6:
                             tdLog.exit(f"fetchall len != 6")
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 10, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 68000), 16, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 0, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 1, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 2, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 3, 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 10, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 16, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 0, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 1, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 2, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 3, 1)]:
                             tdLog.exit(f"data error")
                     if index >= 1:
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 10, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 5, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 12, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 7, 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 10, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 5, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 12, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 7, 1)]:
                             tdLog.exit(f"data error")
                 index += 1
                 print("index:" + str(index))
@@ -163,8 +163,8 @@ class TestCase:
                         print(element)
                     if len(data) != 2:
                         tdLog.exit(f"fetchall len != 2")
-                    if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 0, 1),
-                                (datetime(2022, 11, 22, 12, 41, 9, 68000), 6, 1)]:
+                    if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 0, 1),
+                                (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 6, 1)]:
                         tdLog.exit(f"data error")
 
                 consumer.commit(res)
@@ -210,18 +210,18 @@ class TestCase:
                     if index == 0:
                         if len(data) != 6:
                             tdLog.exit(f"fetchall len != 6")
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 10, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 68000), 16, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 0, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 1, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 2, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 3, 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 10, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 16, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 0, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 1, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 2, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 3, 1)]:
                             tdLog.exit(f"data error")
                     if index >= 1:
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 10, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 5, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 12, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 7, 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 10, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 5, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 12, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 7, 1)]:
                             tdLog.exit(f"data error")
                 index += 1
                 print("index:" + str(index))
@@ -265,8 +265,8 @@ class TestCase:
                         print(element)
                     if len(data) != 2:
                         tdLog.exit(f"fetchall len != 2")
-                    if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 0, 1),
-                                (datetime(2022, 11, 22, 12, 41, 9, 68000), 6, 1)]:
+                    if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 0, 1),
+                                (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 6, 1)]:
                         tdLog.exit(f"data error")
 
                 consumer.commit(res)
@@ -312,18 +312,18 @@ class TestCase:
                     if index == 0:
                         if len(data) != 6:
                             tdLog.exit(f"fetchall len != 6")
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 10, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 68000), 16, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 0, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 1, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 2, 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 3, 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 10, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 16, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 0, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 1, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 2, 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 3, 1)]:
                             tdLog.exit(f"data error")
                     if index >= 1:
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 10, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 5, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 12, 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), 7, 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 10, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 5, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 12, 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 7, 1)]:
                             tdLog.exit(f"data error")
                 index += 1
                 print("index:" + str(index))
@@ -367,8 +367,8 @@ class TestCase:
                         print(element)
                     if len(data) != 2:
                         tdLog.exit(f"fetchall len != 2")
-                    if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 'ahello', 1),
-                                (datetime(2022, 11, 22, 12, 41, 9, 68000), 'aworld', 1)]:
+                    if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 'ahello', 1),
+                                (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 'aworld', 1)]:
                         tdLog.exit(f"data error")
 
                 consumer.commit(res)
@@ -416,18 +416,18 @@ class TestCase:
                     if index == 0:
                         if len(data) != 6:
                             tdLog.exit(f"fetchall len != 6")
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 68000), 'from', 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 68000), 'it', 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 'him', 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 'like', 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 'she', 1),
-                                    (datetime(2022, 11, 22, 12, 41, 9, 69000), 'value', 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 'from', 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 68000), 'it', 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 'him', 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 'like', 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 'she', 1),
+                                    (datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), 'value', 1)]:
                             tdLog.exit(f"data error")
                     if index >= 1:
-                        if data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), "10", 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), "5", 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), "12", 1)] \
-                                and data != [(datetime(2022, 11, 22, 12, 41, 9, 69000), "7", 1)]:
+                        if data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), "10", 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), "5", 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), "12", 1)] \
+                                and data != [(datetime.datetime(2022, 11, 22, 12, 41, 9, 69000), "7", 1)]:
                             tdLog.exit(f"data error")
 
                 index += 1

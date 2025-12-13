@@ -101,7 +101,7 @@ taosgen -h 127.0.0.1 -c config.yaml
   - dsn（字符串）：表示要连接的 TDengine 数据库的 DSN 地址，默认值为：taos+ws://root:taosdata@localhost:6041/tsbench。
   - drop_if_exists（布尔）：表示数据库已存在时是否删除该数据库，默认为 true。
   - props（字符串）：表示数据库支持的创建数据库的属性信息。
-  例如，`precision ms vgroups 20 replica 3 keep 3650` 分别设置了虚拟组数量、副本数及数据保留期限。
+    例如，`precision ms vgroups 20 replica 3 keep 3650` 分别设置了虚拟组数量、副本数及数据保留期限。
     - precision：指定数据库的时间精度，可选值为："ms"、"us"、"ns"。
     - vgroups：指定数据库的虚拟组的个数。
     - replica：指定数据库的副本格式。
@@ -140,7 +140,7 @@ taosgen -h 127.0.0.1 -c config.yaml
       - "SCRAM-SHA-256"：基于挑战 - 响应的更安全机制，比 PLAIN 更安全。
       - "SCRAM-SHA-512"：比 SHA-256 更强的哈希算法。
       - "GSSAPI"：用于 Kerberos 认证。
-    注意：此字段必须与 security.protocol 同时配置，且其值取决于 Kafka Broker 端启用的 SASL 机制。
+      注意：此字段必须与 security.protocol 同时配置，且其值取决于 Kafka Broker 端启用的 SASL 机制。
     - sasl.username (字符串)：SASL 身份验证的用户名。当使用 "PLAIN" 或 "SCRAM" 机制时需要提供。
     - sasl.password (字符串)：SASL 身份验证的密码。
 
@@ -383,11 +383,15 @@ taosgen -h 127.0.0.1 -c config.yaml
 - 验证数据库 schema 设计、资源规划以及不同硬件配置下的性能表现。
 - 为工业物联网等领域的系统容量规划提供数据支撑。
 
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_config}}
+```
 
 其中，tdengine、schema::name、schema::tbname、schema::tags、tdengine/create-child-table::batch、tdengine/insert::concurrency 可以使用默认值，进一步简化配置。
 
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_simple}}
+```
 
 ### CSV 文件方式生成数据 STMT 方式写入 TDengine 实例
 
@@ -418,7 +422,9 @@ taosgen -h 127.0.0.1 -c config.yaml
 - 系统初始化：为新的监控系统初始化一批设备及其历史数据，用于系统测试、演示或回溯分析。
 - 数据回放：通过重新注入历史数据，模拟实时数据流，用于测试系统处理能力或重现特定历史场景。
 
-{{#include docs/doxgen/taosgen_config.md:tdengine_csv_stmt_insert_config}}
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_csv_stmt_insert_config}}
+```
 
 其中：
 
@@ -474,7 +480,9 @@ d1,1700000310000,4.98,220.9,147.9
 - 规则引擎测试：结合 MQTT 主题的动态特性（如按设备位置路由），测试基于 MQTT 的主题订阅和消息路由规则。
 - 实时数据流模拟：模拟实时产生的设备数据流，用于测试流处理框架的数据消费和处理能力。
 
-{{#include docs/doxgen/taosgen_config.md:mqtt_publish_config}}
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:mqtt_publish_config}}
+```
 
 ### 生成器方式生成数据并发布数据到 Kafka Broker 示例
 
@@ -517,4 +525,6 @@ d1,1700000310000,4.98,220.9,147.9
 - 灾备与高可用演练：
 在多 Broker 集群环境下，通过高并发写入测试 Kafka 的副本同步、Leader 选举、Broker 故障转移等高可用机制的表现，确保数据不丢失、服务不间断。
 
-{{#include docs/doxgen/taosgen_config.md:kafka_produce_config}}
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:kafka_produce_config}}
+```
