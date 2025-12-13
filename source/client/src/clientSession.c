@@ -241,19 +241,26 @@ int32_t sessMgtUpdataLimit(char *user, ESessionType type, int32_t value) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
-  if (type >= SESSION_MAX_TYPE) {
+  if (type >= SESSION_MAX_TYPE || type < SESSION_PER_USER) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  SSessMetric *pMetric = NULL;
   (void)taosThreadRwlockWrlock(&pMgt->lock);
 
   SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
   if (ppMetric == NULL || *ppMetric == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
+    code = sessMetricCreate(&pMetric);
     TAOS_CHECK_GOTO(code, &lino, _error);
+
+    code = taosHashPut(pMgt->pSessMetricMap, user, strlen(user), &pMetric, sizeof(SSessMetric *));
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+  } else {
+    pMetric = *ppMetric;
   }
 
-  code = sessMetricUpdateLimit(*ppMetric, type, value);
+  code = sessMetricUpdateLimit(pMetric, type, value);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:

@@ -31,7 +31,7 @@ typedef enum {
   SESSION_CONN_IDLE_TIME = 2,
   SESSION_MAX_CONCURRENCY = 3,
   SESSION_MAX_CALL_VNODE_NUM = 4,
-  SESSION_MAX_TYPE
+  SESSION_MAX_TYPE = 5
 } ESessionType;
 
 typedef int32_t (*sessCheckFn)(int64_t value, int64_t limit);
@@ -60,9 +60,6 @@ typedef struct SSessMetric {
 typedef struct {
   ESessionType type;
   int64_t      value;
-  // int32_t refCont;
-  // int64_t lastAccessTime;
-  // int64_t currentAccessTime;
 } SSessParam;
 
 typedef struct SSessionMgt {

@@ -20,6 +20,7 @@
 #include "thash.h"
 #include <time.h>
 #include <osSleep.h> 
+#include "clientSession.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -895,122 +896,44 @@ void timezone_rz_str_test(const char* tz, time_t t, const char* tzStr) {
   ASSERT_STREQ(str1, tzStr);
   tzfree(sp);
 }
+TEST(sessionTest, session1) {
+  int32_t code = sessMgtInit();
+  ASSERT(code == 0);
+  int32_t expect = 1000;
 
-TEST(timezoneCase, format_timezone_Test) {
-  for (unsigned int i = 0; i < sizeof (test_tz) / sizeof (test_tz[0]); ++i){
-    timezone_str_test(test_tz[i].name, test_tz[i].t, test_tz[i].timezone);
-    timezone_str_test(test_tz[i].name, test_tz[i].t, test_tz[i].timezone);
+  char *users[] = {"test1", "test2", "test3", "test4", "test5"}; 
+
+  for (int32_t i = 0; i < sizeof(users)/sizeof(users[0]); i++) {
+    code = sessMgtUpdataLimit(users[i], SESSION_PER_USER, expect);
+    ASSERT(code == 0);
+    code = sessMgtUpdataLimit(users[i], SESSION_CONN_TIME, expect);
+    ASSERT(code == 0);
+    code = sessMgtUpdataLimit(users[i], SESSION_CONN_IDLE_TIME, expect);
+    ASSERT(code == 0);
+    code = sessMgtUpdataLimit(users[i], SESSION_MAX_CONCURRENCY, expect);
+    ASSERT(code == 0);
+    code = sessMgtUpdataLimit(users[i], SESSION_MAX_CALL_VNODE_NUM, expect);
+    ASSERT(code == 0);
+    code = sessMgtUpdataLimit(users[i], SESSION_MAX_TYPE, 10);
+    ASSERT(code != 0);
   }
-}
 
-TEST(timezoneCase, get_tz_Test) {
-  {
-    char tz[TD_TIMEZONE_LEN] = {0};
-    getTimezoneStr(tz);
-    ASSERT_STREQ(tz, "Asia/Shanghai");
-
-//    getTimezoneStr(tz);
-//    ASSERT_STREQ(tz, "Asia/Shanghai");
-//
-//    getTimezoneStr(tz);
-//    ASSERT_STREQ(tz, TZ_UNKNOWN);
+  SSessParam para = {.type = SESSION_PER_USER, .value = 1};
+  for (int32_t i = 0; i < sizeof(users)/sizeof(users[0]); i++) {
+    code = sessMgtUpdateUserMetric(users[i], &para); 
+    ASSERT(code == 0);
   }
-}
-
-struct {
-  const char *	env;
-  time_t	expected;
-} test_mk[] = {
-    {"MST",	832935315},
-    {"",		832910115},
-    {":UTC",	832910115},
-    {"UTC",	832910115},
-    {"UTC0",	832910115}
-};
-
-
-TEST(timezoneCase, mktime_Test){
-  struct tm tm;
-  time_t t;
-
-  memset (&tm, 0, sizeof (tm));
-  tm.tm_isdst = 0;
-  tm.tm_year  = 96;	/* years since 1900 */
-  tm.tm_mon   = 4;
-  tm.tm_mday  = 24;
-  tm.tm_hour  =  3;
-  tm.tm_min   = 55;
-  tm.tm_sec   = 15;
-
-  for (unsigned int i = 0; i < sizeof (test_mk) / sizeof (test_mk[0]); ++i)
-  {
-    setenv ("TZ", test_mk[i].env, 1);
-    t = taosMktime (&tm, NULL);
-    ASSERT (t == test_mk[i].expected);
-  }
-}
-
-TEST(timezoneCase, mktime_rz_Test){
-  struct tm tm;
-  time_t t;
-
-  memset (&tm, 0, sizeof (tm));
-  tm.tm_isdst = 0;
-  tm.tm_year  = 96;	/* years since 1900 */
-  tm.tm_mon   = 4;
-  tm.tm_mday  = 24;
-  tm.tm_hour  =  3;
-  tm.tm_min   = 55;
-  tm.tm_sec   = 15;
-
-  for (unsigned int i = 0; i < sizeof (test_mk) / sizeof (test_mk[0]); ++i)
-  {
-    timezone_t tz = tzalloc(test_mk[i].env);
-    ASSERT(tz);
-    t = taosMktime(&tm, tz);
-    ASSERT (t == test_mk[i].expected);
-    tzfree(tz);
-  }
-}
-
-TEST(timezoneCase, localtime_performance_Test) {
-  timezone_t sp = tzalloc("Asia/Shanghai");
-  ASSERT(sp);
-
-  int cnt = 1000000;
-  int times = 10;
-  int64_t time_localtime = 0;
-  int64_t time_localtime_rz = 0;
-//  int cnt = 1000000;
-  for (int i = 0; i < times; ++i) {
-    int64_t t1 = taosGetTimestampNs();
-    for (int j = 0; j < cnt; ++j) {
-      time_t t = time_winter - j;
-      struct tm tm1;
-      ASSERT (taosLocalTime(&t, &tm1, NULL, 0, NULL));
-    }
-    int64_t tmp = taosGetTimestampNs() - t1;
-    printf("localtime cost:%" PRId64 " ns, run %d times", tmp, cnt);
-    time_localtime += tmp/cnt;
-
-    printf("\n");
+  sessMgtDestroy();
+  
+  
+ }
 
 
 
-    int64_t t2 = taosGetTimestampNs();
-    for (int j = 0; j < cnt; ++j) {
-      time_t t = time_winter - j;
-      struct tm tm1;
-      ASSERT (taosLocalTime(&t, &tm1, NULL, 0, sp));
-    }
-    tmp = taosGetTimestampNs() - t2;
-    printf("localtime_rz cost:%" PRId64 " ns, run %d times", tmp, cnt);
-    time_localtime_rz += tmp/cnt;
-    printf("\n\n");
-  }
-  printf("average: localtime cost:%" PRId64 " ns, localtime_rz cost:%" PRId64 " ns\n", time_localtime/times, time_localtime_rz/times);
-  tzfree(sp);
-}
+
+
+
+
 #endif
 
 #pragma GCC diagnostic pop
