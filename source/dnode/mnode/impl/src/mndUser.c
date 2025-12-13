@@ -2909,7 +2909,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.isImport != 1) {
     // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, NULL, NULL, NULL), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_CREATE, NULL, NULL, NULL), &lino, _OVER);
   } else if (strcmp(pReq->info.conn.user, "root") != 0) {
     mError("The operation is not permitted to create user:%s", pReq->info.conn.user);
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
@@ -4090,6 +4090,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = 0;
   int32_t      lino = 0;
+  SUserObj    *pOperUser = NULL;
   SUserObj    *pUser = NULL;
   SDropUserReq dropReq = {0};
 
@@ -4102,8 +4103,13 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, dropReq.user, &pUser), &lino, _OVER);
 
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
+  }
+
   // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pUser, PRIV_USER_DROP, NULL, NULL, NULL), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, NULL, NULL, NULL), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndDropUser(pMnode, pReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -4116,6 +4122,7 @@ _OVER:
   }
 
   mndReleaseUser(pMnode, pUser);
+  mndReleaseUser(pMnode, pOperUser);
   tFreeSDropUserReq(&dropReq);
   TAOS_RETURN(code);
 }
