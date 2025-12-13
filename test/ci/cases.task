@@ -385,6 +385,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_and_last_row.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_minmaxlast_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_model.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_520_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_json.py
@@ -895,7 +896,6 @@
 
 ## system_test
 ### 2-query
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py
@@ -934,13 +934,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py

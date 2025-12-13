@@ -1694,29 +1694,24 @@ class TestMaxMinLastInterval:
         self.check_max_min_results()
 
     def test_max_min_last_interval(self):
-        """summary: xxx
+        """Select min/max/last interval
 
-        description: xxx
+        1. Insert 1500 rows random data
+        2. Get min/max/last value for expect
+        3. Query min/max/last with interval(1d)
+        4. Compare query result with expect
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-13 Alex Duan Migrated from uncatalog/system-test/2-query/test_max_min_last_interval.py
 
-        """
-
+        """        
         dbname = "db"
         tdSql.prepare()
         self.prepare_data()
         self.basic_query()
-
-        #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
