@@ -932,7 +932,9 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  mInfo("xxxzgc *** failed before to create xnode, code:%s", tstrerror(code));
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeTaskReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
+  mInfo("xxxzgc *** failed after to create xnode, code:%s", tstrerror(code));
 
   pObj = mndAcquireXnodeTaskById(pMnode, updateReq.tid);
   if (pObj == NULL) {
