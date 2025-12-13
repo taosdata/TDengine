@@ -12589,7 +12589,9 @@ static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStm
 static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTaskStmt* pStmt) {
   SMUpdateXnodeTaskReq updateReq = {0};
   updateReq.tid = pStmt->tid;
-  updateReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, true);
+  if (pStmt->name[0] != '\0') {
+    updateReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, true);
+  }
 
   updateReq.via = pStmt->options->via;
   // updateReq.xnodeId = pStmt->xnodeId;
@@ -12605,8 +12607,12 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
   if (jobs != NULL) {
     updateReq.jobs = atoi(jobs);
   }
-  updateReq.source = xCloneTaskSourceRef(&pStmt->source->source);
-  updateReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
+  if (pStmt->source != NULL) {
+    updateReq.source = xCloneTaskSourceRef(&pStmt->source->source);
+  }
+  if (pStmt->sink != NULL) {
+    updateReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
+  }
 
   const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
   if (parser != NULL) {
