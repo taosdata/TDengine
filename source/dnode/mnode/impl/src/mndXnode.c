@@ -872,11 +872,11 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
     (void)memcpy(taskObj.sinkDsn, pUpdate->sink.cstr.ptr, pUpdate->sink.cstr.len);
     isSinkChange = true;
   }
-  if (pUpdate->parser.cstr.len > 0) {
-    taskObj.parserLen = pUpdate->parser.cstr.len;
-    taskObj.parser = taosMemoryCalloc(1, pUpdate->parser.cstr.len);
+  if (pUpdate->parser.len > 0) {
+    taskObj.parserLen = pUpdate->parser.len;
+    taskObj.parser = taosMemoryCalloc(1, pUpdate->parser.len);
     if (taskObj.parser == NULL) goto _OVER;
-    (void)memcpy(taskObj.parser, pUpdate->parser.cstr.ptr, pUpdate->parser.cstr.len);
+    (void)memcpy(taskObj.parser, pUpdate->parser.ptr, pUpdate->parser.len);
     isParserChange = true;
   }
   if (pUpdate->reason.len > 0) {
@@ -934,7 +934,7 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeTaskReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
 
-  pObj = mndAcquireXnodeTask(pMnode, updateReq.tid);
+  pObj = mndAcquireXnodeTaskById(pMnode, updateReq.tid);
   if (pObj == NULL) {
     code = terrno;
     goto _OVER;
