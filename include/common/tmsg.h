@@ -436,7 +436,7 @@ typedef enum ENodeType {
   QUERY_NODE_XNODE_TASK_SOURCE_OPT,    // XNode task source
   QUERY_NODE_XNODE_TASK_SINK_OPT,      // XNode task sink
   QUERY_NODE_CREATE_XNODE_TASK_STMT,   // XNode task
-  QUERY_NODE_ALTER_XNODE_TASK_STMT,    // XNode task
+  QUERY_NODE_UPDATE_XNODE_TASK_STMT,    // XNode task
   QUERY_NODE_DROP_XNODE_TASK_STMT,     // XNode task
   QUERY_NODE_CREATE_XNODE_JOB_STMT,    // XNode task job
   QUERY_NODE_ALTER_XNODE_JOB_STMT,     // XNode task
@@ -3006,7 +3006,10 @@ void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
 
 typedef struct {
   int32_t xnodeId;
+  int32_t force;
+  int32_t urlLen;
   int32_t sqlLen;
+  char*   url;
   char*   sql;
 } SMDropXnodeReq, SMUpdateXnodeReq, SDDropXnodeReq;
 
@@ -3161,30 +3164,23 @@ typedef struct {
   xTaskSink    sink;
   xTaskOptions options;
 } SMCreateXnodeTaskReq;
-
 int32_t tSerializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnodeTaskReq* pReq);
 int32_t tDeserializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnodeTaskReq* pReq);
 void    tFreeSMCreateXnodeTaskReq(SMCreateXnodeTaskReq* pReq);
 
 typedef struct {
-  int32_t tid;
-  int32_t sqlLen;
-  int32_t nameLen;
-  char*   name;
-  char*   sql;
-
-} SMDropXnodeTaskReq;
-int32_t tSerializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskReq* pReq);
-int32_t tDeserializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskReq* pReq);
-void    tFreeSMDropXnodeTaskReq(SMDropXnodeTaskReq* pReq);
-
-typedef struct {
-  int32_t tid;
-  int32_t sqlLen;
-  char*   sql;
-  char*   source;
-  char*   sink;
-  char*   options;
+  int32_t     tid;
+  CowStr      name;
+  int32_t     via;
+  int32_t     xnodeId;
+  int32_t     status;
+  int32_t     jobs;
+  xTaskSource source;
+  xTaskSink   sink;
+  CowStr      parser;
+  CowStr      reason;
+  int32_t     sqlLen;
+  char*       sql;
 } SMUpdateXnodeTaskReq;
 int32_t tSerializeSMUpdateXnodeTaskReq(void* buf, int32_t bufLen, SMUpdateXnodeTaskReq* pReq);
 int32_t tDeserializeSMUpdateXnodeTaskReq(void* buf, int32_t bufLen, SMUpdateXnodeTaskReq* pReq);
@@ -3192,14 +3188,26 @@ void    tFreeSMUpdateXnodeTaskReq(SMUpdateXnodeTaskReq* pReq);
 
 typedef struct {
   int32_t tid;
+  int32_t nameLen;
+  int32_t sqlLen;
+  char*   name;
+  char*   sql;
+} SMDropXnodeTaskReq;
+int32_t tSerializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskReq* pReq);
+int32_t tDeserializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskReq* pReq);
+void    tFreeSMDropXnodeTaskReq(SMDropXnodeTaskReq* pReq);
+
+
+typedef struct {
+  int32_t tid;
   int32_t via;
   int32_t xnodeId;
   int32_t status;
   int32_t configLen;
-  char*   config;
   int32_t reasonLen;
-  char*   reason;
   int32_t sqlLen;
+  char*   config;
+  char*   reason;
   char*   sql;
 } SMCreateXnodeJobReq;
 int32_t tSerializeSMCreateXnodeJobReq(void* buf, int32_t bufLen, SMCreateXnodeJobReq* pReq);
@@ -3212,10 +3220,10 @@ typedef struct {
   int32_t xnodeId;
   int32_t status;
   int32_t configLen;
-  char*   config;
   int32_t reasonLen;
-  char*   reason;
   int32_t sqlLen;
+  char*   config;
+  char*   reason;
   char*   sql;
 } SMUpdateXnodeJobReq;
 int32_t tSerializeSMUpdateXnodeJobReq(void* buf, int32_t bufLen, SMUpdateXnodeJobReq* pReq);

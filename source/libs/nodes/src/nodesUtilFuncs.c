@@ -1050,6 +1050,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SCreateXnodeTaskStmt), &pNode);
       break;
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SUpdateXnodeTaskStmt), &pNode);
+      break;
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SDropXnodeTaskStmt), &pNode);
       break;
@@ -2291,7 +2294,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_XNODE_TASK_OPTIONS: {
       // xFreeTaskOptions(&((SXnodeTaskOptions*)pNode)->opts);
       SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pNode;
-      printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
+      // printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
       for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
         taosMemFreeClear(pOptions->options[i]);
       }

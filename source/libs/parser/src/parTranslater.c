@@ -380,20 +380,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { 
+  {
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
-  { 
+  },
+  {
     .showType = QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
+  },
   {
     .showType = QUERY_NODE_SHOW_VTABLES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -12441,8 +12441,39 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   return code;
 }
 
+static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const char* name) {
+  if (pOptions == NULL || name == NULL) return NULL;
+  parserDebug("optionsNum: %d\n", pOptions->optionsNum);
+  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+    const char* option = pOptions->options[i];
+    if (option != NULL && strncasecmp(option, name, strlen(name)) == 0 && option[strlen(name)] == '=') {
+      return option + strlen(name) + 1;
+    }
+  }
+  return NULL;
+}
+
+static int32_t xnodeTaskStatusStrToNum(const char* status) {
+  if (status == NULL) {
+    return -1;
+  }
+
+  static const struct {
+    const char* str;
+    int         value;
+  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
+             {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
+
+  for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+    if (strcasecmp(status, map[i].str) == 0) {
+      return map[i].value;
+    }
+  }
+  return -1;
+}
+
 static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
-  printf("translateCreateXnode: %s\n", pStmt->url);
+  // printf("translateCreateXnode: %s\n", pStmt->url);
   SMCreateXnodeReq createReq = {0};
 
   createReq.urlLen = strlen(pStmt->url) + 1;
@@ -12485,7 +12516,18 @@ static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* p
 static int32_t translateDropXnode(STranslateContext* pCxt, SDropXnodeStmt* pStmt) {
   SMDropXnodeReq dropReq = {0};
   dropReq.xnodeId = pStmt->xnodeId;
-
+  dropReq.force = pStmt->force;
+  if (strlen(pStmt->url) > 0) {
+    dropReq.urlLen = strlen(pStmt->url) + 1;
+    if (dropReq.urlLen > TSDB_XNODE_URL_LEN) {
+      return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
+    }
+    dropReq.url = taosMemoryCalloc(dropReq.urlLen, 1);
+    if (dropReq.url == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(dropReq.url, pStmt->url, dropReq.urlLen);
+  }
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE, (FSerializeFunc)tSerializeSMDropXnodeReq, &dropReq);
   tFreeSMDropXnodeReq(&dropReq);
   return code;
@@ -12525,14 +12567,14 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   return TSDB_CODE_SUCCESS;
 }
 static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTaskStmt* pStmt) {
-  printf("translateCreateXnodeTask: %s\n", pStmt->name);
+  // printf("translateCreateXnodeTask: %s\n", pStmt->name);
   SMCreateXnodeTaskReq createReq = {0};
 
   createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
   createReq.source = xCloneTaskSourceRef(&pStmt->source->source);
   createReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
   covertXNodeTaskOptions(pStmt->options, &createReq.options);
-  printXnodeTaskOptions(&createReq.options);
+  // printXnodeTaskOptions(&createReq.options);
 
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_TASK, (FSerializeFunc)tSerializeSMCreateXnodeTaskReq, &createReq);
@@ -12541,7 +12583,7 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
 }
 
 static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStmt* pStmt) {
-  printf("translateDropXnodeTask on task:%d\n", pStmt->tid);
+  // printf("translateDropXnodeTask on task:%d\n", pStmt->tid);
   SMDropXnodeTaskReq dropReq = {0};
   dropReq.tid = pStmt->tid;
   if (pStmt->name != NULL) {
@@ -12558,45 +12600,47 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
   SMUpdateXnodeTaskReq updateReq = {0};
   updateReq.tid = pStmt->tid;
 
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
+  if (pStmt->source != NULL) {
+    updateReq.source = xCloneTaskSourceRef(&pStmt->source->source);
+  }
+  if (pStmt->sink != NULL) {
+    updateReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
+  }
+
+  if (pStmt->options != NULL) {
+    updateReq.via = pStmt->options->via;
+    const char* name = getXnodeTaskOptionByName(pStmt->options, "name");
+    if (name != NULL) {
+      updateReq.name = xCreateCowStr(strlen(name), name, false);
+    }
+    const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+    if (xnodeId != NULL) {
+      updateReq.xnodeId = atoi(xnodeId);
+    }
+    const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+    if (status != NULL) {
+      updateReq.status = xnodeTaskStatusStrToNum(status);
+    }
+    const char* jobs = getXnodeTaskOptionByName(pStmt->options, "jobs");
+    if (jobs != NULL) {
+      updateReq.jobs = atoi(jobs);
+    }
+    const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
+    if (parser != NULL) {
+      updateReq.parser = xCreateCowStr(strlen(parser), parser, false);
+    }
+    const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+    if (reason != NULL) {
+      updateReq.reason = xCreateCowStr(strlen(reason), reason, false);
+    }
+  }
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_TASK, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
   tFreeSMUpdateXnodeTaskReq(&updateReq);
   return code;
 }
 
-static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const char* name) {
-  if (pOptions == NULL || name == NULL) return NULL;
-  printf("optionsNum: %d\n", pOptions->optionsNum);
-  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
-    const char* option = pOptions->options[i];
-    printf("option %d: %s\n", i, option);
-    if (option != NULL && strncasecmp(option, name, strlen(name)) == 0 && option[strlen(name)] == '=') {
-      return option + strlen(name) + 1;
-    }
-  }
-  return NULL;
-}
-
-static int32_t xnodeTaskStatusStrToNum(const char* status) {
-  if (status == NULL) {
-    return -1;
-  }
-
-  static const struct {
-    const char* str;
-    int         value;
-  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
-             {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
-
-  for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
-    if (strcasecmp(status, map[i].str) == 0) {
-      return map[i].value;
-    }
-  }
-  return -1;
-}
-
 static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobStmt* pStmt) {
-  printf("translateCreateXnodeJob on task:%d\n", pStmt->tid);
   SMCreateXnodeJobReq createReq = {0};
   const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
   if (config == NULL) {
@@ -12649,7 +12693,7 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
 }
 
 static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStmt* pStmt) {
-  printf("translateAlterXnodeJob on task:%d\n", pStmt->jid);
+  // printf("translateAlterXnodeJob on task:%d\n", pStmt->jid);
   SMUpdateXnodeJobReq updateReq = {0};
   updateReq.jid = pStmt->jid;
   updateReq.via = pStmt->options->via;
@@ -16702,6 +16746,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = translateCreateXnodeTask(pCxt, (SCreateXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
+      code = translateUpdateXnodeTask(pCxt, (SUpdateXnodeTaskStmt*)pNode);
       break;
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
       code = translateDropXnodeTask(pCxt, (SDropXnodeTaskStmt*)pNode);

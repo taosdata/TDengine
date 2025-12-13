@@ -470,6 +470,7 @@ typedef struct {
 typedef struct {
   ENodeType type;
   int32_t   xnodeId;
+  char      url[TSDB_XNODE_URL_LEN + 3];
   bool      force;
 } SDropXnodeStmt;
 
@@ -499,6 +500,7 @@ typedef struct {
   // char                 topic[TSDB_TOPIC_NAME_LEN + 3];
   // char                 dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
 } SXTaskSource;
+
 typedef struct {
   ENodeType type;
   xTaskSink sink;
@@ -515,7 +517,6 @@ typedef struct {
 typedef struct {
   ENodeType          type;
   int32_t            tid;  // task id.
-  char               name[TSDB_TABLE_NAME_LEN + 3];
   SXTaskSource*      source;
   SXTaskSink*        sink;
   SXnodeTaskOptions* options;
@@ -528,25 +529,19 @@ typedef struct {
   char*     name;
   bool      force;  // DROP XNODE TASK FORCE 'name'
 } SDropXnodeTaskStmt;
+
 typedef struct {
   ENodeType          type;
   char               name[TSDB_TABLE_NAME_LEN + 3];
   SXnodeTaskOptions* options;
 } SXnodeAgentCreateStmt;
 
-typedef struct {
-  ENodeType          type;
-  char               name[TSDB_TABLE_NAME_LEN + 3];
-  SXTaskSource*      source;
-  SXTaskSink*        sink;
-  SXnodeTaskOptions* options;
-} SAlterXnodeTaskStmt;
-typedef struct {
-  ENodeType type;
-  char      name[TSDB_TABLE_NAME_LEN + 3];
-  bool      force;  // DROP XNODE TASK FORCE 'name'
-} SXnodeTaskDropStmt;
-typedef SXnodeTaskDropStmt SXnodeAgentDropStmt;
+// typedef struct {
+//   ENodeType type;
+//   char      name[TSDB_TABLE_NAME_LEN + 3];
+//   bool      force;  // DROP XNODE TASK FORCE 'name'
+// } SXnodeTaskDropStmt;
+// typedef SXnodeTaskDropStmt SXnodeAgentDropStmt;
 
 typedef struct {
   ENodeType          type;
