@@ -173,6 +173,9 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   return (void*)refId;
 _end:
+  if (pRpc->pTlsMgt) {
+    transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
+  }
   // if (pRpc->pSSLContext) {
   //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
   // }
