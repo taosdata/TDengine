@@ -12441,6 +12441,20 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   return code;
 }
 
+static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const char* name) {
+  if (pOptions == NULL || name == NULL) return NULL;
+  printf("optionsNum: %d\n", pOptions->optionsNum);
+  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+    const char* option = pOptions->options[i];
+    printf("option %d: %s\n", i, option);
+    if (option != NULL && strncasecmp(option, name, strlen(name)) == 0 && option[strlen(name)] == '=') {
+      return option + strlen(name) + 1;
+    }
+  }
+  return NULL;
+}
+
+
 static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
   printf("translateCreateXnode: %s\n", pStmt->url);
   SMCreateXnodeReq createReq = {0};
@@ -12590,18 +12604,6 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
   return code;
 }
 
-static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const char* name) {
-  if (pOptions == NULL || name == NULL) return NULL;
-  printf("optionsNum: %d\n", pOptions->optionsNum);
-  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
-    const char* option = pOptions->options[i];
-    printf("option %d: %s\n", i, option);
-    if (option != NULL && strncasecmp(option, name, strlen(name)) == 0 && option[strlen(name)] == '=') {
-      return option + strlen(name) + 1;
-    }
-  }
-  return NULL;
-}
 
 static int32_t xnodeTaskStatusStrToNum(const char* status) {
   if (status == NULL) {
