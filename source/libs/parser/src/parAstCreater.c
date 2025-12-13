@@ -4373,7 +4373,7 @@ _err:
   return NULL;
 }
 
-SNode* alterXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
+SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
                                          SNode* pSink, SNode* pNode) {
   SNode* pStmt = NULL;
   if (pResourceName == NULL) {
@@ -4387,14 +4387,19 @@ SNode* alterXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* 
                                             "xnode task source and sink should be valid nodes");
     goto _err;
   }
+  if (pSource == NULL && pSink == NULL && pNode == NULL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode task source, sink, and with options can't all be NULL");
+    goto _err;
+  }
 
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_XNODE_TASK_STMT, (SNode**)&pStmt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_XNODE_TASK_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  SAlterXnodeTaskStmt* pTaskStmt = (SAlterXnodeTaskStmt*)pStmt;
+  SUpdateXnodeTaskStmt* pTaskStmt = (SUpdateXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
-  } else if (pResourceName->type == TK_NK_ID) {
-    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+  } else if (pResourceName->type == TK_NK_INTEGER) {
+    pTaskStmt->tid = taosStr2Int32(pResourceName->z, NULL, 10);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid xnode name type: %d",
                                             pResourceName->type);
@@ -4403,13 +4408,13 @@ SNode* alterXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* 
 
   if (pSource != NULL) {
     SXTaskSource* source = (SXTaskSource*)(pSource);
-    printf("createXnodeTaskWithOptionsDirectly param source: %s:%s\n", xGetTaskSourceTypeAsStr(&source->source),
+    printf("updateXnodeTaskWithOptionsDirectly param source: %s:%s\n", xGetTaskSourceTypeAsStr(&source->source),
            xGetTaskSourceStr(&source->source));
     pTaskStmt->source = source;
   }
   if (pSink != NULL) {
     SXTaskSink* sink = (SXTaskSink*)(pSink);
-    printf("createXnodeTaskWithOptionsDirectly param sink: %s:%s\n", xGetTaskSinkTypeAsStr(&sink->sink),
+    printf("updateXnodeTaskWithOptionsDirectly param sink: %s:%s\n", xGetTaskSinkTypeAsStr(&sink->sink),
            xGetTaskSinkStr(&sink->sink));
     pTaskStmt->sink = sink;
   }
@@ -4472,7 +4477,7 @@ SNode* alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType res
 
   switch (resourceType) {
     case XNODE_TASK: {
-      return alterXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
+      return updateXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
     }
     case XNODE_AGENT: {
       return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);

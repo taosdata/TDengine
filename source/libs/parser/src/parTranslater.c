@@ -380,20 +380,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { 
+  {
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
-  { 
+  },
+  {
     .showType = QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
+  },
   {
     .showType = QUERY_NODE_SHOW_VTABLES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -12557,8 +12557,35 @@ static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStm
 static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTaskStmt* pStmt) {
   SMUpdateXnodeTaskReq updateReq = {0};
   updateReq.tid = pStmt->tid;
+  updateReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, true);
 
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
+  updateReq.via = pStmt->options->via;
+  // updateReq.xnodeId = pStmt->xnodeId;
+  const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnodeId != NULL) {
+    updateReq.xnodeId = atoi(xnodeId);
+  }
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL) {
+    updateReq.status = xnodeTaskStatusStrToNum(status);
+  }
+  const char* jobs = getXnodeTaskOptionByName(pStmt->options, "jobs");
+  if (jobs != NULL) {
+    updateReq.jobs = atoi(jobs);
+  }
+  updateReq.source = xCloneTaskSourceRef(&pStmt->source->source);
+  updateReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
+
+  const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
+  if (parser != NULL) {
+    updateReq.parser = xCreateCowStr(strlen(parser), parser, true);
+  }
+  const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+  if (reason != NULL) {
+    updateReq.reason = xCreateCowStr(strlen(reason), reason, true);
+  }
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_TASK, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
   tFreeSMUpdateXnodeTaskReq(&updateReq);
   return code;
 }
@@ -16702,6 +16729,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = translateCreateXnodeTask(pCxt, (SCreateXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
+      code = translateUpdateXnodeTask(pCxt, (SUpdateXnodeTaskStmt*)pNode);
       break;
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
       code = translateDropXnodeTask(pCxt, (SDropXnodeTaskStmt*)pNode);

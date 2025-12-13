@@ -1050,6 +1050,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SCreateXnodeTaskStmt), &pNode);
       break;
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SUpdateXnodeTaskStmt), &pNode);
+      break;
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SDropXnodeTaskStmt), &pNode);
       break;
