@@ -24,7 +24,7 @@ void ctgFreeSViewMeta(SViewMeta* pMeta) {
     return;
   }
 
-  taosMemoryFree(pMeta->user);
+  taosMemoryFree(pMeta->owner);
   taosMemoryFree(pMeta->querySql);
   taosMemoryFree(pMeta->pSchema);
 }
@@ -212,15 +212,22 @@ void ctgFreeSMetaData(SMetaData* pData) {
 
 void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) {
   taosHashCleanup(userCache->userAuth.createdDbs);
-  taosHashCleanup(userCache->userAuth.readDbs);
-  taosHashCleanup(userCache->userAuth.writeDbs);
-  taosHashCleanup(userCache->userAuth.readTbs);
-  taosHashCleanup(userCache->userAuth.writeTbs);
-  taosHashCleanup(userCache->userAuth.alterTbs);
+  // taosHashCleanup(userCache->userAuth.readDbs);
+  // taosHashCleanup(userCache->userAuth.writeDbs);
+  // taosHashCleanup(userCache->userAuth.readTbs);
+  // taosHashCleanup(userCache->userAuth.writeTbs);
+  // taosHashCleanup(userCache->userAuth.alterTbs);
   taosHashCleanup(userCache->userAuth.readViews);
   taosHashCleanup(userCache->userAuth.writeViews);
   taosHashCleanup(userCache->userAuth.alterViews);
   taosHashCleanup(userCache->userAuth.useDbs);
+  taosHashCleanup(userCache->userAuth.objPrivs);
+  taosHashCleanup(userCache->userAuth.selectRows);
+  taosHashCleanup(userCache->userAuth.insertRows);
+  taosHashCleanup(userCache->userAuth.deleteRows);
+  taosHashCleanup(userCache->userAuth.selectTbs);
+  taosHashCleanup(userCache->userAuth.insertTbs);
+  taosHashCleanup(userCache->userAuth.deleteTbs);
 }
 
 void ctgFreeMetaRent(SCtgRentMgmt* mgmt) {
@@ -625,15 +632,22 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_MND_GET_USER_AUTH: {
       SGetUserAuthRsp* pOut = (SGetUserAuthRsp*)pCtx->out;
       taosHashCleanup(pOut->createdDbs);
-      taosHashCleanup(pOut->readDbs);
-      taosHashCleanup(pOut->writeDbs);
-      taosHashCleanup(pOut->readTbs);
-      taosHashCleanup(pOut->writeTbs);
-      taosHashCleanup(pOut->alterTbs);
+      // taosHashCleanup(pOut->readDbs);
+      // taosHashCleanup(pOut->writeDbs);
+      // taosHashCleanup(pOut->readTbs);
+      // taosHashCleanup(pOut->writeTbs);
+      // taosHashCleanup(pOut->alterTbs);
       taosHashCleanup(pOut->readViews);
       taosHashCleanup(pOut->writeViews);
       taosHashCleanup(pOut->alterViews);
       taosHashCleanup(pOut->useDbs);
+      taosHashCleanup(pOut->objPrivs);
+      taosHashCleanup(pOut->selectRows);
+      taosHashCleanup(pOut->insertRows);
+      taosHashCleanup(pOut->deleteRows);
+      taosHashCleanup(pOut->selectTbs);
+      taosHashCleanup(pOut->insertTbs);
+      taosHashCleanup(pOut->deleteTbs);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -2092,7 +2106,7 @@ static void ctgFreeViewMeta(void* p) {
   if (NULL == pMeta) {
     return;
   }
-  taosMemoryFree(pMeta->user);
+  taosMemoryFree(pMeta->owner);
   taosMemoryFree(pMeta->querySql);
   taosMemoryFree(pMeta->pSchema);
   taosMemoryFree(pMeta);
@@ -2113,8 +2127,9 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
-  SHashObj*        pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->readTbs : pInfo->writeTbs;
-  char*            stbName = NULL;
+  SHashObj*        pTbs =
+      (AUTH_TYPE_READ == req->singleType) ? pInfo->selectTbs : pInfo->insertTbs;  // pInfo->readTbs : pInfo->writeTbs;
+  char* stbName = NULL;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -2223,9 +2238,6 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     pReq->tbName.type = TSDB_DB_NAME_T;
   }
 
-  char dbFName[TSDB_DB_FNAME_LEN];
-  (void)tNameGetFullDbName(&pReq->tbName, dbFName);
-
   // since that we add read/write previliges when create db, there is no need to check createdDbs
 #if 0
   if (pInfo->createdDbs && taosHashGet(pInfo->createdDbs, dbFName, strlen(dbFName))) {
@@ -2234,6 +2246,68 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
+  SPrivInfo* privInfo = privInfoGet(pReq->type);
+  if (!privInfo) {
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+  if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+    if (PRIV_HAS(&pInfo->sysPrivs, pReq->type)) {
+      pRes->pass[AUTH_RES_BASIC] = true;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (PRIV_CATEGORY_OBJECT == privInfo->category) {
+    char objKey[TSDB_PRIV_MAX_KEY_LEN];
+#if 0
+    if (privInfo->privType >= PRIV_TBL_SELECT && privInfo->privType <= PRIV_TBL_DELETE) {
+      return TSDB_CODE_SUCCESS;
+    }
+#endif
+    if (taosHashGetSize(pInfo->objPrivs) == 0) return TSDB_CODE_SUCCESS;
+
+    int32_t klen = 0;
+    if (pReq->tbName.type == TSDB_DB_NAME_T) {
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, "*", NULL, objKey, sizeof(objKey));
+      SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
+      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, "*", "*", objKey, sizeof(objKey));
+      SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, "*", objKey, sizeof(objKey));
+      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      klen =
+          privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname, objKey, sizeof(objKey));
+      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo->category, privInfo->name);
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+
+
+#ifdef PRIV_TODO
   switch (pReq->type) {
     case AUTH_TYPE_READ: {
       if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
@@ -2280,7 +2354,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     default:
       break;
   }
-
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2471,7 +2545,7 @@ uint64_t ctgGetViewMetaCacheSize(SViewMeta* pMeta) {
     return 0;
   }
 
-  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema);
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->owner) + 1 + pMeta->numOfCols * sizeof(SSchema);
 }
 
 FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
@@ -2502,6 +2576,54 @@ uint64_t ctgGetDbVgroupCacheSize(SDBVgInfo* pVg) {
          taosArrayGetSize(pVg->vgArray) * sizeof(SVgroupInfo);
 }
 
+static uint64_t tGetPrivObjPoliciesSize(SHashObj* pHash) {
+  uint64_t totalSize = 0;
+  int32_t  nPolicies = taosHashGetSize((SHashObj*)pHash);
+  if (nPolicies > 0) {
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate((SHashObj*)pHash, pIter))) {
+      size_t klen = 0;
+      char*  tbKey = taosHashGetKey(pIter, &klen);
+      totalSize += klen;
+      totalSize += taosHashGetValueSize(pIter);
+    }
+  }
+  return totalSize;
+}
+
+static uint64_t tGetPrivTblPoliciesSize(SHashObj *pHash) {
+  uint64_t totalSize = 0;
+  int32_t nPolicies = taosHashGetSize((SHashObj *)pHash);
+  if (nPolicies > 0) {
+    void *pIter = NULL;
+    while ((pIter = taosHashIterate((SHashObj *)pHash, pIter))) {
+      size_t klen = 0, vlen = 0;
+      char  *tbKey = taosHashGetKey(pIter, &klen);
+      totalSize += klen;
+      vlen = taosHashGetValueSize(pIter);
+      if (vlen == 0) {
+        continue;  // 1.*.* or 1.db.*
+      }
+      SPrivTblPolicies *pTblPolicies = (SPrivTblPolicies *)pIter;
+      for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
+        SArray *pPolicies = pTblPolicies->policy[i];
+        if (!pPolicies) continue;
+        int32_t nTblPolicies = taosArrayGetSize(pPolicies);
+        totalSize += nTblPolicies * sizeof(SPrivTblPolicy);
+        for (int32_t j = 0; j < nTblPolicies; ++j) {
+          SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(pPolicies, j);
+          int32_t         nCols = taosArrayGetSize(pPolicy->cols);
+          if (nCols) totalSize += nCols * sizeof(SColNameFlag);
+          if (pPolicy->tagCond) {
+            totalSize += (int32_t)strlen(pPolicy->tagCond);
+          }
+        }
+      }
+    }
+  }
+  return totalSize;
+}
+
 uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
   if (NULL == pAuth) {
     return 0;
@@ -2516,7 +2638,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     p = taosHashIterate(pAuth->createdDbs, p);
   }
-
+#if 0
   p = taosHashIterate(pAuth->readDbs, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2561,7 +2683,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     p = taosHashIterate(pAuth->alterTbs, p);
   }
-
+#endif
   p = taosHashIterate(pAuth->readViews, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2597,6 +2719,14 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     ref = taosHashIterate(pAuth->useDbs, ref);
   }
+
+  cacheSize += tGetPrivObjPoliciesSize(pAuth->objPrivs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->selectRows);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->insertRows);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->deleteRows);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->selectTbs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->insertTbs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->deleteTbs);
 
   return cacheSize;
 }
@@ -2742,8 +2872,8 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
   if (NULL == pViewMeta->querySql) {
     CTG_ERR_RET(terrno);
   }
-  pViewMeta->user = tstrdup(pRsp->user);
-  if (NULL == pViewMeta->user) {
+  pViewMeta->owner = tstrdup(pRsp->owner);
+  if (NULL == pViewMeta->owner) {
     CTG_ERR_RET(terrno);
   }
   pViewMeta->version = pRsp->version;

@@ -458,6 +458,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST,  "ssmigrate already exi
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RETENTION_ID,     "Invalid retention id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRIM_ALREADY_EXIST,       "Trim or rollup already exist")
 
+// mnode-role
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_ALREADY_EXIST,       "Role already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_EXIST,           "Invalid role")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_INVALID_FORMAT,      "Invalid role format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED,    "Subrole count exceeded")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NOT_FOUND,              "Mnode not found")
@@ -865,6 +872,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT,     "Option value too sh
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too big")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT,  "Conflict between privilege type and target")
+
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")

@@ -172,6 +172,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_RETENTION;
   } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_RETENTION_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_PRIVILEGES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -294,10 +300,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if (pShow->type == TSDB_MGMT_TABLE_COL) {  // expend capacity for ins_columns
+  // expend capacity for ins_columns and privileges
+  if (pShow->type == TSDB_MGMT_TABLE_COL || TSDB_MGMT_TABLE_PRIVILEGES ||
+      pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
-  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
-    rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {

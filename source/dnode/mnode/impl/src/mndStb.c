@@ -34,8 +34,11 @@
 #include "mndStream.h"
 #include "tname.h"
 
-#define STB_VER_NUMBER   3
-#define STB_RESERVE_SIZE 56
+#define STB_VER_NUMBER          4
+#define STB_VER_SUPPORT_OWNER   4
+#define STB_VER_SUPPORT_COMP    2
+#define STB_VER_SUPPORT_VIRTUAL 3
+#define STB_RESERVE_SIZE        56
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -199,6 +202,9 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   }
 
   SDB_SET_INT8(pRaw, dataPos, pStb->virtualStb, _OVER)
+  // since 3.4.0.0 - STB_VER_SUPPORT_OWNER
+  SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pStb->owner, TSDB_USER_LEN, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -311,7 +317,7 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   }
 
   pStb->pCmpr = taosMemoryCalloc(pStb->numOfColumns, sizeof(SColCmpr));
-  if (sver < STB_VER_NUMBER - 1) {
+  if (sver < STB_VER_SUPPORT_COMP) {
     // compatible with old data, setup default compress value
     // impl later
     for (int i = 0; i < pStb->numOfColumns; i++) {
@@ -339,10 +345,21 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     }
   }
 
-  if (sver < STB_VER_NUMBER) {
+  if (sver < STB_VER_SUPPORT_VIRTUAL) {
     pStb->virtualStb = 0;
   } else {
     SDB_GET_INT8(pRaw, dataPos, &pStb->virtualStb, _OVER)
+  }
+
+  if (sver < STB_VER_SUPPORT_OWNER) {
+    pStb->createUser[0] = 0;
+    pStb->owner[0] = 0;
+  } else {
+    SDB_GET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pStb->owner, TSDB_USER_LEN, _OVER)
+    if (pStb->owner[0] == 0) {
+      (void)strncpy(pStb->owner, pStb->createUser, TSDB_USER_LEN);
+    }
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)

@@ -39,7 +39,10 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-
+int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, const char *owner,
+                                const char *objFName, const char *tbName) {
+  return 0;
+}
 
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) { return 0; }

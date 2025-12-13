@@ -528,6 +528,31 @@ typedef struct SDropUserStmt {
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
+typedef struct SCreateRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreExists;
+} SCreateRoleStmt;
+
+typedef struct SDropRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreNotExists;
+} SDropRoleStmt;
+
+typedef struct SAlterRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  int8_t    alterType;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t lock : 1;  // 1: lock, 0: unlock
+      uint8_t reserve : 7;
+    };
+  };
+} SAlterRoleStmt;
+
 typedef struct SDropEncryptAlgrStmt {
   ENodeType type;
   char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
@@ -634,6 +659,7 @@ typedef struct SShowCreateRsmaStmt {
   char      rsmaName[TSDB_TABLE_NAME_LEN];
   void*     pRsmaMeta;  // SRsmaInfoRsp;
   void*     pTableCfg;  // STableCfg
+  bool      hasPrivilege;
 } SShowCreateRsmaStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -890,11 +916,15 @@ typedef struct SDropViewStmt {
 
 typedef struct SGrantStmt {
   ENodeType type;
-  char      userName[TSDB_USER_LEN];
-  char      objName[TSDB_DB_NAME_LEN];  // db or topic
+  int8_t    optrType;                    // privilege/role/...
+  char      principal[TSDB_ROLE_LEN];    // user or role name
+  char      objName[TSDB_OBJ_NAME_LEN];  // db or topic
   char      tabName[TSDB_TABLE_NAME_LEN];
-  int64_t   privileges;
-  SNode*    pTagCond;
+  union {
+    SPrivSetArgs privileges;
+    char         roleName[TSDB_ROLE_LEN];
+  };
+  SNode* pTagCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;

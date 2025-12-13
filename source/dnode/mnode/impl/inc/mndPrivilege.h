@@ -25,7 +25,9 @@ extern "C" {
 int32_t mndInitPrivilege(SMnode *pMnode);
 void    mndCleanupPrivilege(SMnode *pMnode);
 
-bool mndMustChangePassword(SUserObj* pUser);
+bool mndMustChangePassword(SUserObj *pUser);
+int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, const char *owner,
+                                const char *objFName, const char *tbName);
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname);

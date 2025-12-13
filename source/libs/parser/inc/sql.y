@@ -367,33 +367,279 @@ cmd ::= CREATE TOKEN. {}
 
 
 
+/************************************************ create/drop role **********************************************/
+cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                               { pCxt->pRootNode = createCreateRoleStmt(pCxt, A, &B); }
+cmd ::= DROP ROLE exists_opt(A) role_name(B).                                     { pCxt->pRootNode = createDropRoleStmt(pCxt, A, &B); }
+cmd ::= LOCK ROLE role_name(A).                                                   { 
+                                                                                    SToken t = {.n = 1, .z = "1", .type = TK_STRING };
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A, TSDB_ALTER_ROLE_LOCK, &t); 
+                                                                                  }
+cmd ::= UNLOCK ROLE role_name(A).                                                 { 
+                                                                                    SToken t = {.n = 1, .z = "0", .type = TK_STRING };
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t); 
+                                                                                  }
+cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
+cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
-cmd ::= GRANT privileges(A) ON priv_level(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
-cmd ::= REVOKE privileges(A) ON priv_level(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
+cmd ::= GRANT ALL priv_level_opt(B) with_clause_opt(D) TO user_name(C).           {
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
+                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                  }
+cmd ::= REVOKE ALL  priv_level_opt(B) with_clause_opt(D)  FROM user_name(C).      {
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
+                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                  }
+cmd ::= GRANT ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) TO user_name(C). {
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
+                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                  }
+cmd ::= REVOKE ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) FROM user_name(C). {
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
+                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
+                                                                                  }
+cmd ::= GRANT privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
+cmd ::= REVOKE privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
 
-%type privileges                                                                  { int64_t }
-%destructor privileges                                                            { }
-privileges(A) ::= ALL.                                                            { A = PRIVILEGE_TYPE_ALL; }
+%type privileges                                                                  { SPrivSetArgs }
+%destructor privileges                                                            {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
+
+                                                                                  }
 privileges(A) ::= priv_type_list(B).                                              { A = B; }
-privileges(A) ::= SUBSCRIBE.                                                      { A = PRIVILEGE_TYPE_SUBSCRIBE; }
+privileges(A) ::= SUBSCRIBE.                                                      { A.privSet = PRIV_TYPE(PRIV_TYPE_SUBSCRIBE); }
 
-%type priv_type_list                                                              { int64_t }
-%destructor priv_type_list                                                        { }
+%type priv_type_list                                                              { SPrivSetArgs }
+%destructor priv_type_list                                                        {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
+
+                                                                                  }
 priv_type_list(A) ::= priv_type(B).                                               { A = B; }
-priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                    { A = B | C; }
+priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                    { A = privArgsAdd(pCxt, B, C); }
 
-%type priv_type                                                                   { int64_t }
-%destructor priv_type                                                             { }
-priv_type(A) ::= READ.                                                            { A = PRIVILEGE_TYPE_READ; }
-priv_type(A) ::= WRITE.                                                           { A = PRIVILEGE_TYPE_WRITE; }
-priv_type(A) ::= ALTER.                                                           { A = PRIVILEGE_TYPE_ALTER; }
+%type priv_type                                                                   { SPrivSetArgs }
+%destructor priv_type                                                             {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
 
-%type priv_level                                                                  { STokenPair }
-%destructor priv_level                                                            { }
-priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
-priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
-priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; }
+                                                                                  }
+priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_TYPE_READ); }
+priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_WRITE); }
+priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_ALTER); }
+
+priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
+priv_type(A) ::= ALTER DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_ALTER); }
+priv_type(A) ::= DROP DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_DROP); }
+priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
+priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
+priv_type(A) ::= FLUSH DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
+priv_type(A) ::= COMPACT DATABASE.                                                { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
+priv_type(A) ::= TRIM DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_TRIM); }
+priv_type(A) ::= ROLLUP DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
+priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
+priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+
+priv_type(A) ::= SHOW DATABASES.                                                  { A = PRIV_SET_TYPE(PRIV_SHOW_DATABASES); }
+priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
+priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }
+priv_type(A) ::= SHOW COMPACTS.                                                   { A = PRIV_SET_TYPE(PRIV_SHOW_COMPACTS); }
+priv_type(A) ::= SHOW RETENTIONS.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_RETENTIONS); }
+priv_type(A) ::= SHOW SCANS.                                                      { A = PRIV_SET_TYPE(PRIV_SHOW_SCANS); }
+priv_type(A) ::= SHOW SSMIGRATES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_SSMIGRATES); }
+
+priv_type(A) ::= CREATE TABLE.                                                    { A = PRIV_SET_TYPE(PRIV_TBL_CREATE); }
+priv_type(A) ::= DROP TABLE.                                                      { A = PRIV_SET_TYPE(PRIV_TBL_DROP); }
+priv_type(A) ::= ALTER TABLE.                                                     { A = PRIV_SET_TYPE(PRIV_TBL_ALTER); }
+priv_type(A) ::= SHOW TABLES.                                                     { A = PRIV_SET_TYPE(PRIV_TBL_SHOW); }
+priv_type(A) ::= SHOW CREATE TABLE.                                               { A = PRIV_SET_TYPE(PRIV_TBL_SHOW_CREATE); }
+
+priv_type(A) ::= priv_type_tbl_dml(B).                                            { A = B; }
+
+priv_type(A) ::= CREATE FUNCTION.                                                 { A = PRIV_SET_TYPE(PRIV_FUNC_CREATE); }
+priv_type(A) ::= DROP FUNCTION.                                                   { A = PRIV_SET_TYPE(PRIV_FUNC_DROP); }
+priv_type(A) ::= SHOW FUNCTIONS.                                                  { A = PRIV_SET_TYPE(PRIV_FUNC_SHOW); }
+
+priv_type(A) ::= CREATE INDEX.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_CREATE); }
+priv_type(A) ::= DROP INDEX.                                                      { A = PRIV_SET_TYPE(PRIV_IDX_DROP); }
+priv_type(A) ::= SHOW INDEXES.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_SHOW); }
+
+priv_type(A) ::= CREATE VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_CREATE); }
+priv_type(A) ::= DROP VIEW.                                                       { A = PRIV_SET_TYPE(PRIV_VIEW_DROP); }
+priv_type(A) ::= SHOW VIEWS.                                                      { A = PRIV_SET_TYPE(PRIV_VIEW_SHOW); }
+priv_type(A) ::= READ VIEW.                                                       { A = PRIV_SET_TYPE(PRIV_VIEW_READ); }
+
+priv_type(A) ::= CREATE RSMA.                                                     { A = PRIV_SET_TYPE(PRIV_RSMA_CREATE); }
+priv_type(A) ::= DROP RSMA.                                                       { A = PRIV_SET_TYPE(PRIV_RSMA_DROP); }
+priv_type(A) ::= ALTER RSMA.                                                      { A = PRIV_SET_TYPE(PRIV_RSMA_ALTER); }
+priv_type(A) ::= SHOW RSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_RSMA_SHOW); }
+priv_type(A) ::= SHOW CREATE RSMA.                                                { A = PRIV_SET_TYPE(PRIV_RSMA_SHOW_CREATE); }
+priv_type(A) ::= CREATE TSMA.                                                     { A = PRIV_SET_TYPE(PRIV_TSMA_CREATE); }
+priv_type(A) ::= DROP TSMA.                                                       { A = PRIV_SET_TYPE(PRIV_TSMA_DROP); }
+priv_type(A) ::= SHOW TSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_TSMA_SHOW); }
+
+priv_type(A) ::= CREATE MOUNT.                                                    { A = PRIV_SET_TYPE(PRIV_MOUNT_CREATE); }
+priv_type(A) ::= DROP MOUNT.                                                      { A = PRIV_SET_TYPE(PRIV_MOUNT_DROP); }
+priv_type(A) ::= SHOW MOUNTS.                                                     { A = PRIV_SET_TYPE(PRIV_MOUNT_SHOW); }
+
+priv_type(A) ::= ALTER PASS.                                                      { A = PRIV_SET_TYPE(PRIV_PASS_ALTER); }
+priv_type(A) ::= ALTER SELF PASS.                                                 { A = PRIV_SET_TYPE(PRIV_PASS_ALTER_SELF); }
+
+priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_CREATE); }
+priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_DROP); }
+priv_type(A) ::= SHOW ROLES.                                                      { A = PRIV_SET_TYPE(PRIV_ROLE_SHOW); }
+
+priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
+priv_type(A) ::= DROP USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_DROP); }
+priv_type(A) ::= SET USER SECURITY INFO.                                          { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
+priv_type(A) ::= SET USER AUDIT INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
+priv_type(A) ::= SET USER BASIC INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
+priv_type(A) ::= ENABLE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_ENABLE); }
+priv_type(A) ::= DISABLE USER.                                                    { A = PRIV_SET_TYPE(PRIV_USER_DISABLE); }
+priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
+
+priv_type(A) ::= CREATE AUDIT DATABASE.                                           { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_CREATE); }
+priv_type(A) ::= DROP AUDIT DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_DROP); }
+priv_type(A) ::= ALTER AUDIT DATABASE.                                            { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_ALTER); }
+priv_type(A) ::= USE AUDIT DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_USE); }
+
+priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_SET_TYPE(PRIV_TOKEN_CREATE); }
+priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_SET_TYPE(PRIV_TOKEN_DROP); }
+priv_type(A) ::= ALTER TOKEN.                                                     { A = PRIV_SET_TYPE(PRIV_TOKEN_ALTER); }
+priv_type(A) ::= SHOW TOKENS.                                                     { A = PRIV_SET_TYPE(PRIV_TOKEN_SHOW); }
+
+priv_type(A) ::= UPDATE KEY.                                                      { A = PRIV_SET_TYPE(PRIV_KEY_UPDATE); }
+priv_type(A) ::= CREATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
+priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
+priv_type(A) ::= UPDATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_UPDATE); }
+
+priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
+priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
+priv_type(A) ::= SHOW PRIVILEGES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_PRIVILEGES); }
+priv_type(A) ::= GRANT SYSDBA PRIVILEGE.                                          { A = PRIV_SET_TYPE(PRIV_GRANT_SYSDBA); }
+priv_type(A) ::= REVOKE SYSDBA PRIVILEGE.                                         { A = PRIV_SET_TYPE(PRIV_REVOKE_SYSDBA); }
+priv_type(A) ::= GRANT SYSSEC PRIVILEGE.                                          { A = PRIV_SET_TYPE(PRIV_GRANT_SYSSEC); }
+priv_type(A) ::= REVOKE SYSSEC PRIVILEGE.                                         { A = PRIV_SET_TYPE(PRIV_REVOKE_SYSSEC); }
+priv_type(A) ::= GRANT SYSAUDIT PRIVILEGE.                                        { A = PRIV_SET_TYPE(PRIV_GRANT_SYSAUDIT); }
+priv_type(A) ::= REVOKE SYSAUDIT PRIVILEGE.                                       { A = PRIV_SET_TYPE(PRIV_REVOKE_SYSAUDIT); }
+
+priv_type(A) ::= CREATE NODE.                                                     { A = PRIV_SET_TYPE(PRIV_NODE_CREATE); }
+priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
+priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_SET_TYPE(PRIV_NODES_SHOW); }
+
+priv_type(A) ::= ALTER SECURITY VARIABLE.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER); }
+priv_type(A) ::= ALTER AUDIT VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER); }
+priv_type(A) ::= ALTER SYSTEM VARIABLE.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER); }
+priv_type(A) ::= ALTER DEBUG VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER); }
+priv_type(A) ::= SHOW SECURITY VARIABLES.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW); }
+priv_type(A) ::= SHOW AUDIT VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW); }
+priv_type(A) ::= SHOW SYSTEM VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW); }
+priv_type(A) ::= SHOW DEBUG VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW); }
+
+priv_type(A) ::= CREATE TOPIC.                                                    { A = PRIV_SET_TYPE(PRIV_TOPIC_CREATE); }
+priv_type(A) ::= DROP TOPIC.                                                      { A = PRIV_SET_TYPE(PRIV_TOPIC_DROP); }
+priv_type(A) ::= SHOW TOPICS.                                                     { A = PRIV_SET_TYPE(PRIV_TOPIC_SHOW); }
+priv_type(A) ::= SHOW CONSUMERS.                                                  { A = PRIV_SET_TYPE(PRIV_CONSUMER_SHOW); }
+priv_type(A) ::= SHOW SUBSCRIPTIONS.                                              { A = PRIV_SET_TYPE(PRIV_SUBSCRIPTION_SHOW); }
+
+priv_type(A) ::= CREATE STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_CREATE); }
+priv_type(A) ::= DROP STREAM.                                                     { A = PRIV_SET_TYPE(PRIV_STREAM_DROP); }
+priv_type(A) ::= SHOW STREAMS.                                                    { A = PRIV_SET_TYPE(PRIV_STREAM_SHOW); }
+priv_type(A) ::= START STREAM.                                                    { A = PRIV_SET_TYPE(PRIV_STREAM_START); }
+priv_type(A) ::= STOP STREAM.                                                     { A = PRIV_SET_TYPE(PRIV_STREAM_STOP); }
+priv_type(A) ::= RECALC STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_RECALC); }
+
+priv_type(A) ::= SHOW TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
+priv_type(A) ::= KILL TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
+priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONNECTION_SHOW); }
+priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONNECTION_KILL); }
+priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
+priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
+
+priv_type(A) ::= USE INFORMATION_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
+priv_type(A) ::= USE PERFORMANCE_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
+priv_type(A) ::= READ INFORMATION_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ INFORMATION_SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
+priv_type(A) ::= READ INFORMATION_SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
+priv_type(A) ::= READ INFORMATION_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
+priv_type(A) ::= READ PERFORMANCE_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ PERFORMANCE_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
+priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
+priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
+priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
+
+%type priv_type_tbl_dml                                                           { SPrivSetArgs }
+%destructor priv_type_tbl_dml                                                     {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
+                                                                                  }
+priv_type_tbl_dml(A) ::= SELECT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_SELECT); }
+priv_type_tbl_dml(A) ::= SELECT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
+priv_type_tbl_dml(A) ::= INSERT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_INSERT); }
+priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, NULL, B, NULL); }
+priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
+priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }
+priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
+priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
+
+%type priv_level_opt                                                              { SPrivLevelArgs }
+%destructor priv_level_opt                                                        {
+                                                                                    if ($$.cols != NULL) {
+                                                                                      nodesDestroyList($$.cols);
+                                                                                    }
+                                                                                  }
+priv_level_opt(A) ::= .                                                           { A.first = nil_token; A.second = nil_token; A.cols = NULL; }
+priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; }
+
+%type priv_level                                                                  { SPrivLevelArgs }
+%destructor priv_level                                                            {
+                                                                                    if ($$.cols != NULL) {
+                                                                                      nodesDestroyList($$.cols);
+                                                                                    }
+                                                                                  }
+priv_level(A) ::= NK_STAR(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
+priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
+
+%type between_clause_opt                                                          { SNodeList* }
+%destructor between_clause_opt                                                    { nodesDestroyList($$); }
+between_clause_opt(A) ::= .                                                       { A = NULL; }
+between_clause_opt(A) ::= BETWEEN signed_integer(B) AND signed_integer(C).        { A = createNodeList(pCxt, B);
+                                                                                    A = addNodeToList(pCxt, A, C);
+                                                                                  }
+between_clause_opt(A) ::= BETWEEN NK_STRING(B) AND NK_STRING(C).                  { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B));
+                                                                                    A = addNodeToList(pCxt, A, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &C));
+                                                                                  }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }
@@ -852,6 +1098,9 @@ cmd ::= SHOW DNODES.                                                            
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
 cmd ::= SHOW USERS FULL.                                                          { pCxt->pRootNode = createShowStmtWithFull(pCxt, QUERY_NODE_SHOW_USERS_FULL_STMT); }
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
+cmd ::= SHOW ROLES.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLES_STMT); }
+cmd ::= SHOW ROLE PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT); }
+cmd ::= SHOW ROLE COLUMN PRIVILEGES.                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT); }
 cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
                                                                                     (void)setShowKind(pCxt, pCxt->pRootNode, A);
@@ -1634,6 +1883,10 @@ column_alias(A) ::= NK_ALIAS(B).                                                
 %type user_name                                                                   { SToken }
 %destructor user_name                                                             { }
 user_name(A) ::= NK_ID(B).                                                        { A = B; }
+
+%type role_name                                                                   { SToken }
+%destructor role_name                                                             { }
+role_name(A) ::= NK_ID(B).                                                        { A = B; }
 
 %type topic_name                                                                  { SToken }
 %destructor topic_name                                                            { }

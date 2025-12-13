@@ -172,6 +172,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->owner, TSDB_USER_LEN, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -277,6 +278,9 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
     SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
   }
+  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
+    SDB_GET_BINARY(pRaw, dataPos, pDb->owner, TSDB_USER_LEN, _OVER)
+  }
 
   taosInitRWLatch(&pDb->lock);
 
@@ -299,6 +303,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
 
   if (pDb->cfg.sstTrigger != TSDB_MIN_STT_TRIGGER) {
     mInfo("db:%s, sstTrigger set from %d to default %d", pDb->name, pDb->cfg.sstTrigger, TSDB_DEFAULT_SST_TRIGGER);
+  }
+
+  if (pDb->owner[0] == 0) {
+    (void)snprintf(pDb->owner, TSDB_USER_LEN, "%s", pDb->createUser);
   }
 
   terrno = 0;
@@ -919,6 +927,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
   // add database privileges for user
   SUserObj *pNewUserDuped = NULL;
+#if 0 // 在 DB 中，记录 DB owner 即可。Owner 拥有在 DB 下创建对象的权限，但是 DB 下其他的创建的对象，DB owner 默认是没有权限的。因此，readDbs/writeDbs 不再适用。
   if (!pUser->superUser) {
     TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
     TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),
@@ -927,6 +936,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
                     NULL, _OVER);
     pNewUserDuped = &newUserObj;
   }
+#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
   if (pTrans == NULL) {
@@ -1505,6 +1515,7 @@ _OVER:
 
 static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId) {
   tstrncpy(cfgRsp->db, pDb->name, sizeof(cfgRsp->db));
+  snprintf(cfgRsp->owner, sizeof(cfgRsp->owner), "%s", pDb->owner[0] != 0 ? pDb->owner : pDb->createUser);
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
   cfgRsp->numOfVgroups = pDb->cfg.numOfVgroups;
@@ -1843,6 +1854,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
+  SUserObj  *pUser = NULL;
   SDropDbReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -1859,7 +1871,16 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _OVER);
+  if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb))) {
+    if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser))) {
+      goto _OVER;
+    }
+    char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
+    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
+    if ((code = mndCheckSysObjPrivilege(pMnode, pUser, PRIV_DB_DROP, NULL, objFName, NULL))) {
+      goto _OVER;
+    }
+  }
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
@@ -1926,6 +1947,7 @@ _OVER:
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
 
+  mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
   tFreeSDropDbReq(&dropReq);
   TAOS_RETURN(code);
@@ -2655,7 +2677,7 @@ static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB, pDb), NULL, _OVER);
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
@@ -3089,6 +3111,9 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
+  char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
+  bool showAnyDb = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_SHOW_DATABASES, NULL, objFName, NULL));
 
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {
@@ -3113,8 +3138,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus, true);
     if (pShow->pIter == NULL) break;
-
-    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {
+    if (showAnyDb || mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SHOW_DATABASES, pDb) == 0) {
       int32_t numOfTables = 0;
       sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
       mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);

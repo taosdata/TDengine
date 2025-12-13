@@ -238,6 +238,8 @@ static SSdbRaw *mndIdxActionEncode(SIdxObj *pIdx) {
   SDB_SET_INT64(pRaw, dataPos, pIdx->dbUid, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_IDX_RESERVE_SIZE, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pIdx->createUser, TSDB_USER_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pIdx->owner, TSDB_USER_LEN, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -287,6 +289,12 @@ static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pIdx->dbUid, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_IDX_RESERVE_SIZE, _OVER)
+  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
+    SDB_GET_BINARY(pRaw, dataPos, pIdx->createUser, TSDB_USER_LEN, _OVER)
+  }
+  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
+    SDB_GET_BINARY(pRaw, dataPos, pIdx->owner, TSDB_USER_LEN, _OVER)
+  }
 
   terrno = 0;
 
@@ -786,11 +794,13 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
   memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   memcpy(idxObj.colName, req->colName, TSDB_COL_NAME_LEN);
+  (void)snprintf(idxObj.createUser, TSDB_USER_LEN, "%s", pReq->info.conn.user);
 
   idxObj.createdTime = taosGetTimestampMs();
   idxObj.uid = mndGenerateUid(req->idxName, strlen(req->idxName));
   idxObj.stbUid = pStb->uid;
   idxObj.dbUid = pStb->dbUid;
+  
 
   int8_t  hasIdx = 0;
   int32_t tag = mndFindSuperTableTagId(pStb, req->colName, &hasIdx);

@@ -140,6 +140,12 @@ typedef struct STokenTriplet {
   SToken    name[3];
 } STokenTriplet;
 
+typedef struct {
+  SToken     first;
+  SToken     second;
+  SNodeList* cols;
+} SPrivLevelArgs;
+
 typedef struct SShowTablesOption {
   EShowKind kind;
   SToken    dbName;
@@ -157,6 +163,11 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
+
+SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs prev, SPrivSetArgs curr);
+SPrivSetArgs privArgsSetType(SAstCreateContext* pCxt, EPrivType type);
+SPrivSetArgs privArgsSetCols(SAstCreateContext* pCxt, SNodeList* selectCols, SNodeList* insertCols,
+                             SNodeList* updateCols);
 
 SNode*     createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId);
 SNode*     createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);
@@ -342,6 +353,9 @@ void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions, bool ignoreExisting);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
+SNode* createCreateRoleStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pName);
+SNode* createDropRoleStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pName);
+SNode* createAlterRoleStmt(SAstCreateContext* pCxt, SToken* pName, int8_t alterType, void* alterInfo);
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId);
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort);
 SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force, bool unsafe);
@@ -411,10 +425,10 @@ SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, cons
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force);
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
-SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
-                       SNode* pTagCond);
-SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
-                        SNode* pTagCond);
+SNode* createGrantStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                       SNode* pTagCond, SNodeList* pRows, int8_t optrType);
+SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                        SNode* pTagCond, SNodeList* pRows, int8_t optrType);
 SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere);
 SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery);
 SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery);
