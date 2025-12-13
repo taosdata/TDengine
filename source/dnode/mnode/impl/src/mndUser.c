@@ -4101,6 +4101,10 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
+  if (0 == strcmp(dropReq.user, TSDB_DEFAULT_USER)) {
+    return TSDB_CODE_MND_NO_RIGHTS;
+  }
+
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, dropReq.user, &pUser), &lino, _OVER);
 
   code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);

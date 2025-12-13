@@ -33,7 +33,6 @@ typedef struct SAuthRewriteCxt {
 } SAuthRewriteCxt;
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
-static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type);
 
 static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
                                bool isView, bool effective, SUserAuthInfo* pAuth) {
@@ -131,6 +130,17 @@ _exit:
 
 static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond) {
   return checkAuthImpl(pCxt, pDbName, pTabName, type, pCond, false, false);
+}
+
+static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
+  return checkAuth(pCxt, NULL, NULL, type, NULL);
+}
+
+static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type) {
+  if(!pDbName) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  return checkAuth(pCxt, pDbName, pTabName, type, NULL);
 }
 
 static int32_t checkEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
@@ -264,14 +274,15 @@ static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
   return code;
 }
 
-#if 0
 static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
-  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->userName, TSDB_DEFAULT_USER)) {
+  // if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->userName, TSDB_DEFAULT_USER)) {
+  //   return TSDB_CODE_PAR_PERMISSION_DENIED;
+  // }
+  if (0 == strcmp(pStmt->userName, TSDB_DEFAULT_USER)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  return TSDB_CODE_SUCCESS;
+  return authSysPrivileges(pCxt, (void*)pStmt, PRIV_USER_DROP);  // root has SYSDBA role with USER_DROP privilege
 }
-#endif
 
 static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   SNode*      pTagCond = NULL;
@@ -510,17 +521,6 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
   return 0;  // return 0 and check owner later since rsma ctgCatalog not implemented yet
 }
 
-static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
-  return checkAuth(pCxt, NULL, NULL, type, NULL);
-}
-
-static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type) {
-  if(!pDbName) {
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
-  }
-  return checkAuth(pCxt, pDbName, pTabName, type, NULL);
-}
-
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pStmt)) {
@@ -535,8 +535,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_USER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
     case QUERY_NODE_DROP_USER_STMT:
-      // return authDropUser(pCxt, (SDropUserStmt*)pStmt);
-      return authSysPrivileges(pCxt, pStmt, PRIV_USER_DROP);  // root has SYSDBA role with USER_DROP privilege
+      return authDropUser(pCxt, (SDropUserStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
       return authDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:
