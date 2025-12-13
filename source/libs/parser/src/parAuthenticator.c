@@ -372,7 +372,7 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
 }
 
 static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
-  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   if (IS_SYS_DBNAME(pStmt->streamDbName)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
@@ -381,12 +381,19 @@ static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   if (pStmt->pTrigger) {
-    SStreamTriggerNode *pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
-    STableNode* pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
-    if (pTriggerTable && IS_SYS_DBNAME(pTriggerTable->dbName)) {
-      return TSDB_CODE_PAR_PERMISSION_DENIED;
+    SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+    STableNode*         pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
+    if (pTriggerTable) {
+      if (IS_SYS_DBNAME(pTriggerTable->dbName)) return TSDB_CODE_PAR_PERMISSION_DENIED;
+      PAR_ERR_RET(authObjPrivileges(pCxt, pTriggerTable->dbName, pTriggerTable->tableName, PRIV_TBL_SELECT));
     }
   }
+
+  PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->streamDbName, NULL, PRIV_DB_USE));
+  PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_DB_USE));
+  PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_TBL_CREATE));
+  // TODO: check PRIV_STREAM_CREATE on db.table
+
   return code;
 }
 
