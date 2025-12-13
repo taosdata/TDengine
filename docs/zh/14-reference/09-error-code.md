@@ -137,11 +137,11 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000022F | Table is not a super table        | 当前语句中的表名不是超级表   | 检查当前语句中所用表名是否是超级表                                               |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 内部缓存出错      | 保留现场和日志，github 上报 issue                                                |
 | 0x80000238 | Invalid TOTP code                 | 输入的 TOTP 验证码格式错误   | 检查并重新输入正确的 TOTP 验证码                                                 |
-| 0x80000239 |  reached the maximum sessions per user limit      | 单个用户创建了太多的 session |   检查限制       |
+| 0x80000239 | reached the maximum sessions per user limit      | 单个用户创建了太多的 session |   检查限制       |
 | 0x8000023A | reached the maximum connection timeout limit      | conn 超时                   | 检查 conn 超时设置|
 | 0x8000023B | reached the maximum connection idle timeout limit | conn 空闲超时              |  无              |
-| 0x8000023C |  reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
-| 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   |  检查 SQL |      
+| 0x8000023C | reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
+| 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |      
 | 0x800002FF | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 #### mnode
