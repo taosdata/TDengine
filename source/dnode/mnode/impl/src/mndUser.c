@@ -2902,11 +2902,16 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_OPS_NOT_SUPPORT, &lino, _OVER);  // enterprise feature
   }
 #endif
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
+  }
 
   if (createReq.isImport != 1) {
-    TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER), &lino, _OVER);
+    // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, NULL, NULL, NULL), &lino, _OVER);
   } else if (strcmp(pReq->info.conn.user, "root") != 0) {
-    mError("The operation is not permitted, user:%s", pReq->info.conn.user);
+    mError("The operation is not permitted to create user:%s", pReq->info.conn.user);
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
   }
 
@@ -2932,11 +2937,6 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   code = mndAcquireRole(pMnode, createReq.user, &pRole);
   if (pRole != NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_ROLE_ALREADY_EXIST, &lino, _OVER);
-  }
-
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
   }
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_USER), &lino, _OVER);

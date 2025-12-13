@@ -628,7 +628,8 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
 
   mInfo("role:%s, start to create by %s", createReq.name, pOperUser->user);
 
-  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ROLE));
+  // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ROLE));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, NULL, NULL, NULL));
 
   if (createReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -689,12 +690,17 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = 0, lino = 0;
   SRoleObj    *pObj = NULL;
+  SUserObj    *pOperUser = NULL;
   SDropRoleReq dropReq = {0};
 
   TAOS_CHECK_EXIT(tDeserializeSDropRoleReq(pReq->pCont, pReq->contLen, &dropReq));
-
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_USER_FROM_CONN);
+  }
   mInfo("role:%s, start to drop", dropReq.name);
-  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ROLE));
+  // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ROLE));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, NULL, NULL, NULL));
 
   if (dropReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -711,6 +717,7 @@ _exit:
     mError("role:%s, failed to drop at line %d since %s", dropReq.name, lino, tstrerror(code));
   }
   mndReleaseRole(pMnode, pObj);
+  mndReleaseUser(pMnode, pOperUser);
   tFreeSDropRoleReq(&dropReq);
   TAOS_RETURN(code);
 }
