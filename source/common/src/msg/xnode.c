@@ -548,7 +548,7 @@ _exit:
 }
 
 int32_t tDeserializeSMUpdateXnodeTaskReq(void *buf, int32_t bufLen, SMUpdateXnodeTaskReq *pReq) {
-  printf("DeserializeUpdateXnodeTask: %d\n", pReq->tid);
+  printf("\nDeserializeUpdateXnodeTask: %d\n", pReq->tid);
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -558,14 +558,19 @@ int32_t tDeserializeSMUpdateXnodeTaskReq(void *buf, int32_t bufLen, SMUpdateXnod
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   DECODESQL();
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->tid));
+  printf("\nDeserializeUpdateXnodeTask 1: %d\n", pReq->tid);
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->name, true));
+  printf("\nDeserializeUpdateXnodeTask 2: %d\n", pReq->tid);
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->via));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->xnodeId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->status));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->jobs));
   TAOS_CHECK_EXIT(xDeserializeTaskSource(&decoder, &pReq->source));
+  printf("\nDeserializeUpdateXnodeTask 3: %d\n", pReq->tid);
   TAOS_CHECK_EXIT(xDeserializeTaskSink(&decoder, &pReq->sink));
+  printf("\nDeserializeUpdateXnodeTask 4: %d\n", pReq->tid);
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->parser, true));
+  printf("\nDeserializeUpdateXnodeTask 5: %d\n", pReq->tid);
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->reason, true));
   tEndDecode(&decoder);
 
