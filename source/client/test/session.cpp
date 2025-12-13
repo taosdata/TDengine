@@ -923,9 +923,9 @@ TEST(sessionTest, session1) {
     code = sessMgtUpdateUserMetric(users[i], &para); 
     ASSERT(code == 0);
   }
+
+  
   sessMgtDestroy();
-  
-  
  }
 
 
