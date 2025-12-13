@@ -139,6 +139,11 @@ Below are the business error codes for each module.
 | 0x8000022F | Table is not a supertable         | Table name in the statement is not a supertable | Check if the table name used in the statement is a supertable                     |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 internal cache error                 | Preserve the scene and logs, report issue on GitHub                               |
 | 0x80000238 | Invalid TOTP code                 | Invalid TOTP code                               | Check and enter the correct TOTP code                                             |
+| 0x80000239 |  reached the maximum sessions per user limit |   reached the maximum sessions per user limit      | Check user parameter | 
+| 0x8000023A |  reached the maximum connection timeout limit|    reached the maximum connection timeout limit    | Check user parameter|
+| 0x8000023B |   reached the maximum connection idle timeout limit| reached the maximum connection idle timeout limit |  Check user parameter|
+| 0x8000023C |   reached the maximum concurrency limit        |  reached the maximum concurrency limit           |  Check user paramemter|
+| 0x8000023D | reached the maximum call vnode limit           | reached the maximum call vnode limit    | Check user parameter|
 | 0x800002FF | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
 #### mnode
