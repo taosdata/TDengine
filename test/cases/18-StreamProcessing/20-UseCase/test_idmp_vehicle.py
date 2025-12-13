@@ -1118,7 +1118,7 @@ class Test_IDMP_Vehicle:
         )
 
         # mem
-        tdSql.checkDataMem(sql, data)
+        tdSql.checkDataMemLoop(sql, data)
 
         # not no data
         tdSql.checkResultsBySql (
@@ -1150,7 +1150,7 @@ class Test_IDMP_Vehicle:
         )
 
         # mem
-        tdSql.checkDataMem(sql, data)
+        tdSql.checkDataMemLoop(sql, data)
 
         # not no data
         tdSql.checkResultsBySql (

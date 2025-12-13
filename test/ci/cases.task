@@ -104,6 +104,7 @@
 ## 08-Keep
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_keep_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mlevel_basic.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mlevel_except.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mutil_stage.py
 ## 09-Stt
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/09-Stt/test_stt_blocks_check.py
@@ -137,8 +138,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_ttl.py
 ## 03-PrimaryKey
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_basic.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_advance.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_create.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_delete.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_fun.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_insert.py
 
 # 04-SuperTables
@@ -227,6 +231,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_influxdb_line.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_json.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_telnet.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_restart.py
 ## 04-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Import/test_write_import_csv.py
 ## 05-Others
@@ -263,9 +268,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_bugs.py
 ## 04-OrderBy
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_double.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_order_by_select_list.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_limit.py
@@ -274,7 +279,13 @@
 ## 08-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_lastrow.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_interval.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_str.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_math.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_time.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_26.py
+
 ## 09-Having
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having.py
@@ -293,6 +304,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/14-Tags/test_tag_json.py
 ## 15-Explain
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_explain.py
+## 16-PartitionBy
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
 
@@ -371,7 +384,9 @@
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_bugs.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_as_param.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_and_last_row.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_minmaxlast_interval.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_model.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_520_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_json.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_cols.py
@@ -445,6 +460,8 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full2.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func_cursor.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_manyblocks.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_multitables.py
@@ -626,6 +643,7 @@
 # 19-TSMAs
 
 90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
 
 # 20-RSMAs
 
@@ -634,8 +652,8 @@
 # 21-MetaData
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_change.py -N 3 -M 3
-,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_sysdb.py
-,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_sysdb2.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_information_schema.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_ins_tables.py
 
 # 22-PerformanceData
 
@@ -669,6 +687,7 @@
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_subscribe.py
 
 # 26-NodeManager
 
@@ -774,20 +793,31 @@
 
 # 01-Taosd
 ,,n,.,pytest cases/80-Components/01-Taosd/test_com_cmdline.py
+,,n,.,pytest cases/80-Components/01-Taosd/test_com_taosd_log.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_persisit_config.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_audit.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_monitor.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_telemetry.py
 # 02-Taosc
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_count_always_return_value.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_taosc_hot_refresh_config.py
 
 # 81-Tools
 
 ## 01-Check
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_error_code.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
+
 ## 02-Taos
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_error.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_net_chk.py
 ## 03-Benchmark
 ,,n,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_bugs.py -B
@@ -866,38 +896,9 @@
 
 ## system_test
 ### 2-query
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_error.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_func.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_varchar.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_func_group.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_expr.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_project_group.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py
-# ​​​Special gap before priority support
-#,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade_all.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_para_tms2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_str.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_math.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_time.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery_26.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_unit.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_out_of_order.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_null.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_insert_null_none.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py
@@ -931,25 +932,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py
-#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
-,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
-#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
-,,n,.,pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_orderBy.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaBasic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py
@@ -965,7 +954,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4382.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4403.py
@@ -983,41 +971,13 @@
 
 
 # ​​​Special gap before priority support
-90,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_odbc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill_with_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
-
-
-### 1-insert (empty)
-
-### 0-others
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_error.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_telemetry.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_monitor.py
-#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_new_monitor.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
-#newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_time_range_wise.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_empty_identifier.py
-#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
-#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan_vgroups.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_grant.py
 
 #develop test
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py

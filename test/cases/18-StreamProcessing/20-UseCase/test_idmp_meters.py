@@ -970,7 +970,7 @@ class Test_IDMP_Meters:
             [1752574200000, 10, 40, 60, 200, 350, 1000],
             [1752574800000, 16, 30, 80, 100, 500, 1600],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream3 ................................. successfully.")
 
         # other sub
@@ -1001,7 +1001,7 @@ class Test_IDMP_Meters:
             [1752574200000, 10, 40, 60, 200, 350, 1000],
             [1752574800000, 16, 30, 80, 100, 500, 1600],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream3_sub1 ............................ successfully.")
 
     def verify_stream3_sub2(self):
@@ -1015,7 +1015,7 @@ class Test_IDMP_Meters:
             [1752574200000, 10, 40, 60, 200, 350, 1000],
             [1752575160000, 10, 70, 80, 100, 500, 1000],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream3_sub2 ............................ successfully.")
 
     def verify_stream3_sub3(self):
@@ -1028,7 +1028,7 @@ class Test_IDMP_Meters:
             # ts           cnt  curmin curmax volmin volmax, sumpower
             [1752574200000, 10, 40, 60, 200, 350, 1000]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream3_sub3 ............................ successfully.")
 
     def verify_stream3_sub4(self):
@@ -1044,7 +1044,7 @@ class Test_IDMP_Meters:
             [1752574200000, 10, 40, 60, 200, 350, 1000],
             [1752575160000, 10, 70, 80, 100, 500, 1000],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream3_sub4 ............................ successfully.")
 
     def verify_stream3_sub5(self):
@@ -1295,7 +1295,7 @@ class Test_IDMP_Meters:
             [1752563000000, 76, 1752566840000],
             [1752574200000, 225, 1752581340000],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream5 sub5 ............................ successfully.")
 
@@ -1375,7 +1375,7 @@ class Test_IDMP_Meters:
             [1752576240000, 5, 5, 5, 4, 60, 60, 5],
             [1752576660000, 5, 5, 5, 5, 60, 60, 5],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream6_sub2 ............................ successfully.")
 
@@ -1398,7 +1398,7 @@ class Test_IDMP_Meters:
             [1752576180000, 5, 5, 5, 3, 60, 60, 5],
             [1752576600000, 5, 5, 5, 5, 60, 60, 5],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream6_sub3 ............................ successfully.")
 
@@ -1421,7 +1421,7 @@ class Test_IDMP_Meters:
             [1752576240000, 5, 5, 5, 4, 60, 60, 5],
             [1752576660000, 5, 5, 5, 5, 60, 60, 5],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream6_sub5 ............................ successfully.")
 
@@ -1447,7 +1447,7 @@ class Test_IDMP_Meters:
             [1752574320000, 2, 200, 400],
             [1752574560000, 2, 400, 800],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         # sub
         if checkSub:
@@ -1471,7 +1471,7 @@ class Test_IDMP_Meters:
             [1752574680000, 2, 501, 1002],
             [1752574800000, 2, 600, 1200],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream7_sub1 ............................ successfully.")
 
@@ -1486,7 +1486,7 @@ class Test_IDMP_Meters:
             [1752574680000, 2, 501, 1002],
             [1752574800000, 2, 600, 1200],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream7_sub2 ............................ successfully.")
 
@@ -1500,7 +1500,7 @@ class Test_IDMP_Meters:
             # ts          cnt
             [1752574680000, 2, 501, 1002]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream7_sub3 ............................ successfully.")
 
@@ -1538,7 +1538,7 @@ class Test_IDMP_Meters:
             [1752574680000, 2, 502, 1004],
             [1752574800000, 2, 600, 1200],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         # del sub5
         result_sql = f"select * from tdasset.`result_stream7_sub5` "
@@ -1817,7 +1817,7 @@ class Test_IDMP_Meters:
             [1752574211000, 9],
             [1752574221000, 1],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream10_sub6 ........................... successfully.")
 
     def verify_stream10_sub7(self):
@@ -1881,7 +1881,7 @@ class Test_IDMP_Meters:
             [1752574204000, 1752574214000, 10000, 7, 7, 100, 1400],
             [1752574208000, 1752574218000, 10000, 3, 3, 100, 600],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream11 ................................ successfully.")
 
         # sub
@@ -1906,7 +1906,7 @@ class Test_IDMP_Meters:
             [1752574205000, 1752574215000, 10000, 6, 6, 100, 1200],
             [1752574209000, 1752574219000, 10000, 2, 2, 100, 400],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream11_sub1 ........................... successfully.")
 
@@ -1931,7 +1931,7 @@ class Test_IDMP_Meters:
             [1752574201000, 1752574206000, 5000, 5, 5, 100, 1000],
             [1752574206000, 1752574211000, 5000, 5, 5, 100, 1000],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream11_sub3 ........................... successfully.")
 
@@ -1947,7 +1947,7 @@ class Test_IDMP_Meters:
             # _twstart        _twend        dura wrowcnt,cnt, avg, sum,  tag_tbname
             [1752574200000, 1752574500000, 300000, 11, 11, 100, 2200, "vt_em-11"]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream11_sub4 ........................... successfully.")
 

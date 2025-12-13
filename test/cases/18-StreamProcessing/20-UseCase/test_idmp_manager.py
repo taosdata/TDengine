@@ -748,7 +748,7 @@ class Test_IDMP_Meters:
             [1752574200000, 5, 50, "t1"],
             [1752574200000, 5, 100, "t2"],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream1 ................................. successfully.")
 
         # sub
@@ -765,7 +765,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power  gid
             [1752574200000, 10, 150, 1]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream1 sub1 ............................ successfully.")
 
     def verify_stream1_sub2(self):
@@ -780,7 +780,7 @@ class Test_IDMP_Meters:
             [1752574200000, 5, 100, "vt_2"],
             [1752574200000, 5, 25,  "vt_3"],
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream1 sub2 ............................ successfully.")
 
     #
@@ -796,7 +796,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power
             [1752574200000, 5, 50, "t1"]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream1 again ........................... successfully.")
 
         # sub
@@ -813,7 +813,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power  gid
             [1752574200000, 5, 50, 1]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream1 sub1 again ...................... successfully.")
 
     def verify_stream1_sub3_again(self):
@@ -826,7 +826,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power  gid
             [1752574200000, 5, 50, 1]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream1 sub3 again ...................... successfully.")
 
     #
@@ -842,7 +842,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power
             [1752574200000, 5, 25]
         ]
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream3 ................................. successfully.")
 
     #
@@ -875,7 +875,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         # result_stream4_sub1
         data = [
@@ -887,7 +887,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
     #
     #  verify stream4 again
@@ -910,7 +910,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
 
         # result_stream4_sub1
@@ -925,7 +925,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         print("verify stream4 again ........................... successfully.")
 
@@ -945,7 +945,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream5 ................................. successfully.")
 
         # sub
@@ -965,7 +965,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         # check taosd log
         self.checkTaosdLog("?key=man_stream5_sub1", expect = 1)
@@ -986,7 +986,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)   
+        tdSql.checkDataMemLoop(result_sql, data)   
         print("verify stream6 ................................. successfully.")
 
 
@@ -1007,7 +1007,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)   
+        tdSql.checkDataMemLoop(result_sql, data)   
         print("verify stream7 ................................. successfully.")
 
         # sub
@@ -1028,7 +1028,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)   
+        tdSql.checkDataMemLoop(result_sql, data)   
         print("verify stream7 sub1 ............................ successfully.")
 
 
@@ -1051,7 +1051,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)   
+        tdSql.checkDataMemLoop(result_sql, data)   
         print("verify stream7 again ........................... successfully.")
         '''
 
@@ -1074,7 +1074,7 @@ class Test_IDMP_Meters:
             sql  = result_sql,
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
         print("verify stream7 sub1 again ...................... successfully.")
 
     #
@@ -1103,7 +1103,7 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)
+        tdSql.checkDataMemLoop(result_sql, data)
 
         # drop stream
         tdStream.dropStream("test", "stream8")
