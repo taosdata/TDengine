@@ -12589,12 +12589,11 @@ static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStm
 static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTaskStmt* pStmt) {
   SMUpdateXnodeTaskReq updateReq = {0};
   updateReq.tid = pStmt->tid;
-  if (pStmt->name[0] != '\0') {
-    updateReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, true);
-  }
+  // if (pStmt->name[0] != '\0') {
+    updateReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
+  // }
 
   updateReq.via = pStmt->options->via;
-  // updateReq.xnodeId = pStmt->xnodeId;
   const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
   if (xnodeId != NULL) {
     updateReq.xnodeId = atoi(xnodeId);
