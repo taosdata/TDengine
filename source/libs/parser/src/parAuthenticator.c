@@ -534,7 +534,7 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
                              PRIV_RSMA_SHOW_CREATE);
   }
   if (code == 0) pStmt->hasPrivilege = true;
-  return 0;  // return 0 and check owner later since rsma ctgCatalog not implemented yet
+  return 0;  // return 0 and check owner later in translateShowCreateRsma since rsma ctgCatalog not available yet
 }
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
