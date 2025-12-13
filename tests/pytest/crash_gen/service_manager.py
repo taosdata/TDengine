@@ -833,7 +833,8 @@ class ServiceManagerThread:
             except Empty:
                 break  # break out of for loop, no more trimming
 
-    TD_READY_MSG = "TDengine is initialized successfully"
+    # Updated for TDengine 3.x - the ready message has changed
+    TD_READY_MSG = "The daemon initialized successfully"  # Was: "TDengine is initialized successfully"
 
     def procIpcBatch(self, trimToTarget=0, forceOutput=False):
         '''
