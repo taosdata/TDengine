@@ -101,6 +101,13 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
+
+  SUserSessCfg sessCfg = {.sessPerUser = pUser->sessionPerUser,
+                          .sessConnTime = pUser->connectTime,
+                          .sessConnIdleTime = pUser->connectIdleTime,
+                          .sessMaxConcurrency = pUser->callPerSession,
+                          .sessMaxCallVnodeNum = pUser->vnodePerCall};
+  memcpy(&pRsp->sessCfg, &sessCfg, sizeof(SUserSessCfg));
   pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
   return 0;
 }

@@ -227,7 +227,7 @@ typedef struct {
   int8_t  retryInit;
   int8_t  epsetRetryCnt;
 } SReqCtx;
-typedef enum { Normal, Quit, Release, Register, Update, FreeById } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -391,6 +391,7 @@ int32_t transSendResponse(const STransMsg* msg);
 int32_t transRegisterMsg(const STransMsg* msg);
 int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
+int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func);
 void    transRefSrvHandle(void* handle);
 void    transUnrefSrvHandle(void* handle);
 
@@ -400,6 +401,13 @@ int32_t transGetRefCount(void* handle);
 
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
+
+int32_t transReloadTlsConfig(void* handle, int8_t type);
+
+int32_t transReloadClientTlsConfig(void* handle);
+
+int32_t transReloadServerTlsConfig(void* handle);
+
 
 #endif
 

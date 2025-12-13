@@ -180,6 +180,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET,  "Invalid interval offs
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOTP_CODE,        "Invalid TOTP code")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_PER_USER_LIMIT,         "reached the maximum sessions per user limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_CONN_TIMEOUT,           "reached the maximum connection timeout limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT,      "reached the maximum connection idle timeout limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_MAX_CONCURRENCY_LIMIT,  "reached the maximum concurrency limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT,   "reached the maximum call vnode limit")
+
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
 
 // mnode-common

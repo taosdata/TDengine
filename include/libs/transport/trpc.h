@@ -30,7 +30,11 @@ extern "C" {
 #define TAOS_CONN_CLIENT 1
 #define IsReq(pMsg)      (pMsg->msgType & 1U)
 
-extern int32_t tsRpcHeadSize;
+typedef enum { IP_FORBIDDEN_WHITE_LIST = 1, IP_FORBIDDEN_DATA_TIME_WHITE_LIST = 2 } SForbiddenType;
+
+#define IP_FORBIDDEN_SET_VAL(type, val)     ((type) |= (val))
+#define IP_FORBIDDEN_CHECK_WHITE_LIST(type) ((type)&IP_FORBIDDEN_WHITE_LIST)
+#define IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(type) ((type)&IP_FORBIDDEN_DATA_TIME_WHITE_LIST)
 
 typedef struct {
   SIpAddr  cliAddr;
@@ -135,6 +139,7 @@ typedef struct SRpcInit {
   int64_t readTimeout;  // s
   int8_t  ipv6;
   int8_t  enableSSL;
+  int8_t  enableSasl;
 
   char caPath[PATH_MAX];
   char certPath[PATH_MAX];
@@ -191,7 +196,9 @@ int32_t rpcFreeConnById(void *shandle, int64_t connId);
 
 int32_t rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 int32_t rpcAllocHandle(int64_t *refId);
-int32_t rpcSetIpWhite(void *thandl, void *arg);
+int32_t rpcSetIpWhite(void *thandle, void *arg);
+int32_t rpcSetTimeIpWhite(void *thandle, void *arg);
+int32_t rpcReloadTlsConfig(void* handle, int8_t type);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 
@@ -382,6 +389,7 @@ int32_t rpcFreeConnById(void *shandle, int64_t connId);
 int32_t rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 int32_t rpcAllocHandle(int64_t *refId);
 int32_t rpcSetIpWhite(void *thandl, void *arg);
+int32_t rpcSetTimeIpWhite(void *thandle, void *arg);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 
