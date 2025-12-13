@@ -494,6 +494,14 @@ static int32_t authCreateTsma(SAuthCxt* pCxt, SCreateTSMAStmt* pStmt) {
   return code;
 }
 
+static int32_t authDropTsma(SAuthCxt* pCxt, SDropTSMAStmt* pStmt) {
+  int32_t code = authObjPrivileges(pCxt, ((SDropTSMAStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SDropTSMAStmt*)pStmt)->dbName, ((SDropTSMAStmt*)pStmt)->tsmaName, PRIV_TSMA_DROP);
+  }
+  return code;
+}
+
 static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
   int32_t code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
   if (TSDB_CODE_SUCCESS == code) {
@@ -507,6 +515,14 @@ static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
                              PRIV_RSMA_CREATE);
+  }
+  return code;
+}
+
+static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
+  int32_t code = authObjPrivileges(pCxt, ((SDropRsmaStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SDropRsmaStmt*)pStmt)->dbName, ((SDropRsmaStmt*)pStmt)->rsmaName, PRIV_RSMA_DROP);
   }
   return code;
 }
@@ -615,13 +631,11 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_TSMA_STMT:
       return authCreateTsma(pCxt, (SCreateTSMAStmt*)pStmt);
     case QUERY_NODE_DROP_TSMA_STMT:
-      return authObjPrivileges(pCxt, ((SDropTSMAStmt*)pStmt)->dbName, ((SDropTSMAStmt*)pStmt)->tsmaName,
-                               PRIV_TSMA_DROP);
+      return authDropTsma(pCxt, (SDropTSMAStmt*)pStmt);
     case QUERY_NODE_CREATE_RSMA_STMT:
       return authCreateRsma(pCxt, (SCreateRsmaStmt*)pStmt);
     case QUERY_NODE_DROP_RSMA_STMT:
-      return authObjPrivileges(pCxt, ((SDropRsmaStmt*)pStmt)->dbName, ((SDropRsmaStmt*)pStmt)->rsmaName,
-                               PRIV_RSMA_DROP);
+      return authDropRsma(pCxt, (SDropRsmaStmt*)pStmt);
     case QUERY_NODE_ALTER_RSMA_STMT:
       return authObjPrivileges(pCxt, ((SAlterRsmaStmt*)pStmt)->dbName, ((SAlterRsmaStmt*)pStmt)->rsmaName,
                                PRIV_RSMA_ALTER);
