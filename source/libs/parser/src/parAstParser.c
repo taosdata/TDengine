@@ -619,6 +619,31 @@ static int32_t collectMetaKeyFromCreateIndex(SCollectMetaKeyCxt* pCxt, SCreateIn
     if (TSDB_CODE_SUCCESS == code) {
       code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                    PRIV_TBL_SELECT, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                    PRIV_IDX_CREATE, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
+                                    pCxt->pMetaCache);
+    }
+  }
+  return code;
+}
+
+static int32_t collectMetaKeyFromDropIndex(SCollectMetaKeyCxt* pCxt, SDropIndexStmt* pStmt) {
+  int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->indexDbName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->indexDbName, NULL,
+                                  PRIV_DB_USE, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->indexDbName, pStmt->indexName,
+                                  PRIV_IDX_DROP, pCxt->pMetaCache);
   }
   return code;
 }
@@ -1527,6 +1552,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return collectMetaKeyFromCreateIndex(pCxt, (SCreateIndexStmt*)pStmt);
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return collectMetaKeyFromDropIndex(pCxt, (SDropIndexStmt*)pStmt);
     case QUERY_NODE_CREATE_TOPIC_STMT:
       return collectMetaKeyFromCreateTopic(pCxt, (SCreateTopicStmt*)pStmt);
     case QUERY_NODE_EXPLAIN_STMT:

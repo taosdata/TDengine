@@ -495,6 +495,31 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
   return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
 }
 
+static int32_t authCreateIndex(SAuthCxt* pCxt, SCreateIndexStmt* pStmt) {
+  int32_t code = authObjPrivileges(pCxt, ((SCreateIndexStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SCreateIndexStmt*)pStmt)->dbName, ((SCreateIndexStmt*)pStmt)->tableName,
+                             PRIV_TBL_SELECT);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SCreateIndexStmt*)pStmt)->dbName, ((SCreateIndexStmt*)pStmt)->tableName,
+                             PRIV_IDX_CREATE);
+  }
+
+  return code;
+}
+
+static int32_t authDropIndex(SAuthCxt* pCxt, SDropIndexStmt* pStmt) {
+  int32_t code = authObjPrivileges(pCxt, ((SDropIndexStmt*)pStmt)->indexDbName, NULL, PRIV_DB_USE);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, ((SDropIndexStmt*)pStmt)->indexDbName, ((SDropIndexStmt*)pStmt)->indexName,
+                             PRIV_IDX_DROP);
+  }
+  return code;
+}
+
 static int32_t authCreateTsma(SAuthCxt* pCxt, SCreateTSMAStmt* pStmt) {
   int32_t code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_DB_USE);
   if (TSDB_CODE_SUCCESS == code) {
@@ -655,6 +680,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:
       return authDropView(pCxt, (SDropViewStmt*)pStmt);
+    case QUERY_NODE_CREATE_INDEX_STMT:
+      return authCreateIndex(pCxt, (SCreateIndexStmt*)pStmt);
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return authDropIndex(pCxt, (SDropIndexStmt*)pStmt);
     case QUERY_NODE_CREATE_TSMA_STMT:
       return authCreateTsma(pCxt, (SCreateTSMAStmt*)pStmt);
     case QUERY_NODE_DROP_TSMA_STMT:
