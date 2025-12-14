@@ -29,6 +29,8 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->userStopped));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->createTime));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->updateTime));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->createUser));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->owner));
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -56,6 +58,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->userStopped));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->createTime));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->updateTime));
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->createUser));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->owner));
+  }
 
 _exit:
 
