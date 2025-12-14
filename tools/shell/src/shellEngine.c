@@ -721,8 +721,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%s", buf);
       break;
 
-    case TSDB_DATA_TYPE_BLOB:
-    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+    case TSDB_DATA_TYPE_BLOB: {
       void    *data = NULL;
       uint32_t size = 0;
       if (taosAscii2Hex(val, length, &data, &size) < 0) {
@@ -730,6 +729,10 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       }
       shellPrintNChar(data, size, width);
       taosMemoryFree(data);
+      break;
+    }
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      shellPrintNChar(val, length, width);
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL:

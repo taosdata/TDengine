@@ -26,6 +26,7 @@
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "tgrant.h"
+#include "types.h"
 
 #define COL_DATA_SET_VAL_AND_CHECK(pCol, rows, buf, isNull) \
   do {                                                      \
@@ -327,7 +328,7 @@ static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
   code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_BLOB, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
 
@@ -449,6 +450,7 @@ int32_t formatDurationOrKeep(char* buffer, int64_t bufSize, int32_t timeInMinute
 }
 
 static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, char* dbFName, SDbCfgInfo* pCfg) {
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
   pBlock->info.rows = 1;
 
@@ -502,18 +504,17 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   UNUSED(formatDurationOrKeep(compactEndTimeStr, sizeof(compactEndTimeStr), pCfg->compactEndTime));
 
   if (IS_SYS_DBNAME(dbName)) {
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE DATABASE `%s`", dbName);
+    len += tsnprintf(buf2 + HEAD_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - HEAD_SIZE, "CREATE DATABASE `%s`", dbName);
   } else {
     len +=
-        tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+        tsnprintf(buf2 + HEAD_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - HEAD_SIZE,
                   "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %s "
                   "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
                   "PRECISION '%s' REPLICA %d "
                   "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
                   "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
                   " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
-                  "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %"PRIi8 "h",
+                  "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8 "h",
                   dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, durationStr,
                   pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str, keep1Str, keep2Str,
                   pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
@@ -523,14 +524,14 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
                   pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr, pCfg->compactTimeOffset);
 
     if (pRetentions) {
-      len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                       " RETENTIONS %s", pRetentions);
+      len += tsnprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - HEAD_SIZE, " RETENTIONS %s",
+                       pRetentions);
     }
   }
 
   taosMemoryFree(pRetentions);
 
-  (varDataLen(buf2)) = len;
+  (blobDataLen(buf2)) = len;
 
   COL_DATA_SET_VAL_AND_CHECK(pCol2, 0, buf2, false);
 
@@ -562,7 +563,7 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD1_LEN, 1);
   code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_BLOB, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
 
@@ -586,7 +587,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_VIEW_RESULT_FIELD1_LEN, 1);
   code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_VIEW_RESULT_FIELD2_LEN, 2);
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_BLOB, SHOW_CREATE_VIEW_RESULT_FIELD2_LEN, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
 
@@ -598,23 +599,25 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
+#define LTYPE_LEN                                    \
+  (32 + 60 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN + \
+   10)  // 60 byte for compress info, TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN for column ref
+
 static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
-#define LTYPE_LEN                                    \
-  (32 + 60 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN + \
-   10)  // 60 byte for compress info, TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN for column ref
     char type[LTYPE_LEN];
     snprintf(type, LTYPE_LEN, "%s", tDataTypes[pSchema->type].name);
     int typeLen = strlen(type);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
         TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
-      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)", (int32_t)(pSchema->bytes - HEAD_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
-                           (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+                           (int32_t)((pSchema->bytes - HEAD_SIZE) / TSDB_NCHAR_SIZE));
     } else if (IS_DECIMAL_TYPE(pSchema->type)) {
       uint8_t precision, scale;
       decimalFromTypeMod(pCfg->pSchemaExt[i].typeMod, &precision, &scale);
@@ -640,17 +643,18 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     if (!(pSchema->flags & COL_IS_KEY)) {
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "%s`%s` %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "%s`%s` %s",
+                        ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
     } else {
       char* pk = "COMPOSITE KEY";
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "%s`%s` %s %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type, pk);
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "%s`%s` %s %s",
+                        ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type, pk);
     }
   }
 }
 
 static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
@@ -668,13 +672,13 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
       continue;
     }
 
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s` %s", ((i > 1) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
-
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "%s`%s` %s",
+                      ((i > 1) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
   }
 }
 
 static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
@@ -682,28 +686,29 @@ static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
     snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
     if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
         TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
-      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
-               (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)", (int32_t)(pSchema->bytes - HEAD_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
-               (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+               (int32_t)((pSchema->bytes - HEAD_SIZE) / TSDB_NCHAR_SIZE));
     }
 
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s` %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "%s`%s` %s",
+                      ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
   }
 }
 
 static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s`", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName));
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "%s`%s`",
+                      ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName));
   }
 }
 
 static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
@@ -731,8 +736,8 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
       }
       *writer = '\0';
 
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "'%s'", escapedJson);
+      *len +=
+          tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "'%s'", escapedJson);
       taosMemoryFree(escapedJson);
     } else {
       taosMemoryFree(pJson);
@@ -750,13 +755,11 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     if (i > 0) {
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        ", ");
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), ", ");
     }
 
     if (j >= valueNum) {
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "NULL");
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "NULL");
       continue;
     }
 
@@ -769,25 +772,23 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
       char    type = pTagVal->type;
       int32_t tlen = 0;
 
-      int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len);
+      int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len);
       if (leftSize <= 0) {
         qError("no enough space to store tag value, leftSize:%" PRId64, leftSize);
         code = TSDB_CODE_APP_ERROR;
         TAOS_CHECK_ERRNO(code);
       }
       if (IS_VAR_DATA_TYPE(type)) {
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, type, pTagVal->pData, pTagVal->nData, &tlen);
+        code = dataConverToStr(buf + HEAD_SIZE + *len, leftSize, type, pTagVal->pData, pTagVal->nData, &tlen);
         TAOS_CHECK_ERRNO(code);
       } else {
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, type, &pTagVal->i64, tDataTypes[type].bytes,
-                               &tlen);
+        code = dataConverToStr(buf + HEAD_SIZE + *len, leftSize, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
         TAOS_CHECK_ERRNO(code);
       }
       *len += tlen;
       j++;
     } else {
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "NULL");
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "NULL");
     }
   }
 _exit:
@@ -797,53 +798,51 @@ _exit:
 }
 
 static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   if (pCfg->commentLen > 0) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      " COMMENT '%s'", pCfg->pComment);
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), " COMMENT '%s'",
+                      pCfg->pComment);
   } else if (0 == pCfg->commentLen) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      " COMMENT ''");
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), " COMMENT ''");
   }
 
   if (NULL != pDbCfg->pRetensions && pCfg->watermark1 > 0) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len),
                       " WATERMARK %" PRId64 "a", pCfg->watermark1);
     if (pCfg->watermark2 > 0) {
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        ", %" PRId64 "a", pCfg->watermark2);
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), ", %" PRId64 "a",
+                        pCfg->watermark2);
     }
   }
 
   if (NULL != pDbCfg->pRetensions && pCfg->delay1 > 0) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len),
                       " MAX_DELAY %" PRId64 "a", pCfg->delay1);
     if (pCfg->delay2 > 0) {
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        ", %" PRId64 "a", pCfg->delay2);
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), ", %" PRId64 "a",
+                        pCfg->delay2);
     }
   }
 
   int32_t funcNum = taosArrayGetSize(pCfg->pFuncs);
   if (NULL != pDbCfg->pRetensions && funcNum > 0) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      " ROLLUP(");
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), " ROLLUP(");
     for (int32_t i = 0; i < funcNum; ++i) {
       char* pFunc = taosArrayGet(pCfg->pFuncs, i);
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "%s%s", ((i > 0) ? ", " : ""), pFunc);
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "%s%s",
+                        ((i > 0) ? ", " : ""), pFunc);
     }
-    *len +=
-        snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), ")");
+    *len += snprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), ")");
   }
 
   if (pCfg->ttl > 0) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      " TTL %d", pCfg->ttl);
+    *len +=
+        tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), " TTL %d", pCfg->ttl);
   }
 
   if (pCfg->keep > 0) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      " KEEP %dm", pCfg->keep);
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), " KEEP %dm",
+                      pCfg->keep);
   }
 
   if (TSDB_SUPER_TABLE == pCfg->tableType || TSDB_NORMAL_TABLE == pCfg->tableType) {
@@ -856,29 +855,26 @@ static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STab
 
     if (nSma < pCfg->numOfColumns && nSma > 0) {
       bool smaOn = false;
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        " SMA(");
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), " SMA(");
       for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
         if (IS_BSMA_ON(pCfg->pSchemas + i)) {
           if (smaOn) {
-            *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len,
-                              SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), ",`%s`",
+            *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), ",`%s`",
                               (pCfg->pSchemas + i)->name);
           } else {
             smaOn = true;
-            *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len,
-                              SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), "`%s`",
+            *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), "`%s`",
                               (pCfg->pSchemas + i)->name);
           }
         }
       }
-      *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, ")");
+      *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - HEAD_SIZE, ")");
     }
   }
 
   if (pCfg->virtualStb) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      " VIRTUAL %d", pCfg->virtualStb);
+    *len += tsnprintf(buf + HEAD_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + *len), " VIRTUAL %d",
+                      pCfg->virtualStb);
   }
 }
 
@@ -901,58 +897,51 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
 
   int32_t len = 0;
 
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   if (TSDB_SUPER_TABLE == pCfg->tableType) {
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE STABLE `%s` (", expandIdentifier(tbName, buf1));
+    len += tsnprintf(buf2 + HEAD_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - HEAD_SIZE, "CREATE STABLE `%s` (",
+                     expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                     ") TAGS (");
+    len += tsnprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ") TAGS (");
     appendTagFields(buf2, &len, pCfg);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    len += snprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE TABLE `%s` ", expandIdentifier(tbName, buf1));
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                     "USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
+    len += tsnprintf(buf2 + HEAD_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - HEAD_SIZE, "CREATE TABLE `%s` ",
+                     expandIdentifier(tbName, buf1));
+    len += tsnprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), "USING `%s` (",
+                     expandIdentifier(pCfg->stbName, buf1));
     appendTagNameFields(buf2, &len, pCfg);
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                     ") TAGS (");
+    len += tsnprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ") TAGS (");
     code = appendTagValues(buf2, &len, pCfg, charsetCxt);
     TAOS_CHECK_ERRNO(code);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    len += snprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_NORMAL_TABLE == pCfg->tableType) {
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE TABLE `%s` (", expandIdentifier(tbName, buf1));
+    len += tsnprintf(buf2 + HEAD_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - HEAD_SIZE, "CREATE TABLE `%s` (",
+                     expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    len += snprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_VIRTUAL_NORMAL_TABLE == pCfg->tableType) {
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
+    len += tsnprintf(buf2 + HEAD_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - HEAD_SIZE, "CREATE VTABLE `%s` (",
+                     expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    len += snprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ")");
   } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
+    len += tsnprintf(buf2 + HEAD_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - HEAD_SIZE, "CREATE VTABLE `%s` (",
+                     expandIdentifier(tbName, buf1));
     appendColRefFields(buf2, &len, pCfg);
-    len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                    ") USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
+    len += snprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ") USING `%s` (",
+                    expandIdentifier(pCfg->stbName, buf1));
     appendTagNameFields(buf2, &len, pCfg);
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                     ") TAGS (");
+    len += tsnprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ") TAGS (");
     code = appendTagValues(buf2, &len, pCfg, charsetCxt);
     TAOS_CHECK_ERRNO(code);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    len += snprintf(buf2 + HEAD_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ")");
   }
 
-  varDataLen(buf2) = (len > 65535) ? 65535 : len;
+  blobDataLen(buf2) = (len > blobDataMaxLen) ? (blobDataMaxLen) : len;
 
   code = colDataSetVal(pCol2, 0, buf2, false);
   TAOS_CHECK_ERRNO(code);
@@ -966,6 +955,8 @@ _exit:
 static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateViewStmt* pStmt) {
   int32_t code = 0;
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
+
+  int32_t HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   pBlock->info.rows = 1;
 
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
@@ -986,7 +977,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
     taosMemoryFree(buf2);
     return TSDB_CODE_APP_ERROR;
   }
-  snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
+  snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - HEAD_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
            pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));
   varDataLen(buf2) = (len > 65535) ? 65535 : len;
@@ -998,6 +989,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
 
 extern const char* fmGetFuncName(int32_t funcId);
 static int32_t setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
+  int32_t       HEAD_SIZE = BLOBSTR_HEADER_SIZE;
   int32_t       code = 0, lino = 0;
   char*         buf2 = NULL;
   SRsmaInfoRsp* pMeta = pStmt->pRsmaMeta;
@@ -1025,22 +1017,22 @@ static int32_t setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   TAOS_CHECK_EXIT(tNameFromString(&name, pMeta->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
 
   int32_t len = 0;
-  len += tsnprintf(varDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+  len += tsnprintf(blobDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - HEAD_SIZE,
                        "CREATE RSMA `%s` ON `%s`.`%s` FUNCTION(", expandIdentifier(pStmt->rsmaName, buf1),
                        expandIdentifier(name.dbname, buf1), expandIdentifier(name.tname, buf1));
   for (int32_t i = 0; i < pMeta->nFuncs; ++i) {
-    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                         "%s%s(`%s`)", (i > 0) ? "," : "", fmGetFuncName(pMeta->funcIds[i]),
+    len += tsnprintf(blobDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), "%s%s(`%s`)",
+                     (i > 0) ? "," : "", fmGetFuncName(pMeta->funcIds[i]),
                          expandIdentifier(*(char**)TARRAY_GET_ELEM(pMeta->colNames, i), buf1));
   }
-  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                       ") INTERVAL(%d%c", pMeta->interval[0], pMeta->intervalUnit);
+  len += tsnprintf(blobDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ") INTERVAL(%d%c",
+                       pMeta->interval[0], pMeta->intervalUnit);
   if (pMeta->interval[1] > 0) {
-    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                         ",%d%c", pMeta->interval[1], pMeta->intervalUnit);
+    len += tsnprintf(blobDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ",%d%c",
+                         pMeta->interval[1], pMeta->intervalUnit);
   }
-  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
-  varDataLen(buf2) = len;
+  len += tsnprintf(blobDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (HEAD_SIZE + len), ")");
+  blobDataLen(buf2) = len;
   code = colDataSetVal(pCol2, 0, buf2, false);
 _exit:
   taosMemoryFree(buf2);
