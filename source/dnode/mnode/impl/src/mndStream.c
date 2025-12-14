@@ -342,7 +342,8 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMC
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
 
   if (pCreate->streamDB) {
-    code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->streamDB);
+    // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->streamDB);
+    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, pCreate->streamDB, NULL, NULL);
     if (code) {
       mstsError("user %s failed to create stream %s in db %s since %s", pUser, pCreate->name, pCreate->streamDB, tstrerror(code));
     }
@@ -350,18 +351,31 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMC
   }
 
   if (pCreate->triggerDB) {
-    code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, pCreate->triggerDB);
+    // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, pCreate->triggerDB);
+    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, pCreate->triggerDB, NULL, NULL);
     if (code) {
       mstsError("user %s failed to create stream %s using trigger db %s since %s", pUser, pCreate->name, pCreate->triggerDB, tstrerror(code));
     }
     TSDB_CHECK_CODE(code, lino, _OVER);
+#if 0  // TODO check the owner of trigger table
+    if (pCreate->triggerTblName) {
+      // check trigger table privilege
+      code = mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TBL_SELECT, "", pCreate->triggerDB, pCreate->triggerTblName);
+      if (code) {
+        mstsError("user %s failed to create stream %s using trigger table %s.%s since %s", pUser, pCreate->name,
+                  pCreate->triggerDB, pCreate->triggerTblName, tstrerror(code));
+      }
+      TSDB_CHECK_CODE(code, lino, _OVER);
+    }
+#endif
   }
 
   if (pCreate->calcDB) {
     int32_t dbNum = taosArrayGetSize(pCreate->calcDB);
     for (int32_t i = 0; i < dbNum; ++i) {
       char* calcDB = taosArrayGetP(pCreate->calcDB, i);
-      code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, calcDB);
+      // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, calcDB);
+      code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, calcDB, NULL, NULL);
       if (code) {
         mstsError("user %s failed to create stream %s using calcDB %s since %s", pUser, pCreate->name, calcDB, tstrerror(code));
       }
@@ -370,7 +384,8 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMC
   }
 
   if (pCreate->outDB) {
-    code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->outDB);
+    // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->outDB);
+    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, pCreate->outDB, NULL, NULL);
     if (code) {
       mstsError("user %s failed to create stream %s using out db %s since %s", pUser, pCreate->name, pCreate->outDB, tstrerror(code));
     }
