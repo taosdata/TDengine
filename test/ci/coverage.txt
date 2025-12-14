@@ -10,6 +10,8 @@
 /home/TDinternal/community/utils/test/c/tmq_ts5466.c
 /home/TDinternal/community/utils/test/c/tmq_ts6115.c
 /home/TDinternal/community/utils/test/c/tmq_ts7402.c
+/home/TDinternal/community/utils/test/c/tmq_ts7662.c
+/home/TDinternal/community/utils/test/c/tmq_get_meta_json.c
 /home/TDinternal/community/utils/test/c/varbinary_test.c
 /home/TDinternal/community/utils/test/c/write_raw_block_test.c
 /home/TDinternal/community/contrib/lemon/lemon.c
@@ -39,12 +41,10 @@
 /home/TDinternal/community/source/libs/executor/src/scanoperator.c
 /home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbUtil.c
 /home/TDinternal/community/source/common/src/msg/streamMsg.c
-/home/TDinternal/community/source/dnode/mnode/impl/src/mndDb.c
 /home/TDinternal/community/source/client/src/clientTmq.c
 /home/TDinternal/community/source/common/src/ttime.c
 /home/TDinternal/community/source/libs/nodes/src/nodesCloneFuncs.c
 /home/TDinternal/community/source/libs/executor/src/tsort.c
-/home/TDinternal/community/source/dnode/mnode/impl/src/mndStb.c
 /home/TDinternal/community/source/libs/function/src/builtinsimpl.c
 /home/TDinternal/community/source/dnode/vnode/src/meta/metaEntry2.c
 /home/TDinternal/community/source/libs/planner/src/planPhysiCreater.c

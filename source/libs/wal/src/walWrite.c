@@ -602,7 +602,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     tstrncpy((char *)opts.key, pWal->cfg.encryptData.encryptKey, ENCRYPT_KEY_LEN + 1);
 
     int32_t count = CBC_Encrypt(&opts);
-    if (count != opts.len) TAOS_CHECK_GOTO(code, &lino, _exit);
+    if (count != opts.len) TAOS_CHECK_GOTO(terrno, &lino, _exit);
     // wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s",
     //       pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 

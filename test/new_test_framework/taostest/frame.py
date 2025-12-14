@@ -10,7 +10,6 @@ import platform
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
 
-from colorama import Fore
 from .components.taosd import TaosD
 from ..utils.log import tdLog
 
@@ -18,7 +17,7 @@ from ..utils.log import tdLog
 try:
     import taos
 except:
-    print(f"{Fore.YELLOW}Warning: TDengine Client may not properly installed. You will can't use python connector on this device.{Fore.RESET}")
+    print("Warning: TDengine Client may not properly installed. You will can't use python connector on this device.")
 
 from .clustermanager import EnvManager, ResourceManager
 from .dataclass import CmdOption, ResultLog
