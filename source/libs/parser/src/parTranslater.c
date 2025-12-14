@@ -1389,7 +1389,7 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
     return false;
   }
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    return ((PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId) && ((SColumnNode*)pExpr)->isPrimTs);
+    return ((SColumnNode*)pExpr)->isPrimTs;
   } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType ||
