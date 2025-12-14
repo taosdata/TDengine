@@ -601,12 +601,7 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
 
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _exit);
   const char *owner = pObj->owner[0] != 0 ? pObj->owner : pObj->createUser;
-  char        db[TSDB_TABLE_FNAME_LEN] = {0};
-  (void)snprintf(db, sizeof(db), "%d.*", pUser->acctId);
-  if (mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_DROP, owner, db, "*") &&
-      mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_DROP, owner, pObj->dbFName, "*")) {
-    TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_DROP, owner, pObj->dbFName, pObj->name));
-  }
+  TAOS_CHECK_EXIT(mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_RSMA_DROP, owner, pObj->dbFName, pObj->name));
 
   code = mndDropRsma(pMnode, pReq, pDb, pObj);
   if (code == TSDB_CODE_SUCCESS) {
@@ -763,9 +758,8 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
 
   // already check select table/insert table/create rsma privileges in parser
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb)) {
-    TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pUser, PRIV_DB_USE, NULL, "*", NULL));
-  }
+  const char *owner = pDb->owner[0] != 0 ? pDb->owner : pDb->createUser;
+  TAOS_CHECK_EXIT(mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_DB_USE, owner, name.acctId, name.dbname, NULL));
 
   pStb = mndAcquireStb(pMnode, createReq.tbFName);
   if (pStb == NULL) {
@@ -994,12 +988,7 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
   // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
   // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
   const char *owner = pObj->owner[0] != 0 ? pObj->owner : pObj->createUser;
-  char        db[TSDB_TABLE_FNAME_LEN] = {0};
-  (void)snprintf(db, sizeof(db), "%d.*", pUser->acctId);
-  if (mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_ALTER, owner, db, "*") &&
-      mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_ALTER, owner, pObj->dbFName, "*")) {
-    TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_ALTER, owner, pObj->dbFName, pObj->name));
-  }
+  TAOS_CHECK_EXIT(mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_RSMA_ALTER, owner, pObj->dbFName, pObj->name));
 
   (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
 
@@ -1220,17 +1209,11 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     int32_t   index = 0;
     while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
       if (!showAll) {
-        (void)snprintf(objFName, sizeof(objFName), "%s", pObj->dbFName);
         char *owner = pObj->owner[0] != 0 ? pObj->owner : pObj->createUser;
-        bool  showIter = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_SHOW, owner, objFName,
-                                                      privInfo->objLevel == 0 ? NULL : "*"));  // 1.db1.*
-        if (!showIter) {
-          showIter = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_RSMA_SHOW, owner, objFName,
-                                                   privInfo->objLevel == 0 ? NULL : pObj->name));  // 1.db1.rsma1
-          if (!showIter) {
-            sdbRelease(pSdb, pObj);
-            continue;
-          }
+        if (mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_RSMA_SHOW, owner, pObj->dbFName,
+                                     privInfo->objLevel == 0 ? NULL : pObj->name)) {  // 1.db1.rsma1
+          sdbRelease(pSdb, pObj);
+          continue;
         }
       }
 

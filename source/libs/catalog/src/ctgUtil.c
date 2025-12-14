@@ -2266,13 +2266,13 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
 
     int32_t klen = 0;
     if (pReq->tbName.type == TSDB_DB_NAME_T) {
-      klen = privObjKeyF(privInfo, pReq->tbName.acctId, "*", NULL, objKey, sizeof(objKey));
+      klen = privObjKey(privInfo, pReq->tbName.acctId, "*", NULL, objKey, sizeof(objKey));
       SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
-      klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
+      klen = privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, NULL, objKey, sizeof(objKey));
       policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;
@@ -2281,20 +2281,20 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       return TSDB_CODE_SUCCESS;
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
-      klen = privObjKeyF(privInfo, pReq->tbName.acctId, "*", "*", objKey, sizeof(objKey));
+      klen = privObjKey(privInfo, pReq->tbName.acctId, "*", "*", objKey, sizeof(objKey));
       SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
-      klen = privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, "*", objKey, sizeof(objKey));
+      klen = privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, "*", objKey, sizeof(objKey));
       policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
       klen =
-          privObjKeyF(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname, objKey, sizeof(objKey));
+          privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname, objKey, sizeof(objKey));
       policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
       if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
         pRes->pass[AUTH_RES_BASIC] = true;

@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
@@ -332,9 +333,13 @@ _OVER:
   return code;
 }
 
-static int32_t mndStreamValidateCreate(SMnode *pMnode, char* pUser, SCMCreateStreamReq* pCreate) {
+static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMCreateStreamReq* pCreate) {
   int32_t code = 0, lino = 0;
   int64_t streamId = pCreate->streamId;
+  char   *pUser = pOperUser->name;
+  char    objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
+
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
 
   if (pCreate->streamDB) {
     code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->streamDB);
@@ -856,6 +861,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   SStreamObj  streamObj = {0};
+  SUserObj    *pOperUser = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   STrans     *pTrans = NULL;
@@ -901,7 +907,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndStreamValidateCreate(pMnode, pReq->info.conn.user, pCreate);
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) {
+    TSDB_CHECK_CODE(TSDB_CODE_MND_NO_USER_FROM_CONN, lino, _OVER);
+  }
+
+  code = mndStreamValidateCreate(pMnode, pOperUser, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
   mndStreamBuildObj(pMnode, &streamObj, pCreate, snodeId);
@@ -959,6 +970,7 @@ _OVER:
 
   mndTransDrop(pTrans);
   tFreeStreamObj(&streamObj);
+  mndReleaseUser(pMnode, pOperUser);
 
   return code;
 }

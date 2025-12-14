@@ -363,13 +363,13 @@ bool privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo) {
   return false;
 }
 // objType.1.db.tb or objType.1.db
-int32_t privObjKey(SPrivInfo* pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen) {
+int32_t privObjKeyF(SPrivInfo* pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen) {
   return (pPrivInfo->objLevel == 0)
              ? snprintf(buf, bufLen, "%d.%s", pPrivInfo->objType, fname ? fname : "")
              : snprintf(buf, bufLen, "%d.%s.%s", pPrivInfo->objType, fname ? fname : "", tb ? tb : "");
 }
 
-int32_t privObjKeyF(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf, int32_t bufLen) {
+int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf, int32_t bufLen) {
   return (pPrivInfo->objLevel == 0)
              ? snprintf(buf, bufLen, "%d.%d.%s", pPrivInfo->objType, acctId, name ? name : "")
              : snprintf(buf, bufLen, "%d.%d.%s.%s", pPrivInfo->objType, acctId, name ? name : "", tb ? tb : "");
