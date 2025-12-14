@@ -6655,6 +6655,41 @@ static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause
   }
   return code;
 }
+typedef struct {
+  SFunctionNode* pFunc;
+  bool exist;
+} SOrderByCheckContext;
+
+static EDealRes checkFunctionExist(SNode** pNode, void* pContext) {
+  SOrderByCheckContext* pOrderbyContext = (SOrderByCheckContext*)pContext;
+  SFunctionNode*        pFunc = pOrderbyContext->pFunc;
+  if (QUERY_NODE_FUNCTION == nodeType(*pNode) && nodesEqualNode(*pNode, (SNode*)pFunc)) {
+    pOrderbyContext->exist = true;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+bool static funcExsitInList(SNodeList* pList, SFunctionNode* pFunc) {
+  SOrderByCheckContext ctx;
+  ctx.pFunc = pFunc;
+  ctx.exist = false;
+  nodesRewriteExprs(pList, checkFunctionExist, &ctx);
+  return ctx.exist;
+}
+
+static bool invalidOrderByFunctionExpr(SNodeList* pProjectionList, SNode* pNode) {
+  if (QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode)) return false;
+  SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
+  if (pExpr && QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+    if (fmIsSelectFunc(pFunc->funcId) && !funcExsitInList(pProjectionList, pFunc)) {
+      return false;
+    }
+  }
+  return false;
+}
 
 static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   bool    other;
@@ -6673,6 +6708,12 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
     pCxt->currClause = SQL_CLAUSE_ORDER_BY;
     code = translateExprList(pCxt, pSelect->pOrderByList);
+  }
+  SNode** pNode;
+  FOREACH_FOR_REWRITE(pNode, pSelect->pOrderByList) {
+    if (invalidOrderByFunctionExpr(pSelect->pProjectionList, *pNode)) {
+      return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);

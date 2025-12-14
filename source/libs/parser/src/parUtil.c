@@ -300,6 +300,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Option:%s value too big, should be less than %d";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL:
       return "Option:%s value too small, should be %d or greater";
+    case TSDB_CODE_PAR_ORDERBY_INVALID_EXPR:
+      return "Invaid expr in order by clause";
     default:
       return "Unknown error";
   }
