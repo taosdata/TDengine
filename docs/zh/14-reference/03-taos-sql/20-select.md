@@ -120,15 +120,17 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 
 目前支持的 Hints 列表如下：
 
-|    **Hint**   |    **参数**    |         **说明**           |       **适用范围**         |
-| :-----------: | -------------- | -------------------------- | -----------------------------|
-| BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句             |
-| NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句             |
-| SORT_FOR_GROUP| 无             | 采用 sort 方式进行分组，与 PARTITION_FIRST 冲突  | partition by 列表有普通列时  |
-| PARTITION_FIRST| 无            | 在聚合之前使用 PARTITION 计算分组，与 SORT_FOR_GROUP 冲突 | partition by 列表有普通列时  |
-| PARA_TABLES_SORT| 无           | 超级表的数据按时间戳排序时，不使用临时磁盘空间，只使用内存。当子表数量多，行长比较大时候，会使用大量内存，可能发生 OOM | 超级表的数据按时间戳排序时  |
-| SMALLDATA_TS_SORT| 无          | 超级表的数据按时间戳排序时，查询列长度大于等于 256，但是行数不多，使用这个提示，可以提高性能 | 超级表的数据按时间戳排序时  |
-| SKIP_TSMA        | 无          | 用于显示的禁用 TSMA 查询优化 | 带 Agg 函数的查询语句 |
+|      **Hint**       | **参数** | **说明**                                                           | **适用范围**             |
+|:-------------------:|--------|:-----------------------------------------------------------------|----------------------|
+|     BATCH_SCAN      | 无      | 采用批量读表的方式                                                        | 超级表 JOIN 语句          |
+|    NO_BATCH_SCAN    | 无      | 采用顺序读表的方式                                                        | 超级表 JOIN 语句          |
+|   SORT_FOR_GROUP    | 无      | 采用 sort 方式进行分组，与 PARTITION_FIRST 冲突                              | partition by 列表有普通列时 |
+|   PARTITION_FIRST   | 无      | 在聚合之前使用 PARTITION 计算分组，与 SORT_FOR_GROUP 冲突                       | partition by 列表有普通列时 |
+|  PARA_TABLES_SORT   | 无      | 超级表的数据按时间戳排序时，不使用临时磁盘空间，只使用内存。当子表数量多，行长比较大时候，会使用大量内存，可能发生 OOM    | 超级表的数据按时间戳排序时        |
+|  SMALLDATA_TS_SORT  | 无      | 超级表的数据按时间戳排序时，查询列长度大于等于 256，但是行数不多，使用这个提示，可以提高性能                 | 超级表的数据按时间戳排序时        |
+|      SKIP_TSMA      | 无      | 用于显示的禁用 TSMA 查询优化                                                | 带 Agg 函数的查询语句        |
+| WIN_OPTIMIZE_BATCH  | 无      | 在虚拟表的窗口查询中，以批处理方式一次处理多个窗口。                                       | 虚拟表的 state window 查询 |
+| WIN_OPTIMIZE_SINGLE | 无      | 在虚拟表的窗口查询中，一次仅处理单个窗口。                                            | 虚拟表的 state window 查询 |
 
 举例：
 
@@ -304,7 +306,7 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 
 ## INTERP
 
-interp 子句是 INTERP 函数 (../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
+interp 子句是 [INTERP 函数](../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
 
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。

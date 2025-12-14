@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <regex.h>
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
@@ -109,90 +108,41 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
-static bool invalidPassword(const char* pPassword) {
-  regex_t regex;
 
-  if (regcomp(&regex, "[ '\"`\\]", REG_EXTENDED | REG_ICASE) != 0) {
-    return false;
-  }
 
-  /* Execute regular expression */
-  int32_t res = regexec(&regex, pPassword, 0, NULL, 0);
-  regfree(&regex);
-  return 0 == res;
-}
-
-static bool invalidStrongPassword(const char* pPassword) {
-  if (strcmp(pPassword, "taosdata") == 0) {
-    return false;
-  }
-
-  bool charTypes[4] = {0};
-  for (int32_t i = 0; i < strlen(pPassword); ++i) {
-    if (taosIsBigChar(pPassword[i])) {
-      charTypes[0] = true;
-    } else if (taosIsSmallChar(pPassword[i])) {
-      charTypes[1] = true;
-    } else if (taosIsNumberChar(pPassword[i])) {
-      charTypes[2] = true;
-    } else if (taosIsSpecialChar(pPassword[i])) {
-      charTypes[3] = true;
-    } else {
-      return true;
+static bool isValidSimplePassword(const char* password) {
+  for (char c = *password; c != 0; c = *(++password)) {
+    if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
+      return false;
     }
   }
+  return true;
+}
 
-  int32_t numOfTypes = 0;
-  for (int32_t i = 0; i < 4; ++i) {
-    numOfTypes += charTypes[i];
-  }
 
-  if (numOfTypes < 3) {
+
+static bool isValidStrongPassword(const char* password) {
+  if (strcmp(password, "taosdata") == 0) {
     return true;
   }
-
-  return false;
+  return taosIsComplexString(password);
 }
 
-static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
-  if (NULL == pPasswordToken) {
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LONGLEN + 2)) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-  } else {
-    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
-    (void)strdequote(pPassword);
-    if (strtrim(pPassword) < TSDB_PASSWORD_MIN_LEN) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
-    } else {
-      if (tsEnableStrongPassword) {
-        if (invalidStrongPassword(pPassword)) {
-          pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
-        }
-      } else {
-        if (invalidPassword(pPassword)) {
-          pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
-        }
-      }
-    }
+
+
+static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
+  if (imported) {
+    return strlen(password) == TSDB_PASSWORD_LEN;
   }
-  return TSDB_CODE_SUCCESS == pCxt->errCode;
+
+  if (tsEnableStrongPassword) {
+    return isValidStrongPassword(password);
+  }
+
+  return isValidSimplePassword(password);
 }
 
-static bool checkImportPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
-  if (NULL == pPasswordToken) {
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  } else if (pPasswordToken->n > (32 + 2)) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-  } else {
-    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
-    (void)strdequote(pPassword);
-    if (strtrim(pPassword) < TSDB_PASSWORD_LEN - 1) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
-    }
-  }
-  return TSDB_CODE_SUCCESS == pCxt->errCode;
-}
+
 
 static int32_t parsePort(SAstCreateContext* pCxt, const char* p, int32_t* pPort) {
   *pPort = taosStr2Int32(p, NULL, 10);
@@ -712,6 +662,12 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     case HINT_HASH_JOIN:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
       break;
+    case HINT_WIN_OPTIMIZE_BATCH:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_BATCH)) return true;
+      break;
+    case HINT_WIN_OPTIMIZE_SINGLE:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_WIN_OPTIMIZE_SINGLE)) return true;
+      break;
     default:
       return true;
   }
@@ -828,6 +784,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_SKIP_TSMA;
+        break;
+      case TK_WIN_OPTIMIZE_BATCH:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_BATCH;
+        break;
+      case TK_WIN_OPTIMIZE_SINGLE:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_WIN_OPTIMIZE_SINGLE;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -2345,6 +2317,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
   pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
+  pOptions->encryptAlgorithmStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2387,12 +2360,13 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->ssKeepLocal = -1;
   pOptions->ssCompact = -1;
   pOptions->withArbitrator = -1;
-  pOptions->encryptAlgorithm = -1;
+  pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pOptions->dnodeListStr[0] = 0;
   pOptions->compactInterval = -1;
   pOptions->compactStartTime = -1;
   pOptions->compactEndTime = -1;
   pOptions->compactTimeOffset = -1;
+  pOptions->encryptAlgorithmStr[0] = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2534,7 +2508,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);
-      pDbOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+      if (strlen(pDbOptions->encryptAlgorithmStr) == 0) pDbOptions->encryptAlgorithm = -1;
       break;
     case DB_OPTION_DNODES:
       if (((SToken*)pVal)->n >= TSDB_DNODE_LIST_LEN) {
@@ -3858,190 +3832,682 @@ _err:
   return NULL;
 }
 
-static int32_t getIpRangeFromStr(char* ipRange, SIpRange* pIpRange) {
-  int32_t code = 0;
 
-  int8_t isIp6 = ((strchr(ipRange, ':')) != NULL ? 1 : 0);
-  if (isIp6) {
+
+static bool parseIp(const char* strIp, SIpRange* pIpRange) {
+  if (strchr(strIp, ':') == NULL) {
+    struct in_addr ip4;
+    if (inet_pton(AF_INET, strIp, &ip4) == 1) {
+      pIpRange->type = 0;
+      memcpy(&pIpRange->ipV4.ip, &ip4.s_addr, sizeof(ip4.s_addr));
+      return true;
+    }
+  } else {
     struct in6_addr ip6;
-    if (inet_pton(AF_INET6, ipRange, &ip6) == 1) {
+    if (inet_pton(AF_INET6, strIp, &ip6) == 1) {
       pIpRange->type = 1;
       memcpy(&pIpRange->ipV6.addr[0], ip6.s6_addr, 8);
       memcpy(&pIpRange->ipV6.addr[1], ip6.s6_addr + 8, 8);
-
-    } else {
-      return TSDB_CODE_PAR_INVALID_IP_RANGE;
-    }
-  } else {
-    struct in_addr ip4;
-    if (inet_pton(AF_INET, ipRange, &ip4) == 1) {
-      pIpRange->type = 0;
-      memcpy(&pIpRange->ipV4.ip, &ip4.s_addr, sizeof(ip4.s_addr));
-    } else {
-      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+      return true;
     }
   }
 
-  return code;
+  return false;
 }
-static int32_t getIpRangeFromWhitelistItem(char* ipRange, SIpRange* pIpRange) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  char*   ipCopy = NULL;
-  int32_t mask = 0;
-#ifndef TD_ASTRA
 
-  ipCopy = taosStrdup(ipRange);
-  if (ipCopy == NULL) {
-    code = terrno;
-    TAOS_CHECK_GOTO(code, &lino, _error);
+
+
+SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* token) {
+  CHECK_PARSER_STATUS(pCxt);
+
+#ifdef TD_ASTRA
+  return NULL;
+#else
+
+  SIpRangeNode* node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_IP_RANGE, (SNode**)&node);
+  if (node == NULL) {
+    goto _err;
   }
 
-  char* slash = strchr(ipCopy, '/');
+  char buf[64];
+  if (token->n >= sizeof(buf)) {
+    code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+    goto _err;
+  }
+  memcpy(buf, token->z, token->n);
+  buf[token->n] = '\0';
+  (void)strdequote(buf);
+
+  char* slash = strchr(buf, '/');
   if (slash) {
     *slash = '\0';
-    code = taosStr2int32(slash + 1, &mask);
-    TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  code = getIpRangeFromStr(ipCopy, pIpRange);
-  TAOS_CHECK_GOTO(code, &lino, _error);
+  if (!parseIp(buf, &node->range)) {
+    code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+    goto _err;
+  }
 
+  int32_t mask = 0;
   if (!slash) {
-    mask = pIpRange->type == 0 ? 32 : 128;
+    mask = node->range.type == 0 ? 32 : 128;
+  } else if (taosStr2int32(slash + 1, &mask) != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+    goto _err;
   }
-  code = tIpRangeSetMask(pIpRange, mask);
-  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = tIpRangeSetMask(&node->range, mask);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _err;
+  }
+
+  return node;
+
+_err:
+  pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code);
+  nodesDestroyNode((SNode*)node);
+  return NULL;
 
 #endif
-_error:
-  taosMemoryFreeClear(ipCopy);
-  return code;
 }
 
-static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIpRangesNodeList, SIpRange* pIpRanges) {
-  int32_t i = 0;
-  int32_t code = 0;
 
-  SNode* pNode = NULL;
-  FOREACH(pNode, pIpRangesNodeList) {
-    if (QUERY_NODE_VALUE != nodeType(pNode)) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IP_RANGE);
-      return TSDB_CODE_PAR_INVALID_IP_RANGE;
-    }
-    SValueNode* pValNode = (SValueNode*)(pNode);
-    code = getIpRangeFromWhitelistItem(pValNode->literal, pIpRanges + i);
-    ++i;
-    if (code != TSDB_CODE_SUCCESS) {
-      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid IP range %s", pValNode->literal);
-      return code;
-    }
+
+SDateTimeRangeNode* parseDateTimeRange(SAstCreateContext* pCxt, const SToken* token) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SDateTimeRangeNode* node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_DATE_TIME_RANGE, (SNode**)&node);
+  if (code != TSDB_CODE_SUCCESS) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code);
+    goto _err;
   }
-  return TSDB_CODE_SUCCESS;
+
+  char buf[128];
+  if (token->n >= sizeof(buf)) {
+    code = TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG;
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Date time range string is too long");
+    goto _err;
+  }
+  memcpy(buf, token->z, token->n);
+  buf[token->n] = '\0';
+  (void)strdequote(buf);
+
+  code = TSDB_CODE_PAR_INVALID_OPTION_VALUE;
+  int32_t year = 0, month = 0, day = 0, hour = 0, minute = 0, duration = 0;
+  if (buf[0] >= '1' && buf[0] <= '9') {
+    // format: YYYY-MM-DD HH:MM duration
+    int ret = sscanf(buf, "%d-%d-%d %d:%d %d", &year, &month, &day, &hour, &minute, &duration);
+    if (ret != 6) {
+      goto _err;
+    }
+    if (month < 1 || month > 12) {
+      goto _err;
+    }
+  } else {
+    // format: WEEKDAY HH:MM duration
+    char weekday[4];
+    int ret = sscanf(buf, "%3s %d:%d %d", weekday, &hour, &minute, &duration);
+    if (ret != 4) {
+      goto _err;
+    }
+    day = taosParseShortWeekday(weekday);
+    if (day < 0 || day > 6) {
+      goto _err;
+    }
+    month = -1;
+  }
+
+  node->range.year = (int16_t)year;
+  node->range.month = (int8_t)month;
+  node->range.day = (int8_t)day;
+  node->range.hour = (int8_t)hour;
+  node->range.minute = (int8_t)minute;
+  node->range.duration = duration;
+  if (!isValidDateTimeRange(&node->range)) {
+    goto _err;
+  }
+
+  return node;
+
+_err:
+  if (code == TSDB_CODE_PAR_INVALID_OPTION_VALUE) { // other error types have been set above
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid date time range");
+  }
+  nodesDestroyNode((SNode*)node);
+  return NULL;
 }
 
-SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
-  if (NULL == pCreateUserStmt) {
-    if (pIpRangesNodeList != NULL) {
-      nodesDestroyList(pIpRangesNodeList);
-    }
+
+SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
+  SUserOptions* pOptions = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_USER_OPTIONS, (SNode**)&pOptions);
+  if (pOptions == NULL) {
+    pCxt->errCode = code;
     return NULL;
   }
 
-  if (NULL == pIpRangesNodeList) {
-    return pCreateUserStmt;
-  }
+  pOptions->enable = 1;
+  pOptions->sysinfo = 1;
+  pOptions->createdb = 0;
+  pOptions->isImport = 0;
+  pOptions->changepass = 2;
+  pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+  pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+  pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+  pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
+  pOptions->vnodePerCall = -1; // not implemented yet, so use -1 instead of TSDB_USER_VNODE_PER_CALL_DEFAULT;
+  pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+  pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+  pOptions->passwordReuseTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  pOptions->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+  pOptions->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+  pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  pOptions->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+  pOptions->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
-  ((SCreateUserStmt*)pCreateUserStmt)->pNodeListIpRanges = pIpRangesNodeList;
-  SCreateUserStmt* pCreateUser = (SCreateUserStmt*)pCreateUserStmt;
-  pCreateUser->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
-  pCreateUser->pIpRanges = taosMemoryMalloc(pCreateUser->numIpRanges * sizeof(SIpRange));
-  CHECK_OUT_OF_MEM(pCreateUser->pIpRanges);
-
-  pCxt->errCode = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pCreateUser->pIpRanges);
-  CHECK_PARSER_STATUS(pCxt);
-
-  return pCreateUserStmt;
-_err:
-  nodesDestroyNode(pCreateUserStmt);
-  nodesDestroyList(pIpRangesNodeList);
-  return NULL;
+  return pOptions;
 }
 
-SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo,
-                            int8_t createDb, int8_t is_import) {
-  CHECK_PARSER_STATUS(pCxt);
-  char password[TSDB_USET_PASSWORD_LONGLEN + 3] = {0};
-  CHECK_NAME(checkUserName(pCxt, pUserName));
-  if (is_import == 0) {
-    CHECK_NAME(checkPassword(pCxt, pPassword, password));
-  } else {
-    CHECK_NAME(checkImportPassword(pCxt, pPassword, password));
+
+
+SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOptions* b) {
+  if (a == NULL && b == NULL) {
+      return createDefaultUserOptions(pCxt);
   }
+  if (b == NULL) {
+    return a;
+  }
+  if (a == NULL) {
+    return b;
+  }
+
+  if (b->hasPassword) {
+    if (a->hasPassword) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASS");
+    } else {
+      a->hasPassword = true;
+      tstrncpy(a->password, b->password, sizeof(a->password));
+    }
+  }
+
+  if (b->hasTotpseed) {
+    if (a->hasTotpseed) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "TOTPSEED");
+    } else {
+      a->hasTotpseed = true;
+      tstrncpy(a->totpseed, b->totpseed, sizeof(a->totpseed));
+    }
+  }
+
+  if (b->hasEnable) {
+    if (a->hasEnable) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "ENABLE/ACCOUNT LOCK/ACCOUNT UNLOCK");
+    } else {
+      a->hasEnable = true;
+      a->enable = b->enable;
+    }
+  }
+
+  if (b->hasSysinfo) {
+    if (a->hasSysinfo) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "SYSINFO");
+    } else {
+      a->hasSysinfo = true;
+      a->sysinfo = b->sysinfo;
+    }
+  }
+
+  if (b->hasCreatedb) {
+    if (a->hasCreatedb) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CREATEDB");
+    } else {
+      a->hasCreatedb = true;
+      a->createdb = b->createdb;
+    }
+  }
+
+  if (b->hasChangepass) {
+    if (a->hasChangepass) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CHANGEPASS");
+    } else {
+      a->hasChangepass = true;
+      a->changepass = b->changepass;
+    }
+  }
+
+  if (b->hasSessionPerUser) {
+    if (a->hasSessionPerUser) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "SESSION_PER_USER");
+    } else {
+      a->hasSessionPerUser = true;
+      a->sessionPerUser = b->sessionPerUser;
+    }
+  }
+
+  if (b->hasConnectTime) {
+    if (a->hasConnectTime) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CONNECT_TIME");
+    } else {
+      a->hasConnectTime = true;
+      a->connectTime = b->connectTime;
+    }
+  }
+
+  if (b->hasConnectIdleTime) {
+    if (a->hasConnectIdleTime) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CONNECT_IDLE_TIME");
+    } else {
+      a->hasConnectIdleTime = true;
+      a->connectIdleTime = b->connectIdleTime;
+    }
+  }
+
+  if (b->hasCallPerSession) {
+    if (a->hasCallPerSession) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CALLS_PER_SESSION");
+    } else {
+      a->hasCallPerSession = true;
+      a->callPerSession = b->callPerSession;
+    }
+  }
+
+  if (b->hasVnodePerCall) {
+    if (a->hasVnodePerCall) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "VNODES_PER_CALL");
+    } else {
+      a->hasVnodePerCall = true;
+      a->vnodePerCall = b->vnodePerCall;
+    }
+  }
+
+  if (b->hasFailedLoginAttempts) {
+    if (a->hasFailedLoginAttempts) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "FAILED_LOGIN_ATTEMPTS");
+    } else {
+      a->hasFailedLoginAttempts = true;
+      a->failedLoginAttempts = b->failedLoginAttempts;
+    }
+  }
+
+  if (b->hasPasswordLifeTime) {
+    if (a->hasPasswordLifeTime) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_LIFE_TIME");
+    } else {
+      a->hasPasswordLifeTime = true;
+      a->passwordLifeTime = b->passwordLifeTime;
+    }
+  }
+
+  if (b->hasPasswordReuseTime) {
+    if (a->hasPasswordReuseTime) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_REUSE_TIME");
+    } else {
+      a->hasPasswordReuseTime = true;
+      a->passwordReuseTime = b->passwordReuseTime;
+    }
+  }
+
+  if (b->hasPasswordReuseMax) {
+    if (a->hasPasswordReuseMax) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_REUSE_MAX");
+    } else {
+      a->hasPasswordReuseMax = true;
+      a->passwordReuseMax = b->passwordReuseMax;
+    }
+  }
+
+  if (b->hasPasswordLockTime) {
+    if (a->hasPasswordLockTime) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_LOCK_TIME");
+    } else {
+      a->hasPasswordLockTime = true;
+      a->passwordLockTime = b->passwordLockTime;
+    }
+  }
+
+  if (b->hasPasswordGraceTime) {
+    if (a->hasPasswordGraceTime) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_GRACE_TIME");
+    } else {
+      a->hasPasswordGraceTime = true;
+      a->passwordGraceTime = b->passwordGraceTime;
+    }
+  }
+
+  if (b->hasInactiveAccountTime) {
+    if (a->hasInactiveAccountTime) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "INACTIVE_ACCOUNT_TIME");
+    } else {
+      a->hasInactiveAccountTime = true;
+      a->inactiveAccountTime = b->inactiveAccountTime;
+    }
+  }
+
+  if (b->hasAllowTokenNum) {
+    if (a->hasAllowTokenNum) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "ALLOW_TOKEN_NUM");
+    } else {
+      a->hasAllowTokenNum = true;
+      a->allowTokenNum = b->allowTokenNum;
+    }
+  }
+
+  if (b->pIpRanges != NULL) {
+    if (a->pIpRanges == NULL) {
+      a->pIpRanges = b->pIpRanges;
+    } else {
+      int32_t code = nodesListAppendList(a->pIpRanges, b->pIpRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
+    }
+    b->pIpRanges = NULL;
+  }
+
+  if (b->pDropIpRanges != NULL) {
+    if (a->pDropIpRanges == NULL) {
+      a->pDropIpRanges = b->pDropIpRanges;
+    } else {
+      int32_t code = nodesListAppendList(a->pDropIpRanges, b->pDropIpRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
+    }
+    b->pDropIpRanges = NULL;
+  }
+
+  if (b->pTimeRanges != NULL) {
+    if (a->pTimeRanges == NULL) {
+      a->pTimeRanges = b->pTimeRanges;
+    } else {
+      int32_t code = nodesListAppendList(a->pTimeRanges, b->pTimeRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
+    }
+    b->pTimeRanges = NULL;
+  }
+
+  if (b->pDropTimeRanges != NULL) {
+    if (a->pDropTimeRanges == NULL) {
+      a->pDropTimeRanges = b->pDropTimeRanges;
+    } else {
+      int32_t code = nodesListAppendList(a->pDropTimeRanges, b->pDropTimeRanges);
+      if (code != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = code;
+      }
+    }
+    b->pDropTimeRanges = NULL;
+  }
+
+  nodesDestroyNode((SNode*)b);
+  return a;
+}
+
+
+
+void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pTotpseed) {
+  if (pUserOptions->hasTotpseed) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "TOTPSEED");
+      return;
+  }
+  pUserOptions->hasTotpseed = true;
+
+  if (pTotpseed == NULL) { // clear TOTP secret
+    memset(pUserOptions->totpseed, 0, sizeof(pUserOptions->totpseed));
+    return;
+  }
+
+  if (pTotpseed->n >= sizeof(pUserOptions->totpseed) * 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED", sizeof(pUserOptions->totpseed));
+    return;
+  }
+
+  char buf[sizeof(pUserOptions->totpseed) * 2 + 1];
+  memcpy(buf, pTotpseed->z, pTotpseed->n);
+  buf[pTotpseed->n] = 0;
+  (void)strdequote(buf);
+  size_t len = strtrim(buf);
+
+  if (len >= sizeof(pUserOptions->totpseed)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED", sizeof(pUserOptions->totpseed));
+  } else if (len < TSDB_USER_TOTPSEED_MIN_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT, "TOTPSEED", TSDB_USER_TOTPSEED_MIN_LEN);
+  } else {
+    tstrncpy(pUserOptions->totpseed, buf, sizeof(pUserOptions->totpseed));
+  }
+}
+
+
+
+void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pPassword) {
+  if (pUserOptions->hasPassword) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASS");
+      return;
+  }
+  pUserOptions->hasPassword = true;
+
+  if (pPassword->n >= sizeof(pUserOptions->password) * 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+    return;
+  }
+
+  char buf[sizeof(pUserOptions->password) * 2 + 1];
+  memcpy(buf, pPassword->z, pPassword->n);
+  buf[pPassword->n] = 0;
+  (void)strdequote(buf);
+  size_t len = strtrim(buf);
+
+  if (len >= sizeof(pUserOptions->password)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+  } else if (len < TSDB_PASSWORD_MIN_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
+  } else {
+    tstrncpy(pUserOptions->password, buf, sizeof(pUserOptions->password));
+  }
+}
+
+
+
+static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts) {
+  if (opts->hasEnable && (opts->enable < 0 || opts->enable > 1)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "ENABLE");
+    return false;
+  }
+
+  if (opts->hasSysinfo && (opts->sysinfo < 0 || opts->sysinfo > 1)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "SYSINFO");
+    return false;
+  }
+
+  if (opts->hasIsImport && (opts->isImport < 0 || opts->isImport > 1)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "IS_IMPORT");
+    return false;
+  }
+
+  if (opts->hasCreatedb && (opts->createdb < 0 || opts->createdb > 1)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "CREATEDB");
+    return false;
+  }
+
+  if (opts->hasTotpseed && opts->totpseed[0] != 0 && !taosIsComplexString(opts->totpseed)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "TOTPSEED");
+    return false;
+  }
+
+  if (opts->hasPassword && !isValidPassword(pCxt, opts->password, opts->hasIsImport && opts->isImport)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
+    return false;
+  }
+
+  if (opts->hasChangepass && (opts->changepass < 0 || opts->changepass > 2)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "CHANGEPASS");
+    return false;
+  }
+
+  if (opts->hasSessionPerUser && (opts->sessionPerUser < -1 || opts->sessionPerUser == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "SESSION_PER_USER");
+    return false;
+  }
+
+  if (opts->hasConnectTime && (opts->connectTime < -1 || opts->connectTime == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "CONNECT_TIME");
+    return false;
+  }
+
+  if (opts->hasConnectIdleTime && (opts->connectIdleTime < -1 || opts->connectIdleTime == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "CONNECT_IDLE_TIME");
+    return false;
+  }
+
+  if (opts->hasCallPerSession && (opts->callPerSession < -1 || opts->callPerSession == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "CALLS_PER_SESSION");
+    return false;
+  }
+
+  if (opts->hasVnodePerCall && (opts->vnodePerCall < -1 || opts->vnodePerCall == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "VNODES_PER_CALL");
+    return false;
+  }
+
+  if (opts->hasFailedLoginAttempts && (opts->failedLoginAttempts < -1 || opts->failedLoginAttempts == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "FAILED_LOGIN_ATTEMPTS");
+    return false;
+  }
+
+  if (opts->hasPasswordLockTime && (opts->passwordLockTime < -1 || opts->passwordLockTime == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_LOCK_TIME");
+    return false;
+  }
+
+  if (opts->hasPasswordLifeTime && (opts->passwordLifeTime < -1 || opts->passwordLifeTime == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_LIFE_TIME");
+    return false;
+  }
+
+  if (opts->hasPasswordGraceTime && (opts->passwordGraceTime < -1)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_GRACE_TIME");
+    return false;
+  }
+
+  if (opts->hasPasswordReuseTime && (opts->passwordReuseTime < 0 || opts->passwordReuseTime > TSDB_USER_PASSWORD_REUSE_TIME_MAX)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_TIME");
+    return false;
+  }
+
+  if (opts->hasPasswordReuseMax && (opts->passwordReuseMax < 0 || opts->passwordReuseMax > TSDB_USER_PASSWORD_REUSE_MAX_MAX)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_MAX");
+    return false;
+  }
+
+  if (opts->hasInactiveAccountTime && (opts->inactiveAccountTime < -1 || opts->inactiveAccountTime == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "INACTIVE_ACCOUNT_TIME");
+    return false;
+  }
+
+  if (opts->hasAllowTokenNum && (opts->allowTokenNum < -1 || opts->allowTokenNum == 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "ALLOW_TOKEN_NUM");
+    return false;
+  }
+
+  // ip ranges and date time ranges has been validated during parsing
+
+  return true;
+}
+
+
+
+SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* opts, bool ignoreExisting) {
   SCreateUserStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  if (!isValidUserOptions(pCxt, opts)) {
+    goto _err;
+  }
+
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LONGLEN);
-  pStmt->sysinfo = sysinfo;
-  pStmt->createDb = createDb;
-  pStmt->isImport = is_import;
+  tstrncpy(pStmt->password, opts->password, sizeof(pStmt->password));
+  tstrncpy(pStmt->totpseed, opts->totpseed, sizeof(pStmt->totpseed));
+
+  pStmt->ignoreExisting = ignoreExisting;
+  pStmt->sysinfo = opts->sysinfo;
+  pStmt->createDb = opts->createdb;
+  pStmt->isImport = opts->isImport;
+  pStmt->changepass = opts->changepass;
+  pStmt->enable = opts->enable;
+
+  pStmt->sessionPerUser = opts->sessionPerUser;
+  pStmt->connectTime = opts->connectTime;
+  pStmt->connectIdleTime = opts->connectIdleTime;
+  pStmt->callPerSession = opts->callPerSession;
+  pStmt->vnodePerCall = opts->vnodePerCall;
+  pStmt->failedLoginAttempts = opts->failedLoginAttempts;
+  pStmt->passwordLifeTime = opts->passwordLifeTime;
+  pStmt->passwordReuseTime = opts->passwordReuseTime;
+  pStmt->passwordReuseMax = opts->passwordReuseMax;
+  pStmt->passwordLockTime = opts->passwordLockTime;
+  pStmt->passwordGraceTime = opts->passwordGraceTime;
+  pStmt->inactiveAccountTime = opts->inactiveAccountTime;
+  pStmt->allowTokenNum = opts->allowTokenNum;
+
+  pStmt->numIpRanges = LIST_LENGTH(opts->pIpRanges);
+  pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpRange));
+  CHECK_OUT_OF_MEM(pStmt->pIpRanges);
+  int i = 0;
+  SNode* pNode = NULL;
+  FOREACH(pNode, opts->pIpRanges) {
+    SIpRangeNode* node = (SIpRangeNode*)(pNode);
+    pStmt->pIpRanges[i++] = node->range;
+  }
+
+  pStmt->numTimeRanges = LIST_LENGTH(opts->pTimeRanges);
+  pStmt->pTimeRanges = taosMemoryMalloc(pStmt->numTimeRanges * sizeof(SDateTimeRange));
+  CHECK_OUT_OF_MEM(pStmt->pTimeRanges);
+  i = 0;
+  pNode = NULL;
+  FOREACH(pNode, opts->pTimeRanges) {
+    SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
+    pStmt->pTimeRanges[i++] = node->range;
+  }
+  
+  nodesDestroyNode((SNode*)opts);
   return (SNode*)pStmt;
+
 _err:
+  nodesDestroyNode((SNode*)pStmt);
+  nodesDestroyNode((SNode*)opts);
   return NULL;
 }
 
-SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo) {
+
+
+SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions) {
   SAlterUserStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pUserName));
+  if (!isValidUserOptions(pCxt, pUserOptions)) {
+    goto _err;
+  }
+
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  pStmt->alterType = alterType;
-  switch (alterType) {
-    case TSDB_ALTER_USER_PASSWD: {
-      char    password[TSDB_USET_PASSWORD_LONGLEN] = {0};
-      SToken* pVal = pAlterInfo;
-      CHECK_NAME(checkPassword(pCxt, pVal, password));
-      tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LONGLEN);
-      break;
-    }
-    case TSDB_ALTER_USER_ENABLE: {
-      SToken* pVal = pAlterInfo;
-      pStmt->enable = taosStr2Int8(pVal->z, NULL, 10);
-      break;
-    }
-    case TSDB_ALTER_USER_SYSINFO: {
-      SToken* pVal = pAlterInfo;
-      pStmt->sysinfo = taosStr2Int8(pVal->z, NULL, 10);
-      break;
-    }
-    case TSDB_ALTER_USER_CREATEDB: {
-      SToken* pVal = pAlterInfo;
-      pStmt->createdb = taosStr2Int8(pVal->z, NULL, 10);
-      break;
-    }
-    case TSDB_ALTER_USER_ADD_WHITE_LIST:
-    case TSDB_ALTER_USER_DROP_WHITE_LIST: {
-      SNodeList* pIpRangesNodeList = pAlterInfo;
-      pStmt->pNodeListIpRanges = pIpRangesNodeList;
-      pStmt->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
-      pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpRange));
-      CHECK_OUT_OF_MEM(pStmt->pIpRanges);
-
-      pCxt->errCode = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pStmt->pIpRanges);
-      CHECK_PARSER_STATUS(pCxt);
-      break;
-    }
-    default:
-      break;
-  }
+  pStmt->pUserOptions = pUserOptions;
   return (SNode*)pStmt;
+
 _err:
   nodesDestroyNode((SNode*)pStmt);
+  nodesDestroyNode((SNode*)pUserOptions);
   return NULL;
 }
+
+
 
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   CHECK_PARSER_STATUS(pCxt);
@@ -4050,6 +4516,21 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_ID_TOO_LONG);
+    goto _err;
+  }
+  SDropEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ENCRYPT_ALGR_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
   return (SNode*)pStmt;
 _err:
   return NULL;
@@ -4104,6 +4585,42 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
   if (NULL != pValue) {
     (void)trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
   }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createCreateAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId, const SToken* name, const SToken* desc,
+                            const SToken* type, const SToken* osslAlgrName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_ID_TOO_LONG);
+    goto _err;
+  }
+  if (name->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_NAME_TOO_LONG);
+    goto _err;
+  }
+  if (desc->n >= TSDB_ENCRYPT_ALGR_DESC_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_DESC_TOO_LONG);
+    goto _err;
+  }
+  if (type->n >= TSDB_ENCRYPT_ALGR_TYPE_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG);
+    goto _err;
+  }
+  if (osslAlgrName->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG);
+    goto _err;
+  }
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
+  (void)trimString(name->z, name->n, pStmt->name, sizeof(pStmt->name));
+  (void)trimString(desc->z, desc->n, pStmt->desc, sizeof(pStmt->desc));
+  (void)trimString(type->z, type->n, pStmt->algrType, sizeof(pStmt->algrType));
+  (void)trimString(osslAlgrName->z, osslAlgrName->n, pStmt->osslAlgrName, sizeof(pStmt->osslAlgrName));
   return (SNode*)pStmt;
 _err:
   return NULL;
@@ -4699,6 +5216,8 @@ SNode* createStreamTagDefNode(SAstCreateContext* pCxt, SToken* pTagName, SDataTy
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef);
   CHECK_MAKE_NODE(pTagDef);
   COPY_STRING_FORM_ID_TOKEN(pTagDef->tagName, pTagName);
+  int32_t nameLen = strdequote(pTagDef->tagName);
+  pTagDef->tagName[nameLen] = '\0';
   pTagDef->dataType = dataType;
   pTagDef->pTagExpr = tagExpression;
   return (SNode*)pTagDef;

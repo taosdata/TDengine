@@ -260,8 +260,6 @@ Information on all vgroups in the system. Users with SYSINFO property set to 0 c
 | 14   | keep_version        | INT     | WAL logs for this vgroup that are greater than or equal to `keep_version` will not be automatically deleted. |
 | 15   | keep_version_time   | INT     | The time when `keep_version` was last modified for this vgroup.                                            |
 
-
-
 ## INS_CONFIGS
 
 System configuration parameters.

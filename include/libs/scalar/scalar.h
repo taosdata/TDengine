@@ -38,18 +38,22 @@ int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 /*
 pDst need to freed in caller
 */
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam, void* streamTsRange);
-int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, const void* pExtraParam, void* streamTsRange);
-void    sclFreeParam(SScalarParam* param);
-int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void *pExtraParam,
+                        void *streamTsRange);
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,
+                               int32_t rowEndIdx, const void *pExtraParam, void *streamTsRange);
+void    sclFreeParam(SScalarParam *param);
+int32_t scalarAssignPlaceHolderRes(SColumnInfoData *pResColData, int64_t offset, int64_t rows, int16_t funcId,
+                                   const void *pExtraParams);
 int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);
 
-int32_t vectorGetConvertType(int32_t type1, int32_t type2);
-int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex, int32_t numOfRows);
-int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod, int32_t startIndex, int32_t numOfRows);
+int32_t  vectorGetConvertType(int32_t type1, int32_t type2);
+int32_t  vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex,
+                                    int32_t numOfRows);
+int32_t  vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod,
+                                int32_t startIndex, int32_t numOfRows);
 STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumnInfo *pCol2);
-uint32_t base64BufSize(size_t inputLenBytes);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -90,7 +94,16 @@ int32_t upperFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t rtrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maskFullFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maskNoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -99,10 +112,13 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t base64FunctionFrom(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t crc32Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 int32_t findInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 int32_t likeInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 int32_t regexpInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t generateTotpSecretFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t generateTotpCodeFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 
 /* Conversion functions */
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -170,7 +186,8 @@ int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 // stream pseudo functions
 int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
-int32_t streamCalcCurrWinTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, STimeWindow* pWinRange, bool* winRangeValid, int32_t type);
+int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange,
+                                   bool *winRangeValid, int32_t type);
 int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins);
 
 #ifdef __cplusplus

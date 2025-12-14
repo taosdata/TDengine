@@ -1177,19 +1177,6 @@ void qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval,
-                                      STimeWindow* pLastWindow, TSKEY* pRecInteral) {
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow, pRecInteral);
-  }
-  SStreamScanInfo* pScanOp = (SStreamScanInfo*)pOperator->info;
-  *pWaterMark = pScanOp->twAggSup.waterMark;
-  *pInterval = pScanOp->interval;
-  *pLastWindow = pScanOp->lastScanRange;
-  *pRecInteral = pScanOp->recalculateInterval;
-  return TSDB_CODE_SUCCESS;
-}
-
 void* qExtractReaderFromTmqScanner(void* scanner) {
   SStreamScanInfo* pInfo = scanner;
   return (void*)pInfo->tqReader;
@@ -1523,6 +1510,7 @@ end:
 void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
+    rpcFreeCont(pMsg->pCont);
     qError("pMsg->info.ahandle is NULL");
     return;
   }

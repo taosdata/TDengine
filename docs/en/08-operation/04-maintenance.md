@@ -50,7 +50,9 @@ SHOW SCANS;
 SHOW SCAN <scan_id>;
 KILL SCAN <scan_id>;
 ```
+
 ### Effects
+
 - Scans all time-series data files of all VGROUP VNODEs in the specified DB. If there are issues with the data files, they will be output in the corresponding server logs.
 - Scans all time-series data files of all VGROUP VNODEs in the specified list of VGROUPS in the DB. If db_name is empty, the current database is used by default. If there are issues with the data files, they will be output in the corresponding server logs.
 - You can specify the start time of the SCAN data with the start with keyword
@@ -59,6 +61,7 @@ KILL SCAN <scan_id>;
 - The SHOW command will return the ID of the SCAN task, and you can terminate the SCAN task using the KILL SCAN command
 
 ### Additional Information
+
 - SCAN is asynchronous; after executing the SCAN command, it returns without waiting for the SCAN to finish. If a previous SCAN has not completed, it will wait for the previous task to finish before returning.
 
 ## Vgroup Leader Rebalancing

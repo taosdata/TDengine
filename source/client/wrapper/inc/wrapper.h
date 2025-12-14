@@ -42,7 +42,11 @@ extern void (*fp_taos_cleanup)(void);
 extern int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...);
 extern int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 extern TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+extern TAOS *(*fp_taos_connect_totp)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+extern int (*fp_taos_connect_test)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+extern TAOS *(*fp_taos_connect_token)(const char *ip, const char *token, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+extern TAOS *(*fp_taos_connect_with_dsn)(const char *dsn);
 extern void (*fp_taos_close)(TAOS *taos);
 
 extern const char *(*fp_taos_data_type)(int type);
@@ -144,6 +148,10 @@ extern int (*fp_taos_set_notify_cb)(TAOS *taos, __taos_notify_fn_t fp, void *par
 extern void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param);
 
 extern void (*fp_taos_fetch_whitelist_dual_stack_a)(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param);
+
+extern void (*fp_taos_fetch_ip_whitelist_a)(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param);
+
+extern void (*fp_taos_fetch_datetime_whitelist_a)(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param);
 
 extern int (*fp_taos_set_conn_mode)(TAOS *taos, int mode, int value);
 

@@ -375,7 +375,7 @@ static int32_t doCacheBlockForImputation(SImputationSupp* pSupp, const char* id,
   return code;
 }
 
-int32_t doCacheBlockForDtw(SCorrelationSupp* pSupp, const char* id, SSDataBlock* pBlock) {
+int32_t doCacheBlockForCorrelation(SCorrelationSupp* pSupp, const char* id, SSDataBlock* pBlock) {
   SAnalyticBuf* pBuf = &pSupp->base.analyBuf;
   int32_t code = 0;
 
@@ -411,18 +411,23 @@ int32_t doCacheBlockForDtw(SCorrelationSupp* pSupp, const char* id, SSDataBlock*
     }
   }
 
-  return code;
+  if (pSupp->base.numOfRows > ANALY_CORRELATION_INPUT_MAX_ROWS) {
+    qError("%s too many rows for correlation, maximum allowed:%d, input:%d", id, ANALY_CORRELATION_INPUT_MAX_ROWS,
+           pSupp->base.numOfRows);
+    return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
+  }
 
+  return code;
 }
 
 static int32_t doCacheBlock(SAnalysisOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  int32_t       lino = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t type = pInfo->analysisType;
 
-  if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
+  if (type == FUNCTION_TYPE_IMPUTATION) {
     code = doCacheBlockForImputation(&pInfo->imputatSup, id, pBlock);
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH || pInfo->analysisType == FUNCTION_TYPE_TLCC) {
-    code = doCacheBlockForDtw(&pInfo->corrSupp, id, pBlock);
+  } else if (type == FUNCTION_TYPE_DTW || type == FUNCTION_TYPE_DTW_PATH || type == FUNCTION_TYPE_TLCC) {
+    code = doCacheBlockForCorrelation(&pInfo->corrSupp, id, pBlock);
   }
 
   return code;

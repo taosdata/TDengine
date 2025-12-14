@@ -1569,7 +1569,10 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
 
   terrno = 0;
   taosqsort_r(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
-  if (terrno) return terrno;
+  if (terrno) {
+    destroyTupleIndex(index);
+    return terrno;
+  }
 
   int64_t p1 = taosGetTimestampUs();
 
@@ -2215,20 +2218,15 @@ int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pC
   pDstBlock->info.blankFill = pDataBlock->info.blankFill;
 
   for (int32_t i = 0; i < taosArrayGetSize(pColArray); ++i) {
-    SColIdPair* pColPair = taosArrayGet(pColArray, i);
+    SColIdSlotIdPair* pColPair = taosArrayGet(pColArray, i);
     QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
 
-    for (int32_t j = 0; j < taosArrayGetSize(pDataBlock->pDataBlock); ++j) {
-      SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, j);
-      if (p == NULL) {
-        continue;
-      }
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, pColPair->vtbSlotId);
+    QUERY_CHECK_NULL(p, code, lino, _return, terrno);
 
-      if (p->info.colId == pColPair->vtbColId) {
-        QUERY_CHECK_CODE(blockDataAppendColInfo(pDstBlock, p), lino, _return);
-        break;
-      }
-    }
+    SColumnInfoData pColInfo = {.hasNull = true, .info = p->info};
+    pColInfo.info.colId = pColPair->orgColId;
+    QUERY_CHECK_CODE(blockDataAppendColInfo(pDstBlock, &pColInfo), lino, _return);
   }
 
   *pResBlock = pDstBlock;
@@ -2239,43 +2237,44 @@ _return:
   return code;
 }
 
-int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock,
+// create a new data block based on the template block, and fill data from the source block according to the column mapping
+int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDataBlock* pTemplateBlock, SArray* pColMap,
                                        SSDataBlock** pResBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pDstBlock = NULL;
 
   QRY_PARAM_CHECK(pResBlock);
-  QUERY_CHECK_NULL(pDataBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(pOrgBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pSrcBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pTemplateBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pColMap, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
-  QUERY_CHECK_CODE(createOneDataBlock(pOrgBlock, false, &pDstBlock), lino, _return);
-  QUERY_CHECK_CODE(blockDataEnsureCapacity(pDstBlock, pDataBlock->info.rows), lino, _return);
+  QUERY_CHECK_CODE(createOneDataBlock(pTemplateBlock, false, &pDstBlock), lino, _return);
+  QUERY_CHECK_CODE(blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows), lino, _return);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pOrgBlock->pDataBlock); ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pDstBlock->pDataBlock); ++i) {
     SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
-    SColumnInfoData* pSrc = taosArrayGet(pOrgBlock->pDataBlock, i);
-
     QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
-    QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno);
+    colDataSetNNULL(pDst, 0, pSrcBlock->info.rows);
+  }
 
-    bool found = false;
-    for (int32_t j = 0; j < taosArrayGetSize(pDataBlock->pDataBlock); j++) {
-      SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, j);
-      if (p->info.slotId == pSrc->info.slotId) {
-        QUERY_CHECK_CODE(colDataAssign(pDst, p, (int32_t)pDataBlock->info.rows, &pDataBlock->info), lino, _return);
-        found = true;
-        break;
+  for (int32_t i = 0; i < taosArrayGetSize(pColMap); i++) {
+    SColIdSlotIdPair* pColPair = taosArrayGet(pColMap, i);
+    QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
+    for (int32_t j = 0; j < taosArrayGetSize(pSrcBlock->pDataBlock); j++) {
+      SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, j);
+      QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno);
+      if (pSrcCol->info.colId == pColPair->orgColId) {
+        SColumnInfoData* pDstCol = taosArrayGet(pDstBlock->pDataBlock, pColPair->vtbSlotId);
+        QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno);
+        QUERY_CHECK_CODE(colDataAssign(pDstCol, pSrcCol, (int32_t)pSrcBlock->info.rows, &pSrcBlock->info), lino, _return);
       }
-    }
-    if (!found) {
-      colDataSetNNULL(pDst, 0, pDataBlock->info.rows);
     }
   }
 
-  pDstBlock->info.rows = pDataBlock->info.rows;
-  pDstBlock->info.capacity = pDataBlock->info.rows;
-  pDstBlock->info.window = pDataBlock->info.window;
+  pDstBlock->info.rows = pSrcBlock->info.rows;
+  pDstBlock->info.capacity = pSrcBlock->info.rows;
+  pDstBlock->info.window = pSrcBlock->info.window;
 
   *pResBlock = pDstBlock;
   return code;

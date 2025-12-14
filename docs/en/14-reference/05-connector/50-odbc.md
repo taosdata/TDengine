@@ -9,10 +9,13 @@ TDengine ODBC is an ODBC driver implemented for TDengine, supporting application
 TDengine ODBC offers two types of connections to the TDengine database: WebSocket (recommended) and native connections. Different connection methods can be set for the TDengine data source when in use. WebSocket connection must be used when accessing cloud services.
 
 TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit version is only supported by the TSDB-Enterprise and only supports WebSocket connections.  
-**Note:**
+
+:::note
 
 - Driver Manager: Ensure to use the ODBC driver manager that matches the architecture of the application. 32-bit applications need a 32-bit ODBC driver manager, and 64-bit applications need a 64-bit ODBC driver manager.
 - Data Source Name (DSN): Both 32-bit and 64-bit ODBC driver managers can see all DSNs, and DSNs under the User DSN tab will share the same name, so it is necessary to distinguish them in the DSN name.
+
+:::
 
 ## ODBC Version Compatibility
 
@@ -50,7 +53,7 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
 4. Click finish, enter the TDengine ODBC data source configuration page, fill in the following necessary information
 
-    ![](../../assets/odbc-01.png)
+    ![Configure TDengine data source with WebSocket connection](../../assets/odbc-01.png)
 
     4.1 **DSN**: Data Source Name, required, name the newly added ODBC data source
 
@@ -82,7 +85,7 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
 4. Click finish to enter the TDengine ODBC data source configuration page, fill in the necessary information as follows:
 
-    ![](../../assets/odbc-02.png)
+    ![Configure TDengine data source with native connection](../../assets/odbc-02.png)
 
     4.1 **DSN**: Data Source Name is required, name the newly added ODBC data source.
 
@@ -242,7 +245,7 @@ The table below explains how the ODBC connector maps server data types to defaul
 | SQL_ATTR_TRANSLATE_LIB | |
 | SQL_ATTR_TRANSLATE_OPTION | |
 
-- **Enable any programming language with ODBC-bindings/ODBC-plugings to communicate with TDengine:**
+- **Enable any programming language with ODBC-bindings/ODBC-plugings to communicate with TDengine**
 
 | programming language | ODBC-API or bindings/plugins |
 | :----- | :---- |

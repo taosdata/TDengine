@@ -83,6 +83,8 @@ typedef struct SSTriggerRealtimeGroup {
   SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
   SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
   SSHashObj  *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>
+  bool        pendingWinOpen;      // for event window trigger and state window trigger
+  char       *pPendWinOpenNotify;  // for event window trigger and state window trigger
 
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
@@ -101,6 +103,8 @@ typedef struct SSTriggerHistoryGroup {
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;
   SValue           stateVal;
+  int64_t          pendingNullStart;
+  int64_t          numPendingNull;
 
   SObjList pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
   HeapNode heapNode;
@@ -405,6 +409,9 @@ typedef struct SStreamTriggerTask {
   SRWLatch   recalcRequestLock;
   SList     *pRecalcRequests;    // SList<SSTriggerRecalcRequest>
   SSHashObj *pRecalcRequestMap;  // SSHashObj<gid, TriggerRecalcRequestList>
+
+  SRWLatch userRecalcRequestLock;
+  SArray  *pUserRecalcRequests;  // SArray<SStreamRecalcReq>
 
   // runtime status
   volatile int8_t           isCheckpointReady;

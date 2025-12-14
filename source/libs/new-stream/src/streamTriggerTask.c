@@ -2106,6 +2106,10 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->pRecalcRequestMap = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pTask->pRecalcRequestMap, code, lino, _end, terrno);
 
+  taosInitRWLatch(&pTask->userRecalcRequestLock);
+  pTask->pUserRecalcRequests = taosArrayInit(0, sizeof(SStreamRecalcReq));
+  QUERY_CHECK_NULL(pTask->pUserRecalcRequests, code, lino, _end, terrno);
+
   pTask->pHistoryCutoffTime = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pTask->pHistoryCutoffTime, code, lino, _end, terrno);
 
@@ -2318,6 +2322,11 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->pRecalcRequestMap = NULL;
   }
 
+  if (pTask->pUserRecalcRequests != NULL) {
+    taosArrayDestroy(pTask->pUserRecalcRequests);
+    pTask->pUserRecalcRequests = NULL;
+  }
+
   if (pTask->streamName != NULL) {
     taosMemoryFree(pTask->streamName);
     pTask->streamName = NULL;
@@ -2488,24 +2497,11 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       break;
     }
     case STREAM_MSG_USER_RECALC: {
-      SStreamMgmtRsp           *pRsp = (SStreamMgmtRsp *)pMsg;
-      SArray                   *pRecalcList = pRsp->cont.recalcList;
-      int32_t                   nRecalcReq = taosArrayGetSize(pRecalcList);
-      SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
-      QUERY_CHECK_NULL(pContext, code, lino, _end, TSDB_CODE_INVALID_PARA);
-      for (int32_t i = 0; i < nRecalcReq; i++) {
-        SStreamRecalcReq *pReq = TARRAY_GET_ELEM(pRecalcList, i);
-        int32_t           iter = 0;
-        void             *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
-        ST_TASK_DLOG("add user recalc request, start: %" PRId64 ", end: %" PRId64, pReq->start, pReq->end - 1);
-        while (px != NULL) {
-          SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-          STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
-          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, false);
-          QUERY_CHECK_CODE(code, lino, _end);
-          px = tSimpleHashIterate(pContext->pGroups, px, &iter);
-        }
-      }
+      SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
+      taosWLockLatch(&pTask->userRecalcRequestLock);
+      void *px = taosArrayAddAll(pTask->pUserRecalcRequests, pRsp->cont.recalcList);
+      taosWUnLockLatch(&pTask->userRecalcRequestLock);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       break;
     }
     default: {
@@ -4021,6 +4017,42 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextAddUserRecalc(SSTriggerRealtimeContext *pContext) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+  bool                needUnlock = false;
+
+  taosWLockLatch(&pTask->userRecalcRequestLock);
+  needUnlock = true;
+
+  SArray *pRecalcList = pTask->pUserRecalcRequests;
+  int32_t nUserRecalcs = taosArrayGetSize(pRecalcList);
+  for (int32_t i = 0; i < nUserRecalcs; i++) {
+    SStreamRecalcReq *pReq = TARRAY_GET_ELEM(pTask->pUserRecalcRequests, i);
+    int32_t           iter = 0;
+    void             *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+    ST_TASK_DLOG("add user recalc request, start: %" PRId64 ", end: %" PRId64, pReq->start, pReq->end - 1);
+    while (px != NULL) {
+      SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+      STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
+      code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+      px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+    }
+  }
+  taosArrayClear(pRecalcList);
+
+_end:
+  if (needUnlock) {
+    taosWUnLockLatch(&pTask->userRecalcRequestLock);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -4379,6 +4411,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     pContext->lastVirtTableInfoTime = now;
     goto _end;
   }
+
+  code = stRealtimeContextAddUserRecalc(pContext);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     stTriggerTaskNextTimeWindow(pTask, &pContext->periodWindow);
@@ -5970,6 +6005,10 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pReq->skey = pContext->pParamToFetch->wstart;
       pReq->ekey = pContext->pParamToFetch->wend;
       pReq->ver = pProgress->version;
+      if (pContext->pParamToFetch != TARRAY_DATA(pContext->pCalcReq->params)) {
+        int64_t prevEnd = (pContext->pParamToFetch - 1)->wend;
+        pReq->skey = TMAX(pReq->skey, prevEnd + 1);
+      }
       break;
     }
 
@@ -6692,9 +6731,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           do {
             if (pTask->triggerType == STREAM_TRIGGER_STATE) {
               // for state trigger, check if state equals to the zeroth state
-              bool stEqualZeroth = false;
-              void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ?
-                    (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
+              bool  stEqualZeroth = false;
+              void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ? (void *)pGroup->stateVal.pData
+                                                                         : (void *)&pGroup->stateVal.val;
               code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
               QUERY_CHECK_CODE(code, lino, _end);
               if (stEqualZeroth) {
@@ -7494,6 +7533,7 @@ static void stRealtimeGroupDestroy(void *ptr) {
   }
   taosObjListClear(&pGroup->windows);
   taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
+  taosMemoryFreeClear(pGroup->pPendWinOpenNotify);
 
   taosMemFreeClear(*ppGroup);
 }
@@ -8071,6 +8111,16 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       void *px = taosArrayPush(pContext->pWindows, &newWin);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     }
+    if (pGroup->pendingWinOpen) {
+      QUERY_CHECK_CONDITION(TARRAY_SIZE(pContext->pWindows) == 1, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      SSTriggerWindow       *pWin = taosObjListGetHead(&pGroup->windows);
+      SSTriggerNotifyWindow *pNewWin = TARRAY_DATA(pContext->pWindows);
+      pNewWin->wrownum = pWin->wrownum;
+      pNewWin->pWinOpenNotify = pGroup->pPendWinOpenNotify;
+      pGroup->pendingWinOpen = false;
+      pGroup->pPendWinOpenNotify = NULL;
+      taosObjListClear(&pGroup->windows);
+    }
   }
 
   SSTriggerNotifyWindow *pWin = taosArrayGetLast(pContext->pWindows);
@@ -8098,7 +8148,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (TARRAY_SIZE(pContext->pWindows) == 0 && pGroup->stateVal.type == 0) {
+    if (pGroup->stateVal.type == 0) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
@@ -8138,7 +8188,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end);
             if (stEqualZeroth) {
               pWin = taosArrayPop(pContext->pWindows);
-              stRealtimeContextDestroyWindow((void*)pWin);
+              stRealtimeContextDestroyWindow((void *)pWin);
             } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
                                                    &pWin->pWinCloseNotify);
@@ -8196,6 +8246,16 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
       newWin.range = pWin->range;
       void *px = taosArrayPush(pContext->pWindows, &newWin);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
+    if (pGroup->pendingWinOpen) {
+      QUERY_CHECK_CONDITION(TARRAY_SIZE(pContext->pWindows) == 1, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      SSTriggerWindow       *pWin = taosObjListGetHead(&pGroup->windows);
+      SSTriggerNotifyWindow *pNewWin = TARRAY_DATA(pContext->pWindows);
+      pNewWin->wrownum = pWin->wrownum;
+      pNewWin->pWinOpenNotify = pGroup->pPendWinOpenNotify;
+      pGroup->pendingWinOpen = false;
+      pGroup->pPendWinOpenNotify = NULL;
+      taosObjListClear(&pGroup->windows);
     }
   }
 
@@ -8381,6 +8441,24 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
           (pTask->triggerType == STREAM_TRIGGER_COUNT && pTask->windowCount > pTask->windowSliding),
       code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
+  // add pending open window for TRUE FOR condition
+  int64_t trueFor = 0;
+  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    trueFor = pTask->stateTrueFor;
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    trueFor = pTask->eventTrueFor;
+  }
+  if ((trueFor > 0) && (pGroup->windows.neles > 0)) {
+    pWin = taosArrayGetLast(pContext->pWindows);
+    QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
+    if ((pWin->range.ekey & TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) &&
+        (pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey < trueFor) {
+      pGroup->pendingWinOpen = true;
+      pGroup->pPendWinOpenNotify = pWin->pWinOpenNotify;
+      pWin->pWinOpenNotify = NULL;
+    }
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -8482,11 +8560,20 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   int64_t numClosed = numWin - numUnclosed;
 
   int64_t initPendingSize = pGroup->pPendingCalcParams.neles;
+  int64_t trueFor = 0;
+  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    trueFor = pTask->stateTrueFor;
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    trueFor = pTask->eventTrueFor;
+  }
   // trigger all window open/close events
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pWindows); i++) {
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pWindows, i);
-    // window open event may have been triggered previously
-    if ((calcOpen || notifyOpen) && i >= nInitWins && !pContext->recovering) {
+    // check TRUE FOR condition
+    bool meetTrueFor =
+        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool ignore = (i < nInitWins) || !meetTrueFor;
+    if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
                                      .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
                                      .extraNotifyContent = pWin->pWinOpenNotify};
@@ -8507,12 +8594,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       }
     }
 
-    // check TRUE FOR condition and unclosed windows
-    bool ignore =
-        (i >= numClosed) || (pTask->ignoreNoDataTrigger && pWin->wrownum == 0) ||
-        (pTask->triggerType == STREAM_TRIGGER_STATE && pWin->range.ekey - pWin->range.skey < pTask->stateTrueFor) ||
-        (pTask->triggerType == STREAM_TRIGGER_EVENT && pWin->range.ekey - pWin->range.skey < pTask->eventTrueFor);
-
+    ignore = (i >= numClosed) || !meetTrueFor || (pTask->ignoreNoDataTrigger && pWin->wrownum == 0);
     if ((calcClose || notifyClose) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam param = {
           .triggerTime = now,
@@ -8739,6 +8821,11 @@ static int32_t stRealtimeGroupRemovePendingCalc(SSTriggerRealtimeGroup *pGroup, 
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
+  int64_t                   gap = 0;
+
+  if (pTask->triggerType == STREAM_TRIGGER_SESSION) {
+    gap = pTask->gap;
+  }
 
   if (pGroup->pPendingCalcParams.neles > 0) {
     ST_TASK_DLOG("remove pending calc params for group %" PRId64 " in range [%" PRId64 ", %" PRId64 "]", pGroup->gid,
@@ -8747,7 +8834,7 @@ static int32_t stRealtimeGroupRemovePendingCalc(SSTriggerRealtimeGroup *pGroup, 
     SObjListIter        iter = {0};
     taosObjListInitIter(&pGroup->pPendingCalcParams, &iter, TOBJLIST_ITER_FORWARD);
     while ((pParam = taosObjListIterNext(&iter)) != NULL) {
-      if (pParam->wstart <= pRange->ekey && pParam->wend >= pRange->skey) {
+      if (pParam->wstart <= pRange->ekey + gap && pParam->wend >= pRange->skey - gap) {
         // remove this param
         taosMemoryFreeClear(pParam->extraNotifyContent);
         taosObjListPopObj(&pGroup->pPendingCalcParams, pParam);
@@ -9054,7 +9141,7 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
   SSTriggerCalcParam       param = {0};
 
   bool    needCalc = (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN);
-  bool    needNotify = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN);
+  bool    needNotify = pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN);
   int64_t now = taosGetTimestampNs();
   if (needCalc || needNotify) {
     param.triggerTime = now;
@@ -10034,60 +10121,75 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
+    if (pGroup->stateVal.type == 0) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
-      if (isVarType) {
+      if (isVarType && pStateVal->pData == NULL) {
         pStateVal->nData = pStateCol->info.bytes;
         pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
         QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
         pStateData = pStateVal->pData;
       }
-
-      // open the first window
-      char   *newVal = colDataGetData(pStateCol, startIdx);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
-                                             &pExtraNotifyContent);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      code = stHistoryGroupOpenWindow(pGroup, pTsData[startIdx], &pExtraNotifyContent, false, true);
-      QUERY_CHECK_CODE(code, lino, _end);
-      memcpy(pStateData, newVal, bytes);
-      startIdx++;
     }
 
     for (int32_t r = startIdx; r < endIdx; r++) {
-      char   *newVal = colDataGetData(pStateCol, r);
-      int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-      if (memcmp(pStateData, newVal, bytes) == 0) {
-        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
-        TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
-      } else {
-        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
-          QUERY_CHECK_CODE(code, lino, _end);
+      bool isNull = colDataIsNull_s(pStateCol, r);
+      if (isNull) {
+        if (pGroup->numPendingNull == 0) {
+          pGroup->pendingNullStart = pTsData[r];
         }
-        bool stEqualZeroth = false;
-        code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
-        QUERY_CHECK_CODE(code, lino, _end);
-        if (stEqualZeroth) {
-          TRINGBUF_DEQUEUE(&pGroup->winBuf);
-        } else {   
-          code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
-          QUERY_CHECK_CODE(code, lino, _end);
+        pGroup->numPendingNull++;
+      } else {
+        char   *oldVal = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pStateData : NULL;
+        char   *newVal = colDataGetData(pStateCol, r);
+        int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
+        int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[r];
+        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          if (memcmp(pStateData, newVal, bytes) == 0) {
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull + 1;
+            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+          } else {
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r] - 1;
+            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+              startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
+            }
+            bool stEqualZeroth = false;
+            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (stEqualZeroth) {
+              TRINGBUF_DEQUEUE(&pGroup->winBuf);
+            } else {
+              if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+                code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
+                                                     &pExtraNotifyContent);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+              code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+          }
+        }
+        if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
+            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, oldVal, newVal,
                                                  &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
+          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+            code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
+            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+          } else {
+            code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          memcpy(pStateData, newVal, bytes);
         }
-        code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
-        QUERY_CHECK_CODE(code, lino, _end);
-        memcpy(pStateData, newVal, bytes);
+        pGroup->numPendingNull = 0;
       }
     }
   }
@@ -10230,14 +10332,14 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
   }
 }
 
-int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual) {
+int32_t stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pStateData == NULL || pZeroth == NULL) {
     return code;
   }
 
-  SValueNode* pZerothState = (SValueNode*)pZeroth;
-  int8_t type = pZerothState->node.resType.type;
+  SValueNode *pZerothState = (SValueNode *)pZeroth;
+  int8_t      type = pZerothState->node.resType.type;
   if (IS_VAR_DATA_TYPE(type)) {
     *pIsEqual = compareLenPrefixedStr(pStateData, pZerothState->datum.p) == 0;
   } else if (IS_INTEGER_TYPE(type)) {

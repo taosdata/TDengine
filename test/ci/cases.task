@@ -189,15 +189,20 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ntb.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window_state.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ntb.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window_state.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_reference_col.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_with_null_value.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
@@ -211,7 +216,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_delete.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_insert_select.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_morevgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_out_of_order_data.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_stb.py
@@ -264,6 +269,7 @@
 ## 04-OrderBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_double.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_order_by_select_list.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_limit.py
@@ -320,6 +326,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_math.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_string.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_time.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_crypto.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_abs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_acos.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_asin.py
@@ -409,6 +416,8 @@
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
 ,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py
+# Temporarily disable memory leak detection for UDF tests
+#,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_create.py
 ,,n,.,pytest cases/12-UDFs/test_udf_cfg1.py
@@ -511,11 +520,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_td37724.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_6570600210.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_check_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_long_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_no_snode.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_same_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_window_query.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_output_table.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_count.py
@@ -645,6 +656,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_tables.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_vgroups_ready.py -N 3
 
 # 24-Users
 
@@ -758,10 +770,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_compact_db_conflict.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_mnode_encrypt.py -N 3
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
 #,,y,.,./ci/pytest.sh pytest ccases/70-Cluster/test_cluster_basic.py -N 5
 
 # 80-Components
@@ -801,7 +813,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt2.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_taosc.py
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
+# TD-38727: Temporarily disable memory leak detection for test_benchmark_tmq tests
+# ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
+,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_website.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
 ## 04-Taosdump
@@ -1031,7 +1045,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxGroupIds.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumeDiscontinuousData.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqOffset.py
-#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_primary_key.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_primary_key.py
 ,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDropConsumer.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_create_wrong_topic.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dropDbR3ConflictTransaction.py -N 3
@@ -1093,6 +1107,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td37436.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td33504.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td35698.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_get_meta_json.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5906.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts7402.py
@@ -1132,3 +1147,4 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py
