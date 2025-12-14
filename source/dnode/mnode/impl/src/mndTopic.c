@@ -30,7 +30,7 @@
 #include "audit.h"
 
 #define MND_TOPIC_VER_NUMBER   3
-#define MND_TOPIC_RESERVE_SIZE 64
+#define MND_TOPIC_RESERVE_SIZE 40
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic);
 SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw);
@@ -159,7 +159,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   }
 
   SDB_SET_INT64(pRaw, dataPos, pTopic->ctbStbUid, TOPIC_ENCODE_OVER);
-
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->owner, TSDB_USER_LEN, TOPIC_ENCODE_OVER);
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
 
@@ -283,6 +283,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   }
 
   SDB_GET_INT64(pRaw, dataPos, &pTopic->ctbStbUid, TOPIC_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->owner, TSDB_USER_LEN, TOPIC_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
   terrno = TSDB_CODE_SUCCESS;
 
@@ -927,15 +928,36 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   SMqTopicObj *pTopic = NULL;
-  int32_t      code = 0;
-  char        *sql  = NULL;
-  char        *schemaJson  = NULL;
+  SUserObj    *pOperUser = NULL;
+  int32_t      code = 0, lino = 0;
+  char        *sql = NULL;
+  char        *schemaJson = NULL;
+  char         objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool         showAll = false;
+
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (pReq->info.conn.user), &pOperUser));
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  SPrivInfo *privInfo = privInfoGet(PRIV_TOPIC_SHOW);
+  if (!privInfo) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_TOPIC_SHOW, NULL, objFName,
+                                          privInfo->objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_TOPIC, pShow->pIter, (void **)&pTopic);
     if (pShow->pIter == NULL) break;
 
-    SColumnInfoData *pColInfo= NULL;
+    if (!showAll) {
+      char *owner = pTopic->owner[0] != 0 ? pTopic->owner : pTopic->createUser;
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_SHOW, owner, pTopic->db,
+                                   privInfo->objLevel == 0 ? NULL : pTopic->name)) {  // 1.db1.topic1
+        sdbRelease(pSdb, pTopic);
+        continue;
+      }
+    }
+
+    SColumnInfoData *pColInfo = NULL;
     SName            n = {0};
     int32_t          cols = 0;
 
@@ -943,90 +965,101 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     const char *pName = mndGetDbStr(pTopic->name);
     STR_TO_VARSTR(topicName, pName);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)topicName, false));
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      COL_DATA_SET_VAL_GOTO((const char *)topicName, false, pTopic, pShow->pIter, _exit);
+    }
 
     char dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    MND_TMQ_RETURN_CHECK(tNameFromString(&n, pTopic->db, T_NAME_ACCT | T_NAME_DB));
-    MND_TMQ_RETURN_CHECK(tNameGetDbName(&n, varDataVal(dbName)));
+    if ((code = tNameFromString(&n, pTopic->db, T_NAME_ACCT | T_NAME_DB)) ||
+        (code = tNameGetDbName(&n, varDataVal(dbName)))) {
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pTopic);
+      goto _exit;
+    }
+
     varDataSetLen(dbName, strlen(varDataVal(dbName)));
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)dbName, false));
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      COL_DATA_SET_VAL_GOTO((const char *)dbName, false, pTopic, pShow->pIter, _exit);
+    }
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pTopic->createTime, false));
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      COL_DATA_SET_VAL_GOTO((const char *)&pTopic->createTime, false, pTopic, pShow->pIter, _exit);
+    }
 
     sql = taosMemoryMalloc(strlen(pTopic->sql) + VARSTR_HEADER_SIZE);
-    MND_TMQ_NULL_CHECK(sql);
+    if (!sql) {
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pTopic);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
     STR_TO_VARSTR(sql, pTopic->sql);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)sql, false));
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      COL_DATA_SET_VAL_GOTO((const char *)sql, false, pTopic, pShow->pIter, _exit);
+    }
 
     taosMemoryFreeClear(sql);
 
-    schemaJson = taosMemoryMalloc(TSDB_SHOW_SCHEMA_JSON_LEN + VARSTR_HEADER_SIZE);
-    MND_TMQ_NULL_CHECK(schemaJson);
-    if(pTopic->subType == TOPIC_SUB_TYPE__COLUMN){
+    if (!schemaJson && !(schemaJson = taosMemoryMalloc(TSDB_SHOW_SCHEMA_JSON_LEN + VARSTR_HEADER_SIZE))) {
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pTopic);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
       schemaToJson(pTopic->schema.pSchema, pTopic->schema.nCols, schemaJson);
-    }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
+    } else if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
       SStbObj *pStb = mndAcquireStb(pMnode, pTopic->stbName);
       if (pStb == NULL) {
         STR_TO_VARSTR(schemaJson, "NULL");
         mError("mndRetrieveTopic mndAcquireStb null stbName:%s", pTopic->stbName);
-      }else{
+      } else {
         schemaToJson(pStb->pColumns, pStb->numOfColumns, schemaJson);
         mndReleaseStb(pMnode, pStb);
       }
-    }else{
+    } else {
       STR_TO_VARSTR(schemaJson, "NULL");
     }
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)schemaJson, false));
-    taosMemoryFreeClear(schemaJson);
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      COL_DATA_SET_VAL_GOTO((const char *)schemaJson, false, pTopic, pShow->pIter, _exit);
+    }
 
     char mete[4 + VARSTR_HEADER_SIZE] = {0};
-    if(pTopic->withMeta){
+    if (pTopic->withMeta) {
       STR_TO_VARSTR(mete, "yes");
-    }else{
+    } else {
       STR_TO_VARSTR(mete, "no");
     }
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)mete, false));
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      COL_DATA_SET_VAL_GOTO((const char *)mete, false, pTopic, pShow->pIter, _exit);
+    }
 
     char type[8 + VARSTR_HEADER_SIZE] = {0};
-    if(pTopic->subType == TOPIC_SUB_TYPE__COLUMN){
+    if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
       STR_TO_VARSTR(type, "column");
-    }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
+    } else if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
       STR_TO_VARSTR(type, "stable");
-    }else{
+    } else {
       STR_TO_VARSTR(type, "db");
     }
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)type, false));
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      COL_DATA_SET_VAL_GOTO((const char *)type, false, pTopic, pShow->pIter, _exit);
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);
   }
-
   pShow->numOfRows += numOfRows;
-  return numOfRows;
-
-END:
+_exit:
   taosMemoryFreeClear(schemaJson);
   taosMemoryFreeClear(sql);
-  return code;
+  return code != 0 ? code : numOfRows;
 }
 
 static void mndCancelGetNextTopic(SMnode *pMnode, void *pIter) {
