@@ -397,6 +397,24 @@ static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
   return code;
 }
 
+static int32_t authCreateTopic(SAuthCxt* pCxt, SCreateTopicStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (IS_SYS_DBNAME(pStmt->subDbName)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  if (NULL != pStmt->pQuery) {
+    PAR_ERR_RET(authSelect(pCxt, (SSelectStmt*)pStmt->pQuery));
+  }
+  if (NULL != pStmt->pWhere) {
+    PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, ((SCreateTopicStmt*)pStmt)->subSTbName,
+                                  PRIV_TBL_SELECT));
+  }
+  PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, NULL, PRIV_DB_USE));
+
+  return code;
+}
+
 static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
@@ -573,6 +591,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return authCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
+    case QUERY_NODE_CREATE_TOPIC_STMT:
+      return authCreateTopic(pCxt, (SCreateTopicStmt*)pStmt);
     case QUERY_NODE_DROP_TABLE_STMT:
       return authDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
