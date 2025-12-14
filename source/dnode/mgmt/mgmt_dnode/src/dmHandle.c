@@ -17,11 +17,12 @@
 #include "audit.h"
 #include "dmInt.h"
 #include "monitor.h"
+#include "stream.h"
 #include "systable.h"
 #include "tanalytics.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 #include "tutil.h"
-#include "stream.h"
 #ifdef TD_ENTERPRISE
 #include "taoskInt.h"
 #endif
@@ -466,6 +467,14 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     // Update local key version
     tsLocalKeyVersion = keySyncRsp.keyVersion;
     dInfo("successfully updated local encryption keys to version:%d", tsLocalKeyVersion);
+
+    // Encrypt existing plaintext config files
+    code = taosEncryptExistingCfgFiles(tsDataDir);
+    if (code != 0) {
+      dWarn("failed to encrypt existing config files since %s, will retry on next write", tstrerror(code));
+      // Don't fail the key sync, files will be encrypted on next write
+      code = 0;
+    }
 #else
     dWarn("enterprise features not enabled, skipping key sync");
 #endif

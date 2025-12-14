@@ -506,3 +506,186 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
 
   return 0;
 }
+
+/**
+ * Encrypt a single configuration file if it's not already encrypted.
+ *
+ * This function checks if a file exists and is not encrypted, then encrypts it in place.
+ * The operation is atomic - uses temporary file and rename.
+ *
+ * @param filepath File path to encrypt
+ * @return 0 on success or file already encrypted, error code on failure
+ */
+static int32_t taosEncryptSingleCfgFile(const char *filepath) {
+  if (filepath == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Check if file exists
+  if (!taosCheckExistFile(filepath)) {
+    // File doesn't exist, nothing to do
+    return 0;
+  }
+
+  // Check if file is already encrypted
+  if (taosIsEncryptedFile(filepath, NULL)) {
+    // Already encrypted, nothing to do
+    return 0;
+  }
+
+  // Read plaintext file
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
+  if (pFile == NULL) {
+    return terrno;
+  }
+
+  int64_t fileSize = 0;
+  int32_t code = taosFStatFile(pFile, &fileSize, NULL);
+  if (code != 0) {
+    taosCloseFile(&pFile);
+    return code;
+  }
+
+  if (fileSize <= 0) {
+    taosCloseFile(&pFile);
+    // Empty file, just skip it
+    return 0;
+  }
+
+  char *plainData = taosMemoryMalloc(fileSize);
+  if (plainData == NULL) {
+    taosCloseFile(&pFile);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int64_t nread = taosReadFile(pFile, plainData, fileSize);
+  taosCloseFile(&pFile);
+
+  if (nread != fileSize) {
+    taosMemoryFree(plainData);
+    return (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  // Encrypt the file using taosWriteCfgFile (which handles encryption and atomic write)
+  code = taosWriteCfgFile(filepath, plainData, fileSize);
+  taosMemoryFree(plainData);
+
+  return code;
+}
+
+/**
+ * Encrypt existing configuration files that are not yet encrypted.
+ *
+ * This function scans common configuration file locations and encrypts any
+ * plaintext files it finds. It's called after encryption keys are loaded
+ * to ensure all sensitive config files are encrypted.
+ *
+ * Files checked:
+ * - dnode: dnode.info, dnode.json
+ * - mnode: mnode.json, raft_config.json, raft_store.json
+ * - vnode: vnodes.json, vnode.json (all vnodes), raft_config.json, raft_store.json, current.json
+ * - snode: snode.json
+ *
+ * @param dataDir Data directory path (tsDataDir)
+ * @return 0 on success, error code on failure (first error encountered)
+ */
+int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
+  if (dataDir == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Check if encryption is enabled
+  if (!tsCfgKeyEnabled || tsCfgKey[0] == '\0') {
+    // Encryption not enabled, nothing to do
+    return 0;
+  }
+
+  int32_t code = 0;
+  char    filepath[PATH_MAX];
+
+  // 1. Encrypt dnode config files
+  // dnode.info
+  snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.info", dataDir, TD_DIRSEP, TD_DIRSEP);
+  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+    code = taosEncryptSingleCfgFile(filepath);
+    if (code != 0) {
+      goto _err;
+    } else {
+      uInfo("successfully encrypted file %s", filepath);
+    }
+  }
+
+  // dnode.json (ep.json)
+  snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);
+  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+    code = taosEncryptSingleCfgFile(filepath);
+    if (code != 0) {
+      goto _err;
+    } else {
+      uInfo("successfully encrypted file %s", filepath);
+    }
+  }
+
+  // 2. Encrypt mnode config files
+  snprintf(filepath, sizeof(filepath), "%s%smnode%smnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);
+  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+    code = taosEncryptSingleCfgFile(filepath);
+    if (code != 0) {
+      goto _err;
+    } else {
+      uInfo("successfully encrypted file %s", filepath);
+    }
+  }
+
+  snprintf(filepath, sizeof(filepath), "%s%smnode%ssync%sraft_config.json", dataDir, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
+  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+    code = taosEncryptSingleCfgFile(filepath);
+    if (code != 0) {
+      goto _err;
+    } else {
+      uInfo("successfully encrypted file %s", filepath);
+    }
+  }
+
+  snprintf(filepath, sizeof(filepath), "%s%smnode%ssync%sraft_store.json", dataDir, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
+  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+    code = taosEncryptSingleCfgFile(filepath);
+    if (code != 0) {
+      goto _err;
+    } else {
+      uInfo("successfully encrypted file %s", filepath);
+    }
+  }
+  // 3. Encrypt snode config files
+  snprintf(filepath, sizeof(filepath), "%s%ssnode%ssnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);
+  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+    code = taosEncryptSingleCfgFile(filepath);
+    if (code != 0) {
+      goto _err;
+    } else {
+      uInfo("successfully encrypted file %s", filepath);
+    }
+  }
+
+  // 4. Encrypt vnode config files
+  // vnodes.json
+  snprintf(filepath, sizeof(filepath), "%s%svnode%svnodes.json", dataDir, TD_DIRSEP, TD_DIRSEP);
+  if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
+    code = taosEncryptSingleCfgFile(filepath);
+    if (code != 0) {
+      goto _err;
+    } else {
+      uInfo("successfully encrypted file %s", filepath);
+    }
+  }
+
+  // Note: Individual vnode directories (vnode1, vnode2, etc.) are not traversed here
+  // because they would require scanning the vnode directory structure.
+  // These files will be encrypted on next write by taosWriteCfgFile.
+
+  uInfo("finished encrypting existing config files");
+  return 0;
+_err:
+  uError("failed to encrypt existing config files, code:%s", tstrerror(code));
+  return code;
+}

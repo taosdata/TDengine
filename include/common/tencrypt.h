@@ -125,6 +125,24 @@ int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen
  */
 int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen);
 
+/**
+ * @brief Encrypt existing configuration files that are not yet encrypted.
+ *
+ * This function scans common configuration file locations and encrypts any
+ * plaintext files it finds. It's called after encryption keys are loaded from mnode
+ * to ensure all sensitive config files are encrypted.
+ *
+ * Files checked:
+ * - dnode: dnode.info, dnode.json
+ * - mnode: mnode.json, raft_config.json, raft_store.json
+ * - vnode: vnodes.json
+ * - snode: snode.json
+ *
+ * @param dataDir Data directory path (tsDataDir)
+ * @return 0 on success, error code on failure
+ */
+int32_t taosEncryptExistingCfgFiles(const char *dataDir);
+
 #ifdef __cplusplus
 }
 #endif
