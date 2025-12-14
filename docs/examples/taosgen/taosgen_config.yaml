@@ -1,6 +1,4 @@
-//ANCHOR: tdengine_gen_stmt_insert_config
-
-```yaml
+# ANCHOR: tdengine_gen_stmt_insert_config
 tdengine:
   dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
   drop_if_exists: true
@@ -67,13 +65,9 @@ jobs:
       - uses: tdengine/insert
         with:
           concurrency: 8
-```
+# ANCHOR_END: tdengine_gen_stmt_insert_config
 
-//ANCHOR_END: tdengine_gen_stmt_insert_config
-
-//ANCHOR: tdengine_gen_stmt_insert_simple
-
-```yaml
+# ANCHOR: tdengine_gen_stmt_insert_simple
 schema:
   columns:
     - name: ts
@@ -103,13 +97,9 @@ jobs:
       - uses: tdengine/create-super-table
       - uses: tdengine/create-child-table
       - uses: tdengine/insert
-```
+# ANCHOR_END: tdengine_gen_stmt_insert_simple
 
-//ANCHOR_END: tdengine_gen_stmt_insert_simple
-
-//ANCHOR: tdengine_csv_stmt_insert_config
-
-```yaml
+# ANCHOR: tdengine_csv_stmt_insert_config
 tdengine:
   dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
   drop_if_exists: true
@@ -166,13 +156,9 @@ jobs:
       - uses: tdengine/insert
         with:
           concurrency: 8
-```
+# ANCHOR_END: tdengine_csv_stmt_insert_config
 
-//ANCHOR_END: tdengine_csv_stmt_insert_config
-
-//ANCHOR: mqtt_publish_config
-
-```yaml
+# ANCHOR: mqtt_publish_config
 mqtt:
   uri: tcp://localhost:1883
   user: root
@@ -226,13 +212,9 @@ jobs:
           concurrency: 8
           topic: factory/{table}/{location}
           qos: 1
-```
+# ANCHOR_END: mqtt_publish_config
 
-//ANCHOR_END: mqtt_publish_config
-
-//ANCHOR: kafka_produce_config
-
-```yaml
+# ANCHOR: kafka_produce_config
 kafka:
   bootstrap_servers: localhost:9092
   topic: factory-electric-meter
@@ -284,6 +266,4 @@ jobs:
         with:
           concurrency: 8
           acks: 1
-```
-
-//ANCHOR_END: kafka_produce_config
+# ANCHOR_END: kafka_produce_config

@@ -2093,6 +2093,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   opts.unitLen = TSDB_PASSWORD_LEN;
   tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
   int newLen = Builtin_CBC_Encrypt(&opts);
+  if (newLen <= 0) return terrno;
 
   memcpy(pass, packetData, newLen);
   if (algo != NULL) {

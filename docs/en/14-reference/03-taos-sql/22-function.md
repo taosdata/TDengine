@@ -1286,6 +1286,8 @@ taos> select repeat('abc',-1);
                   |
 ```
 
+### Encoding Functions
+
 #### TO_BASE64
 
 ```sql
@@ -1326,6 +1328,354 @@ taos> select to_base64("你好 世界");
 ==============================
  5L2g5aW9IOS4lueVjA==        |
 ```
+
+#### FROM_BASE64
+
+```sql
+FROM_BASE64(expr)
+```
+
+**Function Description**: Decode the base64 encoded string `expr`.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+
+**Example**:
+
+```sql
+taos> select from_base64("SGVsbG8sIHdvcmxkIQ==");
+ from_base64("SGVsbG8sIHdvcmxkIQ==") |
+======================================
+ Hello, world!                       |
+Query OK, 1 row(s) in set (0.000786s)
+```
+
+### Hashing Functions
+
+#### MD5
+
+```sql
+MD5(expr)
+```
+
+**Function Description**: Calculates an MD5 128-bit checksum for the string `expr`.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+
+**Example**:
+
+```sql
+taos> select md5('mytext')\G;
+*************************** 1.row ***************************
+md5('mytext'): 947ef8c8db156a568d5974d71f7638f4
+Query OK, 1 row(s) in set (0.000522s)
+
+taos> insert into db.tb values(now, md5('mytext'));
+Insert OK, 1 row(s) affected (0.005111s)
+```
+
+#### SHA1 / SHA
+
+```sql
+SHA1(expr)
+```
+
+**Function Description**: Calculates an SHA-1 160-bit checksum for the string `expr`, as described in RFC 3174 (Secure Hash Algorithm).
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+- SHA() is synonymous with SHA1()
+
+**Example**:
+
+```sql
+taos> select sha('mytext')\G;
+*************************** 1.row ***************************
+sha('mytext'): 65d922aad93c7e165ed888a2ab85befe9841fd39
+Query OK, 1 row(s) in set (0.000658s)
+```
+
+#### SHA2
+
+```sql
+SHA2(expr, hash_length)
+```
+
+**Function Description**: Calculates the SHA-2 family of hash functions (SHA-224, SHA-256, SHA-384, and SHA-512).
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR.
+- `hash_length`: 224, 256, 384, 512
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+
+**Example**:
+
+```sql
+taos> select sha2('mytext', 224)\G;
+*************************** 1.row ***************************
+sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
+Query OK, 1 row(s) in set (0.000569s)
+```
+
+### Data Masking Functions
+
+#### MASK_FULL
+
+```sql
+MASK_FULL(str, replace_value)
+```
+
+**Function Description**: Mask the string `str` fully with the string `replace_value`.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `str`: VARCHAR.
+- `replace_value`: string.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> SELECT MASK_FULL('mytext', 'CONFIDENTIAL');
+ mask_full('mytext', 'CONFIDENTIAL') |
+======================================
+ CONFIDENTIAL                        |
+Query OK, 1 row(s) in set (0.002790s)
+```
+
+#### MASK_PARTIAL
+
+```sql
+MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
+```
+
+**Function Description**: Mask the string `str` partially with the character `mask_char`.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `str`: VARCHAR.
+- `prefix_length`: The number of characters to mask from the beginning of the string.
+- `suffix_length`: The number of characters to mask from the end of the string.
+- `mask_char`: The masking character.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> SELECT MASK_partial('mytext', 1, 2, '*');
+ mask_partial('mytext', 1, 2, '*') |
+====================================
+ *yte**                            |
+Query OK, 1 row(s) in set (0.002787s)
+```
+
+#### MASK_NONE
+
+```sql
+MASK_NONE(str)
+```
+
+**Function Description**: Null masking for testing only.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `str`: VARCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> SELECT MASK_NONE('mytext');
+ mask_none('mytext') |
+======================
+ mytext              |
+Query OK, 1 row(s) in set (0.001474s)
+```
+
+### Encryption Functions
+
+#### SM4_ENCRYPT
+
+```sql
+SM4_ENCRYPT(str, key_str)
+```
+
+**Function Description**: Encrypts the string `str` using the key string `key_str`, and returns the encrypted output with SM4.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `str`: VARCHAR.
+- `key_str`: The key string.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- Can be used in both select and inserting clauses.
+- Only supported by the Enterprise edition.
+
+**Example**:
+
+```sql
+taos> SELECT sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.003432s)
+```
+
+#### SM4_DECRYPT
+
+```sql
+SM4_DECRYPT(str, key_str)
+```
+
+**Function Description**: Decrypts the string `str` using the key string `key_str`, and returns the decrypted output with SM4.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR.
+- `key_str`: The key string.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- Can be used in both select and inserting clauses.
+- Only supported by the Enterprise edition.
+
+**Example**:
+
+See `sm4_encrypt`.
+
+#### AES_ENCRYPT
+
+```sql
+AES_ENCRYPT(str, key_str[, init_vector])
+```
+
+**Function Description**: Encrypts the string `str` using the key string `key_str`, and returns the encrypted output with AES-128-CBC or AES-128-ECB.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `str`: VARCHAR.
+- `key_str`: The key string.
+- `init_vector`: The initialization vector.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- Can be used in both select and inserting clauses.
+
+**Example**:
+
+```sql
+taos> SELECT aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.000514s)
+```
+
+#### AES_DECRYPT
+
+```sql
+AES_DECRYPT(str, key_str[, init_vector])
+```
+
+**Function Description**: Decrypts the string `str` using the key string `key_str`, and returns the decrypted output with AES-128-CBC or AES-128-ECB.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `str`: VARCHAR.
+- `key_str`: The key string.
+- `init_vector`: The initialization vector.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- Can be used in both select and inserting clauses.
+
+**Example**:
+
+See `aes_encrypt`.
 
 ### Conversion Functions
 

@@ -464,7 +464,6 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
 
       int32_t newLen = CBC_Encrypt(&opts);
       if (newLen != opts.len) {
-        terrno = newLen;
         return NULL;
       }
 
@@ -921,7 +920,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
           tstrncpy(opts.key, pEncryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
           int newLen = CBC_Decrypt(&opts);
-          if (newLen != opts.len) return newLen;
+          if (newLen != opts.len) return terrno;
 
           memcpy(pPage->pData + count, packetData, newLen);
           count += newLen;

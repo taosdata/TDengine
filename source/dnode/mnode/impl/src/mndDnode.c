@@ -782,7 +782,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         goto _OVER;
       }
 
-      mError("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
+      mWarn("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
       if (err == TSDB_CODE_MND_DNODE_NOT_EXIST) {
         terrno = err;
         goto _OVER;
