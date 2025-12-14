@@ -26,9 +26,9 @@ extern "C" {
 #define COL_DATA_SET_VAL_GOTO(pData, isNull, pObj, pIter, LABEL)                           \
   do {                                                                                     \
     if (pColInfo && (code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
+      lino = __LINE__;                                                                     \
       if (pObj) sdbRelease(pSdb, (pObj));                                                  \
       if (pIter) sdbCancelFetch(pSdb, (pIter));                                            \
-      lino = __LINE__;                                                                     \
       goto LABEL;                                                                          \
     }                                                                                      \
   } while (0)

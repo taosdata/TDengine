@@ -570,19 +570,32 @@ static int32_t mndProcessGetTbIdxReq(SRpcMsg *pReq) {
 }
 
 int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode  *pMnode = pReq->info.node;
-  SSdb    *pSdb = pMnode->pSdb;
-  int32_t  numOfRows = 0;
-  SIdxObj *pIdx = NULL;
-  int32_t  cols = 0;
-  int32_t  code = 0;
-  int32_t  lino = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SIdxObj  *pIdx = NULL;
+  SUserObj *pOperUser = NULL;
+  int32_t   cols = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool      showAll = false;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return 0;
   }
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, (pReq->info.conn.user), &pOperUser), &lino, _OVER);
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  SPrivInfo *privInfo = privInfoGet(PRIV_IDX_SHOW);
+  if (!privInfo) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, NULL, pDb ? pDb->name : objFName,
+                                           privInfo->objLevel == 0 ? NULL : "*"));  // 1.*.*
+
   SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
     pIter->pIdxIter = sdbFetch(pSdb, SDB_IDX, pIter->pIdxIter, (void **)&pIdx);
@@ -593,11 +606,28 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
       continue;
     }
 
+    if (!showAll) {
+      SName idxName = {0};
+      if ((code = tNameFromString(&idxName, pIdx->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+        sdbRelease(pSdb, pIdx);
+        sdbCancelFetch(pSdb, pIter->pIdxIter);
+        lino = __LINE__;
+        goto _OVER;
+      }
+      char *owner = pIdx->owner[0] != 0 ? pIdx->owner : pIdx->createUser;
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, owner, pIdx->db,
+                                   privInfo->objLevel == 0 ? NULL : idxName.tname)) {  // 1.db1.idx1
+        sdbRelease(pSdb, pIdx);
+        continue;
+      }
+    }
+
     cols = 0;
 
     SName idxName = {0};
     if ((code = tNameFromString(&idxName, pIdx->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
       sdbRelease(pSdb, pIdx);
+      sdbCancelFetch(pSdb, pIter->pIdxIter);
       goto _OVER;
     }
     char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -610,6 +640,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     SName stbName = {0};
     if ((code = tNameFromString(&stbName, pIdx->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
       sdbRelease(pSdb, pIdx);
+      sdbCancelFetch(pSdb, pIter->pIdxIter);
       goto _OVER;
     }
     char n3[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -652,6 +683,7 @@ _OVER:
   if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
 
   mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pOperUser);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
