@@ -2510,22 +2510,19 @@ class TestInsertNullNone:
             tdLog.exit(f"checkEqual error, base_value=={base_value},check_value={check_value}") 
                             
     def test_insert_null_none(self):
-        """summary: xxx
+        """Write null none
 
-        description: xxx
+        1. Create a database and super table with various data types.
+        2. Insert data into the super table with null and none values for different columns.
+        3. Flush the database to ensure all data is written to disk.
+        4. Verify that the data has been inserted correctly by querying the super table.
+        
+        Since: v3.3.0.0
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Labels: common,ci
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-14 Alex Duan Migrated cases/uncatalog/system-test/2-query/test_insert_null_none.py
 
         """
 
