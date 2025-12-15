@@ -17856,7 +17856,7 @@ static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema
   (*pSchema)[0].bytes = TSDB_DB_NAME_LEN;
   tstrncpy((*pSchema)[0].name, "Database", TSDB_COL_NAME_LEN);
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].type = TSDB_DATA_TYPE_MEDIUMBLOB;
   (*pSchema)[1].bytes = TSDB_MAX_BINARY_LEN;
   tstrncpy((*pSchema)[1].name, "Create Database", TSDB_COL_NAME_LEN);
 
