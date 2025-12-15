@@ -215,7 +215,8 @@ testCases:
         create stream db1.stm_f3 
         interval(1h) 
         sliding(1h) 
-        from db1.readings partition by fleet 
+        from db1.readings 
+        partition by fleet 
         stream_options(IGNORE_DISORDER) 
         into db1.res_f3 
         as 
@@ -227,25 +228,27 @@ testCases:
       classif: "Fleet"
       description: ""
       sql: |
-         create stream db1.stm_f4 
-         interval(1h) 
-         sliding(1h) 
-         from db1.readings  
-         stream_options(IGNORE_DISORDER) 
-         into db1.res_f4 (ts, fleet primary key, efficiency) 
-         as 
-          select _twstart, a.fleet, avg_load/avg_fuel efficiency 
-            from (
-                  select _twstart ts, avg(fuel_consumption) avg_fuel, fleet 
-                    from db1.readings 
-                    where _c0 >= _twstart and _c0 < _twend partition by fleet
-                  ) a 
-            join (
-                  select _twstart ts, avg(current_load) avg_load, fleet 
-                    from db2.diagnostics where _c0 >= _twstart and _c0 < _twend 
-                    partition by fleet
-                  ) b 
-            on a.ts = b.ts and a.fleet = b.fleet;
+          create stream db1.stm_f4 
+          interval(1d) 
+          sliding(1d) 
+          from db1.readings 
+          partition by fleet 
+          stream_options(fill_history_first) 
+          into db1.res_f4 
+          as 
+              select _twstart ts, avg_load/avg_fuel efficiency 
+              from (
+                      select _twstart ts, avg(fuel_consumption) avg_fuel 
+                        from db1.readings 
+                        where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend
+                    ) a         
+              join 
+                    (
+                      select _twstart ts, avg(current_load) avg_load 
+                          from db2.diagnostics 
+                          where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend
+                    ) b 
+              on a.ts = b.ts;
 
 
     - scenarioId: "F5"
