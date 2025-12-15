@@ -3208,6 +3208,11 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
 }
 
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
+  if (pRequest == NULL || fp == NULL || pRequest->body.interParam == NULL) {
+    tscError("taosAsyncFetchImpl invalid params");
+    return;
+  }
+
   pRequest->body.fetchFp = fp;
   ((SSyncQueryParam*)pRequest->body.interParam)->userParam = param;
 
