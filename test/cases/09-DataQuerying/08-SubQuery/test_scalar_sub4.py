@@ -4,9 +4,9 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery3:
+class TestScalarSubQuery4:
     updatecfgDict = {'debugFlag': 131, 'asynclog': 1, 'qdebugflag': 131, 'cdebugflag': 131}
-    caseName = "test_scalar_sub_query3"
+    caseName = "test_scalar_sub_query4"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
     secondIdx = 0
@@ -103,11 +103,11 @@ class TestScalarSubQuery3:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_scalar_sub_query3(self):
+    def test_scalar_sub_query4(self):
         """scalar sub query test case
         
         1. Prepare data.
-        2. Execute various nested queries with different kind of scalar sub queries.
+        2. Explain execute various nested queries with different kind of scalar sub queries.
 
         Since: v3.4.0.0
 
@@ -187,6 +187,10 @@ class TestScalarSubQuery3:
                         self.saved_count += 1
 
                         self.generated_queries_file.write(self.querySql.strip() + "\n")
+                        self.generated_queries_file.write("explain " + self.querySql.strip() + "\G\n")
+                        self.generated_queries_file.write("explain verbose true " + self.querySql.strip() + "\G\n")
+                        self.generated_queries_file.write("explain analyze " + self.querySql.strip() + "\G\n")
+                        self.generated_queries_file.write("explain analyze verbose true " + self.querySql.strip() + "\G\n")
                         self.generated_queries_file.flush()
 
                         if self.saved_count >= self.maxFileQueryNum:
