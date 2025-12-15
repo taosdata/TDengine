@@ -3504,8 +3504,8 @@ _OVER:
 }
 
 #ifdef TD_ENTERPRISE
-extern int32_t mndAlterUserPrivInfo(SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
-extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pUser, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
 #endif
 
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
@@ -3518,10 +3518,14 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pAlterReq->principal, &pUser));
 
+  if (pUser->enable == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_DISABLED);
+  }
+
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-    if ((code = mndAlterUserPrivInfo(pUser, &newUser, pAlterReq)) == TSDB_CODE_MND_INVALID_ALTER_OPER) {
+    if ((code = mndAlterUserPrivInfo(pMnode,pUser, &newUser, pAlterReq)) == TSDB_CODE_MND_INVALID_ALTER_OPER) {
       code = 0;
       goto _exit;
     } else {
