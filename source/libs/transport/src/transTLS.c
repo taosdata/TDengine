@@ -19,7 +19,10 @@
 #define DEFALUT_SSL_DIR "/etc/ssl/ssls"
 
 extern int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx);
+//extern int32_t transTlsCtxCreateNewImpl(const SRpcInit* pInit, SSslCtx** ppCtx);
 extern void    transTlsCtxDestroyImpl(SSslCtx* pCtx);
+
+extern int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx);
 
 extern int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs);
 extern void    sslDestroyImpl(STransTLS* pTLs);
@@ -31,6 +34,7 @@ extern int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* re
 
 extern int32_t sslReadImpl(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 extern int8_t  sslIsInitedImpl(STransTLS* pTls);
+extern int32_t sslGetCertificateImpl(STransTLS* pTls);
 
 extern int32_t sslBufferInitImpl(SSslBuffer* buf, int32_t cap);
 extern void    sslBufferDestroyImpl(SSslBuffer* buf);
@@ -44,7 +48,7 @@ extern void sslBufferUnrefImpl(SSslBuffer* buf);
 
 
 
-int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
+int32_t transTlsCxtCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
 
 void transTlsCtxDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }
 
@@ -64,6 +68,16 @@ int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMod
   return sslReadImpl(pTls, pBuf, nread, cliMode);
 }
 
+int32_t sslGetCertificate(STransTLS* pTls, char buf[]) {
+  int32_t code = sslGetCertificateImpl(pTls);
+  if (code == 0) {
+    strncpy(buf, pTls->certDn, sizeof(pTls->certDn));
+  }
+
+  return code;
+
+}
+
 int8_t sslIsInited(STransTLS* pTls) { return sslIsInitedImpl(pTls); }
 
 int32_t sslBufferInit(SSslBuffer* buf, int32_t cap) { return sslBufferInitImpl(buf, cap); }
@@ -79,10 +93,148 @@ int32_t sslBufferGetAvailable(SSslBuffer* buf, int32_t* available) { return sslB
 void sslBufferRef(SSslBuffer* buf) { sslBufferRefImpl(buf); }
 void sslBufferUnref(SSslBuffer* buf) { sslBufferUnrefImpl(buf);}
 
+int32_t transTlsCxtMgtInit(STlsCxtMgt** pMgt) {
+  int32_t code = 0;
+
+  STlsCxtMgt *p = taosMemoryCalloc(1, sizeof(STlsCxtMgt));
+  if (p == NULL) {
+    return terrno;
+  }
+
+  (void)taosThreadRwlockInit(&p->lock, NULL);
+
+  *pMgt = p;
+  return code;
+}
+
+int32_t transTlsCxtMgtGet(STlsCxtMgt* pMgt, SSslCtx** ppCtx) {
+  int32_t code = 0;
+
+  (void)taosThreadRwlockRdlock(&pMgt->lock);
+  *ppCtx = pMgt->pTlsCtx;
+  (void)taosThreadRwlockUnlock(&pMgt->lock);
+
+  return code;
+}
+
+int32_t transTlsCxtMgtUpdate(STlsCxtMgt* pMgt) {
+  int32_t code = 0;
+
+  (void)taosThreadRwlockWrlock(&pMgt->lock);
+  SSslCtx* pOldCtx = pMgt->pTlsCtx; 
+  pMgt->pTlsCtx = pMgt->pNewTlsCtx;
+  pMgt->pNewTlsCtx = NULL;
+  (void)taosThreadRwlockUnlock(&pMgt->lock);
+
+  transTlsCxtUnref(pOldCtx);
+  transTlsCxtRef(pMgt->pTlsCtx);
+
+  return code;
+}
+
+int32_t transTlsCxtMgtAppend(STlsCxtMgt* pMgt, SSslCtx* pNewCtx) {
+  int32_t code = 0;
+
+  (void)taosThreadRwlockWrlock(&pMgt->lock);
+  pMgt->pTlsCtx = pNewCtx;
+  (void)taosThreadRwlockUnlock(&pMgt->lock);
+
+  transTlsCxtRef(pNewCtx);
+  return code;
+}
+
+
+void transTlsCxtMgtDestroy(STlsCxtMgt* pMgt) {
+  (void)taosThreadRwlockDestroy(&pMgt->lock);
+  transTlsCxtUnref(pMgt->pTlsCtx);
+  taosMemoryFree(pMgt);
+  return;
+}
+
+int32_t transTlsCxtMgtCreateNewCxt(STlsCxtMgt* pMgt, int8_t cliMode) {
+  int32_t code = 0;
+  SSslCtx *pOldCxt = NULL;
+  if (!(transShouldDoReloadTlsConfig(pMgt))) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  code = transTlsCxtMgtGet(pMgt, &pOldCxt); ;
+  if (code != 0) {
+    return code;
+  }
+
+  if (pOldCxt == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  transTlsCxtRef(pOldCxt);
+
+  (void)taosThreadRwlockWrlock(&pMgt->lock);
+  code = transTlsCtxCreateFromOld(pOldCxt, cliMode, &pMgt->pNewTlsCtx);
+  (void)taosThreadRwlockUnlock(&pMgt->lock);
+
+  transTlsCxtUnref(pOldCxt);
+  return code;
+}
+
+
+void transTlsCxtRef(SSslCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+  int32_t count = atomic_fetch_add_32(&pCtx->refCount, 1);
+  tInfo("ref tls context %p, current refCount:%d", pCtx, count + 1);
+}
+void transTlsCxtUnref(SSslCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+
+  if (atomic_sub_fetch_32(&pCtx->refCount, 1) == 0) {
+    tInfo("ref tls context %p, current refCount:%d, try to destroy", pCtx, atomic_load_32(&pCtx->refCount));
+    transTlsCtxDestroy(pCtx);
+  } else {
+    tInfo("ref tls context %p, current refCount:%d", pCtx, atomic_load_32(&pCtx->refCount));
+  }
+}
+
+
+int8_t transDoReloadTlsConfig(STlsCxtMgt *pMgt, int32_t numOfThreads) {
+  STlsCxtMgt *p = pMgt;
+  if (atomic_load_8(&p->tlsLoading)) {
+    return 0;
+  }
+  if (atomic_add_fetch_32(&p->loadTlsCount, 1) >= numOfThreads) {
+    (void)transTlsCxtMgtUpdate(p);
+
+    atomic_store_32(&p->loadTlsCount, 0); 
+    atomic_store_8(&p->tlsLoading, 0);  
+    return 1;
+  }
+  return 0;
+}
+
+int8_t transShouldDoReloadTlsConfig(STlsCxtMgt *pMgt) {
+  STlsCxtMgt *p = pMgt;
+  int8_t ready = atomic_load_8(&p->tlsLoading) ? 0 : 1;
+  if (ready) {
+    tInfo("transport instance is ready to reload tls config");
+  } else {
+    tInfo("transport instance is not ready to reload tls config");
+  }
+  return ready;
+}
+
+int32_t sslGetCertificateImpl(STransTLS* pTls) { return TSDB_CODE_INVALID_CFG; }
+
+int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx) { return TSDB_CODE_INVALID_CFG; }
 
 #if !defined(TD_ENTERPRISE) 
 
 int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
+
+//int32_t transTlsCtxCreateNewImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; } 
+
 void    transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
 
 int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }

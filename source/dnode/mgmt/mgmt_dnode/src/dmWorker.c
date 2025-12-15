@@ -633,7 +633,12 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_ENCRYPT_KEY:
       code = dmProcessCreateEncryptKeyReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_RELOAD_DNODE_TLS:
+      code = dmProcessReloadTlsConfig(pMgmt, pMsg);
+      // code = dmProcessReloadEncryptKeyReq(pMgmt, pMsg);
+      break;
     default:
+
       code = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in mgmt queue, reason:%s", pMsg, tstrerror(code));
       break;
