@@ -5,10 +5,11 @@ import time
 import datetime
 
 
-cases_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-sys.path.insert(0, os.path.abspath(cases_path))
+# Add the path to test_nestedQuery module
+nested_query_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../09-DataQuerying/08-SubQuery')
+sys.path.insert(0, os.path.abspath(nested_query_path))
 
-from DataQuerying.SubQuery.test_nestedQuery import TestNestedquery as NestedQueryHelper
+from test_nestedQuery import TestNestedquery as NestedQueryHelper
 from faker import Faker
 from new_test_framework.utils import tdLog, tdSql
 from math import inf

@@ -962,4 +962,11 @@ class TestQueryBugs:
         self.FIX_TS_5984()
         self.FIX_TS_6058()
         self.FIX_TS_5761()
-
+        self.FIX_TS_7058()
+        self.FIX_TS_5761_SCALEMODE()
+        self.FIX_TS_5712()
+        self.FIX_TS_4348()
+        self.FIX_TS_4233()
+        self.FIX_TS_3405()
+        self.FIX_TD_32548()
+        self.FIX_TD_28068()

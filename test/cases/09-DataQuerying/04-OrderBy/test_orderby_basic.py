@@ -469,6 +469,64 @@ class TestOrderByBasic:
 
         print("do test order by  ..................... [passed]")
 
+        
+
+    #
+    # ------------------- 3 ----------------
+    #
+    def do_ts4467(self):
+        #
+        # init
+        #
+        tdSql.execute("create database if not exists db")
+        tdSql.execute("use db")
+        # table
+        tdSql.execute("create table t (ts timestamp, c1 varchar(16));")
+        # insert data
+        sql = "insert into t values"
+        for i in range(6):
+            sql += f"(now+{str(i+1)}s, '{'name' + str(i+1)}')"
+        sql += ";"
+        tdSql.execute(sql)
+        
+        # 
+        # check 
+        #
+        # join query with order by
+        sql = "select * from t t1, (select * from t order by ts limit 5) t2 where t1.ts = t2.ts;"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+
+        sql = "select * from t t1, (select * from t order by ts desc limit 5) t2 where t1.ts = t2.ts;"
+        tdSql.query(sql)
+        tdSql.checkRows(5)
+
+        sql = "select * from t t1, (select * from t order by ts limit 5) t2 where t1.ts = t2.ts order by t1.ts;"
+        tdSql.query(sql)
+        res1 = tdSql.queryResult
+        tdLog.debug("res1: %s" % str(res1))
+
+        sql = "select * from t t1, (select * from t order by ts limit 5) t2 where t1.ts = t2.ts order by t1.ts desc;"
+        tdSql.query(sql)
+        res2 = tdSql.queryResult
+        tdLog.debug("res2: %s" % str(res2))
+        assert(len(res1) == len(res2) and res1[0][0] == res2[4][0])
+
+        # test ts-5613
+        sql = "select cast(2<>3 as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,1)
+
+        sql = "select cast(2 not in(3) as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,1)
+
+        sql = "select cast(2 is NULL as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,0)
+
+        print("do ts4467 ............................. [passed]")     
+
     #
     # ------------------- main ----------------
     # 
@@ -493,6 +551,7 @@ class TestOrderByBasic:
         10. Order by priority when column exists in both select list and table
         11. Order by on joined tables
         12. Memleak for order by
+        13. Bug TS-4467: join query with order by desc causes crash
 
         Since: v3.3.6.34
 
@@ -504,8 +563,10 @@ class TestOrderByBasic:
             - 2025-11-26 Tony Zhang add this test case for TD-38284
             - 2025-12-09 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_tms_memleak.py
             - 2025-12-09 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_orderBy.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_test_ts4467.py
 
         """
         self.do_orderby_select_list()
         self.do_orderby_memleak()
         self.do_orderby()
+        self.do_ts4467()
