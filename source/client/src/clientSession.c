@@ -381,6 +381,10 @@ void sessMgtDestroy() {
   SSessionMgt *pMgt = &sessMgt;
   int32_t      code = 0;
 
+  if (pMgt->pSessMetricMap == NULL) {
+    return;
+  }
+
   void *p = taosHashIterate(pMgt->pSessMetricMap, NULL);
   while (p) {
     SSessMetric *pMetric = *(SSessMetric **)p;
@@ -393,4 +397,6 @@ void sessMgtDestroy() {
     uError("failed to destroy session mgt, code:%d", code);
   }
   taosHashCleanup(pMgt->pSessMetricMap);
+
+  pMgt->pSessMetricMap = NULL;
 }
