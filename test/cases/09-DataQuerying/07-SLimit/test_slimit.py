@@ -15,9 +15,6 @@ class TestSLimit:
         4. Combined use of SLIMIT and SOFFSET
         5. Verify SLIMIT results after modifying tags
 
-        Catalog:
-            - Query:SLimit
-
         Since: v3.0.0.0
 
         Labels: common,ci

@@ -260,6 +260,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_bugs.py  -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_exact.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_null.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_operator.py
@@ -278,6 +279,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_limit.py
 ## 07-SLimit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit_basic.py
 ## 08-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
@@ -903,10 +905,6 @@
 
 
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_select_null.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_slimit.py
-,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761.py
-,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_7058.py
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761_scalemode.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_5712.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py

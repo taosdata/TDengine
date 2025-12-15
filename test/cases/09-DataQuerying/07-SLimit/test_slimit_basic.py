@@ -1681,22 +1681,20 @@ class TestSlimit:
         self.run_limit_slimit_sql(dbname,tables,per_table_num,dbnamejoin)
 
     def test_slimit(self):
-        """summary: xxx
+        """Slimt basic
 
-        description: xxx
+        1. Create two databases with random number of vgroups, tables and data per table.
+        2. Run a series of SQL queries involving LIMIT and SLIMIT clauses on the created
+        3. databases to validate their behavior and correctness.
+        4. Query with slimit and limit together.
+        5. Validate results against expected outcomes.
+        
+        Since: v3.3.0.0
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Labels: common,ci
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-14 Alex Duan Migrated cases/uncatalog/system-test/2-query/test_slimit.py
 
         """
 

@@ -401,8 +401,74 @@ class TestQueryBugs:
                 tdSql.checkRows(4 + repeatLines)
                 tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1} {uiontype} {sub2}  {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
                 tdSql.checkRows(4 + repeatLines)
-            
-    # run
+
+    #
+    # ------------------- 1 ----------------
+    #
+    def prepareData(self):
+        # db
+        tdSql.execute(f"create database db;")
+        tdSql.execute(f"use db")
+
+        # create table and insert data
+
+        tdSql.execute("CREATE STABLE st (ts timestamp, a int, b int, c int) TAGS (ta varchar(12))")
+        tdSql.execute("insert into t1 using st tags('1') values('2025-03-06 11:17:29.202', 1, 1, 1) ('2025-03-07 11:17:30.361', 2, 2, 2)")
+        tdSql.execute("insert into t2 using st tags('2') values('2025-03-06 11:17:29.202', 4, 4, 4) ('2025-03-07 11:17:30.361', 9, 9, 9)")
+
+
+    def check(self):
+        tdSql.query(f"select ts, count(*) from (select _wstart ts, timetruncate(ts, 1d, 1) dt, max(a)/10 from st partition by tbname interval(1s) order by dt) partition by ts order by ts")
+        tdSql.checkRows(2)
+
+        tdSql.checkData(0, 0, '2025-03-06 11:17:29')
+        tdSql.checkData(1, 0, '2025-03-07 11:17:30')
+
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+
+    def FIX_TS_5761(self):
+        self.prepareData()
+        self.check()
+
+        print("do TS-5761 ............................ [passed]")
+
+    #
+    # ------------------- 2 ----------------
+    #
+    def FIX_TS_7058(self):
+        # db
+        tdSql.execute(f"drop database if exists db;")
+        tdSql.execute(f"create database db;")
+        tdSql.execute(f"use db")
+
+        # create table and insert data
+
+        tdSql.execute("CREATE STABLE st (ts timestamp, a int, b int, c int) TAGS (ta varchar(12))")
+        tdSql.execute("insert into t1 using st tags('1') values('2025-03-06 11:17:29.202', 1, 1, 1) ('2025-03-07 11:17:30.361', 2, 2, 2)")
+        tdSql.execute("insert into t2 using st tags('2') values('2025-03-06 11:17:29.202', 4, 4, 4) ('2025-03-07 11:17:30.361', 9, 9, 9)")
+
+  
+        tdSql.query(f"select ts, count(*) from (select _wstart ts, timetruncate(ts, 1d, 1) dt, max(a)/10 from st partition by tbname interval(1s) order by dt) partition by ts order by ts")
+        tdSql.checkRows(2)
+
+        tdSql.checkData(0, 0, '2025-03-06 11:17:29')
+        tdSql.checkData(1, 0, '2025-03-07 11:17:30')
+
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+        
+        print("do TS-7058 ............................ [passed]")
+
+    #
+    # ------------------- 3 ----------------
+    #
+    
+        print("do TS-3821 ............................ [passed]")
+
+    #
+    # ------------------- main ----------------
+    #        
     def test_query_bugs(self):
         """Select bugs
         
@@ -414,6 +480,7 @@ class TestQueryBugs:
         6. Verify jira TD-31684
         7. Verify jira TS-5984
         8. Verify jira TS-6058
+        9. Verify jira TS-5761
 
 
         Since: v3.0.0.0
@@ -424,6 +491,8 @@ class TestQueryBugs:
 
         History:
             - 2025-10-22 Alex Duan Migrated from uncatalog/army/query/test_query_basic.py
+            - 2025-12-14 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_5761.py
+
 
         """
         tdLog.debug(f"start to excute {__file__}")
@@ -439,6 +508,7 @@ class TestQueryBugs:
         self.FIX_TS_5239()
         self.FIX_TS_5984()
         self.FIX_TS_6058()
+        self.FIX_TS_5761()
 
         tdLog.success(f"{__file__} successfully executed")
 
