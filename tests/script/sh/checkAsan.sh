@@ -49,8 +49,12 @@ fi
 
 indirect_leak=$(cat ${LOG_DIR}/*.asan | grep "Indirect leak" | wc -l)
 python_error=$(cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l)
-python_taos_error=$(cat ${LOG_DIR}/*.info  |grep "#" | grep -w "TDinternal" | wc -l)
-
+python_taos_error=$(
+  cat "${LOG_DIR}"/*.info |
+  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/)" |
+  grep -E -v "venv|taosws.abi3.so" |
+  wc -l
+)
 # ignore
 
 # TD-20368
@@ -95,6 +99,8 @@ if [ $errors -eq 0 ]; then
 else
   echo -e "\033[44;31;1m"asan total errors: $errors"\033[0m"
   if [ $python_error -ne 0 ] || [ $python_taos_error -ne 0 ] ; then
+    echo "python and python taos error details:"
+    cat ${LOG_DIR}/*.info |grep "#" | grep -w "TDinternal"
     cat ${LOG_DIR}/*.info |grep "#" | grep -w "TDinternal"
   fi
   cat ${LOG_DIR}/*.asan |grep "#" | grep -w "TDinternal"
