@@ -246,7 +246,6 @@ typedef struct {
   char           topic[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   int32_t        vgId;
-  SSchemaWrapper schema;
   int32_t        resIter;
   SReqResultInfo resInfo;
   union{

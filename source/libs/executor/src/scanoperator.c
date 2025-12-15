@@ -2081,7 +2081,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   const char*     id = GET_TASKID(pTaskInfo);
-  bool            isVtableSourceScan = (pTaskInfo->pSubplan->pVTables != NULL);
+  SArray* pColList = NULL;
 
   code = blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2092,14 +2092,9 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pBlockInfo->version = pBlock->info.version;
 
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-  if (!isVtableSourceScan) {
-    pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
-  } else {
-    // use original table uid as groupId for vtable
-    pBlockInfo->id.groupId = pBlock->info.id.groupId;
-  }
+  pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
 
-  SArray* pColList = taosArrayInit(4, sizeof(int32_t));
+  pColList = taosArrayInit(4, sizeof(int32_t));
   QUERY_CHECK_NULL(pColList, code, lino, _end, terrno);
 
   // todo extract method
@@ -2137,7 +2132,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   }
 
   // currently only the tbname pseudo column
-  if (pInfo->numOfPseudoExpr > 0 && !isVtableSourceScan) {
+  if (pInfo->numOfPseudoExpr > 0) {
     code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
                                   pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
@@ -2175,18 +2170,14 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     j += 1;
   }
 
-  taosArrayDestroy(pColList);
-
   code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   QUERY_CHECK_CODE(code, lino, _end);
-  if (pInfo->pRes->info.rows == 0) {
-    return 0;
-  }
 
 _end:
+  taosArrayDestroy(pColList);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2638,7 +2629,6 @@ _end:
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   const char*      idstr = pTaskInfo->id.str;
-  SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
   if (pInfo == NULL || pOperator == NULL) {
     code = terrno;
