@@ -32,6 +32,7 @@ int32_t mndCollectClusterInfo(SMnode *pMnode, SAuthReqData *pAuthReqData);
 
 void grantSetClusterId(SMnode *pMnode, char *pClusterId);
 
+void    grantObjInit(SGrantUniqObj *pObj, bool official);
 void    grantRetrieveGrantInfo(SMnode *pMnode);
 int32_t grantSecondsToString(int64_t seconds, char *ts);
 
