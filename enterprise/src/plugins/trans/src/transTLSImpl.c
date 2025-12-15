@@ -20,6 +20,9 @@
 
 extern int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx);
 extern void    transTlsCtxDestroyImpl(SSslCtx* pCtx);
+// extern int32_t transTlsCtxCreateNewImpl(const SRpcInit* pInit, SSslCtx** ppCtx);
+
+extern int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx);
 
 extern int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs);
 extern void    sslDestroyImpl(STransTLS* pTLs);
@@ -30,13 +33,16 @@ extern int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* re
                             void (*cb)(uv_write_t*, int));
 extern int32_t sslReadImpl(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 extern int8_t  sslIsInitedImpl(STransTLS* pTls);
-static int32_t sslInitConnImpl(STransTLS* pTls); 
+static int32_t sslInitConnImpl(STransTLS* pTls);
+
+extern int32_t sslGetCertificateImpl(STransTLS* pTls);
 
 extern int32_t sslBufferInitImpl(SSslBuffer* buf, int32_t cap); 
 extern void sslBufferClearImpl(SSslBuffer* buf);
 extern int32_t sslBufferAppendImpl(SSslBuffer* buf, uint8_t* data, int32_t len); 
 extern int32_t sslBufferGetAvailableImpl(SSslBuffer* buf, int32_t* available); 
 extern int32_t sslBufferReallocImpl(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf);
+
 void sslBufferRefImpl(SSslBuffer* buf);
 void sslBufferUnrefImpl(SSslBuffer* buf); 
 
@@ -49,6 +55,8 @@ static int32_t sslDoConnImpl(STransTLS* pTls);
 static int32_t sslHandleError(STransTLS* pTls, int ret);
 static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 static void destroySSLCtxImpl(SSL_CTX* ctx);
+
+static int32_t sslExtractDnFromCertificate(STransTLS* pTls, char* dnBuf);
 
 #if defined(TD_ENTERPRISE) && defined(LINUX)
 
@@ -138,6 +146,113 @@ void destroySSLCtxImpl(SSL_CTX* ctx) {
   if (ctx) SSL_CTX_free(ctx);
 }
 
+SSL_CTX* initNewSSLCtxImpl(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode) {
+  int32_t lino = 0;
+  int32_t code = 0;
+  int     ret = 1;
+  long    retl = 1;
+
+  const SSL_METHOD* sslMode = cliMode ? TLS_client_method() : TLS_server_method();
+
+  SSL_CTX* ctx = SSL_CTX_new(sslMode);
+  if (ctx == NULL) {
+    tError("failed to create ssl ctx");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  retl = SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
+  if (retl < 0) {
+    tError("failed to set min proto version");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  retl = SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+  if (retl < 0) {
+    tError("failed to set max proto version");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  if (cliMode) {
+    ret = SSL_CTX_load_verify_locations(ctx, caPath, NULL);
+    if (ret == 1) {
+      ret = SSL_CTX_use_certificate_chain_file(ctx, certPath);
+    }
+    if (ret == 1) {
+      ret = SSL_CTX_use_PrivateKey_file(ctx, keyPath, SSL_FILETYPE_PEM);
+    }
+
+  } else {
+    ret = SSL_CTX_load_verify_locations(ctx, caPath, NULL);
+    if (ret == 1) {
+      ret = SSL_CTX_use_certificate_chain_file(ctx, certPath);
+    }
+    if (ret == 1) {
+      ret = SSL_CTX_use_PrivateKey_file(ctx, keyPath, SSL_FILETYPE_PEM);
+    }
+  }
+
+_error:
+
+  if (ret != 1) {
+    unsigned long err;
+    while ((err = ERR_get_error()) != 0) {
+      char buf[256] = {0};
+      ERR_error_string_n(err, buf, sizeof(buf));
+      tError("failed to init ssl ctx since:%s", buf);
+    }
+
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  if (code != 0) {
+    tError("failed to init ssl ctx since %s", tstrerror(code));
+    destroySSLCtxImpl(ctx);
+    ctx = NULL;
+  }
+  return ctx;
+}
+
+static int32_t sslExtractDnFromCertificate(STransTLS* pTls, char* dnBuf) {
+  int32_t code = 0, lino = 0;
+  X509*   cert = SSL_get_peer_certificate(pTls->ssl);
+  if (cert == NULL) {
+    tError("conn %p failed to get peer certificate", pTls->pConn);
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
+  X509_NAME* subjectName = X509_get_subject_name(cert);
+  if (subjectName == NULL) {
+    tError("conn %p failed to get subject name from certificate", pTls->pConn);
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  char commName[512] = {0};
+  int  ret = X509_NAME_get_text_by_NID(subjectName, NID_commonName, commName, sizeof(commName));
+  if (ret < 0) {
+    tError("conn %p failed to get common name from certificate", pTls->pConn);
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  } else {
+    memcpy(dnBuf, commName, strlen(commName));
+    tInfo("conn %p extracted DN from certificate: %s", pTls->pConn, dnBuf);
+    goto _error;
+  }
+
+  char* tdn = X509_NAME_oneline(subjectName, NULL, 0);
+  if (tdn != NULL) {
+    tInfo("conn %p full DN from certificate: %s", pTls->pConn, tdn);
+    memcpy(dnBuf, tdn, strlen(commName));
+  } else {
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    tError("conn %p failed to get full DN from certificate: %s", pTls->pConn, tdn);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+_error:
+  if (cert) X509_free(cert);
+  return code;
+}
+
 int32_t sslHandleError(STransTLS* pTls, int ret) {
   int32_t code = 0;
   int err = SSL_get_error(pTls->ssl, ret);
@@ -202,16 +317,18 @@ int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) {
   }
 
   *ppCtx = pCtx;
+
+  tInfo("Successfully created TLS context for %p", pCtx);
 _error:
   if (code != 0) {
-    transTlsCtxDestroy(pCtx);
+    transTlsCxtDestroy(pCtx);
   }
 
   return code;
 }
 
 void transTlsCtxDestroyImpl(SSslCtx* pCtx) {
-  if (pCtx) {
+  if (pCtx && atomic_load_32(&pCtx->refCount) == 0) {
     destroySSLCtxImpl(pCtx->sslCtx);
     pCtx->sslCtx = NULL;
 
@@ -222,6 +339,96 @@ void transTlsCtxDestroyImpl(SSslCtx* pCtx) {
     taosMemFree(pCtx);
   }
 }
+
+int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (pOldCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int8_t   cliMode = (mode == TAOS_CONN_CLIENT) ? 1 : 0;
+  SSslCtx* pCtx = (SSslCtx*)taosMemCalloc(1, sizeof(SSslCtx));
+  if (pCtx == NULL) {
+    tError("Failed to allocate memory for TLS context");
+    return terrno;
+  }
+
+  pCtx->certfile = taosStrdupi(pOldCtx->certfile);
+  pCtx->keyfile = taosStrdupi(pOldCtx->keyfile);
+  pCtx->cafile = taosStrdupi(pOldCtx->cafile);
+  if (pCtx->certfile == NULL || pCtx->keyfile == NULL || pCtx->cafile == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    tError("Failed to duplicate TLS context file paths since %s", tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  pCtx->sslCtx = initNewSSLCtxImpl(pCtx->certfile, pCtx->keyfile, pCtx->cafile, cliMode);
+  if (pCtx->sslCtx == NULL) {
+    tError("Failed to initialize SSL context");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  *pNewCtx = pCtx;
+
+  tInfo("Successfully created new TLS context from old context %p to new context %p", pOldCtx, pCtx);
+_error:
+  if (code != 0) {
+    transTlsCxtDestroy(pCtx);
+    *pNewCtx = NULL;
+  }
+
+  return code;
+}
+// int32_t transTlsCtxCreateNewImpl(const SRpcInit* pInit, SSslCtx** ppCtx) {
+//   int32_t code = 0;
+//   int32_t lino = 0;
+//   int8_t  cliMode = (pInit->connType == TAOS_CONN_CLIENT) ? 1 : 0;
+//   int8_t  enableSSL = 0;
+
+//   const char* caPath = pInit->caPath;
+//   const char* certPath = cliMode ? pInit->cliCertPath : pInit->certPath;
+//   const char* keyPath = cliMode ? pInit->cliKeyPath : pInit->keyPath;
+
+//   if (!transCheckTlsEnvImpl(caPath, certPath, keyPath, pInit->label, &enableSSL)) {
+//     return TSDB_CODE_INVALID_CFG;
+//   }
+
+//   if (enableSSL == 0) {
+//     tWarn("TLS is not enabled for %s, please check cert/key/ca path", pInit->label);
+//     return TSDB_CODE_INVALID_CFG;
+//   }
+
+//   SSslCtx* pCtx = (SSslCtx*)taosMemCalloc(1, sizeof(SSslCtx));
+//   if (pCtx == NULL) {
+//     tError("Failed to allocate memory for TLS context");
+//     return TSDB_CODE_OUT_OF_MEMORY;
+//   }
+
+//   pCtx->certfile = taosStrdupi(certPath);
+//   pCtx->keyfile = taosStrdupi(keyPath);
+//   pCtx->cafile = taosStrdupi(caPath);
+//   if (pCtx->certfile == NULL || pCtx->keyfile == NULL || pCtx->cafile == NULL) {
+//     code = TSDB_CODE_OUT_OF_MEMORY;
+//     tError("Failed to duplicate TLS context file paths since %s", tstrerror(code));
+//     TAOS_CHECK_GOTO(code, &lino, _error);
+//   }
+
+//   pCtx->sslCtx = initNewSSLCtxImpl(pCtx->certfile, pCtx->keyfile, pCtx->cafile, cliMode);
+//   if (pCtx->sslCtx == NULL) {
+//     tError("Failed to initialize SSL context");
+//     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+//   }
+
+//   *ppCtx = pCtx;
+// _error:
+//   if (code != 0) {
+//     transTlsCxtDestroy(pCtx);
+//   }
+
+//   return code;
+// }
 
 int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) {
   int32_t code = 0;
@@ -259,6 +466,9 @@ int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) {
 
   code = sslBufferInitImpl(&pTls->sendBuf, 4096);
   TAOS_CHECK_GOTO(code, &lino, _error);
+
+  pTls->pTlsCtx = pCtx;
+  transTlsCxtRef(pCtx);
 
   *ppTLs = pTls;
 
@@ -432,7 +642,16 @@ int8_t sslIsInitedImpl(STransTLS* pTls) {
     tError("SSL is not initialized");
     return 0;
   }
-  return SSL_is_init_finished(pTls->ssl) ? 1 : 0;
+
+  if (pTls->inited == 1) {
+    return 1;
+  }
+  pTls->inited = SSL_is_init_finished(pTls->ssl) ? 1 : 0;
+
+  if (pTls->inited == 1) {
+    tInfo("conn %p SSL is initialized", pTls->pConn);
+  }
+  return pTls->inited;
 }
 
 static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread) {
@@ -481,6 +700,23 @@ int32_t sslReadImpl(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cl
 _error:
   return code;
 }
+int32_t sslGetCertificateImpl(STransTLS* pTls) {
+  if (pTls == NULL || pTls->ssl == NULL) {
+    tError("SSL is not initialized");
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (pTls->certDn[0] != 0) {
+    return 0;
+  } else {
+    int32_t code = sslExtractDnFromCertificate(pTls, pTls->certDn);
+    if (code != 0) {
+      tError("failed to extract DN from certificate since %s", tstrerror(code));
+      return code;
+    }
+  }
+  return 0;
+}
 
 void sslDestroyImpl(STransTLS* pTls) {
   if (pTls) {
@@ -489,6 +725,7 @@ void sslDestroyImpl(STransTLS* pTls) {
     sslBufferDestroy(&pTls->readBuf);
     sslBufferDestroy(&pTls->sendBuf);
 
+    transTlsCxtUnref(pTls->pTlsCtx);
     taosMemoryFree(pTls);
   }
 }
@@ -662,6 +899,8 @@ int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return T
 
 void transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
 
+int32_t        sslGetCertificateImpl(STransTLS* pTls) { return TSDB_CODE_INVALID_CFG; }
+static int32_t sslExtractDnFromCertificate(STransTLS* pTls, char* dnBuf) { return TSDB_CODE_INVALID_CFG; }
 int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
 void    sslDestroyImpl(STransTLS* pTLs) { return; }
 
