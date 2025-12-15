@@ -81,7 +81,6 @@ taos> select cols(last(f1), ts, f1), tbname from testdb.st2 group by tbname orde
  2021-05-10 10:12:27.000 |          31 | tba                            |
  2021-05-10 10:12:28.000 |          33 | tbb                            |
  2021-05-11 10:12:29.000 |          36 | tbc                            |
- NULL                    | NULL        | tbd                            |
 
 taos> select last_row(f3), tbname from testdb.st2 group by tbname order by tbname;
  last_row(f3) |             tbname             |
@@ -108,12 +107,8 @@ taos> select last(f3), tbname from testdb.st2 group by tbname order by tbname
  9            | tb3                            |
  15           | tb4                            |
  21           | tb5                            |
- NULL         | tb6                            |
  25           | tb7                            |
  27           | tb8                            |
  30           | tb9                            |
- NULL         | tba                            |
  35           | tbb                            |
- NULL         | tbc                            |
- NULL         | tbd                            |
 
