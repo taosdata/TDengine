@@ -32,7 +32,7 @@
 #define VGROUP_VER_COMPAT_MOUNT_KEEP_VER 2
 #define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_MOUNT_KEEP_VER
 #define VGROUP_RESERVE_SIZE              60
-// since 3.3.6.32/3.3.8.6 mountId + keepVersion + keepVersionTime + VGROUP_RESERVE_SIZE = 4+ 8 + 8 + 60 = 80
+// since 3.3.6.32/3.3.8.6 mountId + keepVersion + keepVersionTime + VGROUP_RESERVE_SIZE = 4 + 8 + 8 + 60 = 80
 #define DLEN_AFTER_SYNC_CONF_CHANGE_VER 80
 
 static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
@@ -184,8 +184,9 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   }
 
   int32_t dlenAfterSyncConfChangeVer = pRaw->dataLen - dataPos;
-
-  SDB_GET_INT32(pRaw, dataPos, &pVgroup->mountVgId, _OVER)
+  if (dataPos + sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_INT32(pRaw, dataPos, &pVgroup->mountVgId, _OVER)
+  }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersion, _OVER)
   }
