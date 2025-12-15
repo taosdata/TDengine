@@ -591,6 +591,18 @@ Time-series extensions are a set of functions specially designed by TDengine for
 |STATEDURATION | Returns the duration of consecutive records that meet a certain condition, appending the result as a new column at the end of each row. The condition is calculated based on the parameter, adding the time length between two records if true (the time length of the first record meeting the condition is counted as 0), resetting to -1 if false, and skipping if the data is NULL.|
 |TWA | Time Weighted Average function. Calculates the time-weighted average of a column over a period of time. |
 
+### Integral Calculation
+
+With TDengine's time-series specific functions, computing integrals over time-series data becomes straightforward: use the time-weighted average multiplied by the time window duration. For example, to calculate daily energy consumption for smart meters, use:
+
+```sql
+SELECT twa(voltage * current) * _wduration
+FROM meters
+PARTITION BY tbname
+INTERVAL(1d);
+```
+```
+
 ## Nested Queries
 
 Nested queries, also known as subqueries, refer to a structure in SQL where the result of an inner query can be used as the input for an outer query. TDengine supports non-correlated subqueries within the from clause. Non-correlated means that the subquery does not use parameters from the parent query. After the from clause in a select query, an independent select statement can be included, which is enclosed in parentheses. By using nested queries, you can reference the result of another query within a single query, thus enabling more complex data processing and analysis. For example, consider the following SQL for smart meters:
