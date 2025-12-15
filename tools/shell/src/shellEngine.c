@@ -469,8 +469,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_DECIMAL:
       taosFprintfFile(pFile, "%s", val);
       break;
-    case TSDB_DATA_TYPE_BLOB:
-    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+    case TSDB_DATA_TYPE_BLOB: {
       void    *tmp = NULL;
       uint32_t size = 0;
       if (taosAscii2Hex(val, length, &tmp, &size) < 0) {
@@ -479,6 +478,16 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
       taosMemoryFree(tmp);
 
+      break;
+    }
+
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      uint32_t size = 0;
+      void    *tmp = taosMemoryCalloc(1, length + 1);
+      if (tmp == NULL) break;
+      memcpy(tmp, val, length);
+      taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
+      taosMemoryFree(tmp);
       break;
     }
     default:
