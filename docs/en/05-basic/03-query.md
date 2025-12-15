@@ -601,7 +601,6 @@ FROM meters
 PARTITION BY tbname
 INTERVAL(1d);
 ```
-```
 
 ## Nested Queries
 
