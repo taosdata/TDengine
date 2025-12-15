@@ -321,7 +321,7 @@ int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) {
   tInfo("Successfully created TLS context for %p", pCtx);
 _error:
   if (code != 0) {
-    transTlsCxtDestroy(pCtx);
+    transTlsCtxDestroy(pCtx);
   }
 
   return code;
@@ -375,7 +375,7 @@ int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCt
   tInfo("Successfully created new TLS context from old context %p to new context %p", pOldCtx, pCtx);
 _error:
   if (code != 0) {
-    transTlsCxtDestroy(pCtx);
+    transTlsCtxDestroy(pCtx);
     *pNewCtx = NULL;
   }
 
@@ -424,7 +424,7 @@ _error:
 //   *ppCtx = pCtx;
 // _error:
 //   if (code != 0) {
-//     transTlsCxtDestroy(pCtx);
+//     transTlsCtxDestroy(pCtx);
 //   }
 
 //   return code;
@@ -895,6 +895,7 @@ int8_t transCheckTlsEnvImpl(const char* caPath, const char* certPath, const char
 }
 #else
 
+int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx) { return TSDB_CODE_INVALID_CFG; }
 int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
 
 void transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
