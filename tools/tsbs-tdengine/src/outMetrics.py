@@ -115,7 +115,6 @@ class OutMetrics:
         # Column widths
         col_widths = {
             'scenario': 8,
-            'status': 8,
             'classif': 8,
             'out_rec': 10,
             'in_rec': 10,
@@ -130,7 +129,8 @@ class OutMetrics:
             "delay_p90": 6,
             "delay_p95": 6,
             "delay_p99": 6,
-            "delay_max": 6
+            "delay_max": 6,
+            'status': 8            
         }
         
         header_delay = ""
@@ -177,7 +177,6 @@ class OutMetrics:
         # Separator line
         separator = (
             f"|{'-' * (col_widths['scenario'] + 2)}"
-            f"|{'-' * (col_widths['status'] + 2)}"
             f"|{'-' * (col_widths['classif'] + 2)}"
             f"|{'-' * (col_widths['out_rec'] + 2)}"
             f"|{'-' * (col_widths['in_rec'] + 2)}"
@@ -186,6 +185,7 @@ class OutMetrics:
             f"|{'-' * (col_widths['dur'] + 2)}"
             f"|{'-' * (col_widths['tp'] + 2)}"
             f"{separator_delay}"
+            f"|{'-' * (col_widths['status'] + 2)}"
             f"|"
         )
         
@@ -250,7 +250,6 @@ class OutMetrics:
             # Print row with fixed width
             row = (
                 f"| {self.scenarioId[scenario]:<{col_widths['scenario']}} "
-                f"| {status:<{col_widths['status']}} "
                 f"| {self.classification[scenario]:<{col_widths['classif']}} "
                 f"| {out_rows:>{col_widths['out_rec']}} "
                 f"| {in_rows:>{col_widths['in_rec']}} "
@@ -259,6 +258,7 @@ class OutMetrics:
                 f"| {duration:>{col_widths['dur']}.2f} "
                 f"| {throughput:>{col_widths['tp']}.0f} "
                 f"{row_delay}"
+                f"| {status:<{col_widths['status']}} "
                 f"|"
             )
             self.write_metrics(row)
@@ -268,7 +268,6 @@ class OutMetrics:
             #
             json_data = {
                 'scenario': self.scenarioId[scenario],
-                'status': status,
                 'classif': self.classification[scenario],
                 'out_rec': out_rows,
                 'in_rec': in_rows,
@@ -277,7 +276,8 @@ class OutMetrics:
                 'dur': duration,
                 'tp': throughput,
                 'write_took': write_took,
-                'test_took': test_took
+                'test_took': test_took,
+                'status': status                
             }
             if cmd.get_check_delay():
                 delay = self.delay.get(scenario, Delay())
