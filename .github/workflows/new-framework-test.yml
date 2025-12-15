@@ -25,6 +25,6 @@ concurrency:
 
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@fix/del-3.3.6-macos-test
     with:
       tdinternal: false
