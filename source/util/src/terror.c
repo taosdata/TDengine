@@ -862,6 +862,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS,    "More than 1 ro
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ,             "Not supported subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ,    "Current sql does not support subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE,       "Expr subquery not supported in current clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY,      "Expr subquery not supported in current query policy")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max length is 127 character")

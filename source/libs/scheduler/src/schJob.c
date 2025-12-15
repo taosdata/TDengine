@@ -1064,6 +1064,11 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   }
 
   if (pReq->pDag->pChildren && pReq->pDag->pChildren->length > 0) {
+    if (pReq->localReq) {
+      SCH_JOB_ELOG("local policy not supported for query with subJobs, subJobNum:%d", pReq->pDag->pChildren->length);
+      SCH_ERR_JRET(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY);
+    }
+    
     pJob->subJobs = taosArrayInit_s(POINTER_BYTES, pReq->pDag->pChildren->length);
     if (NULL == pJob->subJobs) {
       SCH_JOB_ELOG("taosArrayInit %d subJobs failed", pReq->pDag->pChildren->length);
