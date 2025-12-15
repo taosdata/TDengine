@@ -4299,7 +4299,7 @@ int32_t fetchRemoteValueImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SRemoteValueN
   }
 
   SScalarFetchParam* param = taosMemoryMalloc(sizeof(SScalarFetchParam));
-  if (NULL == pMsgSendInfo) {
+  if (NULL == param) {
     taosMemoryFreeClear(msg);
     taosMemoryFreeClear(pMsgSendInfo);
     qError("%s prepare param %d failed", ctx->idStr, (int32_t)sizeof(SScalarFetchParam));

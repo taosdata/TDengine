@@ -17809,7 +17809,7 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
 
-  for (int32_t i = 0; i < levelNum; ++i) {
+  for (int32_t i = 0; i < pSrc->currLevel + 1; ++i) {
     SArray* pLevel = taosArrayGetP(pSrc->pNsLevel, i);
     SArray* pNew = taosArrayDup(pLevel, NULL);
     if (NULL == pNew) {

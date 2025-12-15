@@ -13,7 +13,6 @@ class TestScalarSubQuery1:
     saved_count = 0  # total number of queries saved so far
     maxFileQueryNum = 10000  # max number of queries to save in a single file
     tableNames = ["tb1", "tb2", "tb3", "tba", "tbb", "tbe", "st1"]
-    funcNames = ["MAX", "MIN", "SUM", "COUNT", "AVG"]
 
     subSqls = [
         # select 
@@ -28,9 +27,9 @@ class TestScalarSubQuery1:
         "select 1, {scalarSql} from {tableName} order by ts",
         "select {scalarSql}, * from {tableName} order by ts, f1",
         "select {scalarSql} * {scalarSql}, * from {tableName} order by ts, f1", 
-        "select {funcName}({scalarSql}) from {tableName}",
-        "select {funcName}({scalarSql} + 1) from {tableName}",
-        "select {funcName}({scalarSql} + 1) + 2 from {tableName}",
+        "select count({scalarSql}) from {tableName}",
+        "select sum({scalarSql} + 1) from {tableName}",
+        "select avg({scalarSql} + 1) + 2 from {tableName}",
         "select {scalarSql} + {scalarSql} from {tableName} partition by tbname",
         "select {scalarSql} + f1 from {tableName} partition by f1",
         "select case when {scalarSql} > 0 then 1 else 2 end, sum(f1) from {tableName} group by f1",
@@ -38,8 +37,8 @@ class TestScalarSubQuery1:
         "select case when f1 = 1 then 1 else {scalarSql} is null end, sum(f1) from {tableName} group by f1",
         "select _wstart, {scalarSql}, avg(f1) from {tableName} interval(1d)",
         "select {scalarSql} + 1, avg(f1) from {tableName} interval(1d)",
-        "select {funcName}({scalarSql}), avg(f1) from {tableName} interval(1d)",
-        "select {funcName}({scalarSql} + 1), avg(f1) from {tableName} interval(1d)",
+        "select min({scalarSql}), avg(f1) from {tableName} interval(1d)",
+        "select max({scalarSql} + 1), avg(f1) from {tableName} interval(1d)",
         "select case {scalarSql} when 1 then 1 else 2 end, avg(f1) from {tableName} interval(1d)",
         "select _wstart, {scalarSql}, avg(f1) from {tableName} SESSION(ts, 1d)",
         "select {scalarSql} + 1, avg(f1) from {tableName} SESSION(ts, 1d)",

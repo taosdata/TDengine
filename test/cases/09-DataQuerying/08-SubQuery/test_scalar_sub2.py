@@ -207,6 +207,23 @@ class TestScalarSubQuery2:
         "explain verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
     ]
 
+
+    correlatedSqls = [
+        "select f1 from tb1 a where f1 = (select a.f1 from tb2 limit 1)",
+        "select f1 from tb1 a where f1 = (select tb1.f1 from tb2 limit 1)",
+        "select f1 from tb1 a where f1 = (select f1 from tb2 where f1 = a.f1 limit 1)",
+        "select f1 from tb1 a where f1 = (select f1 from tb2 where f1 = tb1.f1 limit 1)",
+        "select f1 from (select * from tb1) a where f1 = (select f1 from tb2 where f1 = a.f1 limit 1)",
+        "select f1 from (select * from (select * from tb1 where f1 = b.f1) a) b",
+        "select f1 from (select * from (select * from tb1 where f1 = a.f1) a) b",
+        "select a.f1 from (select * from tb1) a join (select * from tb2 where f1 = a.f1) b on a.ts = b.ts and a.f1 = b.f1",
+        "select a.f1 from (select * from tb1) a join (select * from tb2 where f1 = b.f1) b on a.ts = b.ts and a.f1 = b.f1",
+        "select (select avg(f1) from tb2 where f1 < a.f1) from tb1 a",
+        "select (select avg(f1) from tb2 where f1 < tb1.f1) from tb1",
+        "select f1 from tb1 where f1 = (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb1.f1 limit 1) limit 1)",
+        "select f1 from tb1 where f1 = (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb2.f1 limit 1) limit 1)",
+    ]
+
     scalarcSqls = [
         "(select 'a' from {tableName} limit 1)",
         "(select 'am' from {tableName} limit 1)",
@@ -244,6 +261,8 @@ class TestScalarSubQuery2:
         self.execSqlCase()
         self.fileIdx += 1
         self.execFuncCase()
+        self.fileIdx += 1
+        self.execCorrelatedCase()
         self.rmoveSqlTmpFiles()
      
     def prepareData(self):
@@ -316,7 +335,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -342,7 +360,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -356,7 +373,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -370,7 +386,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -384,7 +399,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -398,7 +412,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -411,7 +424,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -424,7 +436,6 @@ class TestScalarSubQuery2:
             tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
-            self._query_saved_count = self.saved_count
 
             self.generated_queries_file.write(self.querySql.strip() + "\n")
             self.generated_queries_file.flush()
@@ -435,3 +446,26 @@ class TestScalarSubQuery2:
         self.checkResultWithResultFile(tmp_file, res_file)
 
         return True
+
+    def execCorrelatedCase(self):
+        tdLog.info(f"execCorrelatedCase begin")
+
+        self.openSqlTmpFile()
+
+        for self.mainIdx in range(len(self.correlatedSqls)):
+            self.querySql = self.correlatedSqls[self.mainIdx]
+            # ensure exactly one trailing semicolon
+            self.querySql = self.querySql.rstrip().rstrip(';') + ';'
+            tdLog.info(f"generated sql: {self.querySql}")
+
+            self.saved_count += 1
+
+            self.generated_queries_file.write(self.querySql.strip() + "\n")
+            self.generated_queries_file.flush()
+
+        self.generated_queries_file.close()
+        tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
+        res_file = os.path.join(self.currentDir, f"ans/{self.caseName}.{self.fileIdx}.csv")
+        self.checkResultWithResultFile(tmp_file, res_file)
+
+        return True   

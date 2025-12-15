@@ -28,7 +28,6 @@ extern "C" {
 #include "tmsgcb.h"
 #include "storageapi.h"
 #include "functionMgt.h"
-#include "executor.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;

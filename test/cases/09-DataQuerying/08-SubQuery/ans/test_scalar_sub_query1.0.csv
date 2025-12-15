@@ -662,132 +662,188 @@ taos> select (select f1 from tb1 union select f1 from tb1) * (select f1 from tb1
 taos> select (select f1 from tb1 union all select f1 from tb1) * (select f1 from tb1 union all select f1 from tb1), * from tb1 order by ts, f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)) from tb1;
+taos> select count((select 1)) from tb1;
 
-DB error: unrecognized token: "{funcname}((select 1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1)) from tb1;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select count((select f1 from tb1)) from tb1;
+ count((select f1 from tb1)) |
+==============================
+                           1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 order by ts, f1 limit 1)) from tb1;
+taos> select count((select f1 from tb1 order by ts, f1 limit 1)) from tb1;
+ count((select f1 from tb1 order by ts, f1 limit 1)) |
+======================================================
+                                                   1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 order by ts, f1 limit 1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb1)) from tb1;
+taos> select count((select count(*) from tb1)) from tb1;
+ count((select count(*) from tb1)) |
+====================================
+                                 1 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select null from tb1)) from tb1;
+taos> select count((select null from tb1)) from tb1;
+ count((select null from tb1)) |
+================================
+                             0 |
 
-DB error: unrecognized token: "{funcname}((select null from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select * from tb1)) from tb1;
+taos> select count((select * from tb1)) from tb1;
 
-DB error: unrecognized token: "{funcname}((select * from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select 2 from tb1)) from tb1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select 2 from tb1)) from tb1;
+ count((select 2 from tb1)) |
+=============================
+                          1 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb1)) from tb1;
+taos> select count((select avg(f1) from tb1)) from tb1;
+ count((select avg(f1) from tb1)) |
+===================================
+                                1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb1)) from tb1;
+taos> select count((select last(*) from tb1)) from tb1;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb1 partition by f1)) from tb1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select max(f1) from tb1 partition by f1)) from tb1;
+ count((select max(f1) from tb1 partition by f1)) |
+===================================================
+                                                1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb1 partition by f1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb1 a join tb1 b on a.ts = b.ts)) from tb1;
+taos> select count((select a.ts from tb1 a join tb1 b on a.ts = b.ts)) from tb1;
+ count((select a.ts from tb1 a join tb1 b on a.ts = b.ts)) |
+============================================================
+                                                         1 |
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb1 a join tb1 b on a.ts = b.ts)) from tb1;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb1 interval(1d))) from tb1;
+taos> select count((select sum(f1) from tb1 interval(1d))) from tb1;
+ count((select sum(f1) from tb1 interval(1d))) |
+================================================
+                                             1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb1 interval(1d))) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union select f1 from tb1)) from tb1;
+taos> select count((select f1 from tb1 union select f1 from tb1)) from tb1;
+ count((select f1 from tb1 union select f1 from tb1)) |
+=======================================================
+                                                    1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union select f1 from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union all select f1 from tb1)) from tb1;
+taos> select count((select f1 from tb1 union all select f1 from tb1)) from tb1;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union all select f1 from tb1)) from tb1;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) from tb1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select 1) + 1) from tb1;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1) + 1) from tb1;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select sum((select f1 from tb1) + 1) from tb1;
+ sum((select f1 from tb1) + 1) |
+================================
+                             2 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 order by ts, f1 limit 1) + 1) from tb1;
+taos> select sum((select f1 from tb1 order by ts, f1 limit 1) + 1) from tb1;
+ sum((select f1 from tb1 order by ts, f1 limit 1) + 1) |
+========================================================
+                                                     2 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 order by ts, f1 limit 1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb1) + 1) from tb1;
+taos> select sum((select count(*) from tb1) + 1) from tb1;
+ sum((select count(*) from tb1) + 1) |
+======================================
+                                   2 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select null from tb1) + 1) from tb1;
+taos> select sum((select null from tb1) + 1) from tb1;
+ sum((select null from tb1) + 1) |
+==================================
+ NULL                            |
 
-DB error: unrecognized token: "{funcname}((select null from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select * from tb1) + 1) from tb1;
+taos> select sum((select * from tb1) + 1) from tb1;
 
-DB error: unrecognized token: "{funcname}((select * from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select 2 from tb1) + 1) from tb1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select 2 from tb1) + 1) from tb1;
+ sum((select 2 from tb1) + 1) |
+===============================
+                            3 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb1) + 1) from tb1;
+taos> select sum((select avg(f1) from tb1) + 1) from tb1;
+ sum((select avg(f1) from tb1) + 1) |
+=====================================
+                                  2 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb1) + 1) from tb1;
+taos> select sum((select last(*) from tb1) + 1) from tb1;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb1 partition by f1) + 1) from tb1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select max(f1) from tb1 partition by f1) + 1) from tb1;
+ sum((select max(f1) from tb1 partition by f1) + 1) |
+=====================================================
+                                                  2 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb1 partition by f1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1) from tb1;
+taos> select sum((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1) from tb1;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb1 interval(1d)) + 1) from tb1;
+DB error: Invalid parameter data type : sum [0x80002802] 
+taos> select sum((select sum(f1) from tb1 interval(1d)) + 1) from tb1;
+ sum((select sum(f1) from tb1 interval(1d)) + 1) |
+==================================================
+                                               2 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb1 interval(1d)) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union select f1 from tb1) + 1) from tb1;
+taos> select sum((select f1 from tb1 union select f1 from tb1) + 1) from tb1;
+ sum((select f1 from tb1 union select f1 from tb1) + 1) |
+=========================================================
+                                                      2 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union select f1 from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union all select f1 from tb1) + 1) from tb1;
+taos> select sum((select f1 from tb1 union all select f1 from tb1) + 1) from tb1;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union all select f1 from tb1) + 1) from tb1;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) + 2 from tb1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select 1) + 1) + 2 from tb1;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1) + 1) + 2 from tb1;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select avg((select f1 from tb1) + 1) + 2 from tb1;
+ avg((select f1 from tb1) + 1) + 2 |
+====================================
+                                 4 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 order by ts, f1 limit 1) + 1) + 2 from tb1;
+taos> select avg((select f1 from tb1 order by ts, f1 limit 1) + 1) + 2 from tb1;
+ avg((select f1 from tb1 order by ts, f1 limit 1) + 1) + 2 |
+============================================================
+                                                         4 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 order by ts, f1 limit 1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb1) + 1) + 2 from tb1;
+taos> select avg((select count(*) from tb1) + 1) + 2 from tb1;
+ avg((select count(*) from tb1) + 1) + 2 |
+==========================================
+                                       4 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select null from tb1) + 1) + 2 from tb1;
+taos> select avg((select null from tb1) + 1) + 2 from tb1;
+ avg((select null from tb1) + 1) + 2 |
+======================================
+ NULL                                |
 
-DB error: unrecognized token: "{funcname}((select null from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select * from tb1) + 1) + 2 from tb1;
+taos> select avg((select * from tb1) + 1) + 2 from tb1;
 
-DB error: unrecognized token: "{funcname}((select * from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select 2 from tb1) + 1) + 2 from tb1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select 2 from tb1) + 1) + 2 from tb1;
+ avg((select 2 from tb1) + 1) + 2 |
+===================================
+                                5 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb1) + 1) + 2 from tb1;
+taos> select avg((select avg(f1) from tb1) + 1) + 2 from tb1;
+ avg((select avg(f1) from tb1) + 1) + 2 |
+=========================================
+                                      4 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb1) + 1) + 2 from tb1;
+taos> select avg((select last(*) from tb1) + 1) + 2 from tb1;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb1 partition by f1) + 1) + 2 from tb1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select max(f1) from tb1 partition by f1) + 1) + 2 from tb1;
+ avg((select max(f1) from tb1 partition by f1) + 1) + 2 |
+=========================================================
+                                                      4 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb1 partition by f1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1) + 2 from tb1;
+taos> select avg((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1) + 2 from tb1;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb1 interval(1d)) + 1) + 2 from tb1;
+DB error: Invalid parameter data type : avg [0x80002802] 
+taos> select avg((select sum(f1) from tb1 interval(1d)) + 1) + 2 from tb1;
+ avg((select sum(f1) from tb1 interval(1d)) + 1) + 2 |
+======================================================
+                                                   4 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb1 interval(1d)) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union select f1 from tb1) + 1) + 2 from tb1;
+taos> select avg((select f1 from tb1 union select f1 from tb1) + 1) + 2 from tb1;
+ avg((select f1 from tb1 union select f1 from tb1) + 1) + 2 |
+=============================================================
+                                                          4 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union select f1 from tb1) + 1) + 2 from tb1;" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union all select f1 from tb1) + 1) + 2 from tb1;
+taos> select avg((select f1 from tb1 union all select f1 from tb1) + 1) + 2 from tb1;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union all select f1 from tb1) + 1) + 2 from tb1;" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select 1) + (select 1) from tb1 partition by tbname;
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -1220,90 +1276,126 @@ taos> select (select f1 from tb1 union select f1 from tb1) + 1, avg(f1) from tb1
 taos> select (select f1 from tb1 union all select f1 from tb1) + 1, avg(f1) from tb1 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)), avg(f1) from tb1 interval(1d);
+taos> select min((select 1)), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1)), avg(f1) from tb1 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select min((select f1 from tb1)), avg(f1) from tb1 interval(1d);
+ min((select f1 from tb1)) |          avg(f1)          |
+========================================================
+                         1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 order by ts, f1 limit 1)), avg(f1) from tb1 interval(1d);
+taos> select min((select f1 from tb1 order by ts, f1 limit 1)), avg(f1) from tb1 interval(1d);
+ min((select f1 from tb1 order by ts, f1 limit 1)) |          avg(f1)          |
+================================================================================
+                                                 1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 order by ts, f1 limit 1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tb1)), avg(f1) from tb1 interval(1d);
+taos> select min((select count(*) from tb1)), avg(f1) from tb1 interval(1d);
+ min((select count(*) from tb1)) |          avg(f1)          |
+==============================================================
+                               1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tb1)), avg(f1) from tb1 interval(1d);
+taos> select min((select null from tb1)), avg(f1) from tb1 interval(1d);
+ min((select null from tb1)) |          avg(f1)          |
+==========================================================
+ NULL                        |                         1 |
 
-DB error: unrecognized token: "{funcname}((select null from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tb1)), avg(f1) from tb1 interval(1d);
+taos> select min((select * from tb1)), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tb1)), avg(f1) from tb1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select 2 from tb1)), avg(f1) from tb1 interval(1d);
+ min((select 2 from tb1)) |          avg(f1)          |
+=======================================================
+                        2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb1)), avg(f1) from tb1 interval(1d);
+taos> select min((select avg(f1) from tb1)), avg(f1) from tb1 interval(1d);
+ min((select avg(f1) from tb1)) |          avg(f1)          |
+=============================================================
+                              1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tb1)), avg(f1) from tb1 interval(1d);
+taos> select min((select last(*) from tb1)), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb1 partition by f1)), avg(f1) from tb1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select max(f1) from tb1 partition by f1)), avg(f1) from tb1 interval(1d);
+ min((select max(f1) from tb1 partition by f1)) |          avg(f1)          |
+=============================================================================
+                                              1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb1 partition by f1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tb1 a join tb1 b on a.ts = b.ts)), avg(f1) from tb1 interval(1d);
+taos> select min((select a.ts from tb1 a join tb1 b on a.ts = b.ts)), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb1 a join tb1 b on a.ts = b.ts)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb1 interval(1d))), avg(f1) from tb1 interval(1d);
+DB error: Invalid parameter data type : min [0x80002802] 
+taos> select min((select sum(f1) from tb1 interval(1d))), avg(f1) from tb1 interval(1d);
+ min((select sum(f1) from tb1 interval(1d))) |          avg(f1)          |
+==========================================================================
+                                           1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb1 interval(1d))), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union select f1 from tb1)), avg(f1) from tb1 interval(1d);
+taos> select min((select f1 from tb1 union select f1 from tb1)), avg(f1) from tb1 interval(1d);
+ min((select f1 from tb1 union select f1 from tb1)) |          avg(f1)          |
+=================================================================================
+                                                  1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union select f1 from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union all select f1 from tb1)), avg(f1) from tb1 interval(1d);
+taos> select min((select f1 from tb1 union all select f1 from tb1)), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union all select f1 from tb1)), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 1) + 1), avg(f1) from tb1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select 1) + 1), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select max((select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);
+ max((select f1 from tb1) + 1) |          avg(f1)          |
+============================================================
+                             2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 order by ts, f1 limit 1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select f1 from tb1 order by ts, f1 limit 1) + 1), avg(f1) from tb1 interval(1d);
+ max((select f1 from tb1 order by ts, f1 limit 1) + 1) |          avg(f1)          |
+====================================================================================
+                                                     2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 order by ts, f1 limit 1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tb1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select count(*) from tb1) + 1), avg(f1) from tb1 interval(1d);
+ max((select count(*) from tb1) + 1) |          avg(f1)          |
+==================================================================
+                                   2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tb1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select null from tb1) + 1), avg(f1) from tb1 interval(1d);
+ max((select null from tb1) + 1) |          avg(f1)          |
+==============================================================
+ NULL                            |                         1 |
 
-DB error: unrecognized token: "{funcname}((select null from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tb1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select * from tb1) + 1), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tb1) + 1), avg(f1) from tb1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select 2 from tb1) + 1), avg(f1) from tb1 interval(1d);
+ max((select 2 from tb1) + 1) |          avg(f1)          |
+===========================================================
+                            3 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select avg(f1) from tb1) + 1), avg(f1) from tb1 interval(1d);
+ max((select avg(f1) from tb1) + 1) |          avg(f1)          |
+=================================================================
+                                  2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tb1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select last(*) from tb1) + 1), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb1 partition by f1) + 1), avg(f1) from tb1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select max(f1) from tb1 partition by f1) + 1), avg(f1) from tb1 interval(1d);
+ max((select max(f1) from tb1 partition by f1) + 1) |          avg(f1)          |
+=================================================================================
+                                                  2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb1 partition by f1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb1 interval(1d)) + 1), avg(f1) from tb1 interval(1d);
+DB error: Invalid parameter data type : max [0x80002802] 
+taos> select max((select sum(f1) from tb1 interval(1d)) + 1), avg(f1) from tb1 interval(1d);
+ max((select sum(f1) from tb1 interval(1d)) + 1) |          avg(f1)          |
+==============================================================================
+                                               2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb1 interval(1d)) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select f1 from tb1 union select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);
+ max((select f1 from tb1 union select f1 from tb1) + 1) |          avg(f1)          |
+=====================================================================================
+                                                      2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb1 union all select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);
+taos> select max((select f1 from tb1 union all select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb1 union all select f1 from tb1) + 1), avg(f1) from tb1 interval(1d);" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select case (select 1) when 1 then 1 else 2 end, avg(f1) from tb1 interval(1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -3434,132 +3526,150 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select f1 from tb2 union all select f1 from tb2) * (select f1 from tb2 union all select f1 from tb2), * from tb2 order by ts, f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)) from tb2;
+taos> select count((select 1)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select 1)) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2)) from tb2;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select count((select f1 from tb2)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 order by ts, f1 limit 1)) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from tb2 order by ts, f1 limit 1)) from tb2;
+ count((select f1 from tb2 order by ts, f1 limit 1)) |
+======================================================
+                                                   2 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 order by ts, f1 limit 1)) from tb2;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb2)) from tb2;
+taos> select count((select count(*) from tb2)) from tb2;
+ count((select count(*) from tb2)) |
+====================================
+                                 2 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select null from tb2)) from tb2;
+taos> select count((select null from tb2)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select null from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select * from tb2)) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select * from tb2)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select * from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select 2 from tb2)) from tb2;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select 2 from tb2)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select 2 from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb2)) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select avg(f1) from tb2)) from tb2;
+ count((select avg(f1) from tb2)) |
+===================================
+                                2 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb2)) from tb2;
+taos> select count((select last(*) from tb2)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb2 partition by f1)) from tb2;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select max(f1) from tb2 partition by f1)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb2 partition by f1)) from tb2;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb2 a join tb2 b on a.ts = b.ts)) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select a.ts from tb2 a join tb2 b on a.ts = b.ts)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb2 a join tb2 b on a.ts = b.ts)) from tb2;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb2 interval(1d))) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select sum(f1) from tb2 interval(1d))) from tb2;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb2 interval(1d))) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union select f1 from tb2)) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from tb2 union select f1 from tb2)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union select f1 from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union all select f1 from tb2)) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from tb2 union all select f1 from tb2)) from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union all select f1 from tb2)) from tb2;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select 1) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2) + 1) from tb2;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select sum((select f1 from tb2) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 order by ts, f1 limit 1) + 1) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from tb2 order by ts, f1 limit 1) + 1) from tb2;
+ sum((select f1 from tb2 order by ts, f1 limit 1) + 1) |
+========================================================
+                                                     6 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 order by ts, f1 limit 1) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb2) + 1) from tb2;
+taos> select sum((select count(*) from tb2) + 1) from tb2;
+ sum((select count(*) from tb2) + 1) |
+======================================
+                                   6 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select null from tb2) + 1) from tb2;
+taos> select sum((select null from tb2) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select null from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select * from tb2) + 1) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select * from tb2) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select * from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select 2 from tb2) + 1) from tb2;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select 2 from tb2) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select 2 from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb2) + 1) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select avg(f1) from tb2) + 1) from tb2;
+ sum((select avg(f1) from tb2) + 1) |
+=====================================
+                                  7 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb2) + 1) from tb2;
+taos> select sum((select last(*) from tb2) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb2 partition by f1) + 1) from tb2;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select max(f1) from tb2 partition by f1) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb2 partition by f1) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb2 interval(1d)) + 1) from tb2;
+DB error: Invalid parameter data type : sum [0x80002802] 
+taos> select sum((select sum(f1) from tb2 interval(1d)) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb2 interval(1d)) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union select f1 from tb2) + 1) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from tb2 union select f1 from tb2) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union select f1 from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union all select f1 from tb2) + 1) from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from tb2 union all select f1 from tb2) + 1) from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union all select f1 from tb2) + 1) from tb2;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) + 2 from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select 1) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2) + 1) + 2 from tb2;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select avg((select f1 from tb2) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 order by ts, f1 limit 1) + 1) + 2 from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from tb2 order by ts, f1 limit 1) + 1) + 2 from tb2;
+ avg((select f1 from tb2 order by ts, f1 limit 1) + 1) + 2 |
+============================================================
+                                                         5 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 order by ts, f1 limit 1) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb2) + 1) + 2 from tb2;
+taos> select avg((select count(*) from tb2) + 1) + 2 from tb2;
+ avg((select count(*) from tb2) + 1) + 2 |
+==========================================
+                                       5 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select null from tb2) + 1) + 2 from tb2;
+taos> select avg((select null from tb2) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select null from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select * from tb2) + 1) + 2 from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select * from tb2) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select * from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select 2 from tb2) + 1) + 2 from tb2;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select 2 from tb2) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select 2 from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb2) + 1) + 2 from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select avg(f1) from tb2) + 1) + 2 from tb2;
+ avg((select avg(f1) from tb2) + 1) + 2 |
+=========================================
+                                    5.5 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb2) + 1) + 2 from tb2;
+taos> select avg((select last(*) from tb2) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb2 partition by f1) + 1) + 2 from tb2;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select max(f1) from tb2 partition by f1) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb2 partition by f1) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1) + 2 from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb2 interval(1d)) + 1) + 2 from tb2;
+DB error: Invalid parameter data type : avg [0x80002802] 
+taos> select avg((select sum(f1) from tb2 interval(1d)) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb2 interval(1d)) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union select f1 from tb2) + 1) + 2 from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from tb2 union select f1 from tb2) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union select f1 from tb2) + 1) + 2 from tb2;" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union all select f1 from tb2) + 1) + 2 from tb2;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from tb2 union all select f1 from tb2) + 1) + 2 from tb2;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union all select f1 from tb2) + 1) + 2 from tb2;" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select 1) + (select 1) from tb2 partition by tbname;
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -3917,90 +4027,108 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select f1 from tb2 union all select f1 from tb2) + 1, avg(f1) from tb2 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)), avg(f1) from tb2 interval(1d);
+taos> select min((select 1)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2)), avg(f1) from tb2 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select min((select f1 from tb2)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 order by ts, f1 limit 1)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from tb2 order by ts, f1 limit 1)), avg(f1) from tb2 interval(1d);
+ min((select f1 from tb2 order by ts, f1 limit 1)) |          avg(f1)          |
+================================================================================
+                                                 2 |                         2 |
+                                                 2 |                         3 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 order by ts, f1 limit 1)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tb2)), avg(f1) from tb2 interval(1d);
+taos> select min((select count(*) from tb2)), avg(f1) from tb2 interval(1d);
+ min((select count(*) from tb2)) |          avg(f1)          |
+==============================================================
+                               2 |                         2 |
+                               2 |                         3 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tb2)), avg(f1) from tb2 interval(1d);
+taos> select min((select null from tb2)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tb2)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select * from tb2)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tb2)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select 2 from tb2)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb2)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select avg(f1) from tb2)), avg(f1) from tb2 interval(1d);
+ min((select avg(f1) from tb2)) |          avg(f1)          |
+=============================================================
+                            2.5 |                         2 |
+                            2.5 |                         3 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tb2)), avg(f1) from tb2 interval(1d);
+taos> select min((select last(*) from tb2)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb2 partition by f1)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select max(f1) from tb2 partition by f1)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb2 partition by f1)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tb2 a join tb2 b on a.ts = b.ts)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select a.ts from tb2 a join tb2 b on a.ts = b.ts)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb2 a join tb2 b on a.ts = b.ts)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb2 interval(1d))), avg(f1) from tb2 interval(1d);
+DB error: Invalid parameter data type : min [0x80002802] 
+taos> select min((select sum(f1) from tb2 interval(1d))), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb2 interval(1d))), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union select f1 from tb2)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from tb2 union select f1 from tb2)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union select f1 from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union all select f1 from tb2)), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from tb2 union all select f1 from tb2)), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union all select f1 from tb2)), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 1) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select 1) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select max((select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 order by ts, f1 limit 1) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from tb2 order by ts, f1 limit 1) + 1), avg(f1) from tb2 interval(1d);
+ max((select f1 from tb2 order by ts, f1 limit 1) + 1) |          avg(f1)          |
+====================================================================================
+                                                     3 |                         2 |
+                                                     3 |                         3 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 order by ts, f1 limit 1) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tb2) + 1), avg(f1) from tb2 interval(1d);
+taos> select max((select count(*) from tb2) + 1), avg(f1) from tb2 interval(1d);
+ max((select count(*) from tb2) + 1) |          avg(f1)          |
+==================================================================
+                                   3 |                         2 |
+                                   3 |                         3 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tb2) + 1), avg(f1) from tb2 interval(1d);
+taos> select max((select null from tb2) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tb2) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select * from tb2) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tb2) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select 2 from tb2) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb2) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select avg(f1) from tb2) + 1), avg(f1) from tb2 interval(1d);
+ max((select avg(f1) from tb2) + 1) |          avg(f1)          |
+=================================================================
+                                3.5 |                         2 |
+                                3.5 |                         3 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tb2) + 1), avg(f1) from tb2 interval(1d);
+taos> select max((select last(*) from tb2) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb2 partition by f1) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select max(f1) from tb2 partition by f1) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb2 partition by f1) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb2 interval(1d)) + 1), avg(f1) from tb2 interval(1d);
+DB error: Invalid parameter data type : max [0x80002802] 
+taos> select max((select sum(f1) from tb2 interval(1d)) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb2 interval(1d)) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from tb2 union select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb2 union all select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from tb2 union all select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb2 union all select f1 from tb2) + 1), avg(f1) from tb2 interval(1d);" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select case (select 1) when 1 then 1 else 2 end, avg(f1) from tb2 interval(1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -6007,132 +6135,150 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select f1 from tb3 union all select f1 from tb3) * (select f1 from tb3 union all select f1 from tb3), * from tb3 order by ts, f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)) from tb3;
+taos> select count((select 1)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select 1)) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3)) from tb3;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select count((select f1 from tb3)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 order by ts, f1 limit 1)) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from tb3 order by ts, f1 limit 1)) from tb3;
+ count((select f1 from tb3 order by ts, f1 limit 1)) |
+======================================================
+                                                   3 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 order by ts, f1 limit 1)) from tb3;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb3)) from tb3;
+taos> select count((select count(*) from tb3)) from tb3;
+ count((select count(*) from tb3)) |
+====================================
+                                 3 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select null from tb3)) from tb3;
+taos> select count((select null from tb3)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select null from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select * from tb3)) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select * from tb3)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select * from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select 2 from tb3)) from tb3;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select 2 from tb3)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select 2 from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb3)) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select avg(f1) from tb3)) from tb3;
+ count((select avg(f1) from tb3)) |
+===================================
+                                3 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb3)) from tb3;
+taos> select count((select last(*) from tb3)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb3 partition by f1)) from tb3;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select max(f1) from tb3 partition by f1)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb3 partition by f1)) from tb3;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb3 a join tb3 b on a.ts = b.ts)) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select a.ts from tb3 a join tb3 b on a.ts = b.ts)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb3 a join tb3 b on a.ts = b.ts)) from tb3;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb3 interval(1d))) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select sum(f1) from tb3 interval(1d))) from tb3;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb3 interval(1d))) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union select f1 from tb3)) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from tb3 union select f1 from tb3)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union select f1 from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union all select f1 from tb3)) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from tb3 union all select f1 from tb3)) from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union all select f1 from tb3)) from tb3;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select 1) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3) + 1) from tb3;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select sum((select f1 from tb3) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 order by ts, f1 limit 1) + 1) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from tb3 order by ts, f1 limit 1) + 1) from tb3;
+ sum((select f1 from tb3 order by ts, f1 limit 1) + 1) |
+========================================================
+                                                    15 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 order by ts, f1 limit 1) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb3) + 1) from tb3;
+taos> select sum((select count(*) from tb3) + 1) from tb3;
+ sum((select count(*) from tb3) + 1) |
+======================================
+                                  12 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select null from tb3) + 1) from tb3;
+taos> select sum((select null from tb3) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select null from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select * from tb3) + 1) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select * from tb3) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select * from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select 2 from tb3) + 1) from tb3;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select 2 from tb3) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select 2 from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb3) + 1) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select avg(f1) from tb3) + 1) from tb3;
+ sum((select avg(f1) from tb3) + 1) |
+=====================================
+                                 18 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb3) + 1) from tb3;
+taos> select sum((select last(*) from tb3) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb3 partition by f1) + 1) from tb3;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select max(f1) from tb3 partition by f1) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb3 partition by f1) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb3 interval(1d)) + 1) from tb3;
+DB error: Invalid parameter data type : sum [0x80002802] 
+taos> select sum((select sum(f1) from tb3 interval(1d)) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb3 interval(1d)) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union select f1 from tb3) + 1) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from tb3 union select f1 from tb3) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union select f1 from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union all select f1 from tb3) + 1) from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from tb3 union all select f1 from tb3) + 1) from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union all select f1 from tb3) + 1) from tb3;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) + 2 from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select 1) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3) + 1) + 2 from tb3;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select avg((select f1 from tb3) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 order by ts, f1 limit 1) + 1) + 2 from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from tb3 order by ts, f1 limit 1) + 1) + 2 from tb3;
+ avg((select f1 from tb3 order by ts, f1 limit 1) + 1) + 2 |
+============================================================
+                                                         7 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 order by ts, f1 limit 1) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select count(*) from tb3) + 1) + 2 from tb3;
+taos> select avg((select count(*) from tb3) + 1) + 2 from tb3;
+ avg((select count(*) from tb3) + 1) + 2 |
+==========================================
+                                       6 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select null from tb3) + 1) + 2 from tb3;
+taos> select avg((select null from tb3) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select null from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select * from tb3) + 1) + 2 from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select * from tb3) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select * from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select 2 from tb3) + 1) + 2 from tb3;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select 2 from tb3) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select 2 from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb3) + 1) + 2 from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select avg(f1) from tb3) + 1) + 2 from tb3;
+ avg((select avg(f1) from tb3) + 1) + 2 |
+=========================================
+                                      8 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select last(*) from tb3) + 1) + 2 from tb3;
+taos> select avg((select last(*) from tb3) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb3 partition by f1) + 1) + 2 from tb3;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select max(f1) from tb3 partition by f1) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb3 partition by f1) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1) + 2 from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb3 interval(1d)) + 1) + 2 from tb3;
+DB error: Invalid parameter data type : avg [0x80002802] 
+taos> select avg((select sum(f1) from tb3 interval(1d)) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb3 interval(1d)) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union select f1 from tb3) + 1) + 2 from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from tb3 union select f1 from tb3) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union select f1 from tb3) + 1) + 2 from tb3;" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union all select f1 from tb3) + 1) + 2 from tb3;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from tb3 union all select f1 from tb3) + 1) + 2 from tb3;
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union all select f1 from tb3) + 1) + 2 from tb3;" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select 1) + (select 1) from tb3 partition by tbname;
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -6511,90 +6657,114 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select f1 from tb3 union all select f1 from tb3) + 1, avg(f1) from tb3 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)), avg(f1) from tb3 interval(1d);
+taos> select min((select 1)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3)), avg(f1) from tb3 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select min((select f1 from tb3)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 order by ts, f1 limit 1)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from tb3 order by ts, f1 limit 1)), avg(f1) from tb3 interval(1d);
+ min((select f1 from tb3 order by ts, f1 limit 1)) |          avg(f1)          |
+================================================================================
+                                                 4 |                         4 |
+                                                 4 |                         5 |
+                                                 4 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 order by ts, f1 limit 1)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tb3)), avg(f1) from tb3 interval(1d);
+taos> select min((select count(*) from tb3)), avg(f1) from tb3 interval(1d);
+ min((select count(*) from tb3)) |          avg(f1)          |
+==============================================================
+                               3 |                         4 |
+                               3 |                         5 |
+                               3 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tb3)), avg(f1) from tb3 interval(1d);
+taos> select min((select null from tb3)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tb3)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select * from tb3)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tb3)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select 2 from tb3)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb3)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select avg(f1) from tb3)), avg(f1) from tb3 interval(1d);
+ min((select avg(f1) from tb3)) |          avg(f1)          |
+=============================================================
+                              5 |                         4 |
+                              5 |                         5 |
+                              5 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tb3)), avg(f1) from tb3 interval(1d);
+taos> select min((select last(*) from tb3)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb3 partition by f1)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select max(f1) from tb3 partition by f1)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb3 partition by f1)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tb3 a join tb3 b on a.ts = b.ts)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select a.ts from tb3 a join tb3 b on a.ts = b.ts)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb3 a join tb3 b on a.ts = b.ts)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb3 interval(1d))), avg(f1) from tb3 interval(1d);
+DB error: Invalid parameter data type : min [0x80002802] 
+taos> select min((select sum(f1) from tb3 interval(1d))), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb3 interval(1d))), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union select f1 from tb3)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from tb3 union select f1 from tb3)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union select f1 from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union all select f1 from tb3)), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from tb3 union all select f1 from tb3)), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union all select f1 from tb3)), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 1) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select 1) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select max((select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 order by ts, f1 limit 1) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from tb3 order by ts, f1 limit 1) + 1), avg(f1) from tb3 interval(1d);
+ max((select f1 from tb3 order by ts, f1 limit 1) + 1) |          avg(f1)          |
+====================================================================================
+                                                     5 |                         4 |
+                                                     5 |                         5 |
+                                                     5 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 order by ts, f1 limit 1) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tb3) + 1), avg(f1) from tb3 interval(1d);
+taos> select max((select count(*) from tb3) + 1), avg(f1) from tb3 interval(1d);
+ max((select count(*) from tb3) + 1) |          avg(f1)          |
+==================================================================
+                                   4 |                         4 |
+                                   4 |                         5 |
+                                   4 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tb3) + 1), avg(f1) from tb3 interval(1d);
+taos> select max((select null from tb3) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tb3) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select * from tb3) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tb3) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select 2 from tb3) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tb3) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select avg(f1) from tb3) + 1), avg(f1) from tb3 interval(1d);
+ max((select avg(f1) from tb3) + 1) |          avg(f1)          |
+=================================================================
+                                  6 |                         4 |
+                                  6 |                         5 |
+                                  6 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tb3) + 1), avg(f1) from tb3 interval(1d);
+taos> select max((select last(*) from tb3) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tb3 partition by f1) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select max(f1) from tb3 partition by f1) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tb3 partition by f1) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tb3 interval(1d)) + 1), avg(f1) from tb3 interval(1d);
+DB error: Invalid parameter data type : max [0x80002802] 
+taos> select max((select sum(f1) from tb3 interval(1d)) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tb3 interval(1d)) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from tb3 union select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tb3 union all select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from tb3 union all select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tb3 union all select f1 from tb3) + 1), avg(f1) from tb3 interval(1d);" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select case (select 1) when 1 then 1 else 2 end, avg(f1) from tb3 interval(1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -8764,132 +8934,188 @@ taos> select (select f1 from tba union select f1 from tba) * (select f1 from tba
 taos> select (select f1 from tba union all select f1 from tba) * (select f1 from tba union all select f1 from tba), * from tba order by ts, f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)) from tba;
+taos> select count((select 1)) from tba;
 
-DB error: unrecognized token: "{funcname}((select 1)) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba)) from tba;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select count((select f1 from tba)) from tba;
+ count((select f1 from tba)) |
+==============================
+                           1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba order by ts, f1 limit 1)) from tba;
+taos> select count((select f1 from tba order by ts, f1 limit 1)) from tba;
+ count((select f1 from tba order by ts, f1 limit 1)) |
+======================================================
+                                                   1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba order by ts, f1 limit 1)) from tba;" [0x80002600] 
-taos> select {funcName}((select count(*) from tba)) from tba;
+taos> select count((select count(*) from tba)) from tba;
+ count((select count(*) from tba)) |
+====================================
+                                 1 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select null from tba)) from tba;
+taos> select count((select null from tba)) from tba;
+ count((select null from tba)) |
+================================
+                             0 |
 
-DB error: unrecognized token: "{funcname}((select null from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select * from tba)) from tba;
+taos> select count((select * from tba)) from tba;
 
-DB error: unrecognized token: "{funcname}((select * from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select 2 from tba)) from tba;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select 2 from tba)) from tba;
+ count((select 2 from tba)) |
+=============================
+                          1 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tba)) from tba;
+taos> select count((select avg(f1) from tba)) from tba;
+ count((select avg(f1) from tba)) |
+===================================
+                                1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select last(*) from tba)) from tba;
+taos> select count((select last(*) from tba)) from tba;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tba partition by f1)) from tba;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select max(f1) from tba partition by f1)) from tba;
+ count((select max(f1) from tba partition by f1)) |
+===================================================
+                                                1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tba partition by f1)) from tba;" [0x80002600] 
-taos> select {funcName}((select a.ts from tba a join tba b on a.ts = b.ts)) from tba;
+taos> select count((select a.ts from tba a join tba b on a.ts = b.ts)) from tba;
+ count((select a.ts from tba a join tba b on a.ts = b.ts)) |
+============================================================
+                                                         1 |
 
-DB error: unrecognized token: "{funcname}((select a.ts from tba a join tba b on a.ts = b.ts)) from tba;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tba interval(1d))) from tba;
+taos> select count((select sum(f1) from tba interval(1d))) from tba;
+ count((select sum(f1) from tba interval(1d))) |
+================================================
+                                             1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tba interval(1d))) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba union select f1 from tba)) from tba;
+taos> select count((select f1 from tba union select f1 from tba)) from tba;
+ count((select f1 from tba union select f1 from tba)) |
+=======================================================
+                                                    1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union select f1 from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba union all select f1 from tba)) from tba;
+taos> select count((select f1 from tba union all select f1 from tba)) from tba;
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union all select f1 from tba)) from tba;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) from tba;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select 1) + 1) from tba;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba) + 1) from tba;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select sum((select f1 from tba) + 1) from tba;
+ sum((select f1 from tba) + 1) |
+================================
+                             1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba order by ts, f1 limit 1) + 1) from tba;
+taos> select sum((select f1 from tba order by ts, f1 limit 1) + 1) from tba;
+ sum((select f1 from tba order by ts, f1 limit 1) + 1) |
+========================================================
+                                                     1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba order by ts, f1 limit 1) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select count(*) from tba) + 1) from tba;
+taos> select sum((select count(*) from tba) + 1) from tba;
+ sum((select count(*) from tba) + 1) |
+======================================
+                                   2 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select null from tba) + 1) from tba;
+taos> select sum((select null from tba) + 1) from tba;
+ sum((select null from tba) + 1) |
+==================================
+ NULL                            |
 
-DB error: unrecognized token: "{funcname}((select null from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select * from tba) + 1) from tba;
+taos> select sum((select * from tba) + 1) from tba;
 
-DB error: unrecognized token: "{funcname}((select * from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select 2 from tba) + 1) from tba;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select 2 from tba) + 1) from tba;
+ sum((select 2 from tba) + 1) |
+===============================
+                            3 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tba) + 1) from tba;
+taos> select sum((select avg(f1) from tba) + 1) from tba;
+ sum((select avg(f1) from tba) + 1) |
+=====================================
+                                  1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select last(*) from tba) + 1) from tba;
+taos> select sum((select last(*) from tba) + 1) from tba;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tba partition by f1) + 1) from tba;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select max(f1) from tba partition by f1) + 1) from tba;
+ sum((select max(f1) from tba partition by f1) + 1) |
+=====================================================
+                                                  1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tba partition by f1) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select a.ts from tba a join tba b on a.ts = b.ts) + 1) from tba;
+taos> select sum((select a.ts from tba a join tba b on a.ts = b.ts) + 1) from tba;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tba a join tba b on a.ts = b.ts) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tba interval(1d)) + 1) from tba;
+DB error: Invalid parameter data type : sum [0x80002802] 
+taos> select sum((select sum(f1) from tba interval(1d)) + 1) from tba;
+ sum((select sum(f1) from tba interval(1d)) + 1) |
+==================================================
+                                               1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tba interval(1d)) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba union select f1 from tba) + 1) from tba;
+taos> select sum((select f1 from tba union select f1 from tba) + 1) from tba;
+ sum((select f1 from tba union select f1 from tba) + 1) |
+=========================================================
+                                                      1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union select f1 from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba union all select f1 from tba) + 1) from tba;
+taos> select sum((select f1 from tba union all select f1 from tba) + 1) from tba;
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union all select f1 from tba) + 1) from tba;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) + 2 from tba;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select 1) + 1) + 2 from tba;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba) + 1) + 2 from tba;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select avg((select f1 from tba) + 1) + 2 from tba;
+ avg((select f1 from tba) + 1) + 2 |
+====================================
+                                 3 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba order by ts, f1 limit 1) + 1) + 2 from tba;
+taos> select avg((select f1 from tba order by ts, f1 limit 1) + 1) + 2 from tba;
+ avg((select f1 from tba order by ts, f1 limit 1) + 1) + 2 |
+============================================================
+                                                         3 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba order by ts, f1 limit 1) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select count(*) from tba) + 1) + 2 from tba;
+taos> select avg((select count(*) from tba) + 1) + 2 from tba;
+ avg((select count(*) from tba) + 1) + 2 |
+==========================================
+                                       4 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select null from tba) + 1) + 2 from tba;
+taos> select avg((select null from tba) + 1) + 2 from tba;
+ avg((select null from tba) + 1) + 2 |
+======================================
+ NULL                                |
 
-DB error: unrecognized token: "{funcname}((select null from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select * from tba) + 1) + 2 from tba;
+taos> select avg((select * from tba) + 1) + 2 from tba;
 
-DB error: unrecognized token: "{funcname}((select * from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select 2 from tba) + 1) + 2 from tba;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select 2 from tba) + 1) + 2 from tba;
+ avg((select 2 from tba) + 1) + 2 |
+===================================
+                                5 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tba) + 1) + 2 from tba;
+taos> select avg((select avg(f1) from tba) + 1) + 2 from tba;
+ avg((select avg(f1) from tba) + 1) + 2 |
+=========================================
+                                      3 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select last(*) from tba) + 1) + 2 from tba;
+taos> select avg((select last(*) from tba) + 1) + 2 from tba;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tba partition by f1) + 1) + 2 from tba;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select max(f1) from tba partition by f1) + 1) + 2 from tba;
+ avg((select max(f1) from tba partition by f1) + 1) + 2 |
+=========================================================
+                                                      3 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tba partition by f1) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select a.ts from tba a join tba b on a.ts = b.ts) + 1) + 2 from tba;
+taos> select avg((select a.ts from tba a join tba b on a.ts = b.ts) + 1) + 2 from tba;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tba a join tba b on a.ts = b.ts) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tba interval(1d)) + 1) + 2 from tba;
+DB error: Invalid parameter data type : avg [0x80002802] 
+taos> select avg((select sum(f1) from tba interval(1d)) + 1) + 2 from tba;
+ avg((select sum(f1) from tba interval(1d)) + 1) + 2 |
+======================================================
+                                                   3 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tba interval(1d)) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba union select f1 from tba) + 1) + 2 from tba;
+taos> select avg((select f1 from tba union select f1 from tba) + 1) + 2 from tba;
+ avg((select f1 from tba union select f1 from tba) + 1) + 2 |
+=============================================================
+                                                          3 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union select f1 from tba) + 1) + 2 from tba;" [0x80002600] 
-taos> select {funcName}((select f1 from tba union all select f1 from tba) + 1) + 2 from tba;
+taos> select avg((select f1 from tba union all select f1 from tba) + 1) + 2 from tba;
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union all select f1 from tba) + 1) + 2 from tba;" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select 1) + (select 1) from tba partition by tbname;
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -9322,90 +9548,126 @@ taos> select (select f1 from tba union select f1 from tba) + 1, avg(f1) from tba
 taos> select (select f1 from tba union all select f1 from tba) + 1, avg(f1) from tba interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)), avg(f1) from tba interval(1d);
+taos> select min((select 1)), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba)), avg(f1) from tba interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select min((select f1 from tba)), avg(f1) from tba interval(1d);
+ min((select f1 from tba)) |          avg(f1)          |
+========================================================
+                         0 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba order by ts, f1 limit 1)), avg(f1) from tba interval(1d);
+taos> select min((select f1 from tba order by ts, f1 limit 1)), avg(f1) from tba interval(1d);
+ min((select f1 from tba order by ts, f1 limit 1)) |          avg(f1)          |
+================================================================================
+                                                 0 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba order by ts, f1 limit 1)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tba)), avg(f1) from tba interval(1d);
+taos> select min((select count(*) from tba)), avg(f1) from tba interval(1d);
+ min((select count(*) from tba)) |          avg(f1)          |
+==============================================================
+                               1 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tba)), avg(f1) from tba interval(1d);
+taos> select min((select null from tba)), avg(f1) from tba interval(1d);
+ min((select null from tba)) |          avg(f1)          |
+==========================================================
+ NULL                        |                         0 |
 
-DB error: unrecognized token: "{funcname}((select null from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tba)), avg(f1) from tba interval(1d);
+taos> select min((select * from tba)), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tba)), avg(f1) from tba interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select 2 from tba)), avg(f1) from tba interval(1d);
+ min((select 2 from tba)) |          avg(f1)          |
+=======================================================
+                        2 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tba)), avg(f1) from tba interval(1d);
+taos> select min((select avg(f1) from tba)), avg(f1) from tba interval(1d);
+ min((select avg(f1) from tba)) |          avg(f1)          |
+=============================================================
+                              0 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tba)), avg(f1) from tba interval(1d);
+taos> select min((select last(*) from tba)), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tba partition by f1)), avg(f1) from tba interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select max(f1) from tba partition by f1)), avg(f1) from tba interval(1d);
+ min((select max(f1) from tba partition by f1)) |          avg(f1)          |
+=============================================================================
+                                              0 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tba partition by f1)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tba a join tba b on a.ts = b.ts)), avg(f1) from tba interval(1d);
+taos> select min((select a.ts from tba a join tba b on a.ts = b.ts)), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tba a join tba b on a.ts = b.ts)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tba interval(1d))), avg(f1) from tba interval(1d);
+DB error: Invalid parameter data type : min [0x80002802] 
+taos> select min((select sum(f1) from tba interval(1d))), avg(f1) from tba interval(1d);
+ min((select sum(f1) from tba interval(1d))) |          avg(f1)          |
+==========================================================================
+                                           0 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tba interval(1d))), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba union select f1 from tba)), avg(f1) from tba interval(1d);
+taos> select min((select f1 from tba union select f1 from tba)), avg(f1) from tba interval(1d);
+ min((select f1 from tba union select f1 from tba)) |          avg(f1)          |
+=================================================================================
+                                                  0 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union select f1 from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba union all select f1 from tba)), avg(f1) from tba interval(1d);
+taos> select min((select f1 from tba union all select f1 from tba)), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union all select f1 from tba)), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select 1) + 1), avg(f1) from tba interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select 1) + 1), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba) + 1), avg(f1) from tba interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select max((select f1 from tba) + 1), avg(f1) from tba interval(1d);
+ max((select f1 from tba) + 1) |          avg(f1)          |
+============================================================
+                             1 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba order by ts, f1 limit 1) + 1), avg(f1) from tba interval(1d);
+taos> select max((select f1 from tba order by ts, f1 limit 1) + 1), avg(f1) from tba interval(1d);
+ max((select f1 from tba order by ts, f1 limit 1) + 1) |          avg(f1)          |
+====================================================================================
+                                                     1 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba order by ts, f1 limit 1) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tba) + 1), avg(f1) from tba interval(1d);
+taos> select max((select count(*) from tba) + 1), avg(f1) from tba interval(1d);
+ max((select count(*) from tba) + 1) |          avg(f1)          |
+==================================================================
+                                   2 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tba) + 1), avg(f1) from tba interval(1d);
+taos> select max((select null from tba) + 1), avg(f1) from tba interval(1d);
+ max((select null from tba) + 1) |          avg(f1)          |
+==============================================================
+ NULL                            |                         0 |
 
-DB error: unrecognized token: "{funcname}((select null from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tba) + 1), avg(f1) from tba interval(1d);
+taos> select max((select * from tba) + 1), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tba) + 1), avg(f1) from tba interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select 2 from tba) + 1), avg(f1) from tba interval(1d);
+ max((select 2 from tba) + 1) |          avg(f1)          |
+===========================================================
+                            3 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tba) + 1), avg(f1) from tba interval(1d);
+taos> select max((select avg(f1) from tba) + 1), avg(f1) from tba interval(1d);
+ max((select avg(f1) from tba) + 1) |          avg(f1)          |
+=================================================================
+                                  1 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tba) + 1), avg(f1) from tba interval(1d);
+taos> select max((select last(*) from tba) + 1), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tba partition by f1) + 1), avg(f1) from tba interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select max(f1) from tba partition by f1) + 1), avg(f1) from tba interval(1d);
+ max((select max(f1) from tba partition by f1) + 1) |          avg(f1)          |
+=================================================================================
+                                                  1 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tba partition by f1) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tba a join tba b on a.ts = b.ts) + 1), avg(f1) from tba interval(1d);
+taos> select max((select a.ts from tba a join tba b on a.ts = b.ts) + 1), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tba a join tba b on a.ts = b.ts) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tba interval(1d)) + 1), avg(f1) from tba interval(1d);
+DB error: Invalid parameter data type : max [0x80002802] 
+taos> select max((select sum(f1) from tba interval(1d)) + 1), avg(f1) from tba interval(1d);
+ max((select sum(f1) from tba interval(1d)) + 1) |          avg(f1)          |
+==============================================================================
+                                               1 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tba interval(1d)) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba union select f1 from tba) + 1), avg(f1) from tba interval(1d);
+taos> select max((select f1 from tba union select f1 from tba) + 1), avg(f1) from tba interval(1d);
+ max((select f1 from tba union select f1 from tba) + 1) |          avg(f1)          |
+=====================================================================================
+                                                      1 |                         0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union select f1 from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tba union all select f1 from tba) + 1), avg(f1) from tba interval(1d);
+taos> select max((select f1 from tba union all select f1 from tba) + 1), avg(f1) from tba interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tba union all select f1 from tba) + 1), avg(f1) from tba interval(1d);" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select case (select 1) when 1 then 1 else 2 end, avg(f1) from tba interval(1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -11603,132 +11865,188 @@ taos> select (select f1 from tbb union select f1 from tbb) * (select f1 from tbb
 taos> select (select f1 from tbb union all select f1 from tbb) * (select f1 from tbb union all select f1 from tbb), * from tbb order by ts, f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)) from tbb;
+taos> select count((select 1)) from tbb;
 
-DB error: unrecognized token: "{funcname}((select 1)) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb)) from tbb;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select count((select f1 from tbb)) from tbb;
+ count((select f1 from tbb)) |
+==============================
+                           1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb order by ts, f1 limit 1)) from tbb;
+taos> select count((select f1 from tbb order by ts, f1 limit 1)) from tbb;
+ count((select f1 from tbb order by ts, f1 limit 1)) |
+======================================================
+                                                   1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb order by ts, f1 limit 1)) from tbb;" [0x80002600] 
-taos> select {funcName}((select count(*) from tbb)) from tbb;
+taos> select count((select count(*) from tbb)) from tbb;
+ count((select count(*) from tbb)) |
+====================================
+                                 1 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select null from tbb)) from tbb;
+taos> select count((select null from tbb)) from tbb;
+ count((select null from tbb)) |
+================================
+                             0 |
 
-DB error: unrecognized token: "{funcname}((select null from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select * from tbb)) from tbb;
+taos> select count((select * from tbb)) from tbb;
 
-DB error: unrecognized token: "{funcname}((select * from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select 2 from tbb)) from tbb;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select 2 from tbb)) from tbb;
+ count((select 2 from tbb)) |
+=============================
+                          1 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbb)) from tbb;
+taos> select count((select avg(f1) from tbb)) from tbb;
+ count((select avg(f1) from tbb)) |
+===================================
+                                1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select last(*) from tbb)) from tbb;
+taos> select count((select last(*) from tbb)) from tbb;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbb partition by f1)) from tbb;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select max(f1) from tbb partition by f1)) from tbb;
+ count((select max(f1) from tbb partition by f1)) |
+===================================================
+                                                1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbb partition by f1)) from tbb;" [0x80002600] 
-taos> select {funcName}((select a.ts from tbb a join tbb b on a.ts = b.ts)) from tbb;
+taos> select count((select a.ts from tbb a join tbb b on a.ts = b.ts)) from tbb;
+ count((select a.ts from tbb a join tbb b on a.ts = b.ts)) |
+============================================================
+                                                         1 |
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbb a join tbb b on a.ts = b.ts)) from tbb;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbb interval(1d))) from tbb;
+taos> select count((select sum(f1) from tbb interval(1d))) from tbb;
+ count((select sum(f1) from tbb interval(1d))) |
+================================================
+                                             1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbb interval(1d))) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union select f1 from tbb)) from tbb;
+taos> select count((select f1 from tbb union select f1 from tbb)) from tbb;
+ count((select f1 from tbb union select f1 from tbb)) |
+=======================================================
+                                                    1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union select f1 from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union all select f1 from tbb)) from tbb;
+taos> select count((select f1 from tbb union all select f1 from tbb)) from tbb;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union all select f1 from tbb)) from tbb;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) from tbb;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select 1) + 1) from tbb;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb) + 1) from tbb;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select sum((select f1 from tbb) + 1) from tbb;
+ sum((select f1 from tbb) + 1) |
+================================
+                             2 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb order by ts, f1 limit 1) + 1) from tbb;
+taos> select sum((select f1 from tbb order by ts, f1 limit 1) + 1) from tbb;
+ sum((select f1 from tbb order by ts, f1 limit 1) + 1) |
+========================================================
+                                                     2 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb order by ts, f1 limit 1) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select count(*) from tbb) + 1) from tbb;
+taos> select sum((select count(*) from tbb) + 1) from tbb;
+ sum((select count(*) from tbb) + 1) |
+======================================
+                                   2 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select null from tbb) + 1) from tbb;
+taos> select sum((select null from tbb) + 1) from tbb;
+ sum((select null from tbb) + 1) |
+==================================
+ NULL                            |
 
-DB error: unrecognized token: "{funcname}((select null from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select * from tbb) + 1) from tbb;
+taos> select sum((select * from tbb) + 1) from tbb;
 
-DB error: unrecognized token: "{funcname}((select * from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select 2 from tbb) + 1) from tbb;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select 2 from tbb) + 1) from tbb;
+ sum((select 2 from tbb) + 1) |
+===============================
+                            3 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbb) + 1) from tbb;
+taos> select sum((select avg(f1) from tbb) + 1) from tbb;
+ sum((select avg(f1) from tbb) + 1) |
+=====================================
+                                  2 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select last(*) from tbb) + 1) from tbb;
+taos> select sum((select last(*) from tbb) + 1) from tbb;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbb partition by f1) + 1) from tbb;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select max(f1) from tbb partition by f1) + 1) from tbb;
+ sum((select max(f1) from tbb partition by f1) + 1) |
+=====================================================
+                                                  2 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbb partition by f1) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1) from tbb;
+taos> select sum((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1) from tbb;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbb interval(1d)) + 1) from tbb;
+DB error: Invalid parameter data type : sum [0x80002802] 
+taos> select sum((select sum(f1) from tbb interval(1d)) + 1) from tbb;
+ sum((select sum(f1) from tbb interval(1d)) + 1) |
+==================================================
+                                               2 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbb interval(1d)) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union select f1 from tbb) + 1) from tbb;
+taos> select sum((select f1 from tbb union select f1 from tbb) + 1) from tbb;
+ sum((select f1 from tbb union select f1 from tbb) + 1) |
+=========================================================
+                                                      2 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union select f1 from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union all select f1 from tbb) + 1) from tbb;
+taos> select sum((select f1 from tbb union all select f1 from tbb) + 1) from tbb;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union all select f1 from tbb) + 1) from tbb;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) + 2 from tbb;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select 1) + 1) + 2 from tbb;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb) + 1) + 2 from tbb;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select avg((select f1 from tbb) + 1) + 2 from tbb;
+ avg((select f1 from tbb) + 1) + 2 |
+====================================
+                                 4 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb order by ts, f1 limit 1) + 1) + 2 from tbb;
+taos> select avg((select f1 from tbb order by ts, f1 limit 1) + 1) + 2 from tbb;
+ avg((select f1 from tbb order by ts, f1 limit 1) + 1) + 2 |
+============================================================
+                                                         4 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb order by ts, f1 limit 1) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select count(*) from tbb) + 1) + 2 from tbb;
+taos> select avg((select count(*) from tbb) + 1) + 2 from tbb;
+ avg((select count(*) from tbb) + 1) + 2 |
+==========================================
+                                       4 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select null from tbb) + 1) + 2 from tbb;
+taos> select avg((select null from tbb) + 1) + 2 from tbb;
+ avg((select null from tbb) + 1) + 2 |
+======================================
+ NULL                                |
 
-DB error: unrecognized token: "{funcname}((select null from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select * from tbb) + 1) + 2 from tbb;
+taos> select avg((select * from tbb) + 1) + 2 from tbb;
 
-DB error: unrecognized token: "{funcname}((select * from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select 2 from tbb) + 1) + 2 from tbb;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select 2 from tbb) + 1) + 2 from tbb;
+ avg((select 2 from tbb) + 1) + 2 |
+===================================
+                                5 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbb) + 1) + 2 from tbb;
+taos> select avg((select avg(f1) from tbb) + 1) + 2 from tbb;
+ avg((select avg(f1) from tbb) + 1) + 2 |
+=========================================
+                                      4 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select last(*) from tbb) + 1) + 2 from tbb;
+taos> select avg((select last(*) from tbb) + 1) + 2 from tbb;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbb partition by f1) + 1) + 2 from tbb;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select max(f1) from tbb partition by f1) + 1) + 2 from tbb;
+ avg((select max(f1) from tbb partition by f1) + 1) + 2 |
+=========================================================
+                                                      4 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbb partition by f1) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1) + 2 from tbb;
+taos> select avg((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1) + 2 from tbb;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbb interval(1d)) + 1) + 2 from tbb;
+DB error: Invalid parameter data type : avg [0x80002802] 
+taos> select avg((select sum(f1) from tbb interval(1d)) + 1) + 2 from tbb;
+ avg((select sum(f1) from tbb interval(1d)) + 1) + 2 |
+======================================================
+                                                   4 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbb interval(1d)) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union select f1 from tbb) + 1) + 2 from tbb;
+taos> select avg((select f1 from tbb union select f1 from tbb) + 1) + 2 from tbb;
+ avg((select f1 from tbb union select f1 from tbb) + 1) + 2 |
+=============================================================
+                                                          4 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union select f1 from tbb) + 1) + 2 from tbb;" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union all select f1 from tbb) + 1) + 2 from tbb;
+taos> select avg((select f1 from tbb union all select f1 from tbb) + 1) + 2 from tbb;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union all select f1 from tbb) + 1) + 2 from tbb;" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select 1) + (select 1) from tbb partition by tbname;
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -12161,90 +12479,126 @@ taos> select (select f1 from tbb union select f1 from tbb) + 1, avg(f1) from tbb
 taos> select (select f1 from tbb union all select f1 from tbb) + 1, avg(f1) from tbb interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)), avg(f1) from tbb interval(1d);
+taos> select min((select 1)), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb)), avg(f1) from tbb interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select min((select f1 from tbb)), avg(f1) from tbb interval(1d);
+ min((select f1 from tbb)) |          avg(f1)          |
+========================================================
+                         1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb order by ts, f1 limit 1)), avg(f1) from tbb interval(1d);
+taos> select min((select f1 from tbb order by ts, f1 limit 1)), avg(f1) from tbb interval(1d);
+ min((select f1 from tbb order by ts, f1 limit 1)) |          avg(f1)          |
+================================================================================
+                                                 1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb order by ts, f1 limit 1)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tbb)), avg(f1) from tbb interval(1d);
+taos> select min((select count(*) from tbb)), avg(f1) from tbb interval(1d);
+ min((select count(*) from tbb)) |          avg(f1)          |
+==============================================================
+                               1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tbb)), avg(f1) from tbb interval(1d);
+taos> select min((select null from tbb)), avg(f1) from tbb interval(1d);
+ min((select null from tbb)) |          avg(f1)          |
+==========================================================
+ NULL                        |                         1 |
 
-DB error: unrecognized token: "{funcname}((select null from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tbb)), avg(f1) from tbb interval(1d);
+taos> select min((select * from tbb)), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tbb)), avg(f1) from tbb interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select 2 from tbb)), avg(f1) from tbb interval(1d);
+ min((select 2 from tbb)) |          avg(f1)          |
+=======================================================
+                        2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbb)), avg(f1) from tbb interval(1d);
+taos> select min((select avg(f1) from tbb)), avg(f1) from tbb interval(1d);
+ min((select avg(f1) from tbb)) |          avg(f1)          |
+=============================================================
+                              1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tbb)), avg(f1) from tbb interval(1d);
+taos> select min((select last(*) from tbb)), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbb partition by f1)), avg(f1) from tbb interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select max(f1) from tbb partition by f1)), avg(f1) from tbb interval(1d);
+ min((select max(f1) from tbb partition by f1)) |          avg(f1)          |
+=============================================================================
+                                              1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbb partition by f1)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tbb a join tbb b on a.ts = b.ts)), avg(f1) from tbb interval(1d);
+taos> select min((select a.ts from tbb a join tbb b on a.ts = b.ts)), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbb a join tbb b on a.ts = b.ts)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbb interval(1d))), avg(f1) from tbb interval(1d);
+DB error: Invalid parameter data type : min [0x80002802] 
+taos> select min((select sum(f1) from tbb interval(1d))), avg(f1) from tbb interval(1d);
+ min((select sum(f1) from tbb interval(1d))) |          avg(f1)          |
+==========================================================================
+                                           1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbb interval(1d))), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union select f1 from tbb)), avg(f1) from tbb interval(1d);
+taos> select min((select f1 from tbb union select f1 from tbb)), avg(f1) from tbb interval(1d);
+ min((select f1 from tbb union select f1 from tbb)) |          avg(f1)          |
+=================================================================================
+                                                  1 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union select f1 from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union all select f1 from tbb)), avg(f1) from tbb interval(1d);
+taos> select min((select f1 from tbb union all select f1 from tbb)), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union all select f1 from tbb)), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select 1) + 1), avg(f1) from tbb interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select 1) + 1), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb) + 1), avg(f1) from tbb interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select max((select f1 from tbb) + 1), avg(f1) from tbb interval(1d);
+ max((select f1 from tbb) + 1) |          avg(f1)          |
+============================================================
+                             2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb order by ts, f1 limit 1) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select f1 from tbb order by ts, f1 limit 1) + 1), avg(f1) from tbb interval(1d);
+ max((select f1 from tbb order by ts, f1 limit 1) + 1) |          avg(f1)          |
+====================================================================================
+                                                     2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb order by ts, f1 limit 1) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tbb) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select count(*) from tbb) + 1), avg(f1) from tbb interval(1d);
+ max((select count(*) from tbb) + 1) |          avg(f1)          |
+==================================================================
+                                   2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tbb) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select null from tbb) + 1), avg(f1) from tbb interval(1d);
+ max((select null from tbb) + 1) |          avg(f1)          |
+==============================================================
+ NULL                            |                         1 |
 
-DB error: unrecognized token: "{funcname}((select null from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tbb) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select * from tbb) + 1), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tbb) + 1), avg(f1) from tbb interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select 2 from tbb) + 1), avg(f1) from tbb interval(1d);
+ max((select 2 from tbb) + 1) |          avg(f1)          |
+===========================================================
+                            3 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbb) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select avg(f1) from tbb) + 1), avg(f1) from tbb interval(1d);
+ max((select avg(f1) from tbb) + 1) |          avg(f1)          |
+=================================================================
+                                  2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tbb) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select last(*) from tbb) + 1), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbb partition by f1) + 1), avg(f1) from tbb interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select max(f1) from tbb partition by f1) + 1), avg(f1) from tbb interval(1d);
+ max((select max(f1) from tbb partition by f1) + 1) |          avg(f1)          |
+=================================================================================
+                                                  2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbb partition by f1) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbb interval(1d)) + 1), avg(f1) from tbb interval(1d);
+DB error: Invalid parameter data type : max [0x80002802] 
+taos> select max((select sum(f1) from tbb interval(1d)) + 1), avg(f1) from tbb interval(1d);
+ max((select sum(f1) from tbb interval(1d)) + 1) |          avg(f1)          |
+==============================================================================
+                                               2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbb interval(1d)) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union select f1 from tbb) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select f1 from tbb union select f1 from tbb) + 1), avg(f1) from tbb interval(1d);
+ max((select f1 from tbb union select f1 from tbb) + 1) |          avg(f1)          |
+=====================================================================================
+                                                      2 |                         1 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union select f1 from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbb union all select f1 from tbb) + 1), avg(f1) from tbb interval(1d);
+taos> select max((select f1 from tbb union all select f1 from tbb) + 1), avg(f1) from tbb interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbb union all select f1 from tbb) + 1), avg(f1) from tbb interval(1d);" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select case (select 1) when 1 then 1 else 2 end, avg(f1) from tbb interval(1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -14251,132 +14605,134 @@ taos> select (select f1 from tbe union select f1 from tbe) * (select f1 from tbe
 
 taos> select (select f1 from tbe union all select f1 from tbe) * (select f1 from tbe union all select f1 from tbe), * from tbe order by ts, f1;
 
-taos> select {funcName}((select 1)) from tbe;
+taos> select count((select 1)) from tbe;
 
-DB error: unrecognized token: "{funcname}((select 1)) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe)) from tbe;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select count((select f1 from tbe)) from tbe;
+ count((select f1 from tbe)) |
+==============================
+                           0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe order by ts, f1 limit 1)) from tbe;
+taos> select count((select f1 from tbe order by ts, f1 limit 1)) from tbe;
+ count((select f1 from tbe order by ts, f1 limit 1)) |
+======================================================
+                                                   0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe order by ts, f1 limit 1)) from tbe;" [0x80002600] 
-taos> select {funcName}((select count(*) from tbe)) from tbe;
+taos> select count((select count(*) from tbe)) from tbe;
+ count((select count(*) from tbe)) |
+====================================
+                                 0 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select null from tbe)) from tbe;
+taos> select count((select null from tbe)) from tbe;
+ count((select null from tbe)) |
+================================
+                             0 |
 
-DB error: unrecognized token: "{funcname}((select null from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select * from tbe)) from tbe;
+taos> select count((select * from tbe)) from tbe;
 
-DB error: unrecognized token: "{funcname}((select * from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select 2 from tbe)) from tbe;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select 2 from tbe)) from tbe;
+ count((select 2 from tbe)) |
+=============================
+                          0 |
 
-DB error: unrecognized token: "{funcname}((select 2 from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbe)) from tbe;
+taos> select count((select avg(f1) from tbe)) from tbe;
+ count((select avg(f1) from tbe)) |
+===================================
+                                0 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select last(*) from tbe)) from tbe;
+taos> select count((select last(*) from tbe)) from tbe;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbe partition by f1)) from tbe;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select max(f1) from tbe partition by f1)) from tbe;
+ count((select max(f1) from tbe partition by f1)) |
+===================================================
+                                                0 |
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbe partition by f1)) from tbe;" [0x80002600] 
-taos> select {funcName}((select a.ts from tbe a join tbe b on a.ts = b.ts)) from tbe;
+taos> select count((select a.ts from tbe a join tbe b on a.ts = b.ts)) from tbe;
+ count((select a.ts from tbe a join tbe b on a.ts = b.ts)) |
+============================================================
+                                                         0 |
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbe a join tbe b on a.ts = b.ts)) from tbe;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbe interval(1d))) from tbe;
+taos> select count((select sum(f1) from tbe interval(1d))) from tbe;
+ count((select sum(f1) from tbe interval(1d))) |
+================================================
+                                             0 |
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbe interval(1d))) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union select f1 from tbe)) from tbe;
+taos> select count((select f1 from tbe union select f1 from tbe)) from tbe;
+ count((select f1 from tbe union select f1 from tbe)) |
+=======================================================
+                                                    0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union select f1 from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union all select f1 from tbe)) from tbe;
+taos> select count((select f1 from tbe union all select f1 from tbe)) from tbe;
+ count((select f1 from tbe union all select f1 from tbe)) |
+===========================================================
+                                                        0 |
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union all select f1 from tbe)) from tbe;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) from tbe;
+taos> select sum((select 1) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe) + 1) from tbe;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select sum((select f1 from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe order by ts, f1 limit 1) + 1) from tbe;
+taos> select sum((select f1 from tbe order by ts, f1 limit 1) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe order by ts, f1 limit 1) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select count(*) from tbe) + 1) from tbe;
+taos> select sum((select count(*) from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select null from tbe) + 1) from tbe;
+taos> select sum((select null from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select null from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select * from tbe) + 1) from tbe;
+taos> select sum((select * from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select * from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select 2 from tbe) + 1) from tbe;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select 2 from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select 2 from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbe) + 1) from tbe;
+taos> select sum((select avg(f1) from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select last(*) from tbe) + 1) from tbe;
+taos> select sum((select last(*) from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbe partition by f1) + 1) from tbe;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select max(f1) from tbe partition by f1) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbe partition by f1) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1) from tbe;
+taos> select sum((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbe interval(1d)) + 1) from tbe;
+DB error: Invalid parameter data type : sum [0x80002802] 
+taos> select sum((select sum(f1) from tbe interval(1d)) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbe interval(1d)) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union select f1 from tbe) + 1) from tbe;
+taos> select sum((select f1 from tbe union select f1 from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union select f1 from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union all select f1 from tbe) + 1) from tbe;
+taos> select sum((select f1 from tbe union all select f1 from tbe) + 1) from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union all select f1 from tbe) + 1) from tbe;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) + 2 from tbe;
+taos> select avg((select 1) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe) + 1) + 2 from tbe;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select avg((select f1 from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe order by ts, f1 limit 1) + 1) + 2 from tbe;
+taos> select avg((select f1 from tbe order by ts, f1 limit 1) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe order by ts, f1 limit 1) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select count(*) from tbe) + 1) + 2 from tbe;
+taos> select avg((select count(*) from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select null from tbe) + 1) + 2 from tbe;
+taos> select avg((select null from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select null from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select * from tbe) + 1) + 2 from tbe;
+taos> select avg((select * from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select * from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select 2 from tbe) + 1) + 2 from tbe;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select 2 from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select 2 from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbe) + 1) + 2 from tbe;
+taos> select avg((select avg(f1) from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select last(*) from tbe) + 1) + 2 from tbe;
+taos> select avg((select last(*) from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbe partition by f1) + 1) + 2 from tbe;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select max(f1) from tbe partition by f1) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbe partition by f1) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1) + 2 from tbe;
+taos> select avg((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbe interval(1d)) + 1) + 2 from tbe;
+DB error: Invalid parameter data type : avg [0x80002802] 
+taos> select avg((select sum(f1) from tbe interval(1d)) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbe interval(1d)) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union select f1 from tbe) + 1) + 2 from tbe;
+taos> select avg((select f1 from tbe union select f1 from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union select f1 from tbe) + 1) + 2 from tbe;" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union all select f1 from tbe) + 1) + 2 from tbe;
+taos> select avg((select f1 from tbe union all select f1 from tbe) + 1) + 2 from tbe;
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union all select f1 from tbe) + 1) + 2 from tbe;" [0x80002600] 
 taos> select (select 1) + (select 1) from tbe partition by tbname;
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -14595,90 +14951,70 @@ taos> select (select f1 from tbe union select f1 from tbe) + 1, avg(f1) from tbe
 
 taos> select (select f1 from tbe union all select f1 from tbe) + 1, avg(f1) from tbe interval(1d);
 
-taos> select {funcName}((select 1)), avg(f1) from tbe interval(1d);
+taos> select min((select 1)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe)), avg(f1) from tbe interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select min((select f1 from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe order by ts, f1 limit 1)), avg(f1) from tbe interval(1d);
+taos> select min((select f1 from tbe order by ts, f1 limit 1)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe order by ts, f1 limit 1)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tbe)), avg(f1) from tbe interval(1d);
+taos> select min((select count(*) from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tbe)), avg(f1) from tbe interval(1d);
+taos> select min((select null from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tbe)), avg(f1) from tbe interval(1d);
+taos> select min((select * from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tbe)), avg(f1) from tbe interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select 2 from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbe)), avg(f1) from tbe interval(1d);
+taos> select min((select avg(f1) from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tbe)), avg(f1) from tbe interval(1d);
+taos> select min((select last(*) from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbe partition by f1)), avg(f1) from tbe interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select max(f1) from tbe partition by f1)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbe partition by f1)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tbe a join tbe b on a.ts = b.ts)), avg(f1) from tbe interval(1d);
+taos> select min((select a.ts from tbe a join tbe b on a.ts = b.ts)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbe a join tbe b on a.ts = b.ts)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbe interval(1d))), avg(f1) from tbe interval(1d);
+DB error: Invalid parameter data type : min [0x80002802] 
+taos> select min((select sum(f1) from tbe interval(1d))), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbe interval(1d))), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union select f1 from tbe)), avg(f1) from tbe interval(1d);
+taos> select min((select f1 from tbe union select f1 from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union select f1 from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union all select f1 from tbe)), avg(f1) from tbe interval(1d);
+taos> select min((select f1 from tbe union all select f1 from tbe)), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union all select f1 from tbe)), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select 1) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select 1) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe) + 1), avg(f1) from tbe interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select max((select f1 from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe order by ts, f1 limit 1) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select f1 from tbe order by ts, f1 limit 1) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe order by ts, f1 limit 1) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from tbe) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select count(*) from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select count(*) from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from tbe) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select null from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from tbe) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select * from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from tbe) + 1), avg(f1) from tbe interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select 2 from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from tbe) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select avg(f1) from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from tbe) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select last(*) from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from tbe partition by f1) + 1), avg(f1) from tbe interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select max(f1) from tbe partition by f1) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from tbe partition by f1) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from tbe interval(1d)) + 1), avg(f1) from tbe interval(1d);
+DB error: Invalid parameter data type : max [0x80002802] 
+taos> select max((select sum(f1) from tbe interval(1d)) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from tbe interval(1d)) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union select f1 from tbe) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select f1 from tbe union select f1 from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union select f1 from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from tbe union all select f1 from tbe) + 1), avg(f1) from tbe interval(1d);
+taos> select max((select f1 from tbe union all select f1 from tbe) + 1), avg(f1) from tbe interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from tbe union all select f1 from tbe) + 1), avg(f1) from tbe interval(1d);" [0x80002600] 
 taos> select case (select 1) when 1 then 1 else 2 end, avg(f1) from tbe interval(1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -16280,132 +16616,150 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select f1 from st1 union all select f1 from st1) * (select f1 from st1 union all select f1 from st1), * from st1 order by ts, f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)) from st1;
+taos> select count((select 1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select 1)) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1)) from st1;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select count((select f1 from st1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 order by ts, f1 limit 1)) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from st1 order by ts, f1 limit 1)) from st1;
+ count((select f1 from st1 order by ts, f1 limit 1)) |
+======================================================
+                                                   6 |
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 order by ts, f1 limit 1)) from st1;" [0x80002600] 
-taos> select {funcName}((select count(*) from st1)) from st1;
+taos> select count((select count(*) from st1)) from st1;
+ count((select count(*) from st1)) |
+====================================
+                                 6 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select null from st1)) from st1;
+taos> select count((select null from st1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select null from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select * from st1)) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select * from st1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select * from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select 2 from st1)) from st1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select 2 from st1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select 2 from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from st1)) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select avg(f1) from st1)) from st1;
+ count((select avg(f1) from st1)) |
+===================================
+                                6 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select last(*) from st1)) from st1;
+taos> select count((select last(*) from st1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select last(*) from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select max(f1) from st1 partition by f1)) from st1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select count((select max(f1) from st1 partition by f1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from st1 partition by f1)) from st1;" [0x80002600] 
-taos> select {funcName}((select a.ts from st1 a join st1 b on a.ts = b.ts)) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select a.ts from st1 a join st1 b on a.ts = b.ts)) from st1;
 
-DB error: unrecognized token: "{funcname}((select a.ts from st1 a join st1 b on a.ts = b.ts)) from st1;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from st1 interval(1d))) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select sum(f1) from st1 interval(1d))) from st1;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from st1 interval(1d))) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union select f1 from st1)) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from st1 union select f1 from st1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union select f1 from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union all select f1 from st1)) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select count((select f1 from st1 union all select f1 from st1)) from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union all select f1 from st1)) from st1;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select 1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1) + 1) from st1;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select sum((select f1 from st1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 order by ts, f1 limit 1) + 1) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from st1 order by ts, f1 limit 1) + 1) from st1;
+ sum((select f1 from st1 order by ts, f1 limit 1) + 1) |
+========================================================
+                                                    12 |
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 order by ts, f1 limit 1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select count(*) from st1) + 1) from st1;
+taos> select sum((select count(*) from st1) + 1) from st1;
+ sum((select count(*) from st1) + 1) |
+======================================
+                                  42 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select null from st1) + 1) from st1;
+taos> select sum((select null from st1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select null from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select * from st1) + 1) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select * from st1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select * from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select 2 from st1) + 1) from st1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select 2 from st1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select 2 from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from st1) + 1) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select avg(f1) from st1) + 1) from st1;
+ sum((select avg(f1) from st1) + 1) |
+=====================================
+                                 27 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select last(*) from st1) + 1) from st1;
+taos> select sum((select last(*) from st1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select last(*) from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select max(f1) from st1 partition by f1) + 1) from st1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select sum((select max(f1) from st1 partition by f1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from st1 partition by f1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from st1 interval(1d)) + 1) from st1;
+DB error: Invalid parameter data type : sum [0x80002802] 
+taos> select sum((select sum(f1) from st1 interval(1d)) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from st1 interval(1d)) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union select f1 from st1) + 1) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from st1 union select f1 from st1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union select f1 from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union all select f1 from st1) + 1) from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select sum((select f1 from st1 union all select f1 from st1) + 1) from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union all select f1 from st1) + 1) from st1;" [0x80002600] 
-taos> select {funcName}((select 1) + 1) + 2 from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select 1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select 1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1) + 1) + 2 from st1;
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select avg((select f1 from st1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 order by ts, f1 limit 1) + 1) + 2 from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from st1 order by ts, f1 limit 1) + 1) + 2 from st1;
+ avg((select f1 from st1 order by ts, f1 limit 1) + 1) + 2 |
+============================================================
+                                                         4 |
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 order by ts, f1 limit 1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select count(*) from st1) + 1) + 2 from st1;
+taos> select avg((select count(*) from st1) + 1) + 2 from st1;
+ avg((select count(*) from st1) + 1) + 2 |
+==========================================
+                                       9 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select null from st1) + 1) + 2 from st1;
+taos> select avg((select null from st1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select null from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select * from st1) + 1) + 2 from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select * from st1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select * from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select 2 from st1) + 1) + 2 from st1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select 2 from st1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select 2 from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select avg(f1) from st1) + 1) + 2 from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select avg(f1) from st1) + 1) + 2 from st1;
+ avg((select avg(f1) from st1) + 1) + 2 |
+=========================================
+                                    6.5 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select last(*) from st1) + 1) + 2 from st1;
+taos> select avg((select last(*) from st1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select last(*) from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select max(f1) from st1 partition by f1) + 1) + 2 from st1;
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select avg((select max(f1) from st1 partition by f1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select max(f1) from st1 partition by f1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1) + 2 from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select sum(f1) from st1 interval(1d)) + 1) + 2 from st1;
+DB error: Invalid parameter data type : avg [0x80002802] 
+taos> select avg((select sum(f1) from st1 interval(1d)) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from st1 interval(1d)) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union select f1 from st1) + 1) + 2 from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from st1 union select f1 from st1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union select f1 from st1) + 1) + 2 from st1;" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union all select f1 from st1) + 1) + 2 from st1;
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select avg((select f1 from st1 union all select f1 from st1) + 1) + 2 from st1;
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union all select f1 from st1) + 1) + 2 from st1;" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select 1) + (select 1) from st1 partition by tbname;
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -16829,90 +17183,114 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select f1 from st1 union all select f1 from st1) + 1, avg(f1) from st1 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select {funcName}((select 1)), avg(f1) from st1 interval(1d);
+taos> select min((select 1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1)), avg(f1) from st1 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select min((select f1 from st1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1 order by ts, f1 limit 1)), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from st1 order by ts, f1 limit 1)), avg(f1) from st1 interval(1d);
+ min((select f1 from st1 order by ts, f1 limit 1)) |          avg(f1)          |
+================================================================================
+                                                 1 |          2.33333333333333 |
+                                                 1 |                         4 |
+                                                 1 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 order by ts, f1 limit 1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from st1)), avg(f1) from st1 interval(1d);
+taos> select min((select count(*) from st1)), avg(f1) from st1 interval(1d);
+ min((select count(*) from st1)) |          avg(f1)          |
+==============================================================
+                               6 |          2.33333333333333 |
+                               6 |                         4 |
+                               6 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from st1)), avg(f1) from st1 interval(1d);
+taos> select min((select null from st1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from st1)), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select * from st1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from st1)), avg(f1) from st1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select 2 from st1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from st1)), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select avg(f1) from st1)), avg(f1) from st1 interval(1d);
+ min((select avg(f1) from st1)) |          avg(f1)          |
+=============================================================
+                            3.5 |          2.33333333333333 |
+                            3.5 |                         4 |
+                            3.5 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from st1)), avg(f1) from st1 interval(1d);
+taos> select min((select last(*) from st1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from st1 partition by f1)), avg(f1) from st1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select min((select max(f1) from st1 partition by f1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from st1 partition by f1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from st1 a join st1 b on a.ts = b.ts)), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select a.ts from st1 a join st1 b on a.ts = b.ts)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from st1 a join st1 b on a.ts = b.ts)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from st1 interval(1d))), avg(f1) from st1 interval(1d);
+DB error: Invalid parameter data type : min [0x80002802] 
+taos> select min((select sum(f1) from st1 interval(1d))), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from st1 interval(1d))), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union select f1 from st1)), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from st1 union select f1 from st1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union select f1 from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union all select f1 from st1)), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select min((select f1 from st1 union all select f1 from st1)), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union all select f1 from st1)), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select 1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1) + 1), avg(f1) from st1 interval(1d);
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select max((select f1 from st1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1 order by ts, f1 limit 1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from st1 order by ts, f1 limit 1) + 1), avg(f1) from st1 interval(1d);
+ max((select f1 from st1 order by ts, f1 limit 1) + 1) |          avg(f1)          |
+====================================================================================
+                                                     2 |          2.33333333333333 |
+                                                     2 |                         4 |
+                                                     2 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 order by ts, f1 limit 1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select count(*) from st1) + 1), avg(f1) from st1 interval(1d);
+taos> select max((select count(*) from st1) + 1), avg(f1) from st1 interval(1d);
+ max((select count(*) from st1) + 1) |          avg(f1)          |
+==================================================================
+                                   7 |          2.33333333333333 |
+                                   7 |                         4 |
+                                   7 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select count(*) from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select null from st1) + 1), avg(f1) from st1 interval(1d);
+taos> select max((select null from st1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select null from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select * from st1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select * from st1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select * from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select 2 from st1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select 2 from st1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select 2 from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select avg(f1) from st1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select avg(f1) from st1) + 1), avg(f1) from st1 interval(1d);
+ max((select avg(f1) from st1) + 1) |          avg(f1)          |
+=================================================================
+                                4.5 |          2.33333333333333 |
+                                4.5 |                         4 |
+                                4.5 |                         6 |
 
-DB error: unrecognized token: "{funcname}((select avg(f1) from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select last(*) from st1) + 1), avg(f1) from st1 interval(1d);
+taos> select max((select last(*) from st1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select last(*) from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select max(f1) from st1 partition by f1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select max((select max(f1) from st1 partition by f1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select max(f1) from st1 partition by f1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select sum(f1) from st1 interval(1d)) + 1), avg(f1) from st1 interval(1d);
+DB error: Invalid parameter data type : max [0x80002802] 
+taos> select max((select sum(f1) from st1 interval(1d)) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select sum(f1) from st1 interval(1d)) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union select f1 from st1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from st1 union select f1 from st1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union select f1 from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
-taos> select {funcName}((select f1 from st1 union all select f1 from st1) + 1), avg(f1) from st1 interval(1d);
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select max((select f1 from st1 union all select f1 from st1) + 1), avg(f1) from st1 interval(1d);
 
-DB error: unrecognized token: "{funcname}((select f1 from st1 union all select f1 from st1) + 1), avg(f1) from st1 interval(1d);" [0x80002600] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select case (select 1) when 1 then 1 else 2 end, avg(f1) from st1 interval(1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
