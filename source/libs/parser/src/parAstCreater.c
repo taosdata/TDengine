@@ -2759,6 +2759,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   pOptions->watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
   pOptions->keep = -1;
+  pOptions->virtualStb = false;
   pOptions->commentNull = true;  // mark null
   return (SNode*)pOptions;
 _err:
