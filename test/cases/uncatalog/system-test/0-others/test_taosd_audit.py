@@ -141,6 +141,15 @@ class TestTaosdAudit:
         """
         tdSql.prepare()
         # time.sleep(2)
+
+        tdLog.info("create encrypt key")
+        sql = "create encrypt_key 'sdfsadfasdfasfas'"
+        tdSql.query(sql)
+
+        tdLog.info("create audit database")
+        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
+        tdSql.query(sql)
+
         vgroups = "4"
         tdLog.info("create database")
         sql = "create database db3 vgroups " + vgroups
