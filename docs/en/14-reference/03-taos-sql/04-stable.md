@@ -29,6 +29,8 @@ Notes:
 
 - A supertable can have a maximum of 4096 columns, including tag columns.
 
+- The maximum number of columns in a virtual supertable is 32767.
+
 - A supertable must have at least three columns: one timestamp column (the primary key column), one metric column, and one tag column.
 
 - `COMPOSITE KEY`: You can specify a second column for the primary key by using the `COMPOSITE KEY` keyword. The second primary key column must be of integer or `VARCHAR` type. This column, together with the timestamp column, forms a composite key.

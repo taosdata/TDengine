@@ -314,7 +314,7 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsMaxInsertBatchRows = 1000000;
 
 // maximum length of a SQL statement
-int32_t tsMaxSQLLength = (1 * 1024 * 1024);  // 1MB
+int32_t tsMaxSQLLength = (4 * 1024 * 1024);  // 1MB
 
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;

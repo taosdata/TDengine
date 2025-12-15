@@ -608,7 +608,10 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
   for (int i = 0; i < num; i++) {
     SIpRange *pRange = &range[i];
     SIpAddr   addr = {0};
-    (void)tIpUintToStr(pRange, &addr);
+    int32_t code = tIpUintToStr(pRange, &addr);
+    if (code != 0) {
+      mError("%s failed to convert ip range to str, code: %d", __func__, code);
+    }
 
     len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
@@ -3113,27 +3116,27 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
     if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
-    if ((code = taosHashPut(pNewUser->topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN)) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
-    }
+    taosRLockLatch(&pTopic->lock);
+    code = taosHashPut(pNewUser->topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
+    taosRUnLockLatch(&pTopic->lock);
     mndReleaseTopic(pMnode, pTopic);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
   if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
     if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
+    taosRLockLatch(&pTopic->lock);
     code = taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
     if (code < 0) {
       mError("user:%s, failed to remove topic:%s since %s", pNewUser->user, pAlterReq->objname, tstrerror(code));
     }
+    taosRUnLockLatch(&pTopic->lock);
     mndReleaseTopic(pMnode, pTopic);
   }
 #endif

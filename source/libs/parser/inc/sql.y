@@ -1047,12 +1047,13 @@ with_meta(A) ::= AS.                                                            
 with_meta(A) ::= WITH META AS.                                                    { A = 1; }
 with_meta(A) ::= ONLY META AS.                                                    { A = 2; }
 
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C, false); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(D)
   DATABASE db_name(C).                                                            { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, D); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(E)
   STABLE full_table_name(C) where_clause_opt(D).                                  { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, E, D); }
 
+cmd ::= RELOAD TOPIC exists_opt(A) topic_name(B) AS query_or_subquery(C).         { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C, true); }
 cmd ::= DROP TOPIC exists_opt(A) force_opt(C) topic_name(B).                             { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B, C); }
 cmd ::= DROP CONSUMER GROUP exists_opt(A) force_opt(D) cgroup_name(B) ON topic_name(C).  { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C, D); }
 

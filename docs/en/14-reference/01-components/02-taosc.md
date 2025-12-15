@@ -52,15 +52,15 @@ The following configuration parameters only take effect for Native connections.
 
 ### Writing Related
 
-|Parameter Name|Supported Version|Dynamic Modification|Description|
-|----------------------|----------|--------------------|-------------|
-| smlChildTableName               |                   |Supported, effective immediately  | Key for custom child table name in schemaless, no default value |
-| smlAutoChildTableNameDelimiter  |                   |Supported, effective immediately  | Delimiter between schemaless tags, concatenated as the child table name, no default value |
-| smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null" |
-| smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts" |
-| smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless |
-| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert |
-| maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 1,048,576; minimum value: 1,048,576; maximum value: 67,108,864 |
+|Parameter Name|Supported Version|Dynamic Modification| Description                                                                                                             |
+|----------------------|----------|--------------------|-------------------------------------------------------------------------------------------------------------------------|
+| smlChildTableName               |                   |Supported, effective immediately  | Key for custom child table name in schemaless, no default value                                                         |
+| smlAutoChildTableNameDelimiter  |                   |Supported, effective immediately  | Delimiter between schemaless tags, concatenated as the child table name, no default value                               |
+| smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null"                                                |
+| smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts"                   |
+| smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless                                                          |
+| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert                                                             |
+| maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 4,194,304; minimum value: 1,048,576; maximum value: 67,108,864 |
 
 ### Region Related
 
