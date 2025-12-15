@@ -32,14 +32,19 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
   TSDB_CHECK_NULL(pRsp->blockDataLen, code, lino, END, terrno);
 
+  pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
+  TSDB_CHECK_NULL(pRsp->blockSchema, code, lino, END, terrno);
+  
   tOffsetCopy(&pRsp->reqOffset, &pOffset);
   tOffsetCopy(&pRsp->rspOffset, &pOffset);
   pRsp->withTbName = 0;
-  pRsp->withSchema = false;
 
 END:
   if (code != 0){
     tqError("%s failed at:%d, code:%s", __FUNCTION__ , lino, tstrerror(code));
+    taosArrayDestroy(pRsp->blockData);
+    taosArrayDestroy(pRsp->blockDataLen);
+    taosArrayDestroy(pRsp->blockSchema);
   }
   return code;
 }
@@ -53,7 +58,6 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   tOffsetCopy(&pRsp->rspOffset, &pOffset);
 
   pRsp->withTbName = 1;
-  pRsp->withSchema = 1;
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
   TSDB_CHECK_NULL(pRsp->blockData, code, lino, END, terrno);\
 
@@ -606,7 +610,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, 
   int32_t code = 0;
 
   if (type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP){
-    pRsp->withSchema = 0;
+    // pRsp->withSchema = 0;
   }
   if (type == TMQ_MSG_TYPE__POLL_DATA_RSP ||
       type == TMQ_MSG_TYPE__WALINFO_RSP ||
