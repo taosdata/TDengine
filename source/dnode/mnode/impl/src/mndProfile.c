@@ -440,7 +440,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   } else {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
     goto _OVER;
-  }
+  } 
 
   if (connReq.db[0]) {
     char db[TSDB_DB_FNAME_LEN] = {0};

@@ -1288,6 +1288,7 @@ int32_t udfdOpenClientRpc() {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
   memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
