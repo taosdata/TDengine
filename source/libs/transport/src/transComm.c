@@ -17,6 +17,7 @@
 #include "osTime.h"
 #include "tqueue.h"
 #include "transLog.h"
+#include "transSasl.h"
 
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
@@ -942,6 +943,8 @@ static void transInitEnv() {
 
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
+
+  saslLibInit();
 }
 static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
@@ -1976,6 +1979,20 @@ bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
     }
   }
   return true;
+}
+
+int32_t transReloadTlsConfig(void* handle, int8_t type) {
+  int32_t code = 0;
+
+   
+  if (type == TAOS_CONN_CLIENT) {
+    code = transReloadClientTlsConfig(handle);
+  } else if (type == TAOS_CONN_SERVER) {
+    code = transReloadServerTlsConfig(handle);
+  } else {
+    code = TSDB_CODE_INVALID_PARA;
+  }
+  return code;
 }
 STrans* transInstAcquire(int64_t mgtId, int64_t instId) {
   STrans* ppInst = NULL;

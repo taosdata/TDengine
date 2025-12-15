@@ -451,6 +451,8 @@ SNode* createScanVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList*
 SNode* createShowScansStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowScanDetailsStmt(SAstCreateContext* pCxt, SNode* pScanIdNode);
 
+SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName);
+
 #ifdef __cplusplus
 }
 #endif

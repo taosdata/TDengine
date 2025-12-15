@@ -6110,3 +6110,30 @@ _err:
   nodesDestroyNode(pScanIdNode);
   return NULL;
 }
+
+SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterDnodeStmt* pStmt = NULL;
+  static char*     tls = "TLS";
+  if (NULL == alterName || alterName->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "alter name is empty");
+    goto _err;
+  }
+
+  if (alterName->n == strlen(tls) && taosStrncasecmp(alterName->z, tls, alterName->n) == 0) {
+    pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT, (SNode**)&pStmt);
+
+    memcpy(pStmt->config, "reload", strlen("reload"));
+    memcpy(pStmt->value, "tls", strlen("tls"));
+    pStmt->dnodeId = -1;
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "alter is not supported");
+    goto _err;
+  }
+
+  CHECK_MAKE_NODE(pStmt);
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}

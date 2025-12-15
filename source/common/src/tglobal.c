@@ -70,6 +70,7 @@ char tsTLSCliCertPath[PATH_MAX] = {0};
 char tsTLSCliKeyPath[PATH_MAX] = {0};
 
 int8_t tsEnableTLS = 0;
+int8_t tsEnableSasl = 0;
 // common
 int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
@@ -421,7 +422,15 @@ bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show 
 
 int64_t tsTimestampDeltaLimit = 900;  // s
 int32_t tsRpcRecvLogThreshold = 3;        // in seconds, default 3s
+
+int32_t sessionPerUser = -1;
+int32_t sessionConnTime = -1;
+int32_t sessionConnIdleTime = -1;
+int32_t sessionMaxConcurrency = -1;
+int32_t sessionMaxCallVnodeNum = -1;
+
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
+
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
@@ -720,7 +729,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxTsmaCalcDelay", tsMaxTsmaCalcDelay, 600, 86400, CFG_SCOPE_CLIENT,
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX,
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "tsmaDataDeleteMark", tsmaDataDeleteMark, 60 * 60 * 1000, INT64_MAX,
                                 CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
@@ -728,6 +737,21 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionPerUser", sessionPerUser, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionConnTime", sessionConnTime, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionConnIdleTime", sessionConnIdleTime, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionMaxConcurrency", sessionMaxConcurrency, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionMaxCallVnodeNum", sessionMaxCallVnodeNum, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxSQLLength", tsMaxSQLLength, 1024 * 1024, 64 * 1024 * 1024, CFG_SCOPE_CLIENT,
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -787,6 +811,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
       cfgAddString(pCfg, "tlsCliKeyPath", tsTLSCliKeyPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableTLS", tsEnableTLS, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSasl", tsEnableSasl, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1503,7 +1529,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsMaxTsmaCalcDelay = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tsmaDataDeleteMark");
-  tsmaDataDeleteMark = pItem->i32;
+  tsmaDataDeleteMark = pItem->i64;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "safetyCheckLevel");
   tsSafetyCheckLevel = pItem->i32;
@@ -1532,6 +1558,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
   tsEnableTLS = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableSasl");
+  tsEnableSasl = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxSQLLength");
   tsMaxSQLLength = pItem->i32;
 
@@ -2043,6 +2071,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
   tsEnableTLS = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableSasl");
+  tsEnableSasl = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcRecvLogThreshold");
   tsRpcRecvLogThreshold = pItem->i32;
 
@@ -2862,6 +2892,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"metricsLevel", &tsMetricsLevel},
                                          {"forceKillTrans", &tsForceKillTrans},
                                          {"enableTLS", &tsEnableTLS},
+                                         {"enableSasl", &tsEnableSasl},
                                          {"rpcRecvLogThreshold", &tsRpcRecvLogThreshold},
                                          {"tagFilterCache", &tsTagFilterCache},
                                          {"stableTagFilterCache", &tsStableTagFilterCache}};

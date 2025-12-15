@@ -18,7 +18,6 @@
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
-
 #define IS_STREAM_TRIGGER_RSP_MSG(_msg) (TDMT_STREAM_TRIGGER_CALC_RSP == (_msg) || TDMT_STREAM_TRIGGER_PULL_RSP == (_msg) || TDMT_STREAM_TRIGGER_DROP_RSP == (_msg))
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
@@ -113,12 +112,16 @@ static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *
   pRpc->pCont = NULL;
   return;
 }
-static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
-  if (forbidden) {
-    dError("User:%s host:%s not in ip white list", user, IP_ADDR_STR(clientIp));
-    return true;
+static int32_t dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
+  if (IP_FORBIDDEN_CHECK_WHITE_LIST(forbidden)) {
+    dError("User:%s host:%s not in ip white list or in block white list", user, IP_ADDR_STR(clientIp));
+    return TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+
+  } else if (IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(forbidden)) {
+    dError("User:%s host:%s alread expired", user, IP_ADDR_STR(clientIp));
+    return TSDB_CODE_MND_USER_DISABLED;
   } else {
-    return false;
+    return 0;
   }
 }
 
@@ -131,7 +134,7 @@ static void dmUpdateRpcTimeWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc)
     return;
   }
   // TODO: implement rpcSetTimeWhite
-  //code = rpcSetIpWhite(pTrans, &ipWhite);
+  code = rpcSetTimeIpWhite(pTrans, &timeWhite);
   pData->timeWhiteVer = timeWhite.ver;
 
   (void)tFreeSRetrieveDateTimeWhiteListRsp(&timeWhite);
@@ -172,9 +175,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
-  if (isForbidden) {
-    code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
+  if (code != 0) {
     goto _OVER;
   }
 
@@ -483,6 +485,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
@@ -539,6 +542,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSasl = tsEnableSasl;
 
   rpcInit.enableSSL = tsEnableTLS;
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
@@ -598,6 +602,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
@@ -662,6 +667,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));

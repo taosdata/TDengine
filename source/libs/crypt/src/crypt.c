@@ -104,7 +104,7 @@ uint32_t tsm4_encrypt_len(int32_t len) {
 
 int32_t taosSm4Encrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len) {
   int32_t    count = 0;
-  SCryptOpts opts;
+  SCryptOpts opts = {0};
 
   pkcs7_padding_pad_buffer(key, keylen, SM4_BLOCKLEN);
   pkcs7_padding_pad_buffer(pBuf, len, SM4_BLOCKLEN);
@@ -117,14 +117,14 @@ int32_t taosSm4Encrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len)
   memset(opts.key, 0, ENCRYPT_KEY_LEN + 1);
   memcpy(opts.key, key, ENCRYPT_KEY_LEN);
 
-  count = CBC_Encrypt(&opts);
+  count = Builtin_CBC_Encrypt(&opts);
 
   return count;
 }
 
 int32_t taosSm4Decrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len) {
   int32_t    count = 0;
-  SCryptOpts opts;
+  SCryptOpts opts = {0};
 
   pkcs7_padding_pad_buffer(key, keylen, SM4_BLOCKLEN);
 
@@ -136,7 +136,7 @@ int32_t taosSm4Decrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len)
   memset(opts.key, 0, ENCRYPT_KEY_LEN + 1);
   memcpy(opts.key, key, ENCRYPT_KEY_LEN);
 
-  count = CBC_Decrypt(&opts);
+  count = Builtin_CBC_Decrypt(&opts);
   count = pkcs7_padding_data_length(pBuf, count, SM4_BLOCKLEN);
 
   return count;
