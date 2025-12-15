@@ -2776,6 +2776,7 @@ TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
 char *taos_stmt2_error(TAOS_STMT2 *stmt) { return (char *)stmtErrstr2(stmt); }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {
+  int32_t code = 0;
   if (taos == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -2793,22 +2794,42 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
       break;
     default:
       tscError("not supported mode.");
-      return TSDB_CODE_INVALID_PARA;
+      code = TSDB_CODE_INVALID_PARA;
   }
-  return 0;
+  releaseTscObj(*(int64_t *)taos);
+  return code;
 }
 
 char *getBuildInfo() { return td_buildinfo; }
 
 int32_t taos_connect_is_alive(TAOS *taos) {
-  int32_t code = 0;
-  code = TSDB_CODE_TSC_SESS_CONN_TIMEOUT;
-
-  if (code != TSDB_CODE_SUCCESS) {
-    return 0; 
-  } else {
-    return 1;
+  int32_t code = 0, lino = 0;
+  if (taos == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  code = sessMgtCheckUser(pObj->user, SESSION_CONN_TIME);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = sessMgtCheckUser(pObj->user, SESSION_CONN_IDLE_TIME);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  releaseTscObj(*(int64_t *)taos);
+
+  if (code != 0) {
+    tscError("taos conn failed to check alive, code:%d - %s", code, tstrerror(code));
+  }
+
+  return code != 0 ? 0 : 1;
 }
 static int32_t buildInstanceRegisterSql(const SInstanceRegisterReq *req, char **ppSql, uint32_t *pLen) {
   const char *action = (req->expire < 0) ? "UNREGISTER" : "REGISTER";
@@ -2856,7 +2877,7 @@ static int32_t sendInstanceRegisterReq(STscObj *pObj, const SInstanceRegisterReq
     return code;
   }
 
-  code = buildInstanceRegisterSql(req, &pRequest->sqlstr, &pRequest->sqlLen);
+  code = buildInstanceRegisterSql(req, &pRequest->sqlstr, (uint32_t *)&pRequest->sqlLen);
   if (code != TSDB_CODE_SUCCESS) {
     goto _cleanup;
   }

@@ -2376,7 +2376,6 @@ void uvHandleUpdateDataTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
   } else {
     tError("failed to update ip-white-list since %s", tstrerror(code));
   }
-  // uvDataTimeWhiteListToStr(thrd->pDataTimeWhiteList, user, &pBuf);
 _error:
   if (code != 0) {
     tError("failed to update data-time-white-list since %s", tstrerror(code));
