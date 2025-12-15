@@ -229,8 +229,8 @@ testCases:
       description: ""
       sql: |
           create stream db1.stm_f4 
-          interval(1d) 
-          sliding(1d) 
+          interval(1h) 
+          sliding(1h) 
           from db1.readings 
           partition by fleet 
           stream_options(fill_history_first) 
