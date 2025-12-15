@@ -1168,6 +1168,36 @@ class TestFunCols:
         tdSql.checkData(2, 1, 5)
         tdSql.checkData(2, 2, "2022-09-30 15:15:03")
         
+        tdSql.query(f'select last(f1), ts from tba5 interval(1s)')
+        tdSql.checkRows(3)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, "2022-09-30 15:15:01")
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, "2022-09-30 15:15:02")
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(2, 1, "2022-09-30 15:15:03")
+        
+        tdSql.query(f'select _wstart, first(f1), ts, tbname from sta partition by tbname interval(1s);')
+        tdSql.checkRows(15)
+        tdSql.query(f'select _wstart, first(f1), ts from sta partition by tbname interval(1s);')
+        tdSql.checkRows(15)
+        
+        tdSql.query(f"select _wstart, first(f1), ts, concat('my_', tbname) from sta partition by tbname interval(1s);")
+        tdSql.checkRows(15)
+        tdSql.query(f"select _wstart, first(f1), ts, concat('my_', t3) from sta partition by tbname interval(1s);")
+        tdSql.checkRows(15)
+        
+        tdSql.query(f'select first(f1), ts from tba5 where _c0 >= "2022-09-30 15:15:04";')
+        tdSql.checkRows(0)
+        tdSql.query(f'select first(f1), ts, tbname from tba5 where _c0 >= "2022-09-30 15:15:04";')
+        tdSql.checkRows(0)
+        
+        tdSql.query(f"select first(f1), ts, t1 from tba5 where _c0 >= '2022-09-30 15:15:04';")
+        tdSql.checkRows(0)
+        tdSql.query(f"select first(f1), ts, cast(t1 as bigint) from tba5 where _c0 >= '2022-09-30 15:15:04';")
+        tdSql.checkRows(0) 
+        
         tdSql.query(f'select tbname, last(ts) from tba5 interval(1s)')
         tdSql.checkData(0, 1, "2022-09-30 15:15:01")
         tdSql.checkData(1, 1, "2022-09-30 15:15:02")

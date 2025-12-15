@@ -4419,10 +4419,13 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
       return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
-    if (isSingleTable && isTbnameFuction(*pNode)) {
-      return rewriteExprToSelectTagFunc(pCxt, pNode);
-    }
   }
+  if ((isSingleTable) &&
+      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) ||
+       isTbnameFuction(*pNode))) {
+    return rewriteExprToSelectTagFunc(pCxt, pNode);
+  }
+
   SNode* pPartKey = NULL;
   bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
   FOREACH(pPartKey, pSelect->pPartitionByList) {
