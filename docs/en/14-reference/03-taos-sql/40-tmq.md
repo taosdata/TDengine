@@ -22,7 +22,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 Subscribe through a `SELECT` statement (including `SELECT *`, or specific query subscriptions like `SELECT ts, c1`, which can include conditional filtering and scalar function calculations, but do not support aggregate functions or time window aggregation). It is important to note:
 
 - Once this type of TOPIC is created, the structure of the subscribed data is fixed.
-- Columns or tags that are subscribed to or used for calculations cannot be deleted (`ALTER table DROP`) or modified (`ALTER table MODIFY`).
+- Columns or tags that are subscribed to or used for calculations cannot be deleted (`ALTER table DROP`) or modified (`ALTER table MODIFY`).From 3.3.9, you can modify and delete, but you need to reload the topic.
 - If there are changes to the table structure, new columns will not appear in the results.
 - For `select *`, the subscription expands to include all columns at the time of creation (data columns for subtables and basic tables, data columns plus tag columns for supertables).
 
@@ -72,6 +72,15 @@ At this point, if there are consumers on this subscription topic, they will rece
 ```sql
 SHOW TOPICS;
 ```
+
+## Reload Topic
+
+```sql
+RELOAD TOPIC IF EXISTS topic_name as subquery;
+```
+
+- This syntax is supported since version 3.3.9 and is used to reload topics. It primarily addresses issues where the output results do not take effect after deleting or adding columns and tags in queries involving topic changes or tag lengths, as well as when selecting * to query subscriptions.
+- When it is necessary to change the schema of the subscription table structure, first stop consuming, then make the change, execute "reload topic", and then restart the subscription.
 
 Displays information about all topics in the current database.
 
