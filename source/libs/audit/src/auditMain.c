@@ -41,12 +41,12 @@ int32_t auditInit(const SAuditCfg *pCfg) {
   tsAudit.cfg = *pCfg;
   tsAudit.records = taosArrayInit(0, sizeof(SAuditRecord *));
   if(tsAudit.records == NULL) return terrno;
-  if (taosThreadMutexInit(&tsAudit.infoLock, NULL) != 0) {
+  if (taosThreadRwlockInit(&tsAudit.infoLock, NULL) != 0) {
     taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
     return -1;
   }
   if (taosThreadMutexInit(&tsAudit.recordLock, NULL) != 0) {
-    (void)taosThreadMutexDestroy(&tsAudit.infoLock);
+    (void)taosThreadRwlockDestroy(&tsAudit.infoLock);
     taosArrayDestroyP(tsAudit.records, (FDelete)auditDeleteRecord);
     return -1;
   }
@@ -62,7 +62,7 @@ void auditCleanup() {
   (void)taosThreadMutexUnlock(&tsAudit.recordLock);
   tsAudit.records = NULL;
   (void)taosThreadMutexDestroy(&tsAudit.recordLock);
-  (void)taosThreadMutexDestroy(&tsAudit.infoLock);
+  (void)taosThreadRwlockDestroy(&tsAudit.infoLock);
 }
 
 extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 

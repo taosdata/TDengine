@@ -220,6 +220,8 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
+      dGInfo("dnode:%d, set auditDB:%s, token:%s in status rsp received from mnode", pMgmt->pData->dnodeId,
+             statusRsp.auditDB, statusRsp.auditToken);
       setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken);
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);

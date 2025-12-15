@@ -810,7 +810,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   char    auditDB[TSDB_DB_FNAME_LEN] = {0};
   SDbObj *pDb = mndAcquireAuditDb(pMnode);
   if (pDb != NULL) {
-    mTrace("set audit db %s", pDb->name);
     tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
     mndReleaseDb(pMnode, pDb);
   }
@@ -970,11 +969,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
     statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
-    mTrace("set audit db in status req");
-    if (pDb != NULL) {
-      mTrace("set audit db %s", auditDB);
+    if (auditDB[0] != '\0') {
+      mInfo("dnode:%d, set audit db %s in process status rsp", statusReq.dnodeId, auditDB);
       tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
-      mndReleaseDb(pMnode, pDb);
     }
     // TODO dmchen get audit db token
 

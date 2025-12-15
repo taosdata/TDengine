@@ -24,7 +24,7 @@ typedef struct {
   SArray *records;
   TdThreadMutex   recordLock;
   int32_t         dnodeId;
-  TdThreadMutex   infoLock;
+  TdThreadRwlock  infoLock;
   char            auditDB[TSDB_DB_FNAME_LEN];
   char            auditToken[AUDIT_TOKEN_LEN];
 } SAudit;
