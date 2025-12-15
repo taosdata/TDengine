@@ -657,6 +657,7 @@ Below are the business error codes for each module.
 | 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
 #### audit
+
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
 | 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
