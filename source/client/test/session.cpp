@@ -968,7 +968,7 @@ TEST(sessionTest, session1) {
     ASSERT(code != 0);
   }
 
-  //sessMgtDestroy();
+  sessMgtDestroy();
 }
 
 #endif
