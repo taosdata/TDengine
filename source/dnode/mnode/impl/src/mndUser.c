@@ -1041,6 +1041,17 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.allowTokenNum = -1;
   }
 
+  userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (userObj.roles == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _ERROR);
+  }
+
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSSEC, strlen(TSDB_ROLE_SYSSEC) + 1, NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, NULL, 0))) {
+    TAOS_CHECK_GOTO(code, &lino, _ERROR);
+  }
+
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
   if (pRaw == NULL) goto _ERROR;
   TAOS_CHECK_GOTO(sdbSetRawStatus(pRaw, SDB_STATUS_READY), &lino, _ERROR);
@@ -1069,16 +1080,16 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
 
   mndTransDrop(pTrans);
-  taosMemoryFree(userObj.passwords);
-  taosMemoryFree(userObj.pIpWhiteListDual);
-  taosMemoryFree(userObj.pTimeWhiteList);
+  mndUserFreeObj(&userObj);
   return 0;
 
 _ERROR:
-  taosMemoryFree(userObj.passwords);
-  taosMemoryFree(userObj.pIpWhiteListDual);
-  taosMemoryFree(userObj.pTimeWhiteList);
-  TAOS_RETURN(terrno ? terrno : TSDB_CODE_APP_ERROR);
+  mndUserFreeObj(&userObj);
+  if (code == 0) {
+    code = terrno ? terrno : TSDB_CODE_APP_ERROR;
+  }
+  mError("user:%s, failed to create default user since %s", user, tstrerror(code));
+  TAOS_RETURN(code);
 }
 
 static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
@@ -3164,7 +3175,7 @@ void mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
   mndTransDrop(pTrans);
 }
 
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq, SRoleObj *pRole) {
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
@@ -3493,7 +3504,8 @@ _OVER:
 }
 
 #ifdef TD_ENTERPRISE
-extern int32_t mndAlterUserInfo(SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserPrivInfo(SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pUser, SUserObj *pNew, SAlterRoleReq *pAlterReq);
 #endif
 
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
@@ -3501,7 +3513,6 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
   int32_t   code = 0, lino = 0;
-  SRoleObj *pRole = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
 
@@ -3510,44 +3521,30 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SAlterRoleReq *pAlterReq) {
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-    TAOS_CHECK_EXIT(mndAlterUserInfo(pUser, &newUser, pAlterReq));
-  } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
-    if (pAlterReq->add) {
-      TAOS_CHECK_EXIT(mndAcquireRole(pMnode, pAlterReq->roleName, &pRole));
-
-      if (taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
-        mInfo("user:%s already has role:%s", pUser->user, pAlterReq->roleName);
-        goto _exit;
-      }
-      int32_t nSubRoles = taosHashGetSize(pUser->roles);
-      if (nSubRoles >= TSDB_MAX_SUBROLE) {
-        mError("user:%s has reached max subrole number:%d", pUser->user, TSDB_MAX_SUBROLE);
-        TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED);
-      }
-
-      TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-      uint8_t flag = 1;  // add role with flag 1, which means the role is set(enabled) for the user.
-      TAOS_CHECK_EXIT(
-          taosHashPut(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1, &flag, sizeof(flag)));
+    if ((code = mndAlterUserPrivInfo(pUser, &newUser, pAlterReq)) == TSDB_CODE_MND_INVALID_ALTER_OPER) {
+      code = 0;
+      goto _exit;
     } else {
-      if (!taosHashGet(pUser->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1)) {
-        goto _exit;
-      }
-      TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-      TAOS_CHECK_EXIT(taosHashRemove(newUser.roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1));
+      TAOS_CHECK_EXIT(code);
+    }
+  } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    if ((code = mndAlterUserRoleInfo(pMnode, pUser, &newUser, pAlterReq)) == TSDB_CODE_MND_INVALID_ALTER_OPER) {
+      code = 0;
+      goto _exit;
+    } else {
+      TAOS_CHECK_EXIT(code);
     }
 #endif
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq, pRole);
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to alter user at line %d since %s", pAlterReq->principal, lino, tstrerror(code));
   }
-  mndReleaseRole(pMnode, pRole);
   mndReleaseUser(pMnode, pUser);
   mndUserFreeObj(&newUser);
   TAOS_RETURN(code);
@@ -3835,7 +3832,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
   }
 
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq, NULL);
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 #if 0
