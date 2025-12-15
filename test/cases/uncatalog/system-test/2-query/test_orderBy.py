@@ -271,17 +271,17 @@ class TestOrderby:
 
         tdSql.no_error("SELECT COUNT(*) FROM t1 order by COUNT(*)")
 
-        tdSql.no_error("SELECT COUNT(*) FROM t1 order by last(c2)")
+        tdSql.error("SELECT COUNT(*) FROM t1 order by last(c2)")
 
-        tdSql.no_error("SELECT c1 FROM t1 order by last(ts)")
+        tdSql.error("SELECT c1 FROM t1 order by last(ts)")
 
-        tdSql.no_error("SELECT ts FROM t1 order by last(ts)")
+        tdSql.error("SELECT ts FROM t1 order by last(ts)")
 
         tdSql.no_error("SELECT last(ts), ts, c1 FROM t1 order by 2")
 
         tdSql.no_error("SELECT ts, last(ts) FROM t1 order by last(ts)")
 
-        tdSql.no_error(f"SELECT * FROM t1 order by last(ts)")
+        tdSql.error(f"SELECT * FROM t1 order by last(ts)")
 
         tdSql.query(f"SELECT last(ts) as t2, ts FROM t1 order by 1")
         tdSql.checkRows(1)

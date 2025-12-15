@@ -6657,38 +6657,45 @@ static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause
 }
 typedef struct {
   SFunctionNode* pFunc;
-  bool exist;
+  SNodeList*     pProjectionList;
+  bool           invalidOrderbyFunc;
+  bool           funcExist;
 } SOrderByCheckContext;
 
-static EDealRes checkFunctionExist(SNode** pNode, void* pContext) {
+static EDealRes checkEqualFunctionExist(SNode* pNode, void* pContext) {
   SOrderByCheckContext* pOrderbyContext = (SOrderByCheckContext*)pContext;
   SFunctionNode*        pFunc = pOrderbyContext->pFunc;
-  if (QUERY_NODE_FUNCTION == nodeType(*pNode) && nodesEqualNode(*pNode, (SNode*)pFunc)) {
-    pOrderbyContext->exist = true;
+  if (nodesEqualNode(pNode, (SNode*)pFunc)) {
+    pOrderbyContext->funcExist = true;
     return DEAL_RES_END;
   }
 
   return DEAL_RES_CONTINUE;
 }
 
-bool static funcExsitInList(SNodeList* pList, SFunctionNode* pFunc) {
-  SOrderByCheckContext ctx;
-  ctx.pFunc = pFunc;
-  ctx.exist = false;
-  nodesRewriteExprs(pList, checkFunctionExist, &ctx);
-  return ctx.exist;
+static EDealRes checkOrderByFuncNode(SNode* pNode, void* pContext) {
+  SOrderByCheckContext* pCtx = pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+    pCtx->pFunc = (SFunctionNode*)pNode;
+    pCtx->funcExist = false;
+    nodesWalkExprs(pCtx->pProjectionList, checkEqualFunctionExist, pCtx);
+    if (!pCtx->funcExist) {
+      pCtx->invalidOrderbyFunc = true;
+    }
+  }
+  if (pCtx->invalidOrderbyFunc) {
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
 }
 
 static bool invalidOrderByFunctionExpr(SNodeList* pProjectionList, SNode* pNode) {
-  if (QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode)) return false;
-  SNode* pExpr = ((SOrderByExprNode*)pNode)->pExpr;
-  if (pExpr && QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
-    if (fmIsSelectFunc(pFunc->funcId) && !funcExsitInList(pProjectionList, pFunc)) {
-      return false;
-    }
-  }
-  return false;
+  SOrderByCheckContext ctx;
+  ctx.pFunc = NULL;
+  ctx.pProjectionList = pProjectionList;
+  ctx.invalidOrderbyFunc = false;
+  nodesWalkExpr(pNode, checkOrderByFuncNode, &ctx);
+  return ctx.invalidOrderbyFunc;
 }
 
 static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
