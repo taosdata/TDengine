@@ -170,7 +170,7 @@ TEST(shellUtil, trimStr) {
     for (const auto& c : cases) {
         char buf[64] = {0};
         strncpy(buf, c.in, sizeof(buf) - 1);
-        trimStr(buf, "trial");
+        trimStr(buf, (char *)"trial");
         EXPECT_STREQ(c.expect, buf) << "input: '" << c.in << "'";
     }
 }
