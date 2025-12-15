@@ -199,6 +199,12 @@ class TestScalarSubQuery2:
         "select f1 from {tableName} union all select {scalarSql} from {tableName} order by f1",
         "select f1 from tb1 union select f1 from tb1 order by {scalarSql}",
         "select f1 from tb1 union all select f1 from tb1 limit {scalarSql}",
+
+        # explain
+        "explain select f1 from {tableName} where f1 = {scalarSql}\G",
+        "explain verbose true select f1 from {tableName} where f1 = {scalarSql}\G",
+        "explain select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
+        "explain verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
     ]
 
     scalarcSqls = [
@@ -238,6 +244,7 @@ class TestScalarSubQuery2:
         self.execSqlCase()
         self.fileIdx += 1
         self.execFuncCase()
+        self.rmoveSqlTmpFiles()
      
     def prepareData(self):
         tdLog.info("start to prepare data for scalar sub query test case")
@@ -275,6 +282,12 @@ class TestScalarSubQuery2:
         os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
         self.generated_queries_file = open(tmp_file, "w", encoding="utf-8")
         self.generated_queries_file.write("use db1;" + "\n\n")
+
+    def rmoveSqlTmpFiles(self):
+        for idx in range(0, self.fileIdx + 1):
+            tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{idx}.sql")
+            if os.path.exists(tmp_file):
+                os.remove(tmp_file)
 
     def execSqlCase(self):
         tdLog.info(f"execSqlCase begin")

@@ -4,8 +4,8 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery1:
-    caseName = "test_scalar_sub_query1"
+class TestScalarSubQuery3:
+    caseName = "test_scalar_sub_query3"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
     subIdx = 0
@@ -102,12 +102,11 @@ class TestScalarSubQuery1:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_scalar_sub_query1(self):
+    def test_scalar_sub_query3(self):
         """scalar sub query test case
         
         1. Prepare data.
-        2. Execute various queries with different kind of scalar sub queries.
-        3. Validate the results against expected result files.
+        2. Execute various nested queries with different kind of scalar sub queries.
 
         Since: v3.4.0.0
 
@@ -116,7 +115,7 @@ class TestScalarSubQuery1:
         Jira: None
 
         History:
-            - 2025-12-09 dapan Created
+            - 2025-12-15 dapan Created
 
         """
 

@@ -127,6 +127,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
       SExplainPlanCtx *pSub = taosArrayGet(pCtx->subPlanCtxs, i);
       qExplainFreePlanCtx(pSub, EXPLAIN_MODE_ANALYZE == pCtx->mode);
     }
+    taosArrayDestroy(pCtx->subPlanCtxs);
   }
 
   taosArrayDestroy(pCtx->rows);
