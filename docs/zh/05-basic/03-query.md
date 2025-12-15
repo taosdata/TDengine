@@ -587,9 +587,10 @@ Query OK, 10 row(s) in set (0.062794s)
 在 TDengine 支持上了上述时序数据特有函数之后，时序数据的积分计算变得非常简单，只需要使用时间加权平均值与时间段乘积即可，这里以智能电表场景计算每天消耗的电能为例进行说明，SQL 如下
 
 ```sql
-SELECT twa(voltage * current) * _wduration 
-FROM meters 
-PARTITION BY tbname INTERVAL(1d)
+SELECT twa(voltage * current) * _wduration
+FROM meters
+PARTITION BY tbname
+INTERVAL(1d);
 ```
 
 ## 嵌套查询
