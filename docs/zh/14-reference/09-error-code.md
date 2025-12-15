@@ -648,7 +648,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006106 | Audit database already exist                                              | 参数不正确                              | 检查并修正 SQL 语句               |
 | 0x80006107 | Audit database is not allowed to change                                   | 参数不正确                              | 检查并修正 SQL 语句               |
 
-
 #### virtual table
 
 | 错误码        | 错误描述                                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施                  |
