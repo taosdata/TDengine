@@ -12,9 +12,8 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tjson.h"
-#include "ttime.h"
-#include "tcompare.h"
 #include "totp.h"
+#include "ttime.h"
 
 typedef float (*_float_fn)(float);
 typedef float (*_float_fn_2)(float, float);
@@ -1726,43 +1725,39 @@ _return:
   return code;
 }
 
-
-
 static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
-    int buffer = 0, bits = 0;
-    int outLen = 0;
-    
-    // process all input bytes
-    for (int i = 0; i < inLen; i++) {
-        buffer = (buffer << 8) | in[i];
-        bits += 8;
-        
-        while (bits >= 5) {
-            int v = (buffer >> (bits - 5)) & 0x1F;
-            out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
-            bits -= 5;
-        }
+  int buffer = 0, bits = 0;
+  int outLen = 0;
+
+  // process all input bytes
+  for (int i = 0; i < inLen; i++) {
+    buffer = (buffer << 8) | in[i];
+    bits += 8;
+
+    while (bits >= 5) {
+      int v = (buffer >> (bits - 5)) & 0x1F;
+      out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+      bits -= 5;
     }
-    
-    // process remaining bits
-    if (bits > 0) {
-        int v = (buffer << (5 - bits)) & 0x1F;
-        out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
-    }
-    
-    out[outLen] = '\0';
-    return outLen;
+  }
+
+  // process remaining bits
+  if (bits > 0) {
+    int v = (buffer << (5 - bits)) & 0x1F;
+    out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+  }
+
+  out[outLen] = '\0';
+  return outLen;
 }
-
-
 
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  char secret[64] = {0};
-  int32_t          bufLen = (sizeof(secret) * 8) / 5 + 4 + VARSTR_HEADER_SIZE + 1;
-  char            *pOutputBuf = taosMemoryMalloc(bufLen);
+  char    secret[64] = {0};
+  int32_t bufLen = (sizeof(secret) * 8) / 5 + 4 + VARSTR_HEADER_SIZE + 1;
+  char   *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("generate_totp_secret function alloc memory failed");
     return terrno;
@@ -1798,36 +1793,34 @@ int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScal
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t base32Decode(const char *in, int32_t inLen, uint8_t *out) {
-    int buffer = 0, bits = 0;
-    int32_t outLen = 0;
+  int     buffer = 0, bits = 0;
+  int32_t outLen = 0;
 
-    for (int32_t i = 0; i < inLen; i++) {
-      char c = in[i];
+  for (int32_t i = 0; i < inLen; i++) {
+    char c = in[i];
 
-      if (c >= 'a' && c <= 'z') {
-          c -= 'a';
-      } else if (c >= 'A' && c <= 'Z') {
-          c -= 'A';
-      } else if (c >= '2' && c <= '7') {
-          c = c - '2' + 26;
-      } else if (c == '=') {
-          break; // padding character
-      } else {
-          return -1; // invalid character
-      }
-      buffer = (buffer << 5) | c;
-      bits += 5;
-      if (bits >= 8) {
-          out[outLen++] = (buffer >> (bits - 8)) & 0xFF;
-          bits -= 8;
-      }
+    if (c >= 'a' && c <= 'z') {
+      c -= 'a';
+    } else if (c >= 'A' && c <= 'Z') {
+      c -= 'A';
+    } else if (c >= '2' && c <= '7') {
+      c = c - '2' + 26;
+    } else if (c == '=') {
+      break;  // padding character
+    } else {
+      return -1;  // invalid character
     }
+    buffer = (buffer << 5) | c;
+    bits += 5;
+    if (bits >= 8) {
+      out[outLen++] = (buffer >> (bits - 8)) & 0xFF;
+      bits -= 8;
+    }
+  }
 
-    return outLen; // success
+  return outLen;  // success
 }
-
 
 // this function generates TOTP code based on the TOTP secret,
 // it is not documented and only used for testing purpose to verify the correctness of
@@ -1884,7 +1877,6 @@ int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalar
   taosMemoryFree(output);
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
@@ -2670,7 +2662,7 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
   int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(taes_encrypt_len(bufLen));
+  char   *pOutputBuf = taosMemoryMalloc(taes_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("aes function alloc memory failed");
     return terrno;
@@ -2798,7 +2790,7 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
   int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(tsm4_encrypt_len(bufLen));
+  char   *pOutputBuf = taosMemoryMalloc(tsm4_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("sm4 function alloc memory failed");
     return terrno;
