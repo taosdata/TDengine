@@ -29,8 +29,11 @@
 #include "mndVgroup.h"
 #include "tmisce.h"
 
-#define VGROUP_VER_NUMBER   1
-#define VGROUP_RESERVE_SIZE 64
+#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER 2
+#define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_MOUNT_KEEP_VER
+#define VGROUP_RESERVE_SIZE              60
+// since 3.3.6.32/3.3.8.6 mountId + keepVersion + keepVersionTime + VGROUP_RESERVE_SIZE = 8 + 8 + 64 = 80
+#define DLEN_AFTER_SYNC_CONF_CHANGE_VER 80
 
 static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
@@ -115,6 +118,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
     SDB_SET_INT32(pRaw, dataPos, pVgid->dnodeId, _OVER)
   }
   SDB_SET_INT32(pRaw, dataPos, pVgroup->syncConfChangeVer, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->mountVgId, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersion, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersionTime, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
@@ -172,8 +176,13 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
       pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     }
   }
-  if (dataPos + sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+  if (dataPos + 2 * sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
+  }
+
+  int32_t dlenAfterSyncConfChangeVer = pRaw->dataLen - dataPos;
+  if (dataPos + sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_INT32(pRaw, dataPos, &pVgroup->mountVgId, _OVER)
   }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersion, _OVER)
@@ -181,7 +190,17 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersionTime, _OVER)
   }
-  SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
+  if (dataPos + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
+  }
+
+  if (sver < VGROUP_VER_COMPAT_MOUNT_KEEP_VER) {
+    if (dlenAfterSyncConfChangeVer == DLEN_AFTER_SYNC_CONF_CHANGE_VER) {
+      pVgroup->mountVgId = 0;
+    }
+    pVgroup->keepVersion = -1;
+    pVgroup->keepVersionTime = 0;
+  }
 
   terrno = 0;
 
