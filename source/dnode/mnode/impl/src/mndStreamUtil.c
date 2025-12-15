@@ -129,6 +129,7 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
     taosArrayDestroy(pStatus->runners[i]);
     pStatus->runners[i] = NULL;
   }
+  pStatus->lastTrigMgmtReqId = 0;
 
   taosWUnLockLatch(&pStatus->resetLock);
 }

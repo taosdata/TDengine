@@ -4346,8 +4346,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   }
 
   bool forwardDoneVer = false;
-  // todo(kjq): update doneVer even for virtual table
-  if (!pTask->isVirtualTable && pContext->calcParamPool.size == 0) {
+  if (pContext->calcParamPool.size == 0) {
     int64_t nRunningReq = 0;
     code = stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &nRunningReq);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -4365,6 +4364,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     }
     pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
   }
+
 #define STRIGGER_CHECKPOINT_INTERVAL_NS 10 * NANOSECOND_PER_MINUTE  // 10min
   if (pContext->lastCheckpointTime + STRIGGER_CHECKPOINT_INTERVAL_NS <= now) {
     // do checkpoint
@@ -4379,19 +4379,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   if (pContext->lastReportTime + STREAM_TRIGGER_REPORT_INTERVAL_NS <= now) {
     stRealtimeContextReport(pContext);
     pContext->lastReportTime = now;
-  }
-
-#define STRIGGER_VIRTUAL_TABLE_INFO_INTERVAL_NS 10 * NANOSECOND_PER_SEC  // 10s
-  if (pTask->isVirtualTable && pContext->lastVirtTableInfoTime + STRIGGER_VIRTUAL_TABLE_INFO_INTERVAL_NS <= now) {
-    // check virtual table info
-    pContext->status = STRIGGER_CONTEXT_FETCH_META;
-    for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->virtReaderList);
-         pContext->curReaderIdx++) {
-      code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_VTABLE_INFO);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    pContext->lastVirtTableInfoTime = now;
-    goto _end;
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
