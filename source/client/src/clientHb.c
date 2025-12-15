@@ -37,11 +37,6 @@ SClientHbMgr clientHbMgr = {0};
 static int32_t hbCreateThread();
 static void    hbStopThread();
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp);
-
-static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
-
-static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
-
 static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog,
                                         SAppHbMgr *pAppHbMgr) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1189,10 +1184,10 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 static FORCE_INLINE void hbMgrInitHandle() {
   // init all handle
   clientHbMgr.reqHandle[CONN_TYPE__QUERY] = hbQueryHbReqHandle;
-  clientHbMgr.reqHandle[CONN_TYPE__TMQ] = hbMqHbReqHandle;
+  clientHbMgr.reqHandle[CONN_TYPE__TMQ] = hbQueryHbReqHandle;
 
   clientHbMgr.rspHandle[CONN_TYPE__QUERY] = hbQueryHbRspHandle;
-  clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbMqHbRspHandle;
+  clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbQueryHbRspHandle;
 }
 
 int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
@@ -1233,7 +1228,8 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     }
 
     switch (connKey->connType) {
-      case CONN_TYPE__QUERY: {
+      case CONN_TYPE__QUERY:
+      case CONN_TYPE__TMQ: {
         if (param.clusterId == 0) {
           // init
           param.clusterId = pOneReq->clusterId;
@@ -1656,11 +1652,9 @@ int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId
   };
 
   switch (connType) {
-    case CONN_TYPE__QUERY: {
-      return hbRegisterConnImpl(pAppHbMgr, connKey, clusterId);
-    }
+    case CONN_TYPE__QUERY:
     case CONN_TYPE__TMQ: {
-      return 0;
+      return hbRegisterConnImpl(pAppHbMgr, connKey, clusterId);
     }
     default:
       return 0;
