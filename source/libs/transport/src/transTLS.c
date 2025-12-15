@@ -225,11 +225,11 @@ int8_t transShouldDoReloadTlsConfig(STlsCxtMgt *pMgt) {
   return ready;
 }
 
+#if !defined(TD_ENTERPRISE)
+
 int32_t sslGetCertificateImpl(STransTLS* pTls) { return TSDB_CODE_INVALID_CFG; }
 
 int32_t transTlsCtxCreateFromOld(SSslCtx* pOldCtx, int8_t mode, SSslCtx** pNewCtx) { return TSDB_CODE_INVALID_CFG; }
-
-#if !defined(TD_ENTERPRISE) 
 
 int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
 
