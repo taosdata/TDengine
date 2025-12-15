@@ -906,15 +906,11 @@
 
 
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_ts_5761_scalemode.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_5712.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4233.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_like.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_match.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_28068.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_AlwaysReturnValue.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_agg_group_NotReturnValue.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_32548.py
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_large_data.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py
@@ -962,8 +958,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tagFilter.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_3405_3398_3423.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4348_td_27939.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_backslash_g.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4467.py
 

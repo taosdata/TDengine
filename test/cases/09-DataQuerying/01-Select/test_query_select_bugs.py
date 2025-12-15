@@ -12,6 +12,9 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import time
+import os
+import datetime
+import random
 
 class TestQueryBugs:
 
@@ -204,7 +207,7 @@ class TestQueryBugs:
                 values.append(f"({ts+(i%5)*86400000 + j}, {i%500 + j/20})")
             sql += ", ".join(values)
             tdSql.execute(sql)
-            tdLog.debug(f"create table stb_sxny_cn_{i} and insert data successfully")
+    
                     
         # create subtable and insert data for super table stb_popo_power_station_all
         for i in range(1, 1000):
@@ -222,7 +225,7 @@ class TestQueryBugs:
                 values.append(f"({ts+(j-1)*86400000}, {i*10 + j%10}, {j})")
             sql += ", ".join(values)
             tdSql.execute(sql)
-            tdLog.debug(f"create table stb_popo_power_station_all_{i} and insert data successfully")
+
         
         for i in range(1, 499, 20):
             pscode = f"ps_code{i}"
@@ -407,6 +410,7 @@ class TestQueryBugs:
     #
     def prepareData(self):
         # db
+        tdSql.execute(f"drop database if exists db;")
         tdSql.execute(f"create database db;")
         tdSql.execute(f"use db")
 
@@ -463,8 +467,445 @@ class TestQueryBugs:
     #
     # ------------------- 3 ----------------
     #
+    def FIX_TS_5761_SCALEMODE(self):
+        #
+        # init data
+        #
+        
+        # db
+        tdSql.execute(f"drop database if exists db;")
+        tdSql.execute(f"create database db;")
+        tdSql.execute(f"use db")
+
+        # super tableUNSIGNED
+        tdSql.execute("CREATE TABLE st( time TIMESTAMP, c1 BIGINT, c2 smallint, c3 double, c4 int UNSIGNED, c5 bool, c6 binary(32), c7 nchar(32)) tags(t1 binary(32), t2 nchar(32))")
+        tdSql.execute("create table t1 using st tags('1', '1.7')")
+        tdSql.execute("create table t2 using st tags('0', '')")
+        tdSql.execute("create table t3 using st tags('1', 'er')")
+
+        # create index for all tags
+        sql = "insert into "
+        sql += " t1 VALUES (1641024000000, 1, 1, 1, 1, 1, '1', '1.7')"
+        sql += " t1 VALUES (1641024000001, 0, 0, 1.7, 0, 0, '0', '')"
+        sql += " t1 VALUES (1641024000002, 1, 1, 1, 1, 1, '1', 'er')"
+        sql += " t2 VALUES (1641024000002, 1, 1, 1, 1, 1, '1', 'er')"
+        sql += " t3 VALUES (1641024000002, 1, 1, 1, 1, 1, '1', 'er')"
+        tdSql.execute(sql)
+
+        tdSql.execute("CREATE TABLE stt( time TIMESTAMP, c1 BIGINT, c2 timestamp, c3 int, c4 int UNSIGNED, c5 bool, c6 binary(32), c7 nchar(32)) tags(t1 binary(32), t2 nchar(32))")
+        tdSql.execute("create table tt1 using stt tags('1', '1.7')")
+
+        # create index for all tags
+        tdSql.execute("INSERT INTO tt1 VALUES (1641024000000, 9223372036854775807, 1641024000000, 1, 1, 1, '1', '1.7')")
+        
+        #
+        # check
+        #
+        tdSql.query(f"SELECT * FROM tt1 WHERE c1 in (1.7, 9223372036854775803, '')")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM tt1 WHERE c1 = 9223372036854775803")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c1 = 1.7")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c1 in (1.7, 2)")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c1 not in (1.7, 2)")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c2 = 1.7")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c2 in (1.7, 2)")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c2 not in (1.7, 2)")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c3 = 1.7")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c3 in (1.7, 2)")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c3 not in (1.7, 2)")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c4 = 1.7")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c4 in (1.7, 2)")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c4 not in (1.7, 2)")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c5 = 1.7")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c5 in (1.7, 2)")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c5 not in (1.7, 2)")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 = 1.7")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 in (1.7, 2)")
+        tdSql.checkRows(0)
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 not in (1.7, 2)")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 = 1")
+        tdSql.checkRows(2)
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 in (1, 2)")
+        tdSql.checkRows(2)
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 not in (1, 2)")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 = 0")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 in (0, 2)")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 not in (0, 2)")
+        tdSql.checkRows(2)
+        tdSql.query(f"SELECT * FROM t1 WHERE c6 not in (0, 2, 'sef')")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 = 1.7")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 in (1.7, 2)")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 not in (1.7, 2)")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 = 0")
+        tdSql.checkRows(2)
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 in (0, 2)")
+        tdSql.checkRows(2)
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 not in (0, 2)")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 = ''")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 in ('', 2)")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM t1 WHERE c7 not in ('', 2)")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"SELECT * FROM st WHERE t2 in ('', 2)")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM st WHERE t2 not in ('', 2)")
+        tdSql.checkRows(4)
+
+        tdSql.query(f"SELECT * FROM st WHERE t1 in ('d343', 0, 2)")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM st WHERE t1 in (0, 2)")
+        tdSql.checkRows(1)
+        tdSql.query(f"SELECT * FROM st WHERE t1 not in (0, 2)")
+        tdSql.checkRows(4)
     
-        print("do TS-3821 ............................ [passed]")
+        print("do TS-5761 scalemode .................. [passed]")
+
+    #
+    # ------------------- 4 ----------------
+    #
+    def FIX_TS_5712(self):
+        #
+        # init data
+        #
+        
+        # db
+        tdSql.execute(f"drop database if exists db;")
+        tdSql.execute(f"create database db;")
+        tdSql.execute(f"use db")
+
+        # super table
+        tdSql.execute("CREATE TABLE t1( time TIMESTAMP, c1 BIGINT);")
+
+        # create index for all tags
+        tdSql.execute("INSERT INTO t1(time, c1) VALUES (1641024000000, 0)")
+        tdSql.execute("INSERT INTO t1(time, c1) VALUES (1641024000001, 0)")
+        
+        #
+        # check
+        #
+        tdSql.query(f"SELECT CAST(time AS BIGINT) FROM t1 WHERE (1 - time) > 0")
+        tdSql.checkRows(0)
+
+        print("do TS-5712 ............................ [passed]")
+
+    #
+    # ------------------- 5 ----------------
+    #
+    def FIX_TS_4348(self):
+        tdSql.execute("create database ts_4338;")
+        tdSql.execute("drop table if exists ts_4338.t;")
+        tdSql.execute("create database if not exists ts_4338;")
+        tdSql.execute("create table ts_4338.t (ts timestamp, i8 tinyint);")
+        tdSql.execute("insert into ts_4338.t (ts, i8) values (now(), 1) (now()+1s, 2);")
+        
+        tdSql.query(f'select i8 from ts_4338.t;')
+        tdSql.checkRows(2)
+
+        tdSql.query(f'select i8 from ts_4338.t where 1 = 1;')
+        tdSql.checkRows(2)
+
+        tdSql.query(f'select i8 from ts_4338.t where i8 = 1;')
+        tdSql.checkRows(1)
+
+        tdSql.query(f'select * from (select * from ts_4338.t where i8 = 3);')
+        tdSql.checkRows(0)
+
+        # TD-27939
+        tdSql.query(f'select * from (select * from ts_4338.t where 1 = 100);')
+        tdSql.checkRows(0)
+
+        tdSql.query(f'select * from (select * from (select * from ts_4338.t where 1 = 200));')
+        tdSql.checkRows(0)
+
+        tdSql.execute("drop database if exists ts_4338;")
+    
+        print("do TS-4348 ............................ [passed]")
+
+    #
+    # ------------------- 6 ----------------
+    #
+    def checksql(self, sql):
+        result = os.popen(f"taos -s \"{sql}\" ")
+        res = result.read()
+        print(res)
+        if ("Query OK" in res):
+            tdLog.info(f"checkEqual success")
+        else :
+            tdLog.exit(f"checkEqual error")
+    
+    def FIX_TS_4233(self):        
+        sql = "select 'a;b' as x"
+        tdSql.query(f"%s" %sql)
+        tdSql.checkRows(1)
+
+        self.checksql('select \\\"a;b\\\" as x\\G')
+        self.checksql('select \\\"a;b\\\" as x >> temp.txt')        
+    
+        print("do TS-4233 ............................ [passed]")
+
+    #
+    # ------------------- 7 ----------------
+    #            
+    def FIX_TS_3405(self):
+        tdSql.execute("CREATE DATABASE IF NOT EXISTS statistics2 REPLICA {} DURATION 14400m KEEP 5256000m,5256000m,5256000m PRECISION 'ms' MINROWS 100 MAXROWS 4096 COMP 2;".format(self.replicaVar))
+        tdSql.execute("use statistics2;")
+
+        # create stable
+        tdSql.execute("CREATE STABLE IF NOT EXISTS statistics2.`pg`(`day` timestamp,`lt_3` int,`c3_3` int,`c6_3` int,`c9_3` int,`c12_3` int,`c15_3` int,`c18_3` int,`c21_3` int,`c24_3` int,`c27_3` int,`ge_3` int) TAGS(`vin` binary(32));")
+        tdSql.execute("CREATE STABLE IF NOT EXISTS statistics2.`b`(`day` timestamp, `month` int) TAGS(`group_path` binary(32),`vin` binary(32));")
+        tdSql.execute("CREATE STABLE IF NOT EXISTS statistics2.`g`(`day` timestamp,`run_state` tinyint) TAGS(`vin` binary(32));")
+
+        # insert the data to table
+        times = 10
+        insertRows = 3000
+        pg_sql = "insert into d1001 using statistics2.`pg` tags('test') values"
+        b_sql  = "insert into d2001 using statistics2.`b` tags('1#%', 'test') values"
+        g_sql  = "insert into d3001 using statistics2.`g` tags('test') values"
+        for t in range(times):
+            for i in range(t * insertRows, t * insertRows + insertRows):
+                ts = datetime.datetime.strptime('2023-05-01 00:00:00.000', '%Y-%m-%d %H:%M:%S.%f') + datetime.timedelta(seconds=i)
+                pg_sql += " ('{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})".format(ts, i, i, i+1, i+2, i+3, i+4, i+5, i+6, i+7, i+8, i+9)
+                b_sql += " ('{}', {})".format(ts, 5)
+                g_sql += " ('{}', {})".format(ts, 1)
+
+            tdSql.execute(pg_sql)
+            tdSql.execute(b_sql)
+            tdSql.execute(g_sql)
+            # reset the sql statements
+            pg_sql = "insert into d1001 using statistics2.`pg` tags('test') values"
+            b_sql  = "insert into d2001 using statistics2.`b` tags('1#%', 'test') values"
+            g_sql  = "insert into d3001 using statistics2.`g` tags('test') values"
+        tdLog.info("insert %d rows" % (insertRows * times))
+
+        # execute the sql statements
+        ret = tdSql.query("SELECT sum(pg.lt_3) es1,sum(pg.c3_3) es2,sum(pg.c6_3) es3,sum(pg.c9_3) es4,sum(pg.c12_3) es5,sum(pg.c15_3) es6,sum(pg.c18_3) es7,sum(pg.c21_3) es8,sum(pg.c24_3) es9,sum(pg.c27_3) es10,sum(pg.ge_3) es11 FROM statistics2.b b,statistics2.pg pg,statistics2.g g WHERE b.`day` = pg.`day` AND b.`day` = g.`day` AND b.vin = pg.vin AND b.vin = g.vin AND b.vin IS NOT NULL AND b.`group_path` LIKE '1#%';")
+        # check the first query result
+        if (449985000, 449985000, 450015000, 450045000, 450075000, 450105000, 450135000, 450165000, 450195000, 450225000, 450255000) in tdSql.queryResult:
+            tdLog.info("first query result is correct")
+        else:
+            tdLog.info("first query result is wrong with res: {}".format(str(tdSql.queryResult)))
+
+        ret = tdSql.query("SELECT sum(pg.lt_3) es1, sum(pg.c3_3) es2, sum(pg.c6_3) es3, sum(pg.c9_3) es4, sum(pg.c12_3) es5, sum(pg.c15_3) es6, sum(pg.c18_3) es7, sum(pg.c21_3) es8, sum(pg.c24_3) es9, sum(pg.c27_3) es10, sum(pg.ge_3) es11 FROM (select * from statistics2.b order by day,month) b, (select * from statistics2.pg order by day,lt_3 ) pg, (select * from statistics2.g order by day,run_state) g WHERE b.`day` = pg.`day` AND b.`day` = g.`day` AND b.vin = pg.vin AND b.vin = g.vin AND b.vin IS NOT NULL;")
+        # check the second query result
+        if (449985000, 449985000, 450015000, 450045000, 450075000, 450105000, 450135000, 450165000, 450195000, 450225000, 450255000) in tdSql.queryResult:
+            tdLog.info("second query result is correct")
+        else:
+            tdLog.info("second query result is wrong with res: {}".format(str(tdSql.queryResult)))
+        tdLog.info("Finish the test case for ts_3405 successfully")
+
+        """This test case is used to verify the aliasName of Node structure is not truncated
+        when sum clause is more than 65 bits.
+        """
+        # test case for https://jira.taosdata.com:18080/browse/TS-3398:
+        # create db
+        tdLog.info("Start the test case for ts_3398")
+        tdSql.execute("CREATE DATABASE IF NOT EXISTS statistics1 REPLICA {} DURATION 14400m KEEP 5256000m,5256000m,5256000m PRECISION 'ms' MINROWS 100 MAXROWS 4096 COMP 2;".format(self.replicaVar))
+        tdSql.execute("use statistics1;")
+
+        # create stable
+        tdSql.execute("CREATE STABLE IF NOT EXISTS statistics1.`g`(`day` timestamp,`run_state` tinyint) TAGS(`vin` binary(32));")
+        tdSql.execute("CREATE STABLE IF NOT EXISTS statistics1.`b`(`day` timestamp, `total_heart` int) TAGS(`vin` binary(32));")
+        tdSql.execute("CREATE STABLE IF NOT EXISTS statistics1.`tg`(`day` timestamp,`lt_4177` int,`f30_4177` int, `f35_4177` int) TAGS(`vin` binary(32));")
+
+        # insert the data to table
+        tdSql.execute("insert into d1001 using statistics1.`g` tags('NJHYNBSAS0000061') values (%s, %d)" % ("'2023-05-01'", 99))
+        tdSql.execute("insert into d2001 using statistics1.`b` tags('NJHYNBSAS0000061') values (%s, %d)" % ("'2023-05-01'", 99))
+        tdSql.execute("insert into d3001 using statistics1.`tg` tags('NJHYNBSAS0000061') values (%s, %d, %d, %d)" % ("'2023-05-01'", 99, 99, 99))
+
+        # execute the sql statements
+        tdSql.query("SELECT b.`day` `day`,sum(CASE WHEN tg.lt_4177 IS NULL THEN 0 ELSE tg.lt_4177 END \
+            + CASE WHEN tg.f35_4177 IS NULL THEN 0 ELSE tg.f35_4177 END) / 3600 es0,sum(CASE WHEN tg.lt_4177 \
+                IS NULL THEN 0 ELSE tg.lt_4177 END + CASE WHEN tg.f35_4177 IS NULL THEN 0 ELSE tg.f35_4177 \
+                    END + CASE WHEN tg.f30_4177 IS NULL THEN 0 ELSE tg.f30_4177 END) / 3600 es1 FROM \
+                        statistics1.b b,statistics1.tg tg,statistics1.g g WHERE b.`day` = tg.`day` AND g.`day` = b.`day` \
+                            AND b.vin = tg.vin AND b.vin = g.vin AND b.`day` BETWEEN '2023-05-01' AND '2023-05-05' \
+                                AND b.vin = 'NJHYNBSAS0000061' AND g.vin IS NOT NULL AND b.vin IS NOT NULL AND tg.vin IS NOT NULL \
+                                    GROUP BY b.`day`;")
+        # check the result
+        if 0.055 in tdSql.queryResult[0] and 0.0825 in tdSql.queryResult[0]:
+            tdLog.info("query result is correct")
+        else:
+            tdLog.info("query result is wrong")
+        tdLog.info("Finish the test case for ts_3398 successfully")
+
+        """This test case is used to verify last(*) query result is correct when the data
+        is group by tag for stable
+        """
+        # test case for https://jira.taosdata.com:18080/browse/TS-3423:
+        # create db
+        tdLog.info("Start the test case for ts_3423")
+        tdSql.execute("CREATE DATABASE IF NOT EXISTS ts_3423 REPLICA {} DURATION 14400m KEEP 5256000m,5256000m,5256000m PRECISION 'ms' MINROWS 100 MAXROWS 4096 COMP 2;".format(self.replicaVar))
+        tdSql.execute("use ts_3423;")
+
+        # create stable
+        tdSql.execute("CREATE STABLE IF NOT EXISTS ts_3423.`st_last`(`ts` timestamp,`n1` int,`n2` float) TAGS(`groupname` binary(32));")
+
+        # insert the data to table
+        insertRows = 10
+        child_table_num = 10
+        sql = "insert into "
+        for i in range(insertRows):
+            ts = datetime.datetime.strptime('2023-05-01 00:00:00.000', '%Y-%m-%d %H:%M:%S.%f') + datetime.timedelta(seconds=i)
+            for j in range(child_table_num):
+                sql += " {} using ts_3423.`st_last` tags('{}') values ('{}', {}, {})".format("d" + str(j), "group" + str(j), str(ts), str(i+1), random.random())
+        tdSql.execute(sql)        
+        tdLog.info("insert %d rows for every child table" % (insertRows))
+
+        # cache model list
+        cache_model = ["none", "last_row", "last_value", "both"]
+        query_res = []
+        
+        # execute the sql statements first
+        tdSql.query("select `cachemodel` from information_schema.ins_databases where name='ts_3423'")
+        current_cache_model = tdSql.queryResult[0][0]
+        tdLog.info("query on cache model {}".format(current_cache_model))
+        tdSql.query("select last(*) from st_last group by groupname;")
+        # save the results
+        query_res.append(len(tdSql.queryResult))
+        # remove the current cache model
+        cache_model.remove(current_cache_model)
+        
+        for item in cache_model:
+            tdSql.execute("alter database ts_3423 cachemodel '{}';".format(item))
+            # execute the sql statements
+            tdSql.query("select last(*) from st_last group by groupname;")
+            tdLog.info("query on cache model {}".format(item))
+            query_res.append(len(tdSql.queryResult))
+        # check the result
+        res = True if query_res.count(child_table_num) == 4 else False
+        if res:
+            tdLog.info("query result is correct and same among different cache model")
+        else:
+            tdLog.info("query result is wrong")
+        tdLog.info("Finish the test case for ts_3423 successfully")
+
+        # clear the db
+        tdSql.execute("drop database if exists statistics1;")
+        tdSql.execute("drop database if exists statistics2;")
+        tdSql.execute("drop database if exists ts_3423;")        
+         
+        print("do TS-3405 ............................ [passed]")
+
+    #
+    # ------------------- 8 ----------------
+    #            
+    def FIX_TD_32548(self): 
+        tdSql.execute("create database td_32548 cachemodel 'last_row' keep 3650,3650,3650;")
+        
+        tdSql.execute("use td_32548;")
+
+        tdSql.execute("create table ntb1 (ts timestamp, ival int);")
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:54:49.675', 54);")
+
+        tdSql.execute("flush database td_32548;")
+
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:53:49.675', 53);")
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:52:49.675', 52);")
+        tdSql.execute("delete from ntb1 where ts = '2024-07-08 17:54:49.675';")
+
+        tdSql.query('select last_row(ts) from ntb1;')
+        tdSql.checkData(0, 0, '2024-07-08 17:53:49.675')
+         
+        print("do TD-32548 ............................ [passed]")
+
+    #
+    # ------------------- 9 ----------------
+    #            
+    def FIX_TD_28068(self):
+        tdSql.execute("drop database if exists td_28068;")
+        tdSql.execute("create database td_28068;")
+        tdSql.execute("create database if not exists td_28068;")
+        tdSql.execute("create stable td_28068.st (ts timestamp, test_case nchar(10), time_cost float, num float) tags (branch nchar(10), scenario nchar(10));")
+        sql = "insert into "
+        sql += " td_28068.ct1 using td_28068.st (branch, scenario) tags ('3.0', 'scenario1') values (1717122943000, 'query1', 1,2)"
+        sql += " td_28068.ct1 using td_28068.st (branch, scenario) tags ('3.0', 'scenario1') values (1717122944000, 'query1', 2,3)"
+        sql += " td_28068.ct2 using td_28068.st (branch, scenario) tags ('3.0', 'scenario2') values (1717122945000, 'query1', 10,1)"
+        sql += " td_28068.ct2 using td_28068.st (branch, scenario) tags ('3.0', 'scenario2') values (1717122946000, 'query1', 11,5)"
+        sql += " td_28068.ct3 using td_28068.st (branch, scenario) tags ('3.1', 'scenario1') values (1717122947000, 'query1', 20,4)"
+        sql += " td_28068.ct3 using td_28068.st (branch, scenario) tags ('3.1', 'scenario1') values (1717122948000, 'query1', 30,1)"
+        sql += " td_28068.ct4 using td_28068.st (branch, scenario) tags ('3.1', 'scenario2') values (1717122949000, 'query1', 8,8)"
+        sql += " td_28068.ct4 using td_28068.st (branch, scenario) tags ('3.1', 'scenario2') values (1717122950000, 'query1', 9,10)"
+        tdSql.execute(sql)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch);')
+        tdSql.checkRows(4)
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch), last(scenario); ')
+        tdSql.checkRows(4)
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch); ')
+        tdSql.checkRows(4)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case)  from td_28068.st group by st.branch, st.scenario order by last(branch), last(test_case);')
+        tdSql.checkRows(4)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch), last(scenario);')
+        tdSql.checkRows(4)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by branch1, scenario1;')
+        tdSql.checkRows(4)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by tbname; ')
+        tdSql.checkRows(4)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by test_case;')
+        tdSql.checkRows(4)
+
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario1, last(test_case) as test_case1  from td_28068.st group by st.branch, st.scenario order by last(test_case);')
+        tdSql.checkRows(4)
+
+        tdSql.query('select time_cost, num, time_cost + num as final_cost  from td_28068.st partition by st.branch; ')
+        tdSql.checkRows(8)
+
+        tdSql.query('select count(*) from td_28068.st partition by branch order by branch; ')
+        tdSql.checkRows(2)
+
+        tdSql.query('select time_cost, num, time_cost + num as final_cost from td_28068.st order by time_cost;')
+        tdSql.checkRows(8)
+
+        tdSql.query('select time_cost, num, time_cost + num as final_cost from td_28068.st order by final_cost;')
+        tdSql.checkRows(8)
+
+        tdSql.execute("drop database if exists td_28068;")
+         
+        print("do TD-28068 ............................ [passed]")
 
     #
     # ------------------- main ----------------
@@ -481,7 +922,14 @@ class TestQueryBugs:
         7. Verify jira TS-5984
         8. Verify jira TS-6058
         9. Verify jira TS-5761
-
+        10. Verify jira TS-7058
+        11. Verify jira TS-5761 scalemode
+        12. Verify jira TS-5712
+        13. Verify jira TS-4348
+        14. Verify jira TS-4233
+        15. Verify jira TS-3405
+        16. Verify jira TD-32548
+        17. Verify jira TD-28068
 
         Since: v3.0.0.0
 
@@ -492,11 +940,16 @@ class TestQueryBugs:
         History:
             - 2025-10-22 Alex Duan Migrated from uncatalog/army/query/test_query_basic.py
             - 2025-12-14 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_5761.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_7058.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_5761_scalemode.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_5712.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_4348_td_27939.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_4233.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_ts_3405_3398_3423.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_td_32548.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_td_28068.py
 
-
-        """
-        tdLog.debug(f"start to excute {__file__}")
-        
+        """        
         self.ts5946()
         # TD BUGS
         self.FIX_TD_30686()
@@ -509,6 +962,4 @@ class TestQueryBugs:
         self.FIX_TS_5984()
         self.FIX_TS_6058()
         self.FIX_TS_5761()
-
-        tdLog.success(f"{__file__} successfully executed")
 
