@@ -149,7 +149,6 @@ class OutMetrics:
         # Header
         header = (
             f"| {'Scenario':<{col_widths['scenario']}} "
-            f"| {'Status':<{col_widths['status']}} "
             f"| {'Classif':<{col_widths['classif']}} "
             f"| {'Out Rec':>{col_widths['out_rec']}} "
             f"| {'In Rec':>{col_widths['in_rec']}} "
@@ -158,6 +157,7 @@ class OutMetrics:
             f"| {'Dur(s)':>{col_widths['dur']}} "
             f"| {'TP(rec/s)':>{col_widths['tp']}} "
             f"{header_delay}"
+            f"| {'Status':<{col_widths['status']}} "
             f"|"
         )
         
