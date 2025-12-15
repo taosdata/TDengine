@@ -10,13 +10,23 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a2
-      expectRows: 150
+      equalSql: select count(*) from 
+                     (
+                        select _wstart ts, count(*) 
+                            from db1.readings interval(1m)
+                     )
+      diffRows: 0
 
     - scenarioId: "A3"
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a3
-      expectRows: 186   
+      equalSql: select count(*) from 
+                     (
+                        select _wstart ts, count(*) 
+                            from db1.readings interval(1m)
+                     )
+      diffRows: 0
 
     - scenarioId: "A5"
       querySql: select count(*) from db1.readings
@@ -35,7 +45,7 @@ testCases:
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a7
       equalSql: select count(*) from (select _wstart ts, avg(fuel_consumption) from db1.readings interval(1h))
-      diffRows: -1
+      
 
     # F1 F2 F3 F4 F8
 

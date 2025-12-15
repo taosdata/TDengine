@@ -24,9 +24,11 @@ testCases:
                as 
                   select _tcurrent_ts ts, count(*), avg(fuel_consumption) 
                       from (  
-                            select fuel_consumption, last(grade) cur_grade 
-                            from db1.readings 
-                            where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname) 
+                              select fuel_consumption, last(grade) cur_grade 
+                                 from db1.readings 
+                                 where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                                 partition by tbname
+                            ) 
                       where cur_grade > 70;
 
     - scenarioId: "A3"
@@ -41,10 +43,10 @@ testCases:
             as 
               select _tcurrent_ts cur_ts, count(*), avg(avg_fuel) 
                   from (
-                        select last(elevation) last_elev, avg(fuel_consumption) avg_fuel 
-                        from db1.readings 
-                          where _c0 >= _tprev_ts and _c0 < _tcurrent_ts 
-                          partition by tbname 
+                          select last(elevation) last_elev, avg(fuel_consumption) avg_fuel 
+                             from db1.readings 
+                             where _c0 >= _tprev_ts and _c0 < _tcurrent_ts 
+                             partition by tbname 
                       ) 
                   where last_elev > 1000;
 
