@@ -516,26 +516,22 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   return;
 }
 
-
-
-typedef struct SFetchIpWhiteListInfo {
+typedef struct SFetchIpAccessListInfo {
   int64_t connId;
-  bool supportNeg;
+  bool    supportNeg;
   void   *userParam;
 
-  __taos_async_ip_whitelist_fn_t userCbFn;
-} SFetchIpWhiteListInfo;
+  __taos_async_ip_accesslist_fn_t userCbFn;
+} SFetchIpAccessListInfo;
 
-
-
-int32_t fetchIpWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
+int32_t fetchIpAccessListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   int32_t lino = 0;
   char  **pWhiteLists = NULL;
 
   SGetUserIpWhiteListRsp wlRsp = {0};
 
-  SFetchIpWhiteListInfo *pInfo = (SFetchIpWhiteListInfo *)param;
-  TAOS *taos = &pInfo->connId;
+  SFetchIpAccessListInfo *pInfo = (SFetchIpAccessListInfo *)param;
+  TAOS                   *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
@@ -552,13 +548,13 @@ int32_t fetchIpWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  int32_t numWhiteLists =0;
+  int32_t numWhiteLists = 0;
   for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
     SIpRange *pIpRange = &wlRsp.pWhiteListsDual[i];
     if (!pInfo->supportNeg && pIpRange->neg) {
       continue;
     }
-    SIpAddr   ipAddr = {0};
+    SIpAddr ipAddr = {0};
 
     code = tIpUintToStr(pIpRange, &ipAddr);
     TAOS_CHECK_GOTO(code, &lino, _error);
@@ -602,9 +598,7 @@ _error:
   return code;
 }
 
-
-
-static void taosFetchIpWhiteList(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param, bool supportNeg) {
+static void taosFetchIpAccessList(TAOS *taos, __taos_async_ip_accesslist_fn_t fp, void *param, bool supportNeg) {
   if (NULL == taos) {
     fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
     return;
@@ -640,7 +634,7 @@ static void taosFetchIpWhiteList(TAOS *taos, __taos_async_whitelist_dual_stack_f
     return;
   }
 
-  SFetchIpWhiteListInfo *pParam = taosMemoryMalloc(sizeof(SFetchIpWhiteListInfo));
+  SFetchIpAccessListInfo *pParam = taosMemoryMalloc(sizeof(SFetchIpAccessListInfo));
   if (pParam == NULL) {
     fp(param, terrno, taos, 0, NULL);
     taosMemoryFree(pReq);
@@ -666,7 +660,7 @@ static void taosFetchIpWhiteList(TAOS *taos, __taos_async_whitelist_dual_stack_f
   pSendInfo->requestId = generateRequestId();
   pSendInfo->requestObjRefId = 0;
   pSendInfo->param = pParam;
-  pSendInfo->fp = fetchIpWhiteListCallbackFn;
+  pSendInfo->fp = fetchIpAccessListCallbackFn;
   pSendInfo->msgType = TDMT_MND_GET_USER_IP_WHITELIST_DUAL;
 
   SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
@@ -677,78 +671,72 @@ static void taosFetchIpWhiteList(TAOS *taos, __taos_async_whitelist_dual_stack_f
   return;
 }
 
-
-
 void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
-  taosFetchIpWhiteList(taos, fp, param, false);
+  taosFetchIpAccessList(taos, fp, param, false);
 }
 
-
-
-void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) {
-  taosFetchIpWhiteList(taos, fp, param, true);
+void taos_fetch_ip_accesslist_a(TAOS *taos, __taos_async_ip_accesslist_fn_t fp, void *param) {
+  taosFetchIpAccessList(taos, fp, param, true);
 }
 
-
-typedef struct SFetchDateTimeWhiteListInfo {
-  int64_t                              connId;
-  void                                *userParam;
-  __taos_async_datetime_whitelist_fn_t userCbFn;
-} SFetchDateTimeWhiteListInfo;
-
-
+typedef struct SFetchDateTimeAccessListInfo {
+  int64_t                               connId;
+  void                                 *userParam;
+  __taos_async_datetime_accesslist_fn_t userCbFn;
+} SFetchDateTimeAccessListInfo;
 
 static const char* weekdays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-int32_t fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
-  int32_t lino = 0;
-  char  **pWhiteLists = NULL;
+int32_t            fetchDateTimeAccessListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
+             int32_t lino = 0;
+             char  **pWhiteLists = NULL;
 
-  SUserDateTimeWhiteList wlRsp = {0};
+             SUserDateTimeWhiteList wlRsp = {0};
 
-  SFetchDateTimeWhiteListInfo *pInfo = (SFetchDateTimeWhiteListInfo *)param;
-  TAOS *taos = &pInfo->connId;
+             SFetchDateTimeAccessListInfo *pInfo = (SFetchDateTimeAccessListInfo *)param;
+             TAOS                         *taos = &pInfo->connId;
 
-  if (code != TSDB_CODE_SUCCESS) {
-    pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
-    TAOS_CHECK_GOTO(code, &lino, _error);
+             if (code != TSDB_CODE_SUCCESS) {
+               pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
+               TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  if ((code = tDeserializeSUserDateTimeWhiteList(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
-    TAOS_CHECK_GOTO(code, &lino, _error);
+             if ((code = tDeserializeSUserDateTimeWhiteList(pMsg->pData, pMsg->len, &wlRsp)) != TSDB_CODE_SUCCESS) {
+               TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(char *));
-  if (pWhiteLists == NULL) {
-    code = terrno;
-    TAOS_CHECK_GOTO(code, &lino, _error);
+             pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(char *));
+             if (pWhiteLists == NULL) {
+               code = terrno;
+               TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  int32_t numWhiteLists =0;
-  for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
-    SDateTimeWhiteListItem *item = &wlRsp.pWhiteLists[i];
+             int32_t numWhiteLists = 0;
+             for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
+               SDateTimeWhiteListItem *item = &wlRsp.pWhiteLists[i];
 
-    char *p = taosMemCalloc(1, 128);
-    if (p == NULL) {
-      code = terrno;
-      TAOS_CHECK_GOTO(code, &lino, _error);
+               char *p = taosMemCalloc(1, 128);
+               if (p == NULL) {
+                 code = terrno;
+                 TAOS_CHECK_GOTO(code, &lino, _error);
     }
 
-    int duration = item->duration / 60;
+               int duration = item->duration / 60;
 
-    if (item->absolute) {
-      struct STm tm;
-      (void)taosTs2Tm(item->start, TSDB_TIME_PRECISION_SECONDS, &tm, NULL);
-      snprintf(p, 128, "%c %04d-%02d-%02d %02d:%02d %d", item->neg ? '-' : '+', tm.tm.tm_year + 1900, tm.tm.tm_mon + 1, tm.tm.tm_mday, tm.tm.tm_hour, tm.tm.tm_min, duration);
+               if (item->absolute) {
+                 struct STm tm;
+                 (void)taosTs2Tm(item->start, TSDB_TIME_PRECISION_SECONDS, &tm, NULL);
+                 snprintf(p, 128, "%c %04d-%02d-%02d %02d:%02d %d", item->neg ? '-' : '+', tm.tm.tm_year + 1900, tm.tm.tm_mon + 1,
+                          tm.tm.tm_mday, tm.tm.tm_hour, tm.tm.tm_min, duration);
     } else {
-      int day = item->start / 86400;
-      int hour = (item->start % 86400) / 3600;
-      int minute = (item->start % 3600) / 60;
-      snprintf(p, 128, "%c %s %02d:%02d %d", item->neg ? '-' : '+', weekdays[day], hour, minute, duration);
+                 int day = item->start / 86400;
+                 int hour = (item->start % 86400) / 3600;
+                 int minute = (item->start % 3600) / 60;
+                 snprintf(p, 128, "%c %s %02d:%02d %d", item->neg ? '-' : '+', weekdays[day], hour, minute, duration);
     }
-    pWhiteLists[numWhiteLists++] = p;
+               pWhiteLists[numWhiteLists++] = p;
   }
 
-  pInfo->userCbFn(pInfo->userParam, code, taos, numWhiteLists, pWhiteLists);
+             pInfo->userCbFn(pInfo->userParam, code, taos, numWhiteLists, pWhiteLists);
 _error:
   if (pWhiteLists != NULL) {
     for (int32_t i = 0; i < numWhiteLists; i++) {
@@ -763,9 +751,7 @@ _error:
   return code;
 }
 
-
-
-void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) {
+void taos_fetch_datetime_accesslist_a(TAOS *taos, __taos_async_datetime_accesslist_fn_t fp, void *param) {
   if (NULL == taos) {
     fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
     return;
@@ -801,7 +787,7 @@ void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist
     return;
   }
 
-  SFetchDateTimeWhiteListInfo *pParam = taosMemoryMalloc(sizeof(SFetchDateTimeWhiteListInfo));
+  SFetchDateTimeAccessListInfo *pParam = taosMemoryMalloc(sizeof(SFetchDateTimeAccessListInfo));
   if (pParam == NULL) {
     fp(param, terrno, taos, 0, NULL);
     taosMemoryFree(pReq);
@@ -826,7 +812,7 @@ void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist
   pSendInfo->requestId = generateRequestId();
   pSendInfo->requestObjRefId = 0;
   pSendInfo->param = pParam;
-  pSendInfo->fp = fetchDateTimeWhiteListCallbackFn;
+  pSendInfo->fp = fetchDateTimeAccessListCallbackFn;
   pSendInfo->msgType = TDMT_MND_GET_USER_DATETIME_WHITELIST;
 
   SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
@@ -836,8 +822,6 @@ void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist
   releaseTscObj(connId);
   return;
 }
-
-
 
 void taos_close_internal(void *taos) {
   if (taos == NULL) {

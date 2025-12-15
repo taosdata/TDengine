@@ -149,9 +149,9 @@ extern void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t
 
 extern void (*fp_taos_fetch_whitelist_dual_stack_a)(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param);
 
-extern void (*fp_taos_fetch_ip_whitelist_a)(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param);
+extern void (*fp_taos_fetch_ip_accesslist_a)(TAOS *taos, __taos_async_ip_accesslist_fn_t fp, void *param);
 
-extern void (*fp_taos_fetch_datetime_whitelist_a)(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param);
+extern void (*fp_taos_fetch_datetime_accesslist_a)(TAOS *taos, __taos_async_datetime_accesslist_fn_t fp, void *param);
 
 extern int (*fp_taos_set_conn_mode)(TAOS *taos, int mode, int value);
 
