@@ -64,7 +64,7 @@ static bool validatePassword(const char* passwd) { return stringLengthCheck(pass
 
 static bool validateDbName(const char* db) { return stringLengthCheck(db, TSDB_DB_NAME_LEN - 1); }
 
-static char* getClusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
+static char* getlusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
   char key[512] = {0};
   (void)snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
   return taosStrdup(key);
@@ -3215,6 +3215,10 @@ int32_t connCheckAndUpateMetric(int32_t connId) {
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:
+  if (code != 0) {
+    tscError("conn:0x%" PRIx64 ", check and update metric failed at line:%d, code:%s", connId, lino,
+             tstrerror(code)); 
+  }
 
   releaseTscObj(connId);
   return code;

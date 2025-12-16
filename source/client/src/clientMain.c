@@ -2816,10 +2816,7 @@ int32_t taos_connect_is_alive(TAOS *taos) {
     return terrno;
   }
 
-  code = sessMgtCheckUser(pObj->user, SESSION_CONN_TIME);
-  TAOS_CHECK_GOTO(code, &lino, _error);
-
-  code = sessMgtCheckUser(pObj->user, SESSION_CONN_IDLE_TIME);
+  code = sessMgtCheckConnStatus(pObj->user, &pObj->sessInfo);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:
