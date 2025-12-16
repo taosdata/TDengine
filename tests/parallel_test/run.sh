@@ -241,12 +241,20 @@ function run_thread() {
     else
         task_files=("$normal_task_file")
     fi
+    high_task_lock_file=$log_dir/$$.high.task.lock
+    normal_task_lock_file=$log_dir/$$.normal.task.lock
 
     # script="echo"
     for tf in "${task_files[@]}"; do
+        local task_lock_file
+        if [ "$tf" = "$high_task_file" ]; then
+            task_lock_file="$high_task_lock_file"
+        else
+            task_lock_file="$normal_task_lock_file"
+        fi
         while true; do
             local line
-            line=$(flock -x "$lock_file" -c "head -n1 $tf;sed -i \"1d\" $tf")
+            line=$(flock -x "$task_lock_file" -c "head -n1 $tf;sed -i \"1d\" $tf")
             if [ "x$line" = "x%%FINISHED%%" ]; then
                 # echo "$index . $thread_no EXIT"
                 break
