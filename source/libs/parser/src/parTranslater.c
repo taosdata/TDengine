@@ -4421,9 +4421,11 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     }
   }
   if ((isSingleTable) &&
-      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) ||
-       isTbnameFuction(*pNode))) {
+      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
     return rewriteExprToSelectTagFunc(pCxt, pNode);
+  }
+  if (isSingleTable && isTbnameFuction(*pNode)) {
+    return rewriteExprToGroupKeyFunc(pCxt, pNode);
   }
 
   SNode* pPartKey = NULL;

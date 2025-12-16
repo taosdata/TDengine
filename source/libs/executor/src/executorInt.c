@@ -650,12 +650,6 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
     } else {
     }
 
-    // group key/const value/id functions do not affect the numOfRows of final result
-    if (fmIsGroupKeyFunc(pCtx[j].functionId) || fmisSelectGroupConstValueFunc(pCtx[j].functionId) ||
-        fmIsGroupIdFunc(pCtx[j].functionId)) {
-      continue;
-    }
-
     if (pRow->numOfRows < pResInfo->numOfRes) {
       pRow->numOfRows = pResInfo->numOfRes;
     }
