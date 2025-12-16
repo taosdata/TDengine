@@ -1988,6 +1988,14 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     }
     gStatus.serviceExpireSec = grantClusterEpoch;
 
+#ifdef GRANT_DNODES
+    gStatus.limitDnodes = atoi(GRANT_DNODES);
+#endif
+
+#ifdef GRANT_TIMESERIES
+    gStatus.limitTimeSeries = atoll(GRANT_TIMESERIES);
+#endif
+
     // optional items
     int64_t optExpireSec =
         revoked ? TMIN(gStatus.revokedExpireSec, (int64_t)gStatus.basicExpireSec) : gStatus.basicExpireSec;

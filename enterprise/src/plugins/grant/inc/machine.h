@@ -209,6 +209,18 @@ extern "C" {
 
 #ifndef GRANTS_CFG
 
+// TDengine grant items
+
+#ifdef GRANT_DNODES
+#undef GRANT_UNIQ_DFT_BASIC_DNODES
+#define GRANT_UNIQ_DFT_BASIC_DNODES atoi(GRANT_DNODES)
+#endif
+
+#ifdef GRANT_TIMESERIES
+#undef GRANT_UNIQ_DFT_BASIC_TIMESERIES
+#define GRANT_UNIQ_DFT_BASIC_TIMESERIES atoll(GRANT_TIMESERIES)
+#endif
+
 // DataIn specific grant items
 #ifdef GRANT_DATAIN_EXPIRE
 #undef GRANT_UNIQ_DFT_DATAIN_EXPIRE
