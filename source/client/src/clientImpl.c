@@ -64,7 +64,7 @@ static bool validatePassword(const char* passwd) { return stringLengthCheck(pass
 
 static bool validateDbName(const char* db) { return stringLengthCheck(db, TSDB_DB_NAME_LEN - 1); }
 
-static char* getlusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
+static char* getClusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
   char key[512] = {0};
   (void)snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
   return taosStrdup(key);
@@ -208,14 +208,6 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
     tscInfo("ep:%d, %s:%u", i, epSet.epSet.eps[i].fqdn, epSet.epSet.eps[i].port);
   }
-  // for (int32_t i = 0; i < epSet.epSet.numOfEps; i++) {
-  //   if ((code = taosValidFqdn(tsEnableIpv6, epSet.epSet.eps[i].fqdn)) != 0) {
-  //     taosMemFree(key);
-  //     tscError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6,
-  //              epSet.epSet.eps[i].fqdn, tstrerror(code));
-  //     TSC_ERR_RET(code);
-  //   }
-  // }
 
   SAppInstInfo** pInst = NULL;
   code = taosThreadMutexLock(&appInfo.mutex);
