@@ -5,7 +5,9 @@ from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
 class TestScalarSubQuery4:
-    updatecfgDict = {'debugFlag': 131, 'asynclog': 1, 'qdebugflag': 131, 'cdebugflag': 131}
+    updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    updatecfgDict["clientCfg"] = clientCfgDict
     caseName = "test_scalar_sub_query4"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
