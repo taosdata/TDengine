@@ -43,7 +43,7 @@ static int32_t sessConnTimeCheckFn(int64_t value, int64_t limit) {
     return code;
   }
   int64_t currentTime = taosGetTimestampMs();
-  if ((value + limit) < currentTime) {
+  if ((value + limit * 1000) < currentTime) {
     code = TSDB_CODE_TSC_SESS_CONN_TIMEOUT;
   }
 
@@ -62,7 +62,7 @@ static int32_t sessConnIdleTimeCheckFn(int64_t value, int64_t limit) {
     return 0;
   }
   int64_t currentTime = taosGetTimestampMs();
-  if ((value + limit) < currentTime) {
+  if ((value + limit * 1000) < currentTime) {
     code = TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT;
   }
   return code;

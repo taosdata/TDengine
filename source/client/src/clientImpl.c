@@ -3198,6 +3198,7 @@ int32_t connCheckAndUpateMetric(int32_t connId) {
     code = TSDB_CODE_INVALID_PARA;
     return code;
   }
+
   code = sessMgtCheckConnStatus(pTscObj->user, &pTscObj->sessInfo);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
