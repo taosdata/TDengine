@@ -40,8 +40,8 @@ typedef struct STimeSliceOperatorInfo {
   SColumn              tsCol;         // primary timestamp column
   SExprSupp            scalarSup;     // scalar calculation
   struct SFillColInfo* pFillColInfo;  // fill column info
-  SRowKey              prevKey;
-  bool                 prevTsSet;
+  SRowKey              prevKey;       // to detect invalid timestamps
+  bool                 prevTsSet;     // denote if previous timestamp is set, todo(remove)
   uint64_t             groupId;
   SArray*              pPrevGroupKeys;
   SSDataBlock*         pNextGroupRes;
@@ -216,9 +216,13 @@ static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t r
   }
 }
 
-// only the timestamp is needed to complete the duplicated timestamp check.
-static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumnInfoData* pTsCol,
-                                     SColumnInfoData* pPkCol, int32_t curIndex, int32_t rows) {
+/*
+  Timestamp is invalid if current timestamp <= previous timestamp.
+  Only timestamp is considered even if composite primary key exists.
+*/
+static bool checkInvalidTimestamps(STimeSliceOperatorInfo* pSliceInfo,
+                                   SColumnInfoData* pTsCol,
+                                   SColumnInfoData* pPkCol, int32_t curIndex) {
   int64_t currentTs = *(int64_t*)colDataGetData(pTsCol, curIndex);
   if (currentTs > pSliceInfo->win.ekey) {
     return false;
@@ -230,12 +234,13 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
     if (IS_VAR_DATA_TYPE(pPkCol->info.type)) {
       cur.pks[0].pData = (uint8_t*)colDataGetVarData(pPkCol, curIndex);
     } else {
-      valueSetDatum(cur.pks, pPkCol->info.type, colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
+      valueSetDatum(cur.pks, pPkCol->info.type,
+                    colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
     }
   }
 
-  // let's discard the duplicated ts
-  if ((pSliceInfo->prevTsSet == true) && (currentTs == pSliceInfo->prevKey.ts)) {
+  // let's discard the invalid ts
+  if (pSliceInfo->prevTsSet && currentTs <= pSliceInfo->prevKey.ts) {
     return true;
   }
 
@@ -893,15 +898,23 @@ static int32_t timeSliceOptrNotifyDownstream(SOperatorInfo* pDownOptr) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock,
-                            SExecTaskInfo* pTaskInfo, bool ignoreNull) {
+static int64_t getNextTimestamp(int64_t current, SInterval* pInterval) {
+  return taosTimeAdd(current, pInterval->interval,
+                     pInterval->intervalUnit, pInterval->precision, NULL);
+}
+
+static void doTimesliceImpl(SOperatorInfo* pOperator,
+                            STimeSliceOperatorInfo* pSliceInfo,
+                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
+                            bool ignoreNull) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
   bool         notified = false;
 
-  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock,
+                                         pSliceInfo->tsCol.slotId);
   SColumnInfoData* pPkCol = NULL;
 
   if (pSliceInfo->hasPk) {
@@ -912,8 +925,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
   for (; i < pBlock->info.rows; ++i) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
-    // check for duplicate timestamps
-    if (checkDuplicateTimestamps(pSliceInfo, pTsCol, pPkCol, i, pBlock->info.rows)) {
+    if (checkInvalidTimestamps(pSliceInfo, pTsCol, pPkCol, i)) {
       continue;
     }
 
@@ -932,78 +944,49 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
     }
 
     if (ts == pSliceInfo->current) {
-      code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i);
+      code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp,
+                                   pResBlock, pBlock, i);
       QUERY_CHECK_CODE(code, lino, _end);
 
       doKeepPrevRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
 
-      pSliceInfo->current =
-          taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
-
+      pSliceInfo->current = getNextTimestamp(pSliceInfo->current, pInterval);
       if (checkWindowBoundReached(pSliceInfo)) {
         break;
       }
-
       if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         saveBlockStatus(pSliceInfo, pBlock, i);
         return;
       }
     } else if (ts < pSliceInfo->current) {
-      // in case of interpolation window starts and ends between two datapoints, fill(prev) need to interpolate
       doKeepPrevRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
-
-      if (i < pBlock->info.rows - 1) {
-        // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
-        doKeepNextRows(pSliceInfo, pBlock, i + 1);
-        int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
-        if (nextTs > pSliceInfo->current) {
-          while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-            if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, false, pTaskInfo) &&
-                pSliceInfo->fillType == TSDB_FILL_LINEAR) {
-              break;
-            } else {
-              pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
-                                                pInterval->precision, NULL);
-            }
-          }
-
-          if (checkWindowBoundReached(pSliceInfo)) {
-            break;
-          }
-          if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-            saveBlockStatus(pSliceInfo, pBlock, i);
-            return;
-          }
-        } else {
-          // ignore current row, and do nothing
-        }
-      } else {  // it is the last row of current block
-        doKeepPrevRows(pSliceInfo, pBlock, i);
-      }
-    } else {  // ts > pSliceInfo->current
-      // in case of interpolation window starts and ends between two datapoints, fill(next) need to interpolate
+    } else {  /* ts > pSliceInfo->current */
       doKeepNextRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
 
-      while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
-        if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i, true, pTaskInfo) &&
+      while (pSliceInfo->current < ts &&
+             pSliceInfo->current <= pSliceInfo->win.ekey) {
+        if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp,
+                                    pResBlock, pBlock, i, true, pTaskInfo) &&
             pSliceInfo->fillType == TSDB_FILL_LINEAR) {
           break;
         } else {
-          pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
-                                            pInterval->precision, NULL);
+          pSliceInfo->current = getNextTimestamp(pSliceInfo->current,
+                                                 pInterval);
         }
       }
 
+
       // add current row if timestamp match
-      if (ts == pSliceInfo->current && pSliceInfo->current <= pSliceInfo->win.ekey) {
-        code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp, pResBlock, pBlock, i);
+      if (ts == pSliceInfo->current &&
+          pSliceInfo->current <= pSliceInfo->win.ekey) {
+        code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp,
+                                     pResBlock, pBlock, i);
         QUERY_CHECK_CODE(code, lino, _end);
 
-        pSliceInfo->current =
-            taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
+        pSliceInfo->current = getNextTimestamp(pSliceInfo->current, pInterval);
       }
       doKeepPrevRows(pSliceInfo, pBlock, i);
 

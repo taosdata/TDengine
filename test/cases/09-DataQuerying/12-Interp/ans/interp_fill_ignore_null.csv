@@ -86,10 +86,6 @@ taos> select _irowts, _isfilled, interp(c1, 1) from test.ntb range("2025-12-12 1
 taos> select _irowts, _isfilled, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(prev);
          _irowts         | _isfilled | interp(c1, 1) |
 ======================================================
- 2025-12-12 12:04:00.000 | true      |             1 |
- 2025-12-12 12:05:00.000 | true      |             1 |
- 2025-12-12 12:06:00.000 | true      |             1 |
- 2025-12-12 12:07:00.000 | true      |             1 |
  2025-12-12 12:08:00.000 | false     |             2 |
  2025-12-12 12:09:00.000 | true      |             2 |
 
@@ -106,10 +102,6 @@ taos> select _irowts, _isfilled, interp(c1, 1) from test.ntb range("2025-12-12 1
 taos> select _irowts, _isfilled, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
          _irowts         | _isfilled | interp(c1, 1) |
 ======================================================
- 2025-12-12 12:04:00.000 | true      |             1 |
- 2025-12-12 12:05:00.000 | true      |             1 |
- 2025-12-12 12:06:00.000 | true      |             1 |
- 2025-12-12 12:07:00.000 | true      |             1 |
  2025-12-12 12:08:00.000 | false     |             2 |
  2025-12-12 12:09:00.000 | true      |             2 |
 
