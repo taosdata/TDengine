@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "parser.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
@@ -2011,7 +2012,8 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   int32_t retryCnt = 0;
-  while ((code = syncAskEp(tmq)) != 0) {
+  while (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__INIT ) {
+    code = syncAskEp(tmq);
     if (retryCnt++ > SUBSCRIBE_RETRY_MAX_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
       tqErrorC("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes, code:%s",
                tmq->consumerId, tstrerror(code));
