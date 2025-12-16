@@ -495,13 +495,18 @@ static int32_t mndDropView(SMnode *pMnode, SRpcMsg *pReq, SViewObj *pView) {
   return 0;
 }
 
-
-static void mndLogCreateViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMCreateViewReq* pCreateViewReq) {
-  auditRecord(pReq, pMnode->clusterId, "createView", pCreateViewReq->dbFName, pCreateViewReq->name, pCreateViewReq->sql, strlen(pCreateViewReq->sql));
+static void mndLogCreateViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMCreateViewReq *pCreateViewReq, double duration) {
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    auditRecord(pReq, pMnode->clusterId, "createView", pCreateViewReq->dbFName, pCreateViewReq->name,
+                pCreateViewReq->sql, strlen(pCreateViewReq->sql), duration, 0);
+  }
 }
 
-static void mndLogDropViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMDropViewReq* pDropViewReq) {
-  auditRecord(pReq, pMnode->clusterId, "dropView", pDropViewReq->dbFName, pDropViewReq->name, pDropViewReq->sql, strlen(pDropViewReq->sql));
+static void mndLogDropViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMDropViewReq *pDropViewReq, double duration) {
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    auditRecord(pReq, pMnode->clusterId, "dropView", pDropViewReq->dbFName, pDropViewReq->name, pDropViewReq->sql,
+                strlen(pDropViewReq->sql), duration, 0);
+  }
 }
 
 static int32_t dumpViewMetaRspFromView(SViewMetaRsp *pRsp, SViewObj* pView) {
@@ -540,6 +545,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
   SViewObj  newObj = {0};
   SDbObj   *pDb = NULL;
   char* dbFName = pCreateView->dbFName;
+  int64_t   tss = taosGetTimestampMs();
 
   if ((terrno = grantCheck(TSDB_GRANT_VIEW)) != 0) {
     code = terrno;
@@ -588,7 +594,10 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  mndLogCreateViewAudit(pReq, pMnode, pCreateView);
+  int64_t tse = taosGetTimestampMs();
+  double  duration = (double)(tse - tss);
+  duration = duration / 1000;
+  mndLogCreateViewAudit(pReq, pMnode, pCreateView, duration);
 
 _OVER:
 
@@ -606,6 +615,7 @@ _OVER:
 int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   int32_t     code = -1;
+  int64_t     tss = taosGetTimestampMs();
   SViewObj   *pView = mndAcquireView(pMnode, pDropView->fullname);
 
   if (pView == NULL) {
@@ -632,7 +642,10 @@ int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  mndLogDropViewAudit(pReq, pMnode, pDropView);
+  int64_t tse = taosGetTimestampMs();
+  double  duration = (double)(tse - tss);
+  duration = duration / 1000;
+  mndLogDropViewAudit(pReq, pMnode, pDropView, duration);
 
 _OVER:
 

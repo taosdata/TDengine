@@ -268,6 +268,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
   SCompactDbReq compactReq = {0};
+  int64_t       tss = taosGetTimestampMs();
 
   if (tDeserializeSCompactDbReq(pReq->pCont, pReq->contLen, &compactReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -294,11 +295,15 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
                       compactReq.force, TSDB_OPTR_NORMAL, TSDB_TRIGGER_MANUAL);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName name = {0};
-  (void)tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    SName name = {0};
+    (void)tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", compactReq.sql, compactReq.sqlLen);
-
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", compactReq.sql, compactReq.sqlLen, duration, 0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process compact db req since %s", compactReq.db, tstrerror(code));

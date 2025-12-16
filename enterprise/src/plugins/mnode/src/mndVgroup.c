@@ -43,6 +43,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   STrans *pTrans = NULL;
 
   SBalanceVgroupLeaderReq req = {0};
+  int64_t                 tss = taosGetTimestampMs();
   if (tDeserializeSBalanceVgroupLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     return code;
@@ -111,8 +112,12 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
   code = 0;
 
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", req.sql, req.sqlLen);
-
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", req.sql, req.sqlLen, duration, 0);
+  }
 _OVER:
   mndTransDrop(pTrans);
   tFreeSBalanceVgroupLeaderReq(&req);

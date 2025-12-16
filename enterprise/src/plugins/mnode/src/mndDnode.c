@@ -195,6 +195,7 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) {
   SQnodeObj       *pQObj = NULL;
   SSnodeObj       *pSObj = NULL;
   SRestoreDnodeReq restoreReq = {0};
+  int64_t          tss = taosGetTimestampMs();
 
   if (tDeserializeSRestoreDnodeReq(pReq->pCont, pReq->contLen, &restoreReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -240,10 +241,15 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) {
   code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[32] = {0};
-  sprintf(obj, "%d", restoreReq.dnodeId);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[32] = {0};
+    snprintf(obj, 32, "%d", restoreReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "restore", "", obj, restoreReq.sql, restoreReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "restore", "", obj, restoreReq.sql, restoreReq.sqlLen, duration, 0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to restore, restoreType:%d,  since %s", restoreReq.dnodeId, restoreReq.restoreType,
