@@ -55,21 +55,23 @@ class TestInsertNullNone:
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1))) 
 
         # insert data
+        sql = "insert into "        
         for i in range(num_random):   
             for j in range(n):         
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) '''\
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i)
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) '''\
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
            
         tdSql.query("select count(*) from %s.stable_1;" %database)
         tdSql.checkData(0,0,num_random*n)
@@ -81,392 +83,415 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into " 
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += '''  %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i)
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += '''  %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qint_null(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i)
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qint_none_null(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+    
     def qint_none_value(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+
     def qint_null_value(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qint_none_null_value(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %s, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 'NULL', 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbigint_none(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qbigint_null(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 'NULL', 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 'NULL', 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbigint_none_null(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 'NULL', 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),'NULL',  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
     def qbigint_none_value(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+        
     def qbigint_null_value(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),'NULL',  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),'NULL',  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbigint_none_null_value(self,database,n):
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),'NULL',  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %s, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),'NULL',  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qsmallint_none(self,database,n):
         tdLog.info("qsmallint_none")
@@ -474,21 +499,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qsmallint_null(self,database,n):
         tdLog.info("qsmallint_null")
@@ -496,21 +523,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL',  fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL',  fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qsmallint_none_null(self,database,n):
         tdLog.info("qsmallint_none_null")
@@ -518,35 +547,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , 'NULL', fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL',   fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qsmallint_none_value(self,database,n):
         tdLog.info("qsmallint_none_value")
@@ -554,71 +585,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+
     def qsmallint_null_value(self,database,n):
         tdLog.info("qsmallint_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL',   fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL', fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qsmallint_none_null_value(self,database,n):
         tdLog.info("qsmallint_none_null_value")
@@ -626,49 +661,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , 'NULL', fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %s, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL',  fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qtinyint_none(self,database,n):
         tdLog.info("qtinyint_none")
@@ -676,21 +713,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qtinyint_null(self,database,n):
         tdLog.info("qtinyint_null")
@@ -698,21 +737,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 'NULL', 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 'NULL', 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qtinyint_none_null(self,database,n):
         tdLog.info("qtinyint_none_null")
@@ -720,35 +761,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,  'NULL',
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , 'NULL', 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qtinyint_none_value(self,database,n):
         tdLog.info("qtinyint_none_value")
@@ -756,71 +799,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+     
     def qtinyint_null_value(self,database,n):
         tdLog.info("qtinyint_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , 'NULL', 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 'NULL',
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qtinyint_none_null_value(self,database,n):
         tdLog.info("qtinyint_none_null_value")
@@ -828,49 +875,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , 'NULL',
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %s, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 'NULL', 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qfloat_none(self,database,n):
         tdLog.info("qfloat_none")
@@ -878,21 +927,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qfloat_null(self,database,n):
         tdLog.info("qfloat_null")
@@ -900,21 +951,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL', 
-                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,fake.random_int(min=-127, max=127, step=1) , 'NULL', 
-                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qfloat_none_null(self,database,n):
         tdLog.info("qfloat_none_null")
@@ -922,35 +975,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,  fake.random_int(min=-127, max=127, step=1) ,'NULL',
-                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL', 
-                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qfloat_none_value(self,database,n):
         tdLog.info("qfloat_none_value")
@@ -958,71 +1013,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+
     def qfloat_null_value(self,database,n):
         tdLog.info("qfloat_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL', 
-                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL',
-                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qfloat_none_null_value(self,database,n):
         tdLog.info("qfloat_none_null_value")
@@ -1030,49 +1089,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL',
-                            fake.pyfloat() ,  fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() ,  fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %s, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL', 
-                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qdouble_none(self,database,n):
         tdLog.info("qdouble_none")
@@ -1080,21 +1141,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qdouble_null(self,database,n):
         tdLog.info("qdouble_null")
@@ -1102,21 +1165,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qdouble_none_null(self,database,n):
         tdLog.info("qdouble_none_null")
@@ -1124,35 +1189,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,  fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,'NULL',  fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() ,'NULL',  fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,'NULL' , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() ,'NULL' , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qdouble_none_value(self,database,n):
         tdLog.info("qdouble_none_value")
@@ -1160,71 +1227,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+        
     def qdouble_null_value(self,database,n):
         tdLog.info("qdouble_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1), 
-                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1),
-                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qdouble_none_null_value(self,database,n):
         tdLog.info("qdouble_none_null_value")
@@ -1232,49 +1303,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,'NULL',  fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() ,'NULL',  fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbinary_none(self,database,n):
         tdLog.info("qbinary_none")
@@ -1282,21 +1355,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qbinary_null(self,database,n):
         tdLog.info("qbinary_null")
@@ -1304,21 +1379,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float  , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float  , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %s, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %s, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbinary_none_null(self,database,n):
         tdLog.info("qbinary_none_null")
@@ -1326,35 +1403,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,  fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbinary_none_value(self,database,n):
         tdLog.info("qbinary_none_value")
@@ -1362,71 +1441,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+ 
     def qbinary_null_value(self,database,n):
         tdLog.info("qbinary_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() ,'NULL', fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , ts + i ))
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbinary_none_null_value(self,database,n):
         tdLog.info("qbinary_none_null_value")
@@ -1434,49 +1517,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() , fake.pyfloat() ,'NULL' , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() ,'NULL' , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, %s, 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat(), 'NULL' , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat(), 'NULL' , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qnchar_none(self,database,n):
         tdLog.info("qnchar_none")
@@ -1484,21 +1569,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qnchar_null(self,database,n):
         tdLog.info("qnchar_null")
@@ -1506,21 +1593,22 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
+        sql = "insert into "
         for i in range(num_random):   
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float  , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float  , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL', ts + i))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL', ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL', ts + i ))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL', ts + i )
 
     def qnchar_none_null(self,database,n):
         tdLog.info("qnchar_none_null")
@@ -1528,35 +1616,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,  fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() ,'NULL', ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() ,'NULL', ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s,  %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() ,'NULL', ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() ,'NULL', ts + i )
+        tdSql.execute(sql)
 
     def qnchar_none_value(self,database,n):
         tdLog.info("qnchar_none_value")
@@ -1564,71 +1654,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary ,q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary ,q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)   
+
     def qnchar_null_value(self,database,n):
         tdLog.info("qnchar_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s, %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s',%s, %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL', ts + i))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL', ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s',%s, %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s',%s, %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,fake.pyfloat() ,fake.pystr() ,'NULL',  ts + i ))
+                            fake.pyfloat() ,fake.pyfloat() ,fake.pystr() ,'NULL',  ts + i )
+        tdSql.execute(sql)
 
     def qnchar_none_null_value(self,database,n):
         tdLog.info("qnchar_none_null_value")
@@ -1636,49 +1730,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary , q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary , q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary , q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary , q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', %s , %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', %s , %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL' , ts + i))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() , 'NULL' , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', %s , %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', %s , %d) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat(), fake.pystr() , 'NULL' , ts + i ))
+                            fake.pyfloat() , fake.pyfloat(), fake.pystr() , 'NULL' , ts + i )
+        tdSql.execute(sql)
 
     def qts_none(self,database,n):
         tdLog.info("qts_none")
@@ -1686,21 +1782,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_nchar)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_nchar)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr()))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_nchar) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_nchar) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr()))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
+        tdSql.execute(sql)
     
     def qts_null(self,database,n):
         tdLog.info("qts_null")
@@ -1708,21 +1806,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float  , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float  , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr(),fake.pystr() , 'NULL'))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr(),fake.pystr() , 'NULL')
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr(),fake.pystr() , 'NULL' ))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr(),fake.pystr() , 'NULL')
+        tdSql.execute(sql)
 
     def qts_none_null(self,database,n):
         tdLog.info("qts_none_null")
@@ -1730,35 +1830,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_nchar)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_nchar)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr()))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_nchar) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_nchar) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr()))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,  fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr()  , fake.pystr(),'NULL'))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr()  , fake.pystr(),'NULL')
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s',  %s) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr()  , fake.pystr(),'NULL' ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr()  , fake.pystr(),'NULL')
+        tdSql.execute(sql)
 
     def qts_none_value(self,database,n):
         tdLog.info("qts_none_value")
@@ -1766,71 +1868,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_nchar)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary, q_nchar)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr()))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_nchar) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary, q_nchar) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr()))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+
     def qts_null_value(self,database,n):
         tdLog.info("qts_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s','nchar.%s', %s) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s','nchar.%s', %s) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() ,fake.pystr(), 'NULL'))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() ,fake.pystr(), 'NULL')
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s','nchar.%s', %s) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s','nchar.%s', %s) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,fake.pyfloat() ,fake.pystr() ,fake.pystr(),'NULL' ))
+                            fake.pyfloat() ,fake.pyfloat() ,fake.pystr() ,fake.pystr(),'NULL')
+        tdSql.execute(sql)
 
     def qts_none_null_value(self,database,n):
         tdLog.info("qts_none_null_value")
@@ -1838,49 +1944,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary , q_nchar)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_bool  , q_binary , q_nchar)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr()))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary , q_nchar) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool  , q_binary , q_nchar) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s') ''' \
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr())
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', 'nchar.%s' , %s) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', 'nchar.%s' , %s) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() ,fake.pystr() , 'NULL' ))
+                            fake.pyfloat() , fake.pyfloat() ,fake.pystr() ,fake.pystr() , 'NULL')
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', 'nchar.%s' , %s) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0,  'binary.%s', 'nchar.%s' , %s) ''' \
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat(), fake.pystr() ,fake.pystr() , 'NULL' ))
+                            fake.pyfloat() , fake.pyfloat(), fake.pystr() ,fake.pystr() , 'NULL')
+        tdSql.execute(sql)
 
     def qbool_none(self,database,n):
         tdLog.info("qbool_none")
@@ -1888,21 +1996,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 1,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +1, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
     
     def qbool_null(self,database,n):
         tdLog.info("qbool_null")
@@ -1910,21 +2020,23 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +2, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
 
     def qbool_none_null(self,database,n):
         tdLog.info("qbool_none_null")
@@ -1932,35 +2044,37 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 3,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +3, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) ,  fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +4, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i  ))
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i)
+        tdSql.execute(sql)
 
     def qbool_none_value(self,database,n):
         tdLog.info("qbool_none_value")
@@ -1968,71 +2082,75 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d);''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) '''\
                             % (database,i,ts + i*1000 + j + 5,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +5, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)
+     
     def qbool_null_value(self,database,n):
         tdLog.info("qbool_null_value")       
         ts = 1630000000000
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %d, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat(), fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j + 6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1), 
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j +6, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1),
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i  ))
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
+        tdSql.execute(sql)                         
 
     def qbool_none_null_value(self,database,n):
         tdLog.info("qbool_none_null_value")
@@ -2040,49 +2158,51 @@ class TestInsertNullNone:
         num_random = 10
         fake = Faker('zh_CN')
         # insert data
-        for i in range(num_random):   
+        sql = "insert into "
+        for i in range(num_random):    
             for j in range(n):                    
-                tdSql.execute('''insert into %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d)  ;''' 
+                sql += ''' %s.stable_1_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d)  '''\
                             % (database,i,ts + i*1000 + j + 7,  
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d)  ;''' 
+                sql += ''' %s.table_%d  (ts  , q_int , q_bigint , q_smallint , q_tinyint , q_float, q_double , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 'binary.%s', 'nchar.%s', %d)  '''\
                             % (database,i,ts + i*1000 + j +7, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat()  , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i ))
+                            fake.random_int(min=-127, max=127, step=1) , fake.pyfloat()  , fake.pyfloat(), fake.pystr() , fake.pystr() , ts + i )
                
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts)\
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ''' \
                             % (database,i,ts + i*1000 + j, fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i )
                       
-                tdSql.execute('''insert into %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d );''' 
+                sql += ''' %s.stable_1_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d ) '''\
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,  fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
-                            fake.pyfloat(),fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
+                            fake.pyfloat(),fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i )
 
-                tdSql.execute('''insert into %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
-                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d );''' 
+                sql += ''' %s.table_%d  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) \
+                            values(%d, %d, %d, %d, %d, %f, %f, %s, 'binary.%s', 'nchar.%s', %d ) '''\
                             % (database,i,ts + i*1000 + j + 8, 
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
-                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i  ))                
+                            fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i)              
+        tdSql.execute(sql)
                                                                                                                                                                                                                                                                  
     def sqls(self,database):    
         sql = "select * from %s.stable_1 ;" %database
@@ -2128,7 +2248,7 @@ class TestInsertNullNone:
         self.constant_check(sql1,sql12)
         
     def check_flushdb(self,database):
-        self.sqls(database);
+        self.sqls(database)
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database);      
