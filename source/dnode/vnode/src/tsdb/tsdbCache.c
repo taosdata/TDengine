@@ -859,6 +859,8 @@ static int32_t tsdbCacheReallocSLastCol(SLastCol *pCol, size_t *pCharge) {
       if (!p) TAOS_CHECK_EXIT(terrno);
       (void)memcpy(p, pCol->colVal.value.pData, pCol->colVal.value.nData);
       pCol->colVal.value.pData = p;
+    }else {
+      pCol->colVal.value.pData = NULL;
     }
     charge += pCol->colVal.value.nData;
   }
