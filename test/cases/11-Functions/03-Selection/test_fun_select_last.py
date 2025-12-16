@@ -2018,7 +2018,7 @@ class TestFunLast:
         tdSql.execute("insert into tr1 values(now,null);")
         tdSql.execute("insert into tr2 values(now,null);")
         tdSql.query("select distinct site,zone,tracker,last(reg_firmware_rev) from trackers where ts > now() -1h and site='MI-01' partition by site;")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
     def run_td32051(self):
         tdSql.execute("use db32051;")
