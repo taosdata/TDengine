@@ -75,7 +75,7 @@ static tb_uid_t processSuid(tb_uid_t suid, char* db) {
   return suid + MurmurHash3_32(db, strlen(db));
 }
 static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, SExtSchema* pExtSchemas, char* name, int64_t id, int8_t t,
-                                 SColCmprWrapper* pColCmprRow, cJSON** pJson) {
+                                 bool isVirtual, SColCmprWrapper* pColCmprRow, cJSON** pJson) {
   if (schemaRow == NULL || name == NULL || pColCmprRow == NULL || pJson == NULL) {
     uError("invalid parameter, schemaRow:%p, name:%p, pColCmprRow:%p, pJson:%p", schemaRow, name, pColCmprRow, pJson);
     return;
@@ -96,6 +96,9 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
   cJSON* tableType = cJSON_CreateString(t == TSDB_NORMAL_TABLE ? "normal" : "super");
   RAW_NULL_CHECK(tableType);
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableType", tableType));
+  cJSON* virtual = cJSON_CreateBool(isVirtual);
+  RAW_NULL_CHECK(virtual);
+  RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "isVirtual", virtual));
   cJSON* tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
@@ -431,7 +434,7 @@ static void processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
     goto end;
   }
-  buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.pExtSchemas, req.name, req.suid, TSDB_SUPER_TABLE, &req.colCmpr, pJson);
+  buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.pExtSchemas, req.name, req.suid, TSDB_SUPER_TABLE, req.virtualStb, &req.colCmpr, pJson);
 
 end:
   uDebug("create stable return");
@@ -626,7 +629,7 @@ static void processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       buildCreateCTableJson(req.pReqs, req.nReqs, pJson);
     } else if (pCreateReq->type == TSDB_NORMAL_TABLE) {
-      buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE,
+      buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE, false,
                            &pCreateReq->colCmpr, pJson);
     }
   }
@@ -675,7 +678,7 @@ static void processAutoCreateTable(SMqDataRsp* rsp, char** string) {
   }
   cJSON* pJson = NULL;
   if (pCreateReq->type == TSDB_NORMAL_TABLE) {
-    buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE,
+    buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE, false,
                          &pCreateReq->colCmpr, &pJson);
   } else if (pCreateReq->type == TSDB_CHILD_TABLE) {
     buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson);
@@ -1127,6 +1130,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.suid = processSuid(req.suid, pRequest->pDb);
   pReq.source = TD_REQ_FROM_TAOX;
   pReq.igExists = true;
+  pReq.virtualStb = req.virtualStb;
 
   uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
          pReq.suid);
@@ -1353,7 +1357,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
 
     pCreateReq->flags |= TD_CREATE_IF_NOT_EXISTS;
     // change tag cid to new cid
-    if (pCreateReq->type == TSDB_CHILD_TABLE) {
+    if (pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       STableMeta* pTableMeta = NULL;
       SName       sName = {0};
       tb_uid_t    oldSuid = pCreateReq->ctb.suid;
@@ -1371,6 +1375,11 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
       }
       pCreateReq->ctb.suid = pTableMeta->uid;
 
+      for (int32_t i = 0; i < pCreateReq->colRef.nCols; i++) {
+        SColRef* pColRef = pCreateReq->colRef.pColRef + i;
+        tstrncpy(pColRef->refDbName, pRequest->pDb, TSDB_DB_NAME_LEN);
+      }
+      
       SArray* pTagVals = NULL;
       code = tTagToValArray((STag*)pCreateReq->ctb.pTag, &pTagVals);
       if (code != TSDB_CODE_SUCCESS) {
