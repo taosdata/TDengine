@@ -14516,13 +14516,13 @@ int32_t tEncodeMqDataRspCommon(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->blockNum));
   if (pRsp->blockNum != 0) {
     TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pRsp->withTbName));
-    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 1));
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pRsp->withOutSchema));
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = *(int32_t *)taosArrayGet(pRsp->blockDataLen, i);
       void   *data = taosArrayGetP(pRsp->blockData, i);
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (const uint8_t *)data, bLen));
-      if (i < taosArrayGetSize(pRsp->blockSchema)){
+      if (!pRsp->withOutSchema){
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosArrayGetP(pRsp->blockSchema, i);
         TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pEncoder, pSW));
       }
@@ -14560,16 +14560,18 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRsp->withTbName));
-    int8_t dummy;
-    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &dummy));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRsp->withOutSchema));
     if (pRsp->withTbName) {
       if ((pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void *))) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
     }
-    if ((pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void *))) == NULL) {
-      TAOS_CHECK_EXIT(terrno);
+    if (!pRsp->withOutSchema) {
+      if ((pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void *))) == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
     }
+    
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       void    *data = NULL;
@@ -14585,19 +14587,20 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
         TAOS_CHECK_EXIT(terrno);
       }
 
-      SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
-      if (pSW == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
+      if (!pRsp->withOutSchema) {
+        SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+        if (pSW == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        if ((code = tDecodeSSchemaWrapper(pDecoder, pSW))) {
+          taosMemoryFree(pSW);
+          goto _exit;
+        }
 
-      if ((code = tDecodeSSchemaWrapper(pDecoder, pSW))) {
-        taosMemoryFree(pSW);
-        goto _exit;
-      }
-
-      if (taosArrayPush(pRsp->blockSchema, &pSW) == NULL) {
-        taosMemoryFree(pSW);
-        TAOS_CHECK_EXIT(terrno);
+        if (taosArrayPush(pRsp->blockSchema, &pSW) == NULL) {
+          taosMemoryFree(pSW);
+          TAOS_CHECK_EXIT(terrno);
+        }
       }
 
       if (pRsp->withTbName) {
