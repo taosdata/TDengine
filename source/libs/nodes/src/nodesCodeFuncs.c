@@ -4786,6 +4786,7 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
 static const char* jkPlanQueryId = "QueryId";
 static const char* jkPlanNumOfSubplans = "NumOfSubplans";
 static const char* jkPlanSubplans = "Subplan";
+static const char* jkPlanSubQueriesNum = "SubQueriesNum";
 static const char* jkPlanSubQueries = "SubQueries";
 
 static int32_t planToJson(const void* pObj, SJson* pJson) {
@@ -4799,13 +4800,12 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkPlanNumOfSubplans, pNode->numOfSubplans);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    FOREACH(pTmp, pNode->pSubplans) {
-      snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubplans, i);
-      code = tjsonAddObject(pJson, tmpBuf, nodeToJson, pTmp);
-      ++i;
-    }
+    code = tjsonAddObject(pJson, jkPlanSubplans, nodeToJson, nodesListGetNode(pNode->pSubplans, 0));
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pNode->pChildren) {
+    code = tjsonAddIntegerToObject(pJson, jkPlanSubQueriesNum, pNode->pChildren->length);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pChildren) {
     i = 0;
     FOREACH(pTmp, pNode->pChildren) {
       snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubQueries, i);
@@ -4901,7 +4901,27 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
       nodesError("%s toNode error numOfSubplan %d != %d", nodesNodeName(pNode->type), numOfSubplan, pNode->numOfSubplans);
     }
   }
-
+  int32_t numOfSubQueries = 0;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkPlanSubQueriesNum, &numOfSubQueries);
+  }
+  if (TSDB_CODE_SUCCESS == code && numOfSubQueries > 0) {
+    char tmpBuf[64] = {0};
+    SNode* pPlan = NULL;
+    for (int32_t i = 0; i < numOfSubQueries; ++i) {
+      snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubQueries, i);
+      code = jsonToNodeObject(pJson, tmpBuf, (SNode**)&pPlan);
+      if (code) {
+        break;
+      }
+      code = nodesListMakeStrictAppend(&pNode->pChildren, pPlan);
+      if (code) {
+        nodesDestroyNode(pPlan);
+        break;
+      }
+    }
+  }
+  
   return code;
 }
 

@@ -317,6 +317,42 @@ taos> select case when 0 = 1 then 1 else (select 2 from st1 limit 1) is null end
                                                                 0 |                     6 |
                                                                 0 |                     2 |
 
+taos> select (select 0 from st1 limit 1) from information_schema.ins_tables limit 3;
+ (select 0 from st1 limit 1) |
+==============================
+                           0 |
+                           0 |
+                           0 |
+
+taos> select (select 1 from st1 limit 1) from information_schema.ins_tables limit 3;
+ (select 1 from st1 limit 1) |
+==============================
+                           1 |
+                           1 |
+                           1 |
+
+taos> select (select 2 from st1 limit 1) from information_schema.ins_tables limit 3;
+ (select 2 from st1 limit 1) |
+==============================
+                           2 |
+                           2 |
+                           2 |
+
+taos> select (select 0 from st1 limit 1) from vtb1;
+ (select 0 from st1 limit 1) |
+==============================
+                           0 |
+
+taos> select (select 1 from st1 limit 1) from vtb1;
+ (select 1 from st1 limit 1) |
+==============================
+                           1 |
+
+taos> select (select 2 from st1 limit 1) from vtb1;
+ (select 2 from st1 limit 1) |
+==============================
+                           2 |
+
 taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = (select 0 from st1 limit 1) order by 1;
 
 taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = (select 1 from st1 limit 1) order by 1;
@@ -842,6 +878,53 @@ taos> select f1 from st1 where (select 2 from st1 limit 1) > 0 and f1 > (select 
            4 |
            5 |
            6 |
+
+taos> select f1 from st1 where tg1 = (select 0 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where tg1 = (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from st1 where tg1 = (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           2 |
+           3 |
+
+
+taos> select f1 from st1 where tbname = (select 1 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where tbname = (select 2 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where ts >= (select 0 from st1 limit 1) and ts < (select 0 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where ts >= (select 1 from st1 limit 1) and ts < (select 1 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where ts >= (select 2 from st1 limit 1) and ts < (select 2 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where _c0 between (select 0 from st1 limit 1) and (select 0 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where _c0 between (select 1 from st1 limit 1) and (select 1 from st1 limit 1) order by 1;
+
+taos> select f1 from st1 where _c0 between (select 2 from st1 limit 1) and (select 2 from st1 limit 1) order by 1;
+
+taos> select table_name from information_schema.ins_tables where table_name = (select 1 from st1 limit 1) order by 1 limit 3;
+
+taos> select table_name from information_schema.ins_tables where table_name = (select 2 from st1 limit 1) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = (select 1 from st1 limit 1) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = (select 2 from st1 limit 1) order by 1 limit 3;
+
+taos> select * from vtb1 where f1 = (select 0 from st1 limit 1) order by 1;
+
+taos> select * from vtb1 where f1 = (select 1 from st1 limit 1) order by 1;
+           ts            |     f1      |
+========================================
+ 2025-12-01 00:00:00.000 |           1 |
+
+taos> select * from vtb1 where f1 = (select 2 from st1 limit 1) order by 1;
 
 taos> select f1 from st1 partition by (select 0 from st1 limit 1) order by 1;
      f1      |
@@ -2116,6 +2199,57 @@ QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 des
 QUERY_PLAN:                   Output: columns=1 width=8 limit=1
 *************************** 46.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from v2 where f1 > (select 0 from st1 limit 1) order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from v2 where f1 > (select 1 from st1 limit 1) order by 1;
+
+taos> select f1 from v2 where f1 > (select 2 from st1 limit 1) order by 1;
+
+taos> select f1 from v3 where f1 > (select 0 from st1 limit 1) order by 1;
+     f1      |
+==============
+           2 |
+
+taos> select f1 from v3 where f1 > (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           2 |
+
+taos> select f1 from v3 where f1 > (select 2 from st1 limit 1) order by 1;
+
+taos> select f1 from v4 where f1 > (select 0 from st1 limit 1) order by 1;
+     f1      |
+==============
+           4 |
+
+taos> select f1 from v4 where f1 > (select 1 from st1 limit 1) order by 1;
+     f1      |
+==============
+           4 |
+
+taos> select f1 from v4 where f1 > (select 2 from st1 limit 1) order by 1;
+     f1      |
+==============
+           4 |
 
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 partition by (select 1 from tb3 limit 1) into out1 as select * from tb3;
 

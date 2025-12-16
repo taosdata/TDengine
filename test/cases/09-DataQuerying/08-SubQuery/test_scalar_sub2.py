@@ -12,7 +12,7 @@ class TestScalarSubQuery2:
     fileIdx = 0
     funcIdx = 0
     saved_count = 0  # total number of queries saved so far
-    maxFileQueryNum = 10000  # max number of queries to save in a single file
+    maxFileQueryNum = 10000000  # max number of queries to save in a single file
     tableNames = ["tb1", "tb2", "tb3", "tba", "tbb", "tbe", "st1"]
     func_1_param = ["abs", "acos", "asin", "atan", "ceil", "cos", "degrees", "exp", "floor", "ln", "log", "radians", "round", "sign", "sin", "sqrt", "tan", "crc32", "date", "dayofweek", "weekday", "week", "weekofyear", "csum", "diff", "irate", "twa"]
     func_1c_param = ["ascii", "char_length", "length", "lower", "ltrim", "rtrim", "trim", "upper", "to_base64"]
@@ -99,6 +99,8 @@ class TestScalarSubQuery2:
         "select case when {scalarSql} > 0 then 1 else 2 end, sum(f1) from {tableName} group by f1",
         "select case when 1 = 1 then 2 / {scalarSql} else 2 end, sum(f1) from {tableName} group by f1",
         "select case when 0 = 1 then 1 else {scalarSql} is null end, sum(f1) from {tableName} group by f1",
+        "select {scalarSql} from information_schema.ins_tables limit 3",
+        "select {scalarSql} from vtb1",
 
         # from
         "select a.ts from {tableName} a join {tableName} b on a.ts = b.ts and a.f1 = {scalarSql} order by 1",
@@ -134,6 +136,13 @@ class TestScalarSubQuery2:
         "select f1 from {tableName} where f1 > {scalarSql} or f1 < {scalarSql} order by 1",
         "select f1 from {tableName} where f1 between {scalarSql} and {scalarSql} + 1 order by 1",
         "select f1 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql} order by 1",
+        "select f1 from {tableName} where tg1 = {scalarSql} order by 1",
+        "select f1 from {tableName} where tbname = {scalarSql} order by 1",
+        "select f1 from {tableName} where ts >= {scalarSql} and ts < {scalarSql} order by 1",
+        "select f1 from {tableName} where _c0 between {scalarSql} and {scalarSql} order by 1",
+        "select table_name from information_schema.ins_tables where table_name = {scalarSql} order by 1 limit 3",
+        "select * from information_schema.ins_tables where db_name = {scalarSql} order by 1 limit 3",
+        "select * from vtb1 where f1 = {scalarSql} order by 1",
 
         # partition
         "select f1 from {tableName} partition by {scalarSql} order by 1",
@@ -205,6 +214,12 @@ class TestScalarSubQuery2:
         "explain verbose true select f1 from {tableName} where f1 = {scalarSql}\G",
         "explain select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
         "explain verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
+
+        # view
+        "select f1 from {tableName} where f1 = (select * from v1) order by 1",
+        "select f1 from v2 where f1 > {scalarSql} order by 1",
+        "select f1 from v3 where f1 > {scalarSql} order by 1",
+        "select f1 from v4 where f1 > {scalarSql} order by 1",
     ]
 
 
@@ -287,6 +302,11 @@ class TestScalarSubQuery2:
             "INSERT INTO tb3 VALUES ('2025-12-03 00:00:00.000', 6, 33)",
             "INSERT INTO tba VALUES ('2025-12-01 00:00:00.000', 0)",
             "INSERT INTO tbb VALUES ('2025-12-02 00:00:00.000', 1)",
+            "create view v1 as select f1 from tb1",
+            "create view v2 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1)",
+            "create view v3 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1 offset 1)",
+            "create view v4 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1 offset 2)",
+            "create vtable vtb1 (ts timestamp, f1 int from tb1.f1)",
         ]
         tdSql.executes(sqls)
 
