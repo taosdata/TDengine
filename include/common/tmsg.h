@@ -429,20 +429,24 @@ typedef enum ENodeType {
   QUERY_NODE_RECALCULATE_STREAM_STMT,
   QUERY_NODE_CREATE_BNODE_STMT,
   QUERY_NODE_DROP_BNODE_STMT,
-  QUERY_NODE_CREATE_XNODE_STMT,        // XNode
-  QUERY_NODE_DROP_XNODE_STMT,          // XNode
-  QUERY_NODE_UPDATE_XNODE_STMT,        // XNode
-  QUERY_NODE_XNODE_TASK_OPTIONS,       // XNode task options
-  QUERY_NODE_XNODE_TASK_SOURCE_OPT,    // XNode task source
-  QUERY_NODE_XNODE_TASK_SINK_OPT,      // XNode task sink
-  QUERY_NODE_CREATE_XNODE_TASK_STMT,   // XNode task
+  QUERY_NODE_CREATE_XNODE_STMT,         // XNode
+  QUERY_NODE_DROP_XNODE_STMT,           // XNode
+  QUERY_NODE_DRAIN_XNODE_STMT,          // XNode
+  QUERY_NODE_UPDATE_XNODE_STMT,         // XNode
+  QUERY_NODE_XNODE_TASK_OPTIONS,        // XNode task options
+  QUERY_NODE_XNODE_TASK_SOURCE_OPT,     // XNode task source
+  QUERY_NODE_XNODE_TASK_SINK_OPT,       // XNode task sink
+  QUERY_NODE_CREATE_XNODE_TASK_STMT,    // XNode task
+  QUERY_NODE_START_XNODE_TASK_STMT,     // XNode task
+  QUERY_NODE_STOP_XNODE_TASK_STMT,      // XNode task
   QUERY_NODE_UPDATE_XNODE_TASK_STMT,    // XNode task
-  QUERY_NODE_DROP_XNODE_TASK_STMT,     // XNode task
-  QUERY_NODE_CREATE_XNODE_JOB_STMT,    // XNode task job
-  QUERY_NODE_ALTER_XNODE_JOB_STMT,     // XNode task
-  QUERY_NODE_DROP_XNODE_JOB_STMT,      // XNode task job
-  QUERY_NODE_CREATE_XNODE_AGENT_STMT,  // XNode agent
-  QUERY_NODE_DROP_XNODE_AGENT_STMT,    // XNode agent
+  QUERY_NODE_DROP_XNODE_TASK_STMT,      // XNode task
+  QUERY_NODE_CREATE_XNODE_JOB_STMT,     // XNode task job
+  QUERY_NODE_ALTER_XNODE_JOB_STMT,      // XNode task
+  QUERY_NODE_REBALANCE_XNODE_JOB_STMT,  // XNode task
+  QUERY_NODE_DROP_XNODE_JOB_STMT,       // XNode task job
+  QUERY_NODE_CREATE_XNODE_AGENT_STMT,   // XNode agent
+  QUERY_NODE_DROP_XNODE_AGENT_STMT,     // XNode agent
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -3021,6 +3025,15 @@ int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq
 void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
 
 typedef struct {
+  int32_t xnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMDrainXnodeReq;
+int32_t tSerializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
+int32_t tDeserializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
+void    tFreeSMDrainXnodeReq(SMDrainXnodeReq* pReq);
+
+typedef struct {
   bool        shouldFree;
   int32_t     len;
   const char* ptr;
@@ -3050,6 +3063,12 @@ void xSetCowStr(CowStr* cow, int32_t len, const char* ptr, bool shouldFree);
  * @return CowStr object.
  */
 CowStr xCloneRefCowStr(CowStr* cow);
+/**
+ * @brief Convert a CowStr object to a string.
+ *
+ * @param cow: pointer to the CowStr object.
+ */
+char* xCowStrToStr(CowStr* cow);
 /**
  * @brief Deallocate a CowStr object. Clears the string and resets length to 0.
  *
@@ -3197,6 +3216,18 @@ int32_t tSerializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskR
 int32_t tDeserializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskReq* pReq);
 void    tFreeSMDropXnodeTaskReq(SMDropXnodeTaskReq* pReq);
 
+typedef struct {
+  int32_t tid;
+  int32_t sqlLen;
+  char*   sql;
+} SMStartXnodeTaskReq, SMStopXnodeTaskReq;
+int32_t tSerializeSMStartXnodeTaskReq(void* buf, int32_t bufLen, SMStartXnodeTaskReq* pReq);
+int32_t tDeserializeSMStartXnodeTaskReq(void* buf, int32_t bufLen, SMStartXnodeTaskReq* pReq);
+void    tFreeSMStartXnodeTaskReq(SMStartXnodeTaskReq* pReq);
+
+int32_t tSerializeSMStopXnodeTaskReq(void* buf, int32_t bufLen, SMStopXnodeTaskReq* pReq);
+int32_t tDeserializeSMStopXnodeTaskReq(void* buf, int32_t bufLen, SMStopXnodeTaskReq* pReq);
+void    tFreeSMStopXnodeTaskReq(SMStopXnodeTaskReq* pReq);
 
 typedef struct {
   int32_t tid;
@@ -3229,6 +3260,16 @@ typedef struct {
 int32_t tSerializeSMUpdateXnodeJobReq(void* buf, int32_t bufLen, SMUpdateXnodeJobReq* pReq);
 int32_t tDeserializeSMUpdateXnodeJobReq(void* buf, int32_t bufLen, SMUpdateXnodeJobReq* pReq);
 void    tFreeSMUpdateXnodeJobReq(SMUpdateXnodeJobReq* pReq);
+
+typedef struct {
+  int32_t jid;
+  int32_t xnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMRebalanceXnodeJobReq;
+int32_t tSerializeSMRebalanceXnodeJobReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobReq* pReq);
+int32_t tDeserializeSMRebalanceXnodeJobReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobReq* pReq);
+void    tFreeSMRebalanceXnodeJobReq(SMRebalanceXnodeJobReq* pReq);
 
 typedef struct {
   int32_t jid;

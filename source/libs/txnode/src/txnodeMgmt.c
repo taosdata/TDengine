@@ -45,6 +45,8 @@ typedef struct {
   uv_async_t   stopAsync;
   int32_t      isStopped;
   int32_t      dnodeId;
+  int32_t      clusterId;
+  char         userPass[XNODE_USER_PASS_LEN];
 } SXnodedData;
 
 SXnodedData xnodedGlobal = {0};
@@ -99,10 +101,11 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   }
   TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
 
-  char dnodeId[8] = "1";
-  snprintf(dnodeId, sizeof(dnodeId), "%d", pData->dnodeId);
+  // char dnodeId[8] = "1";
+  // snprintf(dnodeId, sizeof(dnodeId), "%d", pData->dnodeId);
 
-  char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};
+  // char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};
+  char *argsXnoded[] = {path};
   options.args = argsXnoded;
   options.file = path;
 
@@ -121,38 +124,41 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
   options.flags = UV_PROCESS_DETACHED;
 
-  char dnodeIdEnvItem[32] = {0};
-  char thrdPoolSizeEnvItem[32] = {0};
-  snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pData->dnodeId);
+  char xnodedCfgDir[256] = {0};
+  snprintf(xnodedCfgDir, 32, "%s=%s", "XNODED_CFG_DIR", configDir);
+  char dnodeIdEnvItem[64] = {0};
+  snprintf(dnodeIdEnvItem, 32, "%s=%d", "XNODED_DNODE_EP", pData->dnodeId);
+  char xnodedUserPass[XNODE_USER_PASS_LEN] = {0};
+  snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USERPASS", pData->userPass);
+  char xnodeClusterId[32] = {0};
+  snprintf(xnodeClusterId, 32, "%s=%d", "XNODED_CLUSTER_ID", pData->clusterId);
 
-  float   numCpuCores = 4;
-  int32_t code = taosGetCpuCores(&numCpuCores, false);
-  if (code != 0) {
-    xndError("failed to get cpu cores, code:0x%x", code);
-  }
-  numCpuCores = TMAX(numCpuCores, 2);
-  snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int32_t)numCpuCores * 2);
+  // char    thrdPoolSizeEnvItem[32] = {0};
+  // float   numCpuCores = 4;
+  // int32_t code = taosGetCpuCores(&numCpuCores, false);
+  // if (code != 0) {
+  //   xndError("failed to get cpu cores, code:0x%x", code);
+  // }
+  // numCpuCores = TMAX(numCpuCores, 2);
+  // snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int32_t)numCpuCores * 2);
 
-  xndDebug("xnodeMgmtSpawnXnoded UV_THREADPOOL_SIZE:%s, thrdPoolSizeEnvItem:%s", thrdPoolSizeEnvItem,
-          thrdPoolSizeEnvItem);
+  // char *taosFqdnEnvItem = NULL;
+  // char *taosFqdn = getenv("TAOS_FQDN");
+  // if (taosFqdn != NULL) {
+  //   int32_t subLen = strlen(taosFqdn);
+  //   int32_t len = strlen("TAOS_FQDN=") + subLen + 1;
+  //   taosFqdnEnvItem = taosMemoryMalloc(len);
+  //   if (taosFqdnEnvItem != NULL) {
+  //     tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
+  //     TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, subLen);
+  //     xndInfo("[XNODED]Success to set TAOS_FQDN:%s", taosFqdn);
+  //   } else {
+  //     xndError("[XNODED]Failed to allocate memory for TAOS_FQDN");
+  //     return terrno;
+  //   }
+  // }
 
-  char *taosFqdnEnvItem = NULL;
-  char *taosFqdn = getenv("TAOS_FQDN");
-  if (taosFqdn != NULL) {
-    int32_t subLen = strlen(taosFqdn);
-    int32_t len = strlen("TAOS_FQDN=") + subLen + 1;
-    taosFqdnEnvItem = taosMemoryMalloc(len);
-    if (taosFqdnEnvItem != NULL) {
-      tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
-      TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, subLen);
-      xndInfo("[XNODED]Success to set TAOS_FQDN:%s", taosFqdn);
-    } else {
-      xndError("[XNODED]Failed to allocate memory for TAOS_FQDN");
-      return terrno;
-    }
-  }
-
-  char *envXnoded[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, taosFqdnEnvItem, NULL};
+  char *envXnoded[] = {xnodedCfgDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId, NULL};
 
   char **envXnodedWithPEnv = NULL;
   if (environ != NULL) {
@@ -207,9 +213,9 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   }
 
 _OVER:
-  if (taosFqdnEnvItem) {
-    taosMemoryFree(taosFqdnEnvItem);
-  }
+  // if (taosFqdnEnvItem) {
+  //   taosMemoryFree(taosFqdnEnvItem);
+  // }
 
   if (envXnodedWithPEnv != NULL) {
     int32_t i = 0;
@@ -274,7 +280,8 @@ _exit:
  * @param startDnodeId
  * @return
  */
-int32_t xnodeMgmtStartXnoded(int32_t startDnodeId) {
+// int32_t xnodeMgmtStartXnoded(int32_t startDnodeId, int64_t clusterId, int32_t uplen, const char *userPass) {
+int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   int32_t code = 0, lino = 0;
 
   SXnodedData *pData = &xnodedGlobal;
@@ -282,11 +289,14 @@ int32_t xnodeMgmtStartXnoded(int32_t startDnodeId) {
     xndInfo("dnode start xnoded already called");
     return 0;
   }
-  pData->isStarted = true;  // xxxzgc 应该考虑用 atomic
+  pData->isStarted = true;
   char dnodeId[8] = {0};
-  snprintf(dnodeId, sizeof(dnodeId), "%d", startDnodeId);
+  snprintf(dnodeId, sizeof(dnodeId), "%d", pXnode->dnodeId);
   TAOS_CHECK_GOTO(uv_os_setenv("DNODE_ID", dnodeId), &lino, _exit);
-  pData->dnodeId = startDnodeId;
+  pData->dnodeId = pXnode->dnodeId;
+  pData->clusterId = pXnode->clusterId;
+  memset(pData->userPass, 0, sizeof(pData->userPass));
+  memcpy(pData->userPass, pXnode->userPass, pXnode->upLen);
 
   TAOS_CHECK_GOTO(uv_barrier_init(&pData->barrier, 2), &lino, _exit);
   TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, xnodeMgmtWatchXnoded, pData), &lino, _exit);

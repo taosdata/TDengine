@@ -94,7 +94,8 @@ extern "C" {
  * @param startDnodeId
  * @return
  */
-int32_t xnodeMgmtStartXnoded(int32_t startDnodeId);
+// int32_t xnodeMgmtStartXnoded(int32_t startDnodeId, int64_t clusterId, int32_t uplen, const char *userPass);
+int32_t xnodeMgmtStartXnoded(SXnode *pXnode);
 /**
  * stop taosmqtt
  * @return

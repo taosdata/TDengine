@@ -1044,11 +1044,20 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_XNODE_STMT:
       code = makeNode(type, sizeof(SDropXnodeStmt), &pNode);
       break;
+    case QUERY_NODE_DRAIN_XNODE_STMT:
+      code = makeNode(type, sizeof(SDrainXnodeStmt), &pNode);
+      break;
     case QUERY_NODE_UPDATE_XNODE_STMT:
       code = makeNode(type, sizeof(SUpdateXnodeStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SCreateXnodeTaskStmt), &pNode);
+      break;
+    case QUERY_NODE_START_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SStartXnodeTaskStmt), &pNode);
+      break;
+    case QUERY_NODE_STOP_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SStopXnodeTaskStmt), &pNode);
       break;
     case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SUpdateXnodeTaskStmt), &pNode);
@@ -1061,6 +1070,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_ALTER_XNODE_JOB_STMT:
       code = makeNode(type, sizeof(SAlterXnodeJobStmt), &pNode);
+      break;
+    case QUERY_NODE_REBALANCE_XNODE_JOB_STMT:
+      code = makeNode(type, sizeof(SRebalanceXnodeJobStmt), &pNode);
       break;
     case QUERY_NODE_DROP_XNODE_JOB_STMT:
       code = makeNode(type, sizeof(SDropXnodeJobStmt), &pNode);

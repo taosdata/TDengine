@@ -10535,6 +10535,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeReq, pReq);
       break;
     }
+    case TDMT_MND_DRAIN_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDrainXnodeReq, pReq);
+      break;
+    }
     case TDMT_MND_UPDATE_XNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeReq, pReq);
       break;
@@ -12533,6 +12537,14 @@ static int32_t translateDropXnode(STranslateContext* pCxt, SDropXnodeStmt* pStmt
   return code;
 }
 
+static int32_t translateDrainXnode(STranslateContext* pCxt, SDrainXnodeStmt* pStmt) {
+  SMDrainXnodeReq drainReq = {0};
+  drainReq.xnodeId = pStmt->xnodeId;
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DRAIN_XNODE, (FSerializeFunc)tSerializeSMDrainXnodeReq, &drainReq);
+  tFreeSMDrainXnodeReq(&drainReq);
+  return code;
+}
+
 static int32_t translateUpdateXnode(STranslateContext* pCxt, SUpdateXnodeStmt* pStmt) {
   SMUpdateXnodeReq updateReq = {0};
   updateReq.xnodeId = pStmt->xnodeId;
@@ -12579,6 +12591,24 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_TASK, (FSerializeFunc)tSerializeSMCreateXnodeTaskReq, &createReq);
   tFreeSMCreateXnodeTaskReq(&createReq);
+  return code;
+}
+
+static int32_t translateStartXnodeTask(STranslateContext* pCxt, SStartXnodeTaskStmt* pStmt) {
+  SMStartXnodeTaskReq startReq = {0};
+  startReq.tid = pStmt->tid;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_START_XNODE_TASK, (FSerializeFunc)tSerializeSMStartXnodeTaskReq, &startReq);
+  tFreeSMStartXnodeTaskReq(&startReq);
+  return code;
+}
+
+static int32_t translateStopXnodeTask(STranslateContext* pCxt, SStopXnodeTaskStmt* pStmt) {
+  SMStopXnodeTaskReq stopReq = {0};
+  stopReq.tid = pStmt->tid;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_STOP_XNODE_TASK, (FSerializeFunc)tSerializeSMStopXnodeTaskReq, &stopReq);
+  tFreeSMStopXnodeTaskReq(&stopReq);
   return code;
 }
 
@@ -12693,7 +12723,6 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
 }
 
 static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStmt* pStmt) {
-  // printf("translateAlterXnodeJob on task:%d\n", pStmt->jid);
   SMUpdateXnodeJobReq updateReq = {0};
   updateReq.jid = pStmt->jid;
   updateReq.via = pStmt->options->via;
@@ -12740,6 +12769,22 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_JOB, (FSerializeFunc)tSerializeSMUpdateXnodeJobReq, &updateReq);
   tFreeSMUpdateXnodeJobReq(&updateReq);
+  return code;
+}
+
+static int32_t translateRebalanceXnodeJob(STranslateContext* pCxt, SRebalanceXnodeJobStmt* pStmt) {
+  SMRebalanceXnodeJobReq rebalanceReq = {0};
+  rebalanceReq.jid = pStmt->jid;
+
+  const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnodeId == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: xnode_id");
+  }
+  rebalanceReq.xnodeId = atoi(xnodeId);
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq, &rebalanceReq);
+  tFreeSMRebalanceXnodeJobReq(&rebalanceReq);
   return code;
 }
 
@@ -16744,20 +16789,32 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_XNODE_STMT:
       code = translateDropXnode(pCxt, (SDropXnodeStmt*)pNode);
       break;
+    case QUERY_NODE_DRAIN_XNODE_STMT:
+      code = translateDrainXnode(pCxt, (SDrainXnodeStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = translateCreateXnodeTask(pCxt, (SCreateXnodeTaskStmt*)pNode);
       break;
-    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
-      code = translateUpdateXnodeTask(pCxt, (SUpdateXnodeTaskStmt*)pNode);
+    case QUERY_NODE_START_XNODE_TASK_STMT:
+      code = translateStartXnodeTask(pCxt, (SStartXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_STOP_XNODE_TASK_STMT:
+      code = translateStopXnodeTask(pCxt, (SStopXnodeTaskStmt*)pNode);
       break;
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
       code = translateDropXnodeTask(pCxt, (SDropXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
+      code = translateUpdateXnodeTask(pCxt, (SUpdateXnodeTaskStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_XNODE_JOB_STMT:
       code = translateCreateXnodeJob(pCxt, (SCreateXnodeJobStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_XNODE_JOB_STMT:
       code = translateAlterXnodeJob(pCxt, (SAlterXnodeJobStmt*)pNode);
+      break;
+    case QUERY_NODE_REBALANCE_XNODE_JOB_STMT:
+      code = translateRebalanceXnodeJob(pCxt, (SRebalanceXnodeJobStmt*)pNode);
       break;
     case QUERY_NODE_DROP_XNODE_JOB_STMT:
       code = translateDropXnodeJob(pCxt, (SDropXnodeJobStmt*)pNode);

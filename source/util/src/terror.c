@@ -400,9 +400,21 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,          "Xnode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TOO_LONG_URL,       "Xnode too long url")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_PROTOCOL,   "Xnode invalid protocol")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_VERSION,    "Xnode invalid version")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST,      "Xnode task already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST, "Xnode task already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NAME_TOO_LONG, "Xnode task name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_CANT_ACCESS,    "Xnode xnoded can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RSP_IS_NULL,    "Xnode xnoded response is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR,    "Xnode request action response http code not 200")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NEED_USER_PASS,     "Xnode first-time setup requires username and password")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST, "Xnode task already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NOT_EXIST,     "Xnode task not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NAME_TOO_LONG, "Xnode task name too long")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,         "Xnode task job syntax error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG, "Xnode task job config too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_NOT_EXIST,            "Xnode job not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG,     "Xnode task/job reason too long")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")

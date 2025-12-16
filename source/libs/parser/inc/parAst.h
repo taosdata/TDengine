@@ -363,8 +363,11 @@ SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
 SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pUser,
                                          const SToken* pPass);
 SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
+SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId);
+SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId);
 SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll);
 SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool force);
+SNode* createDrainXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode);
 
 SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
                                   SNode* pB, SNode* pC, SNode* pNode);
@@ -376,6 +379,8 @@ SNode*  dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resource
 SNode*  dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
 SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,
                                       SNode* pNodeOptions);
+SNode*  createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* resourceId,
+                                    SNode* pNodeOptions);
 SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
                                   SNode* pSource, SNode* pSink, SNode* pNode);
 /** end @section xnode */

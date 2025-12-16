@@ -16,22 +16,28 @@
 #include "libs/txnode/txnode.h"
 #include "xndInt.h"
 
+static SXnode xnodeInstance = {0};
+SXnode       *xndInstance() { return &xnodeInstance; }
+
 int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
   int32_t code = 0;
 
-  *pXnode = taosMemoryCalloc(1, sizeof(SXnode));
-  if (NULL == *pXnode) {
-    xndError("calloc SXnode failed");
-    code = terrno;
-    TAOS_RETURN(code);
-  }
+  // *pXnode = taosMemoryCalloc(1, sizeof(SXnode));
+  // if (NULL == *pXnode) {
+  //   xndError("calloc SXnode failed");
+  //   code = terrno;
+  //   TAOS_RETURN(code);
+  // }
 
-  (*pXnode)->msgCb = pOption->msgCb;
-  (*pXnode)->dnodeId = pOption->dnodeId;
+  // (*pXnode)->msgCb = pOption->msgCb;
+  // (*pXnode)->dnodeId = pOption->dnodeId;
+  // (*pXnode)->protocol = (int8_t)pOption->proto;
+  *pXnode = &xnodeInstance;
   (*pXnode)->protocol = (int8_t)pOption->proto;
 
   if (TSDB_XNODE_OPT_PROTO == (*pXnode)->protocol) {
-    if ((code = xnodeMgmtStartXnoded((*pXnode)->dnodeId)) != 0) {
+    // if ((code = xnodeMgmtStartXnoded((*pXnode)->dnodeId)) != 0) {
+    if ((code = xnodeMgmtStartXnoded(*pXnode)) != 0) {
       xndError("failed to start xnoded since %s", tstrerror(code));
 
       taosMemoryFree(*pXnode);
@@ -57,18 +63,16 @@ void xndClose(SXnode *pXnode) {
   xndInfo("Xnode closed.");
 }
 
-static SXnode xnodeInstance = {0};
-SXnode       *xndInstance() { return &xnodeInstance; }
-
 int32_t mndOpenXnd(const SXnodeOpt *pOption) {
   int32_t code = 0;
   SXnode *pXnode = xndInstance();
   pXnode->dnodeId = pOption->dnodeId;
-  // pXnode->protocol = (int8_t)pOption->proto;
-  // pXnode->msgCb = pOption->msgCb;
-  // 1. 产生 runtime 数据结构，看是否需要清理，目测不需要清理，因为无状态; 尝试启动 xnoded, 如果已经启动，就直接退出。
-  // 2. 执行 xnodeMgmtStartXnoded, 启动 xnoded
-  if ((code = xnodeMgmtStartXnoded(pXnode->dnodeId)) != 0) {
+  pXnode->clusterId = pOption->clusterId;
+  pXnode->upLen = pOption->upLen;
+  memset(pXnode->userPass, 0, XNODE_USER_PASS_LEN);
+  memcpy(pXnode->userPass, pOption->userPass, pOption->upLen);
+
+  if ((code = xnodeMgmtStartXnoded(pXnode)) != 0) {
     xndError("failed to start xnoded since %s", tstrerror(code));
 
     TAOS_RETURN(code);

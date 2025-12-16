@@ -4118,6 +4118,28 @@ _err:
   return NULL;
 }
 
+SNode* createDrainXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pXnode) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id should not be NULL or empty");
+    goto _err;
+  }
+  if (pXnode->type != TK_NK_INTEGER) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id should be an integer");
+    goto _err;
+  }
+
+  SDrainXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DRAIN_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll) {
   CHECK_PARSER_STATUS(pCxt);
   SUpdateXnodeStmt* pStmt = NULL;
@@ -4386,6 +4408,110 @@ _err:
   return NULL;
 }
 
+SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (resourceType != XNODE_TASK) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode resource type: %d", resourceType);
+    goto _err;
+  }
+  if (pResourceId == NULL || (pResourceId != NULL && pResourceId->type != TK_NK_INTEGER)) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode task id should be an integer");
+    goto _err;
+  }
+
+  SNode* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_START_XNODE_TASK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SStartXnodeTaskStmt* pTaskStmt = (SStartXnodeTaskStmt*)pStmt;
+  pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
+
+  return (SNode*)pTaskStmt;
+_err:
+  return NULL;
+}
+
+SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (resourceType != XNODE_TASK) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode resource type: %d", resourceType);
+    goto _err;
+  }
+  if (pResourceId == NULL || (pResourceId != NULL && pResourceId->type != TK_NK_INTEGER)) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode task id should be an integer");
+    goto _err;
+  }
+
+  SNode* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STOP_XNODE_TASK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SStopXnodeTaskStmt* pTaskStmt = (SStopXnodeTaskStmt*)pStmt;
+  pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
+
+  return (SNode*)pTaskStmt;
+_err:
+  return NULL;
+}
+
+SNode* rebalanceXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceId, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (pResourceId == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode job id should not be NULL");
+    goto _err;
+  }
+  if (pNode == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode job options should not be NULL");
+    goto _err;
+  }
+  if (pResourceId->type != TK_NK_INTEGER) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode job id should be an integer");
+    goto _err;
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REBALANCE_XNODE_JOB_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  SRebalanceXnodeJobStmt* pJobStmt = (SRebalanceXnodeJobStmt*)pStmt;
+  char                    buf[TSDB_XNODE_RESOURCE_ID_LEN] = {0};
+  COPY_STRING_FORM_ID_TOKEN(buf, pResourceId);
+  pJobStmt->jid = atoi(buf);
+
+  if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+    SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+    // printXnodeTaskOptions(&options->opts);
+    pJobStmt->options = options;
+  }
+  return (SNode*)pJobStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* resourceId,
+                                   SNode* pNodeOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (resourceType) {
+    case XNODE_JOB: {
+      return rebalanceXnodeJobWithOptionsDirectly(pCxt, resourceId, pNodeOptions);
+    }
+    default:
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Invalid xnode resource type: %d, rebalance only support job", resourceType);
+      goto _err;
+  }
+_err:
+  return NULL;
+}
+
 SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceId, SNode* pSource,
                                          SNode* pSink, SNode* pNode) {
   SNode* pStmt = NULL;
@@ -4464,7 +4590,7 @@ SNode* alterXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* p
   CHECK_MAKE_NODE(pStmt);
 
   SAlterXnodeJobStmt* pJobStmt = (SAlterXnodeJobStmt*)pStmt;
-  char                buf[8] = {0};
+  char                buf[TSDB_XNODE_RESOURCE_ID_LEN] = {0};
   COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
   pJobStmt->jid = atoi(buf);
 

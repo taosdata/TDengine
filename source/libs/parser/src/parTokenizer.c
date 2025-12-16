@@ -399,6 +399,8 @@ static SKeyword keywordTable[] = {
 
     {"XNODE",                TK_XNODE},
     {"XNODES",               TK_XNODES},
+    {"DRAIN",                TK_DRAIN},
+    {"REBALANCE",            TK_REBALANCE},
 };
 // clang-format on
 

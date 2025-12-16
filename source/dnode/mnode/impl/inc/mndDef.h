@@ -88,11 +88,15 @@ typedef enum {
   MND_OPER_CREATE_XNODE,
   MND_OPER_UPDATE_XNODE,
   MND_OPER_DROP_XNODE,
+  MND_OPER_DRAIN_XNODE,
   MND_OPER_CREATE_XNODE_TASK,
+  MND_OPER_START_XNODE_TASK,
+  MND_OPER_STOP_XNODE_TASK,
   MND_OPER_UPDATE_XNODE_TASK,
   MND_OPER_DROP_XNODE_TASK,
   MND_OPER_CREATE_XNODE_JOB,
   MND_OPER_UPDATE_XNODE_JOB,
+  MND_OPER_REBALANCE_XNODE_JOB,
   MND_OPER_DROP_XNODE_JOB
 } EOperType;
 
@@ -333,6 +337,17 @@ typedef struct {
   int64_t  updateTime;
   SRWLatch lock;
 } SXnodeJobObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  userLen;
+  char*    user;
+  int32_t  passLen;
+  char*    pass;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
+} SXnodeUserPassObj;
 
 typedef struct {
   int32_t    id;

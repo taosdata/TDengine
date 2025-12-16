@@ -294,10 +294,10 @@ fn init_logger() -> anyhow::Result<()> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // 解析命令行参数
-    let args = Args::parse();
+    // let args = Args::parse();
     // 初始化日志
     init_logger()?;
-    info!("Config directory: {}, Node Id: {}", args.config_dir, args.node_id);
+    // info!("Config directory: {}, Node Id: {}", args.config_dir, args.node_id);
     
     // 创建路由
     let app = Router::new()

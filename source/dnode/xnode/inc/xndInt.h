@@ -23,15 +23,24 @@
 #include "tmsgcb.h"
 #include "trpc.h"
 
+#ifndef XNODE_USER_PASS_LEN
+#define XNODE_USER_PASS_LEN (TSDB_USER_LEN + TSDB_USET_PASSWORD_LONGLEN + 16)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct SXnode {
-  SMsgCb  msgCb;
-  int32_t dnodeId;
-  int8_t  protocol;
-};
+// struct SXnode {
+//   SMsgCb  msgCb;
+//   int8_t  protocol;
+//   int32_t dnodeId;
+//   int64_t clusterId;
+//   int32_t proto;
+//   int32_t upLen;
+//   char    userPass[XNODE_USER_PASS_LEN];
+//   SEp     ep;
+// };
 
 #ifdef __cplusplus
 }

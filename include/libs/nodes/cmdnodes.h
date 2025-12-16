@@ -477,6 +477,11 @@ typedef struct {
 typedef struct {
   ENodeType type;
   int32_t   xnodeId;
+} SDrainXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
 } SUpdateXnodeStmt;
 
 typedef struct {
@@ -524,6 +529,11 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
+  int32_t   tid;  // task id.
+} SStartXnodeTaskStmt, SStopXnodeTaskStmt;
+
+typedef struct {
+  ENodeType type;
   int32_t   tid;      // Short for XNode task id.
   int32_t   nameLen;  // length of name
   char*     name;
@@ -552,7 +562,7 @@ typedef struct {
   ENodeType          type;
   int32_t            jid;
   SXnodeTaskOptions* options;
-} SAlterXnodeJobStmt;
+} SAlterXnodeJobStmt, SRebalanceXnodeJobStmt;
 typedef struct {
   ENodeType          type;
   int32_t            jid;
