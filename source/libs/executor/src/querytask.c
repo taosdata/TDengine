@@ -107,7 +107,7 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
   ctx->idStr = pTaskInfo->id.str;
   ctx->pTaskInfo = pTaskInfo;
   ctx->subEndPoints = subEndPoints;
-  ctx->rpcHandle = readHandle ? readHandle->pMsgCb->clientRpc : NULL;
+  ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
   
   int32_t subJobNum = taosArrayGetSize(subEndPoints);
   if (subJobNum > 0) {
