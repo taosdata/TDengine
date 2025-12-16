@@ -57,10 +57,10 @@ static int32_t sessConnTimeUpdateFn(int64_t *value, int64_t limit) {
 }
 
 static int32_t sessConnIdleTimeCheckFn(int64_t value, int64_t limit) {
+  int32_t code = 0;
   if (limit == -1) {
     return 0;
   }
-  int32_t code = 0;
   int64_t currentTime = taosGetTimestampMs();
   if ((value + limit) < currentTime) {
     code = TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT;
