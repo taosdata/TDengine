@@ -610,7 +610,10 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
   for (int i = 0; i < num; i++) {
     SIpRange *pRange = &range[i];
     SIpAddr   addr = {0};
-    (void)tIpUintToStr(pRange, &addr);
+    int32_t code = tIpUintToStr(pRange, &addr);
+    if (code != 0) {
+      mError("%s failed to convert ip range to str, code: %d", __func__, code);
+    }
 
     len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
@@ -1907,17 +1910,15 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     pUser->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
     pUser->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
     pUser->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
-    pUser->failedLoginAttempts = pUser->superUser ? -1 : TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
-    pUser->passwordLifeTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+    pUser->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+    pUser->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
     pUser->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
-    pUser->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
     pUser->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
     pUser->passwordGraceTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
     pUser->inactiveAccountTime = pUser->superUser ? -1 : TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
     pUser->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
     pUser->pTimeWhiteList = taosMemCalloc(1, sizeof(SDateTimeWhiteList));
     if (pUser->pTimeWhiteList == NULL) {
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   } else {
     SDB_GET_BINARY(pRaw, dataPos, pUser->totpsecret, sizeof(pUser->totpsecret), _OVER);
@@ -3472,27 +3473,27 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
     if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
-    if ((code = taosHashPut(pNewUser->topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN)) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
-    }
+    taosRLockLatch(&pTopic->lock);
+    code = taosHashPut(pNewUser->topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
+    taosRUnLockLatch(&pTopic->lock);
     mndReleaseTopic(pMnode, pTopic);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
   if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, &pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
     if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
+    taosRLockLatch(&pTopic->lock);
     code = taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
     if (code < 0) {
       mError("user:%s, failed to remove topic:%s since %s", pNewUser->user, pAlterReq->objname, tstrerror(code));
     }
+    taosRUnLockLatch(&pTopic->lock);
     mndReleaseTopic(pMnode, pTopic);
   }
 #endif
@@ -3887,6 +3888,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
     newUser.createdb = alterReq.createdb;
   }
+
+   
 
   if (ALTER_USER_ADD_PRIVS(alterReq.alterType) || ALTER_USER_DEL_PRIVS(alterReq.alterType)) {
     TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);

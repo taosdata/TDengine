@@ -2855,6 +2855,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   pOptions->watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
   pOptions->keep = -1;
+  pOptions->virtualStb = false;
   pOptions->commentNull = true;  // mark null
   return (SNode*)pOptions;
 _err:
@@ -5022,7 +5023,7 @@ _err:
   return NULL;
 }
 
-SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery) {
+SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery, bool reload) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));
   SCreateTopicStmt* pStmt = NULL;
@@ -5031,6 +5032,7 @@ SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists,
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pQuery = pQuery;
+  pStmt->reload = reload;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pQuery);
@@ -6294,5 +6296,32 @@ SNode* createShowScanDetailsStmt(SAstCreateContext* pCxt, SNode* pScanIdNode) {
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pScanIdNode);
+  return NULL;
+}
+
+SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterDnodeStmt* pStmt = NULL;
+  static char*     tls = "TLS";
+  if (NULL == alterName || alterName->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "alter name is empty");
+    goto _err;
+  }
+
+  if (alterName->n == strlen(tls) && taosStrncasecmp(alterName->z, tls, alterName->n) == 0) {
+    pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT, (SNode**)&pStmt);
+
+    memcpy(pStmt->config, "reload", strlen("reload"));
+    memcpy(pStmt->value, "tls", strlen("tls"));
+    pStmt->dnodeId = -1;
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "alter is not supported");
+    goto _err;
+  }
+
+  CHECK_MAKE_NODE(pStmt);
+
+  return (SNode*)pStmt;
+_err:
   return NULL;
 }

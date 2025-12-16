@@ -776,6 +776,7 @@ typedef struct SCreateTopicStmt {
   int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
+  bool      reload;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {

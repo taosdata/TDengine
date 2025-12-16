@@ -44,9 +44,7 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqS
 
   // impl
   TTB* pTb = NULL;
-  if (type == SNAP_DATA_TQ_CHECKINFO) {
-    pTb = pTq->pCheckStore;
-  } else if (type == SNAP_DATA_TQ_HANDLE) {
+  if (type == SNAP_DATA_TQ_HANDLE) {
     pTb = pTq->pExecStore;
   } else if (type == SNAP_DATA_TQ_OFFSET) {
     pTb = pTq->pOffsetStore;
@@ -211,34 +209,6 @@ end:
   tqDestroyTqHandle(&handle);
   if (code != 0){
     tqError("%s failed at %d, vnode tq snapshot write failed since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int       code  = TSDB_CODE_SUCCESS;
-  int32_t   lino  = 0;
-
-  code = tqWriteCheck(pWriter, pData, nData);
-  TSDB_CHECK_CODE(code, lino, end);
-
-  STQ*         pTq = pWriter->pTq;
-  STqCheckInfo info = {0};
-  code = tqMetaDecodeCheckInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  TSDB_CHECK_CODE(code, lino, end);
-
-  taosWLockLatch(&pTq->lock);
-  code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.topic, strlen(info.topic), pData + sizeof(SSnapDataHdr),
-                        nData - sizeof(SSnapDataHdr));
-  taosWUnLockLatch(&pTq->lock);
-
-  tDeleteSTqCheckInfo(&info);
-  TSDB_CHECK_CODE(code, lino, end);
-  tqInfo("vgId:%d, vnode tq check info  write success", TD_VID(pTq->pVnode));
-
-end:
-  if (code != 0){
-    tqError("%s failed at %d, vnode tq check info write failed since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }

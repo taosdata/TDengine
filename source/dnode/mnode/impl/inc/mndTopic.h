@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+extern SHashObj* topicsToReload;
 int32_t mndInitTopic(SMnode *pMnode);
 void    mndCleanupTopic(SMnode *pMnode);
 

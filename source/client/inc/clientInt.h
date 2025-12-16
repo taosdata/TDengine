@@ -35,6 +35,7 @@ extern "C" {
 #include "trpc.h"
 
 #include "tconfig.h"
+#include "clientSession.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -246,7 +247,6 @@ typedef struct {
   char           topic[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   int32_t        vgId;
-  SSchemaWrapper schema;
   int32_t        resIter;
   SReqResultInfo resInfo;
   union{
@@ -452,6 +452,8 @@ void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
+
+int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
 
 int32_t tzInit();
 void    tzCleanup();

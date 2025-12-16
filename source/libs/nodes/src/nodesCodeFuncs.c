@@ -187,6 +187,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DropDnodeStmt";
     case QUERY_NODE_ALTER_DNODE_STMT:
       return "AlterDnodeStmt";
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
+      return "AlterDnodesReloadTLSStmt";
     case QUERY_NODE_CREATE_INDEX_STMT:
       return "CreateIndexStmt";
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -9907,6 +9909,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropDnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_DNODE_STMT:
       return alterDnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
+      return alterDnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return createIndexStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -10357,6 +10361,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_DROP_DNODE_STMT:
       return jsonToDropDnodeStmt(pJson, pObj);
     case QUERY_NODE_ALTER_DNODE_STMT:
+      return jsonToAlterDnodeStmt(pJson, pObj);
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       return jsonToAlterDnodeStmt(pJson, pObj);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return jsonToCreateIndexStmt(pJson, pObj);
