@@ -85,6 +85,7 @@ extern char tsTLSSvrKeyPath[];
 extern char tsTLSCliCertPath[];
 extern char tsTLSCliKeyPath[];
 extern int8_t tsEnableTLS;
+extern int8_t tsEnableSasl;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -364,10 +365,17 @@ extern int32_t tsSsBlockSize;
 extern int32_t tsSsBlockCacheSize;
 extern int32_t tsSsPageCacheSize;
 
+extern int32_t sessionPerUser; 
+extern int32_t sessionConnTime; 
+extern int32_t sessionConnIdleTime;
+extern int32_t sessionMaxConcurrency;  
+extern int32_t sessionMaxCallVnodeNum;
 // insert performance
 extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
+
+extern int64_t tsTimestampDeltaLimit;  // s
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 // auth

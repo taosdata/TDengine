@@ -1094,6 +1094,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SCORES_STMT:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
+      code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode);
+      break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
@@ -1676,6 +1679,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
     case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:  // no pointer field
     case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field

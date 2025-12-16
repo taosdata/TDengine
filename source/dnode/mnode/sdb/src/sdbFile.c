@@ -413,6 +413,10 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
       count = Builtin_CBC_Decrypt(&opts);
+      if (count <= 0) {
+        code = terrno;
+        goto _OVER;
+      }
 
       // mDebug("read sdb, CBC Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
@@ -558,6 +562,12 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
           int32_t count = Builtin_CBC_Encrypt(&opts);
+          if (count <= 0) {
+            code = terrno;
+            taosHashCancelIterate(hash, ppRow);
+            sdbFreeRaw(pRaw);
+            break;
+          }
 
           // mDebug("write sdb, CBC Encrypt encryptedDataLen:%d, dataLen:%d, %s",
           //       newDataLen, pRaw->dataLen, __FUNCTION__);

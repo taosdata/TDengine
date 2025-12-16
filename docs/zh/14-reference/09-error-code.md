@@ -136,7 +136,13 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000022E | No available execution node       | 没有可用的查询执行节点       | 检查当前 query policy 配置，如果需要有 Qnode 参与确保系统中存在可用的 Qnode 节点 |
 | 0x8000022F | Table is not a super table        | 当前语句中的表名不是超级表   | 检查当前语句中所用表名是否是超级表                                               |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 内部缓存出错      | 保留现场和日志，github 上报 issue                                                |
-| 0x80000231 | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
+| 0x80000238 | Invalid TOTP code                 | 输入的 TOTP 验证码格式错误   | 检查并重新输入正确的 TOTP 验证码                                                 |
+| 0x80000239 | reached the maximum sessions per user limit      | 单个用户创建了太多的 session |   检查限制       |
+| 0x8000023A | reached the maximum connection timeout limit      | conn 超时                   | 检查 conn 超时设置|
+| 0x8000023B | reached the maximum connection idle timeout limit | conn 空闲超时              |  无              |
+| 0x8000023C | reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
+| 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |
+| 0x800002FF | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 #### mnode
 
@@ -164,7 +170,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000332 | Vgroup does not exist                                                                        | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000333 | Cannot drop mnode which is leader                                                            | 操作节点为 leader                                                                 | 确认操作是否正确                                                                                     |
 | 0x80000334 | Out of dnodes                                                                                | dnode 节点数量不够                                                                | 增加 dnode 节点                                                                                      |
-| 0x80000335 | Cluster cfg inconsistent                                                                     | 配置不一致                                                                        | 检查 dnode 节点与 mnode 节点配置是否一致。检查方式：1.节点启动时，在日志中输出 2.使用 show variables |
+| 0x80000335 | Cluster cfg inconsistent                                                                     | 配置不一致                                                                        | 检查 dnode 节点与 mnode 节点配置是否一致。检查方式：1.节点启动时，在日志中输出 2.使用 show variables  |
 | 0x8000033B | Cluster id not match                                                                         | 节点配置数据不一致                                                                | 检查各节点 data/dnode/dnodes.json 文件中的 clusterid                                                 |
 | 0x80000340 | Account already exists                                                                       | （仅企业版）内部错误                                                              | 上报 issue                                                                                           |
 | 0x80000342 | Invalid account options                                                                      | （仅企业版）该操作不支持                                                          | 确认操作是否正确                                                                                     |
@@ -177,6 +183,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000355 | Too many users                                                                               | （仅企业版）用户数量超限                                                          | 调整配置                                                                                             |
 | 0x80000357 | Authentication failure                                                                       | 密码不正确                                                                        | 确认操作是否正确                                                                                     |
 | 0x80000358 | User not available                                                                           | 用户不存在                                                                        | 确认操作是否正确                                                                                     |
+| 0x8000035B | Wrong TOTP code                                                                              | 未提供或提供了错误的 TOTP 验证码                                                  | 检查并输入正确的 TOTP 验证码                                                                         |
 | 0x80000360 | STable already exists                                                                        | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000361 | STable not exist                                                                             | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000364 | Too many tags                                                                                | tag 数量太多                                                                      | 不能修改，代码级别限制                                                                               |
@@ -229,6 +236,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800003C6 | Invalid schema version while alter stb                                                       | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x800003C7 | Invalid stable uid while alter stb                                                           | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x800003C8 | Field used by tsma                                                                           | 被使用                                                                            | 确认操作是否正确                                                                                     |
+| 0x800003C9 | Exceed max column id                                                                         | ColumnId 超过 int16_t 类型上限 (32767)             | 检查并修正 SQL 语句                                                        |
 | 0x800003D1 | Transaction not exists                                                                       | 不存在                                                                            | 确认操作是否正确                                                                                     |
 | 0x800003D2 | Invalid stage to kill                                                                        | 事务处在不能被 kill 的节点（比如 在 commit 阶段）                                 | 等待事务结束，如长时间不结束，上报 issue                                                             |
 | 0x800003D3 | Conflict transaction not completed                                                           | 事务冲突，不能执行该操作                                                          | 使用 show transactions 命令查看冲突的事务，等待冲突事务结束，如长时间不结束，上报 issue              |
@@ -303,21 +311,22 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 #### vnode
 
-| 错误码     | 错误描述                                           | 可能的出错场景或者可能的原因   | 建议用户采取的措施 |
-| ---------- | -------------------------------------------------- | ------------------------------ | ------------------ |
-| 0x80000503 | Invalid vgroup ID                                  | 老客户端未更新 cache，内部错误 | 上报问题           |
-| 0x80000512 | No writing privilege                               | 无写权限                       | 寻求授权           |
-| 0x80000520 | Vnode does not exist                               | 内部错误                       | 上报问题           |
-| 0x80000521 | Vnode already exists                               | 内部错误                       | 上报问题           |
-| 0x80000522 | Hash value of table is not in the vnode hash range | 表不属于 vnode                 | 上报问题           |
-| 0x80000524 | Invalid table operation                            | 表非法操作                     | 上报问题           |
-| 0x80000525 | Column already exists                              | 修改表是列已存在               | 上报问题           |
-| 0x80000526 | Column does not exists                             | 修改表时，表不存在             | 上报问题           |
-| 0x80000527 | Column is subscribed                               | 列被订阅，不能操作             | 上报问题           |
-| 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                 | 上报问题           |
-| 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
-| 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
-| 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                       | 上报问题           |
+| 错误码        | 错误描述                                           | 可能的出错场景或者可能的原因                   | 建议用户采取的措施 |
+|------------| -------------------------------------------------- |----------------------------------| ------------------ |
+| 0x80000503 | Invalid vgroup ID                                  | 老客户端未更新 cache，内部错误               | 上报问题           |
+| 0x80000512 | No writing privilege                               | 无写权限                             | 寻求授权           |
+| 0x80000520 | Vnode does not exist                               | 内部错误                             | 上报问题           |
+| 0x80000521 | Vnode already exists                               | 内部错误                             | 上报问题           |
+| 0x80000522 | Hash value of table is not in the vnode hash range | 表不属于 vnode                       | 上报问题           |
+| 0x80000524 | Invalid table operation                            | 表非法操作                            | 上报问题           |
+| 0x80000525 | Column already exists                              | 修改表是列已存在                         | 上报问题           |
+| 0x80000526 | Column does not exists                             | 修改表时，表不存在                        | 上报问题           |
+| 0x80000527 | Column is subscribed                               | 列被订阅，不能操作                        | 上报问题           |
+| 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                       | 上报问题           |
+| 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误                      | 上报问题           |
+| 0x80000531 | Vnode query is busy                                | 查询忙碌                             | 上报问题           |
+| 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                             | 上报问题           |
+| 0x80000542 | Exceed max column id                               | ColumnId 超过 int16_t 类型上限 (32767) | 检查并修正 SQL 语句 |
 
 #### tsdb
 
@@ -481,7 +490,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002635 | Incorrect TIMESTAMP value                                                                              | 主键时间戳列值非法                                      | 检查并修正 SQL 语句                    |
 | 0x80002637 | soffset/offset can not be less than 0                                                                  | soffset/offset 值非法                                   | 检查并修正 SQL 语句                    |
 | 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query                                             | slimit/soffset 只支持 PARTITION BY/GROUP BY 语句        | 检查并修正 SQL 语句                    |
-| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                                  | 检查并修正 SQL 语句                    |
+| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                                 | 检查并修正 SQL 语句                    |
 | 0x8000263A | Cannot drop super table in batch                                                                       | 不支持批量删除超级表                                    | 检查并修正 SQL 语句                    |
 | 0x8000263B | Start(end) time of query range required or time range too large                                        | 窗口个数超出限制                                        | 检查并修正 SQL 语句                    |
 | 0x8000263C | Duplicated column names                                                                                | 列名称重复                                              | 检查并修正 SQL 语句                    |
@@ -538,12 +547,12 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002696 | Invalid sliding offset                                                                                 | sliding 窗口偏移量非法                                  | 检查并修正 SQL 语句                    |
 | 0x80002697 | Invalid interval offset                                                                                | interval 窗口偏移量非法                                 | 检查并修正 SQL 语句                    |
 | 0x80002698 | Invalid extend value                                                                                   | extend 参数非法                                         | 检查并修正 SQL 语句                    |
-| 0x80002699 | Algorithm ID too long, max length is 63 character                                                      | Algorithm ID 参数非法                                         | 检查并修正 SQL 语句                    |
-| 0x8000269A | Algorithm name too long, max length is 63 character                                                    | Algorithm name 参数非法                                         | 检查并修正 SQL 语句                    |
-| 0x8000269B | Algorithm description too long, max length is 127 character                                            | Algorithm description 参数非法                                         | 检查并修正 SQL 语句                    |
-| 0x8000269C | Algorithm type too long, max length is 63 character                                                    | Algorithm type 参数非法                                         | 检查并修正 SQL 语句                    |
-| 0x8000269D | Algorithm OpenSSL name too long, max length is 63 character                                            | Algorithm OpenSSL name 参数非法                                         | 检查并修正 SQL 语句                    |
-| 0x8000269E | Option duplicated                                                                                      | 只允许出现一次的选项出现了多次                           | 检查并修正 SQL 语句                    |
+| 0x80002699 | Algorithm ID too long, max length is 63 character                                                      | Algorithm ID 参数非法                                   | 检查并修正 SQL 语句                    |
+| 0x8000269A | Algorithm name too long, max length is 63 character                                                    | Algorithm name 参数非法                                 | 检查并修正 SQL 语句                    |
+| 0x8000269B | Algorithm description too long, max length is 127 character                                            | Algorithm description 参数非法                          | 检查并修正 SQL 语句                    |
+| 0x8000269C | Algorithm type too long, max length is 63 character                                                    | Algorithm type 参数非法                                 | 检查并修正 SQL 语句                    |
+| 0x8000269D | Algorithm OpenSSL name too long, max length is 63 character                                            | Algorithm OpenSSL name 参数非法                         | 检查并修正 SQL 语句                    |
+| 0x8000269E | Option duplicated                                                                                      | 只允许出现一次的选项出现了多次                          | 检查并修正 SQL 语句                    |
 | 0x8000269F | Invalid option value                                                                                   | 选项的值非法                                            | 检查并修正 SQL 语句                    |
 | 0x800026A0 | Option value too long                                                                                  | 选项的值太长                                            | 检查并修正 SQL 语句                    |
 | 0x800026A1 | Option value too short                                                                                 | 选项的值太短                                            | 检查并修正 SQL 语句                    |
@@ -556,7 +565,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002704 | Planner slot key not found                                                                             | 生成物理计划时查找不到 slotId                           | 保留现场和日志，github 上报 issue      |
 | 0x80002705 | Planner invalid table type                                                                             | 计划器生成计划时得到了错误的表类型                      | 保留现场和日志，github 上报 issue      |
 | 0x80002706 | Planner invalid query control plan type                                                                | 计划器生成 dynamic query control 计划时得到的类型不正确 | 保留现场和日志，github 上报 issue      |
-| 0x80002707 | Planner invalid window type                                                                            | 计划器生成物理计划时得到了错误的窗口类型                        | 保留现场和日志，github 上报 issue     |
+| 0x80002707 | Planner invalid window type                                                                            | 计划器生成物理计划时得到了错误的窗口类型                | 保留现场和日志，github 上报 issue      |
 
 #### function
 
@@ -636,16 +645,17 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 #### virtual table
 
-| 错误码     | 错误描述                                                                    | 可能的出错场景或者可能的原因                                                   | 建议用户采取的措施                             |
-| ---------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------- |
-| 0x80006200 | Virtual table scan 算子内部错误                                             | virtual table scan 算子内部逻辑错误，一般不会出现                              | 具体查看 client 端的错误日志提示               |
-| 0x80006201 | Virtual table scan invalid downstream operator type                         | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确       | 保留 explain 执行计划，联系开发处理            |
-| 0x80006202 | Virtual table prim timestamp column should not has ref                      | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误 | 检查错误日志，联系开发处理                     |
-| 0x80006203 | Create virtual child table must use virtual super table                     | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                               | 创建虚拟子表的时候，USING 虚拟超级表           |
-| 0x80006204 | Virtual table not support decimal type                                      | 虚拟表不支持 decimal 类型                                                      | 创建虚拟表时不使用 decimal 类型的列/tag        |
-| 0x80006205 | Virtual table not support in STMT query and STMT insert                     | 不支持在 stmt 写入和查询中使用虚拟表                                           | 不在 stmt 写入和查询中使用虚拟表               |
-| 0x80006206 | Virtual table not support in Topic                                          | 不支持在订阅中使用虚拟表                                                       | 不在订阅中使用虚拟表                           |
-| 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                                   | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
+| 错误码        | 错误描述                                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施                  |
+|------------| -------------------------------------------------------------------------- |------------------------------------------------|----------------------------|
+| 0x80006200 | Virtual table scan 算子内部错误                                             | virtual table scan 算子内部逻辑错误，一般不会出现             | 具体查看 client 端的错误日志提示       |
+| 0x80006201 | Virtual table scan invalid downstream operator type                        | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确 | 保留 explain 执行计划，联系开发处理     |
+| 0x80006202 | Virtual table prim timestamp column should not has ref                     | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误        | 检查错误日志，联系开发处理              |
+| 0x80006203 | Create virtual child table must use virtual super table                    | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                       | 创建虚拟子表的时候，USING 虚拟超级表      |
+| 0x80006204 | Virtual table not support decimal type                                     | 虚拟表不支持 decimal 类型                              | 创建虚拟表时不使用 decimal 类型的列/tag |
+| 0x80006205 | Virtual table not support in STMT query and STMT insert                    | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表        |
+| 0x80006206 | Virtual table not support in Topic                                         | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表                 |
+| 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库    |
+| 0x80006208 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
 
 #### TDgpt
 

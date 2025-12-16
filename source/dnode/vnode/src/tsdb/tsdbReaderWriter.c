@@ -188,7 +188,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, SEncryptData *encryptData) {
         tstrncpy(opts.key, encryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
         newLen = CBC_Encrypt(&opts);
-        if (newLen != opts.len) TSDB_CHECK_CODE(code = newLen, lino, _exit);
+        if (newLen != opts.len) TSDB_CHECK_CODE(code = terrno, lino, _exit);
 
         memcpy(pFD->pBuf + count, PacketData, newLen);
         count += newLen;
@@ -267,7 +267,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, SEncryptData *encryp
       tstrncpy(opts.key, encryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
       newLen = CBC_Decrypt(&opts);
-      if (newLen != opts.len) TSDB_CHECK_CODE(code = newLen, lino, _exit);
+      if (newLen != opts.len) TSDB_CHECK_CODE(code = terrno, lino, _exit);
 
       memcpy(pFD->pBuf + count, PacketData, newLen);
       count += newLen;

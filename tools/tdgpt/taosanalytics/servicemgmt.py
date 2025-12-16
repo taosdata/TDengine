@@ -4,6 +4,7 @@ import copy
 import importlib
 import inspect
 import os
+import sys
 from collections import defaultdict
 from taosanalytics.conf import app_logger
 from taosanalytics.service import (AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService, \
@@ -125,6 +126,15 @@ class AnalyticsServiceLoader:
                     algo_cls = getattr(module, class_name)
 
                     if algo_cls is not None:
+                        version = sys.version_info
+
+                        # ignore the shesd for python 3.12 version due to pandas compatibility
+                        if (version.major, version.minor) == (3, 12) and class_name == '_SHESDService':
+                            app_logger.log_inst.info(
+                                "%s not loaded due to Pandas compatibility problem on Python 3.12",
+                                class_name)
+                            continue
+
                         obj = algo_cls()
                         register_service(self.services, algo_cls.name, obj)
 

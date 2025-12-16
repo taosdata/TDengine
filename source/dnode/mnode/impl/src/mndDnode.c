@@ -101,6 +101,9 @@ static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndProcessKeySyncReq(SRpcMsg *pReq);
 static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq);
+static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq);
+static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp);
+
 
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
@@ -131,6 +134,8 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DNODE_RELOAD_TLS, mndProcessUpdateDnodeReloadTls);
+  mndSetMsgHandle(pMnode, TDMT_DND_RELOAD_DNODE_TLS_RSP, mndProcessReloadDnodeTlsRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -766,7 +771,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         goto _OVER;
       }
 
-      mError("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
+      mWarn("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
       if (err == TSDB_CODE_MND_DNODE_NOT_EXIST) {
         terrno = err;
         goto _OVER;
@@ -805,6 +810,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   }
 
+  int64_t delta = curMs / 1000 - statusReq.timestamp / 1000;
+  if (labs(delta) >= tsTimestampDeltaLimit) {
+    terrno = TSDB_CODE_TIME_UNSYNCED;
+    code = terrno;
+
+    pDnode->offlineReason = DND_REASON_TIME_UNSYNC;
+    mError("dnode:%d, not sync with cluster:%"PRId64" since %s, limit %"PRId64"s", statusReq.dnodeId, pMnode->clusterId,
+           tstrerror(code), tsTimestampDeltaLimit);
+    goto _OVER;
+  }
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
@@ -956,6 +971,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
+  if (code != 0) {
+    mError("dnode:%d, failed to process status req since %s", statusReq.dnodeId, tstrerror(code));
+    return code;
+  }
+
   return mndUpdClusterInfo(pReq);
 }
 
@@ -1714,24 +1734,47 @@ static void mndCancelGetNextDnode(SMnode *pMnode, void *pIter) {
 }
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
+  int32_t    code = 0;
   SDnodeObj *pObj = NULL;
   void      *pIter = NULL;
   SSdb      *pSdb = pMnode->pSdb;
   SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+  if (fqdns == NULL) {
+    mError("failed to init fqdns array");
+    return NULL;
+  }
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
     char *fqdn = taosStrdup(pObj->fqdn);
+    if (fqdn == NULL) {
+      sdbRelease(pSdb, pObj);
+      mError("failed to strdup fqdn:%s", pObj->fqdn);
+
+      code = terrno;
+      break;
+    }
+
     if (taosArrayPush(fqdns, &fqdn) == NULL) {
       mError("failed to fqdn into array, but continue at this time");
     }
     sdbRelease(pSdb, pObj);
   }
+
+_error:
+  if (code != 0) {
+    for (int32_t i = 0; i < taosArrayGetSize(fqdns); i++) {
+      char *pFqdn = (char *)taosArrayGetP(fqdns, i);
+      taosMemoryFreeClear(pFqdn);
+    }
+    taosArrayDestroy(fqdns);
+    fqdns = NULL;
+  }
+
   return fqdns;
 }
-
-
 
 static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
@@ -1864,3 +1907,124 @@ _OVER:
 }
 
 static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq) { return 0; }
+
+static SDnodeObj *getDnodeObjByType(void *p, ESdbType type) {
+  if (p == NULL) return NULL;
+
+  switch (type) {
+    case SDB_DNODE:
+      return (SDnodeObj *)p;
+    case SDB_QNODE:
+      return ((SQnodeObj *)p)->pDnode;
+    case SDB_SNODE:
+      return ((SSnodeObj *)p)->pDnode;
+    case SDB_BNODE:
+      return ((SBnodeObj *)p)->pDnode;
+    default:
+      break;
+  }
+  return NULL;
+}
+static int32_t mndGetAllNodeAddrByType(SMnode *pMnode, ESdbType type, SArray *pAddr) {
+  int32_t lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int32_t code = 0;
+
+  while (1) {
+    void *pObj = NULL;
+    pIter = sdbFetch(pSdb, type, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SDnodeObj *pDnodeObj = getDnodeObjByType(pObj, type);
+    if (pDnodeObj == NULL) {
+      mError("null dnode object for type:%d", type);
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
+
+    SEpSet epSet = mndGetDnodeEpset(pDnodeObj);
+    if (taosArrayPush(pAddr, &epSet) == NULL) {
+      mError("failed to push addr into array");
+      sdbRelease(pSdb, pObj);
+      TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    }
+    sdbRelease(pSdb, pObj);
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t mndGetAllNodeAddr(SMnode *pMnode, SArray *pAddr) {
+  int32_t lino = 0;
+  int32_t code = 0;
+  if (pMnode == NULL || pAddr == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &lino, _error);
+  }
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_QNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_SNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_BNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = mndGetAllNodeAddrByType(pMnode, SDB_DNODE, pAddr);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  return code;
+}
+
+static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
+  int32_t code = 0;
+
+  SMnode *pMnode = pReq->info.node;
+  void   *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  mInfo("start to reload dnode tls config");
+
+  SMCfgDnodeReq req = {0};
+  if ((code = tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &req)) != 0) {
+    goto _OVER;
+  }
+
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DNODE_RELOAD_TLS)) != 0) {
+    goto _OVER;
+  }
+
+  SArray *pAddr = taosArrayInit(4, sizeof(SEpSet));
+  if (pAddr == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
+  }
+
+  code = mndGetAllNodeAddr(pMnode, pAddr);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pAddr); i++) {
+    SEpSet *pEpSet = (SEpSet *)taosArrayGet(pAddr, i);
+    // SEpSet epSet = mndCreateEpSetByStr(addr);
+    SRpcMsg rpcMsg = {.msgType = TDMT_DND_RELOAD_DNODE_TLS, .pCont = NULL, .contLen = 0};
+    code = tmsgSendReq(pEpSet, &rpcMsg);
+    if (code != 0) {
+      mError("failed to send reload tls req to dnode addr:%s since %s", pEpSet->eps[0].fqdn, tstrerror(code));
+    }
+  }
+
+_OVER:
+  tFreeSMCfgDnodeReq(&req);
+  taosArrayDestroy(pAddr);
+  return code;
+}
+
+static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp) {
+  int32_t code = 0;
+  if (pRsp->code != 0) {
+    mError("failed to reload dnode tls config since %s", tstrerror(pRsp->code));
+  } else {
+    mInfo("succeed to reload dnode tls config");
+  }
+  return code;
+}
