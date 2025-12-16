@@ -264,8 +264,8 @@ static int32_t checkAuthQuotaExpireLimits(const char *clusterId, SAuthQuota *pAu
     return TSDB_CODE_INVALID_PARA;
   }
 
+  // only check basic expire days
   int32_t basicExpireDays = grantGetBasicExpireDays(true);
-
   if (basicExpireDays < pAuthQuota->expireDays) {
     uError("cluster %s quota expireDays check failed: expireDays=%d exceeds basicExpireDays=%d",
            clusterId ? clusterId : "unknown", pAuthQuota->expireDays, basicExpireDays);
@@ -357,7 +357,7 @@ static int32_t checkAuthQuotaExpireLimits(const char *clusterId, SAuthQuota *pAu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkAuthQuotaNumLimits(const char *clusterId, SAuthQuota *pAuthQuota) {
+static int32_t checkAuthQuotaNumLimits(const char *clusterId, size_t clusterIdLen, SAuthQuota *pAuthQuota) {
   if (!gAuthQuotaHash) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -383,7 +383,7 @@ static int32_t checkAuthQuotaNumLimits(const char *clusterId, SAuthQuota *pAuthQ
     size_t keyLen = 0;
     char  *key = (char *)taosHashGetKey(pIter, &keyLen);
 
-    if (keyLen == strlen(clusterId) && memcmp(key, clusterId, keyLen) == 0) {
+    if (keyLen == clusterIdLen && memcmp(key, clusterId, clusterIdLen) == 0) {
       pIter = taosHashIterate(gAuthQuotaHash, pIter);
       continue;
     }
@@ -440,6 +440,37 @@ static int32_t checkAuthQuotaNumLimits(const char *clusterId, SAuthQuota *pAuthQ
   return TSDB_CODE_SUCCESS;
 }
 
+static bool checkAuthClientsLimit(SAuthQuota *pAuthQuota) {
+  if (!pAuthQuota || !gAuthQuotaHash) return false;
+
+  if (gStatus.limitAuthClients == GRANT_UNIQ_UNLIMITED) {
+    return true;
+  }
+
+  int16_t     totalAuthClients = 0;
+  SAuthQuota *pQuota = NULL;
+  void       *pIter = taosHashIterate(gAuthQuotaHash, NULL);
+  while (pIter != NULL) {
+    size_t keyLen = 0;
+    char  *key = (char *)taosHashGetKey(pIter, &keyLen);
+
+    pQuota = (SAuthQuota *)pIter;
+    if (pQuota->enable == true) {
+      totalAuthClients++;
+    }
+
+    pIter = taosHashIterate(gAuthQuotaHash, pIter);
+  }
+
+  if (totalAuthClients > gStatus.limitAuthClients) {
+    uError("auth clients limit exceeded: totalAuthClients=%d, limitAuthClients=%d", totalAuthClients,
+           gStatus.limitAuthClients);
+    return false;
+  }
+
+  return true;
+}
+
 static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniqObj *pGrantObj) {
   if (!pAuthQuota || !pGrantObj) return TSDB_CODE_INVALID_PARA;
 
@@ -451,14 +482,18 @@ static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniq
   pGrantObj->officialVersion = 1;
 
   // basic expireDays
-#define SET_EXPIRE_DAYS(srcField, dstIndex)                                                                  \
-  do {                                                                                                       \
-    if (pAuthQuota->srcField != QUOTA_UNDEFINED) {                                                           \
-      pGrantObj->expireDays[dstIndex] = pAuthQuota->srcField > grantDays ? grantDays : pAuthQuota->srcField; \
-    }                                                                                                        \
+#define SET_EXPIRE_DAYS(srcField, dstIndex)                                                                    \
+  do {                                                                                                         \
+    if (pAuthQuota->srcField != QUOTA_UNDEFINED) {                                                             \
+      if (pAuthQuota->srcField == GRANT_UNIQ_UNLIMITED) {                                                      \
+        pGrantObj->expireDays[dstIndex] = grantDays;                                                           \
+      } else {                                                                                                 \
+        pGrantObj->expireDays[dstIndex] = pAuthQuota->srcField > grantDays ? grantDays : pAuthQuota->srcField; \
+      }                                                                                                        \
+    }                                                                                                          \
   } while (0)
 
-  // basic limit
+// basic limit
 #define SET_LIMIT_FIELD(srcField, dstField)        \
   do {                                             \
     if (pAuthQuota->srcField != QUOTA_UNDEFINED) { \
@@ -466,16 +501,20 @@ static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniq
     }                                              \
   } while (0)
 
-  // quota item (expireDate + limitQuantity)
-#define SET_QUOTA_ITEM(itemField, expireIndex, limitField)                                             \
-  do {                                                                                                 \
-    if (pAuthQuota->itemField.expireDate != QUOTA_UNDEFINED) {                                         \
-      pGrantObj->expireDays[expireIndex] =                                                             \
-          pAuthQuota->itemField.expireDate > grantDays ? grantDays : pAuthQuota->itemField.expireDate; \
-    }                                                                                                  \
-    if (pAuthQuota->itemField.limitQuantity != QUOTA_UNDEFINED) {                                      \
-      pGrantObj->limitField = pAuthQuota->itemField.limitQuantity;                                     \
-    }                                                                                                  \
+// quota item (expireDate + limitQuantity)
+#define SET_QUOTA_ITEM(itemField, expireIndex, limitField)                                               \
+  do {                                                                                                   \
+    if (pAuthQuota->itemField.expireDate != QUOTA_UNDEFINED) {                                           \
+      if (pAuthQuota->itemField.expireDate == GRANT_UNIQ_UNLIMITED) {                                    \
+        pGrantObj->expireDays[expireIndex] = grantDays;                                                  \
+      } else {                                                                                           \
+        pGrantObj->expireDays[expireIndex] =                                                             \
+            pAuthQuota->itemField.expireDate > grantDays ? grantDays : pAuthQuota->itemField.expireDate; \
+      }                                                                                                  \
+      if (pAuthQuota->itemField.limitQuantity != QUOTA_UNDEFINED) {                                      \
+        pGrantObj->limitField = pAuthQuota->itemField.limitQuantity;                                     \
+      }                                                                                                  \
+    }                                                                                                    \
   } while (0)
 
   SET_EXPIRE_DAYS(service, GRANT_OPT_SERVICE);
@@ -498,7 +537,7 @@ static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniq
 #undef SET_LIMIT_FIELD
 #undef SET_QUOTA_ITEM
 
-  // addDynamicGrantItem expireDay
+// addDynamicGrantItem expireDay
 #define ADD_DYNAMIC_ITEM_SIMPLE(srcField, itemName, name)                                          \
   do {                                                                                             \
     if (pAuthQuota->srcField != QUOTA_UNDEFINED) {                                                 \
@@ -510,20 +549,20 @@ static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniq
     }                                                                                              \
   } while (0)
 
-  // addDynamicGrantItem expireDay,num
-#define ADD_DYNAMIC_ITEM_FROM_QUOTA(itemField, itemName, name)                             \
-  do {                                                                                     \
-    if (pAuthQuota->itemField.expireDate != QUOTA_UNDEFINED) {                             \
-      code = addDynamicGrantItem(pGrantObj, itemName, pAuthQuota->itemField.expireDate,    \
-                                 pAuthQuota->itemField.limitQuantity);                     \
-      if (code != TSDB_CODE_SUCCESS) {                                                     \
-        uError("failed to add dynamic grant item " name ", errMsg:%s", tstrerror(code));   \
-        return code;                                                                       \
-      }                                                                                    \
-    }                                                                                      \
+// addDynamicGrantItem expireDay,num
+#define ADD_DYNAMIC_ITEM_FROM_QUOTA(itemField, itemName, name)                           \
+  do {                                                                                   \
+    if (pAuthQuota->itemField.expireDate != QUOTA_UNDEFINED) {                           \
+      code = addDynamicGrantItem(pGrantObj, itemName, pAuthQuota->itemField.expireDate,  \
+                                 pAuthQuota->itemField.limitQuantity);                   \
+      if (code != TSDB_CODE_SUCCESS) {                                                   \
+        uError("failed to add dynamic grant item " name ", errMsg:%s", tstrerror(code)); \
+        return code;                                                                     \
+      }                                                                                  \
+    }                                                                                    \
   } while (0)
 
-  // addDynamicGrantItem2
+// addDynamicGrantItem2
 #define ADD_DYNAMIC_ITEM2(itemField, itemName, name)                                                      \
   do {                                                                                                    \
     if (pAuthQuota->itemField.expireDate != QUOTA_UNDEFINED) {                                            \
@@ -572,16 +611,20 @@ static int32_t convertAuthQuotaToGrantUniqObj(SAuthQuota *pAuthQuota, SGrantUniq
 #undef ADD_DYNAMIC_ITEM_FROM_QUOTA
 #undef ADD_DYNAMIC_ITEM2
 
-  // IDMP expireDays
-#define SET_IDMP_EXPIRE_DAYS(srcField, dstIndex)                                                                 \
-  do {                                                                                                           \
-    if (pAuthQuota->srcField != QUOTA_UNDEFINED) {                                                               \
-      pGrantObj->idmpExpireDays[dstIndex] = pAuthQuota->srcField > grantDays ? grantDays : pAuthQuota->srcField; \
-      pGrantObj->flags |= GRANT_ACTIVE_FLG_IDMP_ASSIGNED;                                                        \
-    }                                                                                                            \
+// IDMP expireDays
+#define SET_IDMP_EXPIRE_DAYS(srcField, dstIndex)                                                                   \
+  do {                                                                                                             \
+    if (pAuthQuota->srcField != QUOTA_UNDEFINED) {                                                                 \
+      if (pAuthQuota->srcField == GRANT_UNIQ_UNLIMITED) {                                                          \
+        pGrantObj->idmpExpireDays[dstIndex] = grantDays;                                                           \
+      } else {                                                                                                     \
+        pGrantObj->idmpExpireDays[dstIndex] = pAuthQuota->srcField > grantDays ? grantDays : pAuthQuota->srcField; \
+      }                                                                                                            \
+      pGrantObj->flags |= GRANT_ACTIVE_FLG_IDMP_ASSIGNED;                                                          \
+    }                                                                                                              \
   } while (0)
 
-  // IDMP limit
+// IDMP limit
 #define SET_IDMP_LIMIT_FIELD(srcField, dstField)          \
   do {                                                    \
     if (pAuthQuota->srcField != QUOTA_UNDEFINED) {        \
@@ -851,7 +894,7 @@ static int32_t mndRetrieveAuthReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
   }
 
-  SAuthQuota *pQuota = (SAuthQuota *)taosHashGet(gAuthQuotaHash, clusterId, strlen(clusterId));
+  SAuthQuota *pQuota = (SAuthQuota *)taosHashGet(gAuthQuotaHash, clusterId, sizeof(clusterId));
   if (pQuota == NULL) {
     updateTable = false;
     errMsg = "auth quota is not found";
@@ -869,7 +912,8 @@ static int32_t mndRetrieveAuthReq(SRpcMsg *pReq) {
   }
 
   char *activeCode = NULL;
-  memcpy(grantObj.clusterId, clusterId, strlen(clusterId));
+  grantObjInit(&grantObj, 1);
+  tstrncpy(grantObj.clusterId, clusterId, sizeof(grantObj.clusterId));
   grantObj.distribute = taosGetTimestampMs() / 1000;
 
   if (!pQuota->enable) {
@@ -883,13 +927,19 @@ static int32_t mndRetrieveAuthReq(SRpcMsg *pReq) {
     //   }
     // } else {
     // already expired, no need to update
+    authReqData.auth_updated = false;
     errMsg = "cluster enables set to false";
     TAOS_CHECK_EXIT(TSDB_CODE_GRANT_DISABLED);
     // }
-    authReqData.auth_updated = false;
   }
 
   if (authReqData.auth_updated) {
+    // check auth clients limit
+    if (!checkAuthClientsLimit(pQuota)) {
+      errMsg = "auth clients limit exceeded";
+      TAOS_CHECK_EXIT(TSDB_CODE_GRANT_QUOTA_OUT_OF_RANGE);
+    }
+
     // check expiredDays
     code = checkAuthQuotaExpireLimits(clusterId, pQuota);
     if (code != TSDB_CODE_SUCCESS) {
@@ -897,7 +947,7 @@ static int32_t mndRetrieveAuthReq(SRpcMsg *pReq) {
       TAOS_CHECK_EXIT(code);
     }
     // check num and speed limits
-    code = checkAuthQuotaNumLimits(clusterId, pQuota);
+    code = checkAuthQuotaNumLimits(clusterId, sizeof(clusterId), pQuota);
     if (code != TSDB_CODE_SUCCESS) {
       errMsg = "failed to check auth quota num and speed limits";
       TAOS_CHECK_EXIT(code);

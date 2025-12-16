@@ -18,6 +18,16 @@ if(GRANT_VALUE)
   add_definitions(-DGRANT_VALUE="${GRANT_VALUE}")
 endif()
 
+if(GRANT_DNODES)
+  message(STATUS "Input grant dnodes: " ${GRANT_DNODES})
+  add_definitions(-DGRANT_DNODES="${GRANT_DNODES}")
+endif()
+
+if(GRANT_TIMESERIES)
+  message(STATUS "Input grant timeseries: " ${GRANT_TIMESERIES})
+  add_definitions(-DGRANT_TIMESERIES="${GRANT_TIMESERIES}")
+endif()
+
 if(GRANT_DATAIN_EXPIRE)
   message(STATUS "Input datain expire: " ${GRANT_DATAIN_EXPIRE})
   add_definitions(-DGRANT_DATAIN_EXPIRE="${GRANT_DATAIN_EXPIRE}")
