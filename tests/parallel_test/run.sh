@@ -116,7 +116,7 @@ function prepare_cases() {
     # 高优先级任务
     grep "^[0-9]" "$t_file" | sort -nr > "${high_task_file}"
     # 普通任务
-    grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$" > "${normal_task_file}"
+    grep -v -e "^[0-9]" -e "^#" -e "^$" "$t_file" > "${normal_task_file}"
     # 末尾加结束标记
     local i=0
     while [ $i -lt "$1" ]; do
