@@ -142,7 +142,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
     }
     SDB_SET_BINARY(pRaw, dataPos, swBuf, schemaLen, TOPIC_ENCODE_OVER);
   }
-
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->owner, TSDB_USER_LEN, TOPIC_ENCODE_OVER); // since ver 4
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
 
@@ -255,6 +255,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
       pTopic->schema.version = 0;
       pTopic->schema.pSchema = NULL;
     }
+    SDB_GET_BINARY(pRaw, dataPos, pTopic->owner, TSDB_USER_LEN, TOPIC_DECODE_OVER);
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);

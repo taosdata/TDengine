@@ -160,7 +160,7 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
         default: {
           int32_t keyLen = privObjKeyF(pPrivInfo, "1.*", "*", objKey, sizeof(objKey));
           if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
-                                                                true, HASH_ENTRY_LOCK))) {
+                                                                 true, HASH_ENTRY_LOCK))) {
             TAOS_CHECK_EXIT(terrno);
           }
           SPrivObjPolicies *objPolicy = taosHashGet(pObj->objPrivs, objKey, keyLen + 1);
@@ -325,7 +325,6 @@ _exit:
 
   return tlen;
 }
-
 
 void tFreePrivTblPolicies(SHashObj **ppHash) {
   if (*ppHash) {
@@ -504,7 +503,7 @@ void mndRoleFreeObj(SRoleObj *pObj) {
     pObj->updateTbs = NULL;
     pObj->deleteTbs = NULL;
     pObj->parentRoles = NULL;
-    pObj->subRoles = NULL;    
+    pObj->subRoles = NULL;
   }
 }
 
@@ -792,7 +791,8 @@ static bool mndIsRoleChanged(SRoleObj *pOld, SAlterRoleReq *pAlterReq) {
 }
 
 #ifdef TD_ENTERPRISE
-extern int32_t mndAlterRoleInfo(SRoleObj *pOld, SRoleObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SRoleObj *pOld, SRoleObj *pNew,
+                                SAlterRoleReq *pAlterReq);
 #endif
 
 static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
@@ -800,6 +800,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SRoleObj     *pObj = NULL;
   SRoleObj      newObj = {0};
+  SUserObj     *pOperUser = NULL;
   SAlterRoleReq alterReq = {0};
   bool          alterUser = false;
 
@@ -807,6 +808,8 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
 
   mInfo("role:%s, start to alter, flag:%u", alterReq.principal, alterReq.flag);
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_ROLE));
+
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
 
   if (alterReq.principal[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -825,11 +828,11 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
 
   if (alterUser) {
     mInfo("role:%s, not exist, will alter user instead", alterReq.principal);
-    TAOS_CHECK_EXIT(mndAlterUserFromRole(pReq, &alterReq));
+    TAOS_CHECK_EXIT(mndAlterUserFromRole(pReq, pOperUser, &alterReq));
   } else if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
 #ifdef TD_ENTERPRISE
-    TAOS_CHECK_EXIT(mndAlterRoleInfo(pObj, &newObj, &alterReq));
+    TAOS_CHECK_EXIT(mndAlterRoleInfo(pMnode, pOperUser, pObj, &newObj, &alterReq));
 #endif
     TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -840,6 +843,7 @@ _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("role:%s, failed to alter at line %d since %s", alterReq.principal, lino, tstrerror(code));
   }
+  mndReleaseUser(pMnode, pOperUser);
   mndReleaseRole(pMnode, pObj);
   mndRoleFreeObj(&newObj);
   tFreeSAlterRoleReq(&alterReq);

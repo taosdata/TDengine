@@ -515,8 +515,8 @@ priv_type(A) ::= DROP USER.                                                     
 priv_type(A) ::= SET USER SECURITY INFO.                                          { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
 priv_type(A) ::= SET USER AUDIT INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
 priv_type(A) ::= SET USER BASIC INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
-priv_type(A) ::= ENABLE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_ENABLE); }
-priv_type(A) ::= DISABLE USER.                                                    { A = PRIV_SET_TYPE(PRIV_USER_DISABLE); }
+priv_type(A) ::= UNLOCK USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_UNLOCK); }
+priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
 priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
 
 priv_type(A) ::= CREATE AUDIT DATABASE.                                           { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_CREATE); }
@@ -537,12 +537,6 @@ priv_type(A) ::= UPDATE TOTP.                                                   
 priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
 priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
 priv_type(A) ::= SHOW PRIVILEGES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_PRIVILEGES); }
-priv_type(A) ::= GRANT SYSDBA PRIVILEGE.                                          { A = PRIV_SET_TYPE(PRIV_GRANT_SYSDBA); }
-priv_type(A) ::= REVOKE SYSDBA PRIVILEGE.                                         { A = PRIV_SET_TYPE(PRIV_REVOKE_SYSDBA); }
-priv_type(A) ::= GRANT SYSSEC PRIVILEGE.                                          { A = PRIV_SET_TYPE(PRIV_GRANT_SYSSEC); }
-priv_type(A) ::= REVOKE SYSSEC PRIVILEGE.                                         { A = PRIV_SET_TYPE(PRIV_REVOKE_SYSSEC); }
-priv_type(A) ::= GRANT SYSAUDIT PRIVILEGE.                                        { A = PRIV_SET_TYPE(PRIV_GRANT_SYSAUDIT); }
-priv_type(A) ::= REVOKE SYSAUDIT PRIVILEGE.                                       { A = PRIV_SET_TYPE(PRIV_REVOKE_SYSAUDIT); }
 
 priv_type(A) ::= CREATE NODE.                                                     { A = PRIV_SET_TYPE(PRIV_NODE_CREATE); }
 priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
