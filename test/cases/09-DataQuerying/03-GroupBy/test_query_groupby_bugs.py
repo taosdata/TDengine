@@ -817,66 +817,6 @@ class TestTS_3821:
         print("do TS-4382 ............................ [passed]")
 
     #
-    # ------------------- 4 ----------------
-    #
-    def FIX_TS_(self):
-        #
-        # init data
-        #
-
-
-        #
-        # check
-        #
-
-        print("do TS- ............................ [passed]")
-
-    #
-    # ------------------- 5 ----------------
-    #
-    def FIX_TS_(self):
-        #
-        # init data
-        #
-
-
-        #
-        # check
-        #
-
-        print("do TS- ............................ [passed]")
-
-    #
-    # ------------------- 14 ----------------
-    #
-    def FIX_TS_(self):
-        #
-        # init data
-        #
-
-
-        #
-        # check
-        #
-
-        print("do TS- ............................ [passed]")
-
-    #
-    # ------------------- 10 ----------------
-    #
-    def FIX_TS_(self):
-        #
-        # init data
-        #
-
-
-        #
-        # check
-        #
-
-        print("do TS- ............................ [passed]")
-
-    #
     # ------------------- main ----------------
     #
     def test_query_groupby_bugs(self):
@@ -898,4 +838,6 @@ class TestTS_3821:
             - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_test_ts_4382.py
 
         """
-        self.do_ts_3821()
+        self.FIX_TS_3821()
+        self.FIX_TD_28163()
+        self.FIX_TS_4382()
