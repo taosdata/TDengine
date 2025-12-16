@@ -210,10 +210,7 @@ class TestNormal:
         tdSql.error(f"select * from {dbname}.stb order by top(col1) desc")
         tdSql.error(f"select * from {dbname}.stb order by first(col1) desc")
         tdSql.error(f"select * from {dbname}.stb order by bottom(col1) desc")
-        tdSql.error(f"select last(col1) from {dbname}.stb order by last(ts) desc")
-        tdSql.error(f"select first(col1) from {dbname}.stb order by first(ts) desc")
         tdSql.error(f"select * from {dbname}.stb order by count(*) desc")
-        tdSql.error(f"select first(ts), col1 from {dbname}.stb interval(10a) order by last(ts);")
                 
         tdSql.error(f"select *, last(col1 + 2) from {dbname}.stb order by last(col1) desc")
 
@@ -288,8 +285,6 @@ class TestNormal:
         
         tdSql.error(f"select *, cast(last(col1) + 2 as bigint) from  stb order by derivative(col1, 1s) desc;")
         tdSql.error(f"select *, cast(last(col1) + 2 as bigint) from  stb order by derivative(col1, 1s, 0) desc;")
-        tdSql.error(f"select last_row(*) from stb order by last(ts);")
-        tdSql.error(f"select last(*) from stb order by last(cols1);")
         tdSql.error(f"select * from stb order by last_row(ts);")
         tdSql.error(f"select * from stb order by mode(col1);")
         

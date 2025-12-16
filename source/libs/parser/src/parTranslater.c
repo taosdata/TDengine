@@ -6656,17 +6656,15 @@ static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause
   return code;
 }
 typedef struct {
-  SFunctionNode* pFunc;
   SNodeList*     pProjectionList;
   bool           invalidOrderbyFunc;
-  bool           funcExist;
+  bool           found;
 } SOrderByCheckContext;
 
-static EDealRes checkEqualFunctionExist(SNode* pNode, void* pContext) {
+static EDealRes checkAggFuncExist(SNode* pNode, void* pContext) {
   SOrderByCheckContext* pOrderbyContext = (SOrderByCheckContext*)pContext;
-  SFunctionNode*        pFunc = pOrderbyContext->pFunc;
-  if (nodesEqualNode(pNode, (SNode*)pFunc)) {
-    pOrderbyContext->funcExist = true;
+  if(isAggFunc(pNode)) {
+    pOrderbyContext->found = true;
     return DEAL_RES_END;
   }
 
@@ -6676,10 +6674,9 @@ static EDealRes checkEqualFunctionExist(SNode* pNode, void* pContext) {
 static EDealRes checkOrderByFuncNode(SNode* pNode, void* pContext) {
   SOrderByCheckContext* pCtx = pContext;
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
-    pCtx->pFunc = (SFunctionNode*)pNode;
-    pCtx->funcExist = false;
-    nodesWalkExprs(pCtx->pProjectionList, checkEqualFunctionExist, pCtx);
-    if (!pCtx->funcExist) {
+    pCtx->found = false;
+    nodesWalkExprs(pCtx->pProjectionList, checkAggFuncExist, pCtx);
+    if (!pCtx->found) {
       pCtx->invalidOrderbyFunc = true;
     }
   }
@@ -6691,7 +6688,6 @@ static EDealRes checkOrderByFuncNode(SNode* pNode, void* pContext) {
 
 static bool invalidOrderByFunctionExpr(SNodeList* pProjectionList, SNode* pNode) {
   SOrderByCheckContext ctx;
-  ctx.pFunc = NULL;
   ctx.pProjectionList = pProjectionList;
   ctx.invalidOrderbyFunc = false;
   nodesWalkExpr(pNode, checkOrderByFuncNode, &ctx);

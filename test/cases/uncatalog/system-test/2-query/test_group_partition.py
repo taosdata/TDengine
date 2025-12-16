@@ -41,8 +41,7 @@ class TestGroupPartition:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by tbname ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by tbname order by count(*)")
-        tdSql.checkRows(check_num)
+        tdSql.error(f"select tbname from {self.dbname}.{self.stable} {keyword} by tbname order by count(*)")
 
         # last
         tdSql.query(f"select last(ts), count(*) from {self.dbname}.{self.stable} {keyword} by tbname order by last(ts)")
@@ -100,8 +99,7 @@ class TestGroupPartition:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by 1 ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 order by count(*)")
-        tdSql.checkRows(check_num)
+        tdSql.error(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 order by count(*)")
 
         # last
         tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 having count(*)>=0")
@@ -178,8 +176,7 @@ class TestGroupPartition:
         tdSql.query(f"select t1 as t1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t1_alias ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias order by count(*)")
-        tdSql.checkRows(check_num)
+        tdSql.error(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias order by count(*)")
 
         # last
         tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias having count(*)>=0")

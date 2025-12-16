@@ -271,7 +271,7 @@ class TestOrderby:
 
         tdSql.no_error("SELECT COUNT(*) FROM t1 order by COUNT(*)")
 
-        tdSql.error("SELECT COUNT(*) FROM t1 order by last(c2)")
+        tdSql.no_error("SELECT COUNT(*) FROM t1 order by last(c2)")
 
         tdSql.error("SELECT c1 FROM t1 order by last(ts)")
 
