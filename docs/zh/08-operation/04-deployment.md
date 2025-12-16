@@ -229,7 +229,7 @@ TDengine TSDB 镜像启动时默认激活 HTTP 服务，使用下列命令便可
 docker run -d --name tdengine \
 -v ~/data/taos/dnode/data:/var/lib/taos \
 -v ~/data/taos/dnode/log:/var/log/taos \
--p 6041:6041 tdengine/tdengine
+-p 6041:6041 tdengine/tsdb-ee
 ```
 
 详细的参数说明如下。
@@ -263,7 +263,7 @@ Query OK, 2 rows in database (0.033802s)
 运行以下命令可以在 host 网络模式下启动 TDengine TSDB，这样可以使用主机的 FQDN 建立连接，而不是使用容器的 hostname。
 
 ```shell
-docker run -d --name tdengine --network host tdengine/tdengine
+docker run -d --name tdengine --network host tdengine/tsdb-ee
 ```
 
 这种方式与在主机上使用 systemctl 命令启动 TDengine TSDB 的效果相同。在主机上已安装 TDengine TSDB 客户端的情况下，可以直接使用下面的命令访问 TDengine TSDB 服务。
@@ -295,7 +295,7 @@ docker run -d \
    -p 6030:6030 \
    -p 6041-6049:6041-6049 \
    -p 6041-6049:6041-6049/udp \
-   tdengine/tdengine
+   tdengine/tsdb-ee
 ```
 
 首先，上面的命令在容器中启动一个 TDengine TSDB 服务，其所监听的 hostname 为 tdengine，并将容器的端口 6030 映射到主机的端口 6030，将容器的端口段 [6041, 6049] 映射到主机的端口段 [6041, 6049]。如果主机上该端口段已经被占用，可以修改上述命令以指定一个主机上空闲的端口段。
@@ -322,18 +322,18 @@ docker-compose.yaml 内容如下：
 ```yaml
 services:
   td1:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td1
  
   td2:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td2
       - TAOS_FIRST_EP=td1:6030
 
   td3:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td3
       - TAOS_FIRST_EP=td1:6030
