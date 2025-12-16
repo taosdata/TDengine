@@ -809,6 +809,7 @@ class TestTS_3821:
         tdSql.error("select count(*) from st1 t1, (select * from st1 where t9='POINT (4.0 8.0)' limit 5) t2 where t1.ts=t2.ts;")
 
     def FIX_TS_4382(self):
+        self.init_class()
         self.prepareData3()
         self.check_tag_json()
         self.check_db_empty()
