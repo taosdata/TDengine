@@ -198,12 +198,18 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
 }
 
 void taos_set_option(OPTIONS *options, const char *key, const char *value) {
+  if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
+    return;
+  }
+
   CHECK_VOID(fp_taos_set_option);
   (*fp_taos_set_option)(options, key, value);
 }
 
 TAOS *taos_connect_with(const OPTIONS *options) {
   if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
     return NULL;
   }
 
@@ -213,6 +219,7 @@ TAOS *taos_connect_with(const OPTIONS *options) {
 
 TAOS *taos_connect_with_dsn(const char *dsn) {
   if (taos_init() != 0) {
+    terrno = TSDB_CODE_DLL_NOT_LOAD;
     return NULL;
   }
 

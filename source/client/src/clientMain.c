@@ -349,7 +349,7 @@ void taos_set_option(OPTIONS *options, const char *key, const char *value) {
   size_t len = sizeof(options->keys) / sizeof(options->keys[0]);
   if (count >= len) {
     terrno = TSDB_CODE_INVALID_PARA;
-    tscError("taos_set_option overflow, count: %zu, len: %zu", count, len);
+    tscError("taos_set_option overflow, count: %zu, reached capacity: %zu", count, len);
     return;
   }
 
@@ -358,12 +358,23 @@ void taos_set_option(OPTIONS *options, const char *key, const char *value) {
   options->count = (uint16_t)(count + 1);
 }
 
+static int set_connection_option_or_close(TAOS *taos, TSDB_OPTION_CONNECTION option, const char *value) {
+  if (value == NULL) return TSDB_CODE_SUCCESS;
+  int code = taos_options_connection(taos, option, value);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("failed to set option(%d): %s", (int)option, value);
+    taos_close(taos);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 TAOS *taos_connect_with(const OPTIONS *options) {
   const char *ip = NULL;
   const char *user = NULL;
   const char *pass = NULL;
   const char *db = NULL;
-  uint16_t port = 6030;
+  uint16_t port = 0;
 
   const char *charset = NULL;
   const char *timezone = NULL;
@@ -376,25 +387,25 @@ TAOS *taos_connect_with(const OPTIONS *options) {
     for (size_t i = 0; i < count; ++i) {
       const char *key = options->keys[i];
       const char *value = options->values[i];
-      if (tstricmp(key, "ip") == 0) {
+      if (strncmp(key, "ip", 2) == 0 && key[2] == '\0') {
         ip = value;
-      } else if (tstricmp(key, "user") == 0) {
+      } else if (strncmp(key, "user", 4) == 0 && key[4] == '\0') {
         user = value;
-      } else if (tstricmp(key, "pass") == 0) {
+      } else if (strncmp(key, "pass", 4) == 0 && key[4] == '\0') {
         pass = value;
-      } else if (tstricmp(key, "db") == 0) {
+      } else if (strncmp(key, "db", 2) == 0 && key[2] == '\0') {
         db = value;
-      } else if (tstricmp(key, "port") == 0) {
+      } else if (strncmp(key, "port", 4) == 0 && key[4] == '\0') {
         port = (uint16_t)atoi(value);
-      } else if (tstricmp(key, "charset") == 0) {
+      } else if (strncmp(key, "charset", 7) == 0 && key[7] == '\0') {
         charset = value;
-      } else if (tstricmp(key, "timezone") == 0) {
+      } else if (strncmp(key, "timezone", 8) == 0 && key[8] == '\0') {
         timezone = value;
-      } else if (tstricmp(key, "userIp") == 0) {
+      } else if (strncmp(key, "userIp", 6) == 0 && key[6] == '\0') {
         userIp = value;
-      } else if (tstricmp(key, "userApp") == 0) {
+      } else if (strncmp(key, "userApp", 7) == 0 && key[7] == '\0') {
         userApp = value;
-      } else if (tstricmp(key, "connectorInfo") == 0) {
+      } else if (strncmp(key, "connectorInfo", 13) == 0 && key[13] == '\0') {
         connectorInfo = value;
       } else {
         tscWarn("taos_connect_with unknown option key: %s", key);
@@ -403,56 +414,13 @@ TAOS *taos_connect_with(const OPTIONS *options) {
   }
 
   TAOS* taos = taos_connect(ip, user, pass, db, port);
-  if (taos == NULL) {
-    tscError("failed to connect to %s:%u, user: %s, db: %s",
-              ip ? ip : "(null)", port, user ? user : "(null)", db ? db : "(null)");
-    return NULL;
-  }
+  if (taos == NULL) return NULL;
 
-  if (charset != NULL) {
-    int code = taos_options_connection(taos, TSDB_OPTION_CONNECTION_CHARSET, charset);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("failed to set charset %s", charset);
-      taos_close(taos);
-      return NULL;
-    }
-  }
-
-  if (timezone != NULL) {
-    int code = taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, timezone);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("failed to set timezone %s", timezone);
-      taos_close(taos);
-      return NULL;
-    }
-  }
-
-  if (userIp != NULL) {
-    int code = taos_options_connection(taos, TSDB_OPTION_CONNECTION_USER_IP, userIp);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("failed to set user ip %s", userIp);
-      taos_close(taos);
-      return NULL;
-    }
-  }
-
-  if (userApp != NULL) {
-    int code = taos_options_connection(taos, TSDB_OPTION_CONNECTION_USER_APP, userApp);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("failed to set user app %s", userApp);
-      taos_close(taos);
-      return NULL;
-    }
-  }
-
-  if (connectorInfo != NULL) {
-    int code = taos_options_connection(taos, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, connectorInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("failed to set connector info %s", connectorInfo);
-      taos_close(taos);
-      return NULL;
-    }
-  }
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CHARSET, charset) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_TIMEZONE, timezone) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_IP, userIp) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_APP, userApp) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, connectorInfo) != TSDB_CODE_SUCCESS) return NULL;
 
   return taos;
 }
