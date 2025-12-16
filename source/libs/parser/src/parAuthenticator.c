@@ -330,9 +330,11 @@ static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
 }
 
 static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
-  SNode* pTagCond = NULL;
+  // SNode* pTagCond = NULL;
   // todo check tag condition for subtable
-  return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, &pTagCond);
+  // return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, &pTagCond);
+  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE));
+  return authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE);
 }
 
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {

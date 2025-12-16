@@ -34,10 +34,10 @@
 #include "mndStream.h"
 #include "tname.h"
 
-#define STB_VER_NUMBER          4
-#define STB_VER_SUPPORT_OWNER   4
 #define STB_VER_SUPPORT_COMP    2
 #define STB_VER_SUPPORT_VIRTUAL 3
+#define STB_VER_SUPPORT_OWNER   4
+#define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
 #define STB_RESERVE_SIZE        56
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
@@ -1052,6 +1052,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   memcpy(idxObj.stb, stbObj.name, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.db, stbObj.db, TSDB_DB_FNAME_LEN);
   memcpy(idxObj.colName, pSchema->name, TSDB_COL_NAME_LEN);
+  memcpy(idxObj.createUser, pReq->info.conn.user, TSDB_USER_LEN);
   idxObj.createdTime = taosGetTimestampMs();
   idxObj.uid = mndGenerateUid(fullIdxName, strlen(fullIdxName));
   idxObj.stbUid = stbObj.uid;
@@ -1366,6 +1367,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   int32_t        code = -1;
   SStbObj       *pStb = NULL;
   SDbObj        *pDb = NULL;
+  SUserObj      *pOperUser = NULL;
   SMCreateStbReq createReq = {0};
   bool           isAlter = false;
   SHashObj      *pHash = NULL;
@@ -1462,9 +1464,20 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  if ((code = mndAcquireUser(pMnode, (pReq->info.conn.user), &pOperUser))) {
     goto _OVER;
   }
+
+  // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  //   goto _OVER;
+  // }
+  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, pDb->name, NULL, NULL))) {
+    goto _OVER;
+  }
+  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_TBL_CREATE, pDb->name, NULL, NULL))) {
+    goto _OVER;
+  }
+
   if (pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
     goto _OVER;
@@ -1527,6 +1540,7 @@ _OVER:
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pOperUser);
   tFreeSMCreateStbReq(&createReq);
 
   if (pHash != NULL) {
@@ -3416,6 +3430,14 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pColInfo) {
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&pStb->keep), false), pStb, &lino, _ERROR);
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (pColInfo) {
+      char        owner[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = "\0";
+      const char *pOwner = pStb->owner[0] != 0 ? pStb->owner : pStb->createUser;
+      STR_WITH_MAXSIZE_TO_VARSTR(owner, pOwner, sizeof(owner));
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)owner, false), pStb, &lino, _ERROR);
     }
 
     numOfRows++;

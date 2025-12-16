@@ -3066,6 +3066,12 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
     }
+
+    TAOS_UNUSED(snprintf(durationStr, sizeof(durationStr), "%s", pDb->owner[0] != 0 ? pDb->owner : pDb->createUser));
+    STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
+    }
   }
 _OVER:
   if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
