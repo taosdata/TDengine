@@ -1317,35 +1317,50 @@ static int32_t collectMetaKeyFromScanVgroups(SCollectMetaKeyCxt* pCxt, SScanVgro
 
 static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-#if 0
-  bool    isRealObj = ('\0' != pStmt->objName[0] && strncmp(pStmt->objName, "*", TSDB_OBJ_NAME_LEN) != 0);
-  if (isRealObj) {
-    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->objName, pCxt->pMetaCache);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (isRealObj && '\0' != pStmt->tabName[0] && strncmp(pStmt->tabName, "*", TSDB_TABLE_NAME_LEN) != 0) {
-      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
+
+  if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
+    if (pStmt->roleName[0] == 'S' && pStmt->roleName[1] == 'Y' && pStmt->roleName[2] == 'S') {
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSDBA,
+                                      pCxt->pMetaCache);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSSEC,
+                                      pCxt->pMetaCache);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSAUDIT,
+                                      pCxt->pMetaCache);
+      }
     }
-  }
-#endif
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
-      if (pStmt->roleName[0] == 'S' && pStmt->roleName[1] == 'Y' && pStmt->roleName[2] == 'S') {
-        if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
-          return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSDBA,
-                                        pCxt->pMetaCache);
+  } else if (TSDB_ALTER_ROLE_PRIVILEGES == pStmt->optrType) {
+    bool isRealObj = ('\0' != pStmt->objName[0] && strncmp(pStmt->objName, "*", TSDB_OBJ_NAME_LEN) != 0);
+    if (isRealObj) {
+      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->objName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (isRealObj && '\0' != pStmt->tabName[0] && strncmp(pStmt->tabName, "*", TSDB_TABLE_NAME_LEN) != 0) {
+        EPrivObjType objType = PRIV_OBJ_TABLE;
+        SPrivIter    privIter = {0};
+        privIterInit(&privIter, &pStmt->privileges.privSet);
+        SPrivInfo* pPrivInfo = NULL;
+        while (privIterNext(&privIter, &pPrivInfo)) {
+          break;
         }
-        if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
-          return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSSEC,
-                                        pCxt->pMetaCache);
-        }
-        if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
-          return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
-                                        PRIV_GRANT_SYSAUDIT, pCxt->pMetaCache);
+        if (pPrivInfo) objType = pPrivInfo->objType;
+        if (PRIV_OBJ_TABLE == objType) {
+          code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
+        } else if (PRIV_OBJ_VIEW == objType) {
+          code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->objName,
+                                            pStmt->tabName, AUTH_TYPE_ALTER, pCxt->pMetaCache);
+        } else {
+          // TODO: other object types
         }
       }
     }
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_PRIVILEGE,
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_PRIVILEGE,
                                   pCxt->pMetaCache);
   }
 

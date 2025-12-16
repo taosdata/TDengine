@@ -1035,6 +1035,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   mInfo("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
   TAOS_CHECK_GOTO(mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb), NULL, _OVER);
+  memcpy(stbObj.createUser, pReq->info.conn.user, TSDB_USER_LEN);
 
   SSchema *pSchema = &(stbObj.pTags[0]);
   if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {

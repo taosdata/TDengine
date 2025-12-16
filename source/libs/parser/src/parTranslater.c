@@ -16188,7 +16188,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 }
 
 static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pStmt, EPrivCategory category,
-                                         SAlterRoleReq* pReq) {
+                                         SAlterRoleReq* pReq, bool grant) {
   SName       name = {0};
   STableMeta* pTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -16234,7 +16234,8 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name should be empty for database level privileges");
       }
-      if (strncmp(pStmt->objName, "*", 2) != 0) {
+      // don't validate the object when revoke
+      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
         SDbCfgInfo dbCfg = {0};
         if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
@@ -16245,7 +16246,8 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
     }
     case PRIV_OBJ_TABLE:
     case PRIV_OBJ_VIEW: {
-      if (0 != pStmt->tabName[0]) {
+      // don't validate the object when revoke
+      if (grant && (0 != pStmt->tabName[0])) {
         if (strncmp(pStmt->tabName, "*", 2) != 0) {
           SName       name = {0};
           STableMeta* pTableMeta = NULL;
@@ -16466,8 +16468,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   (void)snprintf(req.principal, TSDB_ROLE_LEN, "%s", pStmt->principal);
 
   switch (req.alterType) {
-// #ifdef TD_ENTERPRISE
-#if 1
+#ifdef TD_ENTERPRISE
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EPrivObjType  objType = PRIV_OBJ_UNKNOWN;
@@ -16523,7 +16524,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         req.targetType = objType;
         req.targetLevel = objLevel;
         TAOS_CHECK_EXIT(translateGrantFillPrivileges(pCxt, pStmt, &req));
-        TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, &req));
+        TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, &req, grant));
       }
       break;
     }
