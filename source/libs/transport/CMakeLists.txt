@@ -26,7 +26,7 @@ endif()
 
 
 if (${TD_LINUX})
-  if (${BUILD_LIBSASL})
+  if (${TD_ENTERPRISE})        # {
     DEP_ext_sasl2(transport)
   endif()
 endif()
