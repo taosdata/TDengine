@@ -99,8 +99,8 @@ Filename: "C:\Windows\SysWOW64\odbcconf.exe"; Parameters: "/S /F win_odbc_instal
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
-    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};C:\{#CusName}"; \
-    Check: NeedsAddPath('C:\{#CusName}')
+    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{#MyAppInstallDir}"; \
+    Check: NeedsAddPath('{#MyAppInstallDir}')
 
 [Code]
 function NeedsAddPath(Param: string): boolean;

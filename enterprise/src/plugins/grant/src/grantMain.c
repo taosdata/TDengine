@@ -357,7 +357,7 @@ int32_t grantSecondsToString(int64_t seconds, char *ts);  // 非 static，供其
 // static void    grantRetrieveGrantInfo(SMnode *pMnode);
 static void    grantResetMaster(SMnode *pMnode, int64_t upgradeSec);
 static void    grantSetClusterInfo(SMnode *pMnode);
-static void    grantObjInit(SGrantUniqObj *pObj, bool official);
+void           grantObjInit(SGrantUniqObj *pObj, bool official);
 static void    grantStatusInit(SGrantStatus *pStatus);
 static void    grantDataInsSetDefault(SGrantDataIn *pDataIns, int32_t num, int64_t expireSec);
 static int32_t grantCheckViews(bool allowEqual, int8_t traceLevel);
@@ -686,7 +686,7 @@ static int64_t grantSecFromExpireDay(int64_t curSec, int64_t expireDay) {
   return result > GRANT_EXPIRE_VALUE ? GRANT_EXPIRE_VALUE : result;
 }
 
-static void grantObjInit(SGrantUniqObj *pObj, bool official) {
+void grantObjInit(SGrantUniqObj *pObj, bool official) {
   pObj->flags = 0;
   for (int32_t i = 0; i < GRANT_UNIQ_TOKEN_NUM; ++i) {
     pObj->token[i] = 0;
@@ -1078,6 +1078,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
                        grantHandle.showOpts[GRANT_OPT_SUBSCRIPTION]);
   GRANT_VALUE_CONVERT(grantObj.limitSubscriptions, gStatus.limitSubscriptions, 1, GRANT_UNIQ_DFT_SUBSCRIPTION_NUM);
   GRANT_VALUE_CONVERT(grantObj.limitViews, gStatus.limitViews, 1, GRANT_UNIQ_DFT_VIEW_NUM);
+  GRANT_VALUE_CONVERT(grantObj.limitAuthClients, gStatus.limitAuthClients, 1, 0);
   GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_STORAGE], gStatus.multiTierExpireSec, 86400, dftExpireSec,
                        grantHandle.showOpts[GRANT_OPT_STORAGE]);
   GRANT_EXPIRE_CONVERT(grantObj.expireDays[GRANT_OPT_AUDIT], gStatus.auditExpireSec, 86400, dftExpireSec,
@@ -1986,6 +1987,14 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
       uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
     }
     gStatus.serviceExpireSec = grantClusterEpoch;
+
+#ifdef GRANT_DNODES
+    gStatus.limitDnodes = atoi(GRANT_DNODES);
+#endif
+
+#ifdef GRANT_TIMESERIES
+    gStatus.limitTimeSeries = atoll(GRANT_TIMESERIES);
+#endif
 
     // optional items
     int64_t optExpireSec =
