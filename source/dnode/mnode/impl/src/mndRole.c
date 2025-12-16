@@ -260,12 +260,12 @@ _exit:
 
 static int32_t mndCreateDefaultRoles(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, ROLE_SYSDBA));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, ROLE_SYSSEC));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT, ROLE_SYSAUDIT));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT_LOG, ROLE_SYSAUDIT_LOG));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_0, ROLE_SYSINFO_0));
-  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, ROLE_SYSINFO_1));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSDBA, T_ROLE_SYSDBA));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSSEC, T_ROLE_SYSSEC));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT, T_ROLE_SYSAUDIT));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSAUDIT_LOG, T_ROLE_SYSAUDIT_LOG));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_0, T_ROLE_SYSINFO_0));
+  TAOS_CHECK_EXIT(mndCreateDefaultRole(pMnode, TSDB_ROLE_SYSINFO_1, T_ROLE_SYSINFO_1));
 _exit:
   TAOS_RETURN(code);
 }

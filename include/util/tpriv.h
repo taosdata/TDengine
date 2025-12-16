@@ -24,12 +24,12 @@
 extern "C" {
 #endif
 
-#define ROLE_SYSDBA       0x01
-#define ROLE_SYSSEC       0x02
-#define ROLE_SYSAUDIT     0x04
-#define ROLE_SYSAUDIT_LOG 0x08
-#define ROLE_SYSINFO_0    0x10
-#define ROLE_SYSINFO_1    0x20
+#define T_ROLE_SYSDBA       0x01
+#define T_ROLE_SYSSEC       0x02
+#define T_ROLE_SYSAUDIT     0x04
+#define T_ROLE_SYSAUDIT_LOG 0x08
+#define T_ROLE_SYSINFO_0    0x10
+#define T_ROLE_SYSINFO_1    0x20
 
 #define TSDB_ROLE_SYSDBA       "SYSDBA"
 #define TSDB_ROLE_SYSSEC       "SYSSEC"
@@ -419,7 +419,7 @@ int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 const char* privObjTypeName(EPrivObjType objType);
 int32_t     getSysRoleType(const char* roleName);
 bool        isPrivInheritName(const char* name);
-SPrivInfo   *privInfoGet(EPrivType privType);
+SPrivInfo*  privInfoGet(EPrivType privType);
 
 #ifdef __cplusplus
 }
