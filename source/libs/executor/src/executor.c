@@ -1053,8 +1053,13 @@ void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
 
 void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
   if (pTaskInfo->subJobCtx.hasSubJobs) {
+    taosWLockLatch(&pTaskInfo->subJobCtx.lock);
+    if (pTaskInfo->subJobCtx.param) {
+      ((SScalarFetchParam*)pTaskInfo->subJobCtx.param)->pSubJobCtx = NULL;
+    }
     pTaskInfo->subJobCtx.code = pTaskInfo->code;
     int32_t code = tsem_post(&pTaskInfo->subJobCtx.ready);
+    taosWUnLockLatch(&pTaskInfo->subJobCtx.lock);
   }
   
   taosWLockLatch(&pTaskInfo->stopInfo.lock);

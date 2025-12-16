@@ -103,7 +103,8 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
     TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
     TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pPlan));
     pParent->numOfSubplans += pPlan->numOfSubplans;
-    pPlan->isScalarQ = isScalarSubQuery(pNode);
+    pPlan->subSql = nodesGetSubSql(pNode);
+    pPlan->isScalarQ = nodesIsScalarSubQuery(pNode);
   }
 
 _exit:

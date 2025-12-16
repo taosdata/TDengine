@@ -26,7 +26,6 @@
 #include "tsimplehash.h"
 #include "tjson.h"
 
-
 typedef struct STaskSubJobCtx {
   uint64_t    queryId;
   char*       idStr;
@@ -34,10 +33,12 @@ typedef struct STaskSubJobCtx {
   void*       rpcHandle;
   int64_t     transporterId;
   bool        hasSubJobs;
-  int32_t code;
-  tsem_t  ready;
-  SArray* subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray* subResValues;  // SArray<SValueNode*>
+  SRWLatch           lock;
+  int32_t            code;
+  void*              param;
+  tsem_t             ready;
+  SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
+  SArray*            subResValues;  // SArray<SValueNode*>
 } STaskSubJobCtx;
 
 typedef struct SScalarFetchParam {

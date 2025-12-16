@@ -124,6 +124,8 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
     }
     
     pTaskInfo->subJobCtx.hasSubJobs = true;
+
+    qDebug("%s subJobCtx with %d endPoints inited", pTaskInfo->id.str, subJobNum);
   }
 
   return TSDB_CODE_SUCCESS;

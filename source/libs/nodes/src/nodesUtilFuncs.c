@@ -3928,7 +3928,7 @@ void tFreeStreamVtbDbVgInfo(void* param) {
 }
 
 
-bool isScalarSubQuery(SNode* pNode) {
+bool nodesIsScalarSubQuery(SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
@@ -3944,4 +3944,22 @@ bool isScalarSubQuery(SNode* pNode) {
 
   return false;
 }
+
+char* nodesGetSubSql(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      return pSelect->node.userAlias;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      return pSet->node.userAlias;
+    }
+    default:
+      break;
+  }
+
+  return NULL;
+}
+
 

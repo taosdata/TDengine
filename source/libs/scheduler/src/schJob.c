@@ -828,7 +828,7 @@ void schFreeJobImpl(void *job) {
   int64_t  refId = pJob->refId;
   bool     isParentJob = SCH_IS_PARENT_JOB(pJob);
 
-  qTrace("QID:0x%" PRIx64 ", begin to free sch job, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
+  qDebug("QID:0x%" PRIx64 ", begin to free sch job, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
 
   schDropJobAllTasks(pJob);
 
@@ -875,6 +875,7 @@ void schFreeJobImpl(void *job) {
   if (isParentJob) {
     taosArrayDestroy(pJob->nodeList);
     qDestroyQueryPlan(pJob->pDag);
+    qDebug("QID:0x%" PRIx64 " pDag: %p destroyed", queryId, pJob->pDag);
     (void)nodesReleaseAllocatorWeakRef(pJob->allocatorRefId);  // ignore error
   }
   
@@ -894,7 +895,7 @@ void schFreeJobImpl(void *job) {
     }
   }
 
-  qTrace("QID:0x%" PRIx64 ", sch job freed, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
+  qDebug("QID:0x%" PRIx64 ", sch job freed, jobId:0x%" PRIx64 ", pointer:%p, isParent:%d", queryId, refId, pJob, isParentJob);
 }
 
 int32_t schJobFetchRows(SSchJob *pJob) {
@@ -933,6 +934,14 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
     SCH_ERR_JRET(terrno);
   }
 
+  if (pDag->subSql) {
+    pJob->sql = taosStrdup(pDag->subSql);
+    if (NULL == pJob->sql) {
+      qError("QID:0x%" PRIx64 ", strdup subSql %s failed", pDag->queryId, pDag->subSql);
+      SCH_ERR_JRET(terrno);
+    }
+  }
+
   pJob->parent = pParent;
   pJob->queryId = pParent->queryId;
   pJob->seriesId = pParent->seriesId;
@@ -942,8 +951,6 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->attr.localExec = false;
   pJob->conn = pParent->conn;
   
-  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p", pParent->queryId, subJobId, pJob->conn.pTrans, pJob);
-
   // TODO COPY SQL
   /*
   pJob->sql = taosStrdup(pReq->sql);
@@ -961,6 +968,8 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->source = pParent->source;
   pJob->pWorkerCb = pParent->pWorkerCb;
   pJob->nodeList = pParent->nodeList;
+
+  qDebug("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p, pDag:%p", pParent->queryId, subJobId, pJob->conn.pTrans, pJob, pJob->pDag);
 
   pJob->taskList = taosHashInit(SCH_GET_TASK_CAPACITY(pDag->numOfSubplans), taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
                                 HASH_ENTRY_LOCK);
@@ -1084,8 +1093,8 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     }
   }
 
-  qInfo("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p, subJobNum:%d", 
-    pJob->queryId, pJob->subJobId, pJob->conn.pTrans, pJob, (int32_t)taosArrayGetSize(pJob->subJobs));
+  qDebug("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p, subJobNum:%d, pDag:%p", 
+    pJob->queryId, pJob->subJobId, pJob->conn.pTrans, pJob, (int32_t)taosArrayGetSize(pJob->subJobs), pJob->pDag);
   
   SCH_ERR_JRET(schValidateAndBuildJob(pReq->pDag, pJob));
 
@@ -1439,7 +1448,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
     pJob = taosArrayGetP(pJob->subJobs, sjId);
     if (NULL == pJob) {
       qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 " SJID:%d sub job doesn't exist, jobId:0x%" PRIx64, qId, tId, sjId, rId);
-      SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
+      SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
 
     if (schJobNeedToStop(pJob, &status)) {

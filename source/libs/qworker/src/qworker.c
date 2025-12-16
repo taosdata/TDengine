@@ -264,6 +264,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
     QW_GET_QTID(key, status.queryId, status.clientId, status.taskId, status.execId);
     status.status = taskStatus->status;
     status.refId = taskStatus->refId;
+    status.subJobId = -1;
 
     if (NULL == taosArrayPush(hbInfo->rsp.taskStatus, &status)) {
       taosHashCancelIterate(sch->tasksHash, pIter);
@@ -1132,8 +1133,8 @@ _return:
       qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
     }
 
-    if (!rsped && ctx) {
-      if (ctx->subQuery && !atomic_load_8(&ctx->subQRes.resGot)) {
+    if (!rsped) {
+      if (ctx && ctx->subQuery && !atomic_load_8(&ctx->subQRes.resGot)) {
         code = qwChkSaveSubQueryFetchRsp(ctx, rsp, dataLen, code, sOutput.queryEnd);
       }
       

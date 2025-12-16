@@ -495,7 +495,7 @@ static int32_t calcSubQueries(SCalcConstContext* pCxt, SNodeList* pSubQueries) {
     if (code) {
       break;
     }
-    if (isEmptyResultQuery(pNode) && isScalarSubQuery(pNode)) {
+    if (isEmptyResultQuery(pNode) && nodesIsScalarSubQuery(pNode)) {
       // TODO
 /*
       parserError("%" PRIx64 " scalar subquery got empty result", pCxt->pParseCxt->requestId);

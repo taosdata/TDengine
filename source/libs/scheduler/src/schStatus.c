@@ -56,7 +56,7 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
         if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
           SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
         } else {
-          SCH_JOB_TLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
+          SCH_JOB_DLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
         }
       }
       break;
