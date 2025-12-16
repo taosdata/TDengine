@@ -491,6 +491,8 @@ void* getTaskPoolWorkerCb();
 
 #define IS_SYS_DBNAME(_dbname) (IS_INFORMATION_SCHEMA_DB(_dbname) || IS_PERFORMANCE_SCHEMA_DB(_dbname))
 
+#define IS_SYS_PREFIX(_name) (_name[0] == 'S' && _name[1] == 'Y' && _name[2] == 'S')
+
 #define IS_AUDIT_DBNAME(_dbname)    ((*(_dbname) == 'a') && (0 == strcmp(_dbname, TSDB_AUDIT_DB)))
 #define IS_AUDIT_STB_NAME(_stbname) ((*(_stbname) == 'o') && (0 == strcmp(_stbname, TSDB_AUDIT_STB_OPERATION)))
 #define IS_AUDIT_CTB_NAME(_ctbname) \

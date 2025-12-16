@@ -587,6 +587,40 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
   return 0;  // return 0 and check owner later in translateShowCreateRsma since rsma ctgCatalog not available yet
 }
 
+static int32_t authGrant(SAuthCxt* pCxt, SGrantStmt* pStmt) {
+  if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
+    if (IS_SYS_PREFIX(pStmt->roleName)) {
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
+        return authSysPrivileges(pCxt, (void*)pStmt, PRIV_GRANT_SYSDBA);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
+        return authSysPrivileges(pCxt, (void*)pStmt, PRIV_GRANT_SYSSEC);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+        return authSysPrivileges(pCxt, (void*)pStmt, PRIV_GRANT_SYSAUDIT);
+      }
+    }
+  }
+  return authSysPrivileges(pCxt, (void*)pStmt, PRIV_GRANT_PRIVILEGE);
+}
+
+static int32_t authRevoke(SAuthCxt* pCxt, SRevokeStmt* pStmt) {
+  if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
+    if (IS_SYS_PREFIX(pStmt->roleName)) {
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
+        return authSysPrivileges(pCxt, (void*)pStmt, PRIV_REVOKE_SYSDBA);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
+        return authSysPrivileges(pCxt, (void*)pStmt, PRIV_REVOKE_SYSSEC);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+        return authSysPrivileges(pCxt, (void*)pStmt, PRIV_REVOKE_SYSAUDIT);
+      }
+    }
+  }
+  return authSysPrivileges(pCxt, (void*)pStmt, PRIV_REVOKE_PRIVILEGE);
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pStmt)) {
@@ -717,6 +751,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_FUNC_SHOW);
     case QUERY_NODE_GRANT_STMT:
+      return authGrant(pCxt, (SGrantStmt*)pStmt);
+    case QUERY_NODE_REVOKE_STMT:
+      return authRevoke(pCxt, (SRevokeStmt*)pStmt);
     case QUERY_NODE_CREATE_DNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
     case QUERY_NODE_CREATE_QNODE_STMT:

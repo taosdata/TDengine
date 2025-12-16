@@ -1313,20 +1313,60 @@ static int32_t collectMetaKeyFromScanVgroups(SCollectMetaKeyCxt* pCxt, SScanVgro
 
 static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
+#if 0
   bool    isRealObj = ('\0' != pStmt->objName[0] && strncmp(pStmt->objName, "*", TSDB_OBJ_NAME_LEN) != 0);
   if (isRealObj) {
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->objName, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (isRealObj && '\0' != pStmt->tabName[0] && strncmp(pStmt->tabName, "*", TSDB_TABLE_NAME_LEN) != 0) {
-      return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
     }
   }
+#endif
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
+      if (pStmt->roleName[0] == 'S' && pStmt->roleName[1] == 'Y' && pStmt->roleName[2] == 'S') {
+        if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
+          return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSDBA,
+                                        pCxt->pMetaCache);
+        }
+        if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
+          return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSSEC,
+                                        pCxt->pMetaCache);
+        }
+        if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+          return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                        PRIV_GRANT_SYSAUDIT, pCxt->pMetaCache);
+        }
+      }
+    }
+    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_PRIVILEGE,
+                                  pCxt->pMetaCache);
+  }
+
   return code;
 }
 
 static int32_t collectMetaKeyFromRevoke(SCollectMetaKeyCxt* pCxt, SRevokeStmt* pStmt) {
-  return collectMetaKeyFromGrant(pCxt, (SGrantStmt*)pStmt);
+  if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
+    if (pStmt->roleName[0] == 'S' && pStmt->roleName[1] == 'Y' && pStmt->roleName[2] == 'S') {
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_SYSDBA,
+                                      pCxt->pMetaCache);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_SYSSEC,
+                                      pCxt->pMetaCache);
+      }
+      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_SYSAUDIT,
+                                      pCxt->pMetaCache);
+      }
+    }
+  }
+  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_PRIVILEGE,
+                                pCxt->pMetaCache);
 }
 
 static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreateViewStmt* pStmt) {
