@@ -1424,11 +1424,9 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    if (code != TSDB_CODE_MND_CONSUMER_NOT_READY){
-      tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
-      if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){
-        atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__LOST);
-      }
+    tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
+    if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){
+      atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__LOST);
     }
     goto END;
   }

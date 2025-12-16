@@ -303,6 +303,7 @@ goto END;
 tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);\
 code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp, POLL_RSP_TYPE(pRequest, taosxRsp), vgId);\
 goto END;
+
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int32_t         vgId = TD_VID(pTq->pVnode);
@@ -609,9 +610,6 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, 
   int32_t len = 0;
   int32_t code = 0;
 
-  if (type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP){
-    // pRsp->withSchema = 0;
-  }
   if (type == TMQ_MSG_TYPE__POLL_DATA_RSP ||
       type == TMQ_MSG_TYPE__WALINFO_RSP ||
       type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
