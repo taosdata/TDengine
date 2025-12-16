@@ -627,11 +627,11 @@ static int32_t mndInitWal(SMnode *pMnode) {
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
     cfg.encryptAlgr = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
-    if (tsEncryptKey[0] == '\0') {
+    if (tsDbKey[0] == '\0') {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       TAOS_RETURN(code);
     } else {
-      tstrncpy(cfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(cfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif

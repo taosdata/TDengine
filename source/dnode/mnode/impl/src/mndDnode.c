@@ -1779,7 +1779,7 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
     createTime = tsEncryptKeyCreateTime;
     svrKeyUpdateTime = tsSvrKeyUpdateTime;
     dbKeyUpdateTime = tsDbKeyUpdateTime;
-  }else {
+  } else {
     code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
                               &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
     if (code != 0) {

@@ -410,7 +410,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
       count = Builtin_CBC_Decrypt(&opts);
 
@@ -555,7 +555,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
-          tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+          tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
           int32_t count = Builtin_CBC_Encrypt(&opts);
 

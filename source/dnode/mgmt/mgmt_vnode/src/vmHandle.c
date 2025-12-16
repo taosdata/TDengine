@@ -241,7 +241,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   // pCfg->tsdbCfg.encryptAlgr = pCreate->encryptAlgr;
   tstrncpy(pCfg->tsdbCfg.encryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
   if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 || pCfg->tsdbCfg.encryptData.encryptAlgrName[0] != '\0') {
-    tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->tsdbCfg.encryptAlgr = 0;
@@ -258,7 +258,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   // pCfg->walCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   tstrncpy(pCfg->walCfg.encryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
   if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 || pCfg->walCfg.encryptData.encryptAlgrName[0] != '\0') {
-    tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->walCfg.encryptAlgr = 0;
@@ -268,7 +268,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   // pCfg->tdbEncryptAlgorithm = pCreate->encryptAlgorithm;
   tstrncpy(pCfg->tdbEncryptData.encryptAlgrName, pCreate->encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
   if (pCfg->tdbEncryptAlgr == DND_CA_SM4 || pCfg->tdbEncryptData.encryptAlgrName[0] != '\0') {
-    tstrncpy(pCfg->tdbEncryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(pCfg->tdbEncryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
   }
 #else
   pCfg->tdbEncryptAlgr = 0;
@@ -383,13 +383,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 
-  if (req.encryptAlgrName[0] != '\0') {
-    if (strlen(tsEncryptKey) == 0) {
-      (void)tFreeSCreateVnodeReq(&req);
-      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      dError("vgId:%d, failed to create vnode since encrypt key is empty, reason:%s", req.vgId, tstrerror(code));
-      return code;
-    }
+  if (req.encryptAlgrName[0] != '\0' && strlen(tsDbKey) == 0) {
+    (void)tFreeSCreateVnodeReq(&req);
+    code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+    dError("vgId:%d, failed to create vnode since encrypt key is empty, reason:%s", req.vgId, tstrerror(code));
+    return code;
   }
 
   vmGenerateVnodeCfg(&req, &vnodeCfg);
