@@ -35,8 +35,7 @@
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode);
 
-// int32_t connUpdateSessMgtMetric(int64_t connId, SSessParam* pParam);
-int32_t connUpdateSessMgtMetricByUser(int32_t connId);
+int32_t connCheckAndUpateMetric(int32_t connId);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -3144,7 +3143,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
     return;
   }
 
-  code = connUpdateSessMgtMetricByUser(connId);
+  code = connCheckAndUpateMetric(connId);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
@@ -3185,7 +3184,7 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
     return;
   }
 
-  code = connUpdateSessMgtMetricByUser(connId);
+  code = connCheckAndUpateMetric(connId);
 
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
@@ -3198,21 +3197,7 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   doAsyncQuery(pRequest, false);
 }
 
-// int32_t connUpdateSessMgtMetric(int64_t connId, SSessParam* pParam) {
-//   int32_t code = 0;
-
-//   STscObj* pTscObj = acquireTscObj(connId);
-//   if (pTscObj == NULL) {
-//     code = TSDB_CODE_INVALID_PARA;
-//     return code;
-//   }
-//   code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
-
-//   releaseTscObj(connId);
-//   return code;
-// }
-
-int32_t connUpdateSessMgtMetricByUser(int32_t connId) {
+int32_t connCheckAndUpateMetric(int32_t connId) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -3221,12 +3206,12 @@ int32_t connUpdateSessMgtMetricByUser(int32_t connId) {
     code = TSDB_CODE_INVALID_PARA;
     return code;
   }
-
-  code = sessMgtUpdateUserMetric(pTscObj->user, &(SSessParam){.type = SESSION_MAX_CONCURRENCY, .value = 1});
+  code = sessMgtCheckConnStatus(pTscObj->user, &pTscObj->sessInfo);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  code =
-      sessMgtUpdateUserMetric(pTscObj->user, &(SSessParam){.type = SESSION_CONN_TIME, .value = taosGetTimestampMs()});
+  connSessInfoUpdate(&pTscObj->sessInfo);
+
+  code = sessMgtUpdateUserMetric(pTscObj->user, &(SSessParam){.type = SESSION_MAX_CONCURRENCY, .value = 1});
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:

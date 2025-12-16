@@ -191,6 +191,7 @@ typedef struct STscObj {
   SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
   SOptionInfo    optionInfo;
+  SConnSessInfo  sessInfo;
 } STscObj;
 
 typedef struct STscDbg {

@@ -34,6 +34,11 @@ typedef enum {
   SESSION_MAX_TYPE = 5
 } ESessionType;
 
+typedef struct {
+  int64_t sessStartTime;
+  int64_t sessLastAccessTime;
+} SConnSessInfo;
+
 typedef int32_t (*sessCheckFn)(int64_t value, int64_t limit);
 typedef int32_t (*sessUpdateValueFn)(int64_t* pValue, int64_t delta);
 typedef int32_t (*sessUpdateLimitFn)(int64_t* pValue, int64_t limit);
@@ -78,6 +83,9 @@ int32_t sessMgtCheckUser(char* user, ESessionType type);
 int32_t sessMgtRemoveUser(char* user);
 
 void sessMgtDestroy();
+
+void    connSessInfoUpdate(SConnSessInfo* pInfo);
+int32_t sessMgtCheckConnStatus(char* user, SConnSessInfo* pInfo);
 
 #ifdef __cplusplus
 }
