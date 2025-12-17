@@ -12477,7 +12477,6 @@ static int32_t xnodeTaskStatusStrToNum(const char* status) {
 }
 
 static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
-  // printf("translateCreateXnode: %s\n", pStmt->url);
   SMCreateXnodeReq createReq = {0};
 
   createReq.urlLen = strlen(pStmt->url) + 1;
@@ -12579,7 +12578,6 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   return TSDB_CODE_SUCCESS;
 }
 static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTaskStmt* pStmt) {
-  // printf("translateCreateXnodeTask: %s\n", pStmt->name);
   SMCreateXnodeTaskReq createReq = {0};
 
   createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
@@ -12616,6 +12614,7 @@ static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStm
   // printf("translateDropXnodeTask on task:%d\n", pStmt->tid);
   SMDropXnodeTaskReq dropReq = {0};
   dropReq.tid = pStmt->tid;
+  dropReq.force = pStmt->force;
   if (pStmt->name != NULL) {
     dropReq.nameLen = strlen(pStmt->name) + 1;
     dropReq.name = pStmt->name;
@@ -12677,7 +12676,6 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
   }
   createReq.tid = pStmt->tid;
-
   createReq.via = pStmt->options->via;
 
   const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");

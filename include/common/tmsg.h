@@ -3207,6 +3207,7 @@ void    tFreeSMUpdateXnodeTaskReq(SMUpdateXnodeTaskReq* pReq);
 
 typedef struct {
   int32_t tid;
+  bool    force;
   int32_t nameLen;
   int32_t sqlLen;
   char*   name;

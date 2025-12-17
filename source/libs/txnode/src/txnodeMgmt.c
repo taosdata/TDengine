@@ -67,6 +67,7 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     }
   } else {
        xndInfo("xnoded process restart");
+       uv_sleep(2000);
        int32_t code = xnodeMgmtSpawnXnoded(pData);
        if (code != 0) {
          xndError("xnoded process restart failed with code:%d", code);
@@ -75,7 +76,7 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
 }
 
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
-  xndInfo("start to init xnoded");
+  xndDebug("start to init xnoded");
   TAOS_XNODED_MGMT_CHECK_PTR_RCODE(pData);
 
   int32_t              err = 0;
@@ -105,7 +106,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   // snprintf(dnodeId, sizeof(dnodeId), "%d", pData->dnodeId);
 
   // char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};
-  char *argsXnoded[] = {path};
+  char *argsXnoded[] = {path, NULL};
   options.args = argsXnoded;
   options.file = path;
 
@@ -124,10 +125,13 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
   options.flags = UV_PROCESS_DETACHED;
 
-  char xnodedCfgDir[256] = {0};
-  snprintf(xnodedCfgDir, 32, "%s=%s", "XNODED_CFG_DIR", configDir);
+  char xnodedCfgDir[PATH_MAX] = {0};
+  snprintf(xnodedCfgDir, PATH_MAX, "%s=%s", "XNODED_CFG_DIR", configDir);
+  char xnodedLogDir[PATH_MAX] = {0};
+  snprintf(xnodedLogDir, PATH_MAX, "%s=%s", "XNODED_LOG_DIR", tsLogDir);
+  xndInfo("xxxzgc **** xnodedCfgDir:%s, xnodedLogDir:%s", xnodedCfgDir, xnodedLogDir);
   char dnodeIdEnvItem[64] = {0};
-  snprintf(dnodeIdEnvItem, 32, "%s=%d", "XNODED_DNODE_EP", pData->dnodeId);
+  snprintf(dnodeIdEnvItem, 64, "%s=%d", "XNODED_DNODE_EP", pData->dnodeId);
   char xnodedUserPass[XNODE_USER_PASS_LEN] = {0};
   snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USERPASS", pData->userPass);
   char xnodeClusterId[32] = {0};
@@ -158,7 +162,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   //   }
   // }
 
-  char *envXnoded[] = {xnodedCfgDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId, NULL};
+  char *envXnoded[] = {xnodedCfgDir, xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId, NULL};
 
   char **envXnodedWithPEnv = NULL;
   if (environ != NULL) {
@@ -319,7 +323,7 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   }
 _exit:
   if (code != 0) {
-    xndError("xnoded start failed with code:%d, lino:%d", code, lino);
+    xndError("xnoded start failed with lino:%d, code:%d, error: %s", code, lino, uv_strerror(code));
   }
   return code;
 }
@@ -329,7 +333,7 @@ _exit:
  */
 void xnodeMgmtStopXnoded(void) {
   SXnodedData *pData = &xnodedGlobal;
-  xndInfo("xnoded start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
+  xndDebug("xnoded start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->isStopped)) {
     return;
   }

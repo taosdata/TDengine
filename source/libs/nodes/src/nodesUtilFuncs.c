@@ -2324,6 +2324,19 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT: {
+      SUpdateXnodeTaskStmt* pStmt = (SUpdateXnodeTaskStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->source);
+      nodesDestroyNode((SNode*)pStmt->sink);
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_REBALANCE_XNODE_JOB_STMT: {
+      SRebalanceXnodeJobStmt* pStmt = (SRebalanceXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+
     default:
       break;
   }

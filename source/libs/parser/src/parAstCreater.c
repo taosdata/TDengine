@@ -4070,10 +4070,8 @@ SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* 
   if (pPass != NULL) {
     CHECK_NAME(checkPassword(pCxt, pPass, pStmt->pass));
   }
-  // printf("xnode created with url:%s, user:%s, pass:%s\n", pStmt->url, pStmt->user, pStmt->pass);
   return (SNode*)pStmt;
 _err:
-  // printf("createCreateXnodeWithUserPassStmt: error %x\n", pCxt->errCode);
   return NULL;
 }
 SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
@@ -4134,6 +4132,11 @@ SNode* createDrainXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DRAIN_XNODE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+  if (pStmt->xnodeId <= 0) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id should be greater than 0");
+    goto _err;
+  }
 
   return (SNode*)pStmt;
 _err:
@@ -4344,14 +4347,10 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
 
   if (pSource != NULL) {
     SXTaskSource* source = (SXTaskSource*)(pSource);
-    // printf("createXnodeTaskWithOptionsDirectly param source: %s:%s\n", xGetTaskSourceTypeAsStr(&source->source),
-    //      xGetTaskSourceStr(&source->source));
     pTaskStmt->source = source;
   }
   if (pSink != NULL) {
     SXTaskSink* sink = (SXTaskSink*)(pSink);
-    // printf("createXnodeTaskWithOptionsDirectly param sink: %s:%s\n", xGetTaskSinkTypeAsStr(&sink->sink),
-    //      xGetTaskSinkStr(&sink->sink));
     pTaskStmt->sink = sink;
   }
   if (pNode != NULL) {
@@ -4426,9 +4425,17 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
   CHECK_MAKE_NODE(pStmt);
   SStartXnodeTaskStmt* pTaskStmt = (SStartXnodeTaskStmt*)pStmt;
   pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
+  if (pTaskStmt->tid <= 0) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "task id should be greater than 0");
+    goto _err;
+  }
 
   return (SNode*)pTaskStmt;
 _err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
   return NULL;
 }
 
@@ -4450,9 +4457,17 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
   CHECK_MAKE_NODE(pStmt);
   SStopXnodeTaskStmt* pTaskStmt = (SStopXnodeTaskStmt*)pStmt;
   pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
+  if (pTaskStmt->tid <= 0) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "task id should be greater than 0");
+    goto _err;
+  }
 
   return (SNode*)pTaskStmt;
 _err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
   return NULL;
 }
 
@@ -4544,20 +4559,15 @@ SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
 
   if (pSource != NULL) {
     SXTaskSource* source = (SXTaskSource*)(pSource);
-    // printf("updateXnodeTaskWithOptionsDirectly param source: %s:%s\n", xGetTaskSourceTypeAsStr(&source->source),
-    //      xGetTaskSourceStr(&source->source));
     pTaskStmt->source = source;
   }
   if (pSink != NULL) {
     SXTaskSink* sink = (SXTaskSink*)(pSink);
-    // printf("updateXnodeTaskWithOptionsDirectly param sink: %s:%s\n", xGetTaskSinkTypeAsStr(&sink->sink),
-    //      xGetTaskSinkStr(&sink->sink));
     pTaskStmt->sink = sink;
   }
   if (pNode != NULL) {
     if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
       SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
-      // printXnodeTaskOptions(&options->opts);
       pTaskStmt->options = options;
     }
   }
@@ -4806,23 +4816,14 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option name for xnode should not be empty");
     goto _err;
   }
-  // if (pVal == NULL) {
-  //   printf("setXnodeTaskOption: k:%s\n", key);
-  // } else {
-  //   printf("setXnodeTaskOption: k:\"%s\", v:\"%s\", pVal len: %d\n", key, pVal->z, pVal->n);
-  // }
   char via[TSDB_COL_NAME_LEN] = {0};
   char buf[TSDB_XNODE_TASK_OPTIONS_MAX_NUM] = {0};
   if (strcmp(key, "trigger") == 0) {
-    // COPY_COW_STR_FROM_ID_TOKEN(pOptions->opts.trigger, pVal);
     (void)trimString(pVal->z, pVal->n, pOptions->trigger, sizeof(pOptions->trigger));
-    // printf("setXnodeTaskOption trigger: %s\n", pOptions->trigger);
   } else if (strcmp(key, "parser") == 0 || strcmp(key, "transform") == 0) {
     (void)trimString(pVal->z, pVal->n, pOptions->parser, sizeof(pOptions->parser));
-    // printf("setXnodeTaskOption parser: %s\n", pOptions->parser);
   } else if (strcmp(key, "health") == 0) {
     (void)trimString(pVal->z, pVal->n, pOptions->health, sizeof(pOptions->health));
-    // printf("setXnodeTaskOption health: %s\n", pOptions->health);
   } else if (strcmp(key, "via") == 0) {
     switch (pVal->type) {
       case TK_NK_STRING:
@@ -4850,10 +4851,8 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
         memset(pKeyVal, 0, pKey->n + pVal->n + 2);
 
         CHECK_OUT_OF_MEM(pKeyVal);
-        // printf("setXnodeTaskOption: keyVal: %s\n", pKeyVal);
         size_t pos = strlen(key);
         memcpy(pKeyVal, key, pos);
-        // printf("setXnodeTaskOption: keyVal: %s\n", pKeyVal);
         pKeyVal[pos] = '=';  // Add '=' after the key
         pos++;
 
@@ -4865,13 +4864,11 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
         }
       } else {
         size_t keyLen = strlen(key);
-        // printf("key value length expected: %ld\n", keyLen + 1);
         pKeyVal = taosMemoryMalloc(keyLen + 1);
         memset(pKeyVal, 0, keyLen + 1);
         CHECK_OUT_OF_MEM(pKeyVal);
         memcpy(pKeyVal, key, keyLen);
       }
-      // printf("setXnodeTaskOption with value: keyVal: %s\n", pKeyVal);
       pOptions->options[pOptions->optionsNum] = pKeyVal;
       pOptions->optionsNum++;
     } else {
@@ -4904,8 +4901,6 @@ SNode* createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType
       pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_JOB_STMT, &pStmt);
       CHECK_MAKE_NODE(pStmt);
       SCreateXnodeJobStmt* pJobStmt = (SCreateXnodeJobStmt*)pStmt;
-      // printf("createXnodeTaskJobWithOptions param task id: %s\n", pTidToken->z);
-      // printXnodeTaskOptions(&((SXnodeTaskOptions*)pNodeOptions)->opts);
       pJobStmt->options = (SXnodeTaskOptions*)pNodeOptions;
       pJobStmt->tid = pTidToken->type == TK_NK_STRING ? atoi(pTidToken->z) : taosStr2Int32(pTidToken->z, NULL, 10);
       break;

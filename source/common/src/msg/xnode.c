@@ -469,12 +469,9 @@ int32_t tSerializeSMDropXnodeTaskReq(void *buf, int32_t bufLen, SMDropXnodeTaskR
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  // 0. sql
   ENCODESQL();
-
-  // 1. tid.
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->tid));
-  // 2. config
+  TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->force));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->nameLen));
   if (pReq->nameLen > 0) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->name, pReq->nameLen));
@@ -500,6 +497,7 @@ int32_t tDeserializeSMDropXnodeTaskReq(void *buf, int32_t bufLen, SMDropXnodeTas
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   DECODESQL();
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->tid));
+  TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->force));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->nameLen));
   if (pReq->nameLen > 0) {
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->name, NULL));
