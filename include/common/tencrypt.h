@@ -31,6 +31,9 @@ extern "C" {
 #define TD_ENCRYPT_FILE_VERSION 1
 #define TD_ENCRYPT_MAGIC_LEN    16
 
+// Key loading timeout configuration
+#define TD_ENCRYPT_KEY_WAIT_TIMEOUT_MS 3000  // 3 seconds timeout for waiting encryption key
+
 // Database encryption status
 typedef enum {
   TD_DB_ENCRYPT_STATUS_UNKNOWN = 0,   // Unknown - encryption state uncertain (upgrade scenario)
@@ -52,6 +55,27 @@ typedef struct {
   int32_t dataLen;                      // Length of encrypted data following header
   char    reserved[32];                 // Reserved for future use
 } STdEncryptFileHeader;
+
+// Encryption algorithm ID to name mapping
+// Based on EEncryptAlgo enum and mnode encryption algorithm definitions
+static const char *TD_ENCRYPT_ALGO_NAMES[] = {
+    "NONE",         // 0: ENCRYPT_ALGO_NONE
+    "SM4-CBC:SM4",  // 1: ENCRYPT_ALGO_SM4 / SM4 symmetric encryption
+    "AES-128-CBC",  // 2: AES symmetric encryption
+    "SM3",          // 3: ENCRYPT_ALGO_SM3 / SM3 digest
+    "SHA-256",      // 4: SHA-256 digest
+    "SM2"           // 5: ENCRYPT_ALGO_SM2 / SM2 asymmetric cipher
+};
+
+#define TD_ENCRYPT_ALGO_NAME_MAX 6
+
+// Get encryption algorithm name by ID
+static inline const char *taosGetEncryptAlgoName(int32_t algorithm) {
+  if (algorithm >= 0 && algorithm < TD_ENCRYPT_ALGO_NAME_MAX) {
+    return TD_ENCRYPT_ALGO_NAMES[algorithm];
+  }
+  return "UNKNOWN";
+}
 
 /**
  * @brief Write file with encryption header using atomic file replacement
@@ -142,6 +166,21 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen);
  * @return 0 on success, error code on failure
  */
 int32_t taosEncryptExistingCfgFiles(const char *dataDir);
+
+/**
+ * @brief Wait for encryption key to be loaded with timeout.
+ *
+ * This function checks if the CFG encryption key has been loaded successfully.
+ * If the key is not yet loaded, it will loop and wait until either:
+ * - The key is successfully loaded (returns 0)
+ * - The timeout period expires (returns error code)
+ *
+ * The timeout is controlled by TD_ENCRYPT_KEY_WAIT_TIMEOUT_MS macro.
+ * The check interval is 100ms between each attempt.
+ *
+ * @return 0 if key loaded successfully, TSDB_CODE_TIMEOUT_ERROR if timeout occurs
+ */
+int32_t taosWaitCfgKeyLoaded(void);
 
 #ifdef __cplusplus
 }

@@ -689,3 +689,42 @@ _err:
   uError("failed to encrypt existing config files, code:%s", tstrerror(code));
   return code;
 }
+
+/**
+ * Wait for CFG encryption key to be loaded with timeout.
+ *
+ * This function polls the encryption key status at regular intervals (100ms).
+ * It returns immediately if the key is already loaded, otherwise it waits
+ * until either the key is loaded or the timeout expires.
+ *
+ * Timeout is controlled by TD_ENCRYPT_KEY_WAIT_TIMEOUT_MS macro.
+ *
+ * @return 0 if key loaded successfully, TSDB_CODE_TIMEOUT_ERROR if timeout occurs
+ */
+int32_t taosWaitCfgKeyLoaded(void) {
+  int32_t encryptKeysLoaded = atomic_load_32(&tsEncryptKeysLoaded);
+  if (encryptKeysLoaded == 1) {
+    return 0;
+  }
+
+  const int32_t checkIntervalMs = 100;  // Check every 100ms
+  int32_t       elapsedMs = 0;
+
+  while (elapsedMs < TD_ENCRYPT_KEY_WAIT_TIMEOUT_MS) {
+    // Check if CFG key is loaded
+    encryptKeysLoaded = atomic_load_32(&tsEncryptKeysLoaded);
+    if (encryptKeysLoaded == 1) {
+      uDebug("CFG encryption key loaded successfully after %d ms", elapsedMs);
+      return 0;
+    }
+
+    // Sleep for check interval
+    taosMsleep(checkIntervalMs);
+    elapsedMs += checkIntervalMs;
+  }
+
+  // Timeout occurred
+  uError("failed to wait for CFG encryption key to load, waited %d ms", elapsedMs);
+  terrno = TSDB_CODE_TIMEOUT_ERROR;
+  return TSDB_CODE_TIMEOUT_ERROR;
+}
