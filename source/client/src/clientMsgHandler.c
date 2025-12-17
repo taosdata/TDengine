@@ -1126,6 +1126,8 @@ static int32_t buildTableRspForCreateToken(SCreateTokenRsp* pResp, SRetrieveTabl
     code = terrno;
     goto _exit;
   }
+
+  blockDataDestroy(pBlock);
   SET_PAYLOAD_LEN((*pRsp)->data, len, len);
 
   int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
