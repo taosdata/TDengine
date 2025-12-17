@@ -225,6 +225,7 @@ typedef struct {
   ETrnKillMode  killMode;
   SHashObj*     redoGroupActions;
   SHashObj*     groupActionPos;
+  char          tokenName[TSDB_TOKEN_NAME_LEN];
 } STrans;
 
 typedef struct {

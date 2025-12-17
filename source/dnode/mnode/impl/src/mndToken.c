@@ -340,6 +340,8 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SUserObj
   if (pTrans == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
+
+  tstrncpy(pTrans->tokenName, tokenObj.name, sizeof(tokenObj.name));
   mInfo("trans:%d, used to create token:%s", pTrans->id, pCreate->name);
 
   // token commit log
@@ -783,4 +785,42 @@ int32_t mndAcquireToken(SMnode *pMnode, const char *token, STokenObj **ppToken) 
 void mndReleaseToken(SMnode *pMnode, STokenObj *pToken) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pToken);
+}
+
+int32_t mndBuildSMCreateTokenResp(SMnode *pMnode, const char *pToken, void **ppResp, int32_t *pRespLen) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  STokenObj *pTokenObj = NULL;
+  code = mndAcquireToken(pMnode, pToken, (STokenObj **)pTokenObj);
+
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
+
+  SCreateTokenRsp resp = {0};
+
+  tstrncpy(resp.name, pTokenObj->name, sizeof(pTokenObj->name));
+  tstrncpy(resp.user, pTokenObj->user, sizeof(pTokenObj->user));
+  tstrncpy(resp.token, pTokenObj->token, sizeof(pTokenObj->token));
+
+  int32_t len = tSerializeSCreateTokenResp(NULL, 0, &resp);
+  if (len < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  void *pCont = rpcMallocCont(len);
+  if (pCont == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (tSerializeSCreateTokenResp(pCont, len, &resp) != len) {
+    code = TSDB_CODE_INVALID_MSG;
+    rpcFreeCont(pCont);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+_error:
+  mndReleaseToken(pMnode, pTokenObj);
+  return code;
 }

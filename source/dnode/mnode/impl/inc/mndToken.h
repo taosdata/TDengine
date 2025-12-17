@@ -38,6 +38,8 @@ void    mndReleaseToken(SMnode *pMnode, STokenObj *pToken);
 int32_t mndTokenCacheRebuild(SMnode *pMnode);
 char* mndTokenToUser(const char* token, char* user);
 
+int32_t mndBuildSMCreateTokenResp(SMnode *pMnode, const char *token, void **ppResp, int32_t *pRespLen);
+
 #ifdef __cplusplus
 }
 #endif

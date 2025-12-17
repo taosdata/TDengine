@@ -24,6 +24,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "osTime.h"
+#include "mndToken.h"
 
 #define TRANS_VER1_NUMBER  1
 #define TRANS_VER2_NUMBER  2
@@ -1579,6 +1580,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         int32_t code = mndRefreshUserIpWhiteList(pMnode);
         if (code != 0) {
           mWarn("failed to refresh user ip white list since %s", tstrerror(code));
+        }
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOKEN) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateTokenResp(pMnode, pTrans->tokenName, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       }
 
