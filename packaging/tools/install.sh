@@ -164,7 +164,6 @@ while getopts "hv:e:d:" arg; do
     verType=$(echo $OPTARG)
     ;;
   d)
-    #echo "verType=$OPTARG"
     taosDir="$OPTARG"
     # user define install dir
     taos_dir_set=1
