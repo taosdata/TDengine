@@ -90,9 +90,8 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
                     char *detail, int32_t len, double duration, int64_t affectedRows) {
 }
 
-void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                    char *detail, int32_t len) {
-}
+void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
+                       int32_t len, double duration, int64_t affectedRows) {}
 
 void auditSendRecordsInBatchImp(){
 
