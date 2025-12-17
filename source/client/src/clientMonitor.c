@@ -966,56 +966,6 @@ int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len, uint64_t request
   return TSDB_CODE_SUCCESS;
 }
 
-static const char* getDbnameFromTableNode(SNode* pTable) {
-  switch (pTable->type) {
-    case QUERY_NODE_REAL_TABLE: {
-      SRealTableNode* pTableNode = (SRealTableNode*)pTable;
-      return pTableNode->table.dbName;
-    }
-
-    case QUERY_NODE_TEMP_TABLE: {
-      STempTableNode* pTableNode = (STempTableNode*)pTable;
-
-      return "tmp_table";
-    }
-    case QUERY_NODE_JOIN_TABLE: {
-      SJoinTableNode* pTableNode = (SJoinTableNode*)pTable;
-      return "join_table";
-    }
-    case QUERY_NODE_VIRTUAL_TABLE: {
-      SVirtualTableNode* pTableNode = (SVirtualTableNode*)pTable;
-      return "virtual_table";
-    }
-    default:
-      return "UNKNOWN_NODE";
-  }
-}
-
-static const char* getTableNameFromTableNode(SNode* pTable) {
-  switch (pTable->type) {
-    case QUERY_NODE_REAL_TABLE: {
-      SRealTableNode* pTableNode = (SRealTableNode*)pTable;
-      return pTableNode->table.tableName;
-    }
-
-    case QUERY_NODE_TEMP_TABLE: {
-      STempTableNode* pTableNode = (STempTableNode*)pTable;
-
-      return "tmp_table";
-    }
-    case QUERY_NODE_JOIN_TABLE: {
-      SJoinTableNode* pTableNode = (SJoinTableNode*)pTable;
-      return "join_table";
-    }
-    case QUERY_NODE_VIRTUAL_TABLE: {
-      SVirtualTableNode* pTableNode = (SVirtualTableNode*)pTable;
-      return "virtual_table";
-    }
-    default:
-      return "UNKNOWN_NODE";
-  }
-}
-
 static int32_t setDeleteStmtAuditReqTableInfo(SDeleteStmt* pStmt, SAuditReq* pReq) {
   if (nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
     tscDebug("[report] invalid from table node type:%s", nodesNodeName(pStmt->pFromTable->type));
