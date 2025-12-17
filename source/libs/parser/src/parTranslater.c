@@ -18093,7 +18093,7 @@ static int32_t extractScanDbResultSchema(int32_t* numOfCols, SSchema** pSchema) 
 }
 
 static int32_t extractCreateTokenResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = 1;
+  *numOfCols = CREATE_USER_TOKEN_RESULT_COLS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;

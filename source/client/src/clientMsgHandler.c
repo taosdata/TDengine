@@ -1057,7 +1057,7 @@ int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 static int32_t buildCreateTokenBlock(SCreateTokenRsp* pRsp, SSDataBlock** block) {
   int32_t      code = 0;
   int32_t      line = 0;
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  SSDataBlock* pBlock = taosMemoryCalloc(CREATE_USER_TOKEN_RESULT_COLS, sizeof(SSDataBlock));
   TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
   pBlock->info.hasVarCol = true;
 
@@ -1065,16 +1065,8 @@ static int32_t buildCreateTokenBlock(SCreateTokenRsp* pRsp, SSDataBlock** block)
   TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = COMPACT_DB_RESULT_FIELD1_LEN;
+  infoData.info.bytes = CREATE_USER_TOKEN_RESULT_FIELD1_LEN;
   TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
-
-  // infoData.info.type = TSDB_DATA_TYPE_INT;
-  // infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  // TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
-
-  // infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  // infoData.info.bytes = COMPACT_DB_RESULT_FIELD3_LEN;
-  // TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   code = blockDataEnsureCapacity(pBlock, 1);
   TSDB_CHECK_CODE(code, line, END);
@@ -1118,9 +1110,10 @@ static int32_t buildTableRspForCreateToken(SCreateTokenRsp* pResp, SRetrieveTabl
   (*pRsp)->compressed = 0;
 
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
-  (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
+  (*pRsp)->numOfCols = htonl(CREATE_USER_TOKEN_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, 1);
+  int32_t len =
+      blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, CREATE_USER_TOKEN_RESULT_COLS);
   if (len < 0) {
     uError("buildTableRspFroCreateToken error, len:%d", len);
     code = terrno;

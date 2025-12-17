@@ -66,6 +66,9 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
+#define CREATE_USER_TOKEN_RESULT_COLS       1
+#define CREATE_USER_TOKEN_RESULT_FIELD1_LEN (128)
+
 #define BIT_FLAG_MASK(n)               (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
 #define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
