@@ -16130,7 +16130,7 @@ static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterRoleReq* pReq) {
+static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterRoleReq* pReq, bool grant) {
   SRealTableNode* pTable = NULL;
   if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
     if (pStmt->pTagCond) {
@@ -16140,6 +16140,8 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
       return TSDB_CODE_SUCCESS;
     }
   }
+
+  if (!grant) return TSDB_CODE_SUCCESS;
 
   int32_t code = createRealTableForGrantTable(pStmt, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -16246,9 +16248,9 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
     }
     case PRIV_OBJ_TABLE:
     case PRIV_OBJ_VIEW: {
-      // don't validate the object when revoke
-      if (grant && (0 != pStmt->tabName[0])) {
-        if (strncmp(pStmt->tabName, "*", 2) != 0) {
+      if (0 != pStmt->tabName[0]) {
+        // don't validate the object when revoke
+        if (grant && (strncmp(pStmt->tabName, "*", 2) != 0)) {
           SName       name = {0};
           STableMeta* pTableMeta = NULL;
           toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
@@ -16268,7 +16270,7 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
                                        "Table name cannot be empty for table or view level privileges");
       }
       if (objType == PRIV_OBJ_TABLE) {
-        code = translateGrantTagCond(pCxt, pStmt, pReq);
+        code = translateGrantTagCond(pCxt, pStmt, pReq, grant);
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }

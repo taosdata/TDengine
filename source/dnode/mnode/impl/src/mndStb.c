@@ -2952,6 +2952,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SStbObj     *pStb = NULL;
+  SUserObj    *pOperUser = NULL;
   SMDropStbReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSMDropStbReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -2981,9 +2982,20 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
-    goto _OVER;
-  }
+  // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  //   goto _OVER;
+  // }
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, pDb->name, NULL, NULL), NULL, _OVER);
+
+  SName   name = {0};
+  int32_t ret = 0;
+  if ((ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
+    mError("stb:%s, failed to tNameFromString since %s", dropReq.name, tstrerror(ret));
+
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_TBL_DROP, pDb->name, name.tname, NULL), NULL,
+                  _OVER);
 
   if ((code = mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid)) != 0) {
     goto _OVER;
@@ -2997,11 +3009,6 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName   name = {0};
-  int32_t ret = 0;
-  if ((ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
-    mError("stb:%s, failed to tNameFromString since %s", dropReq.name, tstrerror(ret));
-
   auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
 _OVER:
@@ -3011,6 +3018,7 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
+  mndReleaseUser(pMnode, pOperUser);
   tFreeSMDropStbReq(&dropReq);
   TAOS_RETURN(code);
 }
@@ -3303,10 +3311,12 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   SStbObj  *pStb = NULL;
-  SUserObj *pUser = NULL;
+  SUserObj *pOperUser = NULL;
   int32_t   cols = 0;
   int32_t   lino = 0;
   int32_t   code = 0;
+  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool      showAll = false;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -3314,9 +3324,17 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     if (pDb == NULL) return terrno;
   }
 
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) {
+  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser)) != 0) {
     goto _ERROR;
   }
+
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  SPrivInfo *privInfo = privInfoGet(PRIV_RSMA_SHOW);
+  if (!privInfo) {
+    code = terrno;
+    goto _ERROR;
+  }
+  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TBL_SHOW, "", pDb ? pDb->name : objFName, "*"));
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
@@ -3331,19 +3349,28 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       sdbRelease(pSdb, pStb);
       continue;
     }
-
+#if 0
     if ((0 == pUser->superUser) && mndCheckStbPrivilege(pMnode, pUser, MND_OPER_SHOW_STB, pStb) != 0) {
       sdbRelease(pSdb, pStb);
       terrno = 0;
       continue;
     }
-
+#endif
     cols = 0;
 
     SName name = {0};
 
     char stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
+
+    if (!showAll &&
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TBL_SHOW, pStb->owner[0] != 0 ? pStb->owner : pStb->createUser,
+                                 pStb->db, &stbName[VARSTR_HEADER_SIZE])) {
+      sdbRelease(pSdb, pStb);
+      terrno = 0;
+      continue;
+    }
+
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)stbName, false), pStb, &lino, _ERROR);
@@ -3448,8 +3475,8 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
-  if (pUser != NULL) {
-    mndReleaseUser(pMnode, pUser);
+  if (pOperUser != NULL) {
+    mndReleaseUser(pMnode, pOperUser);
   }
 
   goto _OVER;
@@ -3458,8 +3485,8 @@ _ERROR:
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
-  if (pUser != NULL) {
-    mndReleaseUser(pMnode, pUser);
+  if (pOperUser != NULL) {
+    mndReleaseUser(pMnode, pOperUser);
   }
   mError("show:0x%" PRIx64 ", failed to retrieve data at %s:%d since %s", pShow->id, __FUNCTION__, lino,
          tstrerror(code));

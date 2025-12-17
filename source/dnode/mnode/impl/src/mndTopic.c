@@ -1001,7 +1001,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char         objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   bool         showAll = false;
 
-  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, (pReq->info.conn.user), &pOperUser));
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   SPrivInfo *privInfo = privInfoGet(PRIV_TOPIC_SHOW);
   if (!privInfo) {

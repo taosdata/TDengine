@@ -306,7 +306,8 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 }
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
+  // return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
+  return 0;  // check in server
 }
 
 static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) { return authShowTables(pCxt, pStmt); }
@@ -446,9 +447,10 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
   SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-    code = checkAuth(pCxt, pClause->dbName, pClause->tableName, AUTH_TYPE_WRITE, NULL);
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
+    PAR_ERR_RET(checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, NULL));
+
+    if (!pStmt->withOpt) {
+      PAR_ERR_RET(checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_TBL_DROP, NULL));
     }
   }
   return code;
@@ -458,7 +460,11 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, NULL));
+  if (!pStmt->withOpt) {
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_TBL_DROP, NULL));
+  }
+  return 0;
 }
 
 static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {

@@ -1453,7 +1453,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (pReq->info.conn.user), &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
   SPrivInfo *privInfo = privInfoGet(PRIV_TSMA_SHOW);
   if (!privInfo) {
     TAOS_CHECK_EXIT(terrno);

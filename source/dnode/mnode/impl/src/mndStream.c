@@ -452,7 +452,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t     code = 0, lino = 0;
   bool        showAll = false;
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (pReq->info.conn.user), &pOperUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
   SPrivInfo *privInfo = privInfoGet(PRIV_STREAM_SHOW);
   if (!privInfo) {
     TAOS_CHECK_EXIT(terrno);

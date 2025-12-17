@@ -587,7 +587,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     if (pDb == NULL) return 0;
   }
 
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, (pReq->info.conn.user), &pOperUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   SPrivInfo *privInfo = privInfoGet(PRIV_IDX_SHOW);
   if (!privInfo) {
