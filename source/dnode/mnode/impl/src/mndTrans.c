@@ -1412,7 +1412,6 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     if (pAction->actionType == TRANS_ACTION_MSG) {
       mInfo("trans:%d, action:%d, %s:%d msgType:%s", pTrans->id, index, mndTransStr(pAction->stage), pAction->id,
             TMSG_INFO(pAction->msgType));
-      ;
     } else {
       mInfo("trans:%d, action:%d, %s:%d sdbType:%s, sdbStatus:%s", pTrans->id, index, mndTransStr(pAction->stage),
             pAction->id, sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
@@ -1584,7 +1583,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOKEN) {
         void   *pCont = NULL;
         int32_t contLen = 0;
-        if (0 == mndBuildSMCreateTokenResp(pMnode, pTrans->tokenName, &pCont, &contLen)) {
+        if (0 == mndBuildSMCreateTokenResp(pMnode, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       }

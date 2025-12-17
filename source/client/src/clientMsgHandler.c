@@ -1053,6 +1053,33 @@ int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
   return code;
 }
+int32_t processCreateTokenRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SCreateTokenRsp    rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    code = tDeserializeSCreateTokenResp(pMsg->pData, pMsg->len, &rsp);
+
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
@@ -1076,6 +1103,9 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processTrimDbRsp;
     case TDMT_MND_SCAN_DB:
       return processScanDbRsp;
+    case TDMT_MND_CREATE_TOKEN:
+      return processCreateTokenRsp;
+
     default:
       return genericRspCallback;
   }

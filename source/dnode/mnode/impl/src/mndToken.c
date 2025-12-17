@@ -341,7 +341,8 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SUserObj
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
-  tstrncpy(pTrans->tokenName, tokenObj.name, sizeof(tokenObj.name));
+  // tstrncpy(pTrans->tokenName, tokenObj.name, sizeof(tokenObj.name));
+  mndTransSetDbName(pTrans, NULL, tokenObj.name);
   mInfo("trans:%d, used to create token:%s", pTrans->id, pCreate->name);
 
   // token commit log
@@ -791,7 +792,7 @@ int32_t mndBuildSMCreateTokenResp(SMnode *pMnode, const char *pToken, void **ppR
   int32_t    code = 0;
   int32_t    lino = 0;
   STokenObj *pTokenObj = NULL;
-  code = mndAcquireToken(pMnode, pToken, (STokenObj **)pTokenObj);
+  code = mndAcquireToken(pMnode, pToken, (STokenObj **)&pTokenObj);
 
   if (code != 0) {
     TAOS_RETURN(code);
@@ -809,7 +810,7 @@ int32_t mndBuildSMCreateTokenResp(SMnode *pMnode, const char *pToken, void **ppR
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  void *pCont = rpcMallocCont(len);
+  void *pCont = taosMemoryMalloc(len);
   if (pCont == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_CHECK_GOTO(code, &lino, _error);
@@ -817,10 +818,16 @@ int32_t mndBuildSMCreateTokenResp(SMnode *pMnode, const char *pToken, void **ppR
 
   if (tSerializeSCreateTokenResp(pCont, len, &resp) != len) {
     code = TSDB_CODE_INVALID_MSG;
-    rpcFreeCont(pCont);
+    taosMemoryFree(pCont);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 _error:
+  if (code == 0) {
+    *ppResp = pCont;
+    *pRespLen = len;
+  } else if (code < 0) {
+    mError("token:%s, failed to build create token resp at line %d since %s", pToken, lino, tstrerror(code));
+  }
   mndReleaseToken(pMnode, pTokenObj);
   return code;
 }
