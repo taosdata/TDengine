@@ -966,179 +966,196 @@ int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len, uint64_t request
   return TSDB_CODE_SUCCESS;
 }
 
-static void reportDeleteSql(SRequestObj* pRequest) {
-  SDeleteStmt* pStmt = (SDeleteStmt*)pRequest->pQuery->pRoot;
+static const char* getDbnameFromTableNode(SNode* pTable) {
+  switch (pTable->type) {
+    case QUERY_NODE_REAL_TABLE: {
+      SRealTableNode* pTableNode = (SRealTableNode*)pTable;
+      return pTableNode->table.dbName;
+    }
+
+    case QUERY_NODE_TEMP_TABLE: {
+      STempTableNode* pTableNode = (STempTableNode*)pTable;
+
+      return "tmp_table";
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pTableNode = (SJoinTableNode*)pTable;
+      return "join_table";
+    }
+    case QUERY_NODE_VIRTUAL_TABLE: {
+      SVirtualTableNode* pTableNode = (SVirtualTableNode*)pTable;
+      return "virtual_table";
+    }
+    default:
+      return "UNKNOWN_NODE";
+  }
+}
+
+static const char* getTableNameFromTableNode(SNode* pTable) {
+  switch (pTable->type) {
+    case QUERY_NODE_REAL_TABLE: {
+      SRealTableNode* pTableNode = (SRealTableNode*)pTable;
+      return pTableNode->table.tableName;
+    }
+
+    case QUERY_NODE_TEMP_TABLE: {
+      STempTableNode* pTableNode = (STempTableNode*)pTable;
+
+      return "tmp_table";
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pTableNode = (SJoinTableNode*)pTable;
+      return "join_table";
+    }
+    case QUERY_NODE_VIRTUAL_TABLE: {
+      SVirtualTableNode* pTableNode = (SVirtualTableNode*)pTable;
+      return "virtual_table";
+    }
+    default:
+      return "UNKNOWN_NODE";
+  }
+}
+
+static int32_t setDeleteStmtAuditReqTableInfo(SDeleteStmt* pStmt, SAuditReq* pReq) {
+  if (nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
+    tscDebug("[report] invalid from table node type:%s", nodesNodeName(pStmt->pFromTable->type));
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+  SRealTableNode* pTableNode = (SRealTableNode*)pStmt->pFromTable;
+  TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pTableNode->table.tableName));
+  TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pTableNode->table.dbName));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setModifyStmtAuditReqTableInfo(SVnodeModifyOpStmt* pStmt, SAuditReq* pReq) {
+  if (pStmt->sqlNodeType != 0) {
+    tscDebug("[report] invalid from table node type:%s", nodesNodeName(pStmt->sqlNodeType));
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s",  pStmt->targetTableName.tname));
+  TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pStmt->targetTableName.dbname));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setSelectStmtAuditReqTableInfo(SSelectStmt* pStmt, SAuditReq* pReq) {
+  if (!pStmt->pFromTable) return TSDB_CODE_TSC_INVALID_OPERATION;
+
+  if (nodeType(pStmt->pFromTable) == QUERY_NODE_REAL_TABLE) {
+    SRealTableNode* pTableNode = (SRealTableNode*)pStmt->pFromTable;
+    TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pTableNode->table.tableName));
+    TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pTableNode->table.dbName));
+    return TSDB_CODE_SUCCESS;
+
+  } else if (nodeType(pStmt->pFromTable) == QUERY_NODE_TEMP_TABLE && ((STempTableNode*)pStmt->pFromTable)->pSubquery &&
+             nodeType(((STempTableNode*)pStmt->pFromTable)->pSubquery) == QUERY_NODE_SELECT_STMT) {
+    // for select from temp table which is created by subquery, get real table from subquery
+    SSelectStmt* pSubquery = (SSelectStmt*)((STempTableNode*)pStmt->pFromTable)->pSubquery;
+    return setSelectStmtAuditReqTableInfo(pSubquery, pReq);
+  }
+
+  tscDebug("[report] invalid from table node type:%s", nodesNodeName(pStmt->pFromTable->type));
+  return TSDB_CODE_TSC_INVALID_OPERATION;
+}
+
+static int32_t setAuditReqTableInfo(SRequestObj* pRequest, ENodeType type, SAuditReq* pReq) {
+  if (QUERY_NODE_DELETE_STMT == type) {
+    SDeleteStmt* pStmt = (SDeleteStmt*)pRequest->pQuery->pRoot;
+    return setDeleteStmtAuditReqTableInfo(pStmt, pReq);
+  } else if (QUERY_NODE_VNODE_MODIFY_STMT == type) {
+    SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pRequest->pQuery->pRoot;
+    return setModifyStmtAuditReqTableInfo(pStmt, pReq);
+  } else if (QUERY_NODE_SELECT_STMT == type) {
+    SSelectStmt* pStmt = (SSelectStmt*)pRequest->pQuery->pRoot;
+    return setSelectStmtAuditReqTableInfo(pStmt, pReq);
+  }
+  tscError("[report]unsupprot report type: %s", nodesNodeName(type));
+  return TSDB_CODE_TSC_INVALID_OPERATION;
+}
+
+static void setAuditReqAffectedRows(SRequestObj* pRequest, ENodeType type, SAuditReq* pReq) {
+  if (QUERY_NODE_DELETE_STMT == type || QUERY_NODE_VNODE_MODIFY_STMT == type) {
+    pReq->affectedRows = pRequest->body.resInfo.numOfRows;
+  } else if (QUERY_NODE_SELECT_STMT == type) {
+    pReq->affectedRows = 0;
+  }
+}
+
+static void setAuditReqOperation(SRequestObj* pRequest, ENodeType type, SAuditReq* pReq) {
+  if (QUERY_NODE_DELETE_STMT == type) {
+    TAOS_UNUSED(tsnprintf(pReq->operation, AUDIT_OPERATION_LEN, "delete"));
+  } else if (QUERY_NODE_VNODE_MODIFY_STMT == type) {
+    TAOS_UNUSED(tsnprintf(pReq->operation, AUDIT_OPERATION_LEN, "insert"));
+  } else if (QUERY_NODE_SELECT_STMT == type) {
+    TAOS_UNUSED(tsnprintf(pReq->operation, AUDIT_OPERATION_LEN, "select"));
+  }
+}
+
+static void reportSqlExecResult(SRequestObj* pRequest, ENodeType type) {
+  int32_t  code = TSDB_CODE_SUCCESS;
   STscObj*     pTscObj = pRequest->pTscObj;
 
   if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
-    tscError("[del report] invalid tsc obj");
+    tscError("[report][%s] invalid tsc obj", nodesNodeName(type));
     return;
   }
 
   if (pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0 ||
       pTscObj->pAppInfo->serverCfg.auditLevel < AUDIT_LEVEL_DATA) {
-    tscDebug("[del report] audit delete is disabled");
+    tscTrace("[report][%s] audit delete is disabled", nodesNodeName(type));
     return;
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
-    tscDebug("[del report] delete request result code:%d", pRequest->code);
+    tscDebug("[report][%s] delete request result code:%d", nodesNodeName(type), pRequest->code);
     return;
   }
 
-  if (nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
-    tscError("[del report] invalid from table node type:%d", nodeType(pStmt->pFromTable));
-    return;
-  }
-
-  SRealTableNode* pTable = (SRealTableNode*)pStmt->pFromTable;
+  SNode* pTable = NULL;
   SAuditReq       req;
   req.pSql = pRequest->sqlstr;
   req.sqlLen = pRequest->sqlLen;
-  TAOS_UNUSED(tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName));
-  TAOS_UNUSED(tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName));
-  TAOS_UNUSED(tsnprintf(req.operation, AUDIT_OPERATION_LEN, "delete"));
+  setAuditReqAffectedRows(pRequest, type, &req);
+  code = setAuditReqTableInfo(pRequest, type, &req);
+  if (code == TSDB_CODE_TSC_INVALID_OPERATION) {
+    return;
+  } else if (code != TSDB_CODE_SUCCESS) {
+    tscError("[report][%s] failed to set audit req table info, code:%d", nodesNodeName(type), code);
+    return;
+  }
+  int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
+  req.duration = duration / 1000000.0;  // convert to seconds
+  setAuditReqOperation(pRequest, type, &req);
+
   int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
   void*   pReq = taosMemoryCalloc(1, tlen);
   if (pReq == NULL) {
-    tscError("[del report] failed to allocate memory for req");
+    tscError("[report][%s] failed to allocate memory for req", nodesNodeName(type));
     return;
   }
 
   if (tSerializeSAuditReq(pReq, tlen, &req) < 0) {
-    tscError("[del report] failed to serialize req");
+    tscError("[report][%s] failed to serialize req", nodesNodeName(type));
     taosMemoryFree(pReq);
     return;
   }
 
-  int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen, pRequest->requestId);
+  code = senAuditInfo(pRequest->pTscObj, pReq, tlen, pRequest->requestId);
   if (code != 0) {
-    tscError("[del report] failed to send audit info, code:%d", code);
+    tscError("[report][%s] failed to send audit info, code:%d", nodesNodeName(type), code);
     taosMemoryFree(pReq);
     return;
   }
-  tscDebug("[del report] delete data, sql:%s", req.pSql);
-}
-
-static void reportSelectSql(SRequestObj* pRequest) {
-  SSelectStmt* pStmt = (SSelectStmt*)pRequest->pQuery->pRoot;
-  STscObj*     pTscObj = pRequest->pTscObj;
-
-  if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
-    tscError("[sel report] invalid tsc obj");
-    return;
-  }
-
-  if (pTscObj->pAppInfo->serverCfg.enableAuditSelect == 0 ||
-      pTscObj->pAppInfo->serverCfg.auditLevel < AUDIT_LEVEL_DATA) {
-    tscDebug("[sel report] audit select is disabled");
-    return;
-  }
-
-  if (pRequest->code != TSDB_CODE_SUCCESS) {
-    tscDebug("[sel report] select request result code:%d", pRequest->code);
-    return;
-  }
-
-  if (nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
-    tscError("[sel report] invalid from table node type:%d", nodeType(pStmt->pFromTable));
-    return;
-  }
-
-  SRealTableNode* pTable = (SRealTableNode*)pStmt->pFromTable;
-  SAuditReq       req;
-  req.pSql = pRequest->sqlstr;
-  req.sqlLen = pRequest->sqlLen;
-  TAOS_UNUSED(tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName));
-  TAOS_UNUSED(tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName));
-  TAOS_UNUSED(tsnprintf(req.operation, AUDIT_OPERATION_LEN, "select"));
-  int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
-  void*   pReq = taosMemoryCalloc(1, tlen);
-  if (pReq == NULL) {
-    tscError("[sel report] failed to allocate memory for req");
-    return;
-  }
-
-  if (tSerializeSAuditReq(pReq, tlen, &req) < 0) {
-    tscError("[sel report] failed to serialize req");
-    taosMemoryFree(pReq);
-    return;
-  }
-
-  int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen, pRequest->requestId);
-  if (code != 0) {
-    tscError("[sel report] failed to send audit info, code:%d", code);
-    taosMemoryFree(pReq);
-    return;
-  }
-  tscDebug("[sel report] select data, sql:%s", req.pSql);
-}
-
-static void reportInsertSql(SRequestObj* pRequest) {
-  SInsertStmt* pStmt = (SInsertStmt*)pRequest->pQuery->pRoot;
-  STscObj*     pTscObj = pRequest->pTscObj;
-
-  if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
-    tscError("[ins report] invalid tsc obj");
-    return;
-  }
-
-  if (pTscObj->pAppInfo->serverCfg.enableAuditInsert == 0 ||
-      pTscObj->pAppInfo->serverCfg.auditLevel < AUDIT_LEVEL_DATA) {
-    tscDebug("[ins report] audit insert is disabled");
-    return;
-  }
-
-  if (pRequest->code != TSDB_CODE_SUCCESS) {
-    tscDebug("[ins report] insert request result code:%d", pRequest->code);
-    return;
-  }
-
-  if (nodeType(pStmt->pTable) != QUERY_NODE_REAL_TABLE) {
-    tscError("[ins report] invalid from table node type:%d", nodeType(pStmt->pTable));
-    return;
-  }
-
-  SRealTableNode* pTable = (SRealTableNode*)pStmt->pTable;
-  SAuditReq       req;
-  req.pSql = pRequest->sqlstr;
-  req.sqlLen = pRequest->sqlLen;
-  TAOS_UNUSED(tsnprintf(req.table, TSDB_TABLE_NAME_LEN, "%s", pTable->table.tableName));
-  TAOS_UNUSED(tsnprintf(req.db, TSDB_DB_FNAME_LEN, "%s", pTable->table.dbName));
-  TAOS_UNUSED(tsnprintf(req.operation, AUDIT_OPERATION_LEN, "insert"));
-  int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
-  void*   pReq = taosMemoryCalloc(1, tlen);
-  if (pReq == NULL) {
-    tscError("[ins report] failed to allocate memory for req");
-    return;
-  }
-
-  if (tSerializeSAuditReq(pReq, tlen, &req) < 0) {
-    tscError("[ins report] failed to serialize req");
-    taosMemoryFree(pReq);
-    return;
-  }
-
-  int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen, pRequest->requestId);
-  if (code != 0) {
-    tscError("[ins report] failed to send audit info, code:%d", code);
-    taosMemoryFree(pReq);
-    return;
-  }
-  tscDebug("[ins report] insert data, sql:%s", req.pSql);
+  tscDebug("[report][%s] delete data, sql:%s", nodesNodeName(type), req.pSql);
 }
 
 void clientOperateReport(SRequestObj* pRequest) {
   if (pRequest == NULL || pRequest->pQuery == NULL || pRequest->pQuery->pRoot == NULL) {
-    tscError("[del report] invalid request");
+    tscError("[report] invalid request");
     return;
   }
-
-  if (QUERY_NODE_DELETE_STMT == nodeType(pRequest->pQuery->pRoot)) {
-    reportDeleteSql(pRequest);
-  } else if (QUERY_NODE_SELECT_STMT == nodeType(pRequest->pQuery->pRoot)) {
-    reportSelectSql(pRequest);
-  } else if (QUERY_NODE_INSERT_STMT == nodeType(pRequest->pQuery->pRoot)) {
-    reportInsertSql(pRequest);
+  ENodeType type = nodeType(pRequest->pQuery->pRoot);
+  if (QUERY_NODE_DELETE_STMT == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_VNODE_MODIFY_STMT == type) {
+    reportSqlExecResult(pRequest, type);
   }
 }
