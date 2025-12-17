@@ -335,7 +335,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | OUTER                | |
 | OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
-| OSSL_ALGR_NAME       | 3.3.7.0+ |
+| OSSL_ALGR_NAME       | 3.3.9.0+ |
 
 ### P
 
