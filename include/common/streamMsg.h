@@ -847,15 +847,22 @@ typedef struct SSTriggerWalMetaNewRequest {
   int64_t              ctime;
 } SSTriggerWalMetaNewRequest;
 
+typedef enum {
+  TABLE_BLOCK_DROP = 0,
+  TABLE_BLOCK_ADD,
+  TABLE_BLOCK_RETIRE,
+} ETableBlockType;
+
 typedef struct SSTriggerWalNewRsp {
   SSHashObj*           indexHash;
   SSHashObj*           uidHash;
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
-  void*                dropBlock;
-  void*                addBlock;
-  void*                retireBlock;
+  void*                tableBlock;
+  // void*                dropBlock;
+  // void*                addBlock;
+  // void*                retireBlock;
   int64_t              ver;
   int64_t              verTime;
   int32_t              totalRows;
@@ -884,6 +891,7 @@ typedef struct SSTriggerGroupColValueRequest {
 typedef struct SSTriggerVirTableInfoRequest {
   SSTriggerPullRequest base;
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
+  SArray*              uids;
 } SSTriggerVirTableInfoRequest;
 
 typedef struct SSTriggerVirTablePseudoColRequest {

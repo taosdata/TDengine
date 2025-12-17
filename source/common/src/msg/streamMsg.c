@@ -4486,9 +4486,7 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWal
 
   TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->metaBlock));
   TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->deleteBlock));
-  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->dropBlock));
-  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->addBlock));
-  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->retireBlock));
+  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->tableBlock));
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, rsp->ver));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, rsp->verTime));
@@ -4570,9 +4568,7 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
 
   TAOS_CHECK_EXIT(decodeBlock(&decoder, pRsp->metaBlock));
   TAOS_CHECK_EXIT(decodeBlock(&decoder, pRsp->deleteBlock));
-  TAOS_CHECK_EXIT(decodeBlock(&decoder, pRsp->dropBlock));
-  TAOS_CHECK_EXIT(decodeBlock(&decoder, pRsp->addBlock));
-  TAOS_CHECK_EXIT(decodeBlock(&decoder, pRsp->retireBlock));
+  TAOS_CHECK_EXIT(decodeBlock(&decoder, pRsp->tableBlock));
   
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->verTime));
