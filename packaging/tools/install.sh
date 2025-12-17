@@ -188,7 +188,7 @@ if [ $taos_dir_set -eq 0 ]; then
 else
   installDir="${taosDir}/${PREFIX}"
   dataDir="${installDir}/data"
-  logDir="${installDir}/log"  
+  logDir="${installDir}/log"
 fi
 configDir="/etc/${PREFIX}"
 install_main_dir=${installDir}
@@ -608,14 +608,14 @@ function install_taosx_config() {
   if [ $taos_dir_set -eq 1 ]; then
     mkdir -p "${dataDir}/taosx"
   fi
-  if [ -f ${file_name} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${file_name}  
+  if [ -f "${file_name}" ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" "${file_name}"
 
-    # 替换 data_dir
-    ${csudo}sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/taosx\"|" ${file_name}
+    # replace data_dir
+    ${csudo}sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/taosx\"|" "${file_name}"
 
-    # 替换 log path
-    ${csudo}sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
+    # replace log path
+    ${csudo}sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
 
     if [ -f "${configDir}/${xname}.toml" ]; then
@@ -639,13 +639,13 @@ function install_explorer_config() {
     mkdir -p "${dataDir}/explorer"
   fi
   if [ -f "${file_name}" ]; then
-    # 替换  fqdn
+    # replace fqdn
     ${csudo}sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
 
-    # 替换 data_dir
+    # replace data_dir
     ${csudo}sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/explorer\"|" "${file_name}"
 
-    # 替换 log path
+    # replace log path
     ${csudo}sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
     if [ -f "${configDir}/explorer.toml" ]; then
@@ -702,16 +702,16 @@ function install_taosd_config() {
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
 
-    if grep -q "dataDir ${dataDir}" ${script_dir}/cfg/${configFile}; then
-      echo "dataDir ${dataDir} in ${script_dir}/cfg/${configFile} already exists"
+    if grep -q "^dataDir " "${script_dir}/cfg/${configFile}"; then
+      ${csudo}sed -i "s|^dataDir .*|dataDir ${dataDir}|" "${script_dir}/cfg/${configFile}"
     else
-      ${csudo}echo "dataDir ${dataDir}" >>${script_dir}/cfg/${configFile}
+      ${csudo}echo "dataDir ${dataDir}" >>"${script_dir}/cfg/${configFile}"
     fi
-     
-    if grep -q "logDir ${logDir}" ${script_dir}/cfg/${configFile}; then
-      echo "logDir ${logDir} in ${script_dir}/cfg/${configFile} already exists"
+
+    if grep -q "^logDir " "${script_dir}/cfg/${configFile}"; then
+      ${csudo}sed -i "s|^logDir .*|logDir ${logDir}|" "${script_dir}/cfg/${configFile}"
     else
-      ${csudo}echo "logDir ${logDir}" >>${script_dir}/cfg/${configFile}
+      ${csudo}echo "logDir ${logDir}" >>"${script_dir}/cfg/${configFile}"
     fi
 
     if [ "$verMode" == "cluster" ]; then
