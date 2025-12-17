@@ -125,6 +125,30 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 - 类型：integer
 - 备注：默认值为 0 表示不起效，非 0 为起效。v3.3.6.0 开始支持。
 
+#### ws.tls.mode
+
+- 说明：C WebSocket 连接的 TLS 加密模式
+- 类型：integer
+- 取值范围：
+  - 0：禁用 TLS 加密。若服务端启用 TLS，客户端会自动升级连接。
+  - 1：启用 TLS 加密，但不验证服务端证书。
+  - 2：启用 TLS 加密，验证服务端证书，但不验证主机名。
+  - 3：启用 TLS 加密，验证服务端证书及主机名（服务端证书需包含 SAN，CN 会被忽略）。
+- 备注：默认值为 0。v3.3.8.12 开始支持。
+
+#### ws.tls.version
+
+- 说明：C WebSocket 连接支持的 TLS 协议版本列表，多个版本使用英文逗号分隔。
+- 类型：string
+- 取值范围：TLSv1.2、TLSv1.3
+- 备注：默认值为 TLSv1.3。v3.3.8.12 开始支持。
+
+#### ws.tls.ca
+
+- 说明：用于验证服务端证书的 CA 证书文件绝对路径或 PEM 格式的证书内容。该证书应为签发服务端证书的 CA 证书。
+- 类型：string
+- 备注：v3.3.8.12 开始支持。
+
 下面是各语言连接器创建参数：
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
