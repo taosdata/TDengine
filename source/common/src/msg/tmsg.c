@@ -14995,7 +14995,6 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
       }
 
       TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
-      uWarn("submitted data version:%" PRId64, (*ppRow)->sver);
     }
     uTrace("decode row data size %d", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
   }
