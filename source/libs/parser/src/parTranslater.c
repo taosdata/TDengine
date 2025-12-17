@@ -664,6 +664,9 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
     parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_TDB_TABLE_NOT_EXIST == code || CTG_ERR_CODE_TABLE_NOT_EXIST == code) {
+    code = TSDB_CODE_PAR_GET_META_ERROR;
+  }
   return code;
 }
 
