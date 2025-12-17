@@ -387,25 +387,30 @@ TAOS *taos_connect_with(const OPTIONS *options) {
     for (size_t i = 0; i < count; ++i) {
       const char *key = options->keys[i];
       const char *value = options->values[i];
-      if (strncmp(key, "ip", 2) == 0 && key[2] == '\0') {
+      if (key == NULL || value == NULL) {
+        tscWarn("taos_connect_with option key or value is NULL, index: %zu", i);
+        continue;
+      }
+
+      if (strcmp(key, "ip") == 0) {
         ip = value;
-      } else if (strncmp(key, "user", 4) == 0 && key[4] == '\0') {
+      } else if (strcmp(key, "user") == 0) {
         user = value;
-      } else if (strncmp(key, "pass", 4) == 0 && key[4] == '\0') {
+      } else if (strcmp(key, "pass") == 0) {
         pass = value;
-      } else if (strncmp(key, "db", 2) == 0 && key[2] == '\0') {
+      } else if (strcmp(key, "db") == 0) {
         db = value;
-      } else if (strncmp(key, "port", 4) == 0 && key[4] == '\0') {
+      } else if (strcmp(key, "port") == 0) {
         port = (uint16_t)atoi(value);
-      } else if (strncmp(key, "charset", 7) == 0 && key[7] == '\0') {
+      } else if (strcmp(key, "charset") == 0) {
         charset = value;
-      } else if (strncmp(key, "timezone", 8) == 0 && key[8] == '\0') {
+      } else if (strcmp(key, "timezone") == 0) {
         timezone = value;
-      } else if (strncmp(key, "userIp", 6) == 0 && key[6] == '\0') {
+      } else if (strcmp(key, "userIp") == 0) {
         userIp = value;
-      } else if (strncmp(key, "userApp", 7) == 0 && key[7] == '\0') {
+      } else if (strcmp(key, "userApp") == 0) {
         userApp = value;
-      } else if (strncmp(key, "connectorInfo", 13) == 0 && key[13] == '\0') {
+      } else if (strcmp(key, "connectorInfo") == 0) {
         connectorInfo = value;
       } else {
         tscWarn("taos_connect_with unknown option key: %s", key);

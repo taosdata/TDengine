@@ -479,6 +479,18 @@ TEST(clientCase, connect_with_Test) {
   TAOS *pConn5 = taos_connect_with(&opt5);
   ASSERT_EQ(pConn5, nullptr);
   ASSERT_NE(taos_errno(NULL), TSDB_CODE_SUCCESS);
+
+  OPTIONS opt6 = {};
+  opt6.count = 3;
+  opt6.keys[0] = NULL;
+  opt6.values[0] = "127.0.0.1";
+  opt6.keys[1] = "ip";
+  opt6.values[1] = NULL;
+  opt6.keys[2] = NULL;
+  opt6.values[2] = NULL;
+  TAOS* pConn6 = taos_connect_with(&opt6);
+  ASSERT_NE(pConn6, nullptr);
+  taos_close(pConn6);
 }
 
 TEST(clientCase, connect_with_dsn_Test) {
