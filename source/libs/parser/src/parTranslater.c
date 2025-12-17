@@ -6687,9 +6687,8 @@ static EDealRes checkOrderByFuncNode(SNode* pNode, void* pContext) {
 }
 
 static bool invalidOrderByFunctionExpr(SNodeList* pProjectionList, SNode* pNode) {
-  SOrderByCheckContext ctx;
+  SOrderByCheckContext ctx = {};
   ctx.pProjectionList = pProjectionList;
-  ctx.invalidOrderbyFunc = false;
   nodesWalkExpr(pNode, checkOrderByFuncNode, &ctx);
   return ctx.invalidOrderbyFunc;
 }

@@ -301,7 +301,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL:
       return "Option:%s value too small, should be %d or greater";
     case TSDB_CODE_PAR_ORDERBY_INVALID_EXPR:
-      return "Invaid expr in order by clause";
+      return "Aggregate functions cannot be used for sorting in non-aggregate queries";
     default:
       return "Unknown error";
   }
