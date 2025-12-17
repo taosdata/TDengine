@@ -563,16 +563,17 @@ description: TDengine 服务端的错误码列表和详细说明
 
 ## virtual table
 
-| 错误码        | 错误描述                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施               |
-|------------|---------------------------------------------------------|------------------------------------------------|-------------------------|
-| 0x80006200 | Virtual table scan 算子内部错误                               | virtual table scan 算子内部逻辑错误，一般不会出现             | 具体查看 client 端的错误日志提示      |
-| 0x80006201 | Virtual table scan invalid downstream operator type     | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确 | 保留 explain 执行计划，联系开发处理  |
-| 0x80006202 | Virtual table prim timestamp column should not has ref  | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误        | 检查错误日志，联系开发处理           |
-| 0x80006203 | Create virtual child table must use virtual super table | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                       | 创建虚拟子表的时候，USING 虚拟超级表   |
+| 错误码        | 错误描述                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施                  |
+|------------|---------------------------------------------------------|------------------------------------------------|----------------------------|
+| 0x80006200 | Virtual table scan 算子内部错误                               | virtual table scan 算子内部逻辑错误，一般不会出现             | 具体查看 client 端的错误日志提示       |
+| 0x80006201 | Virtual table scan invalid downstream operator type     | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确 | 保留 explain 执行计划，联系开发处理     |
+| 0x80006202 | Virtual table prim timestamp column should not has ref  | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误        | 检查错误日志，联系开发处理              |
+| 0x80006203 | Create virtual child table must use virtual super table | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                       | 创建虚拟子表的时候，USING 虚拟超级表      |
 | 0x80006204 | Virtual table not support decimal type                  | 虚拟表不支持 decimal 类型                              | 创建虚拟表时不使用 decimal 类型的列/tag |
-| 0x80006205 | Virtual table not support in STMT query and STMT insert | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表     |
-| 0x80006206 | Virtual table not support in Topic                      | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表              |
-| 0x80006207 | Virtual super table query not support origin table from different databases                      | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
+| 0x80006205 | Virtual table not support in STMT query and STMT insert | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表        |
+| 0x80006206 | Virtual table not support in Topic                      | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表                 |
+| 0x80006207 | Virtual super table query not support origin table from different databases           | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库    |
+| 0x80006208 | Virtual super table query find column type mismatch     | 虚拟超级表查询时发现虚拟子表的列来源和虚拟子表的列类型不匹配                 | 确保原始表和虚拟子表的列类型匹配           |
 
 ## TDgpt
 
