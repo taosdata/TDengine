@@ -40,6 +40,8 @@ The list of keywords is as follows:
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |
 | ASSIGN               | 3.3.6.0+ |
+| ALGR_NAME            | 3.3.9.0+ |
+| ALGR_TYPE            | 3.3.9.0+ |
 
 ### B
 
@@ -159,6 +161,8 @@ The list of keywords is as follows:
 | EXPIRED              | 3.0.0.0 - 3.3.7.0 |
 | EXPIRED_TIME         | 3.3.7.0+ |
 | EXPLAIN              | |
+| ENCRYPT_ALGORITHMS   | 3.3.9.0+ |
+| ENCRYPT_ALGR         | 3.3.9.0+ |
 
 ### F
 
@@ -331,6 +335,7 @@ The list of keywords is as follows:
 | OUTER                | |
 | OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
+| OSSL_ALGR_NAME       | 3.3.7.0+ |
 
 ### P
 
