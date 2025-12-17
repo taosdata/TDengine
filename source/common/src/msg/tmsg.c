@@ -14825,7 +14825,26 @@ int32_t transformRawSSubmitTbData(void *data, int64_t suid, int64_t uid, int32_t
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, suid));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, uid));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, sver));
+
+  if (!(flags & SUBMIT_REQ_COLUMN_DATA_FORMAT)) {
+    int64_t dummy64;
+    int32_t dummy32;
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &dummy64));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &dummy64));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &dummy32));
+    uint64_t nRow;
+    TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &nRow));
+
+    for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+      SRow *pRow = (SRow *)(decoder.data + decoder.pos);
+      decoder.pos += pRow->len;
+      pRow->sver = sver;
+    }
+  }
+
 _exit:
+  tEncoderClear(&encoder);
+  tDecoderClear(&decoder);
   return code;
 }
 
@@ -14976,6 +14995,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
       }
 
       TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
+      uWarn("submitted data version:%" PRId64, (*ppRow)->sver);
     }
     uTrace("decode row data size %d", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
   }

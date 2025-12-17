@@ -1858,9 +1858,9 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   STqOffsetVal offset = {.type = pTmq->resetOffsetCfg};
   tFormatOffset(buf, tListLen(buf), &offset);
   tqInfoC("consumer:0x%" PRIx64 " is setup, refId:%" PRId64
-              ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s",
+              ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s, maxPollIntervalMs:%dms, sessionTimeoutMs:%dms",
           pTmq->consumerId, pTmq->refId, pTmq->groupId, pTmq->useSnapshot, pTmq->autoCommit, pTmq->autoCommitInterval,
-          buf);
+          buf, pTmq->maxPollIntervalMs, pTmq->sessionTimeoutMs);
 
   return pTmq;
 
