@@ -978,12 +978,13 @@ static int32_t setDeleteStmtAuditReqTableInfo(SDeleteStmt* pStmt, SAuditReq* pRe
 }
 
 static int32_t setModifyStmtAuditReqTableInfo(SVnodeModifyOpStmt* pStmt, SAuditReq* pReq) {
-  if (pStmt->sqlNodeType != 0) {
+  if (pStmt->insertType != TSDB_QUERY_TYPE_INSERT && pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT &&
+      pStmt->insertType != TSDB_QUERY_TYPE_STMT_INSERT) {
     tscDebug("[report] invalid from table node type:%s", nodesNodeName(pStmt->sqlNodeType));
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s",  pStmt->targetTableName.tname));
+  TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pStmt->targetTableName.tname));
   TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pStmt->targetTableName.dbname));
   return TSDB_CODE_SUCCESS;
 }
@@ -1019,7 +1020,7 @@ static int32_t setAuditReqTableInfo(SRequestObj* pRequest, ENodeType type, SAudi
     SSelectStmt* pStmt = (SSelectStmt*)pRequest->pQuery->pRoot;
     return setSelectStmtAuditReqTableInfo(pStmt, pReq);
   }
-  tscError("[report]unsupprot report type: %s", nodesNodeName(type));
+  tscError("[report]unsupported report type: %s", nodesNodeName(type));
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
@@ -1041,27 +1042,39 @@ static void setAuditReqOperation(SRequestObj* pRequest, ENodeType type, SAuditRe
   }
 }
 
+static bool needSendReport(SAppInstServerCFG* pCfg, ENodeType type) {
+  if (pCfg->auditLevel < AUDIT_LEVEL_DATA) {
+    return false;
+  }
+  if (type == QUERY_NODE_SELECT_STMT) {
+    return pCfg->enableAuditSelect != 0;
+  } else if (type == QUERY_NODE_DELETE_STMT) {
+    return pCfg->enableAuditDelete != 0;
+  } else if (type == QUERY_NODE_VNODE_MODIFY_STMT) {
+    return pCfg->enableAuditInsert != 0;
+  }
+
+  return false;
+}
+
 static void reportSqlExecResult(SRequestObj* pRequest, ENodeType type) {
   int32_t  code = TSDB_CODE_SUCCESS;
-  STscObj*     pTscObj = pRequest->pTscObj;
+  STscObj* pTscObj = pRequest->pTscObj;
 
   if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
     tscError("[report][%s] invalid tsc obj", nodesNodeName(type));
     return;
   }
-
-  if (pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0 ||
-      pTscObj->pAppInfo->serverCfg.auditLevel < AUDIT_LEVEL_DATA) {
-    tscTrace("[report][%s] audit delete is disabled", nodesNodeName(type));
-    return;
-  }
-
   if (pRequest->code != TSDB_CODE_SUCCESS) {
-    tscDebug("[report][%s] delete request result code:%d", nodesNodeName(type), pRequest->code);
+    tscDebug("[report][%s] request result code:%d, skip audit", nodesNodeName(type), pRequest->code);
     return;
   }
 
-  SNode* pTable = NULL;
+  if (!needSendReport(&pTscObj->pAppInfo->serverCfg, type)) {
+    tscTrace("[report][%s] audit is disabled", nodesNodeName(type));
+    return;
+  }
+  
   SAuditReq       req;
   req.pSql = pRequest->sqlstr;
   req.sqlLen = pRequest->sqlLen;
@@ -1096,12 +1109,12 @@ static void reportSqlExecResult(SRequestObj* pRequest, ENodeType type) {
     taosMemoryFree(pReq);
     return;
   }
-  tscDebug("[report][%s] delete data, sql:%s", nodesNodeName(type), req.pSql);
+  tscDebug("[report][%s] data, sql:%s", nodesNodeName(type), req.pSql);
 }
 
 void clientOperateReport(SRequestObj* pRequest) {
   if (pRequest == NULL || pRequest->pQuery == NULL || pRequest->pQuery->pRoot == NULL) {
-    tscError("[report] invalid request");
+    tscDebug("[report] invalid request");
     return;
   }
   ENodeType type = nodeType(pRequest->pQuery->pRoot);
