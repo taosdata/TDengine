@@ -2,8 +2,6 @@ import os, platform, subprocess, time, re, importlib
 from pathlib import Path
 from new_test_framework.utils import (
     tdLog,
-    tdSql,
-    tdStream,
     StreamItem,
     tdCb,
     tdCom
@@ -96,7 +94,8 @@ class TestNewStreamCompatibility:
 
             self.prepareDataOnOldVersion(base_version)
 
-            tdCb.killAllDnodes()
+            os.system(f"pkill taosd")
+            tdCb.checkProcessPid("taosd")
 
             tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2)
 
@@ -243,7 +242,7 @@ class TestNewStreamCompatibility:
         package_path = downloader.download_and_install(base_version, "enterprise", "-e no")
         tdLog.info(f"Successfully installed enterprise package from {package_path}")
 
-        os.system(f"pkill -9 taosd")
+        os.system(f"pkill taosd")
         tdCb.checkProcessPid("taosd")
 
         tdLog.info(f"start taosd: rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
