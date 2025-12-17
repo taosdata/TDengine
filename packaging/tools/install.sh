@@ -165,7 +165,7 @@ while getopts "hv:e:d:" arg; do
     ;;
   d)
     #echo "verType=$OPTARG"
-    taosDir=$(echo $OPTARG)/tdengine
+    taosDir="$OPTARG"
     # user define install dir
     taos_dir_set=1
     ;;
@@ -198,7 +198,7 @@ bin_dir="${installDir}/bin"
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh ${taosgen_name})
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh ${taosgen_name})
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "lite" ]; then
     services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
@@ -208,10 +208,10 @@ if [ "${verMode}" == "cluster" ]; then
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pkgMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh ${taosgen_name})
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh ${taosgen_name})
   else
     services=(${serverName})
-    tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
+    tools=(${clientName} ${benchmarkName} remove.sh startPre.sh)
   fi
 else
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
@@ -316,6 +316,9 @@ function install_bin() {
     if [ "${tool}" == "remove.sh" ]; then
       [ -x ${install_main_dir}/uninstall.sh ] && ${csudo}ln -sf ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript} || :
     else
+      if [ "${tool}" == "startPre.sh" ]; then
+        sed -i "s|/var/log/taos|${logDir}|g" ${install_main_dir}/bin/${tool} 
+      fi
       [ -x ${install_main_dir}/bin/${tool} ] && ${csudo}ln -sf ${install_main_dir}/bin/${tool} ${bin_link_dir}/${tool} || :
     fi
   done
@@ -892,7 +895,10 @@ function install_service_on_systemd() {
     fi
   fi
 
-  if [ -f ${cfg_source_dir}/$1.service ]; then
+  if [ -f "${cfg_source_dir}/$1.service" ]; then
+    if [ "$1" == "taosd" ]; then
+      sed -i "s|/usr/local/taos/bin|${bin_dir}|g" "${cfg_source_dir}/$1.service"
+    fi
     ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
   fi
 
