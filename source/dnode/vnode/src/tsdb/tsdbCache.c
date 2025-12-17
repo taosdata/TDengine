@@ -1988,8 +1988,12 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
 
   rocksMayWrite(pTsdb, true);  // flush writebatch cache
 
+  int64_t st = taosGetTimestampUs();
   code = tsdbCacheGetValuesFromRocks(pTsdb, num_keys, (const char *const *)keys_list, keys_list_sizes, &values_list,
                                      &values_list_sizes);
+  int64_t et = taosGetTimestampUs();
+  tsdbInfo("vgId:%d ,qid: %s ,tsdbCacheGetValuesFromRocks use time: %" PRId64, TD_VID(pTsdb->pVnode), pr->idstr,
+           et - st);
   if (code) {
     taosMemoryFree(key_list);
     taosMemoryFree(keys_list);
@@ -2043,7 +2047,10 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
 
   if (TARRAY_SIZE(remainCols) > 0) {
     // tsdbTrace("tsdb/cache: vgId: %d, load %" PRId64 " from raw", TD_VID(pTsdb->pVnode), uid);
+    int64_t st = taosGetTimestampUs();
     code = tsdbCacheLoadFromRaw(pTsdb, uid, pLastArray, remainCols, pr, ltype);
+    int64_t et = taosGetTimestampUs();
+    tsdbInfo("vgId:%d ,qid: %s ,tsdbCacheLoadFromRaw use time: %" PRId64, TD_VID(pTsdb->pVnode), pr->idstr, et - st);
   }
 
 _exit:
@@ -2089,9 +2096,12 @@ static int32_t tsdbCacheGetBatchFromLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
     if (!taosArrayPush(keyArray, &key)) {
       TAOS_CHECK_EXIT(terrno);
     }
-
+    int64_t    st = taosGetTimestampUs();
     LRUHandle *h = taosLRUCacheLookup(pCache, &key, ROCKS_KEY_LEN);
     SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
+    int64_t    et = taosGetTimestampUs();
+    tsdbInfo("vgId:%d ,qid: %s ,first taosLRUCacheLookup use time: %" PRId64, TD_VID(pTsdb->pVnode), pr->idstr,
+             et - st);
     if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
       SLastCol lastCol = *pLastCol;
       if (TSDB_CODE_SUCCESS != (code = tsdbCacheReallocSLastCol(&lastCol, NULL))) {
@@ -2152,8 +2162,12 @@ static int32_t tsdbCacheGetBatchFromLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLas
 
     for (int i = 0; i < TARRAY_SIZE(remainCols);) {
       SIdxKey   *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
+      int64_t    st = taosGetTimestampUs();
       LRUHandle *h = taosLRUCacheLookup(pCache, &idxKey->key, ROCKS_KEY_LEN);
       SLastCol  *pLastCol = h ? (SLastCol *)taosLRUCacheValue(pCache, h) : NULL;
+      int64_t    et = taosGetTimestampUs();
+      tsdbInfo("vgId:%d ,qid: %s ,second taosLRUCacheLookup use time: %" PRId64, TD_VID(pTsdb->pVnode), pr->idstr,
+               et - st);
       if (h && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
         SLastCol lastCol = *pLastCol;
         code = tsdbCacheReallocSLastCol(&lastCol, NULL);
@@ -2660,11 +2674,18 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
     TAOS_CHECK_EXIT(terrno);
   }
 
+  int64_t st = taosGetTimestampUs();
   TAOS_CHECK_EXIT(tsdbCacheGetBatchFromLru(pTsdb, uid, pLastArray, pr, ltype, keyArray));
 
+  int64_t et = taosGetTimestampUs();
+  tsdbInfo("vgId:%d ,qid: %s , tsdbCacheGetBatchFromLru use time: %" PRId64, TD_VID(pTsdb->pVnode), pr->idstr, et - st);
+
+  st = taosGetTimestampUs();
   if (tsUpdateCacheBatch) {
     TAOS_CHECK_EXIT(tsdbCacheGetBatchFromMem(pTsdb, uid, pLastArray, pr, keyArray));
   }
+  et = taosGetTimestampUs();
+  tsdbInfo("vgId:%d ,qid: %s , tsdbCacheGetBatchFromMem use time: %" PRId64, TD_VID(pTsdb->pVnode), pr->idstr, et - st);
 
 _exit:
   if (code) {
