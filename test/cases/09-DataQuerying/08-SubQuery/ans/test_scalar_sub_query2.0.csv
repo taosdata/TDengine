@@ -892,10 +892,11 @@ taos> select f1 from st1 where tg1 = (select 2 from st1 limit 1) order by 1;
            2 |
            3 |
 
+taos> select f1 from st1 where tbname = cast((select 0 from st1 limit 1) as varchar) order by 1;
 
-taos> select f1 from st1 where tbname = (select 1 from st1 limit 1) order by 1;
+taos> select f1 from st1 where tbname = cast((select 1 from st1 limit 1) as varchar) order by 1;
 
-taos> select f1 from st1 where tbname = (select 2 from st1 limit 1) order by 1;
+taos> select f1 from st1 where tbname = cast((select 2 from st1 limit 1) as varchar) order by 1;
 
 taos> select f1 from st1 where ts >= (select 0 from st1 limit 1) and ts < (select 0 from st1 limit 1) order by 1;
 
@@ -909,13 +910,17 @@ taos> select f1 from st1 where _c0 between (select 1 from st1 limit 1) and (sele
 
 taos> select f1 from st1 where _c0 between (select 2 from st1 limit 1) and (select 2 from st1 limit 1) order by 1;
 
-taos> select table_name from information_schema.ins_tables where table_name = (select 1 from st1 limit 1) order by 1 limit 3;
+taos> select table_name from information_schema.ins_tables where table_name = cast((select 0 from st1 limit 1) as varchar) order by 1 limit 3;
 
-taos> select table_name from information_schema.ins_tables where table_name = (select 2 from st1 limit 1) order by 1 limit 3;
+taos> select table_name from information_schema.ins_tables where table_name = cast((select 1 from st1 limit 1) as varchar) order by 1 limit 3;
 
-taos> select * from information_schema.ins_tables where db_name = (select 1 from st1 limit 1) order by 1 limit 3;
+taos> select table_name from information_schema.ins_tables where table_name = cast((select 2 from st1 limit 1) as varchar) order by 1 limit 3;
 
-taos> select * from information_schema.ins_tables where db_name = (select 2 from st1 limit 1) order by 1 limit 3;
+taos> select * from information_schema.ins_tables where db_name = cast((select 0 from st1 limit 1) as varchar) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = cast((select 1 from st1 limit 1) as varchar) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = cast((select 2 from st1 limit 1) as varchar) order by 1 limit 3;
 
 taos> select * from vtb1 where f1 = (select 0 from st1 limit 1) order by 1;
 

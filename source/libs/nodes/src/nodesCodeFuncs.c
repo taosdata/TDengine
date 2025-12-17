@@ -4785,7 +4785,7 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
 
 static const char* jkPlanQueryId = "QueryId";
 static const char* jkPlanNumOfSubplans = "NumOfSubplans";
-static const char* jkPlanSubplans = "Subplan";
+static const char* jkPlanSubplans = "Subplans";
 static const char* jkPlanSubQueriesNum = "SubQueriesNum";
 static const char* jkPlanSubQueries = "SubQueries";
 

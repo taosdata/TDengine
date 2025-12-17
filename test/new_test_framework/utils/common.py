@@ -2264,7 +2264,7 @@ class TDCom:
                             fout.write(line)
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
-                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\(\.[0-9]\+\)\?s)//g' > {self.query_result_file}")
+                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' > {self.query_result_file}")
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):

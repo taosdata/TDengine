@@ -137,11 +137,11 @@ class TestScalarSubQuery2:
         "select f1 from {tableName} where f1 between {scalarSql} and {scalarSql} + 1 order by 1",
         "select f1 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql} order by 1",
         "select f1 from {tableName} where tg1 = {scalarSql} order by 1",
-        "select f1 from {tableName} where tbname = {scalarSql} order by 1",
+        "select f1 from {tableName} where tbname = cast({scalarSql} as varchar) order by 1",
         "select f1 from {tableName} where ts >= {scalarSql} and ts < {scalarSql} order by 1",
         "select f1 from {tableName} where _c0 between {scalarSql} and {scalarSql} order by 1",
-        "select table_name from information_schema.ins_tables where table_name = {scalarSql} order by 1 limit 3",
-        "select * from information_schema.ins_tables where db_name = {scalarSql} order by 1 limit 3",
+        "select table_name from information_schema.ins_tables where table_name = cast({scalarSql} as varchar) order by 1 limit 3",
+        "select * from information_schema.ins_tables where db_name = cast({scalarSql} as varchar) order by 1 limit 3",
         "select * from vtb1 where f1 = {scalarSql} order by 1",
 
         # partition

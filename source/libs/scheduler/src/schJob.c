@@ -1129,9 +1129,9 @@ _return:
   } else if (pJob->refId <= 0) {
     schFreeJobImpl(pJob);
   } else {
-    code = taosRemoveRef(schMgmt.jobRef, pJob->refId);
-    if (code) {
-      SCH_JOB_DLOG("jobId:0x%" PRIx64 ", taosRemoveRef job from jobRef, error:%s", pJob->refId, tstrerror(code));
+    int32_t tmpCode = taosRemoveRef(schMgmt.jobRef, pJob->refId);
+    if (tmpCode) {
+      SCH_JOB_DLOG("jobId:0x%" PRIx64 ", taosRemoveRef job from jobRef, error:%s", pJob->refId, tstrerror(tmpCode));
     }
   }
 
