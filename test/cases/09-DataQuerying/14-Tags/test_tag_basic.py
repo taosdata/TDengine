@@ -534,7 +534,10 @@ class TestTagBasic:
         tdSql.checkRows(800)
         tdSql.checkData(0, 0, "select_tags_tb1")      
     
-        tdSql.error(f"select tbname, t2 from select_tags_tb1 group by t1;")
+        tdSql.query(f"select tbname, t2 from select_tags_tb1 group by t1;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "select_tags_tb1")
+        tdSql.checkData(0, 1, "abc1")
 
     def TagScan(self):
         tdSql.connect("root")
