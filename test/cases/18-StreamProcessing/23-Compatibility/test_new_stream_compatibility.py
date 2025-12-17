@@ -28,7 +28,7 @@ EnterprisePackageDownloader = download_enterprise_package.EnterprisePackageDownl
 downloader = EnterprisePackageDownloader()
 
 # Define the list of base versions to test
-BASE_VERSIONS = ["3.3.7.9"]
+BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6"]
 
 class TestNewStreamCompatibility:
 
