@@ -1003,6 +1003,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table not s
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT,        "Virtual table not support in STMT query and STMT insert")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not support in topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH,    "Virtual super table query find column type mismatch")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")
