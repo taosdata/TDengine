@@ -515,6 +515,26 @@ class TestTagBasic:
         tdSql.query(
             f"select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group by tbname;"
         )
+        
+        tdSql.query(f"select t1, t2 from select_tags_tb1 group by t1, t2;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, "abc1")
+        
+        tdSql.query(f"select tbname from select_tags_tb1 group by tbname;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "select_tags_tb1")
+        
+        tdSql.query(f"select t1, t2 from select_tags_tb1 partition by t1, t2;")
+        tdSql.checkRows(800)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, "abc1")
+        
+        tdSql.query(f"select tbname from select_tags_tb1 partition by tbname;")
+        tdSql.checkRows(800)
+        tdSql.checkData(0, 0, "select_tags_tb1")      
+    
+        tdSql.error(f"select tbname, t2 from select_tags_tb1 group by t1;")
 
     def TagScan(self):
         tdSql.connect("root")

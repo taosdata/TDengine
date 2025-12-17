@@ -4420,11 +4420,11 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
   }
-  if ((isSingleTable) &&
+  if (pSelect->pWindow && isSingleTable &&
       ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
     return rewriteExprToSelectTagFunc(pCxt, pNode);
   }
-  if (isSingleTable && isTbnameFuction(*pNode)) {
+  if (pSelect->pWindow && isSingleTable && isTbnameFuction(*pNode)) {
     return rewriteExprToGroupKeyFunc(pCxt, pNode);
   }
 
