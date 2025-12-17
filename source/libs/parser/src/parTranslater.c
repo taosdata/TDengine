@@ -5608,10 +5608,11 @@ _return:
 
 static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                           SVirtualTableNode* pVTable) {
-  SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
-  STableMeta*     pMeta = pRealTable->pMeta;
-  int32_t         code = TSDB_CODE_SUCCESS;
-  SRealTableNode* pInsCols = NULL;
+  SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
+  STableMeta*        pMeta = pRealTable->pMeta;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SRealTableNode*    pInsCols = NULL;
+  bool               refTablesAdded = false;
 
   if (!pMeta->virtualStb) {
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
@@ -5625,7 +5626,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
     PAR_ERR_JRET(cloneVgroups(&pRealTable->pVgroupList, pVTable->pVgroupList));
   }
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
-
+  refTablesAdded = true;
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
 
@@ -5635,6 +5636,9 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
 _return:
   if (code != TSDB_CODE_SUCCESS) {
     qError("translateVirtualSuperTable failed, code:%d, errmsg:%s", code, tstrerror(code));
+  }
+  if (refTablesAdded) {
+    *pTable = (SNode*)pVTable;
   }
   nodesDestroyNode((SNode*)pInsCols);
   return code;
@@ -5801,6 +5805,9 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   return code;
 _return:
   qError("translateVirtualTable failed, code:%d, errmsg:%s", code, tstrerror(code));
+  if ((SNode*)pVTable == *pTable) {
+    *pTable = NULL;
+  }
   nodesDestroyNode((SNode*)pVTable);
   return code;
 }
