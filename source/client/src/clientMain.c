@@ -1540,6 +1540,40 @@ _return:
   return code;
 }
 
+int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len) {
+  if (len == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL) {
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  int code = TSDB_CODE_SUCCESS;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+
+  switch (info) {
+    case TSDB_CONNECTION_INFO_USER:
+      int userLen = strlen(pTscObj->user) + 1;
+      if (buffer == NULL || *len < userLen) {
+        *len = userLen;
+        TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
+      } else {
+        *len = userLen;
+        tstrncpy(buffer, pTscObj->user, userLen);
+      }
+      break;
+    default:
+        TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+
+_return:
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(*(int64_t *)taos);
+  return code;
+}
+
 void destorySqlCallbackWrapper(SSqlCallbackWrapper *pWrapper) {
   if (NULL == pWrapper) {
     return;

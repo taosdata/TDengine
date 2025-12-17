@@ -104,6 +104,7 @@ TAOS_ROW *(*fp_taos_result_block)(TAOS_RES *res) = NULL;
 const char *(*fp_taos_get_server_info)(TAOS *taos) = NULL;
 const char *(*fp_taos_get_client_info)() = NULL;
 int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required) = NULL;
+int (*fp_taos_get_connection_info)(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int *len) = NULL;
 
 const char *(*fp_taos_errstr)(TAOS_RES *res) = NULL;
 int (*fp_taos_errno)(TAOS_RES *res) = NULL;
