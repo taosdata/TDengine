@@ -590,7 +590,6 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
         pVal->flag = CV_FLAG_NULL;
 
         taosMemoryFree(tmpTokenBuf);
-        taosMemoryFree(*pData);
 
         return TSDB_CODE_SUCCESS;
       }
@@ -908,7 +907,6 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
         taosMemoryFree(tmpTokenBuf);
-        taosMemoryFree(*pData);
 
         return terrno;
       }
@@ -1035,7 +1033,6 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
         taosMemoryFree(tmpTokenBuf);
-        taosMemoryFree(*pData);
 
         return terrno;
       }
@@ -1139,7 +1136,6 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
         taosMemoryFree(tmpTokenBuf);
-        taosMemoryFree(*pData);
 
         return terrno;
       }
@@ -1243,7 +1239,6 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
         taosMemoryFree(tmpTokenBuf);
-        taosMemoryFree(*pData);
 
         return terrno;
       }
