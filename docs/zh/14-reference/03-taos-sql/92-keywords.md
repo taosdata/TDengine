@@ -235,6 +235,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | IS_IMPORT            | |
 | ISFILLED             | |
 | ISNULL               | |
+| IS_AUDIT             | 3.3.9.0+ |
 
 ### J
 

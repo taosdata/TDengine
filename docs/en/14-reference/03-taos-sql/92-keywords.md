@@ -235,6 +235,7 @@ The list of keywords is as follows:
 | IS_IMPORT            | |
 | ISFILLED             | |
 | ISNULL               | |
+| IS_AUDIT             | 3.3.9.0+ |
 
 ### J
 

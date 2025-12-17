@@ -1476,7 +1476,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     pCreateReq = req.pReqs + iReq;
     memset(&cRsp, 0, sizeof(cRsp));
 
-    if (tsEnableAudit && tsEnableAuditCreateTable) {
+    if (tsEnableAudit && tsEnableAuditCreateTable && tsAuditLevel >= AUDIT_LEVEL_CHILDTABLE) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       if (str == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
