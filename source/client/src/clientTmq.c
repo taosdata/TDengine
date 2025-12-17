@@ -770,7 +770,7 @@ static int32_t prepareCommitCbParamSet(tmq_t* tmq, tmq_commit_cb* pCommitFp, voi
   }
 
   pParamSet->refId = tmq->refId;
-  pParamSet->epoch = tmq->epoch;
+  pParamSet->epoch = atomic_load_32(&tmq->epoch);
   pParamSet->callbackFn = pCommitFp;
   pParamSet->userParam = userParam;
   pParamSet->waitingRspNum = rspNum;
@@ -1114,7 +1114,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   SMqHbReq req = {0};
   req.consumerId = tmq->consumerId;
-  req.epoch = tmq->epoch;
+  req.epoch = atomic_load_32(&tmq->epoch);
   req.pollFlag = atomic_load_8(&tmq->pollFlag);
   tqDebugC("consumer:0x%" PRIx64 " send heartbeat, pollFlag:%d", tmq->consumerId, req.pollFlag);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
@@ -1381,7 +1381,7 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   // vnode transform (epoch == tmq->epoch && topicNumGet != 0)
   // ask ep rsp (epoch == tmq->epoch && topicNumGet == 0)
-  if (epoch < tmq->epoch || (epoch == tmq->epoch && topicNumGet == 0)) {
+  if (epoch < atomic_load_32(&tmq->epoch) || (epoch == atomic_load_32(&tmq->epoch) && topicNumGet == 0)) {
     tqDebugC("consumer:0x%" PRIx64 " no update ep epoch from %d to epoch %d, incoming topics:%d", tmq->consumerId,
              tmq->epoch, epoch, topicNumGet);
     return;
@@ -1502,7 +1502,7 @@ static int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   int32_t lino = 0;
   SMqAskEpReq req = {0};
   req.consumerId = pTmq->consumerId;
-  req.epoch = updateEpSet ? -1 : pTmq->epoch;
+  req.epoch = updateEpSet ? -1 : atomic_load_32(&pTmq->epoch);
   tstrncpy(req.cgroup, pTmq->groupId, TSDB_CGROUP_LEN);
   SMqAskEpCbParam* pParam = NULL;
   void*            pReq = NULL;
@@ -2012,7 +2012,8 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   int32_t retryCnt = 0;
-  while (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__INIT ) {
+  int32_t     epoch = atomic_load_32(&tmq->epoch);
+  while (atomic_load_32(&tmq->epoch) == epoch) {
     code = syncAskEp(tmq);
     if (retryCnt++ > SUBSCRIBE_RETRY_MAX_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
       tqErrorC("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes, code:%s",
@@ -2187,7 +2188,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, SMqClientTopic* pTopic
   pReq->consumerId = tmq->consumerId;
   pReq->timeout = tmq->maxPollWaitTime;
   pReq->minPollRows = tmq->minPollRows;
-  pReq->epoch = tmq->epoch;
+  pReq->epoch = atomic_load_32(&tmq->epoch);
   pReq->reqOffset = pVg->offsetInfo.endOffset;
   pReq->head.vgId = pVg->vgId;
   pReq->useSnapshot = tmq->useSnapshot;
@@ -3519,7 +3520,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
         goto end;
       }
 
-      pParam->epoch = tmq->epoch;
+      pParam->epoch = atomic_load_32(&tmq->epoch);
       pParam->vgId = pClientVg->vgId;
       pParam->totalReq = *numOfAssignment;
       pParam->pCommon = pCommon;
