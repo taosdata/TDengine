@@ -25,6 +25,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "tname.h"
 #include "tversion.h"
 
@@ -1053,6 +1054,102 @@ int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
   return code;
 }
+static int32_t buildCreateTokenBlock(SCreateTokenRsp* pRsp, SSDataBlock** block) {
+  int32_t      code = 0;
+  int32_t      line = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = COMPACT_DB_RESULT_FIELD1_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  // infoData.info.type = TSDB_DATA_TYPE_INT;
+  // infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+  // TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  // infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  // infoData.info.bytes = COMPACT_DB_RESULT_FIELD3_LEN;
+  // TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  TSDB_CHECK_CODE(code, line, END);
+
+  SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
+
+  char result[128 + 64] = {0};
+  STR_TO_VARSTR(result, pRsp->token);
+  code = colDataSetVal(pResultCol, 0, result, false);
+  TSDB_CHECK_CODE(code, line, END);
+
+  pBlock->info.rows = 1;
+
+  *block = pBlock;
+  return TSDB_CODE_SUCCESS;
+
+END:
+  taosMemoryFree(pBlock);
+  taosArrayDestroy(pBlock->pDataBlock);
+  return code;
+}
+static int32_t buildTableRspForCreateToken(SCreateTokenRsp* pResp, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTokenBlock(pResp, &pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    code = terrno;
+    goto _exit;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(COMPACT_DB_RESULT_COLS);
+
+  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, 1);
+  if (len < 0) {
+    uError("buildTableRspFroCreateToken error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
+  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+  (*pRsp)->payloadLen = htonl(payloadLen);
+  (*pRsp)->compLen = htonl(payloadLen);
+
+  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+    uError("buildTableRspFroCreateToken error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+           (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
+  }
+  return TSDB_CODE_SUCCESS;
+_exit:
+  if (*pRsp) {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if (pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
+}
 int32_t processCreateTokenRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
@@ -1061,6 +1158,12 @@ int32_t processCreateTokenRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SCreateTokenRsp    rsp = {0};
     SRetrieveTableRsp* pRes = NULL;
     code = tDeserializeSCreateTokenResp(pMsg->pData, pMsg->len, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildTableRspForCreateToken(&rsp, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
 
     if (code != 0) {
       pRequest->body.resInfo.pRspMsg = NULL;
