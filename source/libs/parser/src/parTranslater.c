@@ -16175,9 +16175,9 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_ALTER));
   }
-  if (PRIV_HAS(privSet, PRIV_TBL_DELETE)) {
+  if (PRIV_HAS(privSet, PRIV_TBL_SHOW)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_DELETE));
+                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_SHOW));
   }
   if (PRIV_HAS(privSet, PRIV_TBL_SHOW_CREATE)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,

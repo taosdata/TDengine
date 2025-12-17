@@ -2281,37 +2281,17 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
       switch (pReq->type) {
-        case PRIV_TBL_DROP: {
-          if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
-            req->singleType = AUTH_TYPE_READ;
-            CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
-            if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
-              return TSDB_CODE_SUCCESS;
-            }
-          }
-
-          if (pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName) + 1)) {
-            pRes->pass[AUTH_RES_BASIC] = true;
-            return TSDB_CODE_SUCCESS;
-          }
-          break;
-        }
-        case PRIV_TBL_ALTER: {
-          break;
-        }
-        case PRIV_TBL_SHOW_CREATE: {
-          break;
-        }
         case PRIV_TBL_SELECT: {
           break;
         }
         case PRIV_TBL_INSERT: {
           break;
         }
-        case PRIV_TBL_UPDATE: {
+        case PRIV_TBL_DELETE: {
           break;
         }
-        case PRIV_TBL_DELETE: {
+        case PRIV_TBL_UPDATE: {
+          // N/A 
           break;
         }
         default: {
