@@ -317,9 +317,11 @@ static int32_t authShowUsage(SAuthCxt* pCxt, SShowStmt* pStmt) {
 }
 
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
-  SNode* pTagCond = NULL;
+  // SNode* pTagCond = NULL;
   // todo check tag condition for subtable
-  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
+  // return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
+  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE));
+  return authObjPrivileges(pCxt, pStmt->dbName, pStmt->tableName, PRIV_TBL_SHOW_CREATE);
 }
 
 static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
@@ -450,10 +452,15 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
     PAR_ERR_RET(checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, NULL));
 
     if (!pStmt->withOpt) {
-      PAR_ERR_RET(checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_TBL_DROP, NULL));
+      // for child table, check privileges of its super table later
+      if (checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_TBL_DROP, NULL)) {
+        code = TSDB_CODE_PAR_PERMISSION_DENIED;
+        break;
+      }
     }
   }
-  return code;
+  pStmt->hasPrivilege = (code == TSDB_CODE_SUCCESS) ? true : false;
+  return 0;
 }
 
 static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {

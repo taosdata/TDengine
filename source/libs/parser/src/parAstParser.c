@@ -1190,9 +1190,17 @@ static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShow
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+  //                                 AUTH_TYPE_READ, pCxt->pMetaCache);
+  // }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
+                                  pCxt->pMetaCache);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
-                                  AUTH_TYPE_READ, pCxt->pMetaCache);
+                                  PRIV_TBL_SHOW_CREATE, pCxt->pMetaCache);
   }
   return code;
 }

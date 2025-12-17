@@ -381,7 +381,7 @@ cmd ::= UNLOCK ROLE role_name(A).                                               
 cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
 cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
-cmd ::= GRANT ALL priv_level_opt(B) with_clause_opt(D) TO user_name(C).           {
+/*cmd ::= GRANT ALL priv_level_opt(B) with_clause_opt(D) TO user_name(C).           {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
                                                                                     pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
@@ -396,7 +396,7 @@ cmd ::= GRANT ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) TO user_name(C
 cmd ::= REVOKE ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) FROM user_name(C). {
                                                                                     SPrivSet A = PRIV_TYPE(PRIV_TYPE_ALL);
                                                                                     pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, NULL, TSDB_ALTER_ROLE_PRIVILEGES);
-                                                                                  }
+                                                                                  }*/
 cmd ::= GRANT privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
 cmd ::= REVOKE privileges(A) priv_level_opt(B) between_clause_opt(E) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, E, TSDB_ALTER_ROLE_PRIVILEGES); }
 
@@ -599,8 +599,8 @@ priv_type_tbl_dml(A) ::= SELECT TABLE.                                          
 priv_type_tbl_dml(A) ::= SELECT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
 priv_type_tbl_dml(A) ::= INSERT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_INSERT); }
 priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, NULL, B, NULL); }
-priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
-priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }
+/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
+priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }*/
 priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 

@@ -420,6 +420,7 @@ const char* privObjTypeName(EPrivObjType objType);
 int32_t     getSysRoleType(const char* roleName);
 bool        isPrivInheritName(const char* name);
 SPrivInfo*  privInfoGet(EPrivType privType);
+const char* privInfoGetName(EPrivType privType);
 
 #ifdef __cplusplus
 }

@@ -518,3 +518,8 @@ SPrivInfo* privInfoGet(EPrivType privType) {
   if (!result) terrno = TSDB_CODE_APP_ERROR;
   return result;
 }
+
+const char*  privInfoGetName(EPrivType privType) {
+  SPrivInfo* privInfo = privInfoGet(privType);
+  return privInfo?privInfo->name:"privUnkown";
+}

@@ -2127,8 +2127,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
-  SHashObj*        pTbs =
-      (AUTH_TYPE_READ == req->singleType) ? pInfo->selectTbs : pInfo->insertTbs;  // pInfo->readTbs : pInfo->writeTbs;
+  SHashObj*        pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->selectTbs : pInfo->insertTbs;
   char* stbName = NULL;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -2281,31 +2280,68 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       return TSDB_CODE_SUCCESS;
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
-      klen = privObjKey(privInfo, pReq->tbName.acctId, "*", "*", objKey, sizeof(objKey));
-      SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
-        pRes->pass[AUTH_RES_BASIC] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      klen = privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, "*", objKey, sizeof(objKey));
-      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
-        pRes->pass[AUTH_RES_BASIC] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      klen =
-          privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname, objKey, sizeof(objKey));
-      policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-      if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
-        pRes->pass[AUTH_RES_BASIC] = true;
-        return TSDB_CODE_SUCCESS;
+      switch (pReq->type) {
+        case PRIV_TBL_DROP: {
+          if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
+            req->singleType = AUTH_TYPE_READ;
+            CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
+            if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+              return TSDB_CODE_SUCCESS;
+            }
+          }
+
+          if (pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName) + 1)) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+        case PRIV_TBL_ALTER: {
+          break;
+        }
+        case PRIV_TBL_SHOW_CREATE: {
+          break;
+        }
+        case PRIV_TBL_SELECT: {
+          break;
+        }
+        case PRIV_TBL_INSERT: {
+          break;
+        }
+        case PRIV_TBL_UPDATE: {
+          break;
+        }
+        case PRIV_TBL_DELETE: {
+          break;
+        }
+        default: {
+          klen = privObjKey(privInfo, pReq->tbName.acctId, "*", "*", objKey, sizeof(objKey));
+          SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+          if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
+          klen = privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, "*", objKey, sizeof(objKey));
+          policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+          if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
+          klen = privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname, objKey,
+                            sizeof(objKey));
+          policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
+          if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
       }
       return TSDB_CODE_SUCCESS;
     }
     ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo->category, privInfo->name);
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
-
 
 #ifdef PRIV_TODO
   switch (pReq->type) {

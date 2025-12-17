@@ -16154,16 +16154,34 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
     }
 
     if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType &&
-        TSDB_VIRTUAL_NORMAL_TABLE != pTable->pMeta->tableType) {
+        TSDB_VIRTUAL_NORMAL_TABLE != pTable->pMeta->tableType && TSDB_CHILD_TABLE != pTable->pMeta->tableType) {
       nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Only supertable and normal table can be granted");
+                                     "Only supertable, child table and normal table can be granted");
     }
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTagCond) {
     nodesDestroyNode((SNode*)pTable);
     return TSDB_CODE_SUCCESS;
+  }
+
+  SPrivSet* privSet = &pReq->privileges.privSet;
+  if (PRIV_HAS(privSet, PRIV_TBL_DROP)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_DROP));
+  }
+  if (PRIV_HAS(privSet, PRIV_TBL_ALTER)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_ALTER));
+  }
+  if (PRIV_HAS(privSet, PRIV_TBL_DELETE)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_DELETE));
+  }
+  if (PRIV_HAS(privSet, PRIV_TBL_SHOW_CREATE)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_SHOW_CREATE));
   }
 
   pCxt->pCurrStmt = (SNode*)pStmt;
