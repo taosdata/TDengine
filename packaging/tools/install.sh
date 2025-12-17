@@ -12,7 +12,7 @@ entMode=full
 
 iplist=""
 serverFqdn=""
-ostype=`uname`
+ostype=$(uname)
 
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
@@ -28,10 +28,6 @@ emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
 tarName="package.tar.gz"
-dataDir="/var/lib/${PREFIX}"
-logDir="/var/log/${PREFIX}"
-configDir="/etc/${PREFIX}"
-installDir="/usr/local/${PREFIX}"
 adapterName="${PREFIX}adapter"
 benchmarkName="${PREFIX}Benchmark"
 dumpName="${PREFIX}dump"
@@ -48,12 +44,6 @@ bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
-
-#install main path
-install_main_dir=${installDir}
-# old bin dir
-bin_dir="${installDir}/bin"
-
 service_config_dir="/etc/systemd/system"
 
 # Color setting
@@ -70,7 +60,7 @@ fi
 
 update_flag=0
 prompt_force=0
-
+taos_dir_set=0
 initd_mod=0
 service_mod=2
 if ps aux | grep -v grep | grep systemd &>/dev/null; then
@@ -163,7 +153,7 @@ interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
 
-while getopts "hv:e:" arg; do
+while getopts "hv:e:d:" arg; do
   case $arg in
   e)
     #echo "interactiveFqdn=$OPTARG"
@@ -173,8 +163,14 @@ while getopts "hv:e:" arg; do
     #echo "verType=$OPTARG"
     verType=$(echo $OPTARG)
     ;;
+  d)
+    #echo "verType=$OPTARG"
+    taosDir=$(echo $OPTARG)/tdengine
+    # user define install dir
+    taos_dir_set=1
+    ;;
   h)
-    echo "Usage: $(basename $0) -v [server | client]  -e [yes | no]"
+    echo "Usage: $(basename $0) -v [server | client]  -e [yes | no] -d [install dir]"
     exit 0
     ;;
   ?) #unknow option
@@ -183,6 +179,22 @@ while getopts "hv:e:" arg; do
     ;;
   esac
 done
+
+# set install dir
+if [ $taos_dir_set -eq 0 ]; then
+  installDir="/usr/local/${PREFIX}" # default install dir
+  dataDir="/var/lib/${PREFIX}"
+  logDir="/var/log/${PREFIX}"
+else
+  installDir="${taosDir}/${PREFIX}"
+  dataDir="${installDir}/data"
+  logDir="${installDir}/log"  
+fi
+configDir="/etc/${PREFIX}"
+install_main_dir=${installDir}
+# old bin dir
+bin_dir="${installDir}/bin"
+
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
@@ -590,8 +602,18 @@ function install_taosx_config() {
   [ -n "${only_client}" ] && return 0
 
   file_name="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
+  if [ $taos_dir_set -eq 1 ]; then
+    mkdir -p "${dataDir}/taosx"
+  fi
   if [ -f ${file_name} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${file_name}
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${file_name}  
+
+    # 替换 data_dir
+    ${csudo}sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/taosx\"|" ${file_name}
+
+    # 替换 log path
+    ${csudo}sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
+
 
     if [ -f "${configDir}/${xname}.toml" ]; then
       ${csudo}cp ${file_name} ${configDir}/${xname}.toml.new
@@ -610,9 +632,19 @@ function install_explorer_config() {
   else
     file_name="${script_dir}/cfg/explorer.toml"
   fi
-
+  if [ $taos_dir_set -eq 1 ]; then
+    mkdir -p "${dataDir}/explorer"
+  fi
   if [ -f "${file_name}" ]; then
+    # 替换  fqdn
     ${csudo}sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
+
+    # 替换 data_dir
+    ${csudo}sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/explorer\"|" "${file_name}"
+
+    # 替换 log path
+    ${csudo}sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
+
     if [ -f "${configDir}/explorer.toml" ]; then
       ${csudo}cp "${file_name}" "${configDir}/explorer.toml.new"
     else
@@ -629,6 +661,12 @@ function install_adapter_config() {
   if [ -f "${file_name}" ]; then
     ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" "${file_name}"
 
+    # replace log path
+    ${csudo}sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
+    
+    # replace cfg path
+    ${csudo}sed -i -r "s|#*\s*(taosConfigDir\s*=\s*).*|\1\"${configDir}\"|" "${file_name}"
+
     if [ -f "${configDir}/${adapterName}.toml" ]; then
       ${csudo}cp "${file_name}" "${configDir}/${adapterName}.toml.new"
     else
@@ -644,6 +682,7 @@ function install_keeper_config() {
   file_name="${script_dir}/cfg/${keeperName}.toml"
   if [ -f "${file_name}" ]; then
     ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" "${file_name}"
+    sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
     if [ -f "${configDir}/${keeperName}.toml" ]; then
       ${csudo}cp "${file_name}" "${configDir}/${keeperName}.toml.new"
@@ -659,6 +698,19 @@ function install_taosd_config() {
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
+
+    if grep -q "dataDir ${dataDir}" ${script_dir}/cfg/${configFile}; then
+      echo "dataDir ${dataDir} in ${script_dir}/cfg/${configFile} already exists"
+    else
+      ${csudo}echo "dataDir ${dataDir}" >>${script_dir}/cfg/${configFile}
+    fi
+     
+    if grep -q "logDir ${logDir}" ${script_dir}/cfg/${configFile}; then
+      echo "logDir ${logDir} in ${script_dir}/cfg/${configFile} already exists"
+    else
+      ${csudo}echo "logDir ${logDir}" >>${script_dir}/cfg/${configFile}
+    fi
+
     if [ "$verMode" == "cluster" ]; then
       ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}
     fi
@@ -735,14 +787,16 @@ function install_config() {
 
 function install_log() {
   ${csudo}mkdir -p ${logDir} &&  ${csudo}mkdir -p ${logDir}/tcmalloc &&  ${csudo}mkdir -p ${logDir}/jemalloc && ${csudo}chmod 777 ${logDir}
-
-  ${csudo}ln -sf ${logDir} ${install_main_dir}/log
+  if [ $taos_dir_set -eq 0 ]; then
+    ${csudo}ln -sf ${logDir} ${install_main_dir}/log
+  fi
 }
 
 function install_data() {
   ${csudo}mkdir -p ${dataDir}
-
-  ${csudo}ln -sf ${dataDir} ${install_main_dir}/data
+  if [ $taos_dir_set -eq 0 ]; then
+    ${csudo}ln -sf ${dataDir} ${install_main_dir}/data
+  fi
 }
 
 function install_connector() {
@@ -1084,7 +1138,7 @@ function updateProduct() {
   fi
 
   install_examples
-  if [ -z $1 ]; then
+  if [ -z "$1" ]; then
     install_bin
     install_services
 
