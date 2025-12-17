@@ -57,6 +57,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "tencrypt.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -625,13 +626,16 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .encryptData = {0}};
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
-    cfg.encryptAlgr = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
-    if (tsDbKey[0] == '\0') {
-      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  if (tsMetaKeyEnabled) {
+    if (tsMetaKey[0] == '\0') {
+      code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
       TAOS_RETURN(code);
     } else {
-      tstrncpy(cfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(cfg.encryptData.encryptKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
