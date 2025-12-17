@@ -87,6 +87,7 @@ class TestNewStreamCompatibility:
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
         for base_version in BASE_VERSIONS:
+            tdCb.killAllDnodes()
 
             tdLog.printNoPrefix(f"========== Start testing compatibility with base version {base_version} ==========")
 
