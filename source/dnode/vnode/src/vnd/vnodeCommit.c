@@ -217,6 +217,10 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   char     *pData = NULL;
   int32_t   dataLen = 0;
 
+  if (taosWaitCfgKeyLoaded() != 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
+
   snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
 
   // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)

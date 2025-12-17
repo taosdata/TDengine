@@ -19,6 +19,7 @@
 #include "vmInt.h"
 #include "vnd.h"
 #include "vnodeInt.h"
+#include "tencrypt.h"
 
 extern taos_counter_t *tsInsertCounter;
 
@@ -380,6 +381,13 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     code = TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL;
     dError("vgId:%d, dnodeId:%d ep:%s:%u in request, ep:%s:%u in local, %s", req.vgId, pReplica->id,
            pReplica->fqdn, pReplica->port, tsLocalFqdn, tsServerPort, tstrerror(code));
+    return code;
+  }
+
+  if (taosWaitCfgKeyLoaded() != 0) {
+    (void)tFreeSCreateVnodeReq(&req);
+    code = terrno;
+    dError("vgId:%d, failed to create vnode since encrypt key is not loaded, reason:%s", req.vgId, tstrerror(code));
     return code;
   }
 
@@ -1206,6 +1214,15 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
            pCreateReq->vgId, pReplica->id, pReplica->fqdn, pReplica->port, tstrerror(code));
     return code;
   }
+  
+  if (taosWaitCfgKeyLoaded() != 0) {
+    (void)tFreeSMountVnodeReq(&req);
+    code = terrno;
+    dError("mount:%s, vgId:%d, failed to create vnode since encrypt key is not loaded, reason:%s", req.mountName,
+           pCreateReq->vgId, tstrerror(code));
+    return code;
+  }
+
   vmGenerateVnodeCfg(pCreateReq, &vnodeCfg);
   vnodeCfg.mountVgId = req.mountVgId;
   vmGenerateWrapperCfg(pMgmt, pCreateReq, &wrapperCfg);
