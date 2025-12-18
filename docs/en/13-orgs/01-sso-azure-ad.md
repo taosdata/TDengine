@@ -10,7 +10,7 @@ description: This document describes How to configure Azure AD integration TDeng
 Azure AD is the new enterprise single sign-on login method in TDengine Cloud, usually for Azure customers.
 You can simply configure your Azure AD and TDengine Cloud integration in the TDengine Cloud portal.
 
-![TDengine Cloud Architecture of Azure AD SSO](../../assets/sso-azure-ad-01.webp)
+![TDengine Cloud Architecture of Azure AD SSO](../assets/sso-azure-ad-01.webp)
 
 For more details of the Azure AD SSO integration, please see the following Azure documents:  
 [Register an application with the Microsoft identity platform](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)  
