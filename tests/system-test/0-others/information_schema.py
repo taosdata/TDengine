@@ -303,6 +303,7 @@ class TDTestCase:
             'sparkplugb':"SparkplugB",
             'orc':'ORC',
             'kinghist':'KingHistorian',
+            'pulsar':'Pulsar',
             'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
             'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
             'idmp_element':'TDengine IDMP Elements',
