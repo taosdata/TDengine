@@ -110,6 +110,8 @@ class TestTaosdAudit:
 
     updatecfgDict["audit"]            = '1'
     updatecfgDict["uDebugFlag"]            = '143'
+    updatecfgDict["auditLevel"]            = '5'
+    updatecfgDict["auditHttps"]            = '0'
 
     print ("===================: ", updatecfgDict)
 
@@ -139,6 +141,15 @@ class TestTaosdAudit:
         """
         tdSql.prepare()
         # time.sleep(2)
+
+        tdLog.info("create encrypt key")
+        sql = "create encrypt_key 'sdfsadfasdfasfas'"
+        tdSql.query(sql)
+
+        tdLog.info("create audit database")
+        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
+        tdSql.query(sql)
+
         vgroups = "4"
         tdLog.info("create database")
         sql = "create database db3 vgroups " + vgroups
@@ -152,7 +163,7 @@ class TestTaosdAudit:
         t1 = threading.Thread(target=self.createTbThread, args=('', newTdSql1))
         t1.start()
 
-        tdLog.info("start http server")
+        tdLog.info("starting http server")
         # create http server: bing ip/port , and  request processor
         if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
             RequestHandlerImplStr = base64.b64encode(pickle.dumps(RequestHandlerImpl)).decode()
@@ -161,6 +172,7 @@ class TestTaosdAudit:
         else:
             serverAddress = ("", int(telemetryPort))
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
+            tdLog.info("started http server")
 
     def createTbThread(self, sql, newTdSql):
         # wait for http server ready

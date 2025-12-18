@@ -742,6 +742,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   int32_t     code = 0;
 
   SMDropStreamReq dropReq = {0};
+  int64_t         tss = taosGetTimestampMs();
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
     mError("invalid drop stream msg recv, discarded");
     code = TSDB_CODE_INVALID_MSG;
@@ -843,8 +844,13 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, NULL, 0);
-
+    if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, NULL, 0, duration, 0);
+    }
+    
     sdbRelease(pMnode->pSdb, pStream);
     pStream = NULL;
     mndTransDrop(pTrans);
@@ -872,6 +878,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   STrans     *pTrans = NULL;
   uint64_t    streamId = 0;
   SCMCreateStreamReq* pCreate = NULL;
+  int64_t             tss = taosGetTimestampMs();
 
   if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
@@ -947,7 +954,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createStream", pStream->pCreate->streamDB, pStream->pCreate->name, pStream->pCreate->sql, strlen(pStream->pCreate->sql));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createStream", pStream->pCreate->streamDB, pStream->pCreate->name,
+                pStream->pCreate->sql, strlen(pStream->pCreate->sql), duration, 0);
+  }
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
 
@@ -978,6 +991,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
+  int64_t     tss = taosGetTimestampMs();
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
     return code;
@@ -1066,10 +1080,15 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
     tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
-  
-  char buf[128];
-  snprintf(buf, sizeof(buf), "start:%" PRId64 ", end:%" PRId64, recalcReq.timeRange.skey, recalcReq.timeRange.ekey);
-  auditRecord(pReq, pMnode->clusterId, "recalcStream", pStream->name, recalcReq.name, buf, strlen(buf));
+
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE){
+    char buf[128];
+    snprintf(buf, sizeof(buf), "start:%" PRId64 ", end:%" PRId64, recalcReq.timeRange.skey, recalcReq.timeRange.ekey);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "recalcStream", pStream->name, recalcReq.name, buf, strlen(buf), duration, 0);
+  }  
 
   sdbRelease(pMnode->pSdb, pStream);
   tFreeMRecalcStreamReq(&recalcReq);

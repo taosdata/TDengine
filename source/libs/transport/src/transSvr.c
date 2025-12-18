@@ -501,6 +501,9 @@ SDataTimeWhiteListTab* uvDataTimeWhiteListCreate() {
   return pWhiteList;
 }
 void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
+  if (pWhite == NULL) {
+    return;
+  }
   SHashObj* pWhiteList = pWhite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
@@ -537,6 +540,9 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
   if (!(rpcDebugFlag & DEBUG_DEBUG)) {
     return;
   }
+  if (pWrite == NULL) {
+    return;
+  }
   int32_t   len = 0;
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
@@ -560,7 +566,13 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
 }
 int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
   int32_t   code = 0;
+  if (pWhite == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   SUserDateTimeWhiteList* pUserList = taosHashGet(pWhiteList, user, strlen(user));
   if (pUserList == NULL) {
@@ -2125,6 +2137,13 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
       code = terrno;
       goto End;
     }
+
+    thrd->pDataTimeWhiteList = uvDataTimeWhiteListCreate();
+    if (thrd->pDataTimeWhiteList == NULL) {
+      destroyWorkThrdObj(thrd);
+      code = terrno;
+      goto End;
+    }
     thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
     if (thrd->connRefMgt < 0) {
       code = thrd->connRefMgt;
@@ -2376,7 +2395,6 @@ void uvHandleUpdateDataTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
   } else {
     tError("failed to update ip-white-list since %s", tstrerror(code));
   }
-  // uvDataTimeWhiteListToStr(thrd->pDataTimeWhiteList, user, &pBuf);
 _error:
   if (code != 0) {
     tError("failed to update data-time-white-list since %s", tstrerror(code));
