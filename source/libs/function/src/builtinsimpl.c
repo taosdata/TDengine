@@ -3346,7 +3346,11 @@ int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pDiffInfo->isFirstRow = true;
   pDiffInfo->prev.i64 = 0;
   pDiffInfo->prevTs = -1;
-
+  if (pCtx->numOfParams > 1) {
+    pDiffInfo->ignoreOption = pCtx->param[1].param.i;  // TODO set correct param
+  } else {
+    pDiffInfo->ignoreOption = 0;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

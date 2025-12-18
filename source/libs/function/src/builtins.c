@@ -1531,7 +1531,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
   if (1 == LIST_LENGTH(pFunc->pParameterList)) {
-    return FUNC_RETURN_ROWS_N;
+    return FUNC_RETURN_ROWS_N_MINUS_1;
   }
   return 1 < ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
