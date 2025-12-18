@@ -512,6 +512,40 @@ _exit:
   return code;
 }
 
+bool privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
+                            SPrivInfo* privInfo) {
+#if 1  // debug info, remove when release
+  SPrivObjPolicies* pp = NULL;
+  while ((pp = taosHashIterate(privs, pp))) {
+    char* pKey = taosHashGetKey(pp, NULL);
+    printf("%s:%d key is %s\n", __func__, __LINE__, pKey);
+  }
+#endif
+
+  const char* pObjName = objName;
+  const char* pTbName = tbName;
+  char        key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  int32_t     klen = 0;
+
+_retry:
+  klen = privObjKey(privInfo, acctId, pObjName, pTbName, key, sizeof(key));
+
+  SPrivObjPolicies* policies = taosHashGet(privs, key, klen + 1);
+  if (policies && PRIV_HAS(&policies->policy, privInfo->privType)) {
+    return true;
+  }
+
+  if (pTbName && !(pTbName[0] == '*' && pTbName[1] == 0)) {
+    pTbName = "*";
+    goto _retry;
+  }
+  if (pObjName && !(pObjName[0] == '*' && pObjName[1] == 0)) {
+    pObjName = "*";
+    goto _retry;
+  }
+  return false;
+}
+
 SPrivInfo* privInfoGet(EPrivType privType) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
   SPrivInfo* result = (privType >= 0 && privType <= MAX_PRIV_TYPE) ? privLookup[privType] : NULL;

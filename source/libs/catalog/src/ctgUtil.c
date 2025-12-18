@@ -2207,6 +2207,90 @@ _return:
   CTG_RET(code);
 }
 
+static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+  int32_t          code = 0;
+  STableMeta*      pMeta = NULL;
+  SGetUserAuthRsp* pInfo = &req->authInfo;
+  SPrivInfo*       privInfo = req->privInfo;
+  SUserAuthInfo*   pReq = req->pRawReq;
+  SUserAuthRes*    pRes = res->pRawRes;
+  char*            stbName = NULL;
+
+  if (taosHashGetSize(pInfo->objPrivs) <= 0) return code;
+
+  char tbName[TSDB_TABLE_NAME_LEN];
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  char dbFName[TSDB_DB_FNAME_LEN];
+  code = tNameExtractFullName(&pReq->tbName, tbFName);
+  if (code) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pReq->tbName.type,
+             pReq->tbName.dbname, pReq->tbName.tname);
+    CTG_ERR_RET(code);
+  }
+
+  (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
+  (void)snprintf(tbName, sizeof(tbName), "%s", pReq->tbName.tname);
+
+  while (true) {
+    taosMemoryFreeClear(pMeta);
+
+    if (privHasObjPrivilegeRec(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo)) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      goto _return;
+    }
+
+    if (stbName) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = false;
+      goto _return;
+    }
+
+    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, &pReq->tbName, &pMeta));
+    if (NULL == pMeta) {
+      if (req->onlyCache) {
+        res->metaNotExists = true;
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", pReq->tbName.dbname, pReq->tbName.tname);
+        goto _return;
+      }
+
+      SCtgTbMetaCtx ctx = {0};
+      ctx.pName = (SName*)&pReq->tbName;
+      ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_SYNC_OP;
+
+      CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
+    }
+
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
+        TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = false;
+      goto _return;
+    }
+
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
+      CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
+      if (NULL == stbName) {
+        if (req->onlyCache) {
+          res->metaNotExists = true;
+          ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);
+          goto _return;
+        }
+
+        continue;
+      }
+
+      (void)snprintf(tbName, sizeof(tbName), "%s", stbName);  // check privilege of it's super table
+      continue;
+    }
+
+    ctgError("invalid table type %d for %s.%s", pMeta->tableType, dbFName, tbName);
+    CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+_return:
+  taosMemoryFree(pMeta);
+  taosMemoryFree(stbName);
+
+  CTG_RET(code);
+}
+
 int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   SUserAuthInfo*   pReq = req->pRawReq;
@@ -2280,37 +2364,39 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       return TSDB_CODE_SUCCESS;
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+      req->singleType = pReq->type;
+      req->privInfo = privInfo;
       switch (pReq->type) {
-        case PRIV_TBL_SELECT: {
+        case PRIV_TBL_SELECT: {  // support tag condition
           break;
         }
-        case PRIV_TBL_INSERT: {
+        case PRIV_TBL_INSERT: {  // support tag condition
           break;
         }
-        case PRIV_TBL_DELETE: {
+        case PRIV_TBL_DELETE: {  // support tag condition
           break;
         }
-        case PRIV_TBL_UPDATE: {
-          // N/A 
+        case PRIV_TBL_UPDATE: {  // support tag condition
+          // N/A: no update clause, update is done by insert clause
+          break;
+        }
+        case PRIV_TBL_ALTER:
+        case PRIV_TBL_DROP:
+        case PRIV_TBL_SHOW_CREATE: {
+          // don't support tag condition
+          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+        case PRIV_TBL_SHOW: {  // don't support tag condition
+          // N/A: check in server for stb, check when filter result for ctb
           break;
         }
         default: {
-          klen = privObjKey(privInfo, pReq->tbName.acctId, "*", "*", objKey, sizeof(objKey));
-          SPrivObjPolicies* policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-          if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
-            pRes->pass[AUTH_RES_BASIC] = true;
-            return TSDB_CODE_SUCCESS;
-          }
-          klen = privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, "*", objKey, sizeof(objKey));
-          policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-          if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
-            pRes->pass[AUTH_RES_BASIC] = true;
-            return TSDB_CODE_SUCCESS;
-          }
-          klen = privObjKey(privInfo, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname, objKey,
-                            sizeof(objKey));
-          policies = taosHashGet(pInfo->objPrivs, objKey, klen + 1);
-          if (policies && PRIV_HAS(&policies->policy, pReq->type)) {
+          if (privHasObjPrivilegeRec(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
+                                     privInfo)) {
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }

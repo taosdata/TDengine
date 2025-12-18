@@ -164,6 +164,7 @@ typedef struct SCtgCacheStat {
 
 typedef struct SCtgAuthReq {
   SRequestConnInfo* pConn;
+  SPrivInfo*        privInfo;
   SUserAuthInfo*    pRawReq;
   SGetUserAuthRsp   authInfo;
   AUTH_TYPE         singleType;

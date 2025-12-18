@@ -914,10 +914,15 @@ static int32_t collectMetaKeyFromShowTables(SCollectMetaKeyCxt* pCxt, SShowStmt*
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
   }
+  // if (TSDB_CODE_SUCCESS == code) {
+  // code =
+  //     reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
+  //                            NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
+
+  // }
   if (TSDB_CODE_SUCCESS == code) {
-    code =
-        reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
-                               NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser,
+                                  ((SValueNode*)pStmt->pDbName)->literal, NULL, PRIV_DB_USE, pCxt->pMetaCache);
   }
   return code;
 }

@@ -19,6 +19,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tarray.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -417,10 +418,12 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
 const char* privObjTypeName(EPrivObjType objType);
+const char* privInfoGetName(EPrivType privType);
+SPrivInfo*  privInfoGet(EPrivType privType);
 int32_t     getSysRoleType(const char* roleName);
 bool        isPrivInheritName(const char* name);
-SPrivInfo*  privInfoGet(EPrivType privType);
-const char* privInfoGetName(EPrivType privType);
+bool        privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
+                                   SPrivInfo* privInfo);
 
 #ifdef __cplusplus
 }

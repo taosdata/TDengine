@@ -307,7 +307,8 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
   // return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
-  return 0;  // check in server
+  // stb: more check in server, child table(TODO): more check when filter query result
+  return authObjPrivileges(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, PRIV_DB_USE);
 }
 
 static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) { return authShowTables(pCxt, pStmt); }
