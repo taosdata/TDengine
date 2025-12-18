@@ -15,7 +15,7 @@ from transformers.generation import validate_stopping_criteria, EosTokenCriteria
 from transformers.generation.utils import GenerateNonBeamOutput, GenerateEncoderDecoderOutput, GenerateDecoderOnlyOutput, GenerationConfig, GenerateOutput
 from transformers.utils import ModelOutput
 from flask import Flask, request, jsonify
-
+from taosanalytics.conf import Configure
 
 app = Flask(__name__)
 
@@ -666,6 +666,10 @@ class TaosForPrediction(TaosPreTrainedModel, TaosTSGenerationMixin):
 def init_model():
     global Taos_model
 
+    conf = Configure()
+    model_dir = conf.get_model_directory()
+    weight_path = f"{model_dir}/tdtsfm/taos.pth"
+
     config = TaosConfig(
         Taos_input_token_len=96,
         Taos_hidden_size=1024,
@@ -679,7 +683,6 @@ def init_model():
     )
 
     Taos_model = TaosForPrediction(config)
-    weight_path = "/var/lib/taos/taosanode/model/tdtsfm/taos.pth"
     state_dict = torch.load(weight_path, map_location=torch.device('cpu'))
 
     # convert model weight

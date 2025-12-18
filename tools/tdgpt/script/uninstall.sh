@@ -10,10 +10,10 @@ RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
 
-MAIN_NAME="taosanode"
+PRODUCTPREFIX="taosanode"
 installDir="/usr/local/taos/taosanode"
-venv_dir="/usr/local/taos/taosanode/venv"
-serverName="${MAIN_NAME}d"
+venv_dir="/var/lib/taos/taosanode/venv"
+serverName="${PRODUCTPREFIX}d"
 uninstallName="rmtaosanode"
 productName="TDengine TDgpt"
 
@@ -30,7 +30,7 @@ local_log_dir=${installDir}/log
 local_conf_dir=${installDir}/cfg
 local_model_dir=${installDir}/model
 
-global_log_dir="/var/log/taos/${MAIN_NAME}"
+global_log_dir="/var/log/taos/${PRODUCTPREFIX}"
 global_conf_dir="/etc/taos/"
 
 service_config_dir="/etc/systemd/system"

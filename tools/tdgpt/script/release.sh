@@ -28,7 +28,6 @@ fi
 echo start to build release package, edition: ${edition}, version: ${version}
 
 curr_dir=$(pwd)
-compile_dir=$1
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/..)"
@@ -40,7 +39,6 @@ configFile="taosanode.ini"
 tarName="package.tar.gz"
 
 # create compressed install file.
-build_dir="${compile_dir}/build"
 release_dir="${top_dir}/release"
 
 #package_name='linux'
@@ -73,6 +71,7 @@ find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {}
 
 # script to control start/stop/uninstall process
 cp -r ${top_dir}/taosanalytics/ ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
+cp -r ${top_dir}/script/ini_utils.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/requirements_ess.txt ${install_dir}/ || :

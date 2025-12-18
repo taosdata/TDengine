@@ -11,6 +11,20 @@ serverFqdn=""
 script_dir=$(dirname $(readlink -f "$0"))
 echo -e "${script_dir}"
 
+custom_dir_set=0
+while getopts "d:" arg; do
+  case $arg in
+    d)
+      customDir="$OPTARG"
+      custom_dir_set=1
+      ;;
+    ?)
+      echo "Usage: $0 [-d install_dir]"
+      exit 1
+      ;;
+  esac
+done
+
 # Dynamic directory
 PREFIX="taos"
 PRODUCTPREFIX="taosanode"
@@ -19,12 +33,7 @@ configFile="taosanode.ini"
 productName="TDengine Anode"
 emailName="taosdata.com"
 tarName="package.tar.gz"
-logDir="/var/log/${PREFIX}/${PRODUCTPREFIX}"
-moduleDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/model"
-resourceDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/resource"
-venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
-installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
 tar_td_model_name="tdtsfm.tar.gz"
 tar_xhs_model_name="timemoe.tar.gz"
 
@@ -32,6 +41,22 @@ python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
 # if install python venv
 install_venv="${INSTALL_VENV:-True}"
+
+if [ $custom_dir_set -eq 1 ]; then
+  installDir="${customDir}/${PREFIX}/${PRODUCTPREFIX}"
+  logDir="${installDir}/log/"
+  dataDir="${installDir}/data/"
+  moduleDir="${dataDir}/model"
+  resourceDir="${dataDir}/resource"
+  venvDir="${dataDir}/venv"
+else
+  installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
+  logDir="/var/log/${PREFIX}/${PRODUCTPREFIX}"
+  dataDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}"
+  moduleDir="${dataDir}/model"
+  resourceDir="${dataDir}/resource"
+  venvDir="${dataDir}/venv"
+fi
 
 #install main path
 install_main_dir=${installDir}
@@ -157,6 +182,11 @@ function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
 
   # Handle rmtaosanode separately
+  sed -i.bak \
+  -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \
+  -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
+  -e "s|/var/log/taos/taosanode|${logDir}|g" \
+  "${install_main_dir}/bin/uninstall.sh"
   [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
   ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
 
@@ -182,7 +212,13 @@ function install_anode_config() {
   echo -e $fileName
 
   if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" "${fileName}"
+
+    sed -i.bak \
+      -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \
+      -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
+      -e "s|/var/log/taos/taosanode|${logDir}|g" \
+      "${fileName}"
 
     if [ -f "${global_conf_dir}/${configFile}" ]; then
       ${csudo}cp ${fileName} ${global_conf_dir}/${configFile}.new
@@ -191,7 +227,7 @@ function install_anode_config() {
     fi
   fi
 
-  ${csudo}ln -sf ${global_conf_dir}/${configFile} ${install_main_dir}/cfg
+  ${csudo}ln -sf ${global_conf_dir}/${configFile} "${install_main_dir}/cfg"
 }
 
 function install_config() {
@@ -234,26 +270,32 @@ function install_config() {
 
 function install_log() {
   ${csudo}mkdir -p ${logDir} && ${csudo}chmod 777 ${logDir}
-  ${csudo}ln -sf ${logDir} ${install_main_dir}/log
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${logDir} ${install_main_dir}/log
+  fi
 }
 
 function install_module() {
   ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
-  ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${moduleDir} "${install_main_dir}/model"
+  fi
   [ -f "${script_dir}/model/${tar_td_model_name}" ] && cp -r ${script_dir}/model/* ${moduleDir}/ || : 
 }
 
 function install_resource() {
   ${csudo}mkdir -p ${resourceDir} && ${csudo}chmod 777 ${resourceDir}
-  ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
-
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
+  fi
   ${csudo}cp ${script_dir}/resource/*.sql ${install_main_dir}/resource/
 }
 
 function install_anode_venv() {
   ${csudo}mkdir -p ${venvDir} && ${csudo}chmod 777 ${venvDir}
-  ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
-
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
+  fi
   if [ ${install_venv} == "True" ]; then
     # build venv
     ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
@@ -336,11 +378,12 @@ function install_service_on_systemd() {
   clean_service_on_systemd $1
 
   cfg_source_dir=${script_dir}/cfg
-  if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-      cfg_source_dir=${script_dir}/cfg
-  fi
-
+  
   if [ -f ${cfg_source_dir}/$1.service ]; then
+    sed -i \
+        -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \
+        -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
+        "${cfg_source_dir}/$1.service"
     ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
   fi
 
