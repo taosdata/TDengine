@@ -381,7 +381,7 @@ typedef struct SWindowLogicNode {
   tb_uid_t              orgTableUid;
 
   // for external and interval window
-  int8_t                isPartTb;      // bit0 is for has partition, bit1 is for tb partition
+  int8_t                partType;      // bit0 is for has partition, bit1 is for tb partition
   // for anomaly window
   SNode*                pAnomalyExpr;
   char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
