@@ -98,7 +98,9 @@ class TestNewStreamCompatibility:
             os.system(f"pkill taosd")  # Graceful shutdown to avoid data corruption
             tdCb.checkProcessPid("taosd")
 
-            tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2)
+            os.system(f"nohup {bPath}/build/bin/taosd -c {cPath} > /dev/null 2>&1 &")
+            self.checkstatus(library_path=f"{bPath}/build/lib")
+            # tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2)
 
             self.verifyDataOnCurrentVersion()
 
@@ -336,3 +338,44 @@ class TestNewStreamCompatibility:
         tdLog.info(f"Stream {stream.id} expect data: {exp_data}")
 
         assert res_data == exp_data, f"Stream {stream.id} result mismatch! \nResult: {res_data}\nExpect: {exp_data}"
+
+    def checkstatus(self,library_path, retry_times=30):
+        # sleep before check status to avoid dnodes not ready issue
+        time.sleep(10)
+        dnodes_ready = False
+        for i in range(retry_times):
+            result = subprocess.run(f"LD_LIBRARY_PATH={library_path} taos -s 'show dnodes;'", shell=True, text=True, capture_output=True)
+            if 'ready' in result.stdout:
+                dnodes_ready = True
+                break
+
+            time.sleep(1)
+
+        if not dnodes_ready:
+            tdLog.exit(f"dnodes are not ready in {retry_times}s")
+        tdLog.info(f"dnodes are ready in {retry_times}s")
+
+        modes_ready = False
+        for i in range(retry_times):
+            result = subprocess.run(f"LD_LIBRARY_PATH={library_path} taos -s 'show mnodes;'", shell=True, text=True, capture_output=True)
+            if 'ready' in result.stdout:
+                modes_ready = True
+                break
+
+            time.sleep(1)
+
+        if not modes_ready:
+            tdLog.exit(f"mnodes are not ready in {retry_times}s")
+        tdLog.info(f"mnodes are ready in {retry_times}s")
+
+        vnodes_ready = False
+        for i in range(retry_times):
+            result = subprocess.run(f"LD_LIBRARY_PATH={library_path} taos -s 'show vnodes;'", shell=True, text=True, capture_output=True)
+            if result.stdout.count('true') == 2:
+                vnodes_ready = True
+                break
+            time.sleep(1)
+
+        if not vnodes_ready:
+            tdLog.exit(f"vnodes are not ready in {retry_times}s")
+        tdLog.info(f"vnodes are ready in {retry_times}s")
