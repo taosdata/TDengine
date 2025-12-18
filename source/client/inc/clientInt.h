@@ -116,6 +116,9 @@ typedef struct SQueryExecMetric {
 typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableAuditSelect;
+  int8_t        enableAuditInsert;
+  int8_t        auditLevel;
   int8_t        enableStrongPass;
 } SAppInstServerCFG;
 struct SAppInstInfo {

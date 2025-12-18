@@ -232,6 +232,7 @@ class Test_IDMP_Vehicle:
         self.verifyA_stream8()
         self.verifyA_stream9()
         self.verifyA_stream10()
+        self.verifyA_stream10_sub1()
         self.verifyA_stream_stb1()
 
     # 
@@ -243,6 +244,7 @@ class Test_IDMP_Vehicle:
         self.triggerB_stream2()
         self.triggerB_stream3()
         self.triggerB_stream4()
+        self.triggerB_stream10()
 
     # verify
     def verifyB_all(self):
@@ -262,6 +264,9 @@ class Test_IDMP_Vehicle:
         # stream3
         #self.verifyA_stream3_again()
         #self.verifyA_stream3_sub1_again()
+        
+        self.verifyB_stream10()
+        self.verifyB_stream10_sub1()
 
     # 
     # Round C
@@ -958,30 +963,89 @@ class Test_IDMP_Vehicle:
 
 
     #
-    #  stream10 trigger
+    #  stream10
     #
+    
+    # A
     def triggerA_stream10(self):
         
         table = f"{self.db}.`vehicle_110100_010`"
         cols  = "ts,speed,mileage"
 
         # init
-        vals1 = "120,100"
-        vals2 = "150,200"
-        hour  = 1 * 60 * self.step
+        one_hour  = 1 * 60 * self.step
 
         # win1 dirorder write 10
         ts = self.start
         count = 10
-        tdSql.insertFixedVal(table, ts, self.step * -1, count, cols, vals1)
+        tdSql.insertFixedVal(table, ts, self.step * -1, count, cols, "120,100")
 
         # move 10 step
         ts += 10 * self.step
-        hour_ts = ts + hour
+        hour_ts = ts + one_hour
 
         # win4 write end line 
         count = 1
-        tdSql.insertFixedVal(table, hour_ts, self.step, count, cols, vals2)
+        tdSql.insertFixedVal(table, hour_ts, self.step, count, cols, "150,200")
+
+    def verifyA_stream10(self):
+        # check data
+        sql = f"select * from idmp.`result_stream10` "
+        data = [
+            # ts            cnt avg  sum
+            [1752900000000,  1, 120,   100],
+            [1752900600000,  0, None, None],
+            [1752901200000,  0, None, None],
+            [1752901800000,  0, None, None],
+            [1752902400000,  0, None, None],
+            [1752903000000,  0, None, None],
+            [1752903600000,  0, None, None]
+        ]
+        # wait row cnt ok
+        tdSql.checkResultsByFunc (
+            sql  = sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+
+        # mem
+        tdSql.checkDataMemLoop(sql, data)   
+
+        print(f"verifyA stream10 ............................... successfully.")    
+        
+    def verifyA_stream10_sub1(self):
+        # check data
+        sql = f"select * from idmp.`result_stream10_sub1` "
+        data = [
+            # ts            cnt  avg  sum
+            [1752899400000,  9,  120,  900],
+            [1752900000000,  1,  120,  100],
+            [1752900600000,  0, None, None],
+            [1752901200000,  0, None, None],
+            [1752901800000,  0, None, None],
+            [1752902400000,  0, None, None],
+            [1752903000000,  0, None, None],
+            [1752903600000,  0, None, None]
+        ]
+        # wait row cnt ok
+        tdSql.checkResultsByFunc (
+            sql  = sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+
+        # mem
+        tdSql.checkDataMemLoop(sql, data)   
+
+        print(f"verifyA stream10 sub1 .......................... successfully.")    
+
+    # B
+    def triggerB_stream10(self):
+        table = f"{self.db}.`vehicle_110100_010`"
+        cols  = "ts,speed,mileage"
+        ts = self.start
+        ts += 10 * self.step
+
+        # init
+        vals1 = "120,100"
 
         # win2 disorder write expired 10
         count = 10
@@ -990,6 +1054,34 @@ class Test_IDMP_Vehicle:
         # win3 write no expired 10
         count = 10
         ts = tdSql.insertFixedVal(table, ts, self.step, count, cols, vals1)
+        
+    def verifyB_stream10(self):
+        self.verifyA_stream10()
+    
+    def verifyB_stream10_sub1(self):
+        # check data
+        sql = f"select * from idmp.`result_stream10_sub1` "
+        data = [
+            # ts            cnt avg  sum
+            [1752899400000,  9, 120,   900],
+            [1752900000000,  1, 120,   100],
+            [1752900600000, 10, 120,  1000],
+            [1752901200000,  0, None, None],
+            [1752901800000,  0, None, None],
+            [1752902400000,  0, None, None],
+            [1752903000000,  0, None, None],
+            [1752903600000,  0, None, None]
+        ]
+        # wait row cnt ok
+        tdSql.checkResultsByFunc (
+            sql  = sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+
+        # mem
+        tdSql.checkDataMemLoop(sql, data)
+
+        print(f"verifyB stream10 sub1 .......................... successfully.")  
 
     #
     # ---------------------   verify    ----------------------
@@ -1298,64 +1390,3 @@ class Test_IDMP_Vehicle:
 
         print(f"verify stream9 sub1 ............................ successfully.")
 
-
-    #
-    # verify stream10
-    #
-    def verifyA_stream10(self):
-        # check data
-        result_sql = f"select * from idmp.`result_stream10` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.checkRows(7)
-            # row1
-            and tdSql.compareData(0, 0, 1752900000000) # ts
-            and tdSql.compareData(0, 1, 1)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg
-            and tdSql.compareData(0, 3, 100)        # sum
-            # row2
-            and tdSql.compareData(1, 1, 0)
-            and tdSql.compareData(1, 0, 1752900600000)
-            # row3 ~ 7
-            and tdSql.compareData(2, 0, 1752901200000)
-            and tdSql.compareData(3, 0, 1752901800000)
-            and tdSql.compareData(4, 0, 1752902400000)
-            and tdSql.compareData(5, 0, 1752903000000)
-            and tdSql.compareData(6, 0, 1752903600000)
-        )
-
-        print(f"verify stream10 ................................ successfully.")
-
-        # sub
-        self.verifyA_stream10_sub1()
-
-
-    # verify stream10_sub1
-    def verifyA_stream10_sub1(self):
-        # check data
-        result_sql = f"select * from idmp.`result_stream10_sub1` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.checkRows(8)
-            # row1
-            and tdSql.compareData(0, 0, 1752899400000) # ts
-            and tdSql.compareData(0, 1, 9)             # cnt
-            and tdSql.compareData(0, 2, 120)           # avg
-            and tdSql.compareData(0, 3, 900)           # sum
-            # row2 
-            and tdSql.compareData(1, 0, 1752900000000) # ts
-            and tdSql.compareData(1, 1, 10)            # cnt
-            # row3
-            and tdSql.compareData(2, 0, 1752900600000) # ts
-            and tdSql.compareData(2, 1, 10)            # cnt
-            # row4
-            and tdSql.compareData(3, 0, 1752901200000) # ts
-            and tdSql.compareData(3, 1, 0)             # cnt
-            # row5 ~ 8
-            and tdSql.compareData(4, 0, 1752901800000)
-            and tdSql.compareData(5, 0, 1752902400000)
-            and tdSql.compareData(6, 0, 1752903000000)
-            and tdSql.compareData(7, 0, 1752903600000)
-        )
-
-        print(f"verify stream10 sub1 ........................... successfully.")

@@ -893,7 +893,12 @@ int taos_errno(TAOS_RES *res) {
 
 const char *taos_errstr(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
-    return (const char *)tstrerror(terrno);
+    if (*(taosGetErrMsg()) == 0) {
+      return (const char *)tstrerror(terrno);
+    } else {
+      (void)snprintf(taosGetErrMsgReturn(), ERR_MSG_LEN, "%s", taosGetErrMsg());
+      return (const char*)taosGetErrMsgReturn();
+    }
   }
 
   if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
