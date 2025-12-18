@@ -238,7 +238,7 @@ The basic API is used to establish database connections and provide a runtime en
     | timezone          | Native/WebSocket | Time zone |
     | userIp            | Native/WebSocket | User IP address |
     | userApp           | Native/WebSocket | User app name |
-    | connectorInfo     | Native/WebSocket | Connector information |
+    | connectorInfo     | Native           | Connector information |
     | adapterList       | WebSocket        | List of taosAdapter addresses, used for load balancing and failover. Multiple addresses are separated by commas, in the format `host1:port1,host2:port2,...`. They have higher priority than the `ip` parameter. |
     | compression       | WebSocket        | Data compression switch. 0: Disabled, 1: Enabled. Default is 0. |
     | connRetries       | WebSocket        | Maximum number of retries on connection failure. Default is 5. |

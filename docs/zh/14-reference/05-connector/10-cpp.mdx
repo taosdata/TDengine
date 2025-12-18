@@ -232,7 +232,7 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     | timezone          | Native/WebSocket  | 时区                                                                                     |
     | userIp            | Native/WebSocket  | 用户 IP 地址                                                                              |
     | userApp           | Native/WebSocket  | 用户 APP 名称                                                                             |
-    | connectorInfo     | Native/WebSocket  | 连接器信息                                                                                |
+    | connectorInfo     | Native            | 连接器信息                                                                                |
     | adapterList       | WebSocket         | taosAdapter 地址列表，用于负载均衡和故障转移。多个地址使用英文逗号分隔，格式为 `host1:port1,host2:port2,...`。优先级高于 `ip` 参数。 |
     | compression       | WebSocket         | 数据压缩开关。0：禁用，1：启用。默认值为 0。                                                    |
     | connRetries       | WebSocket         | 连接失败时的最大重试次数。默认值为 5。                                                         |
