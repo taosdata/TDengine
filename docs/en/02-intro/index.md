@@ -30,7 +30,7 @@ The major features are listed below:
    - Manage the instance [Users & User Groups](../mgmt/user-mgmt)
    - Support [replication](../mgmt/replication) a database to another region or cloud.
    - Support [backup](../mgmt/backup) the database from the instance.
-   - Supports [IP whitelist](../mgmt/ip-whites) for security.
+   - Supports [IP whitelist](../mgmt/ip-whitelist) for security.
    - Support [operation logs](../mgmt/ops-logs).
 8. [Users](../user-mgmt)
    - Manage the [users](../user-mgmt/users) of the current organization.
@@ -69,7 +69,7 @@ With TDengine cloud, the **total cost of ownership of your time-series data plat
 
 This is how TDengine would be situated, in a typical time-series data processing platform:
 
-![TDengine Database Technical Ecosystem ](./assets/intro-01.webp)
+![TDengine Database Technical Ecosystem ](../assets/intro-01.webp)
 
 On the left-hand side, there are data collection agents like OPC-UA, MQTT, Telegraf and Kafka. On the right-hand side, visualization/BI tools, HMI, Python/R, and IoT Apps can be connected. TDengine itself provides an interactive command-line interface and a web interface for management and maintenance.
 

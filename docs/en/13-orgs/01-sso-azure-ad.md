@@ -25,21 +25,21 @@ For more details of the Azure AD SSO integration, please see the following Azure
 1. In the Azure portal toolbar, select the Directories + subscriptions icon.
 2. On the Portal settings | Directories + subscriptions page, find your Microsoft Entra directory that contains your subscription in the Directory list, and then select Switch button next to it.
 
-   ![Azure Portal settings](../../assets/sso-azure-ad-02.webp)
+   ![Azure Portal settings](../assets/sso-azure-ad-02.webp)
 
 ### Step 3: Register Application
 
 1. On the portal homepage, select Microsoft Entra ID and click to enter the Microsoft Entra tenant management page.
 
-   ![Azure tenant management](../../assets/sso-azure-ad-03.webp)
+   ![Azure tenant management](../assets/sso-azure-ad-03.webp)
 
 2. Select "App Registrations" menu, then click "New Registration" button.
 
-   ![Azure app-registration-1](../../assets/sso-azure-ad-04.webp)
+   ![Azure app-registration-1](../assets/sso-azure-ad-04.webp)
 
 3. Input a Name for the application.
 
-   ![Azure app-registration-2](../../assets/sso-azure-ad-05.webp)
+   ![Azure app-registration-2](../assets/sso-azure-ad-05.webp)
 
 4. Under "Supported account types", please select "Accounts in this organizational directory only".
 
@@ -49,7 +49,7 @@ For more details of the Azure AD SSO integration, please see the following Azure
 
 7. Add permissions:
 
-   ![Azure add permissions](../../assets/sso-azure-ad-06.webp)
+   ![Azure add permissions](../assets/sso-azure-ad-06.webp)
 
    Configure the following permissions for the Microsoft Graph API.
 
@@ -63,7 +63,7 @@ For more details of the Azure AD SSO integration, please see the following Azure
    1. Click New Client Secret.
    2. Enter a description for the key, for example "sso TDengine Cloud" , and click Add.
 
-   ![Azure create client secret](../../assets/sso-azure-ad-07.webp)
+   ![Azure create client secret](../assets/sso-azure-ad-07.webp)
 
 10. Record the application password that appears in the Value column. You will need the **client secret** when configuring the identity provider in the next section.
 
@@ -89,7 +89,7 @@ For more details of the Azure AD SSO integration, please see the following Azure
    1. Select “Manage”, then select “Users”. Click "New User", then fill in the user information to create a new organization user.
    2. Make sure to fill in a valid email address in the "Properties" --> "Contact information" Form. This is so that the users you invite can receive an email to activate their TDengine Cloud account.
 
-      ![Add contact email](../../assets/sso-azure-ad-08.webp)
+      ![Add contact email](../assets/sso-azure-ad-08.webp)
 
 2. Log in to TDengine Cloud to invite users using the organization you've created and configured with Azure AD SSO.
    1. In the top organization drop-down selection box, select the organization that has the Azure AD SSO tag.
