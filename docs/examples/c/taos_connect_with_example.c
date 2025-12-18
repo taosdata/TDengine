@@ -17,6 +17,11 @@ int main() {
   taos_set_option(&opt, "connectorInfo", "connector_info");
 
   TAOS *taos = taos_connect_with(&opt);
+  if (taos == NULL) {
+    fprintf(stderr, "Failed to connect to TDengine server: %s\n", taos_errstr(NULL));
+    taos_cleanup();
+    return -1;
+  }
   fprintf(stdout, "Connected to 127.0.0.1:6030 successfully.\n");
 
   /* put your code here for read and write */
