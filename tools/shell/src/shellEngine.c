@@ -1345,7 +1345,7 @@ void *shellThreadLoop(void *arg) {
 
 bool inputTotpCode(char *totpCode) {
   bool ret = true;
-  printf("Need verify TOTP code, please enter: ");
+  printf("Please enter your TOTP code:");
   if (scanf("%255s", totpCode) != 1) {
     fprintf(stderr, "TOTP code reading error\n");
     ret = false;
@@ -1356,7 +1356,6 @@ bool inputTotpCode(char *totpCode) {
   }
   return ret;
 }
-
 
 #pragma GCC diagnostic pop
 
