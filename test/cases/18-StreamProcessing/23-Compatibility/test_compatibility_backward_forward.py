@@ -160,7 +160,7 @@ class TestStreamCompatibility:
 
             tdCb.verifyData(corss_major_version)
 
-            tdCb.verifyBackticksInTaosSql(bPath)
+            tdCb.verifyBackticksInTaosSql(bPath,base_version)
 
             tdLog.printNoPrefix(f"Compatibility test cycle with base version {base_version} completed successfully")
 
