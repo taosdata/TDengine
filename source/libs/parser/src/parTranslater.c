@@ -6655,42 +6655,26 @@ static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause
   }
   return code;
 }
-typedef struct {
-  SNodeList*     pProjectionList;
-  bool           invalidOrderbyFunc;
-  bool           found;
-} SOrderByCheckContext;
 
-static EDealRes checkAggFuncExist(SNode* pNode, void* pContext) {
-  SOrderByCheckContext* pOrderbyContext = (SOrderByCheckContext*)pContext;
+static EDealRes checkAggFuncExist(SNode* pNode, void* found) {
   if(isAggFunc(pNode)) {
-    pOrderbyContext->found = true;
+    *(bool*)found = true;
     return DEAL_RES_END;
   }
 
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes checkOrderByFuncNode(SNode* pNode, void* pContext) {
-  SOrderByCheckContext* pCtx = pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
-    pCtx->found = false;
-    nodesWalkExprs(pCtx->pProjectionList, checkAggFuncExist, pCtx);
-    if (!pCtx->found) {
-      pCtx->invalidOrderbyFunc = true;
-    }
-  }
-  if (pCtx->invalidOrderbyFunc) {
-    return DEAL_RES_END;
-  }
-  return DEAL_RES_CONTINUE;
+static bool hasAggFuncInProjectList(SNodeList* pProjectionList) {
+  bool found = false;
+  nodesWalkExprs(pProjectionList, checkAggFuncExist, &found);
+  return found;
 }
 
-static bool invalidOrderByFunctionExpr(SNodeList* pProjectionList, SNode* pNode) {
-  SOrderByCheckContext ctx = {};
-  ctx.pProjectionList = pProjectionList;
-  nodesWalkExpr(pNode, checkOrderByFuncNode, &ctx);
-  return ctx.invalidOrderbyFunc;
+static bool aggFuncUsed(SNode* pNode) {
+  bool found = false;
+  nodesWalkExpr(pNode, checkAggFuncExist, &found);
+  return found;
 }
 
 static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -6712,10 +6696,10 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = translateExprList(pCxt, pSelect->pOrderByList);
   }
 
-  if (!pSelect->pWindow) {
+  if (!pSelect->pWindow && !hasAggFuncInProjectList(pSelect->pProjectionList)) {
     SNode** pNode;
     FOREACH_FOR_REWRITE(pNode, pSelect->pOrderByList) {
-      if (invalidOrderByFunctionExpr(pSelect->pProjectionList, *pNode)) {
+      if (aggFuncUsed(*pNode)) {
         return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
       }
     }
