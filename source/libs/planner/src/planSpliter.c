@@ -2033,7 +2033,8 @@ typedef struct SQnodeSplitInfo {
 static bool qndSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                 SQnodeSplitInfo* pInfo) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != pNode->pParent &&
-      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent) &&
+      // TODO(tony): for debug!!!!!!!!!!!
+      // QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent) &&
       QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC != nodeType(pNode->pParent) &&
       QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC != nodeType(pNode->pParent) && ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
       ((SScanLogicNode*)pNode)->scanSeq[1] <= 1) {

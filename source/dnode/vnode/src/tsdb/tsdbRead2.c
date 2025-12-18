@@ -5748,8 +5748,13 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
       pCond->order = TSDB_ORDER_ASC;
     }
 
-    // here we only need one more row, so the capacity is set to be ONE.
-    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 1, pResBlock, idstr);
+    /*
+      Inner readers needs to fetch data until found a valid row,
+      so we set a proper capacity instead of 1 for them.
+    */
+    code = tsdbReaderCreate(pVnode, pCond,
+                            (void**)&((STsdbReader*)pReader)->innerReader[0],
+                            1024, pResBlock, idstr);
     TSDB_CHECK_CODE(code, lino, _end);
     pReader->step = EXTERNAL_ROWS_PREV;
 
@@ -5760,7 +5765,9 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     }
     pCond->order = order;
 
-    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[1], 1, pResBlock, idstr);
+    code = tsdbReaderCreate(pVnode, pCond,
+                            (void**)&((STsdbReader*)pReader)->innerReader[1],
+                            1024, pResBlock, idstr);
     pCond->twindows = window;
     TSDB_CHECK_CODE(code, lino, _end);
   }
@@ -6079,12 +6086,9 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
       STsdbReader* pPrevReader = pReader->innerReader[0];
       STsdbReader* pNextReader = pReader->innerReader[1];
 
-      // we need only one row
-      pPrevReader->resBlockInfo.capacity = 1;
       code = setSharedPtr(pPrevReader, pReader);
       TSDB_CHECK_CODE(code, lino, _end);
 
-      pNextReader->resBlockInfo.capacity = 1;
       code = setSharedPtr(pNextReader, pReader);
       TSDB_CHECK_CODE(code, lino, _end);
 
@@ -6370,7 +6374,6 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     }
   }
 
-
   if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
     code = doTsdbNextDataBlock2(pReader, hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -6429,6 +6432,9 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
         TSDB_CHECK_CODE(code, lino, _end);
       }
       return code;
+    } else {
+      pReader->currentStepDone = true;
+      pReader->step = EXTERNAL_ROWS_DONE;
     }
   }
 

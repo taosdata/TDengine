@@ -3841,6 +3841,7 @@ int32_t tDeserializeSTaskDropReq(void* buf, int32_t bufLen, STaskDropReq* pReq);
 
 typedef enum {
   TASK_NOTIFY_FINISHED = 1,
+  TASK_NOTIFY_STEP_DONE = 2,
 } ETaskNotifyType;
 
 typedef struct {

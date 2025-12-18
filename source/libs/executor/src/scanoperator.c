@@ -2432,8 +2432,12 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
-                                         optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL,
+                                         destroyTableScanOperatorInfo,
+                                         optrDefaultBufFn,
+                                         getTableScannerExecInfo,
+                                         optrDefaultGetNextExtFn,
+                                         scanOptrNotifyReaderStepDone);
 
   setOperatorResetStateFn(pOperator, resetTableScanOperatorState); 
   // for non-blocking operator, the open cost is always 0
@@ -5858,4 +5862,16 @@ static void destoryTableCountScanOperator(void* param) {
 
   taosArrayDestroy(pTableCountScanInfo->stbUidList);
   taosMemoryFreeClear(param);
+}
+
+int32_t scanOptrNotifyReaderStepDone(struct SOperatorInfo* pOptr,
+                                     SOperatorParam* param) {
+  (void)param;  /* not used */
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pOptr->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pTableScanInfo = (STableScanInfo*)pOptr->info;
+    TsdReader* pAPI = &pOptr->pTaskInfo->storageAPI.tsdReader;
+    code = pAPI->tsdReaderStepDone(pTableScanInfo->base.dataReader);
+  }
+  return code;
 }

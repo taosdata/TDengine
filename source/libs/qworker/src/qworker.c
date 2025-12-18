@@ -1238,6 +1238,12 @@ int32_t qwProcessNotify(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         QW_ERR_RET(qwSendExplainResponse(QW_FPARAMS(), ctx));
       }
       break;
+    case TASK_NOTIFY_STEP_DONE: {
+      if (ctx->taskHandle != NULL) {
+        QW_ERR_JRET(notifyTableScanTask(ctx->taskHandle));
+      }
+      break;
+    }
     default:
       QW_ELOG("Invalid task notify type %d", qwMsg->msgType);
       QW_ERR_JRET(TSDB_CODE_INVALID_MSG);
