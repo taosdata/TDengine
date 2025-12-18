@@ -38,33 +38,58 @@ namespace TDPIConnector.Core
             this.backfill = new Backfill(tdEngineProxy, piServerManager, piSystemManager);
         }
 
-        public Task BackfillPIPointsFromService(string tdDatabaseName, List<TDTable> piPointTables, DateTime backfillStartTime, DateTime backfillEndTime)
+        public async Task BackfillPIPointsFromService(
+            string tdDatabaseName,
+            List<TDTable> piPointTables,
+            DateTime backfillStartTime,
+            DateTime backfillEndTime,
+            System.Threading.CancellationToken cancellationToken = default)
         {
-            return Task.Run(() => {
-                log.Info("Process backfill, PI Point Mode backfill start...");
-                try
+            var cnt = piPointTables?.Count ?? 0;
+            log.Info($"Process backfill, PI Point Mode backfill start... tables: {cnt}, window: {backfillStartTime:o} -> {backfillEndTime:o}");
+
+            try
+            {
+                if (cnt == 0)
                 {
-                    // TODO: 从断点开始 backfill
-                    //var pointsToBackfillChecked = new Dictionary<PIPointWrapper, DateTime>();
-                    //List<string> pointNames = piPointTables.Select(p => p.Name).ToList();
-                    //List<PIPointWrapper> piPointList = piServerManager.FindPIPoints(pointNames);
-                    //foreach (var point in piPointList)
-                    //{
-                    //    pointsToBackfillChecked.Add(point, backfillStartTime);
-                    //}
-                    //if (pointsToBackfillChecked.Count > 0)
-                    //{
-                    //    backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked, backfillEndTime);
-                    //}
+                    log.Info("Backfill skipped: no PI Point tables to process.");
+                    return;
+                }
+                if (backfillStartTime >= backfillEndTime)
+                {
+                    log.Info("Backfill skipped: invalid time window(start >= end).");
+                    return;
+                }
+
+                // 解析并校验 PI 点是否存在
+                var names = piPointTables.Select(t => t.Name).ToList();
+                var piPoints = piServerManager.FindPIPoints(names);
+                var found = new HashSet<string>(piPoints.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+                var missing = names.Where(n => !found.Contains(n)).ToList();
+                if (missing.Count > 0)
+                {
+                    log.Warn($"Missing PI points: {string.Join(", ", missing.Take(10))}{(missing.Count > 10 ? " ..." : "")}");
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                await Task.Run(() =>
+                {
                     backfill.BackfillPIPoints(tdDatabaseName, backfillStartTime, backfillEndTime, piPointTables);
-                }
-                catch (Exception e)
-                {
-                    log.Error($"Error backfilling PI Points...{e.Message}");
-                }
-                log.Info("Process backfill, PI Point Mode backfill finshed");
-                return Task.CompletedTask;
-            });
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                log.Warn("Process backfill, PI Point Mode backfill cancelled.");
+                throw;
+            }
+            catch (Exception e)
+            {
+                log.Error($"Error backfilling PI Points...{e.Message}");
+                throw;
+            }
+
+            log.Info("Process backfill, PI Point Mode backfill finished");
         }
 
         public async Task BackfillPIPointsFromTool(string tdDatabaseName, string afDatabaseName, DateTime startTime, DateTime endTime, bool toFirstRecorded, bool fromLastRecorded, bool dropTables)
@@ -160,11 +185,12 @@ namespace TDPIConnector.Core
                     }
                     await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
                 }
-                else {
+                else
+                {
                     foreach (AFElementWrapper element in elements)
                     {
                         elementLookup.Add(element.ID.ToString(), element);
-                    }    
+                    }
                 }
             }
 
@@ -234,7 +260,7 @@ namespace TDPIConnector.Core
 
                     elementLookup.Add(table.Name, element);
                     await tdEngineProxy.CreateTablesForAFElements(tdDatabaseName, tables);
-                }              
+                }
             }
 
             //backfill elements

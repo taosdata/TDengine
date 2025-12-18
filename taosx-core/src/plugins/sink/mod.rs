@@ -22,7 +22,6 @@ use std::sync::atomic::AtomicU64;
 use std::sync::LazyLock;
 use std::{
     any::Any,
-    cell::Cell,
     collections::{HashMap, HashSet},
     io::{Read, Write},
     iter::zip,
@@ -744,6 +743,11 @@ async fn consume_lush_record_with_transform(
                 let table_id = msg.table_id();
                 let table_name =
                     lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(
+                    table_id,
+                    table_name,
+                    "consuming LushMessage::Control::DELETE",
+                );
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
                     return Ok(());
@@ -756,6 +760,11 @@ async fn consume_lush_record_with_transform(
                 let table_id = msg.table_id();
                 let table_name =
                     lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(
+                    table_id,
+                    table_name,
+                    "consuming LushMessage::Control::ALTER",
+                );
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
                     return Ok(());
@@ -769,6 +778,7 @@ async fn consume_lush_record_with_transform(
                 let table_id = msg.table_id();
                 let table_name =
                     lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(table_id, table_name, "consuming LushMessage::Control::DROP",);
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
                     return Ok(());
@@ -781,6 +791,11 @@ async fn consume_lush_record_with_transform(
                 let table_id = msg.table_id();
                 let table_name =
                     lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(
+                    table_id,
+                    table_name,
+                    "consuming LushMessage::Control::INSERT",
+                );
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
                     return Ok(());
@@ -792,7 +807,7 @@ async fn consume_lush_record_with_transform(
         },
         LushMessage::Tables(tables, full_record) => {
             tracing::debug!(
-                "Got tables: {}",
+                "consuming LushMessage::Tables, tables: {}",
                 tables.iter().map(|t| t.table_name()).join(",")
             );
             // 默认超级表名(transform 前)
@@ -810,9 +825,7 @@ async fn consume_lush_record_with_transform(
             let super_table = super_table.to_owned();
             // 缓存子表 tag 值
             for table in tables {
-                table_cache
-                    .insert_async(table.table_name().to_owned(), table)
-                    .await;
+                table_cache.insert(table.table_name().to_owned(), table);
             }
             if full_record.is_none() {
                 tracing::error!("Lush message tables should contains full_record");
@@ -830,6 +843,7 @@ async fn consume_lush_record_with_transform(
                     )
                 })?;
             // 创建超级表
+            tracing::debug!("Creating super table: {}", super_table);
             let super_table_sql = lush_model_config
                 .super_table_sqls
                 .get(super_table.as_str())
@@ -848,6 +862,7 @@ async fn consume_lush_record_with_transform(
                 metrics_arc.ipc(),
             )
             .await;
+            tracing::debug!("Created super table: {}", super_table);
             // transform tables 消息
             let message: transform::Message = parser
                 .parse_message_from_records(&full_record, false, archive_tx)
@@ -886,8 +901,11 @@ async fn consume_lush_record_with_transform(
                 anyhow::Ok(count)
             });
             let span = tracing::Span::current();
-            // tokio::task::spawn_blocking(move || {
-            // record.into_iter().fold(tx, |tx, record| {
+
+            tracing::debug!(
+                "consuming LushMessage::Insert, record count: {}",
+                record.len()
+            );
             for record in record {
                 let _enter = span.enter();
                 let num_rows = record.num_rows();
@@ -907,6 +925,26 @@ async fn consume_lush_record_with_transform(
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap();
+                {
+                    let total_rows = table_id_column.len();
+                    // 去重
+                    let mut uniq = HashSet::new();
+                    for i in 0..total_rows {
+                        if table_id_column.is_valid(i) {
+                            uniq.insert(table_id_column.value(i));
+                        }
+                    }
+                    let mut sample = uniq.iter().take(10).cloned().collect::<Vec<&str>>();
+                    sample.sort();
+                    tracing::debug!(
+                        "handle LushMessageInsert, table_id: {}, rows={}, distinct={}, sample={:?}",
+                        name_of_table_id_column,
+                        total_rows,
+                        uniq.len(),
+                        sample.join(",")
+                    );
+                }
+
                 // 只包含 tag 列的值
                 let tags_records: Result<RecordBatch, anyhow::Error> = lush::create_tags_record(
                     name_of_table_id_column,
@@ -939,6 +977,7 @@ async fn consume_lush_record_with_transform(
                 // for (default_super_table, record_batch) in grouped_batches {
                 let timer = std::time::Instant::now();
                 let record_batch = parsed_records;
+                // 用 record_batch 的第一行的 _using 列值作为默认超级表名
                 let default_super_table = record_batch
                     .column_by_name("_using")
                     .unwrap()
@@ -971,10 +1010,15 @@ async fn consume_lush_record_with_transform(
                     .with_context(|| {
                         format!("transform failed for super table: {}", super_table)
                     })?;
-
                 let transform_elapsed = timer.elapsed();
+
                 if let crate::plugins::transform::Message::Records(message) = message {
                     if message.is_empty() {
+                        tracing::debug!(
+                            super_table,
+                            name_of_table_id_column,
+                            "no data after transform, skip",
+                        );
                         continue;
                     }
                     let table_count = message.len();
@@ -986,40 +1030,39 @@ async fn consume_lush_record_with_transform(
                     let parser = parser.clone();
                     let archive_tx = archive_tx.cloned();
                     if let Err(err) = tx.send(async move {
-                            let metrics = metrics_ref.ipc();
-                            lush::write(
-                                &pool,
-                                super_table.as_str(),
-                                taos::Precision::Millisecond,
-                                message,
-                                metrics,
-                                skip_null,
-                                table_id_column_name.as_str(),
-                                breakpoints,
-                                &parser,
-                                archive_tx.as_ref(),
-                            ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
-                                tracing::info!(
-                            "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
-                            super_table,
-                            table_count,
-                            written_rows,
-                            prepare_elapsed.as_millis(),
-                            transform_elapsed.as_millis(),
-                            gen_sql_time.as_millis(),
-                            write_time.as_millis(),
-                        );
-                                metrics.add_processed_rows(num_rows as u64);
-                                num_rows
-                            })
-                        }.in_current_span()) {
-                            tracing::error!("send to tx error: {err:#}");
-                            bail!("Send future error: {err:#}");
-                        }
+                        let metrics = metrics_ref.ipc();
+                        lush::write(
+                            &pool,
+                            super_table.as_str(),
+                            taos::Precision::Millisecond,
+                            message,
+                            metrics,
+                            skip_null,
+                            table_id_column_name.as_str(),
+                            breakpoints,
+                            &parser,
+                            archive_tx.as_ref(),
+                        ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
+                            tracing::debug!(
+                                "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
+                                super_table,
+                                table_count,
+                                written_rows,
+                                prepare_elapsed.as_millis(),
+                                transform_elapsed.as_millis(),
+                                gen_sql_time.as_millis(),
+                                write_time.as_millis(),
+                            );
+                            metrics.add_processed_rows(num_rows as u64);
+                            num_rows
+                        })
+                    }.in_current_span()) {
+                        tracing::error!("send to tx error: {err:#}");
+                        bail!("Send future error: {err:#}");
+                    }
                 }
             }
-            // }).await.context("Spawn blocking transform lush records inserts")??;
-
+            drop(tx);
             *count += handle.await??;
         }
     }
@@ -2787,14 +2830,10 @@ pub struct IpcStreamWorker {
     breakpoint_db: Option<BreakpointDb>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
-    taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
     target_precision: taos::Precision,
     span: tracing::Span,
     cancel: CancellationToken,
 }
-
-unsafe impl Send for IpcStreamWorker {}
-unsafe impl Sync for IpcStreamWorker {}
 
 impl Clone for IpcStreamWorker {
     fn clone(&self) -> Self {
@@ -2812,7 +2851,6 @@ impl Clone for IpcStreamWorker {
             license: self.license.clone(),
             transferred: self.transferred.clone(),
             span: self.span.clone(),
-            taos: Cell::new(None),
             target_precision: self.target_precision,
             cancel: self.cancel.clone(),
         }
@@ -2869,7 +2907,6 @@ impl IpcStreamWorker {
             breakpoint_db,
             license: license.map(Arc::new),
             transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
-            taos: Cell::new(Some(taos)),
             target_precision,
             span,
             cancel,
@@ -2895,10 +2932,6 @@ impl IpcStreamWorker {
         notifier: Option<&crate::TaskNotifySender>,
         archive_tx: Option<&Sender<ArchiveType>>,
     ) -> anyhow::Result<usize> {
-        let taos = unsafe { &mut *self.taos.as_ptr() };
-        if taos.is_none() {
-            *taos = Some(self.pool.get().await?);
-        }
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
                 todo!()
@@ -2932,14 +2965,13 @@ impl IpcStreamWorker {
                     .collect_vec();
                 let message = self.parser.parse(record)?;
                 let mut count = 0;
-
                 let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
+                tracing::debug!("processing LushMessage, len: {}", record.nrows());
                 let task = self.task;
                 let lush_model_config = self.lush_model_config.get();
-
                 if let Some(lush_model_config) = lush_model_config {
                     let is_tables = record.is_tables();
                     if is_tables {
@@ -2972,10 +3004,10 @@ impl IpcStreamWorker {
                     }
                     res?;
                 } else {
-                    // let mut taos = Some(self.pool.get().await?);
+                    let mut taos = Some(self.pool.get().await?);
                     consume_lush_record(
                         &self.pool,
-                        taos,
+                        &mut taos,
                         record,
                         &columns,
                         &mut count,

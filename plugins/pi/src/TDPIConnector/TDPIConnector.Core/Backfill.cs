@@ -44,7 +44,8 @@ namespace TDPIConnector.Core
                 this.endTime = endTime;
             }
         }
-        private class BackfillTask {
+        private class BackfillTask
+        {
             public List<Guid> elementIDS;
             public DateTime startTime;
             public DateTime endTime;
@@ -52,14 +53,17 @@ namespace TDPIConnector.Core
             public BackfillTask(in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
             {
                 this.elementIDS = new List<Guid>();
-                foreach (var element in elements) {
+                foreach (var element in elements)
+                {
                     elementIDS.Add(element.ID);
-                };
+                }
+                ;
                 this.startTime = startTime;
                 this.endTime = endTime;
             }
         }
-        private class ElementsBackfillTaskManager {
+        private class ElementsBackfillTaskManager
+        {
             List<BackfillTask> elementsTasks = new List<BackfillTask>();
             int currentBatchIndex = 0;
             int currentIndexInBatch = 0;
@@ -76,8 +80,10 @@ namespace TDPIConnector.Core
                 this.templateName = templateName;
             }
 
-            public void AddNewElementsTask(in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime) {
-                lock (taskLock) {
+            public void AddNewElementsTask(in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
+            {
+                lock (taskLock)
+                {
                     elementsTasks.Add(new BackfillTask(elements, startTime, endTime));
                     all += elements.Count();
                 }
@@ -89,13 +95,14 @@ namespace TDPIConnector.Core
                     if (currentBatchIndex >= elementsTasks.Count()) return null;
                     int nextBatchIndex = currentBatchIndex;
                     int nextIndexInBatch = currentIndexInBatch + 1;
-                    if (nextIndexInBatch == elementsTasks[currentBatchIndex].elementIDS.Count()) {
+                    if (nextIndexInBatch == elementsTasks[currentBatchIndex].elementIDS.Count())
+                    {
                         nextBatchIndex += 1;
                         nextIndexInBatch = 0;
                     }
                     ++started;
                     log.Info($"Backfill element " +
-                        $"{elementsTasks[currentBatchIndex].elementIDS[currentIndexInBatch].ToString()} startting: {started}/{all}");
+                        $"{elementsTasks[currentBatchIndex].elementIDS[currentIndexInBatch].ToString()} starting: {started}/{all}");
                     ElementBackfillTask task = new ElementBackfillTask(elementsTasks[currentBatchIndex].elementIDS[currentIndexInBatch],
                         elementsTasks[currentBatchIndex].startTime, elementsTasks[currentBatchIndex].endTime);
                     currentBatchIndex = nextBatchIndex;
@@ -104,12 +111,23 @@ namespace TDPIConnector.Core
                 }
             }
 
-            public void FinishedOne(in AFElementWrapper element, int groupNum) {
+            public void FinishedOne(in AFElementWrapper element, int groupNum)
+            {
                 lock (taskLock)
                 {
                     ++finished;
                     log.Info($"Backfill element {element.TemplateName()}:" +
-                        $"{element.ID.ToString()} group({groupNum}) finshed: {finished}/{all}");
+                        $"{element.ID.ToString()} group({groupNum}) finished: {finished}/{all}");
+                }
+            }
+
+            // 元素不存在或被跳过时的完成标记
+            public void FinishedOneById(Guid elementId, int groupNum)
+            {
+                lock (taskLock)
+                {
+                    ++finished;
+                    log.Info($"Backfill element {templateName}:{elementId} group({groupNum}) finished (skipped): {finished}/{all}");
                 }
             }
 
@@ -130,7 +148,8 @@ namespace TDPIConnector.Core
                 backfillWait = 10;
             }
             log.Info($"TAOSXPIBACKFILLWAIT set to {backfillWait}.");
-            if (AppSettings.tomlConfig.ForBackfill) {
+            if (AppSettings.tomlConfig.ForBackfill)
+            {
                 InitBreakpoint();
             }
             StartAsyncBackTask();
@@ -153,14 +172,16 @@ namespace TDPIConnector.Core
                 {
                     while (!reader.EndOfStream)
                     {
-                   
+
                         var line = reader.ReadLine();
-                        if (line == null || line.Length == 0) {
+                        if (line == null || line.Length == 0)
+                        {
                             continue;
                         }
                         var sp = line.Split(',');
-                        if (sp.Length == 2) {
-                            breakpoints.Add(sp[0], DateTime.Parse(sp[1]));                            
+                        if (sp.Length == 2)
+                        {
+                            breakpoints.Add(sp[0], DateTime.Parse(sp[1]));
                         }
                         else
                         {
@@ -173,7 +194,7 @@ namespace TDPIConnector.Core
             }
             catch (IOException e)
             {
-               log.Error($"Read breankpoint file error: {e.Message}");
+                log.Error($"Read breankpoint file error: {e.Message}");
             }
             log.Info($"Read {breakpoints.Count} breakpoints from file.");
         }
@@ -181,21 +202,25 @@ namespace TDPIConnector.Core
         private ElementBackfillTask GetNextTask(int groupNum)
         {
             ElementsBackfillTaskManager groupManager = null;
-            lock (groupLock) {
-                if (templateBackfillGroups.ContainsKey(groupNum)) {
+            lock (groupLock)
+            {
+                if (templateBackfillGroups.ContainsKey(groupNum))
+                {
                     groupManager = GetElementBackfillManager(templateBackfillGroups[groupNum]);
                 }
             }
 
-            if (null != groupManager) {
+            if (null != groupManager)
+            {
                 var task = groupManager.GetNextTask();
                 if (task != null) return task;
                 tdEngineProxy.LimitTaosxClientCapToOne(groupManager.templateName);
                 log.Info($"[BackfillManager]Templalte finished: {groupManager.templateName}. Group({groupNum}) waitting new task.");
             }
-            
+
             ElementsBackfillTaskManager newGroupManager = GetNotStartedGroup(groupNum);
-            if (null != newGroupManager) {
+            if (null != newGroupManager)
+            {
                 log.Info($"[BackfillManager]Template start:{newGroupManager.templateName}. Group({groupNum}).");
                 tdEngineProxy.ExpandTaosxClientCap(newGroupManager.templateName, AppSettings.tomlConfig.ConcurrencyCountsForOneTemplate);
                 return newGroupManager.GetNextTask();
@@ -203,11 +228,14 @@ namespace TDPIConnector.Core
 
             if (stopAddNewTask)
             {
-                while (true) {
-                    Task.Delay(500);
+                while (true)
+                {
+                    Thread.Sleep(500);
+
                     ElementsBackfillTaskManager newManagerToadd = GetNotFinishedGroup(groupNum);
                     if (null == newManagerToadd)
                     {
+                        // 所有模版都完成
                         return null;
                     }
                     else
@@ -219,25 +247,25 @@ namespace TDPIConnector.Core
                             log.Info($"[BackfillManager]Add new backfill group for template:{newManagerToadd.templateName}, group({groupNum}).");
                             return task;
                         }
-                        else {
-                            Task.Delay(500);
-                        }
                     }
+                    // 没有任务，继续等待
                 }
-
             }
-            else {
+            else
+            {
                 return null;
             }
         }
 
         private ElementsBackfillTaskManager GetNotFinishedGroup(int groupNum)
         {
-            lock (groupLock) {
+            lock (groupLock)
+            {
                 var templates = templateElementsBackfill.ToList();
                 if (templates.Count == 0) return null;
                 int i = 0;
-                while (true) {
+                while (true)
+                {
                     ++i;
                     if (!templates[nextGroupStart].Value.Finished())
                     {
@@ -248,7 +276,8 @@ namespace TDPIConnector.Core
                         nextGroupStart = (index >= templates.Count() - 1) ? 0 : index + 1;
                         return templates[index].Value;
                     }
-                    else {
+                    else
+                    {
                         nextGroupStart = (nextGroupStart >= templates.Count() - 1) ? 0 : nextGroupStart + 1;
                     }
                     if (i == templateElementsBackfill.Count()) break;
@@ -280,6 +309,23 @@ namespace TDPIConnector.Core
             elemmentBackfillManager.FinishedOne(elemment, groupNum);
         }
 
+        // 元素不存在时也要计为完成，避免阻塞
+        private void FinishedOneById(Guid elementId, int groupNum)
+        {
+            string templateName = null;
+            lock (groupLock)
+            {
+                templateBackfillGroups.TryGetValue(groupNum, out templateName);
+            }
+            if (string.IsNullOrEmpty(templateName))
+            {
+                log.Warn($"[BackfillManager]Group({groupNum}) has no template when finishing element {elementId}.");
+                return;
+            }
+            var manager = GetElementBackfillManager(templateName);
+            manager.FinishedOneById(elementId, groupNum);
+        }
+
         public void StartAsyncBackTask()
         {
             for (int i = 0; i < AppSettings.tomlConfig.BackfillConcurrencyCounts; ++i)
@@ -300,13 +346,21 @@ namespace TDPIConnector.Core
                                     try
                                     {
                                         BackfillElement(tdDatabaseName, element, task.startTime, task.endTime);
-                                        FinishedOne(element, groupNum);
                                     }
                                     catch (Exception e)
                                     {
                                         log.Error($"[BackfillManager]Backfill element error:{element}", e);
                                     }
-
+                                    finally
+                                    {
+                                        // 完成标记
+                                        FinishedOne(element, groupNum);
+                                    }
+                                }
+                                else
+                                {
+                                    // 元素不存在，直接完成标记
+                                    FinishedOneById(task.elementID, groupNum);
                                 }
                             }
                             else
@@ -319,7 +373,8 @@ namespace TDPIConnector.Core
                                 await Task.Delay(500);
                             }
                         }
-                        catch (Exception e) {
+                        catch (Exception e)
+                        {
                             log.Error($"[BackfillManager]Exception in backfill task", e);
                         }
                     }
@@ -337,9 +392,9 @@ namespace TDPIConnector.Core
                 DateTime startTime = lastTDValue.Value.AddMilliseconds(1);
                 BackfillPIPoint(tdDatabaseName, startTime, endTime, piPoint);
                 finished++;
-                log.Info($"BackfillPIPointsFromLastRecordedValue finished {finished}/{all}.");
+                log.Info($"BackfillPIPoints finished {finished}/{all}.");
             }
-            log.Info($"BackfillPIPointsFromLastRecordedValue finished.");
+            log.Info($"BackfillPIPoints finished.");
         }
 
         public void BackfillPIPoints(string tdDatabaseName, DateTime startTime, DateTime endTime, List<TDTable> points)
@@ -457,14 +512,17 @@ namespace TDPIConnector.Core
 
         internal void BackfillElements(string tdDatabaseName, in List<AFElementWrapper> elements, DateTime startTime, DateTime endTime)
         {
+            this.tdDatabaseName = tdDatabaseName;
+
             var elemmentBackfillManager = GetElementBackfillManager("default");
-            elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime); 
+            elemmentBackfillManager.AddNewElementsTask(elements, startTime, endTime);
         }
 
-        private ElementsBackfillTaskManager GetElementBackfillManager(in string templateName) {
+        private ElementsBackfillTaskManager GetElementBackfillManager(in string templateName)
+        {
             if (!templateElementsBackfill.ContainsKey(templateName))
             {
-                templateElementsBackfill[templateName] = new ElementsBackfillTaskManager(templateName);  
+                templateElementsBackfill[templateName] = new ElementsBackfillTaskManager(templateName);
             }
             return templateElementsBackfill[templateName];
         }
@@ -559,7 +617,8 @@ namespace TDPIConnector.Core
                 tdEngineProxy.InsertValuesForAFElements(stables, columnNames).Wait();
                 log.Info($"Backfill element {superTableName}:{elementID} from {currentStart} rows {elementValues.Count} in {stopwatch.ElapsedMilliseconds} ms");
 
-                if (count < AppSettings.tomlConfig.BackfillBatchSize) {
+                if (count < AppSettings.tomlConfig.BackfillBatchSize)
+                {
                     break;
                 }
                 // Attribute last time could not be equal, select the smaller one. Allowed to repeat, not allowed to omit.
@@ -568,7 +627,7 @@ namespace TDPIConnector.Core
             } while (currentStart < endTime);
         }
 
-        private void ConvertAFAttibutesAndValuesToTDTables(in AFAttributeWrapper attribute, in AFValuesWrapper values,  in Dictionary<string, List<TDValue>> tableValues, in List<string> columnNames)
+        private void ConvertAFAttibutesAndValuesToTDTables(in AFAttributeWrapper attribute, in AFValuesWrapper values, in Dictionary<string, List<TDValue>> tableValues, in List<string> columnNames)
         {
             if (!columnNames.Contains(attribute.Name))
             {
@@ -581,9 +640,12 @@ namespace TDPIConnector.Core
                 if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
 
-                if (attribute.IsChild()) {
+                if (attribute.IsChild())
+                {
                     tdValue.Name = AttributeColumnConverter.GetChildAttrbuteName(attribute.Parent, attribute);
-                } else {
+                }
+                else
+                {
                     tdValue.Name = attribute.Name;
                 }
 
