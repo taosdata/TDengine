@@ -1462,7 +1462,6 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
 
     pWrapper->tmqRspType = TMQ_MSG_TYPE__EP_RSP;
     pWrapper->epoch = head->epoch;
-    (void)memcpy(&pWrapper->epRsp, pMsg->pData, sizeof(SMqRspHead));
     TSWAP(pWrapper->epRsp, rsp);
     code = taosWriteQitem(tmq->mqueue, pWrapper);
     if (code != 0) {
