@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "command.h"
 #include "decimal.h"
 #include "scheduler.h"
@@ -34,8 +35,6 @@
 
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode);
-
-int32_t connCheckAndUpateMetric(int32_t connId);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -3189,46 +3188,6 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   doAsyncQuery(pRequest, false);
 }
 
-int32_t connCheckAndUpateMetric(int32_t connId) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  STscObj* pTscObj = acquireTscObj(connId);
-  if (pTscObj == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
-    return code;
-  }
-
-  code = sessMgtCheckConnStatus(pTscObj->user, &pTscObj->sessInfo);
-  TAOS_CHECK_GOTO(code, &lino, _error);
-
-  connSessInfoUpdate(&pTscObj->sessInfo);
-
-  code = sessMgtUpdateUserMetric(pTscObj->user, &(SSessParam){.type = SESSION_MAX_CONCURRENCY, .value = 1});
-  TAOS_CHECK_GOTO(code, &lino, _error);
-
-_error:
-  if (code != 0) {
-    tscError("conn:0x%" PRIx64 ", check and update metric failed at line:%d, code:%s", connId, lino,
-             tstrerror(code)); 
-  }
-
-  releaseTscObj(connId);
-  return code;
-}
-
-int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam) {
-  int32_t code = 0;
-
-  if (pTscObj == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
-    return code;
-  }
-  code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
-
-  return code;
-}
-
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
   if (NULL == taos) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -3424,3 +3383,15 @@ int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool pa
   return clientParseSqlImpl(param, dbName, sql, parseOnly, effectiveUser, pRes);
 #endif
 }
+
+void updateConnAccessInfo(SConnAccessInfo *pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+  int64_t ts = taosGetTimestampMs();
+  if (pInfo->startTime == 0) {
+    pInfo->startTime = ts;
+  }
+  pInfo->lastAccessTime = ts;
+}
+ 

@@ -15,8 +15,17 @@
  */
 
 #include "clientSession.h"
+#include "clientInt.h"
+#include "clientLog.h"
 
 static SSessionMgt sessMgt = {0};
+
+#define HANDLE_SESSION_CONTROL() \
+  do {                           \
+    if (sessMgt.inited == 0) {   \
+      return TSDB_CODE_SUCCESS;  \
+    }                            \
+  } while (0)
 
 static int32_t sessPerUserCheckFn(int64_t value, int64_t limit) {
   int32_t code = 0;
@@ -241,19 +250,25 @@ int32_t sessMgtInit() {
     code = terrno;
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
+  sessMgt.inited = 1;
 
 _error:
-
+  if (code != 0) {
+    tscError("failed to init session mgt, line:%d, code:%d", lino, code);
+  }
   return code;
 }
 
 int32_t sessMgtUpdataLimit(char *user, ESessionType type, int32_t value) {
+  HANDLE_SESSION_CONTROL();
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+
   if (type >= SESSION_MAX_TYPE || type < SESSION_PER_USER) {
     return TSDB_CODE_INVALID_PARA;
   }
+
 
   SSessMetric *pMetric = NULL;
   (void)taosThreadRwlockWrlock(&pMgt->lock);
@@ -285,6 +300,8 @@ _error:
 }
 
 int32_t sessMgtUpdateUserMetric(char *user, SSessParam *pPara) {
+  HANDLE_SESSION_CONTROL();
+
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -320,6 +337,7 @@ int32_t sessMgtGet(char *user, ESessionType type, int32_t *pValue) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+  HANDLE_SESSION_CONTROL();
 
   if (type >= SESSION_MAX_TYPE) {
     return TSDB_CODE_INVALID_PARA;
@@ -346,9 +364,12 @@ _error:
   return code;
 }
 int32_t sessMgtCheckUser(char *user, ESessionType type) {
+  HANDLE_SESSION_CONTROL();
+
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+
   code = taosThreadRwlockRdlock(&pMgt->lock);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
@@ -391,9 +412,12 @@ _error:
 }
 
 int32_t sessMgtRemoveUser(char *user) {
+  HANDLE_SESSION_CONTROL();
+
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+
 
   code = taosThreadRwlockWrlock(&pMgt->lock);
   TAOS_CHECK_GOTO(code, &lino, _error);
@@ -432,14 +456,17 @@ void sessMgtDestroy() {
 
   pMgt->pSessMetricMap = NULL;
 }
-int32_t sessMgtCheckConnStatus(char *user, SConnSessInfo *pInfo) {
+int32_t sessMgtCheckConnStatus(char *user, SConnAccessInfo *pInfo) {
+  HANDLE_SESSION_CONTROL();
+
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = sessMgtCheckValue(user, SESSION_CONN_TIME, pInfo->sessStartTime);
+
+  code = sessMgtCheckValue(user, SESSION_CONN_TIME, pInfo->startTime);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  code = sessMgtCheckValue(user, SESSION_CONN_IDLE_TIME, pInfo->sessLastAccessTime);
+  code = sessMgtCheckValue(user, SESSION_CONN_IDLE_TIME, pInfo->lastAccessTime);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:
@@ -448,12 +475,46 @@ _error:
   }
   return code;
 }
-void connSessInfoUpdate(SConnSessInfo *pInfo) {
-  if (pInfo == NULL) {
-    return;
+
+int32_t connCheckAndUpateMetric(int32_t connId) {
+  HANDLE_SESSION_CONTROL();
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (pTscObj == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
   }
-  if (pInfo->sessStartTime == 0) {
-    pInfo->sessStartTime = taosGetTimestampMs();
+
+  code = sessMgtCheckConnStatus(pTscObj->user, &pTscObj->sessInfo);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  updateConnAccessInfo(&pTscObj->sessInfo);
+
+  code = sessMgtUpdateUserMetric(pTscObj->user, &(SSessParam){.type = SESSION_MAX_CONCURRENCY, .value = 1});
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  if (code != 0) {
+    tscError("conn:0x%" PRIx64 ", check and update metric failed at line:%d, code:%s", connId, lino, tstrerror(code));
   }
-  pInfo->sessLastAccessTime = taosGetTimestampMs();
+
+  releaseTscObj(connId);
+  return code;
+}
+
+int32_t tscUpdateSessMgtMetric(STscObj *pTscObj, SSessParam *pParam) {
+  HANDLE_SESSION_CONTROL();
+
+  int32_t code = 0;
+
+  if (pTscObj == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
+  code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
+
+  return code;
 }
