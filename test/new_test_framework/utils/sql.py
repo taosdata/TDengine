@@ -3060,7 +3060,10 @@ class TDSql:
         if where:
             sql += f" WHERE {where}"
         self.execute(sql, show=True) 
-
+    
+    def checkHaveSameResult(self, sql1, sql2, data):
+        self.checkDataMemLoop(sql1, data)
+        self.checkDataMemLoop(sql2, data)
 
 # global
 tdSql = TDSql()
