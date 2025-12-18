@@ -45,10 +45,9 @@ concurrency:
 
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@fix/del-3.3.6-macos-test
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
       specified_target_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_target_branch }}
       specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_pr_number }}
-
