@@ -66,7 +66,6 @@ enum {
 enum {
   TMQ_CONSUMER_STATUS__INIT = 0,
   TMQ_CONSUMER_STATUS__READY,
-  TMQ_CONSUMER_STATUS__LOST,
   TMQ_CONSUMER_STATUS__CLOSED,
 };
 
@@ -1413,6 +1412,8 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 }
 
 static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
+  SMqAskEpRsp rsp = {0};
+
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   if (pParam == NULL) {
     goto _ERR;
@@ -1427,7 +1428,7 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
     if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){
-      atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__LOST);
+      atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__CLOSED);
     }
     goto END;
   }
@@ -1438,12 +1439,20 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqRspHead* head = pMsg->pData;
   int32_t     epoch = atomic_load_32(&tmq->epoch);
   tqDebugC("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d", tmq->consumerId, head->epoch, epoch);
+
+  if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp) == NULL) {
+    code = TSDB_CODE_TMQ_INVALID_MSG;
+    tqErrorC("consumer:0x%" PRIx64 ", decode ep rsp failed", tmq->consumerId);
+    goto END;
+  }
+
+  if (rsp.code != TSDB_CODE_SUCCESS) {
+    code = rsp.code;
+    goto END;
+  }
+
   if (pParam->sync) {
-    SMqAskEpRsp rsp = {0};
-    if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp) != NULL) {
-      doUpdateLocalEp(tmq, head->epoch, &rsp);
-    }
-    tDeleteSMqAskEpRsp(&rsp);
+    doUpdateLocalEp(tmq, head->epoch, &rsp);
   } else {
     SMqRspWrapper* pWrapper = NULL;
     code = taosAllocateQitem(sizeof(SMqRspWrapper), DEF_QITEM, 0, (void**)&pWrapper);
@@ -1454,28 +1463,23 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
     pWrapper->tmqRspType = TMQ_MSG_TYPE__EP_RSP;
     pWrapper->epoch = head->epoch;
     (void)memcpy(&pWrapper->epRsp, pMsg->pData, sizeof(SMqRspHead));
-    if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pWrapper->epRsp) == NULL) {
+    TSWAP(pWrapper->epRsp, rsp);
+    code = taosWriteQitem(tmq->mqueue, pWrapper);
+    if (code != 0) {
       tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
       taosFreeQitem(pWrapper);
-    } else {
-      code = taosWriteQitem(tmq->mqueue, pWrapper);
-      if (code != 0) {
-        tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
-        taosFreeQitem(pWrapper);
-        tqErrorC("consumer:0x%" PRIx64 " put ep res into mqueue failed, code:%d", tmq->consumerId, code);
-      }
+      tqErrorC("consumer:0x%" PRIx64 " put ep res into mqueue failed, code:%d", tmq->consumerId, code);
     }
   }
 
-  END:
-  {
-    int32_t ret = taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
-    if (ret != 0){
-      tqErrorC("failed to release ref:%"PRId64 ", code:%d", pParam->refId, ret);
-    }
+END:
+  tDeleteSMqAskEpRsp(&rsp);
+  int32_t ret = taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
+  if (ret != 0){
+    tqErrorC("failed to release ref:%"PRId64 ", code:%d", pParam->refId, ret);
   }
 
-  _ERR:
+_ERR:
   if (pParam && pParam->sync) {
     SAskEpInfo* pInfo = pParam->pParam;
     if (pInfo) {
@@ -2012,9 +2016,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   int32_t retryCnt = 0;
-  int32_t     epoch = atomic_load_32(&tmq->epoch);
-  while (atomic_load_32(&tmq->epoch) == epoch) {
-    code = syncAskEp(tmq);
+  while ((code = syncAskEp(tmq)) != 0) {
     if (retryCnt++ > SUBSCRIBE_RETRY_MAX_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
       tqErrorC("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes, code:%s",
                tmq->consumerId, tstrerror(code));
@@ -2339,7 +2341,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   int32_t code = 0;
   taosWLockLatch(&tmq->lock);
 
-  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__LOST){
+  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__CLOSED){
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto end;
   }
@@ -2451,7 +2453,7 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
   if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {  // for vnode transform
     code = askEp(tmq, NULL, false, true);
     if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep wher vnode transform, code:%s", tmq->consumerId, tstrerror(code));
+      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when vnode transform, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
     code = syncAskEp(tmq);
@@ -2702,8 +2704,8 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   tqInfoC("consumer:0x%" PRIx64 " start to unsubscribe consumer, status:%d", tmq->consumerId, status);
 
   displayConsumeStatistics(tmq);
-  if (status != TMQ_CONSUMER_STATUS__READY && status != TMQ_CONSUMER_STATUS__LOST) {
-    tqInfoC("consumer:0x%" PRIx64 " status:%d, already closed or not in ready state, no need unsubscribe", tmq->consumerId, status);
+  if (status != TMQ_CONSUMER_STATUS__READY) {
+    tqInfoC("consumer:0x%" PRIx64 " status:%d, not in ready state, no need unsubscribe", tmq->consumerId, status);
     goto END;
   }
   if (tmq->autoCommit) {

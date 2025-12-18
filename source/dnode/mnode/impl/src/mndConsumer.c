@@ -465,6 +465,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   int32_t status = atomic_load_32(&pConsumer->status);
   if (status != MQ_CONSUMER_STATUS_READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
+    rsp.code = TSDB_CODE_MND_CONSUMER_NOT_READY;
   } else {
     int32_t epoch = req.epoch;
 
