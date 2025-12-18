@@ -744,6 +744,8 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
+timezone_t     g_default_tz = NULL;
+
 int32_t taosSetGlobalTimezone(const char *tz) {
   if (tz == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -780,22 +782,24 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   _tzset();
   return 0;
 #else
-      code = setenv("TZ", tz, 1);
-  if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  timezone_t newtz = tzalloc(tz);
+  if (!newtz) {
+    terrno = TSDB_CODE_TIME_ERROR;
+    uError("[tz] failed to allocate timezone for %s", tz);
     return terrno;
   }
 
-  tzset();
+  atomic_store_ptr(&g_default_tz, newtz);
+
   time_t tx1 = taosGetTimestampSec();
-  return taosFormatTimezoneStr(tx1, tz, NULL, tsTimezoneStr);
+  return taosFormatTimezoneStr(tx1, tz, g_default_tz, tsTimezoneStr);
 #endif
 }
 
 int32_t taosGetLocalTimezoneOffset() {
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  if (taosLocalTime(&tx1, &tm1, NULL, 0, NULL) == NULL) {
+  if (taosLocalTime(&tx1, &tm1, NULL, 0, g_default_tz) == NULL) {
     uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
     return TSDB_CODE_TIME_ERROR;
   }
@@ -924,6 +928,28 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
   char tz[TD_TIMEZONE_LEN] = {0};
   getTimezoneStr(tz);
   time_t tx1 = taosGetTimestampSec();
-  return taosFormatTimezoneStr(tx1, tz, NULL, outTimezoneStr);
+
+  return taosFormatTimezoneStr(tx1, tz, g_default_tz, outTimezoneStr);
 #endif
 }
+
+int32_t initTimezoneInfo(void) {
+#ifdef WINDOWS
+#else
+  timezone_t tz = tzalloc(NULL);
+  if (!tz) {
+    uError("failed to allocate default timezone");
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  atomic_store_ptr(&g_default_tz, tz);
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
+#ifdef WINDOWS
+#else
+timezone_t getGlobalDefaultTZ() {
+  return atomic_load_ptr(&g_default_tz);
+}
+#endif
