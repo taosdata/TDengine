@@ -526,6 +526,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_long_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_no_snode.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_same_name.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_window_query.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_output_table.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py

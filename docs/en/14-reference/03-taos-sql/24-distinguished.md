@@ -67,7 +67,7 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
   - Pseudocolumns _wstart,_wend, and _wduration.
   - Aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters).
   - Expressions containing the above expressions.
-  - And must include at least one aggregate function.
+  - And must include at least one aggregate function(this limitation no longer exists after version 3.4.0.0).
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
 
