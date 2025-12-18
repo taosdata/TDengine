@@ -3815,21 +3815,6 @@ int32_t lagFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 int32_t lagFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
 
-static void tryLagInt64(SLagInfo* pLagInfo, SColumnInfoData* pOutput, int32_t pos) {
-  int64_t lag = pLagInfo->v;
-  colDataSetInt64(pOutput, pos, &lag);
-}
-
-static void tryLagFloat(SLagInfo* pLagInfo, SColumnInfoData* pOutput, int32_t pos) {
-  float lag = pLagInfo->fv;
-  colDataSetFloat(pOutput, pos, &lag);
-}
-
-static void tryLagDouble(SLagInfo* pLagInfo, SColumnInfoData* pOutput, int32_t pos) {
-  double lag = pLagInfo->dv;
-  colDataSetDouble(pOutput, pos, &lag);
-}
-
 static int32_t doHandleLag(SLagInfo* pLagInfo, int32_t type, SColumnInfoData* pOutput, int32_t pos) {
   if (!pLagInfo->nonnull) {
     colDataSetNULL(pOutput, pos);
@@ -3838,16 +3823,16 @@ static int32_t doHandleLag(SLagInfo* pLagInfo, int32_t type, SColumnInfoData* pO
   }
 
   switch (type) {
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
       colDataSetInt64(pOutput, pos, &pLagInfo->v);
       break;
     case TSDB_DATA_TYPE_FLOAT:
