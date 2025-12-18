@@ -69,12 +69,7 @@ With TDengine cloud, the **total cost of ownership of your time-series data plat
 
 This is how TDengine would be situated, in a typical time-series data processing platform:
 
-<figure>
-
-![TDengine Database Technical Ecosystem ](eco_system.webp)
-
-<center><figcaption>Figure 1. TDengine Technical Ecosystem</figcaption></center>
-</figure>
+![TDengine Database Technical Ecosystem ](./assets/intro-01.webp)
 
 On the left-hand side, there are data collection agents like OPC-UA, MQTT, Telegraf and Kafka. On the right-hand side, visualization/BI tools, HMI, Python/R, and IoT Apps can be connected. TDengine itself provides an interactive command-line interface and a web interface for management and maintenance.
 
