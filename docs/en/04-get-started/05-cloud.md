@@ -22,11 +22,11 @@ To create a TDengine Cloud account, perform the following steps:
 1. On the page displayed, enter your name and password.
 
    :::note
-   
-   - Your password must be 8 to 20 characters long. 
+
+   - Your password must be 8 to 20 characters long.
    - Your password must contain each of the following character types: letters, digits, and special characters.
    - The following special characters are supported: `. ~ ! @ # $ ^ & *`
-   
+
    :::
 
 1. (Optional) Enter your phone number and job title.
