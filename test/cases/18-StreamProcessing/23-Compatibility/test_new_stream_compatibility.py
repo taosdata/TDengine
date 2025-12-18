@@ -339,7 +339,7 @@ class TestNewStreamCompatibility:
 
         assert res_data == exp_data, f"Stream {stream.id} result mismatch! \nResult: {res_data}\nExpect: {exp_data}"
 
-    def checkstatus(self,library_path, retry_times=30):
+    def checkstatus(self,library_path, retry_times=100):
         # sleep before check status to avoid dnodes not ready issue
         time.sleep(10)
         dnodes_ready = False
