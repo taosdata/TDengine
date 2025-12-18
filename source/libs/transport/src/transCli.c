@@ -1705,7 +1705,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       pHead->msgType = pReq->msgType;
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
       pHead->traceId = pReq->info.traceId;
-      pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+      // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
       pHead->version = TRANS_VER;
       pHead->compatibilityVer = htonl(pInst->compatibilityVer);
     }
@@ -1722,6 +1722,8 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
     }
     wb[j++] = uv_buf_init((char*)pHead, msgLen);
+
+    TAOS_UNUSED(transDoCrc((char*)pHead, msgLen, 0));
     totalLen += msgLen;
 
     pCliMsg->seq = pConn->seq;
