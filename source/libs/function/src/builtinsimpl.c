@@ -3787,36 +3787,6 @@ int32_t lagFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t lagFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
-  SLagInfo*            pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
-  int32_t              slotId = pCtx->pExpr->base.resSchema.slotId;
-
-  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-  if (!pCol) {
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
-  pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0) ? 1 : 0;
-
-  if (!pEntryInfo->isNullRes) {
-    switch (pCol->info.type) {
-      case TSDB_DATA_TYPE_VARBINARY:
-      case TSDB_DATA_TYPE_VARCHAR:
-      case TSDB_DATA_TYPE_NCHAR:
-        if (pRes->nonnull) {
-          taosMemoryFree(pRes->str);
-        }
-        break;
-      default:
-        break;
-    }
-  }
-
-  return code;
-}
-
 int32_t lagFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
 
 static int32_t doHandleLag(SLagInfo* pLagInfo, int32_t type, SColumnInfoData* pOutput, int32_t pos) {
@@ -3888,18 +3858,18 @@ static int32_t setLagResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t p
 
 int32_t lagFunctionByRow(SArray* pCtxArray) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int     diffColNum = pCtxArray->size;
-  if (diffColNum == 0) {
+  int     lagColNum = pCtxArray->size;
+  if (lagColNum == 0) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t numOfElems = 0;
 
-  SArray* pRows = taosArrayInit_s(sizeof(SFuncInputRow), diffColNum);
+  SArray* pRows = taosArrayInit_s(sizeof(SFuncInputRow), lagColNum);
   if (NULL == pRows) {
     return terrno;
   }
 
-  for (int i = 0; i < diffColNum; ++i) {
+  for (int i = 0; i < lagColNum; ++i) {
     SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
     if (NULL == pCtx) {
       code = terrno;
@@ -3925,7 +3895,7 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
       break;
     }
 
-    for (int i = 1; i < diffColNum; ++i) {
+    for (int i = 1; i < lagColNum; ++i) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
       if (NULL == pCtx || NULL == pRow) {
@@ -3945,7 +3915,7 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
 
     int32_t pos = startOffset + numOfElems;
 
-    for (int i = 0; i < diffColNum; ++i) {
+    for (int i = 0; i < lagColNum; ++i) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
       if (NULL == pCtx || NULL == pRow) {
@@ -4027,13 +3997,22 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
     ++numOfElems;
   }
 
-  for (int i = 0; i < diffColNum; ++i) {
+  for (int i = 0; i < lagColNum; ++i) {
     SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
-    if (NULL == pCtx) {
+    if (!pCtx) {
       code = terrno;
       goto _exit;
     }
-    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+    SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
+    SLagInfo*             pRes = GET_ROWCELL_INTERBUF(pResInfo);
+    SInputColumnInfoData* pInput = &pCtx->input;
+    SColumnInfoData*      pInputCol = pInput->pData[0];
+
+    if (IS_VAR_DATA_TYPE(pInputCol->info.type) && pRes->nonnull) {
+      taosMemoryFree(pRes->str);
+    }
+
     pResInfo->numOfRes = numOfElems;
   }
 

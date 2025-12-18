@@ -7229,7 +7229,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = lagFunctionSetup,
     .processFunc  = lagFunction,
     .sprocessFunc = lagScalarFunction,
-    .finalizeFunc = lagFunctionFinalize,
+    .finalizeFunc = functionFinalize,
     .estimateReturnRowsFunc = lagEstReturnRows,
     .processFuncByRow  = lagFunctionByRow,
   },
