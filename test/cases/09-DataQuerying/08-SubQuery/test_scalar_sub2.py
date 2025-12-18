@@ -5,6 +5,9 @@ from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
 class TestScalarSubQuery2:
+    updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    updatecfgDict["clientCfg"] = clientCfgDict    
     caseName = "test_scalar_sub_query2"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
@@ -212,8 +215,12 @@ class TestScalarSubQuery2:
         # explain
         "explain select f1 from {tableName} where f1 = {scalarSql}\G",
         "explain verbose true select f1 from {tableName} where f1 = {scalarSql}\G",
+        "explain analyze select f1 from {tableName} where f1 = {scalarSql}\G",
+        "explain analyze verbose true select f1 from {tableName} where f1 = {scalarSql}\G",
         "explain select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
         "explain verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
+        "explain analyze select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
+        "explain analyze verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
 
         # view
         "select f1 from {tableName} where f1 = (select * from v1) order by 1",

@@ -2239,7 +2239,18 @@ class TDCom:
         #print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
         os.system(taosCmd)
         return self.query_result_file
-    
+
+    def execute_query_file(self, inputfile):
+        if not os.path.exists(inputfile):
+            tdLog.exit(f"Input file '{inputfile}' does not exist.")
+        else:
+            cfgPath = self.getClientCfgPath()
+            tdLog.info(f"Executing query file: {inputfile}")
+            if platform.system().lower() == 'windows':
+                os.system(f"taos -c {cfgPath} -f {inputfile} > nul 2>&1")
+            else:
+                os.system(f"taos -c {cfgPath} -f {inputfile} > /dev/null 2>&1")
+
     def generate_query_result(self, inputfile, test_case):
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
@@ -2264,7 +2275,7 @@ class TDCom:
                             fout.write(line)
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
-                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' > {self.query_result_file}")
+                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}")
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):
