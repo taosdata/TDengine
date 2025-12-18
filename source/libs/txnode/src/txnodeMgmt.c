@@ -47,6 +47,7 @@ typedef struct {
   int32_t      dnodeId;
   int32_t      clusterId;
   char         userPass[XNODE_USER_PASS_LEN];
+  SEp          leaderEp;
 } SXnodedData;
 
 SXnodedData xnodedGlobal = {0};
@@ -61,7 +62,7 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     return;
   }
   if ((exitStatus == 0 && termSignal == 0) || atomic_load_32(&pData->isStopped)) {
-    xndInfo("xnoded process exit due to SIGINT or dnode-mgmt called stop");
+    xndInfo("xnoded process exit due to exit status 0 or dnode-mgmt called stop");
     if (uv_async_send(&pData->stopAsync) != 0) {
       xndError("stop xnoded: failed to send stop async");
     }
@@ -102,9 +103,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   }
   TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
 
-  // char dnodeId[8] = "1";
-  // snprintf(dnodeId, sizeof(dnodeId), "%d", pData->dnodeId);
-
+  xndInfo("xnode mgmt spawn xnoded path: %s", path);
   // char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};
   char *argsXnoded[] = {path, NULL};
   options.args = argsXnoded;
@@ -129,11 +128,10 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   snprintf(xnodedCfgDir, PATH_MAX, "%s=%s", "XNODED_CFG_DIR", configDir);
   char xnodedLogDir[PATH_MAX] = {0};
   snprintf(xnodedLogDir, PATH_MAX, "%s=%s", "XNODED_LOG_DIR", tsLogDir);
-  xndInfo("xxxzgc **** xnodedCfgDir:%s, xnodedLogDir:%s", xnodedCfgDir, xnodedLogDir);
   char dnodeIdEnvItem[64] = {0};
-  snprintf(dnodeIdEnvItem, 64, "%s=%d", "XNODED_DNODE_EP", pData->dnodeId);
+  snprintf(dnodeIdEnvItem, 64, "%s=%s:%d", "XNODED_LEADER_EP", pData->leaderEp.fqdn, pData->leaderEp.port);
   char xnodedUserPass[XNODE_USER_PASS_LEN] = {0};
-  snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USERPASS", pData->userPass);
+  snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USER_PASS", pData->userPass);
   char xnodeClusterId[32] = {0};
   snprintf(xnodeClusterId, 32, "%s=%d", "XNODED_CLUSTER_ID", pData->clusterId);
 
@@ -284,11 +282,11 @@ _exit:
  * @param startDnodeId
  * @return
  */
-// int32_t xnodeMgmtStartXnoded(int32_t startDnodeId, int64_t clusterId, int32_t uplen, const char *userPass) {
 int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   int32_t code = 0, lino = 0;
 
   SXnodedData *pData = &xnodedGlobal;
+  pData->leaderEp = pXnode->ep;
   if (pData->isStarted) {
     xndInfo("dnode start xnoded already called");
     return 0;

@@ -302,7 +302,6 @@ typedef struct {
   int32_t  id;
   int32_t  via;
   int32_t  xnodeId;
-  int32_t  jobs;
   int64_t  createTime;
   int64_t  updateTime;
   int32_t  sourceType;

@@ -12567,10 +12567,6 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger), pOptions->trigger, true);
   pOpts->health = xCreateCowStr(strlen(pOptions->health), pOptions->health, true);
   pOpts->parser = xCreateCowStr(strlen(pOptions->parser), pOptions->parser, true);
-  // const char* reason = getXnodeTaskOptionByName(pOptions, "reason");
-  // if (reason != NULL) {
-  //   pOpts->reason = xCreateCowStr(strlen(reason), reason, false);
-  // }
 
   pOpts->optionsNum = pOptions->optionsNum;
   for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
@@ -12592,6 +12588,10 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   if (status != NULL && strlen(status) > TSDB_XNODE_STATUS_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                    "Invalid option: status too long");
+  }
+  const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnodeId != NULL && strlen(xnodeId) > 0) {
+    createReq.xnodeId = atoi(xnodeId);
   }
   covertXNodeTaskOptions(pStmt->options, &createReq.options);
 
@@ -12620,7 +12620,6 @@ static int32_t translateStopXnodeTask(STranslateContext* pCxt, SStopXnodeTaskStm
 }
 
 static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStmt* pStmt) {
-  // printf("translateDropXnodeTask on task:%d\n", pStmt->tid);
   SMDropXnodeTaskReq dropReq = {0};
   dropReq.tid = pStmt->tid;
   dropReq.force = pStmt->force;
@@ -12662,10 +12661,6 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
                                        "Invalid option: status too long");
       }
       updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
-    }
-    const char* jobs = getXnodeTaskOptionByName(pStmt->options, "jobs");
-    if (jobs != NULL) {
-      updateReq.jobs = atoi(jobs);
     }
     const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
     if (parser != NULL) {

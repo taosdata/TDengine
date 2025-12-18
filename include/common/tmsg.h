@@ -3195,7 +3195,6 @@ typedef struct {
   int32_t     via;
   int32_t     xnodeId;
   CowStr      status;
-  int32_t     jobs;
   xTaskSource source;
   xTaskSink   sink;
   CowStr      parser;

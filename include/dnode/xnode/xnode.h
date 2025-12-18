@@ -26,12 +26,12 @@ extern "C" {
 
 // clang-format off
 
-#define xndFatal(...) do {  if (xndDebugFlag & DEBUG_FATAL) { taosPrintLog("xnd FATAL ", DEBUG_FATAL, xndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndError(...) do {  if (xndDebugFlag & DEBUG_ERROR) { taosPrintLog("xnd ERROR ", DEBUG_ERROR, xndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndWarn(...)  do {  if (xndDebugFlag & DEBUG_WARN)  { taosPrintLog("xnd WARN  ", DEBUG_WARN,  xndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndInfo(...)  do {  if (xndDebugFlag & DEBUG_INFO)  { taosPrintLog("xnd INFO  ", DEBUG_INFO,  xndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndDebug(...) do {  if (xndDebugFlag & DEBUG_DEBUG) { taosPrintLog("xnd DEBUG ", DEBUG_DEBUG, xndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndTrace(...) do {  if (xndDebugFlag & DEBUG_TRACE) { taosPrintLog("xnd TRACE ", DEBUG_TRACE, xndDebugFlag, __VA_ARGS__);}} while (0)
+#define xndFatal(...) do {  if (xndDebugFlag & DEBUG_FATAL) { taosPrintLog("XND FATAL ", DEBUG_FATAL, xndDebugFlag, __VA_ARGS__);}} while (0)
+#define xndError(...) do {  if (xndDebugFlag & DEBUG_ERROR) { taosPrintLog("XND ERROR ", DEBUG_ERROR, xndDebugFlag, __VA_ARGS__);}} while (0)
+#define xndWarn(...)  do {  if (xndDebugFlag & DEBUG_WARN)  { taosPrintLog("XND WARN  ", DEBUG_WARN,  xndDebugFlag, __VA_ARGS__);}} while (0)
+#define xndInfo(...)  do {  if (xndDebugFlag & DEBUG_INFO)  { taosPrintLog("XND INFO  ", DEBUG_INFO,  xndDebugFlag, __VA_ARGS__);}} while (0)
+#define xndDebug(...) do {  if (xndDebugFlag & DEBUG_DEBUG) { taosPrintLog("XND DEBUG ", DEBUG_DEBUG, xndDebugFlag, __VA_ARGS__);}} while (0)
+#define xndTrace(...) do {  if (xndDebugFlag & DEBUG_TRACE) { taosPrintLog("XND TRACE ", DEBUG_TRACE, xndDebugFlag, __VA_ARGS__);}} while (0)
 
 // clang-format on
 

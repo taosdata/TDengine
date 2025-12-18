@@ -4337,7 +4337,6 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
-    printf("xxxzgc ** name: %s, len:%d, z:%s\n", pTaskStmt->name, pResourceName->n, pResourceName->z);
   } else if (pResourceName->type == TK_NK_ID) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else {

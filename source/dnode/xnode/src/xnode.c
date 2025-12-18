@@ -69,6 +69,7 @@ int32_t mndOpenXnd(const SXnodeOpt *pOption) {
   pXnode->dnodeId = pOption->dnodeId;
   pXnode->clusterId = pOption->clusterId;
   pXnode->upLen = pOption->upLen;
+  pXnode->ep = pOption->ep;
   memset(pXnode->userPass, 0, XNODE_USER_PASS_LEN);
   memcpy(pXnode->userPass, pOption->userPass, pOption->upLen);
 
