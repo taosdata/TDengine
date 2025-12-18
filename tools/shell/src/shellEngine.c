@@ -1345,13 +1345,11 @@ void *shellThreadLoop(void *arg) {
 
 bool inputTotpCode(char *totpCode) {
   bool ret = true;
-  printf("Login need verify TOTP code, please enter TOTP code: ");
-  taosSetConsoleEcho(false);
+  printf("Need verify TOTP code, please enter: ");
   if (scanf("%255s", totpCode) != 1) {
     fprintf(stderr, "TOTP code reading error\n");
     ret = false;
   }
-  taosSetConsoleEcho(true);
   if (EOF == getchar()) {
     // tip
     fprintf(stdout, "getchar() return EOF\r\n");    
@@ -1407,7 +1405,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
         char totpCode[TSDB_USER_PASSWORD_LONGLEN];
         memset(totpCode, 0, sizeof(totpCode));  
         if (inputTotpCode(totpCode)) {
-          printf("\nConnect with TOTP code:%s\n", totpCode);
+          printf("\nConnect with TOTP code:%s ...\n", totpCode);
           taos = taos_connect_totp(host, user, pwd, totpCode, pArgs->database, port);
         }
       }
