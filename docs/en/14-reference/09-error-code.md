@@ -661,6 +661,16 @@ Below are the business error codes for each module.
 | 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
+#### audit
+
+| Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
+|------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006104 | Audit database wal_level must be 2                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006106 | Audit database already exist                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006107 | Audit database is not allowed to change                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+
 #### virtual table
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |

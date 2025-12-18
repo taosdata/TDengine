@@ -15,10 +15,10 @@
 
 #include "parUtil.h"
 #include "cJSON.h"
+#include "decimal.h"
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
-#include "decimal.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -629,7 +629,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   const char* valueStr = NULL;
   int32_t     valueLen = 0;
 
-  if (pVal->placeholderNo != 0) {
+  if ((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) && pVal->placeholderNo != 0) {
     if (NULL == pVal->datum.p) {
       qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
              pVal->placeholderNo, pCol->colName, pVal->literal ? pVal->literal : "NULL");
@@ -1622,7 +1622,6 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   }
   return code;
 }
-
 
 int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pOutput) {
   char    fullName[TSDB_TABLE_FNAME_LEN];

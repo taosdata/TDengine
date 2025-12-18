@@ -534,6 +534,8 @@ static int32_t creatTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SMnode *     pMnode = pReq->info.node;
+  int64_t      tss = taosGetTimestampMs();
+
   PRINT_LOG_START
   mInfo("topic:%s start to create, sql:%s", createTopicReq->name, createTopicReq->sql);
   code = mndAcquireTopic(pMnode, createTopicReq->name, &pTopic);
@@ -564,9 +566,13 @@ static int32_t creatTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
 
   MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
   MND_TMQ_RETURN_CHECK(mndCreateTopic(pMnode, pReq, createTopicReq, pDb, pReq->info.conn.user));
-
-  auditRecord(pReq, pMnode->clusterId, "createTopic", createTopicReq->subDbName, createTopicReq->name,
-              createTopicReq->sql, strlen(createTopicReq->sql));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createTopic", createTopicReq->subDbName, createTopicReq->name,
+                createTopicReq->sql, strlen(createTopicReq->sql), duration, 0);
+  }
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 END:
@@ -585,6 +591,7 @@ static int32_t reloadTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   int32_t      lino = 0;
   SDbObj *     pDb = NULL;
   SMqTopicObj *pTopic = NULL;
+  int64_t      tss = taosGetTimestampMs();
 
   PRINT_LOG_START
   code = mndAcquireTopic(pMnode, createTopicReq->name, &pTopic);
@@ -605,8 +612,14 @@ static int32_t reloadTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
   MND_TMQ_RETURN_CHECK(mndReloadTopic(pMnode, pReq, createTopicReq, pDb, pReq->info.conn.user, pTopic));
 
-  auditRecord(pReq, pMnode->clusterId, "reloadTopic", createTopicReq->subDbName, createTopicReq->name,
-              createTopicReq->sql, strlen(createTopicReq->sql));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "reloadTopic", createTopicReq->subDbName, createTopicReq->name,
+                createTopicReq->sql, strlen(createTopicReq->sql), duration, 0);
+  }
+
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (topicsToReload == NULL) {
@@ -760,10 +773,10 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   SName          name = {0};
   int32_t        code = 0;
   int32_t        lino = 0;
-  SMqTopicObj   *pTopic = NULL;
-  STrans        *pTrans = NULL;
+  SMqTopicObj *  pTopic = NULL;
+  STrans *       pTrans = NULL;
   SUserObj      *pOperUser = NULL;
-
+  int64_t        tss = taosGetTimestampMs();
 
   PRINT_LOG_START
   MND_TMQ_RETURN_CHECK(tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq));
@@ -796,7 +809,14 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropTopic(pMnode, pTrans, pReq, pTopic));
-  auditRecord(pReq, pMnode->clusterId, "dropTopic", pTopic->db, dropReq.name, dropReq.sql, dropReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropTopic", pTopic->db, dropReq.name, dropReq.sql, dropReq.sqlLen, duration,
+                0);
+  }
+
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 END:

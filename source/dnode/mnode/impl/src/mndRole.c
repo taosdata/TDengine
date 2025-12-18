@@ -602,6 +602,7 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   SUserObj      *pOperUser = NULL;
   SUserObj      *pUser = NULL;
   SCreateRoleReq createReq = {0};
+  int64_t        tss = taosGetTimestampMs();
 
   if (tDeserializeSCreateRoleReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
@@ -637,12 +638,18 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   if (pUser != NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_ALREADY_EXIST);
   }
-  code = mndCreateRole(pMnode, pOperUser->acct, &createReq, pReq);
+  TAOS_CHECK_EXIT(mndCreateRole(pMnode, pOperUser->acct, &createReq, pReq));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char    detail[128] = {0};
-  int32_t len = snprintf(detail, sizeof(detail), "operUser:%s", pOperUser->user);
-  auditRecord(pReq, pMnode->clusterId, "createRole", "", createReq.name, detail, len);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char    detail[128] = {0};
+    int32_t len = snprintf(detail, sizeof(detail), "operUser:%s", pOperUser->user);
+
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createRole", "", createReq.name, detail, strlen(detail), duration, 0);
+  }
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("role:%s, failed to create at line %d since %s", createReq.name, lino, tstrerror(code));
@@ -691,6 +698,7 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   SRoleObj    *pObj = NULL;
   SUserObj    *pOperUser = NULL;
   SDropRoleReq dropReq = {0};
+  int64_t      tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSDropRoleReq(pReq->pCont, pReq->contLen, &dropReq));
   code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
@@ -710,7 +718,12 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndDropRole(pMnode, pReq, pObj));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "dropRole", "", dropReq.name, dropReq.sql, dropReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropRole", "", dropReq.name, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("role:%s, failed to drop at line %d since %s", dropReq.name, lino, tstrerror(code));
@@ -803,6 +816,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   SUserObj     *pOperUser = NULL;
   SAlterRoleReq alterReq = {0};
   bool          alterUser = false;
+  int64_t       tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSAlterRoleReq(pReq->pCont, pReq->contLen, &alterReq));
 
@@ -838,7 +852,14 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
     mndSetRoleLastUpd(taosGetTimestampMs());
   }
-  auditRecord(pReq, pMnode->clusterId, "alterRole", "", alterReq.principal, alterReq.sql, alterReq.sqlLen);
+
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "alterRole", "", alterReq.principal, alterReq.sql, alterReq.sqlLen, duration,
+                0);
+  }
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("role:%s, failed to alter at line %d since %s", alterReq.principal, lino, tstrerror(code));

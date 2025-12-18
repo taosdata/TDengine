@@ -450,6 +450,7 @@ static SKeyword keywordTable[] = {
     {"ALGR_TYPE",            TK_ALGR_TYPE},
     {"ENCRYPT_ALGR",         TK_ENCRYPT_ALGR},
     {"OSSL_ALGR_NAME",       TK_OSSL_ALGR_NAME},
+    {"IS_AUDIT",       TK_IS_AUDIT},
 };
 // clang-format on
 
