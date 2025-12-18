@@ -1002,10 +1002,10 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       // skip db, table, condition, notes, row_span, columns
       COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, "SYS", pShow->pMeta->pSchemas[cols].bytes);
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(PRIV_OBJ_CLUSTER), pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
-      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 1);
+
       numOfRows++;
     }
 
@@ -1050,11 +1050,6 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         // skip condition, notes, row_span, columns
         COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, "OBJ", pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
 
         if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
           STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(objType), pShow->pMeta->pSchemas[cols].bytes);
