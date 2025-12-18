@@ -460,8 +460,8 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
       }
     }
   }
-  pStmt->hasPrivilege = (code == TSDB_CODE_SUCCESS) ? true : false;
-  return 0;
+
+  return code;
 }
 
 static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {

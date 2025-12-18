@@ -363,7 +363,6 @@ typedef struct SDropTableStmt {
   SNodeList* pTables;
   bool       withTsma;
   bool       withOpt;
-  bool       hasPrivilege;
 } SDropTableStmt;
 
 typedef struct SDropSuperTableStmt {
