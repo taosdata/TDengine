@@ -300,24 +300,25 @@ typedef struct {
 
 typedef struct {
   int32_t  id;
-  int32_t  nameLen;
-  char*    name;
-  int32_t  sourceType;
-  int32_t  sourceDsnLen;
-  char*    sourceDsn;
-  int32_t  sinkType;
-  int32_t  sinkDsnLen;
-  char*    sinkDsn;
-  int32_t  parserLen;
-  char*    parser;
   int32_t  via;
   int32_t  xnodeId;
   int32_t  jobs;
-  int32_t  status;
-  int32_t  reasonLen;
-  char*    reason;
   int64_t  createTime;
   int64_t  updateTime;
+  int32_t  sourceType;
+  int32_t  sinkType;
+  int32_t  nameLen;
+  int32_t  sourceDsnLen;
+  int32_t  sinkDsnLen;
+  int32_t  parserLen;
+  int32_t  statusLen;
+  int32_t  reasonLen;
+  char*    name;
+  char*    sourceDsn;
+  char*    sinkDsn;
+  char*    parser;
+  char*    status;
+  char*    reason;
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
@@ -330,7 +331,8 @@ typedef struct {
   char*    config;
   int32_t  via;
   int32_t  xnodeId;
-  int32_t  status;
+  int32_t  statusLen;
+  char*    status;
   int32_t  reasonLen;
   char*    reason;
   int64_t  createTime;

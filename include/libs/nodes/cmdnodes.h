@@ -568,6 +568,10 @@ typedef struct {
   int32_t            tid;
   SXnodeTaskOptions* options;
 } SDropXnodeJobStmt;
+typedef struct {
+  ENodeType type;
+  SNode*    pWhere;
+} SRebalanceXnodeJobWhereStmt;
 
 typedef struct SShowStmt {
   ENodeType     type;

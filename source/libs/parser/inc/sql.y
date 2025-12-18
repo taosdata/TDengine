@@ -220,8 +220,6 @@ xnode_task_to_opt(A) ::= TO xnode_task_sink(B).                                 
 
 cmd ::= CREATE XNODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateXnodeStmt(pCxt, &A); }
 cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
-//cmd ::= UPDATE XNODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, &A, false); }
-//cmd ::= UPDATE ALL XNODES.                                                        { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, NULL, true); }
 cmd ::= DROP XNODE xnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, B); }
 cmd ::= DROP XNODE FORCE xnode_endpoint(A).                                       { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, true); }
 
@@ -250,6 +248,10 @@ cmd ::= STOP XNODE xnode_resource_type(A) NK_INTEGER(B).                        
 /* rebalance xnode job 1 with xnode_id 3;*/
 cmd ::= REBALANCE XNODE xnode_resource_type(A) NK_INTEGER(B) with_task_options_opt(C).
                                                                                    { pCxt->pRootNode = createRebalanceXnodeJobStmt(pCxt, A, &B, C); }
+cmd ::= REBALANCE XNODE xnode_resource_type(A) where_clause_opt(B).
+                                                                                   { pCxt->pRootNode = createRebalanceXnodeJobWhereStmt(pCxt, A, B); }
+                                                                                   
+//cmd ::= SHOW XNODE xnode_resource_type(A) where_clause_opt(B).                    { pCxt->pRootNode = createShowXNodeResourcesWhereStmt(pCxt, A, B); }
 
 /* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
 cmd ::= ALTER XNODE xnode_resource_type(A) NK_INTEGER(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).

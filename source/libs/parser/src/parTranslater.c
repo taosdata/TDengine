@@ -12457,24 +12457,24 @@ static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const c
   return NULL;
 }
 
-static int32_t xnodeTaskStatusStrToNum(const char* status) {
-  if (status == NULL) {
-    return -1;
-  }
+// static int32_t xnodeTaskStatusStrToNum(const char* status) {
+//   if (status == NULL) {
+//     return -1;
+//   }
 
-  static const struct {
-    const char* str;
-    int         value;
-  } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
-             {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
+//   static const struct {
+//     const char* str;
+//     int         value;
+//   } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
+//              {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
 
-  for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
-    if (strcasecmp(status, map[i].str) == 0) {
-      return map[i].value;
-    }
-  }
-  return -1;
-}
+//   for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+//     if (strcasecmp(status, map[i].str) == 0) {
+//       return map[i].value;
+//     }
+//   }
+//   return -1;
+// }
 
 static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
   SMCreateXnodeReq createReq = {0};
@@ -12567,8 +12567,12 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger), pOptions->trigger, true);
   pOpts->health = xCreateCowStr(strlen(pOptions->health), pOptions->health, true);
   pOpts->parser = xCreateCowStr(strlen(pOptions->parser), pOptions->parser, true);
-  pOpts->optionsNum = pOptions->optionsNum;
+  // const char* reason = getXnodeTaskOptionByName(pOptions, "reason");
+  // if (reason != NULL) {
+  //   pOpts->reason = xCreateCowStr(strlen(reason), reason, false);
+  // }
 
+  pOpts->optionsNum = pOptions->optionsNum;
   for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
     const char* option = pOptions->options[i];
     if (option != NULL) {
@@ -12583,8 +12587,13 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
   createReq.source = xCloneTaskSourceRef(&pStmt->source->source);
   createReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL && strlen(status) > TSDB_XNODE_STATUS_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                   "Invalid option: status too long");
+  }
   covertXNodeTaskOptions(pStmt->options, &createReq.options);
-  // printXnodeTaskOptions(&createReq.options);
 
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_TASK, (FSerializeFunc)tSerializeSMCreateXnodeTaskReq, &createReq);
@@ -12640,7 +12649,7 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     updateReq.via = pStmt->options->via;
     const char* name = getXnodeTaskOptionByName(pStmt->options, "name");
     if (name != NULL) {
-      updateReq.name = xCreateCowStr(strlen(name), name, false);
+      updateReq.name = xCreateCowStr(strlen(name) + 1, name, false);
     }
     const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
     if (xnodeId != NULL) {
@@ -12648,7 +12657,11 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     }
     const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
     if (status != NULL) {
-      updateReq.status = xnodeTaskStatusStrToNum(status);
+      if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                       "Invalid option: status too long");
+      }
+      updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
     }
     const char* jobs = getXnodeTaskOptionByName(pStmt->options, "jobs");
     if (jobs != NULL) {
@@ -12656,11 +12669,11 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     }
     const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
     if (parser != NULL) {
-      updateReq.parser = xCreateCowStr(strlen(parser), parser, false);
+      updateReq.parser = xCreateCowStr(strlen(parser) + 1, parser, false);
     }
     const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
     if (reason != NULL) {
-      updateReq.reason = xCreateCowStr(strlen(reason), reason, false);
+      updateReq.reason = xCreateCowStr(strlen(reason) + 1, reason, false);
     }
   }
 
@@ -12685,10 +12698,10 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
 
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
   if (status != NULL) {
-    createReq.status = xnodeTaskStatusStrToNum(status);
-    if (createReq.status < 0) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status");
+    if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status too long");
     }
+    createReq.status = xCreateCowStr(strlen(status) + 1, status, false);
   }
 
   createReq.configLen = strlen(config) + 1;
@@ -12732,10 +12745,11 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
 
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
   if (status != NULL) {
-    updateReq.status = xnodeTaskStatusStrToNum(status);
-    if (updateReq.status < 0) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status");
+    if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                     "Invalid option: status too long");
     }
+    updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
   }
 
   const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
@@ -12783,6 +12797,26 @@ static int32_t translateRebalanceXnodeJob(STranslateContext* pCxt, SRebalanceXno
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq, &rebalanceReq);
   tFreeSMRebalanceXnodeJobReq(&rebalanceReq);
+  return code;
+}
+
+static int32_t translateRebalanceXnodeJobWhere(STranslateContext* pCxt, SRebalanceXnodeJobWhereStmt* pStmt) {
+  int32_t                     code = 0;
+  SMRebalanceXnodeJobWhereReq rebalanceReq = {0};
+
+  // const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  // if (xnodeId == NULL) {
+  //   return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: xnode_id");
+  // }
+  char    buf[512] = {0};
+  int32_t astLen = 0;
+  TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, false, (char**)&buf, &astLen), NULL, _exit);
+  printf("xxxzgc *** node ast: %s, astLen: %d\n", buf, astLen);
+
+  code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq,
+                     &rebalanceReq);
+  tFreeSMRebalanceXnodeJobWhereReq(&rebalanceReq);
+_exit:
   return code;
 }
 
@@ -16813,6 +16847,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_REBALANCE_XNODE_JOB_STMT:
       code = translateRebalanceXnodeJob(pCxt, (SRebalanceXnodeJobStmt*)pNode);
+      break;
+    case QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT:
+      code = translateRebalanceXnodeJobWhere(pCxt, (SRebalanceXnodeJobWhereStmt*)pNode);
       break;
     case QUERY_NODE_DROP_XNODE_JOB_STMT:
       code = translateDropXnodeJob(pCxt, (SDropXnodeJobStmt*)pNode);

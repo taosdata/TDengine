@@ -497,8 +497,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateXnodeStmt";
     case QUERY_NODE_DROP_XNODE_STMT:
       return "DropXnodeStmt";
-    case QUERY_NODE_UPDATE_XNODE_STMT:
-      return "UpdateXnodeStmt";
+    // case QUERY_NODE_UPDATE_XNODE_STMT:
+    //   return "UpdateXnodeStmt";
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       return "ShowXnodeJobsStmt";
     default:
@@ -9834,8 +9834,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_XNODE_STMT:
       return dropXnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_UPDATE_XNODE_STMT:
-      return updateXnodeStmtToJson(pObj, pJson);
+    // case QUERY_NODE_UPDATE_XNODE_STMT:
+    //   return updateXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       return createXnodeTaskStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_XNODE_TASK_STMT:

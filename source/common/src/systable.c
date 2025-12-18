@@ -531,7 +531,7 @@ static const SSysDbTableSchema mountSchema[] = {
 static const SSysDbTableSchema xnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "url", .bytes = TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
@@ -547,7 +547,7 @@ static const SSysDbTableSchema xnodeTasksSchema[] = {
     {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "jobs", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "status", .bytes = TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "reason", .bytes = TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
@@ -559,7 +559,7 @@ static const SSysDbTableSchema xnodeTaskJobSchema[] = {
     {.name = "config", .bytes = TSDB_XNODE_TASK_JOB_CONFIG_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "status", .bytes = TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "reason", .bytes = TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},

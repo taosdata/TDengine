@@ -429,24 +429,25 @@ typedef enum ENodeType {
   QUERY_NODE_RECALCULATE_STREAM_STMT,
   QUERY_NODE_CREATE_BNODE_STMT,
   QUERY_NODE_DROP_BNODE_STMT,
-  QUERY_NODE_CREATE_XNODE_STMT,         // XNode
-  QUERY_NODE_DROP_XNODE_STMT,           // XNode
-  QUERY_NODE_DRAIN_XNODE_STMT,          // XNode
-  QUERY_NODE_UPDATE_XNODE_STMT,         // XNode
-  QUERY_NODE_XNODE_TASK_OPTIONS,        // XNode task options
-  QUERY_NODE_XNODE_TASK_SOURCE_OPT,     // XNode task source
-  QUERY_NODE_XNODE_TASK_SINK_OPT,       // XNode task sink
-  QUERY_NODE_CREATE_XNODE_TASK_STMT,    // XNode task
-  QUERY_NODE_START_XNODE_TASK_STMT,     // XNode task
-  QUERY_NODE_STOP_XNODE_TASK_STMT,      // XNode task
-  QUERY_NODE_UPDATE_XNODE_TASK_STMT,    // XNode task
-  QUERY_NODE_DROP_XNODE_TASK_STMT,      // XNode task
-  QUERY_NODE_CREATE_XNODE_JOB_STMT,     // XNode task job
-  QUERY_NODE_ALTER_XNODE_JOB_STMT,      // XNode task
-  QUERY_NODE_REBALANCE_XNODE_JOB_STMT,  // XNode task
-  QUERY_NODE_DROP_XNODE_JOB_STMT,       // XNode task job
-  QUERY_NODE_CREATE_XNODE_AGENT_STMT,   // XNode agent
-  QUERY_NODE_DROP_XNODE_AGENT_STMT,     // XNode agent
+  QUERY_NODE_CREATE_XNODE_STMT,  // XNode
+  QUERY_NODE_DROP_XNODE_STMT,    // XNode
+  QUERY_NODE_DRAIN_XNODE_STMT,   // XNode
+  // QUERY_NODE_UPDATE_XNODE_STMT,               // XNode
+  QUERY_NODE_XNODE_TASK_OPTIONS,              // XNode task options
+  QUERY_NODE_XNODE_TASK_SOURCE_OPT,           // XNode task source
+  QUERY_NODE_XNODE_TASK_SINK_OPT,             // XNode task sink
+  QUERY_NODE_CREATE_XNODE_TASK_STMT,          // XNode task
+  QUERY_NODE_START_XNODE_TASK_STMT,           // XNode task
+  QUERY_NODE_STOP_XNODE_TASK_STMT,            // XNode task
+  QUERY_NODE_UPDATE_XNODE_TASK_STMT,          // XNode task
+  QUERY_NODE_DROP_XNODE_TASK_STMT,            // XNode task
+  QUERY_NODE_CREATE_XNODE_JOB_STMT,           // XNode task job
+  QUERY_NODE_ALTER_XNODE_JOB_STMT,            // XNode task
+  QUERY_NODE_REBALANCE_XNODE_JOB_STMT,        // XNode task
+  QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT,  // XNode task
+  QUERY_NODE_DROP_XNODE_JOB_STMT,             // XNode task job
+  QUERY_NODE_CREATE_XNODE_AGENT_STMT,         // XNode agent
+  QUERY_NODE_DROP_XNODE_AGENT_STMT,           // XNode agent
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -3158,9 +3159,10 @@ int32_t     xDeserializeTaskSink(SDecoder* decoder, xTaskSink* sink);
 
 typedef struct {
   int32_t via;
+  CowStr  parser;
+  // CowStr  reason;
   CowStr  trigger;
   CowStr  health;
-  CowStr  parser;
   int32_t optionsNum;
   CowStr  options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];
 } xTaskOptions;
@@ -3192,7 +3194,7 @@ typedef struct {
   CowStr      name;
   int32_t     via;
   int32_t     xnodeId;
-  int32_t     status;
+  CowStr      status;
   int32_t     jobs;
   xTaskSource source;
   xTaskSink   sink;
@@ -3234,7 +3236,7 @@ typedef struct {
   int32_t tid;
   int32_t via;
   int32_t xnodeId;
-  int32_t status;
+  CowStr  status;
   int32_t configLen;
   int32_t reasonLen;
   int32_t sqlLen;
@@ -3250,7 +3252,7 @@ typedef struct {
   int32_t jid;
   int32_t via;
   int32_t xnodeId;
-  int32_t status;
+  CowStr  status;
   int32_t configLen;
   int32_t reasonLen;
   int32_t sqlLen;
@@ -3271,6 +3273,16 @@ typedef struct {
 int32_t tSerializeSMRebalanceXnodeJobReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobReq* pReq);
 int32_t tDeserializeSMRebalanceXnodeJobReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobReq* pReq);
 void    tFreeSMRebalanceXnodeJobReq(SMRebalanceXnodeJobReq* pReq);
+
+typedef struct {
+  int32_t astLen;
+  int32_t sqlLen;
+  char*   ast;
+  char*   sql;
+} SMRebalanceXnodeJobWhereReq;
+int32_t tSerializeSMRebalanceXnodeJobWhereReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobWhereReq* pReq);
+int32_t tDeserializeSMRebalanceXnodeJobWhereReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobWhereReq* pReq);
+void    tFreeSMRebalanceXnodeJobWhereReq(SMRebalanceXnodeJobWhereReq* pReq);
 
 typedef struct {
   int32_t jid;

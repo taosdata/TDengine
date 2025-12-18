@@ -4143,20 +4143,20 @@ _err:
   return NULL;
 }
 
-SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll) {
-  CHECK_PARSER_STATUS(pCxt);
-  SUpdateXnodeStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_XNODE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  if (NULL != pXnode) {
-    pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
-  } else {
-    pStmt->xnodeId = -1;
-  }
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
+// SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll) {
+//   CHECK_PARSER_STATUS(pCxt);
+//   SUpdateXnodeStmt* pStmt = NULL;
+//   pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_XNODE_STMT, (SNode**)&pStmt);
+//   CHECK_MAKE_NODE(pStmt);
+//   if (NULL != pXnode) {
+//     pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+//   } else {
+//     pStmt->xnodeId = -1;
+//   }
+//   return (SNode*)pStmt;
+// _err:
+//   return NULL;
+// }
 
 EXnodeResourceType setXnodeResourceType(SAstCreateContext* pCxt, const SToken* pResourceId) {
   CHECK_PARSER_STATUS(pCxt);
@@ -4337,6 +4337,7 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+    printf("xxxzgc ** name: %s, len:%d, z:%s\n", pTaskStmt->name, pResourceName->n, pResourceName->z);
   } else if (pResourceName->type == TK_NK_ID) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else {
@@ -4356,7 +4357,6 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   if (pNode != NULL) {
     if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
       SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
-      // printXnodeTaskOptions(&options->opts);
       pTaskStmt->options = options;
     }
   }
@@ -4503,9 +4503,6 @@ SNode* rebalanceXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToke
   }
   return (SNode*)pJobStmt;
 _err:
-  if (pStmt != NULL) {
-    nodesDestroyNode(pStmt);
-  }
   return NULL;
 }
 
@@ -4516,6 +4513,52 @@ SNode* createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType r
   switch (resourceType) {
     case XNODE_JOB: {
       return rebalanceXnodeJobWithOptionsDirectly(pCxt, resourceId, pNodeOptions);
+    }
+    default:
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Invalid xnode resource type: %d, rebalance only support job", resourceType);
+      goto _err;
+  }
+_err:
+  return NULL;
+}
+
+SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
+  int32_t code = 0;
+  SNode*  pStmt = NULL;
+  if (pWhere == NULL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode jobs where clause should not be NULL");
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  printf("xxxzgc *** where nodetype: %d\n", nodeType(pWhere));
+  SRebalanceXnodeJobWhereStmt* pJobStmt = (SRebalanceXnodeJobWhereStmt*)pStmt;
+
+  // SBuildTopicContext colCxt = {.colExists = false, .colNotFound = false, .pMeta = pMeta, .pTags = NULL};
+  // nodesWalkExprPostOrder(pStmt->pWhere, checkColumnTagsInCond, &colCxt);
+
+  // SNode** ppWhere = &((SSelectStmt*)*pJobStmt->query)->pWhere;
+  // code = nodesCloneNode(pStmt->pWhere, ppWhere);
+  // COPY_STRING_FORM_ID_TOKEN(buf, pWhere);
+  // printf("rebalance xnode job where clause: %s\n", buf);
+  pJobStmt->pWhere = pWhere;
+
+  return (SNode*)pJobStmt;
+_err:
+  return NULL;
+}
+
+SNode* createRebalanceXnodeJobWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (resourceType) {
+    case XNODE_JOB: {
+      return rebalanceXnodeJobWhereDirectly(pCxt, pWhere);
     }
     default:
       pCxt->errCode =
@@ -4606,7 +4649,6 @@ SNode* alterXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* p
 
   if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
     SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
-    // printXnodeTaskOptions(&options->opts);
     pJobStmt->options = options;
   }
   return (SNode*)pJobStmt;

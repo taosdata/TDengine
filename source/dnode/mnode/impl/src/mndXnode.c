@@ -45,15 +45,6 @@ typedef struct {
   char   *data;
   int64_t dataLen;
 } SCurlResp;
-typedef enum {
-  XNODE_STATUS_STOPPED = 0,
-  XNODE_STATUS_RUNNING,
-  XNODE_STATUS_FAILED,
-  XNODE_STATUS_SUCCEEDED,
-} ETaskStatus,
-    EJobStatus;
-
-static const char *gXnodeStatusStr[] = {"Stopped", "Running", "Failed", "Succeeded"};
 
 const int32_t defaultTimeout = 5000;
 
@@ -289,6 +280,8 @@ static SSdbRow *mndXnodeActionDecode(SSdbRaw *pRaw) {
     pObj->url = taosMemoryCalloc(pObj->urlLen, 1);
     if (pObj->url == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pObj->url, pObj->urlLen, _OVER)
+  } else {
+    pObj->url = NULL;
   }
   SDB_GET_INT32(pRaw, dataPos, &pObj->status, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->createTime, _OVER)
@@ -543,6 +536,7 @@ static void mndFreeXnodeTask(SXnodeTaskObj *pObj) {
   taosMemoryFreeClear(pObj->sinkDsn);
   taosMemoryFreeClear(pObj->parser);
   taosMemoryFreeClear(pObj->reason);
+  taosMemoryFreeClear(pObj->status);
 }
 
 static SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
@@ -559,7 +553,8 @@ static SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   SDB_SET_INT32(pRaw, dataPos, pObj->id, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->createTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pObj->status, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->statusLen, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->status, pObj->statusLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->via, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->xnodeId, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->jobs, _OVER)
@@ -575,7 +570,6 @@ static SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   SDB_SET_BINARY(pRaw, dataPos, pObj->parser, pObj->parserLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->reasonLen, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->reason, pObj->reasonLen, _OVER)
-  // xxxzgc todo: add labels
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
 
@@ -617,7 +611,13 @@ static SSdbRow *mndXnodeTaskActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pObj->id, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->createTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pObj->status, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pObj->statusLen, _OVER)
+  if (pObj->statusLen > 0) {
+    pObj->status = taosMemoryCalloc(pObj->statusLen + 1, 1);
+    if (pObj->status == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pObj->status, pObj->statusLen, _OVER)
+  }
+
   SDB_GET_INT32(pRaw, dataPos, &pObj->via, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pObj->xnodeId, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pObj->jobs, _OVER)
@@ -672,6 +672,7 @@ _OVER:
       taosMemoryFreeClear(pObj->sinkDsn);
       taosMemoryFreeClear(pObj->parser);
       taosMemoryFreeClear(pObj->reason);
+      taosMemoryFreeClear(pObj->status);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -711,7 +712,7 @@ static int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeT
   pOld->via = pNew->via;
   pOld->xnodeId = pNew->xnodeId;
   pOld->jobs = pNew->jobs;
-  pOld->status = pNew->status;
+  swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
   swapFields(&pNew->nameLen, &pNew->name, &pOld->nameLen, &pOld->name);
   swapFields(&pNew->sourceDsnLen, &pNew->sourceDsn, &pOld->sourceDsnLen, &pOld->sourceDsn);
   swapFields(&pNew->sinkDsnLen, &pNew->sinkDsn, &pOld->sinkDsnLen, &pOld->sinkDsn);
@@ -765,6 +766,17 @@ void mndReleaseXnodeTask(SMnode *pMnode, SXnodeTaskObj *pObj) {
   sdbRelease(pSdb, pObj);
 }
 
+static const char *getXTaskOptionByName(xTaskOptions *pOptions, const char *name) {
+  if (pOptions == NULL || name == NULL) return NULL;
+  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+    CowStr option = pOptions->options[i];
+    if (option.ptr != NULL && strncasecmp(option.ptr, name, strlen(name)) == 0 && option.ptr[strlen(name)] == '=') {
+      return option.ptr + strlen(name) + 1;
+    }
+  }
+  return NULL;
+}
+
 static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreate) {
   int32_t code = -1;
   STrans *pTrans = NULL;
@@ -774,7 +786,6 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   xnodeObj.createTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createTime;
   xnodeObj.via = pCreate->options.via;
-  xnodeObj.status = XNODE_STATUS_STOPPED;
   xnodeObj.xnodeId = -1;
   xnodeObj.jobs = 0;
 
@@ -801,6 +812,13 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   (void)memcpy(xnodeObj.parser, pCreate->options.parser.ptr, pCreate->options.parser.len);
 
   mDebug("create xnode task, id:%d, name: %s, time:%ld", xnodeObj.id, xnodeObj.name, xnodeObj.createTime);
+  const char *status = getXTaskOptionByName(&pCreate->options, "status");
+  if (status != NULL) {
+    xnodeObj.statusLen = strlen(status) + 1;
+    xnodeObj.status = taosMemoryCalloc(1, xnodeObj.statusLen);
+    if (xnodeObj.status == NULL) goto _OVER;
+    (void)memcpy(xnodeObj.status, status, xnodeObj.statusLen);
+  }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode-task");
   if (pTrans == NULL) {
@@ -830,7 +848,7 @@ _OVER:
 
 // Helper function to validate grant and permissions
 static int32_t mndValidateXnodeTaskPermissions(SMnode *pMnode, SRpcMsg *pReq) {
-  int32_t code = grantCheck(TSDB_GRANT_TD_GPT);  // xxxzgc todo: check xnode task grant
+  int32_t code = grantCheck(TSDB_GRANT_XNODE);  // xxxzgc todo: check xnode task grant
   if (code != TSDB_CODE_SUCCESS) {
     mError("failed to create xnode, code:%s", tstrerror(code));
     return code;
@@ -1049,11 +1067,15 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
   if (pUpdate->xnodeId > 0) {
     taskObj.xnodeId = pUpdate->xnodeId;
   }
-  if (pUpdate->status >= 0) {
-    taskObj.status = pUpdate->status;
-  }
   if (pUpdate->jobs >= 0) {
     taskObj.jobs = pUpdate->jobs;
+  }
+
+  if (pUpdate->status.len > 0) {
+    taskObj.statusLen = pUpdate->status.len;
+    taskObj.status = taosMemoryCalloc(1, taskObj.statusLen);
+    if (taskObj.status == NULL) goto _OVER;
+    (void)memcpy(taskObj.status, pUpdate->status.ptr, taskObj.statusLen);
   }
   if (pUpdate->name.len > 0) {
     taskObj.nameLen = pUpdate->name.len;
@@ -1138,7 +1160,6 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeTaskReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
-  mInfo("xxxzgc *** after deserialize, name:%s", updateReq.name.ptr);
 
   pObj = mndAcquireXnodeTaskById(pMnode, updateReq.tid);
   if (pObj == NULL) {
@@ -1710,10 +1731,10 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SXnodeObj *pObj = NULL;
-  char       buf[128 + VARSTR_HEADER_SIZE];
-  char       status[64];
+  char       buf[TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE];
+  char       status[TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE];
   int32_t    code = 0;
-  mInfo("show.type:%d, %s:%d: retrieve xnodes with rows: %d", pShow->type, __FILE__, __LINE__, rows);
+  mDebug("show.type:%d, %s:%d: retrieve xnodes with rows: %d", pShow->type, __FILE__, __LINE__, rows);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_XNODE, pShow->pIter, (void **)&pObj);
@@ -1730,7 +1751,7 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (code != 0) goto _end;
 
     status[0] = 0;
-    if (mndGetXnodeStatus(pObj, status, 64) == 0) {
+    if (mndGetXnodeStatus(pObj, status, TSDB_XNODE_STATUS_LEN) == 0) {
       STR_TO_VARSTR(buf, status);
     } else {
       STR_TO_VARSTR(buf, "offline");
@@ -1773,7 +1794,7 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
            TMAX(TSDB_XNODE_TASK_NAME_LEN,
                           TMAX(TSDB_XNODE_TASK_SOURCE_LEN, TMAX(TSDB_XNODE_TASK_SINK_LEN, TSDB_XNODE_TASK_PARSER_LEN)))];
   int32_t        code = 0;
-  mInfo("show.type:%d, %s:%d: retrieve xnode tasks with rows: %d", pShow->type, __FILE__, __LINE__, rows);
+  mDebug("show.type:%d, %s:%d: retrieve xnode tasks with rows: %d", pShow->type, __FILE__, __LINE__, rows);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_XNODE_TASK, pShow->pIter, (void **)&pObj);
@@ -1787,31 +1808,31 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (code != 0) goto _end;
 
     // name
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     buf[0] = 0;
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
     if (code != 0) goto _end;
 
     // from
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     buf[0] = 0;
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sourceDsn, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
     if (code != 0) goto _end;
 
     // to
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     buf[0] = 0;
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sinkDsn, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
     if (code != 0) goto _end;
 
     // parser
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pObj->parserLen > 0) {
       buf[0] = 0;
       STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->parser, pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
       if (code != 0) goto _end;
     } else {
@@ -1834,20 +1855,26 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (code != 0) goto _end;
 
     // status
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    buf[0] = 0;
-    STR_TO_VARSTR(buf, gXnodeStatusStr[pObj->status]);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-    if (code != 0) goto _end;
-
-    // reason
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pObj->reasonLen > 0) {
+    if (pObj->statusLen > 0) {
       buf[0] = 0;
-      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->reason, pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->status, pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
       if (code != 0) goto _end;
     } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, numOfRows);
+    }
+
+    // reason
+    if (pObj->reasonLen > 0) {
+      buf[0] = 0;
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->reason, pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      if (code != 0) goto _end;
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetNULL(pColInfo, numOfRows);
     }
 
@@ -1884,6 +1911,9 @@ static void mndFreeXnodeJob(SXnodeJobObj *pObj) {
   if (NULL != pObj->reason) {
     taosMemoryFreeClear(pObj->reason);
   }
+  if (NULL != pObj->status) {
+    taosMemoryFreeClear(pObj->status);
+  }
 }
 
 static SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
@@ -1905,7 +1935,8 @@ static SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
   SDB_SET_BINARY(pRaw, dataPos, pObj->config, pObj->configLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->via, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->xnodeId, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pObj->status, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->statusLen, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->status, pObj->statusLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->reasonLen, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->reason, pObj->reasonLen, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->createTime, _OVER)
@@ -1961,7 +1992,12 @@ static SSdbRow *mndXnodeJobActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &pObj->via, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pObj->xnodeId, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pObj->status, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pObj->statusLen, _OVER)
+  if (pObj->statusLen > 0) {
+    pObj->status = taosMemoryCalloc(pObj->statusLen, 1);
+    if (pObj->status == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pObj->status, pObj->statusLen, _OVER)
+  }
 
   SDB_GET_INT32(pRaw, dataPos, &pObj->reasonLen, _OVER)
   if (pObj->reasonLen > 0) {
@@ -2010,23 +2046,9 @@ static int32_t mndXnodeJobActionUpdate(SSdb *pSdb, SXnodeJobObj *pOld, SXnodeJob
   taosWLockLatch(&pOld->lock);
   pOld->via = pNew->via;
   pOld->xnodeId = pNew->xnodeId;
-  pOld->status = pNew->status;
-  if (pNew->configLen > 0) {
-    int32_t newLen = pNew->configLen;
-    pNew->configLen = pOld->configLen;
-    pOld->configLen = newLen;
-    char *newConfig = pNew->config;
-    pNew->config = pOld->config;
-    pOld->config = newConfig;
-  }
-  if (pNew->reasonLen > 0) {
-    int32_t newLen = pNew->reasonLen;
-    pNew->reasonLen = pOld->reasonLen;
-    pOld->reasonLen = newLen;
-    char *newReason = pNew->reason;
-    pNew->reason = pOld->reason;
-    pOld->reason = newReason;
-  }
+  swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
+  swapFields(&pNew->configLen, &pNew->config, &pOld->configLen, &pOld->config);
+  swapFields(&pNew->reasonLen, &pNew->reason, &pOld->reasonLen, &pOld->reason);
   pOld->updateTime = pNew->updateTime;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -2206,7 +2228,14 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
 
   jobObj.via = pCreate->via;
   jobObj.xnodeId = pCreate->xnodeId;
-  jobObj.status = pCreate->status;
+
+  jobObj.statusLen = pCreate->status.len;
+  mInfo("xxxzgc job status: len: %d, %s", pCreate->status.len, pCreate->status.ptr);
+  if (pCreate->status.len > 0) {
+    jobObj.status = taosMemoryCalloc(1, jobObj.statusLen);
+    if (jobObj.status == NULL) goto _OVER;
+    (void)memmove(jobObj.status, pCreate->status.ptr, jobObj.statusLen);
+  }
 
   jobObj.reasonLen = pCreate->reasonLen;
   if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
@@ -2261,8 +2290,11 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
   if (pUpdate->xnodeId > 0) {
     jobObj.xnodeId = pUpdate->xnodeId;
   }
-  if (pUpdate->status >= 0) {
-    jobObj.status = pUpdate->status;
+  if (pUpdate->status.len > 0) {
+    jobObj.statusLen = pUpdate->status.len;
+    jobObj.status = taosMemoryCalloc(1, jobObj.statusLen);
+    if (jobObj.status == NULL) goto _OVER;
+    (void)memcpy(jobObj.status, pUpdate->status.ptr, jobObj.statusLen);
   }
   if (pUpdate->configLen > 0) {
     jobObj.configLen = pUpdate->configLen;
@@ -2389,14 +2421,8 @@ static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeJobReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
-  // mInfo("xnode task:%s, start to create", createReq.name);
-  // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_XNODE_JOB), NULL, _OVER);
-
-  // pObj = mndAcquireXnodeTaskByName(pMnode, createReq.name);
-  // if (pObj != NULL) {
-  //   code = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
-  //   goto _OVER;
-  // }
+  mDebug("xnode create job on xnode:%d", createReq.xnodeId);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_XNODE_JOB), NULL, _OVER);
 
   code = mndCreateXnodeJob(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -2586,20 +2612,26 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     if (code != 0) goto _end;
 
     // status
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    buf[0] = 0;
-    STR_TO_VARSTR(buf, gXnodeStatusStr[pObj->status]);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-    if (code != 0) goto _end;
-
-    // reason
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pObj->reasonLen > 0) {
+    if (pObj->statusLen > 0) {
       buf[0] = 0;
-      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->reason, pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->status, pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
       if (code != 0) goto _end;
     } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, numOfRows);
+    }
+
+    // reason
+    if (pObj->reasonLen > 0) {
+      buf[0] = 0;
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->reason, pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      if (code != 0) goto _end;
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetNULL(pColInfo, numOfRows);
     }
 
@@ -2846,7 +2878,6 @@ _OVER:
 }
 
 SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen) {
-  int32_t   code = 0;
   SJson    *pJson = NULL;
   SCurlResp curlRsp = {0};
 
@@ -2864,7 +2895,7 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
     }
   } else {
     uError("invalid http type:%d", type);
-    code = TSDB_CODE_INVALID_MSG;
+    terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
@@ -2881,6 +2912,8 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
 
 _OVER:
   if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
+  // xxxzgc test
+  terrno = TSDB_CODE_SUCCESS;
   return pJson;
 }
 
@@ -2907,7 +2940,7 @@ static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLe
     goto _OVER;
   }
   if (strlen(status) == 0) {
-    code = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
 
