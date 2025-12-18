@@ -100,7 +100,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
 
 - tdengine: Describes configuration parameters for the TDengine database, including:
   - dsn (string): DSN address for connecting to TDengine, default: taos+ws://root:taosdata@localhost:6041/tsbench.
-  - drop_if_exists (bool): Whether to delete the database if it already exists, default: true.
+  - drop_if_exists (bool): Whether to delete the database if it already exists, default: false.
   - props (string): Database creation property information.
     For example, `precision ms vgroups 20 replica 3 keep 3650` sets the time precision, virtual group count, replica count, and data retention period.
     - precision: Specifies the time precision of the database. Options: "ms", "us", "ns".
@@ -281,6 +281,7 @@ The `tdengine/insert` action writes data to specified child tables. Supports obt
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for writing data, options: sql, stmt, default: stmt.
+- auto_create_table (bool): Whether to enable TDengine’s auto-create-table feature to create tables on the fly when writing data; default: false.
 - concurrency (int): Number of threads for concurrent data writing, default: 8.
 - failure_handling (optional): Failure handling strategy:
   - max_retries (int): Maximum retries, default: 0.
