@@ -281,7 +281,7 @@ The `tdengine/insert` action writes data to specified child tables. Supports obt
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for writing data, options: sql, stmt, default: stmt.
-- auto_create_table (bool): Whether to enable TDengine’s auto-create-table feature to create tables on the fly when writing data; default: false.
+- auto_create_table (bool): Whether to enable TDengine's auto-create-table feature to create tables on the fly when writing data; default: false.
 - concurrency (int): Number of threads for concurrent data writing, default: 8.
 - failure_handling (optional): Failure handling strategy:
   - max_retries (int): Maximum retries, default: 0.
