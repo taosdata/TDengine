@@ -6711,12 +6711,16 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     pCxt->currClause = SQL_CLAUSE_ORDER_BY;
     code = translateExprList(pCxt, pSelect->pOrderByList);
   }
-  SNode** pNode;
-  FOREACH_FOR_REWRITE(pNode, pSelect->pOrderByList) {
-    if (invalidOrderByFunctionExpr(pSelect->pProjectionList, *pNode)) {
-      return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
+
+  if (!pSelect->pWindow) {
+    SNode** pNode;
+    FOREACH_FOR_REWRITE(pNode, pSelect->pOrderByList) {
+      if (invalidOrderByFunctionExpr(pSelect->pProjectionList, *pNode)) {
+        return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
+      }
     }
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }

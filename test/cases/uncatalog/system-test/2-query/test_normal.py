@@ -270,17 +270,35 @@ class TestNormal:
         tdSql.checkRows(1)  
         tdSql.checkData(0, 1, 10)
         
-        tdSql.query(f"select last(*) from {dbname}.stb order by last(ts);")
+        tdSql.query(f"select last(*) from {dbname}.stb order by last(ts)")
         tdSql.checkRows(1) 
         
-        tdSql.query(f"select last_row(*) from {dbname}.stb order by last_row(ts);")
+        tdSql.query(f"select last_row(*) from {dbname}.stb order by last_row(ts)")
         tdSql.checkRows(1) 
         
-        tdSql.query(f"select first(col1) from {dbname}.stb order by ts;")
+        tdSql.query(f"select first(col1) from {dbname}.stb order by ts")
         tdSql.checkRows(1) 
         
-        tdSql.query(f"select first(col1) from {dbname}.stb partition by tbname order by ts ;")
+        tdSql.query(f"select first(col1) from {dbname}.stb partition by tbname order by ts")
         tdSql.checkRows(2) 
+        
+        tdSql.query(f"select _wstart, _wend from stb_1 interval(3a) order by min(col1%4)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.003")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.006")
+        tdSql.checkData(2, 0, "2018-09-17 09:00:00.000")
+        tdSql.checkData(3, 0, "2018-09-17 09:00:00.009")
+        
+        tdSql.query(f"select _wstart, _wend, min(col1%4) from stb_1 interval(3a) order by min(col1%4)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.003")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.006")
+        tdSql.checkData(2, 0, "2018-09-17 09:00:00.000")
+        tdSql.checkData(3, 0, "2018-09-17 09:00:00.009")
+        tdSql.checkData(0, 2, 0)
+        tdSql.checkData(1, 2, 0)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(3, 2, 1)
         
         
         tdSql.error(f"select *, cast(last(col1) + 2 as bigint) from  stb order by derivative(col1, 1s) desc;")
