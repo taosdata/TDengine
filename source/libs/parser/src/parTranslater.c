@@ -6665,15 +6665,9 @@ static EDealRes checkAggFuncExist(SNode* pNode, void* found) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool hasAggFuncInProjectList(SNodeList* pProjectionList) {
+static bool hasAggFuncInList(SNodeList* pProjectionList) {
   bool found = false;
   nodesWalkExprs(pProjectionList, checkAggFuncExist, &found);
-  return found;
-}
-
-static bool aggFuncUsed(SNode* pNode) {
-  bool found = false;
-  nodesWalkExpr(pNode, checkAggFuncExist, &found);
   return found;
 }
 
@@ -6696,13 +6690,9 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = translateExprList(pCxt, pSelect->pOrderByList);
   }
 
-  if (!pSelect->pWindow && !hasAggFuncInProjectList(pSelect->pProjectionList)) {
-    SNode** pNode;
-    FOREACH_FOR_REWRITE(pNode, pSelect->pOrderByList) {
-      if (aggFuncUsed(*pNode)) {
-        return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
-      }
-    }
+  if (!pSelect->pWindow && !hasAggFuncInList(pSelect->pProjectionList) &&
+      hasAggFuncInList(pSelect->pOrderByList)) {
+    return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
