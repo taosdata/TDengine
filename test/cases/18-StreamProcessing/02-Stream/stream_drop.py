@@ -62,7 +62,7 @@ class TestDropStream:
         tdSql.executes(sqls)    
     
     def dropMultiStream(self):
-        tdLog.info("drop stream in same db")
+        tdLog.info("drop multi-stream in same db")
         tdSql.execute("use db1;")
         tdSql.query("show streams;")
         tdSql.checkRows(3)
@@ -72,7 +72,7 @@ class TestDropStream:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "s3")
 
-        tdLog.info("drop stream cross db")
+        tdLog.info("drop multi-stream cross db")
         tdSql.execute("use db2;")
         tdSql.query("show streams;")
         tdSql.checkRows(3)
@@ -84,4 +84,12 @@ class TestDropStream:
         tdSql.execute("use db1;")
         tdSql.query("show streams;")
         tdSql.checkRows(0)
-    
+
+        tdLog.info("drop multi-stream if exists")
+        tdSql.execute("use db2;")
+        tdSql.execute("drop stream if exists s12345,s123,s3;")
+        time.sleep(1)
+        tdSql.query("show streams;")
+        tdSql.checkRows(0)
+        tdSql.execute("drop stream if exists s12345,s123;")
+        tdSql.error("drop stream s12345,s123;")

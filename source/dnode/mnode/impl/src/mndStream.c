@@ -740,6 +740,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
+  int32_t     notExistNum = 0;
 
   SMDropStreamReq dropReq = {0};
   int64_t         tss = taosGetTimestampMs();
@@ -761,6 +762,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
         mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", streamName);
         sdbRelease(pMnode->pSdb, pStream);
         pStream = NULL;
+        notExistNum++;
         continue;
       } else {
         mError("stream:%s not exist failed to drop it", streamName);
@@ -858,7 +860,11 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mstsDebug("drop stream %s half completed", streamName);
   }
 
-  code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (dropReq.igNotExists && dropReq.count == notExistNum) {
+    code = TSDB_CODE_SUCCESS;
+  } else {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
 _OVER:
   if (pStream) {
