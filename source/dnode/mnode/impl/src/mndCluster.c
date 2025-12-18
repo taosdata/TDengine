@@ -415,6 +415,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   int32_t         code = 0;
   SMnode         *pMnode = pReq->info.node;
   SMCfgClusterReq cfgReq = {0};
+  int64_t         tss = taosGetTimestampMs();
   if (tDeserializeSMCfgClusterReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);
@@ -450,10 +451,16 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
     goto _exit;
   }
 
-  {  // audit
-    auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql,
-                TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1));
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    {  // audit
+      auditRecord(pReq, pMnode->clusterId, "alterCluster", "", "", cfgReq.sql,
+                  TMIN(cfgReq.sqlLen, GRANT_ACTIVE_HEAD_LEN << 1), duration, 0);
+    }
   }
+
 _exit:
   tFreeSMCfgClusterReq(&cfgReq);
   if (code != 0) {

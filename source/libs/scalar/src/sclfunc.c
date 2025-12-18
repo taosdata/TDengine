@@ -2662,7 +2662,7 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
   int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(taes_encrypt_len(bufLen));
+  char   *pOutputBuf = taosMemoryMalloc(taes_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("aes function alloc memory failed");
     return terrno;
@@ -2675,16 +2675,6 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
-    if (bufLen < taes_encrypt_len(varDataLen(input)) + VARSTR_HEADER_SIZE) {
-      bufLen = taes_encrypt_len(varDataLen(input)) + VARSTR_HEADER_SIZE;
-      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
-      if (!pOutputBuf) {
-        taosMemoryFree(pKeyPaddingBuf);
-        qError("aes function alloc memory failed");
-        return terrno;
-      }
-    }
-
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosAesEncrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
@@ -2790,7 +2780,7 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
   int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(tsm4_encrypt_len(bufLen));
+  char   *pOutputBuf = taosMemoryMalloc(tsm4_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("sm4 function alloc memory failed");
     return terrno;
@@ -2803,16 +2793,6 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
-    if (bufLen < tsm4_encrypt_len(varDataLen(input)) + VARSTR_HEADER_SIZE) {
-      bufLen = tsm4_encrypt_len(varDataLen(input)) + VARSTR_HEADER_SIZE;
-      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
-      if (!pOutputBuf) {
-        taosMemoryFree(pKeyPaddingBuf);
-        qError("sm4 function alloc memory failed");
-        return terrno;
-      }
-    }
-
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosSm4Encrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input));
