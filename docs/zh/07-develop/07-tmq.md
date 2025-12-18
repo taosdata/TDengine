@@ -127,7 +127,7 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 
 #### ws.tls.mode
 
-- 说明：C WebSocket 连接的 TLS 加密模式
+- 说明：C WebSocket 连接支持的 TLS 加密模式
 - 类型：integer
 - 取值范围：
   - 0：禁用 TLS 加密。若服务端启用 TLS，客户端会自动升级连接。
@@ -145,7 +145,7 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 
 #### ws.tls.ca
 
-- 说明：用于验证服务端证书的 CA 证书文件绝对路径或 PEM 格式的证书内容。该证书应为签发服务端证书的 CA 证书。
+- 说明：C WebSocket 连接用于验证服务端证书的 CA 证书文件路径或 PEM 格式的证书内容。该证书应为签发服务端证书的 CA 证书。
 - 类型：string
 - 备注：v3.3.8.12 开始支持。
 

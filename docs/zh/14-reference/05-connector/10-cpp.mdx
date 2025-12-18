@@ -239,9 +239,9 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     | retryBackoffMs    | WebSocket         | 连接失败时的初始等待时间（毫秒）。此值会随着连续失败而指数增长，直到达到最大等待时间。默认值为 200。      |
     | retryBackoffMaxMs | WebSocket         | 连接失败时的最大等待时间（毫秒）。默认值为 2000。                                                |
     | token             | WebSocket         | 云服务认证 token                                                                           |
-    | wsTlsMode         | WebSocket         | TLS 加密模式：<br/> - 0：禁用 TLS 加密。若服务端启用 TLS，客户端会自动升级连接。<br/> - 1：启用 TLS 加密，但不验证服务端证书。<br/> - 2：启用 TLS 加密，验证服务端证书，但不验证主机名。<br/> - 3：启用 TLS 加密，验证服务端证书及主机名（服务端证书需包含 SAN，CN 会被忽略）。 |
+    | wsTlsMode         | WebSocket         | TLS 加密模式：<br/> - 0：禁用 TLS 加密。若服务端启用 TLS，客户端会自动升级连接。<br/> - 1：启用 TLS 加密，但不验证服务端证书。<br/> - 2：启用 TLS 加密，验证服务端证书，但不验证主机名。<br/> - 3：启用 TLS 加密，验证服务端证书及主机名（服务端证书需包含 SAN，CN 会被忽略）。<br/> 默认值为 0。 |
     | wsTlsVersion      | WebSocket         | TLS 协议版本列表，多个版本使用英文逗号分隔。可选值：TLSv1.2、TLSv1.3。默认值为 TLSv1.3。            |
-    | wsTlsCa           | WebSocket         | 用于验证服务端证书的 CA 证书文件绝对路径或 PEM 格式的证书内容。该证书应为签发服务端证书的 CA 证书。     |
+    | wsTlsCa           | WebSocket         | 客户端用于验证服务端证书的 CA 证书文件路径或 PEM 格式的证书内容。该证书应为签发服务端证书的 CA 证书。    |
 
   - **注意事项**：
     - OPTIONS 结构体最多支持 256 个配置项
