@@ -3789,7 +3789,6 @@ int32_t lagFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   SLagInfo*            pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
   int32_t              slotId = pCtx->pExpr->base.resSchema.slotId;
-  int32_t              currentRow = pBlock->info.rows;
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   if (!pCol) {
@@ -3831,72 +3830,32 @@ static void tryLagDouble(SLagInfo* pLagInfo, SColumnInfoData* pOutput, int32_t p
   colDataSetDouble(pOutput, pos, &lag);
 }
 
-static int32_t doHandleLag(SLagInfo* pLagInfo, int32_t type, const char* pv, SColumnInfoData* pOutput, int32_t pos,
-                           int64_t ts, bool nullRow) {
+static int32_t doHandleLag(SLagInfo* pLagInfo, int32_t type, SColumnInfoData* pOutput, int32_t pos) {
   if (!pLagInfo->nonnull) {
     colDataSetNULL(pOutput, pos);
-    // colDataSetNull_f_s(pOutput, pos);
-    // pOutput->hasNull = true;
+
     return TSDB_CODE_SUCCESS;
   }
 
   switch (type) {
-    case TSDB_DATA_TYPE_UINT: {
-      int64_t v = *(uint32_t*)pv;
-      tryLagInt64(pLagInfo, pOutput, pos);
-      break;
-    }
-    case TSDB_DATA_TYPE_INT: {
-      // int64_t v = *(int32_t*)pv;
-      // tryLagInt64(pLagInfo, pOutput, pos);
-
-      colDataSetInt64(pOutput, pos, &pLagInfo->v);
-      break;
-    }
-    case TSDB_DATA_TYPE_BOOL: {
-      int64_t v = *(bool*)pv;
-      tryLagInt64(pLagInfo, pOutput, pos);
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      int64_t v = *(uint8_t*)pv;
-      tryLagInt64(pLagInfo, pOutput, pos);
-      break;
-    }
-    case TSDB_DATA_TYPE_TINYINT: {
-      int64_t v = *(int8_t*)pv;
-      tryLagInt64(pLagInfo, pOutput, pos);
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      int64_t v = *(uint16_t*)pv;
-      tryLagInt64(pLagInfo, pOutput, pos);
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      int64_t v = *(int16_t*)pv;
-      tryLagInt64(pLagInfo, pOutput, pos);
-      break;
-    }
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
-    case TSDB_DATA_TYPE_BIGINT: {
-      int64_t v = *(int64_t*)pv;
-      tryLagInt64(pLagInfo, pOutput, pos);
+    case TSDB_DATA_TYPE_BIGINT:
+      colDataSetInt64(pOutput, pos, &pLagInfo->v);
       break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      // double v = *(float*)pv;
-      // tryLagFloat(pLagInfo, pOutput, pos);
+    case TSDB_DATA_TYPE_FLOAT:
       colDataSetFloat(pOutput, pos, &pLagInfo->fv);
       break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      // double v = *(double*)pv;
-      // tryLagDouble(pLagInfo, pOutput, pos);
+    case TSDB_DATA_TYPE_DOUBLE:
       colDataSetDouble(pOutput, pos, &pLagInfo->dv);
       break;
-    }
     case TSDB_DATA_TYPE_DECIMAL64:
       return colDataSetVal(pOutput, pos, (const char*)&pLagInfo->v, false);
     case TSDB_DATA_TYPE_DECIMAL:
@@ -3921,9 +3880,8 @@ static int32_t setLagResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t p
   int8_t                inputType = pInputCol->info.type;
   SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
   int32_t               code = TSDB_CODE_SUCCESS;
-  char*                 pv = pRow->pData;
 
-  code = doHandleLag(pLagInfo, inputType, pv, pOutput, pos, pRow->ts, pRow->isDataNull);
+  code = doHandleLag(pLagInfo, inputType, pOutput, pos);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -3998,7 +3956,6 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
 
     int32_t pos = startOffset + numOfElems;
 
-    bool newRow = false;
     for (int i = 0; i < diffColNum; ++i) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
       SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
@@ -4007,7 +3964,6 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
         goto _exit;
       }
 
-      // if (!pRow->isDataNull) {
       if (!colDataIsNull_s(pCtx->input.pData[0], pCtx->rowIter.rowIndex - 1)) {
         SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
         SLagInfo*             pLagInfo = GET_ROWCELL_INTERBUF(pResInfo);
@@ -4060,7 +4016,6 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
               }
             }
 
-            //(void)memcpy(pLagInfo->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
             (void)memcpy(pLagInfo->str, pv, varDataTLen(pv));
           } break;
           default: {
@@ -4074,7 +4029,10 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
         }
       }
 
-      setLagResult(pCtx, pRow, pos);
+      code = setLagResult(pCtx, pRow, pos);
+      if (code) {
+        goto _exit;
+      }
     }
 
     ++numOfElems;
