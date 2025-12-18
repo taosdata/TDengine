@@ -1106,8 +1106,10 @@ static int32_t doSetSelectStmtAuditReqTableInfo(SNode* pFromTable, SAuditReq* pR
     TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pTable->tableName));
     TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pTable->dbName));
   } else if (pTbListInfo->dbList != NULL && pTable) {
-    taosArrayPush(pTbListInfo->dbList, pTable->dbName);
-    taosArrayPush(pTbListInfo->tableList, pTable->tableName);
+    void* tmp = taosArrayPush(pTbListInfo->dbList, pTable->dbName);
+    TSDB_CHECK_NULL(tmp, code, lino, _exit, terrno);
+    tmp = taosArrayPush(pTbListInfo->tableList, pTable->tableName);
+    TSDB_CHECK_NULL(tmp, code, lino, _exit, terrno);
   }
 
 _exit:
