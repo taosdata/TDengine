@@ -38,7 +38,7 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   tOffsetCopy(&pRsp->reqOffset, &pOffset);
   tOffsetCopy(&pRsp->rspOffset, &pOffset);
   pRsp->withTbName = 0;
-  pRsp->withSchema = 0;
+  pRsp->withSchema = 1;
 
 END:
   if (code != 0){
