@@ -3595,8 +3595,9 @@ typedef struct SColIdNameKV {
 } SColIdNameKV;
 
 typedef struct SColIdPair {
-  col_id_t vtbColId;
-  col_id_t orgColId;
+  col_id_t  vtbColId;
+  col_id_t  orgColId;
+  SDataType type;
 } SColIdPair;
 
 typedef struct SColIdSlotIdPair {
