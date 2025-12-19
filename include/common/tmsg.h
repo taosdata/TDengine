@@ -1385,17 +1385,12 @@ void    tFreeSDropRoleReq(SDropRoleReq* pReq);
 
 typedef struct {
   SPrivSet privSet;
-  TSKEY    rowSpan[2];  // for table privileges
   SArray*  selectCols;  // SColIdNameKV, for table privileges
   SArray*  insertCols;  // SColIdNameKV, for table privileges
   SArray*  updateCols;  // SColIdNameKV, for table privileges
-  // delete can only specify rowSpan and cannot specify columns
-  char*    tagCond;     // for table privileges
-  int32_t  tagCondLen;  // for table privileges:
-  uint32_t selectHash;  // for table privileges: Murmurhash32 of colId list, 0 if selectCols is NULL
-  uint32_t insertHash;  // for table privileges: Murmurhash32 of colId list, 0 if insertCols is NULL
-  uint32_t updateHash;  // for table privileges: Murmurhash32 of colId list, 0 if updateCols is NULL
-  uint32_t tagHash;     // for table privileges: 0 if tagCond is NULL
+  // delete can only specify conditions by cond and cannot specify columns
+  char*    cond;     // for table privileges
+  int32_t  condLen;  // for table privileges
 } SPrivSetReqArgs;
 
 typedef struct {

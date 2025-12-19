@@ -16359,8 +16359,7 @@ _exit:
 }
 
 static int32_t comparePrivColWithColId(SNode* pNode1, SNode* pNode2) { return compareTsmaColWithColId(pNode1, pNode2); }
-static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, STableMeta* pTableMeta, SNodeList* pCols,
-                                  uint32_t* hash) {
+static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, STableMeta* pTableMeta, SNodeList* pCols) {
   int32_t code = 0, lino = 0;
   int32_t nCols = LIST_LENGTH(pCols);
 
@@ -16408,14 +16407,11 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
   }
 
   nodesSortList(&pCols, comparePrivColWithColId);
-  int32_t bufLen = TMIN(nCols, columnNum) * (sizeof(col_id_t)), colIdx = 0;
-  if (!(buf = (col_id_t*)taosMemoryMalloc(bufLen))) {
-    return terrno;
-  }
+
   col_id_t lastColId = -1;
   FOREACH(pNode, pCols) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
-    if (pColNode->colId == lastColId) {
+    if (pColNode->colId == lastColId) { // skip duplicate columns
       continue;
     }
     SColIdNameKV colIdNameKv = {.colId = pColNode->colId};
@@ -16424,9 +16420,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
       TAOS_CHECK_EXIT(terrno);
     }
     lastColId = pColNode->colId;
-    buf[colIdx++] = lastColId;
   }
-  if (hash) *hash = MurmurHash3_32((const char*)buf, colIdx * sizeof(col_id_t));
 _exit:
   taosMemoryFree(buf);
   return code;
@@ -16441,7 +16435,7 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
   SPrivSetReqArgs* pReqArgs = &pReq->privileges;
 
   if (pReq->targetType != PRIV_OBJ_TABLE) return TSDB_CODE_SUCCESS;
-
+#if 0
   if (pPrivSetArgs->rowSpans) {
     if (LIST_LENGTH((SNodeList*)pPrivSetArgs->rowSpans) != 2) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -16472,7 +16466,7 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
     pReqArgs->rowSpan[0] = start;
     pReqArgs->rowSpan[1] = end;
   }
-
+#endif
   if (pPrivSetArgs->selectCols || pPrivSetArgs->insertCols || pPrivSetArgs->updateCols) {
     if (pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -16488,9 +16482,9 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
       TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code)));
     }
 
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->selectCols, pTableMeta, (SNodeList*)pPrivSetArgs->selectCols, &pReqArgs->selectHash));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->insertCols, pTableMeta, (SNodeList*)pPrivSetArgs->insertCols, &pReqArgs->insertHash));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->updateCols, pTableMeta, (SNodeList*)pPrivSetArgs->updateCols, &pReqArgs->updateHash));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->selectCols, pTableMeta, (SNodeList*)pPrivSetArgs->selectCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->insertCols, pTableMeta, (SNodeList*)pPrivSetArgs->insertCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->updateCols, pTableMeta, (SNodeList*)pPrivSetArgs->updateCols));
   }
 
 _exit:

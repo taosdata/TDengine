@@ -240,7 +240,7 @@ typedef struct {
 typedef struct {
   int32_t  nPrivArgs;
   SPrivSet privSet;
-  void*    rowSpans;    // SNodeList*
+  // void*    rowSpans;    // SNodeList*
   void*    selectCols;  // SNodeList*
   void*    insertCols;  // SNodeList*
   void*    updateCols;  // SNodeList*
@@ -249,7 +249,6 @@ typedef struct {
 #define PRIV_SET_TYPE(type)                                                   \
   ((SPrivSetArgs){.nPrivArgs = 1,                                             \
                   .privSet.set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type), \
-                  .rowSpans = NULL,                                           \
                   .selectCols = NULL,                                         \
                   .insertCols = NULL,                                         \
                   .updateCols = NULL})
@@ -259,7 +258,6 @@ typedef struct {
                   .privSet = ((select) == NULL && (insert) == NULL && (update) == NULL             \
                                   ? (SPrivSet){.set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type)} \
                                   : (SPrivSet){0}),                                                \
-                  .rowSpans = NULL,                                                                \
                   .selectCols = (void*)(select),                                                   \
                   .insertCols = (void*)(insert),                                                   \
                   .updateCols = (void*)(update)})
