@@ -2793,6 +2793,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pMetaBlock, code, lino, _end, terrno);
   pContext->pDeleteBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   QUERY_CHECK_NULL(pContext->pDeleteBlock, code, lino, _end, terrno);
+  pContext->pTableBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  QUERY_CHECK_NULL(pContext->pTableBlock, code, lino, _end, terrno);
   pContext->pDropBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   QUERY_CHECK_NULL(pContext->pDropBlock, code, lino, _end, terrno);
   if (pTask->isVirtualTable) {
@@ -2954,6 +2956,10 @@ static void stRealtimeContextDestroy(void *ptr) {
   if (pContext->pDeleteBlock != NULL) {
     blockDataDestroy(pContext->pDeleteBlock);
     pContext->pDeleteBlock = NULL;
+  }
+  if (pContext->pTableBlock != NULL) {
+    blockDataDestroy(pContext->pTableBlock);
+    pContext->pTableBlock = NULL;
   }
   if (pContext->pDropBlock != NULL) {
     blockDataDestroy(pContext->pDropBlock);
@@ -4800,6 +4806,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         blockDataEmpty(pContext->pMetaBlock);
         blockDataEmpty(pContext->pDeleteBlock);
+        blockDataEmpty(pContext->pTableBlock);
         blockDataEmpty(pContext->pDropBlock);
         blockDataEmpty(pContext->pAddBlock);
         blockDataEmpty(pContext->pRetireBlock);
@@ -4808,6 +4815,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
         SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock,
                                   .deleteBlock = pContext->pDeleteBlock,
+                                  .tableBlock = pContext->pTableBlock,
                                   .dropBlock = pContext->pDropBlock,
                                   .addBlock = pContext->pAddBlock,
                                   .retireBlock = pContext->pRetireBlock};
@@ -4955,6 +4963,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           blockDataEmpty(pContext->pMetaBlock);
           blockDataEmpty(pContext->pDeleteBlock);
+          blockDataEmpty(pContext->pTableBlock);
           blockDataEmpty(pContext->pDropBlock);
           blockDataEmpty(pContext->pAddBlock);
           blockDataEmpty(pContext->pRetireBlock);
@@ -4967,6 +4976,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           rsp.metaBlock = pContext->pMetaBlock;
           rsp.deleteBlock = pContext->pDeleteBlock;
+          rsp.tableBlock = pContext->pTableBlock;
           rsp.dropBlock = pContext->pDropBlock;
           rsp.addBlock = pContext->pAddBlock;
           rsp.retireBlock = pContext->pRetireBlock;

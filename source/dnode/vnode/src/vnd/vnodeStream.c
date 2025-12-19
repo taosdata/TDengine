@@ -3464,10 +3464,6 @@ static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SAr
   pTableListArray = qStreamGetTableArrayList(sStreamReaderInfo);
   STREAM_CHECK_NULL_GOTO(pTableListArray, terrno);
 
-  taosRLockLatch(&sStreamReaderInfo->lock);
-  uint64_t groupId = qStreamGetGroupIdFromOrigin(&sStreamReaderInfo->tableList, uid);
-  taosRUnLockLatch(&sStreamReaderInfo->lock);
-
   vTableInfo->infos = taosArrayInit(taosArrayGetSize(pTableListArray), sizeof(VTableInfo));
   STREAM_CHECK_NULL_GOTO(vTableInfo->infos, terrno);
 

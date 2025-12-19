@@ -860,9 +860,9 @@ typedef struct SSTriggerWalNewRsp {
   void*                metaBlock;
   void*                deleteBlock;
   void*                tableBlock;
-  // void*                dropBlock;
-  // void*                addBlock;
-  // void*                retireBlock;
+  void*                dropBlock;
+  void*                addBlock;
+  void*                retireBlock;
   int64_t              ver;
   int64_t              verTime;
   int32_t              totalRows;

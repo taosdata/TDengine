@@ -159,6 +159,7 @@ typedef struct SSTriggerRealtimeContext {
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
+  SSDataBlock *pTableBlock;
   SSDataBlock *pDropBlock;
   SSDataBlock *pAddBlock;
   SSDataBlock *pRetireBlock;
