@@ -77,7 +77,7 @@ void    sessMgtDestroy();
 
 int32_t sessMgtCheckConnStatus(char* user, SConnAccessInfo* pInfo);
 
-int32_t connCheckAndUpateMetric(int32_t connId);
+int32_t connCheckAndUpateMetric(int64_t connId);
 int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
 #ifdef __cplusplus
 }

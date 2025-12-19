@@ -476,7 +476,7 @@ _error:
   return code;
 }
 
-int32_t connCheckAndUpateMetric(int32_t connId) {
+int32_t connCheckAndUpateMetric(int64_t connId) {
   HANDLE_SESSION_CONTROL();
 
   int32_t code = 0;
