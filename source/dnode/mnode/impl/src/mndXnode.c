@@ -103,7 +103,7 @@ static int32_t  mndXnodeUserPassActionDelete(SSdb *pSdb, SXnodeUserPassObj *pObj
 static int32_t mndRetrieveXnodeAgents(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter);
 
-static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen);
+static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char **status, int32_t statusLen);
 static int32_t mndGetXnodeTaskStatus(SXnodeTaskObj *pObj, char *status, int32_t statusLen);
 
 /** @section xnoded mgmt */
@@ -111,6 +111,8 @@ void mndStartXnoded(SMnode *pMnode, int32_t userLen, char *user, int32_t passLen
 
 SXnodeTaskObj *mndAcquireXnodeTask(SMnode *pMnode, int32_t tid);
 SJson         *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen);
+static int32_t mndSetDropXnodeJobInfoToTrans(STrans *pTrans, SXnodeJobObj *pObj, bool force);
+void           mndReleaseXnodeJob(SMnode *pMnode, SXnodeJobObj *pObj);
 
 int32_t mndInitXnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -1312,33 +1314,43 @@ static int32_t mndSetDropXnodeTaskInfoToTrans(SMnode *pMnode, STrans *pTrans, SX
   return 0;
 }
 
-static int32_t mndDropXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pObj) {
+static int32_t mndDropXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pTask) {
   int32_t code = 0;
   int32_t lino = 0;
+  SArray *pArray = NULL;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-xnode-task");
   TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
 
   mndTransSetSerial(pTrans);
-  mInfo("trans:%d, to drop xnode:%d", pTrans->id, pObj->id);
+  mInfo("trans:%d, to drop xnode:%d", pTrans->id, pTask->id);
 
   // delete relative jobs
-  SArray *pArray = NULL;
-  TAOS_CHECK_GOTO(mndAcquireXnodeJobsByTaskId(pMnode, pObj->id, &pArray), NULL, _OVER);
-  mInfo("xxxzgc *** xnode:%d, has %ld jobs", pObj->id, pArray->size);
-  // for (int i = 0; i < pArray->size; i++) {
-  //   SXnodeJobObj *pJob = sdbArrayGet(pArray, i);
-  //   mInfo("xxxzgc *** xnode:%d, job:%d", pObj->id, pJob->id);
-  // }
+  TAOS_CHECK_GOTO(mndAcquireXnodeJobsByTaskId(pMnode, pTask->id, &pArray), NULL, _OVER);
+  mInfo("xxxzgc *** xnode:%d, has %ld jobs", pTask->id, pArray->size);
+  for (int i = 0; i < pArray->size; i++) {
+    SXnodeJobObj *pJob = taosArrayGet(pArray, i);
+    if (pJob == NULL) continue;
+    mInfo("xxxzgc *** del xnode job:%d", pJob->id);
+    // delete relative job
+    TAOS_CHECK_GOTO(mndSetDropXnodeJobInfoToTrans(pTrans, pJob, false), NULL, _OVER);
+  }
 
-  code = mndSetDropXnodeTaskInfoToTrans(pMnode, pTrans, pObj, false);
-  mndReleaseXnodeTask(pMnode, pObj);
+  code = mndSetDropXnodeTaskInfoToTrans(pMnode, pTrans, pTask, false);
+  mndReleaseXnodeTask(pMnode, pTask);
 
   TSDB_CHECK_CODE(code, lino, _OVER);
 
   code = mndTransPrepare(pMnode, pTrans);
 
 _OVER:
+  if (pArray != NULL) {
+    for (int i = 0; i < pArray->size; i++) {
+      SXnodeJobObj *pJob = taosArrayGet(pArray, i);
+      if (pJob == NULL) continue;
+      mndReleaseXnodeJob(pMnode, pJob);
+    }
+  }
   mndTransDrop(pTrans);
   return code;
 }
@@ -1863,7 +1875,7 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (code != 0) goto _end;
 
     status[0] = 0;
-    if (mndGetXnodeStatus(pObj, status, TSDB_XNODE_STATUS_LEN) == 0) {
+    if (mndGetXnodeStatus(pObj, (char **)&status, TSDB_XNODE_STATUS_LEN) == 0) {
       STR_TO_VARSTR(buf, status);
     } else {
       STR_TO_VARSTR(buf, "offline");
@@ -2490,7 +2502,7 @@ static int32_t mndSetDropXnodeJobCommitLogs(STrans *pTrans, SXnodeJobObj *pObj) 
   TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
   TAOS_RETURN(code);
 }
-static int32_t mndSetDropXnodeJobInfoToTrans(SMnode *pMnode, STrans *pTrans, SXnodeJobObj *pObj, bool force) {
+static int32_t mndSetDropXnodeJobInfoToTrans(STrans *pTrans, SXnodeJobObj *pObj, bool force) {
   if (pObj == NULL) {
     return 0;
   }
@@ -2509,7 +2521,7 @@ static int32_t mndDropXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pObj
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, to drop xnode:%d", pTrans->id, pObj->id);
 
-  code = mndSetDropXnodeJobInfoToTrans(pMnode, pTrans, pObj, false);
+  code = mndSetDropXnodeJobInfoToTrans(pTrans, pObj, false);
   mndReleaseXnodeJob(pMnode, pObj);
 
   TSDB_CHECK_CODE(code, lino, _OVER);
@@ -3038,30 +3050,29 @@ _OVER:
   return pJson;
 }
 
-static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen) {
+static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char **status, int32_t statusLen) {
   int32_t code = 0;
-  int32_t protocol = 0;
   SJson  *pJson = NULL;
 
   if (pObj->status == 2) {
-    strcpy(status, "drain");
+    strcpy(*status, "drain");
     return code;
   }
 
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/status?xnode_ep=%s", XNODED_URL, pObj->url);
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/%d", XNODED_URL, pObj->id);
   pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_GET, defaultTimeout, NULL, 0);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;
   }
 
-  code = tjsonGetStringValue2(pJson, "status", status, statusLen);
+  code = tjsonGetStringValue2(pJson, "status", *status, statusLen);
   if (code < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
-  if (strlen(status) == 0) {
+  if (strlen(*status) == 0) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
