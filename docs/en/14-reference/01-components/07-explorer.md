@@ -15,7 +15,7 @@ taosExplorer does not require separate installation. Starting from TDengine vers
 Before starting taosExplorer, please make sure the content in the configuration file is correct.
 
 ```toml
-# This is an automatically generated configuration file for Explorer in [TOML](https://toml.io/) format.
+# This is a automacically generated configuration file for Explorer in [TOML](https://toml.io/) format.
 #
 # Here is a full list of available options.
 
@@ -57,6 +57,7 @@ cluster = "http://localhost:6041"
 # native endpoint to connect to the cluster.
 # Default is disabled. To enable it, set it to the native API URL like "taos://localhost:6030" and uncomment it.
 # If you enable it, you will get more performance for data migration tasks.
+# If modify this config item, you must relogin to clear the cache in browser local storage.
 #
 # cluster_native = "taos://localhost:6030"
 
@@ -65,60 +66,15 @@ cluster = "http://localhost:6041"
 #
 x_api = "http://localhost:6050"
 
-# GRPC endpoint for "Agent"s.
-#   Default is "http://localhost:6055" - the default endpoint for taosX grpc API.
-#   You should set it to public IP or FQDN name like:
-#   "http://192.168.111.111:6055" or "http://node1.company.domain:6055" and
-#   ensure to add the port to the exception list of the firewall if it enabled.
+# Please set it to same as the "grpc" parameter used by taosX Service;
+# If "grpc" parameter is not set explicitly in taosX service, please set it to the default grpc address of taosX
 grpc = "http://localhost:6055"
 
 # CORS configuration switch, it allows cross-origin access
 cors = true
 
-[security]
-# Encryption key for sensitive data, must be 32 bytes in base64 format
-#
-encryption_key = "your-base64-encoded-32-bytes-key"
-
-# OAuth 2.0 SSO configuration
-[oauth]
-# Enable OAuth 2.0 SSO
-enabled = true
-# OAuth 2.0 provider type
-provider = "oidc" # choices: oidc/plain
-
-# OAuth 2.0 provider display name
-[oauth.provider_display_name]
-zh = "统一认证平台"
-en = "OAuth 2.0"
-
-# OIDC Standard Provider Example
-[oauth.oidc]
-client_id = "your-client-id"
-client_secret = "your-client-secret"
-issuer_url = "http://localhost:8080/realms/taosdata"
-scopes = ["openid", "profile", "email"]
-
-# Redirect URI - adjust based on your test environment
-redirect_uri = "http://localhost:6060/api/-/oauth/callback"
-
-# Example Plain OAuth 2.0 SSO with GitHub
-#[oauth.plain]
-#client_id = "github client id"
-#client_secret = "github client secret"
-#
-#authorize_url = "https://github.com/login/oauth/authorize"
-#token_url = "https://github.com/login/oauth/access_token"
-#profile_url = "https://api.github.com/user"
-#
-## Redirect URI - adjust based on your test environment
-#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
-
-# User attribute mapping
-[oauth.user_mapping]
-username = "username"
-email = "email"
-
+# cloud open api.
+# cloud_open_api = "https://cloud.taosdata.com/openapi"
 
 # Enable ssl
 # If the following two files exist, enable ssl protocol
@@ -166,6 +122,17 @@ email = "email"
 #
 # keepDays = 30
 
+# integrated with Grafana
+[grafana]
+# The token of the Grafana server, which is used to access the Grafana server.
+#token = ""
+
+# The URL of the Grafana dashboard, which is used to display the monitoring data of the TDengine cluster.
+# You can configure multiple Grafana dashboards.
+[grafana.dashboards]
+#TDengine3 = "http://localhost:3000/d/000000001/tdengine3"
+#taosX = "http://localhost:3000/d/000000002/taosx"
+
 # Configuration for monitoring with taosKeeper service
 [monitor]
 # FQDN of taosKeeper service
@@ -174,6 +141,57 @@ email = "email"
 #port = 6043
 # Monitor interval in seconds, minimum is 1, maximum is 10
 #interval = 10
+
+# Security configurations
+#
+#[security]
+# Encryption key for sensitive data, must be 32 bytes in base64 format
+#
+#encryption_key = "your-base64-encoded-32-bytes-key"
+
+# OAuth 2.0 SSO configuration
+#
+#[oauth]
+# Enable OAuth 2.0 SSO
+#enabled = true
+# OAuth 2.0 provider type
+#provider = "oidc" # choices: oidc/plain
+
+# OAuth 2.0 provider display name
+#
+#[oauth.provider_display_name]
+#zh = "统一认证平台"
+#en = "OAuth 2.0"
+
+# OIDC Standard Provider Example
+#
+#[oauth.oidc]
+#client_id = "your-client-id"
+#client_secret = "your-client-secret"
+#issuer_url = "http://localhost:8080/realms/taosdata"
+#scopes = ["openid", "profile", "email"]
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# Example Plain OAuth 2.0 SSO with GitHub
+#
+#[oauth.plain]
+#client_id = "github client id"
+#client_secret = "github client secret"
+
+#authorize_url = "https://github.com/login/oauth/authorize"
+#token_url = "https://github.com/login/oauth/access_token"
+#profile_url = "https://api.github.com/user"
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping
+#
+#[oauth.user_mapping]
+#username = "username"
+#email = "email"
 ```
 
 Description:
