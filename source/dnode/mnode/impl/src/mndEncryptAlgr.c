@@ -305,8 +305,16 @@ static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode) {
   int32_t code = 0;
   STrans *pTrans = NULL;
 
-  mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr, mndSetAESEncryptAlgr, mndSetSM3EncryptAlgr,
-                                    mndSetSHAEncryptAlgr, mndSetSM2EncryptAlgr, mndSetRSAEncryptAlgr};
+  mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+                                    ,
+                                    mndSetAESEncryptAlgr,
+                                    mndSetSM3EncryptAlgr,
+                                    mndSetSHAEncryptAlgr,
+                                    mndSetSM2EncryptAlgr,
+                                    mndSetRSAEncryptAlgr
+#endif
+  };
 
   int32_t algrNum = sizeof(setFpArr) / sizeof(mndSetEncryptAlgrFp);
 
@@ -451,6 +459,8 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   SCreateEncryptAlgrReq createReq = {0};
   STrans               *pTrans = NULL;
 
+  int64_t tss = taosGetTimestampMs();
+
   if (tDeserializeSCreateEncryptAlgrReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
@@ -503,8 +513,13 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  auditRecord(pReq, pMnode->clusterId, "createEncryptAlgr", "", createReq.algorithmId, createReq.sql,
-              strlen(createReq.sql));
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createEncryptAlgr", "", createReq.algorithmId, createReq.sql,
+                strlen(createReq.sql), duration, 0);
+  }
 
   return code;
 _OVER:
@@ -553,6 +568,8 @@ static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
   SEncryptAlgrObj    *pObj = NULL;
   SDropEncryptAlgrReq dropReq = {0};
 
+  int64_t tss = taosGetTimestampMs();
+
   TAOS_CHECK_GOTO(tDeserializeSDropEncryptAlgrReq(pReq->pCont, pReq->contLen, &dropReq), &lino, _OVER);
 
   mInfo("algr:%s, start to drop", dropReq.algorithmId);
@@ -591,7 +608,13 @@ static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndDropEncryptAlgr(pMnode, pReq, pObj), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "dropEncryptAlgr", "", dropReq.algorithmId, dropReq.sql, dropReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropEncryptAlgr", "", dropReq.algorithmId, dropReq.sql, dropReq.sqlLen,
+                duration, 0);
+  }
 
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

@@ -105,3 +105,67 @@ base64_decode_error:
 
   return TSDB_CODE_INVALID_DATA_FMT;
 }
+
+static char tbase64_encoding_table[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789+/";
+
+void tbase64_encode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT out_len) {
+  for (size_t i = 0, j = 0; i < in_len;) {
+    unsigned int octet_a = i < in_len ? input[i++] : 0;
+    unsigned int octet_b = i < in_len ? input[i++] : 0;
+    unsigned int octet_c = i < in_len ? input[i++] : 0;
+
+    unsigned int triple = (octet_a << 16) | (octet_b << 8) | octet_c;
+
+    out[j++] = tbase64_encoding_table[(triple >> 18) & 0x3F];
+    out[j++] = tbase64_encoding_table[(triple >> 12) & 0x3F];
+    out[j++] = tbase64_encoding_table[(triple >> 6) & 0x3F];
+    out[j++] = tbase64_encoding_table[triple & 0x3F];
+  }
+
+  for (int k = 0; k < (3 - (in_len % 3)) % 3; k++) {
+    out[out_len - k - 1] = '=';
+  }
+}
+
+static TdThreadOnce tbase64_decoding_table_building = PTHREAD_ONCE_INIT;
+
+static char tbase64_decoding_table[256] = {0};
+
+static void tbase64_build_decoding_table() {
+  for (int i = 0; i < 64; i++) {
+    tbase64_decoding_table[(unsigned char)tbase64_encoding_table[i]] = i;
+  }
+}
+
+int32_t tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT *out_len) {
+  (void)taosThreadOnce(&tbase64_decoding_table_building, tbase64_build_decoding_table);
+
+  if (in_len % 4 != 0) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  if (in_len > 0 && input[in_len - 1] == '=') --*out_len;
+  if (in_len > 0 && input[in_len - 2] == '=') --*out_len;
+
+  for (int i = 0, j = 0; i < in_len;) {
+    uint32_t sextet_a = input[i] == '=' ? 0 & i++ : tbase64_decoding_table[input[i++]];
+    uint32_t sextet_b = input[i] == '=' ? 0 & i++ : tbase64_decoding_table[input[i++]];
+    uint32_t sextet_c = input[i] == '=' ? 0 & i++ : tbase64_decoding_table[input[i++]];
+    uint32_t sextet_d = input[i] == '=' ? 0 & i++ : tbase64_decoding_table[input[i++]];
+
+    uint32_t triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) + (sextet_c << 1 * 6) + (sextet_d << 0 * 6);
+
+    if (j < *out_len) out[j++] = (triple >> 2 * 8) & 0xFF;
+    if (j < *out_len) out[j++] = (triple >> 1 * 8) & 0xFF;
+    if (j < *out_len) out[j++] = (triple >> 0 * 8) & 0xFF;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+uint32_t tbase64_encode_len(size_t in_len) { return 4 * ((in_len + 2) / 3); }
+
+uint32_t tbase64_decode_len(size_t in_len) { return in_len / 4 * 3; }

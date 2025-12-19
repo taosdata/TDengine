@@ -144,6 +144,7 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
+  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -750,6 +751,7 @@ typedef struct SCreateTopicStmt {
   int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
+  bool      reload;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {

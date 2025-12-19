@@ -42,6 +42,9 @@ extern void (*fp_taos_cleanup)(void);
 extern int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...);
 extern int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 extern TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+extern TAOS *(*fp_taos_connect_totp)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+extern int (*fp_taos_connect_test)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+extern TAOS *(*fp_taos_connect_token)(const char *ip, const char *token, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_with_dsn)(const char *dsn);
 extern void (*fp_taos_close)(TAOS *taos);
@@ -231,6 +234,8 @@ extern void (*fp_tmq_free_json_meta)(char *jsonMeta);
 extern TSDB_SERVER_STATUS (*fp_taos_check_server_status)(const char *fqdn, int port, char *details, int maxlen);
 extern void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context);
 extern char *(*fp_getBuildInfo)();
+
+extern int32_t (*fp_taos_connect_is_alive)(TAOS *taos);
 
 #ifdef __cplusplus
 }

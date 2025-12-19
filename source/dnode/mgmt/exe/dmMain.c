@@ -623,15 +623,13 @@ int mainWindows(int argc, char **argv) {
   };
 
   if (tsEncryptExtDir[0] != '\0') {
-#if defined(TD_ENTERPRISE)
-/*
+#if defined(TD_ENTERPRISE) && defined(LINUX)
     if ((code = cryptLoadProviders()) != 0) {
       dError("failed to load encrypt providers since %s", tstrerror(code));
       taosCloseLog();
       taosCleanupArgs();
       return code;
     }
-*/
 #endif
   }
 

@@ -13,8 +13,6 @@ import argparse
 import sys
 from dotenv import load_dotenv
 import pathlib
-from colorama import init
-
 
 def get_dotenv_file() -> Union[None, str]:
     """

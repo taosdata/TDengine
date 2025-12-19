@@ -204,6 +204,9 @@ DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char 
  * @return TAOS* connection handle on success; NULL if unsupported or on error
  */
 DLL_EXPORT TAOS *taos_connect_with_dsn(const char *dsn);
+DLL_EXPORT TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+DLL_EXPORT int   taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
 DLL_EXPORT const char *taos_data_type(int type);
@@ -467,6 +470,8 @@ DLL_EXPORT void    tmq_free_raw(tmq_raw_data raw);
 // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
 DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
+
+DLL_EXPORT int32_t taos_connect_is_alive(TAOS *taos);
 /* ---- end ---- */
 
 /* -- implemented in the native interface, for internal component only, the API may change -- */

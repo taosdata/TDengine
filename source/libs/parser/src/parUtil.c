@@ -15,10 +15,10 @@
 
 #include "parUtil.h"
 #include "cJSON.h"
+#include "decimal.h"
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
-#include "decimal.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -622,17 +622,64 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
     pVal = (SValueNode*)pOper->pRight;
   }
-  if (NULL == pCol || NULL == pVal || NULL == pVal->literal || 0 == strcmp(pVal->literal, "")) {
+  if (NULL == pCol || NULL == pVal) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == strcmp(pCol->colName, "db_name")) {
-    return tNameSetDbName(pName, acctId, pVal->literal, strlen(pVal->literal));
-  } else if (0 == strcmp(pCol->colName, "table_name")) {
-    return tNameAddTbName(pName, pVal->literal, strlen(pVal->literal));
+  const char* valueStr = NULL;
+  int32_t     valueLen = 0;
+
+  if ((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) && pVal->placeholderNo != 0) {
+    if (NULL == pVal->datum.p) {
+      qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
+             pVal->placeholderNo, pCol->colName, pVal->literal ? pVal->literal : "NULL");
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (TSDB_DATA_TYPE_NCHAR == pVal->node.resType.type) {
+      int32_t ucs4Len = varDataLen(pVal->datum.p);
+      char*   tmp = taosMemoryCalloc(1, ucs4Len * TSDB_NCHAR_SIZE + 1);
+      if (NULL == tmp) {
+        return terrno;
+      }
+      int32_t output = taosUcs4ToMbs((TdUcs4*)varDataVal(pVal->datum.p), ucs4Len, tmp, NULL);
+      if (output < 0) {
+        taosMemoryFree(tmp);
+        return terrno;
+      }
+      valueStr = tmp;
+      valueLen = output;
+    } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+      valueStr = varDataVal(pVal->datum.p);
+      valueLen = varDataLen(pVal->datum.p);
+      qDebug("getInsTagsTableTargetNameFromOp: extracted VARCHAR value, len=%d, value=%.*s", valueLen, valueLen,
+             valueStr);
+    } else {
+      qError("getInsTagsTableTargetNameFromOp: unsupported data type %d for placeholder", pVal->node.resType.type);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  } else {
+    if (NULL == pVal->literal || 0 == strcmp(pVal->literal, "")) {
+      return TSDB_CODE_SUCCESS;
+    }
+    valueStr = pVal->literal;
+    valueLen = strlen(pVal->literal);
   }
 
-  return TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    needFree = (pVal->placeholderNo != 0 && TSDB_DATA_TYPE_NCHAR == pVal->node.resType.type);
+
+  if (0 == strcmp(pCol->colName, "db_name")) {
+    code = tNameSetDbName(pName, acctId, valueStr, valueLen);
+  } else if (0 == strcmp(pCol->colName, "table_name")) {
+    code = tNameAddTbName(pName, valueStr, valueLen);
+  }
+
+  if (needFree) {
+    taosMemoryFree((char*)valueStr);
+  }
+
+  return code;
 }
 
 static int32_t getInsTagsTableTargetObjName(int32_t acctId, SNode* pNode, SName* pName) {
@@ -1575,7 +1622,6 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   }
   return code;
 }
-
 
 int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pOutput) {
   char    fullName[TSDB_TABLE_FNAME_LEN];

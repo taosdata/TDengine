@@ -245,7 +245,7 @@ The table below explains how the ODBC connector maps server data types to defaul
 | SQL_ATTR_TRANSLATE_LIB | |
 | SQL_ATTR_TRANSLATE_OPTION | |
 
-- Enable any programming language with ODBC-bindings/ODBC-plugings to communicate with TDengine:
+- **Enable any programming language with ODBC-bindings/ODBC-plugings to communicate with TDengine**
 
 | programming language | ODBC-API or bindings/plugins |
 | :----- | :---- |

@@ -951,7 +951,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   createTable = (pReq->createTable != 0);
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
 
-  ST_TASK_DLOG("[runner calc]start to loop, winNum:%d, extWindow:%d", winNum, pExec->runtimeInfo.funcInfo.withExternalWindow);
+  ST_TASK_DLOG("[runner calc]start to loop, winNum:%d, extWindow:%d, nextOutIdx:%d, gid:%" PRId64, winNum, pExec->runtimeInfo.funcInfo.withExternalWindow, nextOutIdx, pReq->gid);
 
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {
@@ -965,9 +965,9 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     printDataBlock(pBlock, __func__, "streamExecuteTask block", pTask->task.streamId);
     if (pTask->topTask) {
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
-        ST_TASK_DLOG("[runner calc] external window: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
+        ST_TASK_DLOG("[runner calc] external window: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d, gid:%" PRId64,
                      pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
-                     pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx);
+                     pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx, pReq->gid);
         STREAM_CHECK_RET_GOTO(stRunnerTopTaskHandleExternalWinOutputBlock(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx,  finished, &createTable));
       } else {
         // no external window, only one window to calc, force output and output block
@@ -1015,15 +1015,22 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 
 end:
 
-  if (TSDB_CODE_SUCCESS == code && pExec->pOutBlock && pExec->pOutBlock->info.rows > 0) {
+  if (TSDB_CODE_SUCCESS == code && ((pExec->pOutBlock && pExec->pOutBlock->info.rows > 0) || createTable)) {
+    if (!pExec->pOutBlock || pExec->pOutBlock->info.rows == 0) {
+      ST_TASK_DLOG(
+          "output block is empty but createTable is true, do stRunnerOutputBlock to initTableInfo, gid:%" PRId64,
+          pReq->gid);
+    }
     code = stRunnerOutputBlock(pTask, pExec, pExec->pOutBlock, &createTable);
     TAOS_CHECK_GOTO(code, &lino, end);
     code = streamDoNotificationCurrentWins(pTask, pExec, pExec->tbname);
     TAOS_CHECK_GOTO(code, &lino, end);
-    blockDataCleanup(pExec->pOutBlock);
+    if (pExec->pOutBlock) {
+      blockDataCleanup(pExec->pOutBlock);
+    }
   }
-  
-  ST_TASK_DLOG("execId %d stop to run", pExec->runtimeInfo.execId);
+
+  ST_TASK_DLOG("execId %d stop to run, gid:%" PRId64, pExec->runtimeInfo.execId, pReq->gid);
   
   stRunnerTaskReleaseExec(pTask, pExec);
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);

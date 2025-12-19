@@ -90,6 +90,7 @@ typedef enum {
   MND_OPER_ROLLUP_DB,
   MND_OPER_SHOW_STB,
   MND_OPER_ALTER_RSMA,
+  MND_OPER_ALTER_DNODE_RELOAD_TLS,
 } EOperType;
 
 typedef enum {
@@ -169,14 +170,16 @@ typedef enum {
   DND_REASON_STATUS_MONITOR_SLOW_LOG_THRESHOLD_NOT_MATCH,
   DND_REASON_STATUS_MONITOR_SLOW_LOG_SQL_MAX_LEN_NOT_MATCH,
   DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH,
-  DND_REASON_OTHERS
+  DND_REASON_OTHERS,
+  DND_REASON_TIME_UNSYNC
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE_REB = 1,  // update after rebalance
+  CONSUMER_CLEAR      = 0,
+  CONSUMER_UPDATE_REB,      // update after rebalance
   CONSUMER_ADD_REB,         // add    after rebalance
   CONSUMER_REMOVE_REB,      // remove after rebalance
-  CONSUMER_UPDATE_REC,      // update after recover
+  CONSUMER_UPDATE_REC,      // discarded
   CONSUMER_UPDATE_SUB,      // update after subscribe req
   CONSUMER_INSERT_SUB,
 } ECsmUpdateType;
@@ -403,8 +406,8 @@ typedef struct {
 
 
 typedef struct {
-  int64_t lastLoginTime;        // in seconds
-  int64_t lastFailedLoginTime;  // in seconds
+  int32_t lastLoginTime;        // in seconds
+  int32_t lastFailedLoginTime;  // in seconds
   int32_t failedLoginCount;
 } SLoginInfo;
 
@@ -421,7 +424,7 @@ typedef struct {
 
 typedef struct {
   char    pass[TSDB_PASSWORD_LEN];
-  int64_t setTime;  // password set time, in seconds
+  int32_t setTime;  // password set time, in seconds
 } SUserPassword;
 
 typedef struct {
@@ -535,6 +538,7 @@ typedef struct {
   int32_t compactInterval;    // minute
   int32_t compactStartTime;   // minute
   int32_t compactEndTime;     // minute
+  int8_t  isAudit;
 } SDbCfg;
 
 typedef struct {
@@ -789,19 +793,13 @@ typedef struct {
   int32_t        version;
   int8_t         subType;   // column, db or stable
   int8_t         withMeta;  // TODO
-  SRWLatch       lock;
   int32_t        sqlLen;
-  int32_t        astLen;
   char*          sql;
-  char*          ast;
   char*          physicalPlan;
   SSchemaWrapper schema;
   int64_t        stbUid;
   char           stbName[TSDB_TABLE_FNAME_LEN];
-  // forbid condition
-  int64_t ntbUid;
-  SArray* ntbColIds;
-  int64_t ctbStbUid;
+  SRWLatch       lock;        // lock must be at the end for topic update
 } SMqTopicObj;
 
 typedef struct {
@@ -866,7 +864,6 @@ void*   tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
-  SRWLatch  lock;
   int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
@@ -876,11 +873,11 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<SMqVgEp>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
-  char*     qmsg;  // SubPlanToString
+  SRWLatch  lock;
 } SMqSubscribeObj;
 
 int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
-int32_t tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
+int32_t tCloneSubscribeObj(SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
 void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
 void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
@@ -902,6 +899,7 @@ typedef struct {
   SArray*          removedConsumers;  // SArray<int64_t>
   SArray*          modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj* pSub;
+  bool             isReload;
 } SMqRebOutputObj;
 
 typedef struct {

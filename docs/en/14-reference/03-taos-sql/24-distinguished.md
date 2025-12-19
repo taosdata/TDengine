@@ -67,7 +67,7 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
   - Pseudocolumns _wstart,_wend, and _wduration.
   - Aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters).
   - Expressions containing the above expressions.
-  - And must include at least one aggregate function.
+  - And must include at least one aggregate function(this limitation no longer exists after version 3.4.0.0).
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
 
@@ -289,7 +289,7 @@ select _wstart, _wend, count(*) from t count_window(4);
 
 ### Timestamp Pseudo Columns
 
-In window aggregate query results, if the SQL statement does not specify the output of the timestamp column in the query results, the final results will not automatically include the window's time column information. If you need to output the time window information corresponding to the aggregate results in the results, you need to use timestamp-related pseudocolumns in the SELECT clause: window start time (\_WSTART), window end time (\_WEND), window duration (\_WDURATION), and overall query window related pseudo columns: query window start time (\_QSTART) and query window end time (\_QEND). Note that both the start and end times of the time window are closed intervals, and the window duration is the numerical value under the current time resolution of the data. For example, if the current database's time resolution is milliseconds, then 500 in the results represents the duration of the current time window is 500 milliseconds (500 ms).
+In window aggregate query results, if the SQL statement does not specify the output of the timestamp column in the query results, the final results will not automatically include the window's time column information. If you need to output the time window information corresponding to the aggregate results in the results, you need to use timestamp-related pseudocolumns in the SELECT clause: window start time (\_WSTART), window end time (\_WEND), window duration (\_WDURATION), and overall query window related pseudo columns: query window start time (\_QSTART) and query window end time (\_QEND). It should be noted that, except that the end time of the INTERVAL window is an open interval, the start time and end time of other time windows are both closed intervals, and the window duration is the numerical value under the current time resolution of the data. For example, if the current database's time resolution is milliseconds, then 500 in the results represents the duration of the current time window is 500 milliseconds (500 ms).
 
 ### Example
 
