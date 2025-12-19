@@ -3054,3 +3054,9 @@ DB error: Expr subquery not supported in current clause [0x800026A8]
 taos> create topic topic1 as select (select 1 from tb3 limit 1) from tb3;
 
 DB error: Expr subquery not supported in current clause [0x800026A8] 
+taos> insert into tb1 values(now, (select 1 from tb3 limit 1), 1);
+
+DB error: syntax error near '(select 1 from tb3 limit 1), 1);' (invalid data or symbol) [0x80000216] 
+taos> alter table tb1 set tag tg1 = (select 1 from tb3 limit 1);
+
+DB error: syntax error near "(select 1 from tb3 limit 1);" [0x80002600] 

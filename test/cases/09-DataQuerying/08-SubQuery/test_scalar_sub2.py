@@ -27,6 +27,8 @@ class TestScalarSubQuery2:
         "create stream stm1 interval(1d) sliding(1d) from tb1 partition by {scalarSql} into out1 as select * from {tableName}",
         "create stream stm1 interval(1d) sliding(1d) from tb1 into out2 as select ts, {scalarSql} from {tableName}",
         "create topic topic1 as select {scalarSql} from {tableName}",      
+        "insert into tb1 values(now, {scalarSql}, 1)",
+        "alter table tb1 set tag tg1 = {scalarSql}",
     ]
 
     speCFuncSqls = [
