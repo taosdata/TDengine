@@ -1,0 +1,28 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    command: start-dev
+    ports:
+      - '8080:8080'
+      - '8443:8443'
+      - '9000:9000'
+
+    environment:
+      # 使用 KC 前缀的环境变量（新版本推荐）
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HOSTNAME_STRICT_HTTPS: 'false'
+
+      # 设置管理员凭据
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin123
+
+      # 开启管理端口健康检查
+      KC_HEALTH_ENABLED: 'true'
+      KC_HTTP_MANAGEMENT_HEALTH_ENABLED: 'true'
+      KC_HTTP_MANAGEMENT_PORT: '9000'
+      KC_HTTP_MANAGEMENT_SCHEME: 'http'
+      KC_LEGACY_OBSERVABILITY_INTERFACE: 'true'
+
+      # 开发模式配置
+      KC_HTTP_ENABLED: 'true'

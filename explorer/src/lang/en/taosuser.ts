@@ -30,9 +30,10 @@ export default {
       s3Region: 'S3 Region',
       s3ObjectPrefix: 'Object Prefix',
       backupRetentionPeriod: 'Retention Duration',
-      backupRetentionSize: 'Retention Quantity',
+      backupRetentionSize: 'Retention Quantity'
     },
-    validateS3Failed: 'Failed to verify S3. Please check if the taosx service is normal and can connect to the S3 service',
+    validateS3Failed:
+      'Failed to verify S3. Please check if the taosx service is normal and can connect to the S3 service',
     compressionLevel: {
       balanced: 'balanced',
       best: 'best',
@@ -67,11 +68,14 @@ export default {
     username: 'User Name',
     password: 'Password',
     sysinfo: 'SYSINFO',
-    sysinfoTip: 'SYSINFO indicates whether the user can view system information. 1 means they can view, 0 means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc.',
+    sysinfoTip:
+      'SYSINFO indicates whether the user can view system information. 1 means they can view, 0 means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc.',
     createdb: 'CREATEDB',
-    createdbTip: 'Indicates whether the user can create a database. 1 means they can create, 0 means they have no permission to create.',
+    createdbTip:
+      'Indicates whether the user can create a database. 1 means they can create, 0 means they have no permission to create.',
     allowed_host: 'ALLOWED_HOST',
-    allowed_hostTip: 'ALLOWED_HOST indicates the host whitelist for the user. Multiple IP addresses are separated by commas. The database will add 127.0.0.1/32 by default.',
+    allowed_hostTip:
+      'ALLOWED_HOST indicates the host whitelist for the user. Multiple IP addresses are separated by commas. The database will add 127.0.0.1/32 by default.',
     subscription: 'Topic',
     subscribe: 'Subscribe',
     createbackup: 'Create New Backup',
@@ -115,6 +119,23 @@ export default {
     fail3: 'Check the cause of the failure',
     formatError: 'The format is incorrect. For example: http://localhost:6041、http://127.0.0.1:6041',
     createNewUserSucTip: 'Succeeded in creating a user',
-    passwordEditTip: 'Please leave it blank if you are not updating the password.'
+    passwordEditTip: 'Please leave it blank if you are not updating the password.',
+    oauth2: {
+      title: 'OAuth User Management',
+      communityHint: 'Community edition: features are for demo only',
+      syncDesc:
+        'Sync users from the configured OAuth provider (e.g. /sso/oauth2.0/getUsers) into Explorer’s user mapping. This operation is idempotent.',
+      syncing: 'Syncing…',
+      syncNow: 'Sync Users Now',
+      imported: 'Imported',
+      updated: 'Updated',
+      skipped: 'Skipped',
+      message: 'Message',
+      syncConfirm: 'Trigger user sync from OAuth provider now?',
+      pleaseInputPassword: 'Please input password',
+      syncCompleted: 'User sync completed',
+      syncFailed: 'Sync failed',
+      existingUsers: 'OAuth User List'
+    }
   }
 };

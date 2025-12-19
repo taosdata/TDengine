@@ -1,9 +1,9 @@
 use chrono::{DateTime, Local, Utc};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
-use tiberius::{AuthMethod, Client, Config, QueryStream};
+use tiberius::{Client, QueryStream};
 use tokio::net::TcpStream;
-use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
+use tokio_util::compat::Compat;
 
 use super::HistorianTable;
 use super::config::ConnectConfig;
@@ -14,34 +14,8 @@ pub struct HistorianQuery {
 
 impl HistorianQuery {
     pub async fn try_connect(config: ConnectConfig) -> anyhow::Result<Self> {
-        let client = Self::connect(
-            &config.host,
-            config.port,
-            &config.username,
-            &config.password,
-        )
-        .await?;
+        let client = config.connect().await?;
         Ok(Self { client })
-    }
-
-    async fn connect(
-        host: &String,
-        port: u16,
-        username: &String,
-        password: &String,
-    ) -> anyhow::Result<Client<Compat<TcpStream>>> {
-        let mut config = Config::new();
-        config.host(host);
-        config.port(port);
-        config.database("Runtime");
-        config.authentication(AuthMethod::sql_server(username, password));
-        config.trust_cert();
-
-        let tcp = TcpStream::connect(config.get_addr()).await?;
-        tcp.set_nodelay(true)?;
-        let client: Client<Compat<TcpStream>> = Client::connect(config, tcp.compat_write()).await?;
-
-        Ok(client)
     }
 
     pub async fn select_from_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream<'_>> {

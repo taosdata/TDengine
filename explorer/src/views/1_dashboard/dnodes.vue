@@ -28,7 +28,14 @@
     <div class="dnode-title">
       <span class="dnode-ep">{{ $t('dashboard.hosts') }}</span>
     </div>
-    <el-table :data="dnodeList" :default-sort="{ prop: 'ep', order: 'ascending' }" style="width: 100%" stripe border height="100%">
+    <el-table
+      :data="dnodeList"
+      :default-sort="{ prop: 'ep', order: 'ascending' }"
+      style="width: 100%"
+      stripe
+      border
+      height="100%"
+    >
       <el-table-column prop="ep" sortable :label="$t('dashboard.endpoint')" width="240"></el-table-column>
       <el-table-column prop="res" sortable :label="$t('dashboard.cpumem')" width="105"></el-table-column>
       <el-table-column prop="cpu_usage" sortable :label="$t('dashboard.cpu_usage')" width="125">
@@ -71,7 +78,9 @@
 import { sendSQLReq } from '@/api/explorer';
 import { getClusterID } from '@/utils';
 import { t } from '@/lang/index';
-const { $IS_COMMUNITY, $IS_TSDBLITE} = inject('globalCustomProperties') as GlobalCustomProperties;
+import _ from 'lodash-es';
+
+const { $IS_COMMUNITY, $IS_TSDBLITE } = inject('globalCustomProperties') as GlobalCustomProperties;
 
 const skipTaosXError = $IS_COMMUNITY || $IS_TSDBLITE;
 const grafanaDashboard = ref(null);
@@ -128,22 +137,20 @@ async function loadDnodes() {
   }
   const [offline_limit, error_limit, warn_limit] = res.data[0];
 
-  const cluster_res = await sendSQLReq(
-    `select last_row(dnodes_total, dnodes_alive) from log.taosd_cluster_info where cluster_id = '${getClusterID()}';`
-  );
+  const cluster_res = await sendSQLReq(`select last_row(dnodes_total, dnodes_alive) from log.taosd_cluster_info`);
   if (!cluster_res || cluster_res.code !== 0) {
     return;
   }
   if (Array.isArray(cluster_res.data) && cluster_res.data.length === 0) {
-    ElMessage.warning("taosd cluster info empty");
-    return
+    ElMessage.warning('taosd cluster info empty');
+    return;
   }
   const [dnodes_total, _] = cluster_res.data[0];
   statisticData.value.taosd = dnodes_total;
 
   const dnode_res =
-    await sendSQLReq(`select last_row(_ts, dnode_ep, cpu_cores, cpu_system, mem_total, mem_free, mem_cache_buffer, io_write_disk, io_read_disk, system_net_in, system_net_out ) 
- from log.taosd_dnodes_info where cluster_id = '${getClusterID()}' partition by dnode_ep`);
+    await sendSQLReq(`select last_row(_ts, dnode_ep, cpu_cores, cpu_system, mem_total, mem_free, mem_cache_buffer, io_write_disk, io_read_disk, system_net_in, system_net_out )
+ from log.taosd_dnodes_info partition by dnode_ep`);
 
   const adapter_res = await sendSQLReq(
     `select last_row(ts, endpoint) from log.adapter_requests where ts > '${offline_limit}' and req_type=0 partition by endpoint;`
@@ -160,7 +167,9 @@ async function loadDnodes() {
   let taosx_res;
   try {
     taosx_res = await sendSQLReq(
-      `select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`, false, !skipTaosXError 
+      `select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`,
+      false,
+      !skipTaosXError
     );
   } catch (e) {
     console.log(e);
@@ -275,12 +284,19 @@ async function loadDnodes() {
 
 function tryLoadDNodes() {
   return loadDnodes().catch(error => {
-    console.error(error);
-    if (error.includes('Permission denied')) {
-      ElMessage.error(t('dashboard.limited'));
-      return;
+    if (!error) {
+      ElMessage.error('Load dnodes error:', error);
     }
-    ElMessage.error('Load dnodes error:', error.desc || error);
+    console.error(error);
+    try {
+      if (_.includes(error, 'Permission denied') || _.includes(error.data?.desc, 'Permission denied')) {
+        ElMessage.error(t('dashboard.limited'));
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    ElMessage.error('Load dnodes error:', error?.desc || error);
   });
 }
 

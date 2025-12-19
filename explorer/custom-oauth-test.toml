@@ -1,0 +1,35 @@
+# Test configuration for Custom OAuth 2.0 SSO Integration
+# SSO Provider: http://www.dodocloud.cn:43391/
+cors = true
+
+[oauth]
+enabled = true
+provider = "custom"
+
+[oauth.provider_display_name]
+en = "Company SSO"
+zh = "统一认证服务"
+
+[oauth.custom]
+client_id = "jRYp8CqZ"
+client_secret = "6D9Qq5Kmmd"
+
+# Custom OAuth endpoints
+authorize_url = "http://www.dodocloud.cn:43391/sso/oauth2.0/authorize"
+token_url = "http://www.dodocloud.cn:43391/sso/oauth2.0/accessToken"
+profile_url = "http://www.dodocloud.cn:43391/sso/oauth2.0/profile"
+login_url = "http://www.dodocloud.cn:43391/rest/v1/sso/userLogin/login"
+fetch_users_url = "http://www.dodocloud.cn:43391/sso/oauth2.0/getUsers"
+
+# Redirect URI - adjust based on your test environment
+redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping
+[oauth.user_mapping]
+username = "username"
+email = "email"
+roles = "attributes.roles[].role_name"
+
+# Test accounts:
+# Account 1: admin/admin
+# Account 2: test/12345

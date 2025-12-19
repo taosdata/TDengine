@@ -3,8 +3,6 @@ use std::{str::FromStr, sync::OnceLock, time::Duration};
 use actix_web::{web, HttpRequest};
 use anyhow::Context;
 use faststr::FastStr;
-use http_auth_basic::Credentials;
-use reqwest::header::AUTHORIZATION;
 use sqlx::{
     migrate::Migrator,
     pool::PoolOptions,
@@ -14,7 +12,7 @@ use sqlx::{
 };
 use tracing::{instrument, warn, Instrument};
 
-use crate::R;
+use crate::{oauth::middleware::extract_auth_from_request, R};
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
@@ -27,11 +25,11 @@ const DESCRIPTION_MAX_LENGTH: usize = 20;
 type Result<T> = std::result::Result<T, R<()>>;
 
 #[derive(Clone)]
-pub struct FavoritesSql {
-    pool: SqlitePool,
+pub struct Storage {
+    pub pool: SqlitePool,
 }
 
-impl FavoritesSql {
+impl Storage {
     pub async fn new(data_dir: &str) -> anyhow::Result<Self> {
         if !tokio::fs::try_exists(data_dir)
             .await
@@ -320,13 +318,16 @@ fn err_page_num_is_zero() -> R<()> {
 /// add new favorites sql
 #[instrument(skip_all)]
 pub async fn add_favorites_sql(
-    favorites: web::Data<FavoritesSql>,
+    favorites: web::Data<Storage>,
     req: HttpRequest,
     sql: web::Json<AddSql>,
 ) -> Result<R<()>> {
-    let username = get_username_from_header(&req)?;
+    let auth = extract_auth_from_request(&req)
+        .await
+        .map_err(R::internal)?
+        .ok_or_else(|| R::fail(401, "Unauthorized"))?;
     favorites
-        .add_favorites_sql(&username, &sql.sql, sql.description.as_deref())
+        .add_favorites_sql(&auth.username, &sql.sql, sql.description.as_deref())
         .in_current_span()
         .await?;
     Ok(R::default())
@@ -365,12 +366,15 @@ pub struct FavoritesSqlPageData {
 #[instrument(skip_all)]
 pub async fn get_favorites_sql_page(
     req: HttpRequest,
-    favorites: web::Data<FavoritesSql>,
+    favorites: web::Data<Storage>,
     search: web::Query<SearchParams>,
 ) -> Result<R<FavoritesSqlPageData>> {
-    let username = get_username_from_header(&req)?;
+    let auth = extract_auth_from_request(&req)
+        .await
+        .map_err(R::internal)?
+        .ok_or_else(|| R::fail(401, "Unauthorized"))?;
     favorites
-        .get_favorites_sql_page(&username, &search)
+        .get_favorites_sql_page(&auth.username, &search)
         .in_current_span()
         .await
         .map(R::success)
@@ -412,12 +416,16 @@ fn build_page_query<'a, 'b>(
 /// delete favorites sql by id
 #[instrument(skip_all)]
 pub async fn delete_favorites_sql(
-    favorites: web::Data<FavoritesSql>,
+    favorites: web::Data<Storage>,
     req: HttpRequest,
     id: web::Path<u32>,
 ) -> Result<R<usize>> {
+    let auth = extract_auth_from_request(&req)
+        .await
+        .map_err(R::internal)?
+        .ok_or_else(|| R::fail(401, "Unauthorized"))?;
     favorites
-        .delete_favorites_sql(id.into_inner(), &get_username_from_header(&req)?)
+        .delete_favorites_sql(id.into_inner(), &auth.username)
         .in_current_span()
         .await
         .map(R::success)
@@ -432,27 +440,21 @@ pub struct UpdateParam {
 /// set favorites sql to public/private
 #[instrument(skip_all)]
 pub async fn update_favorites_sql(
-    favorites: web::Data<FavoritesSql>,
+    favorites: web::Data<Storage>,
     req: HttpRequest,
     id: web::Path<u32>,
     param: web::Json<UpdateParam>,
 ) -> Result<R<()>> {
+    let auth = extract_auth_from_request(&req)
+        .await
+        .map_err(R::internal)?
+        .ok_or_else(|| R::fail(401, "Unauthorized"))?;
     favorites
-        .update_favorites_sql(id.into_inner(), &get_username_from_header(&req)?, &param)
+        .update_favorites_sql(id.into_inner(), &auth.username, &param)
         .await
         .map(|_| R::default())
 }
 
-/// convenience function to get username from http header
-pub fn get_username_from_header(req: &HttpRequest) -> Result<String> {
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or_default();
-    let credentials = Credentials::from_header(header.to_string()).map_err(R::internal)?;
-    Ok(credentials.user_id)
-}
 pub fn mask_string(s: &str) -> String {
     if s.len() < 3 {
         // If string is too short, return all stars
@@ -473,6 +475,8 @@ pub fn mask_string(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use http::header::AUTHORIZATION;
+
     use super::*;
 
     #[test]
@@ -497,7 +501,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_favorites_sql_new() {
         let temp_dir = assert_fs::TempDir::with_prefix("favorites_sql_test").unwrap();
-        let fav_sql = FavoritesSql::new(temp_dir.path().to_str().unwrap())
+        let fav_sql = Storage::new(temp_dir.path().to_str().unwrap())
             .await
             .unwrap();
         assert!(temp_dir.exists(), "temp dir should exist");
@@ -520,7 +524,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_favorites_sql_operations() {
         let temp_dir = assert_fs::TempDir::with_prefix("favorites_sql_operations").unwrap();
-        let fav_sql = FavoritesSql::new(temp_dir.path().to_str().unwrap())
+        let fav_sql = Storage::new(temp_dir.path().to_str().unwrap())
             .await
             .unwrap();
 
@@ -671,7 +675,7 @@ mod tests {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
 
         let temp_dir = assert_fs::TempDir::with_prefix("favorites_sql_web_handlers").unwrap();
-        let fav_sql = FavoritesSql::new(temp_dir.path().to_str().unwrap())
+        let fav_sql = Storage::new(temp_dir.path().to_str().unwrap())
             .await
             .unwrap();
         let fav_sql_data = web::Data::new(fav_sql);

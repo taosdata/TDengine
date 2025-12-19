@@ -40,7 +40,8 @@ namespace TDBackfill
                 log.Info("PI Backfill commit is: " + commit);
                 log.Info("PI Backfill build at: " + build_time);
             }
-            else {
+            else
+            {
                 Console.WriteLine("PI Backfill");
                 Console.WriteLine($"    Version : {version}");
                 Console.WriteLine($"    Commit : {commit}");
@@ -54,7 +55,8 @@ namespace TDBackfill
             //get the command line options
             CommandLineOptions options = parser.GetCommandLineOptions();
             PrintVersion(options.ShowVersion);
-            if (options.ShowVersion) {  
+            if (options.ShowVersion)
+            {
                 return;
             }
 
@@ -78,7 +80,7 @@ namespace TDBackfill
                 Console.WriteLine("-from, --from-last-recorded");
                 Console.WriteLine("    Backfill from the last recorded value in TDengine.");
                 Console.WriteLine("-f, --file-toml");
-                Console.WriteLine("    Backfill toml config path.");              
+                Console.WriteLine("    Backfill toml config path.");
                 Console.WriteLine("-s, --start");
                 Console.WriteLine("    The start time for backfilling data. If not provided, the start time will be the earliest time available.");
                 Console.WriteLine("-e, --end");
@@ -93,15 +95,18 @@ namespace TDBackfill
             }
             else
             {
-                try {
+                try
+                {
                     AppSettings.Init(options.tomlFile);
                 }
-                catch (Exception e) {
+                catch (Exception e)
+                {
                     log.Fatal("Init Failed! Please check toml config file.", e);
                     return;
                 }
 
-                if (options.tomlFile == "") {
+                if (options.tomlFile == "")
+                {
                     AppSettings.tomlConfig.SetBackfillOption(
                         options.BackfillToFirstRecorded,
                         options.BackfillFromLastRecorded,
@@ -111,7 +116,8 @@ namespace TDBackfill
                 }
 
                 PISystemManager piSystemManager = null;
-                if (!string.IsNullOrEmpty(AppSettings.tomlConfig.PISystemName)) {
+                if (!string.IsNullOrEmpty(AppSettings.tomlConfig.PISystemName))
+                {
                     piSystemManager = new PISystemManager(AppSettings.tomlConfig.PISystemName);
                 }
                 PIServerManager piServerManager = null;
@@ -158,7 +164,6 @@ namespace TDBackfill
                 }
 
                 BackfillManager backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy);
-
                 try
                 {
                     backfillManager.BackfillPIPointsFromTool(AppSettings.tomlConfig.TDDataBase,
@@ -167,11 +172,12 @@ namespace TDBackfill
                         AppSettings.tomlConfig.BackfillEndTime.UtcDateTime,
                         AppSettings.tomlConfig.ToTDengineFirstTime,
                         AppSettings.tomlConfig.FromTDengineLastTime,
-                        options.DropTables).Wait();
+                        options.DropTables).GetAwaiter().GetResult();
                 }
                 catch (Exception e)
                 {
-                    log.Error("Error backfilling PI Points", e.InnerException);
+                    log.Error("Error backfilling PI Points", e);
+                    tdEngineProxy.StopAll();
                     return;
                 }
 
@@ -186,7 +192,7 @@ namespace TDBackfill
                                 AppSettings.tomlConfig.BackfillEndTime.UtcDateTime,
                                 AppSettings.tomlConfig.ToTDengineFirstTime,
                                 AppSettings.tomlConfig.FromTDengineLastTime,
-                                options.DropTables).Wait();
+                                options.DropTables).GetAwaiter().GetResult();
                         backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
                                 AppSettings.tomlConfig.AFDatabaseName,
                                 AppSettings.tomlConfig.TemplateForAFElement,
@@ -194,17 +200,18 @@ namespace TDBackfill
                                 AppSettings.tomlConfig.BackfillEndTime.UtcDateTime,
                                 AppSettings.tomlConfig.ToTDengineFirstTime,
                                 AppSettings.tomlConfig.FromTDengineLastTime,
-                                options.DropTables).Wait();
+                                options.DropTables).GetAwaiter().GetResult();
                     }
-
                 }
                 catch (Exception e)
                 {
-                    log.Error("Error backfilling AF Elements", e.InnerException);
+                    log.Error("Error backfilling AF Elements", e);
+                    tdEngineProxy.StopAll();
                     return;
                 }
 
-                while (tdEngineProxy.IsBusy()) {
+                while (tdEngineProxy.IsBusy())
+                {
                     Console.WriteLine("Backfill wait for the end of data sending.");
                     Thread.Sleep(1000);
                 }

@@ -221,7 +221,7 @@ impl HandlingTableNameContainsIllegalChar {
                     .chars()
                     .map(|c| if c == '.' { str.clone() } else { c.to_string() })
                     .collect::<String>();
-                tracing::warn!(
+                tracing::trace!(
                     "{err}, convert table name '{table_name}' to '{table_name_replaced}'"
                 );
                 Ok((HandlingResult::Modify(vec![table_name_replaced]), err))

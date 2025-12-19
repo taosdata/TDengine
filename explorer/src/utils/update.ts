@@ -23,10 +23,10 @@ const timerFunction = async () => {
   let baseUrl = '/';
   if (process.env.NODE_ENV === 'development') {
     // 开发环境使用代理
-    baseUrl = '/'
+    baseUrl = '/';
   } else {
     // 生产环境动态检测
-    baseUrl = basePath === '/' ? '/' : `${basePath}`
+    baseUrl = basePath === '/' ? '/' : `${basePath}`;
   }
   const res = await fetch(`${baseUrl}version.txt?v=${new Date().getTime().toString()}`)
     .then(res => {
