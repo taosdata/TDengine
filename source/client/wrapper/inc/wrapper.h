@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+#define STR_NATIVE    "native"
+#define STR_WEBSOCKET "websocket"
+
 typedef enum {
   DRIVER_NATIVE = 0,
   DRIVER_WEBSOCKET = 1,
