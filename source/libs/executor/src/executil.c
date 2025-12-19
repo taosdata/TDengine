@@ -3154,6 +3154,7 @@ int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTab
   QUERY_CHECK_NULL(pCond->pSlotList, code, lino, _return, terrno);
 
   pCond->twindows = pOrgCond->twindows;
+  pCond->order = pOrgCond->order;
   pCond->type = pOrgCond->type;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
