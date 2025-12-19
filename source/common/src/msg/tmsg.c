@@ -14656,13 +14656,13 @@ int32_t tEncodeMqDataRspCommon(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->blockNum));
   if (pRsp->blockNum != 0) {
     TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pRsp->withTbName));
-    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pRsp->withOutSchema));
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pRsp->withSchema));
 
     for (int32_t i = 0; i < pRsp->blockNum; i++) {
       int32_t bLen = *(int32_t *)taosArrayGet(pRsp->blockDataLen, i);
       void   *data = taosArrayGetP(pRsp->blockData, i);
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (const uint8_t *)data, bLen));
-      if (!pRsp->withOutSchema){
+      if (pRsp->withSchema){
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosArrayGetP(pRsp->blockSchema, i);
         TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pEncoder, pSW));
       }
@@ -14700,13 +14700,13 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRsp->withTbName));
-    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRsp->withOutSchema));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRsp->withSchema));
     if (pRsp->withTbName) {
       if ((pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void *))) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
     }
-    if (!pRsp->withOutSchema) {
+    if (pRsp->withSchema) {
       if ((pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void *))) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -14727,7 +14727,7 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
         TAOS_CHECK_EXIT(terrno);
       }
 
-      if (!pRsp->withOutSchema) {
+      if (pRsp->withSchema) {
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
         if (pSW == NULL) {
           TAOS_CHECK_EXIT(terrno);

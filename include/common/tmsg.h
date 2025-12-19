@@ -5188,7 +5188,7 @@ typedef struct {
   STqOffsetVal reqOffset;
   int32_t      blockNum;
   int8_t       withTbName;
-  int8_t       withOutSchema;      // for raw data
+  int8_t       withSchema;
   SArray*      blockDataLen;
   SArray*      blockData;
   SArray*      blockTbName;
