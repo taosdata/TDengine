@@ -926,7 +926,7 @@ typedef struct SGrantStmt {
     SPrivSetArgs privileges;
     char         roleName[TSDB_ROLE_LEN];
   };
-  SNode* pTagCond;
+  SNode* pCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;

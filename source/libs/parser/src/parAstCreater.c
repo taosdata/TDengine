@@ -570,6 +570,17 @@ _err:
   return NULL;
 }
 
+/**
+ * @param type: 1 with mask; 0 without mask
+ */
+SNode* createColumnNodeExt(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName, int8_t type) {
+  SNode* result = createColumnNode(pCxt, pTableAlias, pColumnName);
+  if (result != NULL) {
+    if (type == 1) ((SColumnNode*)result)->hasMask = 1;
+  }
+  return result;
+}
+
 SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
   CHECK_PARSER_STATUS(pCxt);
   SFunctionNode* pFunc = NULL;
@@ -5851,7 +5862,7 @@ _err:
 }
 
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                       SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
+                       SNode* pCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkRoleName(pCxt, pPrincipal, false));
   SGrantStmt* pStmt = NULL;
@@ -5866,14 +5877,13 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
       CHECK_NAME(checkObjName(pCxt, &pPrivLevel->first, false));
       CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
       pStmt->privileges = *(SPrivSetArgs*)resouces;
-      pStmt->privileges.rowSpans = pRows;
       if (TK_NK_NIL != pPrivLevel->first.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
       }
       if (TK_NK_NIL != pPrivLevel->second.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
       }
-      pStmt->pTagCond = pTagCond;
+      pStmt->pCond = pCond;
       break;
     }
     case TSDB_ALTER_ROLE_ROLE: {
@@ -5888,12 +5898,12 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
   }
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pTagCond);
+  nodesDestroyNode(pCond);
   return NULL;
 }
 
 SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
-                        SNode* pTagCond, SNodeList* pRows, int8_t optrType) {
+                        SNode* pCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pPrincipal));
   SRevokeStmt* pStmt = NULL;
@@ -5909,7 +5919,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs*
     if (TK_NK_NIL != pPrivLevel->second.type) {
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }
-    pStmt->pTagCond = pTagCond;
+    pStmt->pCond = pCond;
   } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
     SToken* pRole = (SToken*)resouces;
     CHECK_NAME(checkRoleName(pCxt, pRole, false));
@@ -5921,7 +5931,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs*
 
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pTagCond);
+  nodesDestroyNode(pCond);
   return NULL;
 }
 

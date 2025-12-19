@@ -16145,7 +16145,7 @@ static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** 
 static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterRoleReq* pReq, bool grant) {
   SRealTableNode* pTable = NULL;
   if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
-    if (pStmt->pTagCond) {
+    if (pStmt->pCond) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "The With clause can only be used for table level privilege");
     } else {
@@ -16186,7 +16186,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
     }
   }
 _tagCond:
-  if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTagCond) {
+  if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pCond) {
     nodesDestroyNode((SNode*)pTable);
     return TSDB_CODE_SUCCESS;
   }
@@ -16215,11 +16215,12 @@ _tagCond:
     code = addNamespace(pCxt, pTable);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateExpr(pCxt, &pStmt->pTagCond);
+    code = translateExpr(pCxt, &pStmt->pCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString(pStmt->pTagCond, false, &pReq->privileges.tagCond, &pReq->privileges.tagCondLen);
+    code = nodesNodeToString(pStmt->pCond, false, &pReq->privileges.cond, &pReq->privileges.condLen);
   }
+#if 0
   if (TSDB_CODE_SUCCESS == code) {
     char    buffer[512] = {0};  // TODO: use the real length
     int32_t outLen = 0;
@@ -16228,6 +16229,7 @@ _tagCond:
       pReq->privileges.tagHash = MurmurHash3_32(buffer, outLen);
     }
   }
+#endif
   nodesDestroyNode((SNode*)pTable);
   return code;
 }

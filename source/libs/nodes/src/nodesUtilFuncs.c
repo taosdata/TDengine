@@ -1826,10 +1826,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SYNCDB_STMT:        // no pointer field
       break;
     case QUERY_NODE_GRANT_STMT:
-      nodesDestroyNode(((SGrantStmt*)pNode)->pTagCond);
+      nodesDestroyNode(((SGrantStmt*)pNode)->pCond);
       break;
     case QUERY_NODE_REVOKE_STMT:
-      nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
+      nodesDestroyNode(((SRevokeStmt*)pNode)->pCond);
       break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:  // no pointer field
       break;
