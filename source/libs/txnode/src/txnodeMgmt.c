@@ -160,7 +160,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   //   }
   // }
 
-  char *envXnoded[] = {xnodedCfgDir, xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId, testenv, NULL};
+  char *envXnoded[] = {xnodedCfgDir, xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId, NULL};
 
   char **envXnodedWithPEnv = NULL;
   if (environ != NULL) {
