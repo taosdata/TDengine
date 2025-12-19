@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tarray.h"
 #include "tmsg.h"
 #include "tq.h"
 
@@ -1355,9 +1356,15 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       }
     } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       if (isAdd) {
-        SArray* list = NULL;
-        int     ret = qGetTableList(pTqHandle->execHandle.execTb.suid, pTq->pVnode, pTqHandle->execHandle.execTb.node,
-                                    &list, pTqHandle->execHandle.task);
+        SArray* list = taosArrayDup(tbUidList, NULL);
+        if (list == NULL) {
+          tqError("taosArrayDup failed in tqUpdateTbUidList");
+          taosHashCancelIterate(pTq->pHandle, pIter);
+          taosWUnLockLatch(&pTq->lock);
+          return terrno;
+        }
+        int     ret = qSubFilterTableList(pTq->pVnode, list, pTqHandle->execHandle.execTb.node,
+                            pTqHandle->execHandle.task, pTqHandle->execHandle.execTb.suid);
         if (ret != TDB_CODE_SUCCESS) {
           tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey,
                   pTqHandle->consumerId);
@@ -1367,7 +1374,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
 
           return ret;
         }
-        tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
+        tqReaderAddTbUidList(pTqHandle->execHandle.pTqReader, list);
         taosArrayDestroy(list);
       } else {
         tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
