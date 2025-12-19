@@ -467,7 +467,7 @@ int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {
       SColNameFlag* pSrcCol = (SColNameFlag*)TARRAY_GET_ELEM(src->cols, i);
       SColNameFlag* destCol = (SColNameFlag*)TARRAY_GET_ELEM(dest->cols, i);
       destCol->colId = pSrcCol->colId;
-      destCol->flag = pSrcCol->flag;
+      destCol->flags = pSrcCol->flags;
       (void)snprintf(destCol->colName, TSDB_COL_NAME_LEN, "%s", pSrcCol->colName);
     }
   } else {

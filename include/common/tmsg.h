@@ -3689,16 +3689,16 @@ typedef struct SColIdNameKV {
 } SColIdNameKV;
 
 #define COL_MASK_ON   ((int8_t)0x1)
-#define IS_MASK_ON(s) (((s)->flags & 0x01) == COL_MASK_ON)
-#define COL_SET_MASK_ON(s)     \
+#define IS_MASK_ON(c) (((c)->flags & 0x01) == COL_MASK_ON)
+#define COL_SET_MASK_ON(c)     \
   do {                         \
-    (s)->flags |= COL_MASK_ON; \
+    (c)->flags |= COL_MASK_ON; \
   } while (0)
 
 typedef struct SColNameFlag {
   col_id_t colId;
   char     colName[TSDB_COL_NAME_LEN];
-  int8_t   flag;  // 0x01: COL_MASK_ON
+  int8_t   flags;  // 0x01: COL_MASK_ON
 } SColNameFlag;
 
 typedef struct SColIdPair {
@@ -6027,3 +6027,4 @@ int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq
 #endif
 
 #endif /*_TD_COMMON_TAOS_MSG_H_*/
+ 

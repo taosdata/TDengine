@@ -16404,7 +16404,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     pCol->node.resType.bytes = pSchema->bytes;
   }
 
-  if (!(*ppReqCols = taosArrayInit(TMIN(nCols, columnNum), sizeof(SColIdNameKV)))) {
+  if (!(*ppReqCols = taosArrayInit(TMIN(nCols, columnNum), sizeof(colNameFlag)))) {
     return terrno;
   }
 
@@ -16416,9 +16416,10 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     if (pColNode->colId == lastColId) { // skip duplicate columns
       continue;
     }
-    SColIdNameKV colIdNameKv = {.colId = pColNode->colId};
-    (void)snprintf(colIdNameKv.colName, sizeof(colIdNameKv.colName), "%s", pColNode->colName);
-    if (!taosArrayPush(*ppReqCols, &colIdNameKv)) {
+    SColNameFlag colNameFlag = {.colId = pColNode->colId};
+    if(pColNode->hasMask) COL_SET_MASK_ON(&colNameFlag);
+    (void)snprintf(colNameFlag.colName, sizeof(colNameFlag.colName), "%s", pColNode->colName);
+    if (!taosArrayPush(*ppReqCols, &colNameFlag)) {
       TAOS_CHECK_EXIT(terrno);
     }
     lastColId = pColNode->colId;

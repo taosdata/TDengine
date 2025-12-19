@@ -4295,7 +4295,7 @@ int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, SHashObj *pHash) {
           SColNameFlag *pCol = (SColNameFlag *)TARRAY_GET_ELEM(pPolicy->cols, k);
           TAOS_CHECK_EXIT(tEncodeI16v(pEncoder, pCol->colId));
           TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->colName));
-          TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCol->flag));
+          TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCol->flags));
         }
         // encode with condition
         TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pPolicy->condLen));
@@ -4339,7 +4339,7 @@ int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash) {
             SColNameFlag *col = TARRAY_GET_ELEM(policy.cols, k);
               TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &col->colId));
               TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, col->colName));
-              TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &col->flag));
+              TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &col->flags));
           }
         }
         // decode with condition

@@ -179,6 +179,7 @@ static SKeyword keywordTable[] = {
     {"LOCAL",                TK_LOCAL},
     {"LOCK",                 TK_LOCK},
     {"LOW_LATENCY_CALC",     TK_LOW_LATENCY_CALC},
+    {"MASK",                 TK_MASK},
     {"MATCH",                TK_MATCH},
     {"MAXROWS",              TK_MAXROWS},
     {"MAX_DELAY",            TK_MAX_DELAY},
