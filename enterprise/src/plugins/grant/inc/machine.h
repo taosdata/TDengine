@@ -231,9 +231,10 @@ typedef enum {
   CONN_TYPE_SPARKPLUGB = 16,
   CONN_TYPE_ORC = 17,
   CONN_TYPE_KINGHISTORIAN = 18,
+  CONN_TYPE_PULSAR = 19,
   // add future data ins here
   // CONN_TYPE_FUTURE_DATA_IN = XX,
-  CONN_TYPE_DYN_MAX = 19,
+  CONN_TYPE_DYN_MAX = 20,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
