@@ -3,6 +3,10 @@ import argparse
 import torch
 from torch import nn
 import torch.nn.functional as F
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 
 from transformers import PreTrainedModel, Cache, DynamicCache
 from transformers.activations import ACT2FN
