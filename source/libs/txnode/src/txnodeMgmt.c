@@ -45,7 +45,7 @@ typedef struct {
   uv_async_t   stopAsync;
   int32_t      isStopped;
   int32_t      dnodeId;
-  int32_t      clusterId;
+  int64_t      clusterId;
   char         userPass[XNODE_USER_PASS_LEN];
   SEp          leaderEp;
 } SXnodedData;
@@ -67,11 +67,11 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
       xndError("stop xnoded: failed to send stop async");
     }
   } else {
-       xndInfo("xnoded process restart");
-       uv_sleep(2000);
-       int32_t code = xnodeMgmtSpawnXnoded(pData);
-       if (code != 0) {
-         xndError("xnoded process restart failed with code:%d", code);
+    xndInfo("xnoded process restart, exit status %ld, signal %d", exitStatus, termSignal);
+    uv_sleep(2000);
+    int32_t code = xnodeMgmtSpawnXnoded(pData);
+    if (code != 0) {
+      xndError("xnoded process restart failed with code:%d", code);
     }
   }
 }
@@ -133,7 +133,10 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   char xnodedUserPass[XNODE_USER_PASS_LEN] = {0};
   snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USER_PASS", pData->userPass);
   char xnodeClusterId[32] = {0};
-  snprintf(xnodeClusterId, 32, "%s=%d", "XNODED_CLUSTER_ID", pData->clusterId);
+  snprintf(xnodeClusterId, 32, "%s=%lu", "XNODED_CLUSTER_ID", pData->clusterId);
+  // xxxzgc
+  char testenv[64] = {0};
+  snprintf(testenv, 64, "ASAN_OPTIONS=detect_odr_violation=0");
 
   // char    thrdPoolSizeEnvItem[32] = {0};
   // float   numCpuCores = 4;
@@ -160,7 +163,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   //   }
   // }
 
-  char *envXnoded[] = {xnodedCfgDir, xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId, NULL};
+  char *envXnoded[] = {xnodedCfgDir, xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId, testenv, NULL};
 
   char **envXnodedWithPEnv = NULL;
   if (environ != NULL) {
