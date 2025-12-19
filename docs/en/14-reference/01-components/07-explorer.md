@@ -75,6 +75,51 @@ grpc = "http://localhost:6055"
 # CORS configuration switch, it allows cross-origin access
 cors = true
 
+[security]
+# Encryption key for sensitive data, must be 32 bytes in base64 format
+#
+encryption_key = "your-base64-encoded-32-bytes-key"
+
+# OAuth 2.0 SSO configuration
+[oauth]
+# Enable OAuth 2.0 SSO
+enabled = true
+# OAuth 2.0 provider type
+provider = "oidc" # choices: oidc/plain
+
+# OAuth 2.0 provider display name
+[oauth.provider_display_name]
+zh = "统一认证平台"
+en = "OAuth 2.0"
+
+# OIDC Standard Provider Example
+[oauth.oidc]
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+issuer_url = "http://localhost:8080/realms/taosdata"
+scopes = ["openid", "profile", "email"]
+
+# Redirect URI - adjust based on your test environment
+redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# Example Plain OAuth 2.0 SSO with GitHub
+[oauth.plain]
+client_id = "github client id"
+client_secret = "github client secret"
+
+authorize_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+profile_url = "https://api.github.com/user"
+
+# Redirect URI - adjust based on your test environment
+redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping
+[oauth.user_mapping]
+username = "username"
+email = "email"
+
+
 # Enable ssl
 # If the following two files exist, enable ssl protocol
 #
@@ -143,6 +188,13 @@ Description:
 - `x_api`: The gRPC address of taosX.
 - `grpc`: The gRPC address for taosX proxy to establish connection with taosX.
 - `cors`: CORS configuration switch, default is `false`. When set to `true`, cross-origin access is allowed.
+- `security.encryption_key`: The encryption key for sensitive data, which must be 32 bytes in base64 format. Key generation can be done using the command `openssl rand -base64 32`.
+- `oauth.enabled`: Whether to enable OAuth 2.0 SSO authentication, default is `false`.
+- `oauth.provider`: The OAuth 2.0 provider type, options are `oidc` and `plain`.
+- `oauth.provider_display_name`: The display name of the OAuth 2.0 provider, supports multiple languages.
+- `oauth.oidc`: The configuration parameters related to OpenID Connect (OIDC) providers.
+- `oauth.plain`: The configuration parameters related to ordinary OAuth 2.0 providers.
+- `oauth.user_mapping`: The user attribute mapping configuration for OAuth 2.0.
 - `ssl.certificate`: SSL certificate (if both certificate and certificate_key parameters are set, HTTPS service is enabled, otherwise it is not).
 - `ssl.certificate_key`: SSL certificate key.
 - `log.path`: The directory where log files are stored.
@@ -155,6 +207,68 @@ Description:
 - `monitor.fqdn`: The address of taosKeeper service.
 - `monitor.port`: The port of taosKeeper service, default is `6043`.
 - `monitor.interval`: The time interval for reporting metrics, default is `10` seconds.
+
+### OAuth 2.0 SSO Configuration Description
+
+taosExplorer supports integration with third-party identity authentication systems through the OAuth 2.0 protocol to achieve Single Sign-On (SSO) functionality. Supported OAuth 2.0 provider types include OpenID Connect (OIDC) and ordinary OAuth 2.0.
+
+- For OIDC providers, you need to configure parameters such as `client_id`, `client_secret`, `issuer_url`, `scopes`, and `redirect_uri`.
+  - `client_id`：The client ID registered on the OIDC provider side.
+  - `client_secret`：The client secret registered on the OIDC provider side.
+  - `issuer_url`：The issuer URL of the OIDC provider, taosExplorer will obtain OIDC configuration and public keys through this URL.
+  - `scopes`：The requested permission scopes, usually including `openid`, `profile`, and `email`.
+  - `redirect_uri`：The OAuth 2.0 authorization code callback address, which must be consistent with the callback address registered on the provider side.
+- For ordinary OAuth 2.0 providers, you need to configure parameters such as `client_id`, `client_secret`, `authorize_url`, `token_url`, `profile_url`, and `redirect_uri`.
+
+  - `client_id`：The client ID registered on the OAuth 2.0 provider side.
+  - `client_secret`：The client secret registered on the OAuth 2.0 provider side.
+  - `authorize_url`：OAuth 2.0 authorization endpoint URL.
+  - `token_url`：OAuth 2.0 token endpoint URL.
+  - `profile_url`：API URL for obtaining user information.
+  - `redirect_uri`：OAuth 2.0 authorization code callback address, usually required to be consistent with the callback address registered on the provider side.
+
+### OAuth 2.0 SSO Configuration Example
+
+#### OIDC Provider Example
+
+The following is a configuration example using Keycloak as the OIDC provider:
+
+```toml
+[oauth]
+enabled = true
+provider = "oidc"
+[oauth.oidc]
+client_id = "taos-explorer-client"
+client_secret = "your-client-secret"
+issuer_url = "http://keycloak.example.com/realms/taosdata"
+scopes = ["openid", "profile", "email"]
+redirect_uri = "http://explorer.example.com:6060/api/-/oauth/callback"
+# User attribute mapping
+[oauth.user_mapping]
+username = "preferred_username"
+email = "email"
+```
+
+#### Plain OAuth 2.0 Provider Example
+
+The following is a configuration example using GitHub as the plain OAuth 2.0 provider:
+
+```toml
+[oauth]
+enabled = true
+provider = "plain"
+[oauth.plain]
+client_id = "your-github-client-id"
+client_secret = "your-github-client-secret"
+authorize_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+profile_url = "https://api.github.com/user"
+redirect_uri = "http://explorer.example.com:6060/api/-/oauth/callback"
+# User attribute mapping
+[oauth.user_mapping]
+username = "log"
+email = "email"
+```
 
 ## Start and Stop
 
