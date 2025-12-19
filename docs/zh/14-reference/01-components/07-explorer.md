@@ -213,7 +213,7 @@ taosExplorer 支持通过 OAuth 2.0 协议与第三方身份认证系统集成�
 - 对于 OIDC 提供商，需要配置 `client_id`、`client_secret`、`issuer_url`、`scopes` 和 `redirect_uri` 等参数。
 
   - `client_id`：在 OIDC 提供商端注册的客户端 ID。
-  - `client_secret`：在 OIDC 提供商端注册的客户端密钥
+  - `client_secret`：在 OIDC 提供商端注册的客户端密钥。
   - `issuer_url`：OIDC 提供商的发行者 URL，taosExplorer 会通过该 URL 获取 OIDC 配置和公钥。
   - `scopes`：请求的权限范围，通常包括 `openid`、`profile` 和 `email` 等。
   - `redirect_uri`：OAuth 2.0 授权码回调地址，必须与在提供商端注册的回调地址一致。
