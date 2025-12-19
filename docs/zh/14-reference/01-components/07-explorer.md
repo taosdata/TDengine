@@ -190,7 +190,7 @@ email = "email"
 - `oauth.enabled`：是否启用 OAuth 2.0 单点登录功能，默认为 `false`。
 - `oauth.provider`：OAuth 2.0 提供商类型，可选值为 `oidc` 和 `plain`。
 - `oauth.provider_display_name`：OAuth 2.0 提供商显示名称，支持多语言。
-- `oauth.oidc`： OpenID Connect (OIDC) 提供商的相关配置参数。
+- `oauth.oidc`：OpenID Connect (OIDC) 提供商的相关配置参数。
 - `oauth.plain`：普通 OAuth 2.0 提供商的相关配置参数。
 - `oauth.user_mapping`：OAuth 2.0 用户属性映射配置。
 - `ssl.certificate`：SSL 证书（如果同时设置了 certificate 与 certificate_key 两个参数，则启用 HTTPS 服务，否则不启用）。
