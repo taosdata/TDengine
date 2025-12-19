@@ -3054,7 +3054,7 @@ LAG(expr)
 
 **Usage Notes**:
 
-- Support +, -, *, / operations, such as lag(col1) * lag(col2);
+- Support +, -, *, / operations, such as lag(col1) + lag(col2);
 
 **Example**:
 
