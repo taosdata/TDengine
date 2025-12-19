@@ -14,15 +14,11 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 from test_vtable_util import TestVtableQueryUtil
 
-class TestVTableQuerySameDBStbProject:
+class TestVTableQuerySameDBStbAgg:
 
     def setup_class(cls):
         vtbUtil = TestVtableQueryUtil()
-        vtbUtil.prepare_same_db_vtables()
-        tdSql.execute(f'alter local "multiResultFunctionStarReturnTags" "1";')
-    def teardown_class(cls):
-        vtbUtil = TestVtableQueryUtil()
-        #vtbUtil.clean_up_same_db_vtables()
+        vtbUtil.prepare_same_db_vtables(mode = 2)
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
@@ -35,28 +31,26 @@ class TestVTableQuerySameDBStbProject:
     def test_select_virtual_super_table(self):
         """Query: virtual stable from same db
 
-        1. test vstable select super table projection
-        2. test vstable select super table projection filter
-        3. test vstable select super table projection timerange filter
-        4. test vstable select super table function
+        1. test vstable select super table agg
+        2. test vstable select super table agg with tag condition
+        3. test vstable select super table agg with time condition
+        4. test vstable select super table agg with partition expression
 
         Catalog:
             - VirtualTable
 
-        Since: v3.3.6.0
+        Since: v3.3.8.0
 
         Labels: virtual
 
         Jira: None
 
         History:
-            - 2025-3-15 Jing Sima Created
-            - 2025-5-6 Huo Hong Migrated to new test framework
-            - 2025-10-23 Jing Sima Split from test_vtable_query.py
+            - 2025-12-19 Jing Sima created
 
         """
-        self.run_normal_query("test_vstable_select_test_projection")
-        self.run_normal_query("test_vstable_select_test_projection_filter")
-        self.run_normal_query("test_vstable_select_test_projection_timerange_filter")
-        self.run_normal_query("test_vstable_select_test_function")
+        self.run_normal_query("test_vstable_select_test_agg")
+        self.run_normal_query("test_vstable_select_test_agg_tag_cond")
+        self.run_normal_query("test_vstable_select_test_agg_time_cond")
+        self.run_normal_query("test_vstable_select_test_agg_partition_expr")
 
