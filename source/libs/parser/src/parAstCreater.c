@@ -4819,7 +4819,6 @@ SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt) {
   SXnodeTaskOptions* pOptions = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_OPTIONS, (SNode**)&pOptions);
   CHECK_MAKE_NODE(pOptions);
-  pOptions->via = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;

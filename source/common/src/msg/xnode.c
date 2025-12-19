@@ -327,7 +327,6 @@ void xFreeTaskOptions(xTaskOptions *options) {
   if (options == NULL) {
     return;
   }
-  options->via = -1;
   xFreeCowStr(&options->trigger);
   xFreeCowStr(&options->parser);
   xFreeCowStr(&options->health);
@@ -440,14 +439,9 @@ int32_t tDeserializeSMCreateXnodeTaskReq(void *buf, int32_t bufLen, SMCreateXnod
   DECODESQL();
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->xnodeId));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->name, true));
-  // printf("deserializeCreateXnodeTask: %s\n", pReq->name.ptr);
-  // printf("Deserialized name: %s\n", pReq->name.ptr);
   TAOS_CHECK_EXIT(xDeserializeTaskSource(&decoder, &pReq->source));
-  // printf("Deserialized source: %s:%s\n", xGetTaskSourceTypeAsStr(&pReq->source), xGetTaskSourceStr(&pReq->source));
   TAOS_CHECK_EXIT(xDeserializeTaskSink(&decoder, &pReq->sink));
-  // printf("Deserialized sink: %s:%s\n", xGetTaskSinkTypeAsStr(&pReq->sink), xGetTaskSinkStr(&pReq->sink));
   TAOS_CHECK_EXIT(xDeserializeTaskOptions(&decoder, &pReq->options));
-  // printXnodeTaskOptions(&pReq->options);
   tEndDecode(&decoder);
 
 _exit:
