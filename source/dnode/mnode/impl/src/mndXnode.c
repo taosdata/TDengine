@@ -1333,12 +1333,9 @@ static int32_t mndDropXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pT
 
   // delete relative jobs
   TAOS_CHECK_GOTO(mndAcquireXnodeJobsByTaskId(pMnode, pTask->id, &pArray), NULL, _OVER);
-  mInfo("xxxzgc *** xnode:%d, has %ld jobs", pTask->id, pArray->size);
   for (int i = 0; i < pArray->size; i++) {
     SXnodeJobObj *pJob = taosArrayGet(pArray, i);
     if (pJob == NULL) continue;
-    mInfo("xxxzgc *** del xnode job:%d", pJob->id);
-    // delete relative job
     TAOS_CHECK_GOTO(mndSetDropXnodeJobInfoToTrans(pTrans, pJob, false), NULL, _OVER);
   }
 

@@ -134,9 +134,6 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USER_PASS", pData->userPass);
   char xnodeClusterId[32] = {0};
   snprintf(xnodeClusterId, 32, "%s=%lu", "XNODED_CLUSTER_ID", pData->clusterId);
-  // xxxzgc
-  char testenv[64] = {0};
-  snprintf(testenv, 64, "ASAN_OPTIONS=detect_odr_violation=0");
 
   // char    thrdPoolSizeEnvItem[32] = {0};
   // float   numCpuCores = 4;
