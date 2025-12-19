@@ -213,11 +213,11 @@ Description:
 taosExplorer supports integration with third-party identity authentication systems through the OAuth 2.0 protocol to achieve Single Sign-On (SSO) functionality. Supported OAuth 2.0 provider types include OpenID Connect (OIDC) and ordinary OAuth 2.0.
 
 - For OIDC providers, you need to configure parameters such as `client_id`, `client_secret`, `issuer_url`, `scopes`, and `redirect_uri`.
-  - `client_id`：The client ID registered on the OIDC provider side.
-  - `client_secret`：The client secret registered on the OIDC provider side.
-  - `issuer_url`：The issuer URL of the OIDC provider, taosExplorer will obtain OIDC configuration and public keys through this URL.
-  - `scopes`：The requested permission scopes, usually including `openid`, `profile`, and `email`.
-  - `redirect_uri`：The OAuth 2.0 authorization code callback address, which must be consistent with the callback address registered on the provider side.
+  - `client_id`: The client ID registered on the OIDC provider side.
+  - `client_secret`: The client secret registered on the OIDC provider side.
+  - `issuer_url`: The issuer URL of the OIDC provider, taosExplorer will obtain OIDC configuration and public keys through this URL.
+  - `scopes`: The requested permission scopes, usually including `openid`, `profile`, and `email`.
+  - `redirect_uri`: The OAuth 2.0 authorization code callback address, which must be consistent with the callback address registered on the provider side.
 - For ordinary OAuth 2.0 providers, you need to configure parameters such as `client_id`, `client_secret`, `authorize_url`, `token_url`, `profile_url`, and `redirect_uri`.
 
   - `client_id`: The client ID registered on the OAuth 2.0 provider side.
