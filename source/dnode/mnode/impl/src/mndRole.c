@@ -286,10 +286,6 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
 
   TAOS_CHECK_EXIT(tSerializePrivSysObjPolicies(&encoder, &pObj->sysPrivs, pObj->objPrivs));
 
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteRows));
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectTbs));
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertTbs));
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateTbs));
@@ -355,10 +351,6 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
 
   TAOS_CHECK_EXIT(tDeserializePrivSysObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
 
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteRows));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateTbs));
@@ -483,10 +475,6 @@ _exit:
 void mndRoleFreeObj(SRoleObj *pObj) {
   if (pObj) {
     taosHashCleanup(pObj->objPrivs);
-    taosHashCleanup(pObj->selectRows);
-    taosHashCleanup(pObj->insertRows);
-    taosHashCleanup(pObj->updateRows);
-    taosHashCleanup(pObj->deleteRows);
     taosHashCleanup(pObj->selectTbs);
     taosHashCleanup(pObj->insertTbs);
     taosHashCleanup(pObj->updateTbs);
@@ -494,10 +482,6 @@ void mndRoleFreeObj(SRoleObj *pObj) {
     taosHashCleanup(pObj->parentRoles);
     taosHashCleanup(pObj->subRoles);
     pObj->objPrivs = NULL;
-    pObj->selectRows = NULL;
-    pObj->insertRows = NULL;
-    pObj->updateRows = NULL;
-    pObj->deleteRows = NULL;
     pObj->selectTbs = NULL;
     pObj->insertTbs = NULL;
     pObj->updateTbs = NULL;
@@ -526,10 +510,6 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   pOld->version = pNew->version;
   pOld->flag = pNew->flag;
   TSWAP(pOld->objPrivs, pNew->objPrivs);
-  TSWAP(pOld->selectRows, pNew->selectRows);
-  TSWAP(pOld->insertRows, pNew->insertRows);
-  TSWAP(pOld->updateRows, pNew->updateRows);
-  TSWAP(pOld->deleteRows, pNew->deleteRows);
   TSWAP(pOld->selectTbs, pNew->selectTbs);
   TSWAP(pOld->insertTbs, pNew->insertTbs);
   TSWAP(pOld->updateTbs, pNew->updateTbs);
@@ -770,14 +750,10 @@ int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
 
   taosRLockLatch(&pOld->lock);
   TAOS_CHECK_EXIT(mndDupPrivObjHash(pOld->objPrivs, &pNew->objPrivs));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->selectRows, &pNew->selectRows));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->insertRows, &pNew->insertRows));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->updateRows, &pNew->updateRows));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->deleteRows, &pNew->deleteRows));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->selectTbs, &pNew->selectTbs));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->insertTbs, &pNew->insertTbs));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->updateTbs, &pNew->updateTbs));
-  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->deleteTbs, &pNew->deleteTbs));
+  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->selectTbs, &pNew->selectTbs, false));
+  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->insertTbs, &pNew->insertTbs, false));
+  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->updateTbs, &pNew->updateTbs, false));
+  TAOS_CHECK_EXIT(mndDupPrivTblHash(pOld->deleteTbs, &pNew->deleteTbs, false));
   // TODO: alterTbs?
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->parentRoles, &pNew->parentRoles));
   TAOS_CHECK_EXIT(mndDupRoleHash(pOld->subRoles, &pNew->subRoles));

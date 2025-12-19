@@ -4303,30 +4303,24 @@ int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, SHashObj *pHash) {
         continue;  // 1.*.* or 1.db.*
       }
       SPrivTblPolicies *pTblPolicies = (SPrivTblPolicies *)pIter;
-      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTblPolicies->nPolicies));
-      for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
-        SArray *pPolicies = pTblPolicies->policy[i];
-        if (!pPolicies) continue;
-        int32_t nTblPolicies = taosArrayGetSize(pPolicies);
-        for (int32_t j = 0; j < nTblPolicies; ++j) {
-          SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(pPolicies, j);
-          TAOS_CHECK_EXIT(tEncodeI64v(pEncoder, pPolicy->policyId));
-          TAOS_CHECK_EXIT(tEncodeI64v(pEncoder, pPolicy->span[0]));
-          TAOS_CHECK_EXIT(tEncodeI64v(pEncoder, pPolicy->span[1]));
-          // encode columns
-          int32_t nCols = taosArrayGetSize(pPolicy->cols);
-          TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nCols));
-          for (int32_t k = 0; k < nCols; ++k) {
-            SColIdNameKV *pCol = (SColIdNameKV *)TARRAY_GET_ELEM(pPolicy->cols, k);
-            TAOS_CHECK_EXIT(tEncodeI16v(pEncoder, pCol->colId));
-            TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->colName));
-          }
-          // encode tag condition
-          int32_t tagLen = pPolicy->tagCond ? (int32_t)strlen(pPolicy->tagCond) : 0;
-          TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, tagLen));
-          if (tagLen > 0) {
-            TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pPolicy->tagCond, tagLen));
-          }
+      int32_t nTblPolicies = taosArrayGetSize(pTblPolicies->policy);
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTblPolicies));
+      for (int32_t j = 0; j < nTblPolicies; ++j) {
+        SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(pTblPolicies->policy, j);
+        TAOS_CHECK_EXIT(tEncodeI64v(pEncoder, pPolicy->updateUs));
+        // encode columns
+        int32_t nCols = taosArrayGetSize(pPolicy->cols);
+        TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nCols));
+        for (int32_t k = 0; k < nCols; ++k) {
+          SColNameFlag *pCol = (SColNameFlag *)TARRAY_GET_ELEM(pPolicy->cols, k);
+          TAOS_CHECK_EXIT(tEncodeI16v(pEncoder, pCol->colId));
+          TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->colName));
+          TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCol->flag));
+        }
+        // encode with condition
+        TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pPolicy->condLen));
+        if (pPolicy->condLen > 0) {
+          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pPolicy->cond, pPolicy->condLen));
         }
       }
     }
@@ -4349,37 +4343,34 @@ int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash) {
       char tbKey[TSDB_TABLE_FNAME_LEN] = {0};
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, tbKey));
       SPrivTblPolicies tblPolicies = {0};
-      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tblPolicies.nPolicies));
-      for (int32_t k = 0; k < tblPolicies.nPolicies; ++k) {
+      int32_t          nPolicies = 0;
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nPolicies));
+      for (int32_t k = 0; k < nPolicies; ++k) {
         SPrivTblPolicy policy = {0};
-        TAOS_CHECK_EXIT(tDecodeI64v(pDecoder, &policy.policyId));
-        TAOS_CHECK_EXIT(tDecodeI64v(pDecoder, &policy.span[0]));
-        TAOS_CHECK_EXIT(tDecodeI64v(pDecoder, &policy.span[1]));
+        TAOS_CHECK_EXIT(tDecodeI64v(pDecoder, &policy.updateUs));
         // decode columns
         int32_t nCols = 0;
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nCols));
         if (nCols > 0) {
-          if (!(policy.cols = taosArrayInit_s(nCols, sizeof(SColIdNameKV)))) {
+          if (!(policy.cols = taosArrayInit_s(nCols, sizeof(SColNameFlag)))) {
             TAOS_CHECK_EXIT(terrno);
           }
           for (int32_t k = 0; k < nCols; ++k) {
-            SColIdNameKV *col = TARRAY_GET_ELEM(policy.cols, k);
-            TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &col->colId));
-            TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, col->colName));
+            SColNameFlag *col = TARRAY_GET_ELEM(policy.cols, k);
+              TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &col->colId));
+              TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, col->colName));
+              TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &col->flag));
           }
         }
-        // decode tag condition
-        int32_t tagLen = 0;
-        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tagLen));
-        if (tagLen > 0) {
-          TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &policy.tagCond));
+        // decode with condition
+        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &policy.condLen));
+        if (policy.condLen > 0) {
+          TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &policy.cond));
         }
-        int32_t policyIndex = privTblPolicyGetIndex(&policy);
-        if (!tblPolicies.policy[policyIndex] &&
-            !(tblPolicies.policy[policyIndex] = taosArrayInit(1, sizeof(SPrivTblPolicy)))) {
+        if (!(tblPolicies.policy = taosArrayInit(nPolicies, sizeof(SPrivTblPolicy)))) {
           TAOS_CHECK_EXIT(terrno);
         }
-        if (!taosArrayPush(tblPolicies.policy[policyIndex], &policy)) {
+        if (!taosArrayPush(tblPolicies.policy, &policy)) {
           TAOS_CHECK_EXIT(terrno);
         }
       }
@@ -4549,9 +4540,6 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->timeWhiteListVer));
   TAOS_CHECK_RETURN(tSerializePrivSysObjPolicies(pEncoder, &pRsp->sysPrivs, pRsp->objPrivs));
 
-  TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->selectRows));
-  TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->insertRows));
-  TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->deleteRows));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->selectTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->insertTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->deleteTbs));
@@ -4778,9 +4766,6 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if (tDecodeI64(pDecoder, &pRsp->timeWhiteListVer) < 0) goto _err;
       TAOS_CHECK_EXIT(tDeserializePrivSysObjPolicies(pDecoder, &pRsp->sysPrivs, &pRsp->objPrivs));
 
-      TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->selectRows));
-      TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->insertRows));
-      TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->deleteRows));
       TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->selectTbs));
       TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->insertTbs));
       TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->deleteTbs));
@@ -4790,9 +4775,6 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       pRsp->timeWhiteListVer = 0;
       memset(&pRsp->sysPrivs, 0, sizeof(SPrivSet));
       pRsp->objPrivs = NULL;
-      pRsp->selectRows = NULL;
-      pRsp->insertRows = NULL;
-      pRsp->deleteRows = NULL;
       pRsp->selectTbs = NULL;
       pRsp->insertTbs = NULL;
       pRsp->deleteTbs = NULL;
@@ -4812,9 +4794,6 @@ _err:
   taosHashCleanup(pRsp->alterViews);
   taosHashCleanup(pRsp->useDbs);
   taosHashCleanup(pRsp->objPrivs);
-  taosHashCleanup(pRsp->selectRows);
-  taosHashCleanup(pRsp->insertRows);
-  taosHashCleanup(pRsp->deleteRows);
   taosHashCleanup(pRsp->selectTbs);
   taosHashCleanup(pRsp->insertTbs);
   taosHashCleanup(pRsp->deleteTbs);
@@ -4852,9 +4831,6 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->alterViews);
   taosHashCleanup(pRsp->useDbs);
   taosHashCleanup(pRsp->objPrivs);
-  taosHashCleanup(pRsp->selectRows);
-  taosHashCleanup(pRsp->insertRows);
-  taosHashCleanup(pRsp->deleteRows);
   taosHashCleanup(pRsp->selectTbs);
   taosHashCleanup(pRsp->insertTbs);
   taosHashCleanup(pRsp->deleteTbs);

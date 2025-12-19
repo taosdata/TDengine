@@ -309,33 +309,14 @@ typedef struct {
  * the number of SPrivPolicy considering the performance.
  */
 typedef struct {
-  int64_t policyId;  // used for revoke by policyId directly
-  TSKEY   span[2];   // startTs, endTs, if span[0] == 0 && span[1] == 0, means all rows
-  SArray* cols;      // SColNameFlag, NULL means all columns, sorted by colId. No need to include and check primary key
-                     // column since primary key column is always included implicitly if any other columns specified.
-  char*    tagCond;  // NULL if no tag condition
-  uint32_t taghash;  // MurmurHash3_32 of tagCond, 0 means no tag condition
-  uint32_t colHash;  // MurmurHash3_32 of cols, 0 means all columns
+  SArray* cols;  // SColNameFlag, NULL means all columns, sorted by colId.
+  char*   cond;  // NULL if no condition of columns or tags.
+  int32_t condLen;
+  int64_t updateUs;
 } SPrivTblPolicy;
 
-/**
- * Table Privilege Policies:
- * - PRIV_TBL_POLICY_TBL: examples
- * select count(c3) from ctb0; => normal output
- * select count(c3) from ctb1; => 0
- * select c0,c1,c2 from stb0;  => t1: 1,0,NULL
- */
-typedef enum {
-  PRIV_TBL_POLICY_TBL = 0,       // no tag, all columns
-  PRIV_TBL_POLICY_TBL_COLS = 1,  // no tag, specific columns, e.g. (c0,c1)
-  PRIV_TBL_POLICY_TAG = 2,       // tag condition, all columns, e.g. t1 = 0
-  PRIV_TBL_POLICY_TAG_COLS = 3,  // tag condition, specific columns, e.g. t1 = 1, c1,c2;  t1 = 2, c2,c3
-  PRIV_TBL_POLICY_MAX
-} SPrivTblPolicyType;
-
 typedef struct {
-  int32_t nPolicies;
-  SArray* policy[PRIV_TBL_POLICY_MAX];  // element of SArray: SPrivTblPolicy
+  SArray* policy;  // element of SArray: SPrivTblPolicy, only support 1 element currently
 } SPrivTblPolicies;
 
 typedef struct {
@@ -380,26 +361,14 @@ static FORCE_INLINE bool privIsEmptySet(SPrivSet* privSet) {
   return true;
 }
 
-static FORCE_INLINE int32_t privTblPolicyGetIndex(SPrivTblPolicy* policy) {
-  int32_t nCols = taosArrayGetSize(policy->cols);
-  return policy->tagCond ? (nCols > 0 ? PRIV_TBL_POLICY_TAG_COLS : PRIV_TBL_POLICY_TAG)
-                         : (nCols > 0 ? PRIV_TBL_POLICY_TBL_COLS : PRIV_TBL_POLICY_TBL);
-}
-
 static FORCE_INLINE void privTblPolicyFree(void* policy) {
-  taosMemoryFree(((SPrivTblPolicy*)policy)->tagCond);
+  taosMemoryFree(((SPrivTblPolicy*)policy)->cond);
   taosArrayDestroy(((SPrivTblPolicy*)policy)->cols);
 }
 
 static FORCE_INLINE void privTblPoliciesFree(void* pTblPolicies) {
   SPrivTblPolicies* tbPolicies = (SPrivTblPolicies*)pTblPolicies;
-  tbPolicies->nPolicies = 0;
-  for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
-    if (tbPolicies->policy[i]) {
-      taosArrayDestroyEx(tbPolicies->policy[i], privTblPolicyFree);
-      tbPolicies->policy[i] = NULL;
-    }
-  }
+  taosArrayDestroyEx(tbPolicies->policy, privTblPolicyFree);
 }
 
 int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
@@ -410,7 +379,8 @@ void    privInfoIterInit(SPrivInfoIter* pIter);
 bool    privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo);
 
 int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src);
-int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy);
+int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy, bool setUpdateTimeMax);
+int32_t privTblPoliciesMerge(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool updateWithLatest);
 
 int32_t privObjKeyF(SPrivInfo* pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen);
 int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf, int32_t bufLen);

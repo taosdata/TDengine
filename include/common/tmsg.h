@@ -1682,9 +1682,6 @@ typedef struct {
   SPrivSet  sysPrivs;
   SHashObj* objPrivs;
   SHashObj* createdDbs;
-  SHashObj* selectRows;
-  SHashObj* insertRows;
-  SHashObj* deleteRows;
   SHashObj* selectTbs;
   SHashObj* insertTbs;
   SHashObj* deleteTbs;
@@ -3696,16 +3693,18 @@ typedef struct SColIdNameKV {
   char     colName[TSDB_COL_NAME_LEN];
 } SColIdNameKV;
 
+#define COL_MASK_ON   ((int8_t)0x1)
+#define IS_MASK_ON(s) (((s)->flags & 0x01) == COL_MASK_ON)
+#define COL_SET_MASK_ON(s)     \
+  do {                         \
+    (s)->flags |= COL_MASK_ON; \
+  } while (0)
+
 typedef struct SColNameFlag {
   col_id_t colId;
   char     colName[TSDB_COL_NAME_LEN];
+  int8_t   flag;  // 0x01: COL_MASK_ON
 } SColNameFlag;
-
-// typedef struct SColNameFlag {
-//   col_id_t colId;
-//   char     colName[TSDB_COL_NAME_LEN];
-//   int8_t   flag;
-// } SColNameFlag;
 
 typedef struct SColIdPair {
   col_id_t vtbColId;

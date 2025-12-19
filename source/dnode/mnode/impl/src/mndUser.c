@@ -1111,10 +1111,6 @@ static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
 
   TAOS_CHECK_EXIT(tSerializePrivSysObjPolicies(&encoder, &pObj->sysPrivs, pObj->objPrivs));
 
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateRows));
-  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteRows));
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectTbs));
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertTbs));
   TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateTbs));
@@ -1152,10 +1148,6 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
   TAOS_CHECK_EXIT(tDeserializePrivSysObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateRows));
-  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteRows));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateTbs));
@@ -1986,10 +1978,6 @@ _OVER:
       taosHashCleanup(pUser->alterViews);
       taosHashCleanup(pUser->useDbs);
       taosHashCleanup(pUser->objPrivs);
-      taosHashCleanup(pUser->selectRows);
-      taosHashCleanup(pUser->insertRows);
-      taosHashCleanup(pUser->updateRows);
-      taosHashCleanup(pUser->deleteRows);
       taosHashCleanup(pUser->selectTbs);
       taosHashCleanup(pUser->insertTbs);
       taosHashCleanup(pUser->updateTbs);
@@ -2122,8 +2110,12 @@ int32_t mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
-int32_t mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
-  if (!(*ppNew)) return mndDupPrivTblHash(pOld, ppNew);
+/**
+ * 1. Prefer to use SPrivTblPolicies from user object(the updateUs of policy in user object is INT64_MAX)
+ * 2. If two or more roles have SPrivTblPolicies, the policy with latest update time take effect.
+ */
+int32_t mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool updateWithLatest) {
+  if (!(*ppNew)) return mndDupPrivTblHash(pOld, ppNew, false);
 
   int32_t           code = 0, lino = 0;
   SHashObj         *pNew = *ppNew;
@@ -2137,14 +2129,14 @@ int32_t mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
     if (pNewPolicies) {
       size_t newVlen = taosHashGetValueSize(pNewPolicies);
       if (newVlen > 0 && vlen > 0) {
-        TAOS_CHECK_EXIT(privTblPoliciesAdd(pNewPolicies, policies, true));
+        TAOS_CHECK_EXIT(privTblPoliciesMerge(pNewPolicies, policies, updateWithLatest));
       }
       continue;
     }
 
     SPrivTblPolicies tmpPolicies = {0};
     if (vlen > 0) {
-      if ((code = privTblPoliciesAdd(&tmpPolicies, policies, true))) {
+      if ((code = privTblPoliciesMerge(&tmpPolicies, policies, updateWithLatest))) {
         privTblPoliciesFree(&tmpPolicies);
         goto _exit;
       }
@@ -2184,7 +2176,7 @@ int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
-int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
+int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool setUpdateTimeMax) {
   if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                               HASH_ENTRY_LOCK))) {
     TAOS_RETURN(terrno);
@@ -2201,7 +2193,7 @@ int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew) {
     memset(&tmpPolicies, 0, sizeof(tmpPolicies));
     pTmpPolicies = &tmpPolicies;
     if (vlen > 0) {
-      TAOS_CHECK_EXIT(privTblPoliciesAdd(&tmpPolicies, policies, true));
+      TAOS_CHECK_EXIT(privTblPoliciesAdd(&tmpPolicies, policies, true, setUpdateTimeMax));
     }
     TAOS_CHECK_EXIT(taosHashPut(*ppNew, key, klen, vlen > 0 ? &tmpPolicies : NULL, vlen));
     pTmpPolicies = NULL;
@@ -2228,10 +2220,6 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->pIpWhiteListDual = NULL;
   pNew->passwords = NULL;
   pNew->objPrivs = NULL;
-  pNew->selectRows = NULL;
-  pNew->insertRows = NULL;
-  pNew->updateRows = NULL;
-  pNew->deleteRows = NULL;
   pNew->topics = NULL;
   pNew->selectTbs = NULL;
   pNew->insertTbs = NULL;
@@ -2255,14 +2243,10 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   // TAOS_CHECK_GOTO(mndDupDbHash(pUser->readDbs, &pNew->readDbs), NULL, _OVER);
   // TAOS_CHECK_GOTO(mndDupDbHash(pUser->writeDbs, &pNew->writeDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivObjHash(pUser->objPrivs, &pNew->objPrivs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectRows, &pNew->selectRows), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertRows, &pNew->insertRows), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateRows, &pNew->updateRows), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteRows, &pNew->deleteRows), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectTbs, &pNew->selectTbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertTbs, &pNew->insertTbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateTbs, &pNew->updateTbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteTbs, &pNew->deleteTbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectTbs, &pNew->selectTbs, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertTbs, &pNew->insertTbs, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateTbs, &pNew->updateTbs, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteTbs, &pNew->deleteTbs, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterTbs, &pNew->alterTbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->readViews, &pNew->readViews), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeViews, &pNew->writeViews), NULL, _OVER);
@@ -2299,10 +2283,6 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->alterViews);
   taosHashCleanup(pUser->useDbs);
   taosHashCleanup(pUser->objPrivs);
-  taosHashCleanup(pUser->selectRows);
-  taosHashCleanup(pUser->insertRows);
-  taosHashCleanup(pUser->updateRows);
-  taosHashCleanup(pUser->deleteRows);
   taosHashCleanup(pUser->selectTbs);
   taosHashCleanup(pUser->insertTbs);
   taosHashCleanup(pUser->updateTbs);
@@ -2322,10 +2302,6 @@ void mndUserFreeObj(SUserObj *pUser) {
   pUser->alterViews = NULL;
   pUser->useDbs = NULL;
   pUser->objPrivs = NULL;
-  pUser->selectRows = NULL;
-  pUser->insertRows = NULL;
-  pUser->updateRows = NULL;
-  pUser->deleteRows = NULL;
   pUser->selectTbs = NULL;
   pUser->insertTbs = NULL;
   pUser->updateTbs = NULL;
@@ -2379,10 +2355,6 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->writeViews, pNew->writeViews);
   TSWAP(pOld->alterViews, pNew->alterViews);
   TSWAP(pOld->objPrivs, pNew->objPrivs);
-  TSWAP(pOld->selectRows, pNew->selectRows);
-  TSWAP(pOld->insertRows, pNew->insertRows);
-  TSWAP(pOld->updateRows, pNew->updateRows);
-  TSWAP(pOld->deleteRows, pNew->deleteRows);
   TSWAP(pOld->selectTbs, pNew->selectTbs);
   TSWAP(pOld->insertTbs, pNew->insertTbs);
   TSWAP(pOld->updateTbs, pNew->updateTbs);

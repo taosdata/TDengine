@@ -447,18 +447,16 @@ bool isPrivInheritName(const char* name) {
 }
 
 int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {
-  dest->policyId = src->policyId;
-  dest->span[0] = src->span[0];
-  dest->span[1] = src->span[1];
-  if (src->tagCond) {
-    if (!(dest->tagCond = taosStrdup(src->tagCond))) {
+  dest->updateUs = src->updateUs;
+  dest->condLen = src->condLen;
+  if (src->cond) {
+    if (!(dest->cond = taosStrdup(src->cond))) {
       return terrno;
     }
   } else {
-    dest->tagCond = NULL;
+    dest->cond = NULL;
   }
-  dest->taghash = src->taghash;
-  dest->colHash = src->colHash;
+
   if (src->cols) {
     dest->cols = taosArrayInit_s(sizeof(SColNameFlag), taosArrayGetSize(src->cols));
     if (dest->cols == NULL) {
@@ -469,6 +467,7 @@ int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {
       SColNameFlag* pSrcCol = (SColNameFlag*)TARRAY_GET_ELEM(src->cols, i);
       SColNameFlag* destCol = (SColNameFlag*)TARRAY_GET_ELEM(dest->cols, i);
       destCol->colId = pSrcCol->colId;
+      destCol->flag = pSrcCol->flag;
       (void)snprintf(destCol->colName, TSDB_COL_NAME_LEN, "%s", pSrcCol->colName);
     }
   } else {
@@ -477,35 +476,75 @@ int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {
   return 0;
 }
 
-int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy) {
+int32_t privTblPoliciesAdd(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool deepCopy, bool setUpdateTimeMax) {
   int32_t code = 0, lino = 0;
-  dest->nPolicies += src->nPolicies;
-  for (int32_t i = 0; i < PRIV_TBL_POLICY_MAX; ++i) {
-    if (taosArrayGetSize(src->policy[i]) > 0) {
-      if (deepCopy) {
-        if (!dest->policy[i]) {
-          dest->policy[i] = taosArrayInit(TARRAY_SIZE(src->policy[i]), sizeof(SPrivTblPolicy));
-          if (!dest->policy[i]) {
-            TAOS_CHECK_EXIT(terrno);
-          }
-        }
-        for (int32_t j = 0; j < TARRAY_SIZE(src->policy[i]); ++j) {
-          SPrivTblPolicy* pSrcPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(src->policy[i], j);
-          SPrivTblPolicy  destPolicy = {0};
-          if ((code = privTblPolicyCopy(&destPolicy, pSrcPolicy))) {
-            privTblPolicyFree(&destPolicy);
-            TAOS_CHECK_EXIT(code);
-          }
-          if (!taosArrayPush(dest->policy[i], &destPolicy)) {
-            privTblPolicyFree(&destPolicy);
-            TAOS_CHECK_EXIT(terrno);
-          }
-        }
-      } else {
-        dest->policy[i] = src->policy[i];
+  if (deepCopy) {
+    if (taosArrayGetSize(src->policy) == 0) {
+      dest->policy = NULL;
+      goto _exit;
+    }
+    if (!dest->policy) {
+      dest->policy = taosArrayInit(TARRAY_SIZE(src->policy), sizeof(SPrivTblPolicy));
+      if (!dest->policy) {
+        TAOS_CHECK_EXIT(terrno);
       }
-    } else {
-      dest->policy[i] = NULL;
+    }
+    for (int32_t j = 0; j < TARRAY_SIZE(src->policy); ++j) {
+      SPrivTblPolicy* pSrcPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(src->policy, j);
+      SPrivTblPolicy  destPolicy = {0};
+      if ((code = privTblPolicyCopy(&destPolicy, pSrcPolicy))) {
+        privTblPolicyFree(&destPolicy);
+        TAOS_CHECK_EXIT(code);
+      }
+      if (setUpdateTimeMax) destPolicy.updateUs = INT64_MAX;
+      if (!taosArrayPush(dest->policy, &destPolicy)) {
+        privTblPolicyFree(&destPolicy);
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+  } else {
+    dest->policy = src->policy;
+  }
+_exit:
+  return code;
+}
+
+int32_t privTblPoliciesMerge(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool updateWithLatest) {
+  int32_t code = 0, lino = 0;
+  if (taosArrayGetSize(src->policy) == 0) {
+    dest->policy = NULL;
+    goto _exit;
+  }
+  if (!dest->policy) {
+    dest->policy = taosArrayInit(TARRAY_SIZE(src->policy), sizeof(SPrivTblPolicy));
+    if (!dest->policy) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  // only 1 element exist in the table policy array currently
+  for (int32_t j = 0; j < TARRAY_SIZE(src->policy); ++j) {
+    SPrivTblPolicy* pSrcPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(src->policy, j);
+    SPrivTblPolicy* pDestPolicy = taosArrayGet(dest->policy, 0);
+
+    bool needAdd = false;
+    if (!pDestPolicy) {
+      needAdd = true;
+    } else if (updateWithLatest && (pSrcPolicy->updateUs > pDestPolicy->updateUs)) {
+      taosArrayClearEx(dest->policy, privTblPolicyFree);
+      needAdd = true;
+    }
+    if (!needAdd) {
+      break;
+    }
+
+    SPrivTblPolicy destPolicy = {0};
+    if ((code = privTblPolicyCopy(&destPolicy, pSrcPolicy))) {
+      privTblPolicyFree(&destPolicy);
+      TAOS_CHECK_EXIT(code);
+    }
+    if (!taosArrayPush(dest->policy, &destPolicy)) {
+      privTblPolicyFree(&destPolicy);
+      TAOS_CHECK_EXIT(terrno);
     }
   }
 _exit:
@@ -521,6 +560,8 @@ bool privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName
     printf("%s:%d key is %s\n", __func__, __LINE__, pKey);
   }
 #endif
+
+  if (taosHashGetSize(privs) == 0) return false;
 
   const char* pObjName = objName;
   const char* pTbName = tbName;

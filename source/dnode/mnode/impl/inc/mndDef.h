@@ -503,28 +503,21 @@ typedef struct {
    * stored in objPrivs.
    */
   SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
-  // row level privileges
-  SHashObj* selectRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* insertRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* updateRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* deleteRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
 
-  // SHashObj* readDbs;  //      db.*, *.* => migrate to readTbs and writeTbs when update from 3.3.x.y
+  // SHashObj* readDbs;  // obsolete:  migrate to selectTbs and insertTbs when update from 3.3.x.y
   // SHashObj* writeDbs;
   SHashObj* topics;
 
   // table level privileges
-  union {
-    SHashObj* selectTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-    // SHashObj* readTbs;
-  };
-  union {
-    SHashObj* insertTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-    // SHashObj* writeTbs;
-  };
-  SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* deleteTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* alterTbs;   // k:tbFName, v: empty
+  SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* alterTbs;   // obsolete: migrate to objPrivs
+
+  // 1.*.*           
+  // 1.db.*
+  // 1.db.tbName     with tag condition, specific columns
 
   SHashObj* readViews;
   SHashObj* writeViews;
@@ -551,16 +544,12 @@ typedef struct {
 
   SPrivSet sysPrivs;
   /**
-   * N.B. The privileges of "select/insert/update/delete tables without specifiy tags or cols or rowSpan" are also
+   * N.B. The privileges of "select/insert/update/delete tables without row/col/tag conditions" are also
    * stored in objPrivs.
    */
   SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
-  // row level privileges
-  SHashObj* selectRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* insertRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* updateRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* deleteRows;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  // table level privileges
+  
+  // table level privileges combined with row/col/tag conditions
   SHashObj* selectTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* insertTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies

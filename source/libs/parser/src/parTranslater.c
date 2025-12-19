@@ -16155,6 +16155,8 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 
   if (!grant) return TSDB_CODE_SUCCESS;
 
+  SPrivSet* privSet = &pReq->privileges.privSet;
+
   int32_t code = createRealTableForGrantTable(pStmt, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
     SName name = {0};
@@ -16166,19 +16168,30 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
     }
 
     if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType &&
-        TSDB_VIRTUAL_NORMAL_TABLE != pTable->pMeta->tableType && TSDB_CHILD_TABLE != pTable->pMeta->tableType) {
-      nodesDestroyNode((SNode*)pTable);
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Only supertable, child table and normal table can be granted");
+        TSDB_VIRTUAL_NORMAL_TABLE != pTable->pMeta->tableType) {
+      if (TSDB_CHILD_TABLE == pTable->pMeta->tableType) {
+        if ((PRIV_HAS(privSet, PRIV_TBL_DROP) || PRIV_HAS(privSet, PRIV_TBL_ALTER) ||
+             PRIV_HAS(privSet, PRIV_TBL_SHOW) || PRIV_HAS(privSet, PRIV_TBL_SHOW_CREATE))) {
+          goto _tagCond;
+        }
+        nodesDestroyNode((SNode*)pTable);
+        return generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+            "Only ALTER, DROP, SHOW or SHOW CREATE table privilege can be granted on child table");
+      } else {
+        nodesDestroyNode((SNode*)pTable);
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Only supertable, child table and normal table can be granted");
+      }
     }
   }
-
+_tagCond:
   if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTagCond) {
     nodesDestroyNode((SNode*)pTable);
     return TSDB_CODE_SUCCESS;
   }
 
-  SPrivSet* privSet = &pReq->privileges.privSet;
+  
   if (PRIV_HAS(privSet, PRIV_TBL_DROP)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_DROP));
@@ -16279,21 +16292,21 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
     case PRIV_OBJ_TABLE:
     case PRIV_OBJ_VIEW: {
       if (0 != pStmt->tabName[0]) {
-        // don't validate the object when revoke
-        if (grant && (strncmp(pStmt->tabName, "*", 2) != 0)) {
-          SName       name = {0};
-          STableMeta* pTableMeta = NULL;
-          toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-          code = getTargetMeta(pCxt, &name, &pTableMeta, true);
-          if (TSDB_CODE_SUCCESS != code) {
-            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code));
-          }
-          if (((PRIV_OBJ_TABLE == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
-              ((PRIV_OBJ_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
+        // not validate the object when revoke
+        if (grant &&strncmp(pStmt->tabName, "*", 2) != 0) {
+            SName       name = {0};
+            STableMeta* pTableMeta = NULL;
+            toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+            code = getTargetMeta(pCxt, &name, &pTableMeta, true);
+            if (TSDB_CODE_SUCCESS != code) {
+              return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code));
+            }
+            if (((PRIV_OBJ_TABLE == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
+                ((PRIV_OBJ_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
+              taosMemoryFree(pTableMeta);
+              TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
+            }
             taosMemoryFree(pTableMeta);
-            TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
-          }
-          taosMemoryFree(pTableMeta);
         }
       } else {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
