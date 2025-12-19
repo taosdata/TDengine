@@ -273,6 +273,7 @@ class TestInformationSchema:
             'view':'View',
             'audit':'Audit',
             'storage':'Multi-Tier Storage',
+            'data_sync':'Data Synchronization',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Shared Storage',
             'active_active':'Active-Active',
