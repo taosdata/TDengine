@@ -49,7 +49,7 @@ class Configure:
         """ load the info from config file """
         self.path = new_path
         if not os.path.exists(self.path):
-            print("config file not exist")
+            logging.warning("Configuration file not found: %s. Using default settings.", self.path)
 
         self.conf.read(self.path)
 
