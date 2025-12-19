@@ -256,6 +256,8 @@ typedef struct SDynQueryCtrlStbJoin {
 } SDynQueryCtrlStbJoin;
 
 typedef struct SDynQueryCtrlVtbScan {
+  bool          batchProcessChild;
+  bool          hasPartition;
   bool          scanAllCols;
   bool          isSuperTable;
   bool          useTagScan;
@@ -266,7 +268,9 @@ typedef struct SDynQueryCtrlVtbScan {
   int32_t       rversion;
   SNodeList*    pOrgVgIds;
   SVgroupsInfo* pVgroupList;
+  SNodeList*    pScanCols;
 } SDynQueryCtrlVtbScan;
+
 
 typedef struct SDynQueryCtrlVtbWindow {
   int32_t               wstartSlotId;
@@ -674,6 +678,8 @@ typedef struct SStbJoinDynCtrlBasic {
 } SStbJoinDynCtrlBasic;
 
 typedef struct SVtbScanDynCtrlBasic {
+  bool       batchProcessChild;
+  bool       hasPartition;
   bool       scanAllCols;
   bool       isSuperTable;
   char       dbName[TSDB_DB_NAME_LEN];

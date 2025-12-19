@@ -169,17 +169,26 @@ typedef struct SSortMergeJoinOperatorParam {
   bool initDownstream;
 } SSortMergeJoinOperatorParam;
 
+typedef enum EExchangeSourceType {
+  EX_SRC_TYPE_STB_JON_SCAN = 1,
+  EX_SRC_TYPE_VSTB_SCAN,
+  EX_SRC_TYPE_VSTB_WIN_SCAN,
+  EX_SRC_TYPE_VSTB_AGG_SCAN,
+  EX_SRC_TYPE_VSTB_TAG_SCAN,
+} EExchangeSourceType;
+
 typedef struct SExchangeOperatorBasicParam {
   int32_t               vgId;
   int32_t               srcOpType;
   bool                  tableSeq;
   SArray*               uidList;
-  bool                  isVtbWinScan;
-  bool                  isVtbRefScan;
-  bool                  isVtbTagScan;
+  EExchangeSourceType   type;
   bool                  isNewDeployed; // used with newDeployedSrc
   bool                  isNewParam;
+  uint64_t              groupid;
   SOrgTbInfo*           colMap;
+  SArray*               batchColMap; // SArray<SOrgTbInfo>
+  SArray*               tagList;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
 } SExchangeOperatorBasicParam;
@@ -303,12 +312,23 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
+  // for virtual super table scan
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
   bool            virtualStableScan;
   SHashObj*       readerCache;
   bool            newReader;
   SArray*         pBlockColMap;
+  // for virtual super table batch scan
+  int32_t         lastBatchIdx;
+  int32_t         currentBatchIdx;
+  STimeWindow     lastTimeWindow;
+  SArray*         lastColArray;
+  SArray*         lastBlockColArray;
+  SArray*         pBatchColMap;  // SArray<SOrgTbInfo>
+  STimeWindow     cachedTimeWindow;
+  SArray*         cachedTagList;
+  uint64_t        cachedGroupId;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {

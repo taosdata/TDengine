@@ -1921,12 +1921,18 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   }
 
   TSWAP(pLogicNode->vtbScan.pOrgVgIds, pDynCtrl->vtbScan.pOrgVgIds);
-  PLAN_ERR_JRET(nodesCloneList(pLogicNode->node.pTargets, &pDynCtrl->vtbScan.pScanCols));
+  if (pLogicNode->vtbScan.pScanCols) {
+    PLAN_ERR_JRET(nodesCloneList(pLogicNode->vtbScan.pScanCols, &pDynCtrl->vtbScan.pScanCols));
+  } else {
+    PLAN_ERR_JRET(nodesCloneList(pLogicNode->node.pTargets, &pDynCtrl->vtbScan.pScanCols));
+  }
 
   pDynCtrl->vtbScan.scanAllCols = pLogicNode->vtbScan.scanAllCols;
   pDynCtrl->vtbScan.suid = pLogicNode->vtbScan.suid;
   pDynCtrl->vtbScan.uid = pLogicNode->vtbScan.uid;
   pDynCtrl->vtbScan.isSuperTable = pLogicNode->vtbScan.isSuperTable;
+  pDynCtrl->vtbScan.batchProcessChild = pLogicNode->vtbScan.batchProcessChild;
+  pDynCtrl->vtbScan.hasPartition = pLogicNode->vtbScan.hasPartition;
   pDynCtrl->vtbScan.rversion = pLogicNode->vtbScan.rversion;
   pDynCtrl->vtbScan.mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   pDynCtrl->vtbScan.accountId = pCxt->pPlanCxt->acctId;
@@ -1962,8 +1968,6 @@ static int32_t updateDynQueryCtrlVtbWindowInfo(SPhysiPlanContext* pCxt, SNodeLis
   return code;
 }
 
-
-
 static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                            SDynQueryCtrlLogicNode* pLogicNode, SPhysiNode** pPhyNode, SSubplan* pSubPlan) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -1977,6 +1981,7 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
       PLAN_ERR_JRET(updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
       break;
     case DYN_QTYPE_VTB_SCAN:
+    case DYN_QTYPE_VTB_AGG:
       PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       break;
     case DYN_QTYPE_VTB_WINDOW:
@@ -2172,6 +2177,20 @@ static bool isDynVirtualStableScan(SNode* pNode) {
   return true;
 }
 
+static bool isDynVirtualStableAgg(SNode* pNode) {
+  if (NULL == pNode || QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL != nodeType(pNode)) {
+    return false;
+  }
+  SDynQueryCtrlPhysiNode* pDynCtrl = (SDynQueryCtrlPhysiNode*)pNode;
+  if (DYN_QTYPE_VTB_AGG != pDynCtrl->qType) {
+    return false;
+  }
+  if (nodesListGetNode(pDynCtrl->node.pChildren, 0)== NULL) {
+    return false;
+  }
+  return true;
+}
+
 static int32_t getChildTuple(SDataBlockDescNode **pChildTuple, SNodeList* pChildren) {
   if (isDynVirtualStableScan(nodesListGetNode(pChildren, 0))) {
     SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
@@ -2185,6 +2204,19 @@ static int32_t getChildTuple(SDataBlockDescNode **pChildTuple, SNodeList* pChild
       return TSDB_CODE_INVALID_PARA;
     }
     *pChildTuple = pVtbScan->pOutputDataBlockDesc;
+  } else if (isDynVirtualStableAgg(nodesListGetNode(pChildren, 0))) {
+    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
+    if (pDynNode == NULL) {
+      planError("get child tuple failed, pDynNode is NULL, childrenNum:%d", pChildren->length);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    SPhysiNode* pAgg = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, LIST_LENGTH(pDynNode->pChildren) - 1);
+    if (pAgg == NULL) {
+      planError("get child tuple failed, pVtbScan is NULL, dynNode childrenNum:%d", pDynNode->pChildren->length);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    *pChildTuple = pAgg->pOutputDataBlockDesc;
+
   } else {
     SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pChildren, 0);
     if (pChild == NULL) {

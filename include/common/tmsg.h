@@ -3611,12 +3611,22 @@ typedef struct SOrgTbInfo {
   SArray* colMap;  // SArray<SColIdNameKV>
 } SOrgTbInfo;
 
+typedef enum {
+  DYN_TYPE_STB_JOIN = 1,
+  DYN_TYPE_VSTB_SINGLE_SCAN,
+  DYN_TYPE_VSTB_BATCH_SCAN,
+} ETableScanDynType;
+
 typedef struct STableScanOperatorParam {
-  bool        tableSeq;
-  bool        isNewParam;
-  SArray*     pUidList;
-  SOrgTbInfo* pOrgTbInfo;
-  STimeWindow window;
+  bool              tableSeq;
+  bool              isNewParam;
+  uint64_t          groupid;
+  SArray*           pUidList;
+  SOrgTbInfo*       pOrgTbInfo;
+  SArray*           pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*           pTagList;
+  STimeWindow       window;
+  ETableScanDynType type;
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {
@@ -3633,6 +3643,10 @@ typedef struct SVTableScanOperatorParam {
 typedef struct SMergeOperatorParam {
   int32_t         winNum;
 } SMergeOperatorParam;
+
+typedef struct SAggOperatorParam {
+  bool            needCleanRes;
+} SAggOperatorParam;
 
 typedef struct SExternalWindowOperatorParam {
   SArray*         ExtWins;  // SArray<SExtWinTimeWindow>

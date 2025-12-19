@@ -137,7 +137,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
 
   pOperator->pPhyNode = pAggNode;
 
-  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN && !pAggNode->node.dynamicOp) {
     STableScanInfo* pTableScanInfo = downstream->info;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
     pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
@@ -219,7 +219,10 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
   while (1) {
     bool blockAllocated = false;
-    pBlock = getNextBlockFromDownstream(pOperator, 0);
+    pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
+    if (pOperator->pDownstreamGetParams) {
+      pOperator->pDownstreamGetParams[0] = NULL;
+    }
     if (pBlock == NULL) {
       if (!pAggInfo->hasValidBlock) {
         code = createDataBlockForEmptyInput(pOperator, &pBlock);
@@ -297,9 +300,21 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SAggOperatorInfo* pAggInfo = pOperator->info;
   SOptrBasicInfo*   pInfo = &pAggInfo->binfo;
 
-  if (pOperator->status == OP_EXEC_DONE) {
+  if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     (*ppRes) = NULL;
     return code;
+  }
+
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE) {
+      pOperator->status = OP_OPENED;
+      tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
+      pAggInfo->groupId = UINT64_MAX;
+      pAggInfo->hasValidBlock = false;
+    }
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
+
   }
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
