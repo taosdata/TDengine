@@ -1062,9 +1062,9 @@ void shellReadHistory() {
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
-  char   *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  char   *line = taosMemoryMalloc(tsMaxSQLLength + 1);
   int32_t read_size = 0;
-  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
+  while ((read_size = taosGetsFile(pFile, tsMaxSQLLength, line)) > 0) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = taosStrdup(line);
@@ -1139,7 +1139,7 @@ bool shellIsCommentLine(char *line) {
 
 void shellSourceFile(const char *file) {
   int32_t read_len = 0;
-  char   *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  char   *cmd = taosMemoryCalloc(1, tsMaxSQLLength + 1);
   size_t  cmd_len = 0;
   char    fullname[PATH_MAX] = {0};
   char    sourceFileCommand[PATH_MAX + 8] = {0};
@@ -1158,13 +1158,13 @@ void shellSourceFile(const char *file) {
     return;
   }
 
-  char *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
-  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) > 0) {
-    if (cmd_len + read_len >= TSDB_MAX_ALLOWED_SQL_LEN) {
+  char *line = taosMemoryMalloc(tsMaxSQLLength + 1);
+  while ((read_len = taosGetsFile(pFile, tsMaxSQLLength, line)) > 0) {
+    if (cmd_len + read_len >= tsMaxSQLLength) {
       printf("read command line too long over 1M, ignore this line. cmd_len = %d read_len=%d \n", (int32_t)cmd_len,
              read_len);
       cmd_len = 0;
-      memset(line, 0, TSDB_MAX_ALLOWED_SQL_LEN + 1);
+      memset(line, 0, tsMaxSQLLength + 1);
       continue;
     }
     line[--read_len] = '\0';
@@ -1187,7 +1187,7 @@ void shellSourceFile(const char *file) {
     memcpy(cmd + cmd_len, line, read_len);
     printf("%s%s\r\n", shell.info.promptHeader, cmd);
     shellRunCommand(cmd, false);
-    memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
+    memset(cmd, 0, tsMaxSQLLength);
     cmd_len = 0;
   }
 
@@ -1240,9 +1240,9 @@ int32_t shellGetGrantInfo(char *buf) {
     tstrncpy(serverVersion, row[0], 64);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
-    
+
     trimStr(serverVersion, "trial");
-    
+
     if (strcmp(serverVersion, "community") == 0) {
       verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
@@ -1342,40 +1342,17 @@ TAOS *createConnect(SShellArgs *pArgs) {
   uint16_t port = 0;
   char    *user = NULL;
   char    *pwd = NULL;
-  int32_t  code = 0;
-  char    *dsnc = NULL;
+  TAOS    *taos = NULL;
 
   // set mode
   if (pArgs->connMode != CONN_MODE_NATIVE && pArgs->dsn) {
-    dsnc = strToLowerCopy(pArgs->dsn);
-    if (dsnc == NULL) {
-      return NULL;
-    }
-
-    char *cport = NULL;
-    char  error[512] = "\0";
-    code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
-    if (code) {
-      printf("%s dsn=%s\n", error, dsnc);
-      free(dsnc);
-      return NULL;
-    }
-
-    // default ws port
-    if (cport == NULL) {
-      if (user)
-        port = DEFAULT_PORT_WS_CLOUD;
-      else
-        port = DEFAULT_PORT_WS_LOCAL;
-    } else {
-      port = atoi(cport);
-    }
-
     // websocket
     memcpy(show, pArgs->dsn, 20);
     memcpy(show + 20, "...", 3);
     memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
 
+    // connect dsn
+    taos = taos_connect_with_dsn(pArgs->dsn);
   } else {
     host = (char *)pArgs->host;
     user = (char *)pArgs->user;
@@ -1388,18 +1365,15 @@ TAOS *createConnect(SShellArgs *pArgs) {
     }
 
     sprintf(show, "host:%s port:%d ", host, port);
+
+    // connect normal
+    if (pArgs->auth) {
+      taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
+    } else {
+      taos = taos_connect(host, user, pwd, pArgs->database, port);
+    }
   }
 
-  // connect main
-  TAOS *taos = NULL;
-  if (pArgs->auth) {
-    taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
-  } else {
-    taos = taos_connect(host, user, pwd, pArgs->database, port);
-  }
-
-  // host user pointer in dsnc address
-  free(dsnc);
   return taos;
 }
 

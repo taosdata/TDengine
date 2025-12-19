@@ -46,6 +46,7 @@ extern "C" {
 // tqExec
 typedef struct {
   char* qmsg;  // SubPlanToString
+  SSchemaWrapper pSW;
 } STqExecCol;
 
 typedef struct {
@@ -67,7 +68,6 @@ typedef struct {
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef enum tq_handle_status {
@@ -99,11 +99,9 @@ struct STQ {
   SRWLatch        lock;
   SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
-  SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   SHashObj*       pOffset;     // subKey -> STqOffsetVal
   TDB*            pMetaDB;
   TTB*            pExecStore;
-  TTB*            pCheckStore;
   TTB*            pOffsetStore;
 };
 
@@ -129,7 +127,6 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen, const void* value, uint32_t vLen);
 int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen);
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
-int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, uint32_t vLen);
 int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, uint32_t vLen);
 int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);

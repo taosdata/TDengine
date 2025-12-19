@@ -12,14 +12,16 @@ Apache Flink is an open-source distributed stream batch integrated processing fr
 
 With the help of TDengine's Flink connector, Apache Flink can seamlessly integrate with TDengine Database. It enables efficient and stable reading of massive volumes of data from TDengine Database, based on which comprehensive and in-depth data analysis and processing can be conducted. This fully taps into the potential value of data, providing robust data support and scientific basis for enterprise decision-making, significantly improving the efficiency and quality of data processing, and enhancing enterprises' competitiveness and innovation capabilities in the digital era.
 
-> **Note: This feature is only available in TDengine Enterprise Edition.**
+###### Note
+
+This feature is only available in TDengine Enterprise Edition.
 
 ## Prerequisites
 
 Prepare the following environment:
 
 - TDengine cluster has been deployed and is running normally (both enterprise and community versions are available)
-- TaosAdapter can run normally. 
+- TaosAdapter can run normally.
 - Apache Flink v1.19.0 or above is installed. Please refer to the installation of Apache Flink [Official documents](https://flink.apache.org/)
 
 ## Supported platforms
@@ -39,8 +41,8 @@ Parameter description:
 
 - User: Login TDengine username, default value is' root '.
 - Password: User login password, default value 'taosdata'.
-- database_name: database name。
-- timezone: time zone。
+- database_name: database name.
+- timezone: time zone.
 - HttpConnectTimeout: The connection timeout time, measured in milliseconds, with a default value of 60000.
 - MessageWaitTimeout: The timeout period for a message, measured in milliseconds, with a default value of 60000.
 - UseSSL: Whether SSL is used in the connection.
@@ -64,7 +66,6 @@ The configuration parameters in Properties are as follows:
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Automatic reconnection retry interval, in milliseconds, default value 2000. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT: The default value for automatic reconnection retry is 3, which only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
 - TDengineConfigParams.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: Turn off SSL certificate verification. true:  Enable, false:  Not enabled. The default is false.
-
 
 #### Split by time
 
@@ -108,7 +109,7 @@ Example of batch query results:
 ```java
 {{#include docs/examples/flink/source/Main.java:source_batch_test}}
 ```
-</details> 
+</details>
 
 Example of custom data type query result:
 
@@ -117,7 +118,7 @@ Example of custom data type query result:
 ```java
 {{#include docs/examples/flink/source/Main.java:source_custom_type_test}}
 ```
-</details> 
+</details>
 
 - ResultBean is a custom inner class used to define the data type of the Source query results.
 - ResultSourceDeserialization is a custom inner class that inherits `TDengine` RecordDesrialization and implements convert and getProducedType methods.
@@ -134,9 +135,10 @@ Parameter Description
 - TDengineCdcParams.POLL_INTERVAL_MS: Pull data interval, default 500ms.
 - TDengineCdcParams. VALUE_DESERIALIZER: Result set deserialization method, If the received result set type is `RowData` of `Flink`, simply set it to 'RowData'. You can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer`, specify the result set bean, and implement deserialization. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and customize the deserialization method based on the SQL resultSet.
 - TDengineCdcParams.TMQ_BATCH_MODE: This parameter is used to batch push data to downstream operators. If set to True, when creating the `TDengineCdcSource` object, it is necessary to specify the data type as a template form of the `ConsumerRecords` type.
-- TDengineCdcParams.GROUP_ID: Consumer group ID, the same consumer group shares consumption progress。Maximum length: 192.
-- TDengineCdcParams.AUTO_OFFSET_RESET: Initial position of the consumer group subscription （ `earliest` subscribe from the beginning, `latest` subscribe from the latest data, default `latest`）。
-- TDengineCdcParams.ENABLE_AUTO_COMMIT: Whether to enable automatic consumption point submission，true: automatic submission；false：submit based on the `checkpoint` time, default to false.
+- TDengineCdcParams.GROUP_ID: Consumer group ID, the same consumer group shares consumption progress. Maximum length: 192.
+- TDengineCdcParams.AUTO_OFFSET_RESET: Initial position of the consumer group subscription ( `earliest` subscribe from the beginning, `latest` subscribe from the latest data, default `latest`）。
+- TDengineCdcParams.ENABLE_AUTO_COMMIT: Whether to enable automatic consumption point submission, true: automatic submission. false: submit based on the `checkpoint` time, default to false.
+
 > **Note**：The automatic submission mode of the reader automatically submits data after obtaining it, regardless of whether the downstream operator has processed the data correctly. There is a risk of data loss, and it is mainly used for efficient stateless operator scenarios or scenarios with low data consistency requirements.
 
 - TDengineCdcParams.AUTO_COMMIT_INTERVAL_MS: Time interval for automatically submitting consumption records, in milliseconds, default 5000. This parameter takes effect when `ENABLE_AUTO_COMMIT` is set to true.
@@ -144,7 +146,7 @@ Parameter Description
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT: Whether to enable automatic reconnection. true:  Enable, false:  Not enabled. The default is false.
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Automatic reconnection retry interval, in milliseconds, default value 2000. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT: The default value for automatic reconnection retry is 3, which only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is true.
-- TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS: Timeout after consumer heartbeat is lost, after which rebalance logic is triggered, and upon success, that consumer will be removed (supported from version 3.3.3.0)，Default is 12000, range [6000, 1800000].
+- TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS: Timeout after consumer heartbeat is lost, after which rebalance logic is triggered, and upon success, that consumer will be removed (supported from version 3.3.3.0), Default is 12000, range [6000, 1800000].
 - TDengineCdcParams.TMQ_MAX_POLL_INTERVAL_MS: The longest time interval for consumer poll data fetching, exceeding this time will be considered as the consumer being offline, triggering rebalance logic, and upon success, that consumer will be removed (supported from version 3.3.3.0) Default is 300000, range [1000, INT32_MAX].
 
 #### Use CDC connector
@@ -157,7 +159,7 @@ The subscription result is RowData data type example:
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_source}}
 ```
-</details> 
+</details>
 
 Example of batch query results:
 
@@ -166,7 +168,7 @@ Example of batch query results:
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_batch_source}}
 ```
-</details> 
+</details>
 
 Example of custom data type query result:
 
@@ -175,7 +177,7 @@ Example of custom data type query result:
 ```java
 {{#include docs/examples/flink/source/Main.java:cdc_custom_type_test}}
 ```
-</details> 
+</details>
 
 - ResultBean is a custom inner class whose field names and data types correspond one-to-one with column names and data types. This allows the deserialization class corresponding to the value.ddeserializer property to deserialize objects of ResultBean type.
 

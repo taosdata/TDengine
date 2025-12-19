@@ -29,6 +29,7 @@
 #include "mndView.h"
 #include "tglobal.h"
 #include "tversion.h"
+#include "totp.h"
 
 typedef struct {
   uint32_t id;
@@ -268,6 +269,69 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
   }
 }
 
+
+
+// TODO: if there are many connections, this function may be slow
+static int32_t mndCountUserConns(SMnode *pMnode, const char *user) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  SCacheIter   *pIter = taosCacheCreateIter(pMgmt->connCache);
+  if (pIter == NULL) {
+    mError("failed to create conn cache iterator");
+    return -1;
+  }
+
+  int32_t    count = 0;
+  SConnObj  *pConn = NULL;
+  while ((pConn = mndGetNextConn(pMnode, pIter)) != NULL) {
+    if (strncmp(pConn->user, user, TSDB_USER_LEN) == 0) {
+      count++;
+    }
+    mndReleaseConn(pMnode, pConn, true);
+  }
+
+  return count;
+}
+
+
+
+static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
+  int32_t code = 0;
+
+  const char* currPass = pUser->passwords[0].pass;
+  char pass[TSDB_PASSWORD_LEN] = {0};
+  (void)memcpy(pass, inputPass, TSDB_PASSWORD_LEN);
+  pass[TSDB_PASSWORD_LEN - 1] = 0;
+
+  if (pUser->passEncryptAlgorithm != 0) {
+    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
+      return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+    }
+    code = mndEncryptPass(pass, pUser->salt, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  // constant time comparison to prevent timing attack
+  volatile uint8_t res = 0;
+  for (size_t i = 0; i < sizeof(pass) - 1; i++) {
+    res |= pass[i] ^ currPass[i];
+  }
+
+ return (res == 0) ? TSDB_CODE_SUCCESS: TSDB_CODE_MND_AUTH_FAILURE;
+}
+
+
+
+static bool verifyTotp(SUserObj *pUser, int32_t totpCode) {
+  if (!mndIsTotpEnabledUser(pUser)) {
+    return true;
+  }
+  return taosVerifyTotpCode(pUser->totpsecret, sizeof(pUser->totpsecret), totpCode, 6, 1) != 0;
+}
+
+
+
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   SUserObj       *pUser = NULL;
@@ -275,6 +339,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SConnObj       *pConn = NULL;
   int32_t         code = 0;
   SConnectReq     connReq = {0};
+  int64_t         tss = taosGetTimestampMs();
   const STraceId *trace = &pReq->info.traceId;
 
   char    *ip = IP_ADDR_STR(&pReq->info.conn.cliAddr);
@@ -301,23 +366,81 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  char tmpPass[TSDB_PASSWORD_LEN] = {0};
-  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
-
-  if (pUser->passEncryptAlgorithm != 0) {
-    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
-      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+  int32_t now = taosGetTimestampSec();
+  if (pUser->passwordLifeTime > 0 && pUser->passwordGraceTime >= 0) {
+    int32_t age = now - pUser->passwords[0].setTime;
+    int32_t maxLifeTime = pUser->passwordLifeTime + pUser->passwordGraceTime;
+    if (age >= maxLifeTime) {
+      mGError("user:%s, failed to login from %s since password expired", pReq->info.conn.user, ip);
+      code = TSDB_CODE_MND_USER_PASSWORD_EXPIRED;
       goto _OVER;
     }
-    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
   }
 
-  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
-            connReq.passwd);
-    code = TSDB_CODE_MND_AUTH_FAILURE;
+  if (!isTimeInDateTimeWhiteList(pUser->pTimeWhiteList, now)) {
+    mGError("user:%s, failed to login from %s since not in date white list", pReq->info.conn.user, ip);
+    code = TSDB_CODE_MND_USER_DISABLED;
     goto _OVER;
   }
+
+  SLoginInfo loginInfo = {0};
+  mndGetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+  if (pUser->inactiveAccountTime >= 0 && (now - loginInfo.lastLoginTime >= pUser->inactiveAccountTime)) {
+    mGError("user:%s, failed to login from %s since inactive account", pReq->info.conn.user, ip);
+    code = TSDB_CODE_MND_USER_DISABLED;
+    goto _OVER;
+  }
+
+  if (pUser->failedLoginAttempts >= 0 & loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
+    if(now - loginInfo.lastFailedLoginTime < pUser->passwordLockTime) {
+      mGError("user:%s, failed to login from %s since too many login failures", pReq->info.conn.user, ip);
+      code = TSDB_CODE_MND_USER_DISABLED;
+      goto _OVER;
+    }
+  }
+
+  if (pUser->sessionPerUser >= 0) {
+    int32_t currentSessions = mndCountUserConns(pMnode, pReq->info.conn.user);
+    if (currentSessions >= pUser->sessionPerUser) {
+      mGError("user:%s, failed to login from %s since exceed max connections:%d", pReq->info.conn.user, ip, pUser->sessionPerUser);
+      code = TSDB_CODE_MND_TOO_MANY_CONNECTIONS;
+      goto _OVER;
+    }
+  }
+
+  if (tsMndSkipGrant) {
+    loginInfo.lastLoginTime= now;
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+    }
+  } else if (!verifyTotp(pUser, connReq.totpCode)) {
+    mGError("user:%s, failed to login from %s since wrong TOTP code, input:%06d", pReq->info.conn.user, ip, connReq.totpCode);
+    code = TSDB_CODE_MND_WRONG_TOTP_CODE;
+    goto _OVER;
+  } else if ((code = verifyPassword(pUser, connReq.passwd)) == TSDB_CODE_SUCCESS) {
+    loginInfo.failedLoginCount = 0;
+    loginInfo.lastLoginTime= now;
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+    }
+  } else if (code == TSDB_CODE_MND_AUTH_FAILURE) {
+    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip, connReq.passwd);
+    if (pUser->failedLoginAttempts >= 0) {
+      if (loginInfo.failedLoginCount >= pUser->failedLoginAttempts) {
+        // if we can get here, it means the lock time has passed, so reset the counter
+        loginInfo.failedLoginCount = 0;
+      }
+      loginInfo.failedLoginCount++;
+      loginInfo.lastFailedLoginTime = now;
+    }
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(pReq->info.conn.user, &loginInfo);
+    }
+    goto _OVER;
+  } else {
+    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
+    goto _OVER;
+  } 
 
   if (connReq.db[0]) {
     char db[TSDB_DB_FNAME_LEN] = {0};
@@ -334,6 +457,11 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     }
 
     TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb), NULL, _OVER);
+  }
+
+  if (connReq.connType == CONN_TYPE__AUTH_TEST) {
+    code = 0;
+    goto _OVER;
   }
 
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, &pReq->info.conn.cliAddr, connReq.pid,
@@ -362,8 +490,12 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   connectRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
   connectRsp.enableAuditDelete = tsEnableAuditDelete;
+  connectRsp.enableAuditSelect = tsEnableAuditSelect;
+  connectRsp.enableAuditInsert = tsEnableAuditInsert;
+  connectRsp.auditLevel = tsAuditLevel;
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
+  connectRsp.timeWhiteListVer = pUser->timeWhiteListVer;
 
   tstrncpy(connectRsp.sVer, td_version, sizeof(connectRsp.sVer));
   (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", td_version,
@@ -392,12 +524,17 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   code = 0;
 
-  char    detail[1000] = {0};
-  int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
-  if ((uint32_t)nBytes < sizeof(detail)) {
-    auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
-  } else {
-    mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char    detail[1000] = {0};
+    int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
+    if ((uint32_t)nBytes < sizeof(detail)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail), duration, 0);
+    } else {
+      mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
 
 _OVER:
@@ -772,6 +909,9 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   batchRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
   batchRsp.enableAuditDelete = tsEnableAuditDelete;
+  batchRsp.enableAuditSelect = tsEnableAuditSelect;
+  batchRsp.enableAuditInsert = tsEnableAuditInsert;
+  batchRsp.auditLevel = tsAuditLevel;
   batchRsp.enableStrongPass = tsEnableStrongPassword;
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);

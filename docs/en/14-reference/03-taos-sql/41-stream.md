@@ -29,7 +29,7 @@ trigger_type: {
     PERIOD(period_time[, offset_time])
   | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
@@ -143,13 +143,14 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### State Window Trigger
 
 ```sql
-STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
 ```
 
 A state window trigger divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
 - col: The name of the state column.
 - extend (optional): Specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively.
+- zeroth_state (optional): Specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted.
 - duration_time (optional): Specifies the minimum duration of a window. If the duration of a window is shorter than this value, the window will be discarded and no trigger will be generated.
 
 Usage Notes:
@@ -252,17 +253,17 @@ tag_definition:
 
 Details are as follows:
 
-- INTO [db_name.]table_name: Optional. Specifies the output table name as table_name and the database name as db_name.
+- `INTO [db_name.]table_name`: Optional. Specifies the output table name as table_name and the database name as db_name.
   - If trigger grouping is used, this table will be a supertable.
   - If no trigger grouping is used, this table will be a regular table.
   - If the trigger only sends notifications without computation, or if computation results are only sent as notifications without being stored, this option does not need to be specified.
-- [OUTPUT_SUBTABLE(tbname_expr)]: Optional. Specifies the name of the calculation output table (subtable) for each trigger group. This cannot be specified if there is no trigger grouping. If not specified, a unique output table (subtable) name will be automatically generated for each group. tbname_expr can be any output string expression, and may include trigger group partition columns (from [PARTITION BY col1[, ...]]). The output length must not exceed the maximum table name length; if it does, it will be truncated. If you do not want different groups to output to the same subtable, you must ensure each group's output table name is unique.
-- [(column_name1, column_name2 [COMPOSITE KEY][, ...])]: Optional. Specifies the column names for each column in the output table. If not specified, each column name will be the same as the corresponding column name in the calculation result. You can use [COMPOSITE KEY] to indicate that the second column is a primary key column, forming a composite primary key together with the first column.
-- [TAGS (tag_definition [, ...])]: Optional. Specifies the list of tag column definitions and values for the output supertable. This can only be specified if trigger grouping is present. If not specified, the tag column definitions and values are derived from all grouping columns, and in this case, grouping columns cannot have duplicate names. When grouping by subtable, the default generated tag column name is tag_tbname, with the type VARCHAR(270). The tag_definition parameters are as follows:
-  - tag_name: Name of the tag column.
-  - type_name: Data type of the tag column.
-  - string_value: Description of the tag column.
-  - expr: Tag value calculation expression, which can use any trigger table grouping columns (from [PARTITION BY col1[, ...]]).
+- `[OUTPUT_SUBTABLE(tbname_expr)]`: Optional. Specifies the name of the calculation output table (subtable) for each trigger group. This cannot be specified if there is no trigger grouping. If not specified, a unique output table (subtable) name will be automatically generated for each group. tbname_expr can be any output string expression, and may include trigger group partition columns (from [PARTITION BY col1[, ...]]). The output length must not exceed the maximum table name length; if it does, it will be truncated. If you do not want different groups to output to the same subtable, you must ensure each group's output table name is unique.
+- `[(column_name1, column_name2 [COMPOSITE KEY][, ...])]`: Optional. Specifies the column names for each column in the output table. If not specified, each column name will be the same as the corresponding column name in the calculation result. You can use [COMPOSITE KEY] to indicate that the second column is a primary key column, forming a composite primary key together with the first column.
+- `[TAGS (tag_definition [, ...])]`: Optional. Specifies the list of tag column definitions and values for the output supertable. This can only be specified if trigger grouping is present. If not specified, the tag column definitions and values are derived from all grouping columns, and in this case, grouping columns cannot have duplicate names. When grouping by subtable, the default generated tag column name is tag_tbname, with the type VARCHAR(270). The tag_definition parameters are as follows:
+  - `tag_name`: Name of the tag column.
+  - `type_name`: Data type of the tag column.
+  - `string_value`: Description of the tag column.
+  - `expr`: Tag value calculation expression, which can use any trigger table grouping columns (`from [PARTITION BY col1[, ...]]`).
 
 ### Stream Processing Computation Tasks
 
@@ -275,7 +276,7 @@ A computation task is the calculation executed by the stream after an event is t
 - The first column in the query output will serve as the primary key column of the output table: The first column in the query output must be a valid primary key value (TIMESTAMP). If the column type does not match, an error will occur when creating the stream. If a NULL value appears during execution, the corresponding computation result will be discarded.
 - Each trigger group’s computation results are written into the same output table (subtable or regular table) for that group: If the query also contains a GROUP BY clause, records with the same primary key in the grouped results will overwrite each other. If grouping is required, it is recommended to define a composite primary key for the output table.
 
-##### Placeholders
+#### Placeholders
 
 When performing calculations, you may need to use contextual information from the trigger event. In SQL statements, these are represented as placeholders, which are replaced with constant values at execution time for each calculation. Placeholders include:
 
@@ -452,45 +453,45 @@ An example structure of a notification message is shown below:
 
 The following sections describe each field in the notification message.
 
-##### Root-Level Fields
+#### Root-Level Fields
 
 - messageId: String. A unique identifier for the notification message, used to ensure the message can be tracked and de-duplicated.
 - timestamp: Long integer. The time the notification message was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - streams: Array of objects. Contains event information for one or more stream tasks. (See the next section for details.)
 
-##### Fields of the stream Object
+#### Fields of the stream Object
 
 - streamName: String. The name of the stream task, used to identify which stream the event belongs to.
 - events: Array of objects. The list of events under this stream task, containing one or more event objects. (See the next section for details.)
 
-##### Fields of the event Object
+#### Fields of the event Object
 
-###### Common Fields
+##### Common Fields
 
 These fields are shared by all event objects:
 
-- tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist. 
+- tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist.
 - eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, and WINDOW_INVALIDATION.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.
 - triggerType: String. The type of trigger. Supported values include the two non-window types Period and SLIDING, as well as the five window types INTERVAL, State, Session, Event, and Count.
 - groupId: String. The unique identifier of the group to which the event belongs. If the grouping is by child table, this matches the UID of the corresponding table. When there is no grouping, this field is 0.
 
-###### Fields for Scheduled Triggers
+##### Fields for Scheduled Triggers
 
 These fields apply when triggerType is Period.
 
 - eventType: Always ON_TIME.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
-###### Fields for Sliding Triggers
+##### Fields for Sliding Triggers
 
 These fields apply when triggerType is Sliding.
 
 - eventType: Always ON_TIME.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
-###### Fields for Time Windows (Interval)
+##### Fields for Time Windows (Interval)
 
 These fields apply when triggerType is Interval.
 
@@ -500,7 +501,7 @@ These fields apply when triggerType is Interval.
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
 
-###### Fields for State Windows
+##### Fields for State Windows
 
 These fields apply only when triggerType is State.
 
@@ -515,7 +516,7 @@ These fields apply only when triggerType is State.
   - nextState: Same type as the state column. Represents the state value of the next window.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
-###### Fields for Session Windows
+##### Fields for Session Windows
 
 These fields apply only when triggerType is Session.
 
@@ -526,7 +527,7 @@ These fields apply only when triggerType is Session.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
-###### Fields for Event Windows
+##### Fields for Event Windows
 
 These fields apply only when triggerType is Event.
 
@@ -543,7 +544,7 @@ These fields apply only when triggerType is Event.
     - fieldValue: Key–value pairs containing the condition column names and their corresponding values.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
-###### Fields for Count Windows
+##### Fields for Count Windows
 
 These fields apply only when triggerType is Count.
 
@@ -553,7 +554,7 @@ These fields apply only when triggerType is Count.
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
-###### Fields for Window Invalidation
+##### Fields for Window Invalidation
 
 During stream processing, out-of-order data, updates, or deletions may cause an already generated window to be removed or require its results to be recalculated. In such cases, a WINDOW_INVALIDATION notification is sent to the target address to indicate which windows have been deleted.
 
@@ -572,7 +573,7 @@ DROP STREAM [IF EXISTS] [db_name.]stream_name;
 
 ## View Streams
 
-##### View Stream Information
+### View Stream Information
 
 Displays the stream processing tasks in the current database or in a specified database.
 
@@ -586,7 +587,7 @@ For more detailed information, query the system table `information_schema.ins_st
 SELECT * from information_schema.`ins_streams`;
 ```
 
-##### View Stream Tasks
+### View Stream Tasks
 
 When a stream is running, it is executed as multiple tasks. Detailed task information can be obtained from the system table `information_schema.ins_stream_tasks`:
 
@@ -596,7 +597,7 @@ SELECT * from information_schema.`ins_stream_tasks`;
 
 ## Start or Stop a Stream
 
-##### Start a Stream
+### Start a Stream
 
 ```sql
 START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name; 
@@ -609,7 +610,7 @@ Notes:
 - After a stream is created, it starts automatically. Manual start is only required if the stream has been stopped and needs to be resumed.
 - When a stream is started, any data written during the time the stream was stopped is processed as historical data.
 
-##### Stop a Stream
+### Stop a Stream
 
 ```sql
 STOP STREAM [IF EXISTS] [db_name.]stream_name; 
@@ -634,7 +635,7 @@ Stream processing in TDengine is architected with a separation of compute and st
   - Each pair of snodes acts as replicas, storing stream state and progress information.
   - If only a single snode is deployed in the cluster, the system cannot guarantee high availability.
 
-##### Deploy an Snode
+### Deploy an Snode
 
 Before creating a stream processing task, an snode must be deployed. The syntax is as follows:
 
@@ -642,7 +643,7 @@ Before creating a stream processing task, an snode must be deployed. The syntax 
 CREATE SNODE ON DNODE dnode_id;
 ```
 
-##### View Snodes
+### View Snodes
 
 You can view information about snodes with the following command:
 
@@ -656,7 +657,7 @@ For more detailed information, use:
 SELECT * FROM information_schema.`ins_snodes`;
 ```
 
-##### Delete an Snode
+### Delete an Snode
 
 When you delete an snode, both the snode and its replica must be online to synchronize stream state information. If either the snode or its replica is offline, the deletion will fail.
 
@@ -685,7 +686,7 @@ For out-of-order, update, or delete scenarios that exceed the WATERMARK, recalcu
 
 Recalculation can be either automatic or manual. If automatic recalculation is not needed, it can be disabled via configuration options.
 
-##### Manual Recalculation
+#### Manual Recalculation
 
 Manual recalculation must be explicitly initiated by the user and can be started with an SQL command when needed.
 
@@ -792,7 +793,7 @@ Temporary Restrictions:
 
 - Grouping by regular data columns is not yet supported.
 - The Geometry data type is not yet supported.
-- The functions Interp, Percentile, Forecast, and UDFs are not yet supported.
+- User-defined functions (UDFs) are not yet supported.
 - The DELETE_OUTPUT_TABLE option is not yet supported.
 - The ON_FAILURE_PAUSE option in NOTIFY_OPTIONS is not yet supported.
 - The Cast function is not yet supported in state window triggers.
@@ -864,7 +865,7 @@ In the stream status display (query the table information_schema.ins_streams), s
 
 ### Stream Creation Example
 
-##### Count Window Trigger
+#### Count Window Trigger
 
 - Each time one row is written into table tb1, compute the average value of column col1 in table tb2 over the past 5 minutes up to that moment, and write the result into table tb3.
 
@@ -885,7 +886,7 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
     SELECT avg(col1) FROM %%trows;
 ```
 
-##### Event Window Trigger
+#### Event Window Trigger
 
 - When the ambient temperature exceeds 80° and remains above that threshold for more than 10 minutes, compute the average ambient temperature.
 
@@ -897,7 +898,7 @@ CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `temp` > 80 end with `te
     SELECT _twstart+0s as output_timestamp, avg(`temp`) as `avgtemp` FROM idmp.`vt_engsens02_471544` where ts >= _twstart and ts <= _twend;
 ```
 
-##### Sliding Trigger
+#### Sliding Trigger
 
 - For each subtable of supertable stb1, at the end of every 5-minute time window, compute the average of column col1 over that interval. The results for each subtable are written separately into different subtables of supertable stb2.
 
@@ -931,7 +932,7 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
     SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
-##### Scheduled Trigger
+#### Scheduled Trigger
 
 - Every hour, compute the total number of rows in table tb1 and write the result to table tb2 (in a millisecond-precision database).
 

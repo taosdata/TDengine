@@ -12,7 +12,7 @@ TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思�
 
 <table>
 <tr><th rowspan="2">模型</th> <th rowspan="2">文件</th> <th colspan="3">模型说明</th><th colspan="4">功能说明</th></tr>
-<tr><th>名称</th><th>参数(亿)</th><th>大小(MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th></tr>
+<tr><th>名称</th><th>参数 (亿)</th><th>大小 (MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th></tr>
 <tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>0.50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
 <tr><th>Maple728/TimeMoE-200M</th><th>4.53</th><th align="right">906</th></tr>
 <tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>1.17</th><th align="right">469</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
@@ -24,9 +24,9 @@ TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思�
 <tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>4.99</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th></tr>
 </table>
 
-本章以支持运行 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
+本章将以支持 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
 
-本章介绍如何本地部署 [time-moe](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
+下面介绍如何本地部署 [Time-MoE](https://github.com/Time-MoE/Time-MoE) 时序基础模型并与 TDgpt 适配后，提供时序数据预测服务。
 
 ## 准备环境
 
@@ -39,7 +39,6 @@ pip install transformers==4.40.0
 pip install accelerate
 ```
 
-****
 > 脚本中安装了 CPU 驱动版本的 PyTorch，如果您服务是部署在具有 GPU 的服务器上，可以在虚拟环境中安装支持 GPU 加速的 PyTorch。例如：
 
 ```shell
@@ -160,7 +159,7 @@ TDgpt 已经内置 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进
 timemoe-fc = http://127.0.0.1:6037/ds_predict
 ```
 
-添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址:`http://127.0.0.1:5001/ds_predict`。
+添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址：`http://127.0.0.1:5001/ds_predict`。
 
 然后重启 taosnode 服务，并更新服务端算法缓存列表 `update all anodes`，之后即可通过 SQL 语句调用 Time-MoE 的时间序列数据预测服务。
 

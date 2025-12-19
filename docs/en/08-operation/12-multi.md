@@ -67,18 +67,18 @@ Starting from version 3.3.2.0, a new configuration `disable_create_new_file` has
 
 ## Shared Storage
 
-This section describes how to use shared storage in TDengine Enterprise. TDengine supports using various S3 compatible object storage services such as MinIO, Tencent Cloud COS, Amazon S3, or locally mounted NAS, SAN, etc as shared storage device, 
+This section describes how to use shared storage in TDengine Enterprise. TDengine supports using various S3 compatible object storage services such as MinIO, Tencent Cloud COS, Amazon S3, or locally mounted NAS, SAN, etc as shared storage device,
 
 **Note** When used in conjunction with multi-tier storage, data saved on each storage medium may be migrated to shared storage and local data files deleted according to rules.
 
 The configuration items related to shared storage are stored in `/etc/taos/taos.cfg`, as shown in the following table:
 
-| Parameter Name        |   Description                                      |
-|:-------------|:-----------------------------------------------|
-| ssEnabled | Whether to enable shared storage or not, allowed values are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration, and `2` means also enable auto migation. 
-| ssAccessString | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, available options differ from storage device types, please refer the next section for details. |
-| ssUploadDelaySec | How long a data file remains unchanged before being uploaded to shared storage, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
-| ssPageCacheSize | Number of shared storage page cache pages, in pages. Minimum: 4; Maximum: 1024 * 1024 * 1024, default value 4096 |
+| Parameter Name           | Description                                                  |
+| :----------------------- | :----------------------------------------------------------- |
+| ssEnabled                | Whether to enable shared storage or not, allowed values are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration, and `2` means also enable auto migation. |
+| ssAccessString           | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, available options differ from storage device types, please refer the next section for details. |
+| ssUploadDelaySec         | How long a data file remains unchanged before being uploaded to shared storage, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
+| ssPageCacheSize          | Number of shared storage page cache pages, in pages. Minimum: 4; Maximum: 1024 *1024* 1024, default value 4096 |
 | ssAutoMigrateIntervalSec | The trigger cycle for automatic upload of local data files to shared storage, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
 
 ### Access String of Storage Devices
@@ -89,23 +89,23 @@ The available options for the configuration parameter ssAccessString depend on t
 
 When using S3 compatible object storage services as shared storage device, the `device-type` in `ssAccessString` must be `s3`, and the following table lists all available options.
 
-Name            |   Description
-----------------|----------------------------------------------
-endpoint        | host name / ip address, and optional port number of the object storage server.
-bucket          | bucket name.
-protocol        | `https` or `http`, `https` is the default.     
-uriStyle        | `virtualHost` or `path`, `virtualHost` is the default, but please note that some object storage providers only support one of them.
-region          | object storage service region, optional.
-accessKeyId     | your access key id.              
-secretAccessKey | your secret access key.
-chunkSize       | chunk size in MB, files larger than this size will use multipart upload, default is 64.
-maxChunks       | max number of allowed chunks in a multipart upload, default is 10000.
-maxRetry        | max retry times when encounter retryable errors, default is 3, negative value means unlimited retry.
-verifyPeer      | whether to verify the peer(server) certificate, only valid when `protocol` is `https`, default is false.
+| Name            | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
+| endpoint        | host name / ip address, and optional port number of the object storage server. |
+| bucket          | bucket name.                                                 |
+| protocol        | `https` or `http`, `https` is the default.                   |
+| uriStyle        | `virtualHost` or `path`, `virtualHost` is the default, but please note that some object storage providers only support one of them. |
+| region          | object storage service region, optional.                     |
+| accessKeyId     | your access key id.                                          |
+| secretAccessKey | your secret access key.                                      |
+| chunkSize       | chunk size in MB, files larger than this size will use multipart upload, default is 64. |
+| maxChunks       | max number of allowed chunks in a multipart upload, default is 10000. |
+| maxRetry        | max retry times when encounter retryable errors, default is 3, negative value means unlimited retry. |
+| verifyPeer      | whether to verify the peer(server) certificate, only valid when `protocol` is `https`, default is false. |
 
 For example:
 
-```
+```text
 ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3;verifyPeer=false
 ```
 
@@ -113,13 +113,13 @@ ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protoc
 
 For TDengine, a network storage device mounted locally is treated the same as a local disk. When using such a device as shared storage, the device-type in `ssAccessString` must be `fs`. The available options are as follows:
 
-Name           |   Description
----------------|----------------------------------------------
-baseDir        | path of a directory, TDengine will use this directory as shared storage.
+| Name    | Description                                                  |
+| ------- | ------------------------------------------------------------ |
+| baseDir | path of a directory, TDengine will use this directory as shared storage. |
 
 For example:
 
-```
+```text
 ssAccessString fs:baseDir=/var/taos/ss
 ```
 
@@ -153,11 +153,11 @@ Note that if the value of `ssEnabled` is `1`, mnode will never trigger the migra
 
 Detailed DB parameters are shown in the table below:
 
-| #    | Parameter         | Default | Min | Max  | Description                                                         |
-| :--- | :----------- | :----- | :----- | :------ | :----------------------------------------------------------- |
-| 1    | ss_keeplocal | 365    | 1      | 365000  | The number of days data is kept locally, i.e., how long data files are retained on local disks before they can be migrated to shared storage. Default unit: days, supports m (minutes), h (hours), and d (days) |
-| 2    | ss_chunkpages | 131072 | 131072 | 1048576 | The size threshold for migrating objects, same as the tsdb_pagesize parameter, unmodifiable, in TSDB pages |
-| 3    | ss_compact   | 1      | 0      | 1       | Whether to automatically perform compact operation when before the first migration of TSDB files |
+| #    | Parameter     | Default | Min    | Max     | Description                                                  |
+| :--- | :------------ | :------ | :----- | :------ | :----------------------------------------------------------- |
+| 1    | ss_keeplocal  | 365     | 1      | 365000  | The number of days data is kept locally, i.e., how long data files are retained on local disks before they can be migrated to shared storage. Default unit: days, supports m (minutes), h (hours), and d (days) |
+| 2    | ss_chunkpages | 131072  | 131072 | 1048576 | The size threshold for migrating objects, same as the tsdb_pagesize parameter, unmodifiable, in TSDB pages |
+| 3    | ss_compact    | 1       | 0      | 1       | Whether to automatically perform compact operation when before the first migration of TSDB files |
 
 ### Estimation of Read and Write Operations for Object Storage
 
@@ -177,7 +177,7 @@ The follower vnodes will then download the last block of the data file and all o
 
 That's, the read/write count during data migration is about:
 
-```
+```text
 Read/Write Count = Number of Data Blocks + (Number of Other Files + 2) x Number of vnodes
 ```
 
@@ -227,11 +227,11 @@ s3BucketName td-test
 
 The user interface is the same as S3, but the configuration of the following three parameters is different:
 
-| #    | Parameter     | Example Value                              | Description                                                  |
-| :--- | :------------ | :----------------------------------------- | :----------------------------------------------------------- |
-| 1    | s3EndPoint    | `https://fd2d01c73.blob.core.windows.net`    | Blob URL                                                     |
-| 2    | s3AccessKey   | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg==  | Colon-separated user accountId:accountKey                    |
-| 3    | s3BucketName  | test-container                             | Container name                                               |
+| #    | Parameter    | Example Value                             | Description                               |
+| :--- | :----------- | :---------------------------------------- | :---------------------------------------- |
+| 1    | s3EndPoint   | `https://fd2d01c73.blob.core.windows.net` | Blob URL                                  |
+| 2    | s3AccessKey  | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg==  | Colon-separated user accountId:accountKey |
+| 3    | s3BucketName | test-container                            | Container name                            |
 
 The `fd2d01c73` is the account ID; Microsoft Blob storage service only supports the Https protocol, not Http.
 

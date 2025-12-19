@@ -19,6 +19,7 @@
 #include "planInt.h"
 #include "planner.h"
 #include "plannodes.h"
+#include "querynodes.h"
 #include "systable.h"
 #include "tglobal.h"
 
@@ -1131,6 +1132,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // TODO(smj) : create a fake logic node, no need to collect column
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &pInsColumnsScan));
   nodesDestroyList(((SScanLogicNode*)pInsColumnsScan)->node.pTargets);
+  ((SScanLogicNode*)pInsColumnsScan)->node.pTargets = NULL;  // Set to NULL after destroy to avoid use-after-free
   PLAN_ERR_JRET(addInsColumnScanCol((SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
   ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
@@ -1605,6 +1607,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     pInterpFunc->timeRange = pFill->timeRange;
+    TSWAP(pInterpFunc->pTimeRange, pFill->pTimeRange);    
     pInterpFunc->fillMode = pFill->mode;
     pInterpFunc->pTimeSeries = NULL;
     code = nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries);
@@ -1683,41 +1686,41 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   return code;
 }
 
-static bool isImputationFunc(int32_t funcId) {
-  return fmIsImputationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
+static bool isGenericAnalysisFunc(int32_t funcId) {
+  return fmIsImputationCorrelationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
          fmIsAnalysisPseudoColumnFunc(funcId);
 }
 
-static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasImputationFunc) {
+static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (!pSelect->hasGenericAnalysisFunc) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SImputationFuncLogicNode * pImputatFunc = NULL;
-  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC, (SNode**)&pImputatFunc);
-  if (NULL == pImputatFunc) {
+  SGenericAnalysisLogicNode * pFunc = NULL;
+  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC, (SNode**)&pFunc);
+  if (NULL == pFunc) {
     return code;
   }
 
-  pImputatFunc->node.groupAction = getGroupAction(pCxt, pSelect);
-  pImputatFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
-  pImputatFunc->node.resultDataOrder = pImputatFunc->node.requireDataOrder;
+  pFunc->node.groupAction = getGroupAction(pCxt, pSelect);
+  pFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pFunc->node.resultDataOrder = pFunc->node.requireDataOrder;
 
   // interp functions and _group_key functions
-  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isImputationFunc, &pImputatFunc->pFuncs);
+  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isGenericAnalysisFunc, &pFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pImputatFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
+    code = rewriteExprsForSelect(pFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pImputatFunc->pFuncs, &pImputatFunc->node.pTargets);
+    code = createColumnByRewriteExprs(pFunc->pFuncs, &pFunc->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    *pLogicNode = (SLogicNode*)pImputatFunc;
+    *pLogicNode = (SLogicNode*)pFunc;
   } else {
-    nodesDestroyNode((SNode*)pImputatFunc);
+    nodesDestroyNode((SNode*)pFunc);
   }
 
   return code;
@@ -2267,7 +2270,7 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       !pCxt->pPlanCxt->streamCalcQuery ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
-      NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
+      NULL != pSelect->pSlimit || NULL != pSelect->pLimit || pSelect->hasInterpFunc ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
       !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
     pCxt->pPlanCxt->withExtWindow = false;
@@ -2759,7 +2762,7 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     code = createSelectRootLogicNode(pCxt, pSelect, createForecastFuncLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createSelectRootLogicNode(pCxt, pSelect, createImputationFuncLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createGenericAnalysisLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot);

@@ -468,7 +468,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
    name: Specify the topic name.
    sql:  Specify the sql statement for creating topic, Ensure that the sql is correct, and the framework will automatically create topic.
 
-For the following parameters, see the description of [Subscription](../../../advanced-features/data-subscription/):
+For the following parameters, see the description of [Subscription](../../../advanced/subscription/):
 
 - **client.id**
 - **auto.offset.reset**
@@ -501,7 +501,7 @@ For the following parameters, see the description of [Subscription](../../../adv
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
 | 19  |  DECIMAL           |    decimal
-| 20  |  BLOB              |    blob 
+| 20  |  BLOB              |    blob
 
 Note: Data types in the taosBenchmark configuration file must be in lowercase to be recognized.
 
@@ -515,7 +515,7 @@ Below are a few examples of configuration files:
 <summary>insert.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/insert.json}}
+{{#include tools/taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -526,7 +526,7 @@ Below are a few examples of configuration files:
 <summary>query.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/query.json}}
+{{#include tools/taos-tools/example/query.json}}
 ```
 
 </details>
@@ -535,7 +535,7 @@ Below are a few examples of configuration files:
 <summary>queryStb.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+{{#include tools/taos-tools/example/queryStb.json}}
 ```
 
 </details>
@@ -546,7 +546,7 @@ Below are a few examples of configuration files:
 <summary>tmq.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/tmq.json}}
+{{#include tools/taos-tools/example/tmq.json}}
 ```
 
 </details>
@@ -557,7 +557,7 @@ Below are a few examples of configuration files:
 <summary>csv-export.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
+{{#include tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

@@ -32,7 +32,7 @@ trigger_type: {
     PERIOD(period_time[, offset_time])
   | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
@@ -134,7 +134,7 @@ CREATE STREAM sm1 COUNT_WINDOW(1) FROM tb1
 
 ```SQL
 CREATE STREAM sm2 COUNT_WINDOW(10, 1, col1) FROM tb1 
-  STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
+  STREAM_OPTIONS(CALC_NOTIFY_ONLY | PRE_FILTER(col1 > 0)) 
   NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
   AS 
     SELECT avg(col1) FROM %%trows;

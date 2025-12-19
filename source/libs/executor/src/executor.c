@@ -28,6 +28,8 @@
 #include "querytask.h"
 #include "storageapi.h"
 #include "streamexecutorInt.h"
+#include "taosdef.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "trpc.h"
@@ -201,8 +203,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
-                                     uint64_t id) {
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, uint64_t id) {
   if (msg == NULL) {  // create raw scan
     SExecTaskInfo* pTaskInfo = NULL;
 
@@ -225,6 +226,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   SSubplan* pPlan = NULL;
   int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to parse subplan from msg, msg:%s code:%s", (char*) msg, tstrerror(code));
     terrno = code;
     return NULL;
   }
@@ -235,18 +237,6 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
     qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
-  }
-
-  // extract the number of output columns
-  SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
-  *numOfCols = 0;
-
-  SNode* pNode;
-  FOREACH(pNode, pDescNode->pSlots) {
-    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
-    if (pSlotDesc->output) {
-      ++(*numOfCols);
-    }
   }
 
   return pTaskInfo;
@@ -365,6 +355,8 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.uid = pHandle->uid;
   pScanBaseInfo->readHandle.winRangeValid = pHandle->winRangeValid;
   pScanBaseInfo->readHandle.winRange = pHandle->winRange;
+  pScanBaseInfo->readHandle.extWinRangeValid = pHandle->extWinRangeValid;
+  pScanBaseInfo->readHandle.extWinRange = pHandle->extWinRange;
   pScanBaseInfo->readHandle.cacheSttStatis = pHandle->cacheSttStatis;
 }
 
@@ -511,6 +503,7 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
 
       if (!qualified) {
+        qInfo("table uid:0x%" PRIx64 " is unqualified for tag condition, %s", info.uid, idstr);
         continue;
       }
     }
@@ -1173,19 +1166,6 @@ void qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval,
-                                      STimeWindow* pLastWindow, TSKEY* pRecInteral) {
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow, pRecInteral);
-  }
-  SStreamScanInfo* pScanOp = (SStreamScanInfo*)pOperator->info;
-  *pWaterMark = pScanOp->twAggSup.waterMark;
-  *pInterval = pScanOp->interval;
-  *pLastWindow = pScanOp->lastScanRange;
-  *pRecInteral = pScanOp->recalculateInterval;
-  return TSDB_CODE_SUCCESS;
-}
-
 void* qExtractReaderFromTmqScanner(void* scanner) {
   SStreamScanInfo* pInfo = scanner;
   return (void*)pInfo->tqReader;
@@ -1519,6 +1499,7 @@ end:
 void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
+    rpcFreeCont(pMsg->pCont);
     qError("pMsg->info.ahandle is NULL");
     return;
   }
@@ -1874,6 +1855,27 @@ end:
   tableListDestroy(pList);
   return code;
 }
+
+// int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid, TdThreadRwlock* lock) {
+//   int32_t index = -1;
+//   (void)taosThreadRwlockRdlock(lock);
+//   if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
+//     index = 0;
+//     goto end;
+//   }
+//   for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
+//     int32_t offset = ((STableListInfo*)pTableListInfo)->groupOffset[i];
+
+//     STableKeyInfo* pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, offset);
+//     if (pKeyInfo != NULL && pKeyInfo->groupId == gid) {
+//       index = i;
+//       goto end;
+//     }
+//   }
+// end:
+//   (void)taosThreadRwlockUnlock(lock);
+//   return index;
+// }
 
 void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
 SArray*  qStreamGetTableListArray(void* pTableListInfo) {

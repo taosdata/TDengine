@@ -911,6 +911,7 @@ int32_t tEncodeSStreamReaderDeployFromTrigger(SEncoder* pEncoder, const SStreamR
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->triggerTblUid));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->triggerTblSuid));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->triggerTblType));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->isTriggerTblVirt));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->deleteReCalc));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->deleteOutTbl));
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->partitionCols, pMsg->partitionCols == NULL ? 0 : (int32_t)strlen(pMsg->partitionCols) + 1));
@@ -1022,6 +1023,9 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.stateWin.trueForDuration));
+      int32_t stateWindowZerothLen = 
+          pMsg->trigger.stateWin.zeroth == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.stateWin.zeroth) + 1;
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.stateWin.zeroth, stateWindowZerothLen));
       int32_t stateWindowExprLen =
           pMsg->trigger.stateWin.expr == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.stateWin.expr) + 1;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.stateWin.expr, stateWindowExprLen));
@@ -1460,6 +1464,7 @@ int32_t tDecodeSStreamReaderDeployFromTrigger(SDecoder* pDecoder, SStreamReaderD
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->triggerTblUid));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->triggerTblSuid));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->triggerTblType));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->isTriggerTblVirt));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->deleteReCalc));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->deleteOutTbl));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->partitionCols, NULL));
@@ -1575,6 +1580,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.stateWin.trueForDuration));
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.stateWin.zeroth, NULL));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.stateWin.expr, NULL));
       break;
     
@@ -2051,6 +2057,7 @@ void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
   taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   switch (pTrigger->triggerType) {
     case WINDOW_TYPE_STATE:
+      taosMemoryFree(pTrigger->trigger.stateWin.zeroth);
       taosMemoryFree(pTrigger->trigger.stateWin.expr);
       break;
     case WINDOW_TYPE_EVENT:
@@ -2296,8 +2303,8 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  char*    json = NULL;
-  uint32_t jsonLen = 0;
+  char*   json = NULL;
+  int32_t jsonLen = 0;
   TAOS_CHECK_EXIT(scmCreateStreamReqToJson(pReq, false, &json, &jsonLen));
   TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, json, jsonLen));
 
@@ -2633,9 +2640,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INVALID_JSON);
   }
   TAOS_CHECK_EXIT(jsonToSCMCreateStreamReq(pJson, pReq));
-  taosMemoryFreeClear(json);
 
 _exit:
+  taosMemoryFreeClear(json);
   if (NULL != pJson) {
     tjsonDelete(pJson);
   }
@@ -2764,6 +2771,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
 
   switch (pReq->triggerType) {
     case WINDOW_TYPE_STATE:
+      taosMemoryFreeClear(pReq->trigger.stateWin.zeroth);
       taosMemoryFreeClear(pReq->trigger.stateWin.expr);
       break;
     case WINDOW_TYPE_EVENT:
@@ -2859,6 +2867,10 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
       pDst->trigger.stateWin.slotId = pSrc->trigger.stateWin.slotId;
       pDst->trigger.stateWin.extend = pSrc->trigger.stateWin.extend;
       pDst->trigger.stateWin.trueForDuration = pSrc->trigger.stateWin.trueForDuration;
+      if (pSrc->trigger.stateWin.zeroth) {
+        pDst->trigger.stateWin.zeroth = COPY_STR(pSrc->trigger.stateWin.zeroth);
+        TSDB_CHECK_NULL(pDst->trigger.stateWin.zeroth, code, lino, _exit, terrno);
+      }
       if (pSrc->trigger.stateWin.expr) {
         pDst->trigger.stateWin.expr = COPY_STR(pSrc->trigger.stateWin.expr);
         TSDB_CHECK_NULL(pDst->trigger.stateWin.expr, code, lino, _exit, terrno);
@@ -2949,6 +2961,7 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   pDst->triggerPrec = pSrc->triggerPrec;
   pDst->deleteReCalc = pSrc->deleteReCalc;
   pDst->deleteOutTbl = pSrc->deleteOutTbl;
+  pDst->flags = pSrc->flags;
   
 _exit:
 

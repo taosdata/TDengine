@@ -275,7 +275,7 @@ void    blockDataFreeRes(SSDataBlock* pBlock);
 void    blockDataFreeCols(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
-int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock,
+int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDataBlock* pTemplateBlock, SArray* pColMap,
                                        SSDataBlock** pResBlock);
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock);
 
@@ -286,7 +286,10 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
 int32_t         bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index, SColumnInfoData** pColInfoData);
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
+int32_t blockGetInternalEncodeSize(const SSDataBlock* pBlock);
+int32_t blockEncodeInternal(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols);
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
+int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 
 // for debug

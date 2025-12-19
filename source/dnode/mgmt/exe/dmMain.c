@@ -12,18 +12,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #define _DEFAULT_SOURCE
+
 #include "dmMgmt.h"
-#include "mnode.h"
-#include "osFile.h"
-#include "tconfig.h"
-#include "tglobal.h"
-#include "version.h"
-#include "tconv.h"
 #include "dmUtil.h"
+#include "mnode.h"
+#include "osEnv.h"
+#include "osFile.h"
 #include "qworker.h"
+#include "tconfig.h"
+#include "tconv.h"
+#include "tglobal.h"
 #include "tss.h"
+#include "version.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -75,6 +76,7 @@ static struct {
   char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
+extern int32_t cryptLoadProviders();
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
 static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
@@ -619,6 +621,17 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   };
+
+  if (tsEncryptExtDir[0] != '\0') {
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+    if ((code = cryptLoadProviders()) != 0) {
+      dError("failed to load encrypt providers since %s", tstrerror(code));
+      taosCloseLog();
+      taosCleanupArgs();
+      return code;
+    }
+#endif
+  }
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {

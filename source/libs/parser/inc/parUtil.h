@@ -124,7 +124,6 @@ typedef struct SParseStreamInfo {
   bool             calcClause;
   bool             triggerClause;
   bool             outTableClause;
-  bool             withExtWindow;
   bool             extLeftEq; // used for external window, true means include left border
   bool             extRightEq; // used for external window, true means include right border
   SNode*           triggerTbl;
@@ -197,7 +196,6 @@ void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint, SNode** ppSelect);
 int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas);
 int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma);
-
 /**
  * @brief return a - b with overflow check
  * @retval val range between [INT64_MIN, INT64_MAX]

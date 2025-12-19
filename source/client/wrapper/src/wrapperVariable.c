@@ -22,7 +22,11 @@ void (*fp_taos_cleanup)(void) = NULL;
 int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...) = NULL;
 int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) = NULL;
 TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) = NULL;
+TAOS *(*fp_taos_connect_totp)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) = NULL;
+int (*fp_taos_connect_test)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) = NULL;
+TAOS *(*fp_taos_connect_token)(const char *ip, const char *token, const char *db, uint16_t port) = NULL;
 TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) = NULL;
+TAOS *(*fp_taos_connect_with_dsn)(const char *dsn) = NULL;
 void (*fp_taos_close)(TAOS *taos) = NULL;
 
 const char *(*fp_taos_data_type)(int type) = NULL;
@@ -125,6 +129,10 @@ void (*fp_taos_fetch_whitelist_a)(TAOS *taos, __taos_async_whitelist_fn_t fp, vo
 
 void (*fp_taos_fetch_whitelist_dual_stack_a)(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) = NULL;
 
+void (*fp_taos_fetch_ip_whitelist_a)(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) = NULL;
+
+void (*fp_taos_fetch_datetime_whitelist_a)(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) = NULL;
+
 int (*fp_taos_set_conn_mode)(TAOS *taos, int mode, int value) = NULL;
 
 TAOS_RES *(*fp_taos_schemaless_insert)(TAOS *taos, char *lines[], int numLines, int protocol, int precision) = NULL;
@@ -205,3 +213,5 @@ void (*fp_tmq_free_json_meta)(char *jsonMeta) = NULL;
 TSDB_SERVER_STATUS (*fp_taos_check_server_status)(const char *fqdn, int port, char *details, int maxlen) = NULL;
 void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context) = NULL;
 char *(*fp_getBuildInfo)() = NULL;
+
+//int32_t (*fp_taos_connect_is_alive)(TAOS *taos) = NULL;

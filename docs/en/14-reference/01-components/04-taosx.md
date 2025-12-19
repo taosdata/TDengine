@@ -577,8 +577,6 @@ The taosX Parser plugin is a dynamic library compatible with the C ABI, develope
 
 After the plugin development is completed, the compilation environment needs to be compatible with the target operating environment. Copy the compiled plugin dynamic library to the plugin directory. After taosX starts, the system initializes and loads the plugin the first time it is used. You can check whether it is loaded successfully on the kafka or mqtt data access configuration page in explorer.
 
-![](../../assets/taosx-01.png)
-
 The plugin directory reuses the plugins configuration in the `taosx.toml` configuration file, appending `/parsers` as the plugin installation path. The default value in UNIX environment is `/usr/local/taos/plugins/parsers`, and in Windows it is `C:\TDengine\plugins\parsers`.
 
 ### Plugin API Description

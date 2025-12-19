@@ -48,18 +48,19 @@ The following configuration parameters only take effect for Native connections.
 |minSlidingTime                   |         |Supported, effective immediately  |Internal parameter, minimum allowable value for sliding|
 |minIntervalTime                  |         |Supported, effective immediately  |Internal parameter, minimum allowable value for interval|
 |compareAsStrInGreatest           | v3.3.6.0 |Supported, effective immediately  |When the greatest and least functions have both numeric and string types as parameters, the comparison type conversion rules are as follows: Integer; 1: uniformly converted to string comparison, 0: uniformly converted to numeric type comparison.|
-|showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.
+|showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.|
 
 ### Writing Related
 
-|Parameter Name|Supported Version|Dynamic Modification|Description|
-|----------------------|----------|--------------------|-------------|
-| smlChildTableName               |                   |Supported, effective immediately  | Key for custom child table name in schemaless, no default value |
-| smlAutoChildTableNameDelimiter  |                   |Supported, effective immediately  | Delimiter between schemaless tags, concatenated as the child table name, no default value |
-| smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null" |
-| smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts" |
-| smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless |
-| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert |
+|Parameter Name|Supported Version|Dynamic Modification| Description                                                                                                             |
+|----------------------|----------|--------------------|-------------------------------------------------------------------------------------------------------------------------|
+| smlChildTableName               |                   |Supported, effective immediately  | Key for custom child table name in schemaless, no default value                                                         |
+| smlAutoChildTableNameDelimiter  |                   |Supported, effective immediately  | Delimiter between schemaless tags, concatenated as the child table name, no default value                               |
+| smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null"                                                |
+| smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts"                   |
+| smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless                                                          |
+| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert                                                             |
+| maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 4,194,304; minimum value: 1,048,576; maximum value: 67,108,864 |
 
 ### Region Related
 

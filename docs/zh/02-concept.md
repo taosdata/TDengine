@@ -136,3 +136,29 @@ toc_max_heading_level: 4
 18. 需要支持私有化部署。因为很多企业出于安全以及各种因素的考虑，希望采用私有化部署。而传统的企业往往没有很强的 IT 运维团队，因此在安装、部署、运维等方面需要做到简单、快捷，可维护性强。
 
 总之，时序大数据平台应具备高效、可扩展、实时、可靠、灵活、开放、简单、易维护等特点。近年来，众多企业纷纷将时序数据从传统大数据平台或关系型数据库迁移到专用时序大数据平台，以保障海量时序数据得到快速和有效处理，支撑相关业务的持续增长。
+
+## 时序数据库基础知识
+
+为便于大家进一步了解时序数据库，在此收集整理了相关内容的文章，欢迎大家收藏阅读。
+
+1. 时序数据库与关系型数据库、NoSQL 等通用数据库有何不同？点击[什么是时序数据库（TSDB）？我们为什么需要时序数据库？](https://www.taosdata.com/tdengine/time-series-database/what-is-a-time-series-database)，了解相关内容。
+
+2. 什么是时序数据？为什么不建议使用通用大数据架构来处理时序数据？点击[时间序列数据的特点](https://www.taosdata.com/tdengine/time-series-database/characteristics-of-time-series-data)，了解相关内容。
+
+3. 近两年，时序数据库成为流行度最高的数据库，在过去的 10 年里，至少有 20 个新的时序数据库发布，那么，如何做好时序数据库的选型？点击[如何选择一款最佳的时序数据库](https://www.taosdata.com/tdengine/time-series-database/how-to-choose-the-best-time-series-database)，了解相关内容。
+
+4. 数据模型是数据库系统的核心，不同的时序数据库采用不同的数据模型。那么，InfluxDB 和 TDengine 等市场上领先的实时数据库使用的数据模型有何不同？点击[数据模型对比之 InfluxDB vs TDengine](https://www.taosdata.com/tdengine/time-series-database/data-model-comparisons-between-time-series-databases)，了解相关内容。
+
+5. 数据集的高基数（High-Cardinality）问题一直困扰着诸多主流的时序数据库产品。TDengine 3.0 是第一个解决了高基数问题的时序数据库。其设计思路是什么？点击[TDengine 3.0 是如何解决时序数据库中的高基数问题的？](https://www.taosdata.com/tdengine/time-series-database/high-cardinality-in-time-series-data)，了解相关内容。
+
+6. TDengine 发布了基于 TSBS 标准数据集时序数据库 InfluxDB 与 TDengine 的性能对比测试报告，从写入、查询、磁盘空间等三个角度，对 InfluxDB 和 TDengine 进行了全方位的对比，详细分析报告如下：
+
+    - [时序数据库写入性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-write-performance)
+    - [时序数据库查询性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-queries-performance)
+    - [时序数据库磁盘空间占用对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-diskusage)
+
+7. TDengine 发布了基于 TSBS 标准数据集时序数据库 TimescaleDB 与 TDengine 的性能对比测试报告，从写入、查询、磁盘空间等三个角度，对 TimescaleDB 和 TDengine 进行了全方位的对比，详细分析报告如下：
+
+    - [时序数据库写入性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-write-performance)
+    - [时序数据库查询性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-queries-performance)
+    - [时序数据库磁盘空间占用对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-diskusage)

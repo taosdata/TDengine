@@ -401,7 +401,7 @@ function installProduct() {
   install_anode_venv
 }
 
-# check for python version, only the 3.10/3.11 is supported
+# check for python version, only the 3.10/3.11/3.12 is supported
 check_python3_env() {
   if ! command -v python3 &> /dev/null
   then
@@ -413,12 +413,12 @@ check_python3_env() {
 
   python3_version_ok=false
   python_minor_ver=$(echo "$python3_version" | cut -d"." -f2)
-  if [[ $(echo "$python3_version" | cut -d"." -f1) -eq 3 && $(echo "$python3_version" | cut -d"." -f2) -ge 10 ]]; then
+  if [[ $(echo "$python3_version" | cut -d"." -f1) -eq 3 && $python_minor_ver =~ ^(10|11|12)$ ]]; then
     python3_version_ok=true
   fi
 
   if $python3_version_ok; then
-    echo -e "\033[32mPython3 ${python3_version} has been found.\033[0m"
+    echo -e "\033[32mPython ${python3_version} has been found.\033[0m"
   else
     if command -v python3.10 &> /dev/null
     then
@@ -428,18 +428,28 @@ check_python3_env() {
     then
       python_minor_ver=11
       echo -e "\033[32mPython3.11 has been found.\033[0m"
+    elif command -v python3.12 &> /dev/nul
+    then
+      python_minor_ver=12
+      echo -e "\033[32mPython3.12 has been found.\033[0m"
+
     else
-      echo -e "\033[31mWarning: Python3.10/3.11 is required, only found python${python3_version}.\033[0m"
+      echo -e "\033[31mWarning: Python3.10/3.11/3.12 allowed, only found python${python3_version}.\033[0m"
       exit 1
     fi
   fi
 
+  if [[ $python_minor_ver -eq 12 ]]; then
+    echo "Python 3.12: Update Pandas from 1.5.3 to 2.2.0 in Requirements_ess.txt"
+    sed -i '1s/pandas==1.5.3/pandas==2.2.0/' ${script_dir}/requirements_ess.txt
+  fi
+
 #  echo -e "Python3 minor version is:${python_minor_ver}"
 
-  # check the existence pip3.10/pip3.11
+  # check the existence pip3.10/pip3.11/pip3.12
   if ! command -v pip3 &> /dev/null
   then
-    echo -e "\033[31mWarning: Pip3 command not found. Version 3.10/3.11 is required.\033[0m"
+    echo -e "\033[31mWarning: Pip3 command not found. Version 3.10/3.11 allowed.\033[0m"
     exit 1
   fi
 
@@ -459,7 +469,7 @@ check_python3_env() {
     then
       echo -e "\033[32mpip3.${python_minor_ver} has been found.\033[0m"
     else
-      echo -e "\033[31mWarning: pip3.10/3.11 is required, only found pip${pip3_version}.\033[0m"
+      echo -e "\033[31mWarning: pip3.10/3.11/3.12 allowed, only found pip${pip3_version}.\033[0m"
      exit 1
     fi
   fi

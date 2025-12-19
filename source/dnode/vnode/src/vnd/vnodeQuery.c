@@ -169,6 +169,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       schema = mer1.me.stbEntry.schemaRow;
       schemaTag = mer1.me.stbEntry.schemaTag;
       metaRsp.suid = mer1.me.uid;
+      metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
       break;
     }
     case TSDB_CHILD_TABLE:
@@ -1018,11 +1019,13 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
   }
 
   if (numOfTables) {
-    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables;
+    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables +
+                   pConf->vndStats.numOfVTables + pConf->vndStats.numOfVCTables;
   }
 
   if (numOfNormalTables) {
-    *numOfNormalTables = pConf->vndStats.numOfNTables;
+    *numOfNormalTables = pConf->vndStats.numOfNTables +
+                         pConf->vndStats.numOfVTables;
   }
 }
 

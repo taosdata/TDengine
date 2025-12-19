@@ -14,7 +14,7 @@ taosgen currently supports Linux and macOS systems.
 Compared to taosBenchmark, taosgen offers the following advantages and improvements:
 
 - Provides job orchestration capabilities, with jobs supporting DAG dependencies to simulate real business processes.
-- Supports multiple targets/protocols (TDengine, MQTT), enabling scenarios such as database writing and message publishing.
+- Supports multiple targets/protocols (TDengine, MQTT, Kafka), enabling scenarios such as database writing and message publishing.
 - More diverse data generation methods, including support for Lua expressions to easily simulate real business data.
 - Supports real-time data generation, eliminating the need to pre-generate large data files, saving preparation time and better simulating real scenarios.
 - Supports various time interval strategies to control data writing operations, such as "playing" data according to its actual generation time.
@@ -56,7 +56,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -P/--port              | Port number of the server to connect to, default is 6030 |
 | -u/--user              | Username for connecting to the server, default is root |
 | -p/--password          | Password for connecting to the server, default is taosdata |
-| -c/--yaml-config-file  | Path to the YAML configuration file |
+| -c/--config-file       | Path to the YAML configuration file |
 | -?/--help              | Show help information and exit |
 | -V/--version           | Show version information and exit. Cannot be used with other parameters |
 
@@ -65,15 +65,20 @@ Tip: If no parameters are specified when running taosgen, taosgen will create th
 ## Configuration File Parameters
 
 ### Overall Structure
-The configuration file is divided into five parts: "tdengine", "mqtt", "schema", "concurrency", and "jobs".
+
+The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", "schema", "concurrency", and "jobs".
+
 - tdengine: Describes configuration parameters related to the TDengine database.
 - mqtt: Describes configuration parameters for the MQTT Broker.
+- kafka: Describes configuration parameters for the Kafka Broker.
 - schema: Describes configuration parameters for data definition and generation.
 - concurrency: Describes job execution concurrency.
 - jobs: List structure, describes specific parameters for all jobs.
 
 #### Job Format
+
 A job is user-defined and contains an ordered set of steps. Each job has a unique identifier (key name) and can specify dependencies (needs) to control execution order with other jobs. Job attributes include:
+
 - Job Key: String, unique key name in the jobs list, used for internal reference and dependency management.
 - name: String, display name for the job, used in logs or UI.
 - needs: List, identifiers of other jobs this job depends on. Empty list if no dependencies.
@@ -81,7 +86,9 @@ A job is user-defined and contains an ordered set of steps. Each job has a uniqu
 Jobs inherit global configuration (such as tdengine, schema, etc.) by default.
 
 #### Step Format
+
 A step is the basic operation unit in a job, representing the execution process of a specific operation type. Each step runs in order and can reference a predefined Action to perform a specific function. Step attributes include:
+
 - name: String, display name for the step, used in logs and UI.
 - uses: String, points to the Action path or identifier to indicate which operation module to call.
 - with: Map (dictionary), parameters passed to the Action. Parameter content varies by Action type and supports flexible configuration.
@@ -90,14 +97,15 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
 ### Global Configuration Parameters
 
 #### TDengine Parameters
+
 - tdengine: Describes configuration parameters for the TDengine database, including:
   - dsn (string): DSN address for connecting to TDengine, default: taos+ws://root:taosdata@localhost:6041/tsbench.
   - drop_if_exists (bool): Whether to delete the database if it already exists, default: true.
   - props (string): Database creation property information.
-    For example, precision ms vgroups 20 replica 3 keep 3650 sets virtual group count, replica count, and data retention period.
-    - precision: Time precision, options: "ms", "us", "ns".
-    - vgroups: Number of virtual groups.
-    - replica: Replica format.
+    For example, `precision ms vgroups 20 replica 3 keep 3650` sets the time precision, virtual group count, replica count, and data retention period.
+    - precision: Specifies the time precision of the database. Options: "ms", "us", "ns".
+    - vgroups: Specifies the number of virtual groups for the database.
+    - replica: Specifies the replica format for the database.
   - pool: Connection pool configuration:
     - enabled (bool): Whether to enable connection pool, default: true.
     - max_size (int): Maximum pool size, default: 100.
@@ -105,21 +113,43 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
     - timeout (int): Connection timeout in milliseconds, default: 1000.
 
 #### MQTT Parameters
+
 - mqtt: Describes configuration parameters for the MQTT Broker, including:
   - uri (string): MQTT Broker URI, default: tcp://localhost:1883.
-  - username (string): Username for Broker login.
+  - user (string): Username for Broker login.
   - password (string): Password for Broker login.
-  - topic (string): MQTT Topic to publish messages to, default: tsbench/`{table}`. Supports dynamic topics via placeholder syntax:
-    - `{table}`: Table name data
-    - `{column}`: Column data, where column is the column field name
   - client_id (string): Client identifier prefix, default: taosgen.
-  - qos (int): QoS level, values: 0, 1, 2, default: 0.
   - keep_alive (int): Heartbeat interval in seconds, default: 5.
   - clean_session (bool): Whether to clear session state, default: true.
-  - retain (bool): Whether MQTT Broker retains the last message, default: false.
   - max_buffered_messages (int): Maximum buffered messages for the client, default: 10000.
 
+#### Kafka Parameters
+
+- kafka: Describes configuration parameters for the Kafka Broker, including:
+  - bootstrap_servers (string): A list of Kafka cluster addresses in "host:port" format, separated by commas.
+  - client_id (string): Client identifier prefix, default: taosgen.
+  - topic (string): The name of the Kafka Topic to write to.
+  - rdkafka_options (map): Optional parameters supported by the underlying librdkafka library, such as: security.protocol, sasl.mechanisms, sasl.username, sasl.password.
+    - security.protocol (string): Specifies the security protocol for communication between the client and the Kafka cluster. Options:
+      - "plaintext": Unencrypted communication (default if not configured).
+      - "ssl": Use SSL/TLS for encrypted communication.
+      - "sasl_plaintext": Use SASL for authentication, but communication is in plaintext.
+      - "sasl_ssl": Use SASL for authentication and SSL/TLS for encrypted communication.
+      - Default: Not set (equivalent to "plaintext").
+    - sasl.mechanism (string): When security.protocol is set to "sasl_plaintext" or "sasl_ssl", specifies the SASL authentication mechanism to use. Common options:
+      - "PLAIN": Simple username/password authentication.
+      - "SCRAM-SHA-256": A more secure challenge-response mechanism.
+      - "SCRAM-SHA-512": A stronger hash algorithm than SHA-256.
+      - "GSSAPI": For Kerberos authentication.
+
+      Note: This field must be configured along with security.protocol, and its value depends on the SASL mechanisms enabled on the Kafka Broker.
+    - sasl.username (string): The username for SASL authentication. Required for "PLAIN" or "SCRAM" mechanisms.
+    - sasl.password (string): The password for SASL authentication.
+
+    For more parameters, refer to the [librdkafka configuration documentation](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md).
+
 #### schema Parameters
+
 - schema: Describes configuration parameters for data definition and generation patterns.
   - name (string): Name of the schema.
   - from_csv: Configuration for using CSV files as data sources.
@@ -127,7 +157,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
       - file_path (string): Path to tag data CSV file.
       - has_header (bool): Whether the file contains a header row, default: true.
       - tbname_index (int): Column index for table name (starting from 0), default: -1 (inactive).
-      - exclude_indices (string): Indices of unused tag columns to exclude (comma-separated), default: empty (no exclusion).
+      - exclude_indices (string): Indices of unused tag columns to exclude (comma-separated, 0-based), default: empty (no exclusion).
     - columns: Configuration for time-series data columns.
       - file_path (string): Path to time-series data CSV file.
       - has_header (bool): Whether the file contains a header row, default: true.
@@ -138,7 +168,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
       - timestamp_offset: Timestamp offset configuration.
         - offset_type (string): Offset type, options: "relative", "absolute".
         - value (string/int): Offset value (relative) or starting timestamp (absolute):
-          - For "relative": string format ±[value][unit] (e.g., "+1d3h" means add 1 day 3 hours), units: y (year), m (month), d (day), s (second).
+          - For "relative": string format `±[value][unit]` (e.g., "+1d3h" means add 1 day 3 hours), units: y (year), m (month), d (day), s (second).
           - For "absolute": int or string, either timestamp value (precision as per timestamp_precision) or ISO 8601 string ("YYYY-MM-DD HH:mm:ss").
   - tbname: Table name generation configuration:
     - prefix (string): Table name prefix, default: "d".
@@ -155,7 +185,9 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
     - tables_reuse_data (bool): Whether multiple tables reuse the same data, default is true.
 
 ##### Column Configuration Attributes
+
 Each column includes:
+
 - name (string): Column name. If count > 1, name is the prefix (e.g., name: current, count: 3 yields current1, current2, current3).
 - type (string): Data type, supports TDengine-compatible types (case-insensitive):
   - Integer: timestamp, bool, tinyint, tinyint unsigned, smallint, smallint unsigned, int, int unsigned, bigint, bigint unsigned.
@@ -171,9 +203,10 @@ Each column includes:
 - gen_type (string): Data generation method for this column, default: random. Supported types:
   - random: Random generation.
   - order: Sequential natural number growth (integer only).
-  - expression: Generated by expression (supports integer, float, double, string).
+  - expression: Generated by expression (supports integer, float, double, and string types).
 
 ##### Data Generation Methods
+
 - random: Random generation
   - distribution (string): Random model, currently only "uniform" supported, default: "uniform".
   - min (float): Minimum value (integer/float only), generated value ≥ min.
@@ -195,6 +228,7 @@ Each column includes:
     ```lua
     (math.sin(_i / 7) * math.cos(_i / 13) + 0.5 * (math.random(80, 120) / 100)) * ((_i % 50 < 25) and (1 + 0.3 * math.sin(_i / 3)) or 0.7) + 10 * (math.floor(_i / 100) % 2)
     ```
+
     This combines various math functions, conditional logic, periodic behavior, and random noise to simulate a nonlinear, noisy, segmented dynamic data generation process, structured as (A + B) × C + D. Breakdown:
 
     | Part | Content                                                               | Type           | Function                                                      |
@@ -205,17 +239,21 @@ Each column includes:
     | D    | `10 * (math.floor(_i / 100) % 2)`                                    | Baseline step  | Switches baseline every 100 calls (0 or 10), simulates peaks  |
 
 ### Action Types
+
 Actions are encapsulated reusable operation units for specific functions. Each action represents an independent logic and can be called and executed in different steps. By abstracting common operations into standardized action modules, the system achieves extensibility and flexible configuration.
 The same action type can be used in multiple steps in parallel or repeatedly, supporting diverse workflow orchestration. For example: creating databases, defining super tables, generating child tables, writing data, etc., can all be scheduled via corresponding actions.
 Currently supported built-in actions:
+
 - `tdengine/create-database`: Create TDengine database
 - `tdengine/create-super-table`: Create TDengine super table
 - `tdengine/create-child-table`: Create child tables for TDengine super table
-- `tdengine/insert-data`: Write data to TDengine database
-- `mqtt/publish-data`: Publish data to MQTT Broker
+- `tdengine/insert`: Write data to TDengine database
+- `mqtt/publish`: Publish data to MQTT Broker
+- `kafka/produce`: Publish data to Kafka Broker
 Each action can receive parameters via the with field, with content varying by action type.
 
 ### Format for Creating TDengine Database Action
+
 The `tdengine/create-database` action creates a new database on the specified TDengine server. With connection info and database parameters, users can easily define database properties such as name, whether to drop if exists, time precision, etc.
 
 - checkpoint: Configuration for write interruption/recovery:
@@ -223,11 +261,13 @@ The `tdengine/create-database` action creates a new database on the specified TD
   - interval_sec: Interval for storing write progress, in seconds.
 
 ### Format for Creating TDengine Super Table Action
+
 The `tdengine/create-super-table` action creates a new super table in the specified database. With necessary connection info and super table parameters, users can define properties such as table name, normal columns, tag columns, etc.
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
 
 ### Format for Creating TDengine Child Table Action
+
 The `tdengine/create-child-table` action creates multiple child tables in the target database based on the specified super table. Each child table can have different names and tag data, enabling effective classification and management of time-series data. Supports defining child table names and tag data from generator or CSV file sources.
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
@@ -236,7 +276,8 @@ The `tdengine/create-child-table` action creates multiple child tables in the ta
   - concurrency (int): Number of concurrent batches, improves creation efficiency, default: 10.
 
 ### Format for Writing Data to TDengine Action
-The `tdengine/insert-data` action writes data to specified child tables. Supports obtaining child table names and normal column data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich write control strategies for optimization.
+
+The `tdengine/insert` action writes data to specified child tables. Supports obtaining child table names and normal column data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich write control strategies for optimization.
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for writing data, options: sql, stmt, default: stmt.
@@ -267,13 +308,44 @@ The `tdengine/insert-data` action writes data to specified child tables. Support
   - interval_sec: Interval for storing write progress, in seconds.
 
 ### Format for Publishing MQTT Data Action
-The `mqtt/publish-data` action publishes data to the specified topic. Supports obtaining data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich publish control strategies for optimization.
+
+The `mqtt/publish` action publishes data to the specified topic. Supports obtaining data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich publish control strategies for optimization.
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
 - format (string): Format for publishing data, currently only supports json, default: json.
 - concurrency (int): Number of threads for concurrent publishing, default: 8.
-- failure_handling (optional): Same as in "Writing Data to TDengine Action".
-- time_interval: Same as in "Writing Data to TDengine Action".
+- failure_handling: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- time_interval: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- topic (string): MQTT Topic to publish messages to, default: tsbench/`{table}`. Supports dynamic topics via placeholder syntax:
+  - `{table}`: Table name data
+  - `{column}`: Column data, where column is the column field name
+- qos (int): QoS level, values: 0, 1, 2, default: 0.
+- retain (bool): Whether MQTT Broker retains the last message, default: false.
+- tbname_key (string): Specifies the field name for the table name in the JSON output. If set to an empty string (""), the table name is not included. Default is "table".
+- records_per_message (int): Number of records per message, default: 1.
+
+### Format for Publishing Kafka Data Action
+
+The `kafka/produce` action publishes data to the specified topic. It supports obtaining data from generator or CSV file sources and allows users to control timestamp attributes via various strategies. It also provides rich control strategies to optimize the publishing process.
+
+- schema: Uses global schema configuration by default; can be overridden for this action.
+- concurrency (int): Number of threads for concurrent publishing, default: 8.
+- failure_handling: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- time_interval: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- key_pattern (string): The pattern for the message key, supporting dynamic key generation via placeholder syntax. Default is `{table}`. Placeholder syntax:
+  - `{table}`: Table name data
+  - `{column}`: Column data, where column is the column field name
+- key_serializer (string): The serialization method for the message key. Supported values: "string-utf8", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64". Default is "string-utf8". Controls how the result of key_pattern is serialized into the key's byte stream.
+  - "string-utf8": Treats the template result as a string and encodes it directly to a UTF-8 byte stream.
+  - Integer types: Parses the template result as an integer. Only single field placeholders, the integer is serialized in big-endian format.
+- value_serializer (string): The serialization method for the message value. Supported values: "json", "influx". Default is "json".
+- acks (string): Producer acknowledgment setting. Options: "all", "1", "0". Default is "0".
+  - "all": The producer waits for all in-sync replicas (ISR) to acknowledge the message.
+  - "1": The producer waits only for the leader replica to acknowledge the message.
+  - "0": The producer does not wait for any acknowledgment.
+- compression (string): Message compression type. Supported values: "none", "gzip", "snappy", "lz4", "zstd". Default is "none".
+- tbname_key (string): Specifies the field name for the table name in the JSON output. If set to an empty string (""), the table name is not included. Default is "table".
+- records_per_message (int): Number of records per message, default: 1.
 
 ## Configuration File Examples
 
@@ -282,6 +354,7 @@ The `mqtt/publish-data` action publishes data to the specified topic. Supports o
 This example demonstrates how to use taosgen to simulate 10,000 smart meters, each collecting current, voltage, and phase. Each meter generates a record every 5 minutes, with current data generated randomly and voltage simulated using a sine wave. The generated data is written to the meters super table in the tsbench database of TDengine TSDB via WebSocket.
 
 Configuration details:
+
 - TDengine configuration
   - Connection info: Defined via DSN.
   - Database properties: Whether to recreate the database, time precision set to ms, 4 vgroups.
@@ -299,18 +372,19 @@ Configuration details:
 Scenario description:
 
 This configuration is designed for TDengine database performance benchmarking. It is suitable for simulating large-scale IoT devices (such as meters, sensors) continuously generating high-frequency data, and can be used for:
+
 - Testing and evaluating TDengine cluster throughput, latency, and stability under massive time-series data write pressure.
 - Verifying database schema design, resource planning, and performance under different hardware configurations.
 - Providing data support for capacity planning in industrial IoT and related fields.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_config}}
 ```
 
-The parameters tdengine, schema::name, schema::tbname, schema::tags, tdengine/create-child-table::batch, and tdengine/insert-data::concurrency can use their default values to further simplify the configuration.
+The parameters tdengine, schema::name, schema::tbname, schema::tags, tdengine/create-child-table::batch, and tdengine/insert::concurrency can use their default values to further simplify the configuration.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_gen_stmt_insert_simple}}
 ```
 
 ### CSV-Based Data Generation, STMT Write to TDengine Example
@@ -318,6 +392,7 @@ The parameters tdengine, schema::name, schema::tbname, schema::tags, tdengine/cr
 This example demonstrates how to use taosgen to simulate 10,000 smart meters, each collecting current, voltage, and phase. Each meter generates a record every 5 minutes, with measurement data read from a CSV file and written to the meters super table in the tsbench database of TDengine TSDB via WebSocket.
 
 Configuration details:
+
 - TDengine configuration
   - Connection info: Defined via DSN.
   - Database properties: Whether to recreate the database, time precision set to ms, 4 vgroups.
@@ -336,64 +411,113 @@ Configuration details:
 Scenario description:
 
 This configuration is designed for importing device metadata and historical data from existing CSV files into TDengine. It is suitable for:
+
 - Data migration: Migrating device metadata (tags) and historical monitoring data stored in CSV files to TDengine.
 - System initialization: Initializing a batch of devices and historical data for a new monitoring system, for testing, demonstration, or retrospective analysis.
 - Data replay: Simulating real-time data streams by reinjecting historical data, for testing system processing or reproducing specific historical scenarios.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:tdengine_csv_stmt_insert_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:tdengine_csv_stmt_insert_config}}
 ```
 
 Where:
+
 - `ctb-tags.csv` file format:
 
-```csv
-groupid,location,tbname
-1,California.Campbell,d1
-2,Texas.Austin,d2
-3,NewYork.NewYorkCity,d3
-```
+   ```csv
+   groupid,location,tbname
+   1,California.Campbell,d1
+   2,Texas.Austin,d2
+   3,NewYork.NewYorkCity,d3
+   ```
 
 - `ctb-data.csv` file format:
 
-```csv
-tbname,ts,current,voltage,phase
-d1,1700000010000,5.23,221.5,146.2
-d3,1700000010000,8.76,219.8,148.7
-d2,1700000010000,12.45,223.1,147.3
-d3,1700000310000,9.12,220.3,149.1
-d2,1700000310000,11.87,222.7,145.8
-d1,1700000310000,4.98,220.9,147.9
-```
+   ```csv
+   tbname,ts,current,voltage,phase
+   d1,1700000010000,5.23,221.5,146.2
+   d3,1700000010000,8.76,219.8,148.7
+   d2,1700000010000,12.45,223.1,147.3
+   d3,1700000310000,9.12,220.3,149.1
+   d2,1700000310000,11.87,222.7,145.8
+   d1,1700000310000,4.98,220.9,147.9
+   ```
 
 ### Generator-Based Data Generation and Publishing to MQTT Broker Example
 
 This example demonstrates how to use taosgen to simulate 10,000 smart meters, each collecting current, voltage, phase, and location. Each meter generates a record every 5 minutes, with current data generated randomly, voltage simulated using a sine wave, and the generated data published via MQTT.
 
 Configuration details:
+
 - MQTT configuration
   - Connection info: URI for MQTT Broker.
-  - Topic configuration: Uses dynamic topic factory/`{table}`/`{location}`, where:
-    - `{table}` placeholder is replaced with the generated child table name.
-    - `{location}` placeholder is replaced with the generated location column value, enabling publishing to different topics by device location.
-  - qos: Quality of Service level set to 1 (at least once delivery).
 - schema configuration
   - Name: Specifies the schema name.
-  - Table names: Rule for generating 10,000 table names, d0 to d9999. Tables are logical concepts for organizing data.
+  - Table names: Defines the rule for generating 10,000 logical table names in the format d0 to d9999, used to organize and identify the generated data.
   - Table structure: 4 normal columns (current, voltage, phase, device location).
     - Timestamp: Generation strategy starts from 1700000000000 (2023-11-14 22:13:20 UTC), increments by 5 minutes.
     - Time-series data: current, phase, and location use random values; voltage uses sine wave simulation.
-  - Data generation: Interlace mode, 10,000 rows per table, max 1,000 rows per batch.
+  - Data generation: Interlace mode, 10,000 rows per table, max 10,000 rows per batch.
 - Data publishing: 8 threads concurrently publishing to MQTT Broker for higher throughput.
+  - Topic configuration: Uses dynamic topic `factory/{table}/{location}`, where:
+    - `{table}` placeholder is replaced with the generated child table name.
+    - `{location}` placeholder is replaced with the generated location column value, enabling publishing to different topics by device location.
+  - qos: Quality of Service level set to 1 (at least once delivery).
 
 Scenario description:
 
 This configuration is designed for publishing simulated device data to an MQTT message broker. It is suitable for:
+
 - MQTT consumer testing: Simulate a large number of devices publishing data to MQTT Broker to test consumer processing, load balancing, and stability.
 - IoT platform demonstration: Quickly build a simulated IoT environment to show how device data is ingested via MQTT.
 - Rule engine testing: Test MQTT topic subscription and message routing rules using dynamic topics (e.g., routing by device location).
 - Real-time data stream simulation: Simulate real-time device data streams for testing stream processing frameworks.
 
 ```yaml
-{{#include docs/doxgen/taosgen_config.md:mqtt_publish_config}}
+{{#include docs/examples/taosgen/taosgen_config.yaml:mqtt_publish_config}}
+```
+
+### Generator-Based Data Generation and Publishing to Kafka Broker Example
+
+This example demonstrates how to use taosgen to simulate 10,000 smart meters, each collecting current, voltage, phase, and location. Each meter generates a record every 5 minutes, with current data generated randomly, voltage simulated using a sine wave, and the generated data published to Kafka.
+
+Configuration details:
+
+- Kafka configuration
+  - Connection info: Use `bootstrap_servers` to describe the connection to the Kafka Broker.
+  - Topic configuration: Use the topic `factory-electric-meter`.
+
+- schema configuration
+  - Name: Specifies the schema name.
+  - Table names: Defines the rule for generating 10,000 logical table names in the format d0 to d9999, used to organize and identify the generated data.
+  - Table structure: 4 normal columns (current, voltage, phase, device location).
+    - Timestamp: Generation strategy starts from 1700000000000 (2023-11-14 22:13:20 UTC), increments by 5 minutes.
+    - Time-series data: current, phase, and location use random values; voltage uses sine wave simulation.
+  - Data generation: Interlace mode, 10,000 rows per table, max 10,000 rows per batch.
+- Data publishing: 8 threads concurrently publishing to Kafka Broker for higher throughput.
+  - acks: Message acknowledgment level. This example sets it to '1', meaning only leader confirmation is required.
+
+Scenario description:
+
+This configuration is designed for publishing simulated device data to a Kafka message broker. It is suitable for:
+
+- Kafka Producer Performance Testing:
+Simulate large-scale concurrent write scenarios to test Kafka Broker throughput, network bandwidth usage, and producer-side resource consumption.
+- Stream Processing System Integration Testing:
+Publish structured device data streams to Kafka to test data ingestion, window calculations, state management, and real-time alerting in stream processing engines like Flink, Spark Streaming, or ksqlDB.
+- IoT Platform Data Ingestion Verification:
+Quickly build a high-concurrency device data injection environment to simulate thousands of smart meters reporting data, verifying the stability of the entire pipeline from Kafka consumption to backend services.
+- Rule Engine and Message Routing Testing:
+Utilize Kafka's hierarchical topic naming and message keys (e.g., `{table}` for device ID) to test message filtering, multiplexing, and dynamic routing based on device tags.
+- Real-time Data Pipeline Stress Testing:
+Simulate continuous high-frequency time-series data streams to evaluate end-to-end latency, backlogs, and consumption rate matching from Kafka to downstream systems.
+- Security Authentication Mechanism Validation:
+Configure SASL_SSL and SCRAM-SHA-256 authentication to test client connection stability and security in a production-like Kafka cluster with authentication and encryption enabled.
+- Data Format Compatibility Testing:
+Use JSON or InfluxDB Line Protocol to serialize message bodies to verify the parsing capabilities of downstream consumers for different data formats.
+- Disaster Recovery and High Availability Drills:
+In a multi-broker cluster, use high-concurrency writes to test Kafka's replica synchronization, leader election, and broker failover mechanisms.
+
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:kafka_produce_config}}
 ```

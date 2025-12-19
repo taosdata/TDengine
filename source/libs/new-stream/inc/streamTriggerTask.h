@@ -18,6 +18,7 @@
 
 #include "common/tmsg.h"
 #include "streamTriggerMerger.h"
+#include "tcompare.h"
 #include "theap.h"
 #include "tobjpool.h"
 #include "tringbuf.h"
@@ -26,8 +27,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define TRIGGER_USE_HISTORY_META 0  // todo(kjq): remove the flag
 
 // #define SKIP_SEND_CALC_REQUEST
 
@@ -80,9 +79,12 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t     pendingNullStart;    // for state window trigger
   int32_t     numPendingNull;      // for state window trigger
   STimeWindow prevWindow;          // the last closed window, for sliding trigger
+  int64_t     totalCount;          // for count window trigger
   SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
   SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
   SSHashObj  *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>
+  bool        pendingWinOpen;      // for event window trigger and state window trigger
+  char       *pPendWinOpenNotify;  // for event window trigger and state window trigger
 
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
@@ -101,6 +103,8 @@ typedef struct SSTriggerHistoryGroup {
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;
   SValue           stateVal;
+  int64_t          pendingNullStart;
+  int64_t          numPendingNull;
 
   SObjList pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
   HeapNode heapNode;
@@ -121,6 +125,9 @@ typedef enum ESTriggerContextStatus {
 
 typedef struct SSTriggerWalProgress {
   SStreamTaskAddr          *pTaskAddr;    // reader task address
+  int64_t                   startVer;     // version to start realtime check
+  int64_t                   savedVer;     // version saved in checkpoint
+  int64_t                   doneVer;      // version already processed
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
   int64_t                   verTime;      // commit time of the last commit record in previous scan
   SSTriggerPullRequestUnion pullReq;
@@ -149,7 +156,6 @@ typedef struct SSTriggerRealtimeContext {
   int32_t    curReaderIdx;
   bool       catchUp;  // whether all readers have caught up the latest wal data
   bool       continueToFetch;
-  bool       recovering;
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
@@ -192,7 +198,6 @@ typedef struct SSTriggerRealtimeContext {
   SObjPool              tableUidPool;   // SObjPool<{uid, vgId}>
   SObjPool              windowPool;     // SObjPool<SSTriggerWindow>
   SObjPool              calcParamPool;  // SObjPool<SSTriggerCalcParam>
-  SObjPool              versionPool;    // SObjPool<{skey, ver}>
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
@@ -203,6 +208,8 @@ typedef struct SSTriggerRealtimeContext {
   int32_t dropReqIndex;
 
   bool    haveReadCheckpoint;
+  bool    boundDetermined;
+  bool    recovering;
   int64_t lastCheckpointTime;
   int64_t lastVirtTableInfoTime;
   int64_t lastReportTime;
@@ -298,7 +305,10 @@ typedef struct SSTriggerRecalcRequest {
   STimeWindow calcRange;
   SSHashObj  *pTsdbVersions;
   bool        isHistory;
+  TD_DLIST_NODE(SSTriggerRecalcRequest);
 } SSTriggerRecalcRequest;
+
+typedef TD_DLIST(SSTriggerRecalcRequest) TriggerRecalcRequestList;
 
 typedef struct SStreamTriggerTask {
   SStreamTask task;
@@ -315,6 +325,7 @@ typedef struct SStreamTriggerTask {
     struct {  // for state window
       int64_t stateSlotId;
       int64_t stateExtend;
+      SNode  *pStateZeroth;
       int64_t stateTrueFor;
       SNode  *pStateExpr;
     };
@@ -387,7 +398,6 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
 
   // boundary between realtime and history
-  SSHashObj *pRealtimeStartVer;  // SSHashObj<vgId, int64_t>
   SSHashObj *pHistoryCutoffTime;
 
   // calc request pool
@@ -396,8 +406,12 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupRunning;    // SSHashObj<gid, bool[]>
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
-  SRWLatch recalcRequestLock;
-  SList   *pRecalcRequests;  // SList<SSTriggerRecalcRequest>
+  SRWLatch   recalcRequestLock;
+  SList     *pRecalcRequests;    // SList<SSTriggerRecalcRequest>
+  SSHashObj *pRecalcRequestMap;  // SSHashObj<gid, TriggerRecalcRequestList>
+
+  SRWLatch userRecalcRequestLock;
+  SArray  *pUserRecalcRequests;  // SArray<SStreamRecalcReq>
 
   // runtime status
   volatile int8_t           isCheckpointReady;
@@ -417,6 +431,7 @@ typedef struct SStreamTriggerTask {
 int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
                                     SSTriggerCalcRequest **ppRequest);
 int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest);
+int32_t stTriggerTaskGetRunningReq(SStreamTriggerTask *pTask, int64_t sessionId, int64_t *pNumRunningReq);
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                       STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory,
@@ -427,6 +442,10 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg);
 int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, bool force);
 int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
+
+// helper function in trigger task
+// check whether the state data equals to the zeroth state
+int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual);
 
 #ifdef __cplusplus
 }

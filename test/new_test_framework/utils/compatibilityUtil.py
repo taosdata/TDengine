@@ -478,7 +478,7 @@ class CompatibilityBase:
         tdsql.execute("flush database deldata;")
         tdsql.query("select avg(c1) from deldata.ct1;")
 
-    def verifyBackticksInTaosSql(self,bPath):
+    def verifyBackticksInTaosSql(self,bPath,base_version):
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix("==========step4:verify backticks in taos Sql-TD18542")
         tdsql.execute("drop database if exists db")
@@ -548,26 +548,27 @@ class CompatibilityBase:
         tdLog.info(tdsql.queryResult)
         # tdsql.checkRows(tableNumbers)
         
-        tdsql.query(f"select last(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
-        tdsql.checkData(0,1,119) 
-        tdsql.checkData(0,2,191)
-        tdsql.checkData(0,3,0.25)
-        
-        tdsql.query(f"select last_row(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
-        tdsql.checkData(0,1,119) 
-        tdsql.checkData(0,2,191)
-        tdsql.checkData(0,3,0.25)
+        if self.version_compare(base_version, "3.3.6.0") >= 0:
+            tdsql.query(f"select last(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
+            tdsql.checkData(0,1,119) 
+            tdsql.checkData(0,2,191)
+            tdsql.checkData(0,3,0.25)
+            
+            tdsql.query(f"select last_row(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
+            tdsql.checkData(0,1,119) 
+            tdsql.checkData(0,2,191)
+            tdsql.checkData(0,3,0.25)
 
-        tdsql.query(f"select last(*) from test.d1")
-        tdLog.info(tdsql.queryResult)       
-        tdsql.checkData(0,0,"2032-08-14 08:39:59.001")
-        tdsql.checkData(0,1,11) 
-        tdsql.checkData(0,2,190)
-        tdsql.checkData(0,3,0.21)      
+            tdsql.query(f"select last(*) from test.d1")
+            tdLog.info(tdsql.queryResult)       
+            tdsql.checkData(0,0,"2032-08-14 08:39:59.001")
+            tdsql.checkData(0,1,11) 
+            tdsql.checkData(0,2,190)
+            tdsql.checkData(0,3,0.21)      
 
         # update data and check
         tdsql.execute("insert into test.d2 values ('2033-07-14 08:39:59.002', 139, 182, 1.10) (now+2s, 12, 191, 0.22) test.d2  (ts) values ('2033-07-14 08:39:59.003');")
@@ -649,6 +650,9 @@ class CompatibilityBase:
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
     def checkstatus(self,retry_times=30):
+        
+        # sleep before check status to avoid dnodes not ready issue
+        time.sleep(10)
         tdsql=tdCom.newTdSql()
         dnodes_ready = False
         for i in range(retry_times):

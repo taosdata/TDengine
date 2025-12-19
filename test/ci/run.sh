@@ -445,7 +445,7 @@ function run_thread() {
             cat "$case_log_file"
             echo "====================================================="
             echo -e "\e[34m log file: $case_log_file \e[0m"
-            
+
             if [ -n "${web_server}" ]; then
                 echo "${web_server}/$test_log_dir/${case_file}.txt"
             fi
@@ -553,6 +553,7 @@ while [ $i -lt ${#hosts[*]} ]; do
     j=$((j + threads[i]))
     i=$((i + 1))
 done
+
 # prepare cases
 prepare_cases $j
 

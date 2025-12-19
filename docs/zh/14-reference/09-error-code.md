@@ -13,7 +13,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 ### 错误码结构
 
-错误码由 0x 开头的 8 位 16 进制数表示，格式如下:
+错误码由 0x 开头的 8 位 16 进制数表示，格式如下：
 
 错误码 = 分类前缀（前 4 位）+ 具体错误码（后 4 位）
 
@@ -29,10 +29,12 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 #### 示例说明
 
 以错误码 `0x80000216` 为例：
+
 - **前缀**: `0x8000` → TDengine 业务错误。
 - **具体错误码**: `0x0216` → 对应 TSC 模块的 "Syntax error in SQL"。
 
 以错误码 `0x80FF0002` 为例：
+
 - **前缀**: `0x80FF` → Linux 系统错误。
 - **具体错误码**: `0x0002` → 对应 Linux errno 2，即 "No such file or directory"。
 
@@ -134,18 +136,26 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000022E | No available execution node       | 没有可用的查询执行节点       | 检查当前 query policy 配置，如果需要有 Qnode 参与确保系统中存在可用的 Qnode 节点 |
 | 0x8000022F | Table is not a super table        | 当前语句中的表名不是超级表   | 检查当前语句中所用表名是否是超级表                                               |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 内部缓存出错      | 保留现场和日志，github 上报 issue                                                |
-| 0x80000231 | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
+| 0x80000238 | Invalid TOTP code                 | 输入的 TOTP 验证码格式错误   | 检查并重新输入正确的 TOTP 验证码                                                 |
+| 0x80000239 | reached the maximum sessions per user limit      | 单个用户创建了太多的 session |   检查限制       |
+| 0x8000023A | reached the maximum connection timeout limit      | conn 超时                   | 检查 conn 超时设置|
+| 0x8000023B | reached the maximum connection idle timeout limit | conn 空闲超时              |  无              |
+| 0x8000023C | reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
+| 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |
+| 0x800002FF | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 #### mnode
 
 | 错误码     | 错误描述                                                                                     | 可能的出错场景或者可能的原因                                                      | 建议用户采取的措施                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | 0x80000303 | Insufficient privilege for operation                                                         | 无权限                                                                            | 赋权                                                                                                 |
+| 0x80000309 | User has too many connections                                                                | 用户创建的连接数超过了限额                                                        | 修改限额                                                                                             |
 | 0x8000030B | Data expired                                                                                 | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x8000030C | Invalid query id                                                                             | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x8000030E | Invalid connection id                                                                        | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000315 | User is disabled                                                                             | 该用户不可用                                                                      | 赋权                                                                                                 |
 | 0x80000318 | Mnode internal error                                                                         | 内部错误                                                                          | 上报 issue                                                                                           |
+| 0x80000319 | User password expired                                                                        | 用户密码过期                                                                      | 修改密码                                                                                             |
 | 0x80000320 | Object already there                                                                         | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000322 | Invalid table type                                                                           | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000323 | Object not there                                                                             | 内部错误                                                                          | 上报 issue                                                                                           |
@@ -160,7 +170,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000332 | Vgroup does not exist                                                                        | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000333 | Cannot drop mnode which is leader                                                            | 操作节点为 leader                                                                 | 确认操作是否正确                                                                                     |
 | 0x80000334 | Out of dnodes                                                                                | dnode 节点数量不够                                                                | 增加 dnode 节点                                                                                      |
-| 0x80000335 | Cluster cfg inconsistent                                                                     | 配置不一致                                                                        | 检查 dnode 节点与 mnode 节点配置是否一致。检查方式：1.节点启动时，在日志中输出 2.使用 show variables |
+| 0x80000335 | Cluster cfg inconsistent                                                                     | 配置不一致                                                                        | 检查 dnode 节点与 mnode 节点配置是否一致。检查方式：1.节点启动时，在日志中输出 2.使用 show variables  |
 | 0x8000033B | Cluster id not match                                                                         | 节点配置数据不一致                                                                | 检查各节点 data/dnode/dnodes.json 文件中的 clusterid                                                 |
 | 0x80000340 | Account already exists                                                                       | （仅企业版）内部错误                                                              | 上报 issue                                                                                           |
 | 0x80000342 | Invalid account options                                                                      | （仅企业版）该操作不支持                                                          | 确认操作是否正确                                                                                     |
@@ -173,6 +183,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000355 | Too many users                                                                               | （仅企业版）用户数量超限                                                          | 调整配置                                                                                             |
 | 0x80000357 | Authentication failure                                                                       | 密码不正确                                                                        | 确认操作是否正确                                                                                     |
 | 0x80000358 | User not available                                                                           | 用户不存在                                                                        | 确认操作是否正确                                                                                     |
+| 0x8000035B | Wrong TOTP code                                                                              | 未提供或提供了错误的 TOTP 验证码                                                  | 检查并输入正确的 TOTP 验证码                                                                         |
 | 0x80000360 | STable already exists                                                                        | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000361 | STable not exist                                                                             | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000364 | Too many tags                                                                                | tag 数量太多                                                                      | 不能修改，代码级别限制                                                                               |
@@ -225,6 +236,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800003C6 | Invalid schema version while alter stb                                                       | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x800003C7 | Invalid stable uid while alter stb                                                           | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x800003C8 | Field used by tsma                                                                           | 被使用                                                                            | 确认操作是否正确                                                                                     |
+| 0x800003C9 | Exceed max column id                                                                         | ColumnId 超过 int16_t 类型上限 (32767)             | 检查并修正 SQL 语句                                                        |
 | 0x800003D1 | Transaction not exists                                                                       | 不存在                                                                            | 确认操作是否正确                                                                                     |
 | 0x800003D2 | Invalid stage to kill                                                                        | 事务处在不能被 kill 的节点（比如 在 commit 阶段）                                 | 等待事务结束，如长时间不结束，上报 issue                                                             |
 | 0x800003D3 | Conflict transaction not completed                                                           | 事务冲突，不能执行该操作                                                          | 使用 show transactions 命令查看冲突的事务，等待冲突事务结束，如长时间不结束，上报 issue              |
@@ -256,11 +268,18 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800003F5 | Stream temporarily does not support source db having replica > 1                             | 超过限制                                                                          | 操作不被允许                                                                                         |
 | 0x800003F6 | Too many streams                                                                             | 超过限制                                                                          | 不能修改，代码级别限制                                                                               |
 | 0x800003F7 | Cannot write the same stable as other stream                                                 | 内部错误                                                                          | 上报 issue                                                                                           |
+| 0x8000042E | Failed to load encryption provider                                                           | 加载失败                                                                            | 确认 encryptExtDir 是否配置正确                                                                                     |
 | 0x80000480 | index already exists                                                                         | 已存在                                                                            | 确认操作是否正确                                                                                     |
 | 0x80000481 | index not exist                                                                              | 不存在                                                                            | 确认操作是否正确                                                                                     |
 | 0x80000482 | Invalid sma index option                                                                     | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000483 | index already exists                                                                         | 已存在                                                                            | 确认操作是否正确                                                                                     |
 | 0x80000484 | index not exist                                                                              | 不存在                                                                            | 确认操作是否正确                                                                                     |
+| 0x800004E0 | Encrypt algorithm not exists in list                                                         | 不存在                                                                            | 确认操作是否正确                                                                                     |
+| 0x800004E1 | Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode, Digests, Asymmetric_Ciphers now| 不存在                                                                            | 确认操作是否正确                                                                                     |
+| 0x800004E2 | Encryption algorithm already exists, please keep algorithm_id unique                         | 已存在                                                                            | 确认操作是否正确                                                                                     |
+| 0x800004E3 | Encryption algorithm type not match                                                          | 不存在                                                                            | 确认操作是否正确                                                                                     |
+| 0x800004E4 | Invalid encryption algorithm format                                                          | 输入算法 id 为空                                                                            | 确认操作是否正确                                                                                     |
+| 0x800004E5 | Encryption algorithm in use                                                                  | 仍然在使用                                                                            | 删除所有使用这个算法的对象                                                                                     |
 
 #### Bnode
 
@@ -292,21 +311,22 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 #### vnode
 
-| 错误码     | 错误描述                                           | 可能的出错场景或者可能的原因   | 建议用户采取的措施 |
-| ---------- | -------------------------------------------------- | ------------------------------ | ------------------ |
-| 0x80000503 | Invalid vgroup ID                                  | 老客户端未更新 cache，内部错误 | 上报问题           |
-| 0x80000512 | No writing privilege                               | 无写权限                       | 寻求授权           |
-| 0x80000520 | Vnode does not exist                               | 内部错误                       | 上报问题           |
-| 0x80000521 | Vnode already exists                               | 内部错误                       | 上报问题           |
-| 0x80000522 | Hash value of table is not in the vnode hash range | 表不属于 vnode                 | 上报问题           |
-| 0x80000524 | Invalid table operation                            | 表非法操作                     | 上报问题           |
-| 0x80000525 | Column already exists                              | 修改表是列已存在               | 上报问题           |
-| 0x80000526 | Column does not exists                             | 修改表时，表不存在             | 上报问题           |
-| 0x80000527 | Column is subscribed                               | 列被订阅，不能操作             | 上报问题           |
-| 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                 | 上报问题           |
-| 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误         | 上报问题           |
-| 0x80000531 | Vnode query is busy                                | 查询忙碌                       | 上报问题           |
-| 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                       | 上报问题           |
+| 错误码        | 错误描述                                           | 可能的出错场景或者可能的原因                   | 建议用户采取的措施 |
+|------------| -------------------------------------------------- |----------------------------------| ------------------ |
+| 0x80000503 | Invalid vgroup ID                                  | 老客户端未更新 cache，内部错误               | 上报问题           |
+| 0x80000512 | No writing privilege                               | 无写权限                             | 寻求授权           |
+| 0x80000520 | Vnode does not exist                               | 内部错误                             | 上报问题           |
+| 0x80000521 | Vnode already exists                               | 内部错误                             | 上报问题           |
+| 0x80000522 | Hash value of table is not in the vnode hash range | 表不属于 vnode                       | 上报问题           |
+| 0x80000524 | Invalid table operation                            | 表非法操作                            | 上报问题           |
+| 0x80000525 | Column already exists                              | 修改表是列已存在                         | 上报问题           |
+| 0x80000526 | Column does not exists                             | 修改表时，表不存在                        | 上报问题           |
+| 0x80000527 | Column is subscribed                               | 列被订阅，不能操作                        | 上报问题           |
+| 0x80000529 | Vnode is stopped                                   | Vnode 已经关闭                       | 上报问题           |
+| 0x80000530 | Duplicate write request                            | 重复写入请求，内部错误                      | 上报问题           |
+| 0x80000531 | Vnode query is busy                                | 查询忙碌                             | 上报问题           |
+| 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                             | 上报问题           |
+| 0x80000542 | Exceed max column id                               | ColumnId 超过 int16_t 类型上限 (32767) | 检查并修正 SQL 语句 |
 
 #### tsdb
 
@@ -327,23 +347,24 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 #### query
 
-| 错误码     | 错误描述                                                                   | 可能的出错场景或者可能的原因               | 建议用户采取的措施                                                                                                                                                                         |
-| ---------- | -------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0x80000700 | Invalid query handle                                                       | 当前查询句柄不存在                         | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x80000709 | Multiple retrieval of this query                                           | 当前子查询已经正在进行中                   | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x8000070A | Too many groups/time window in query                                       | 当前查询结果中的分组或窗口个数超过限制个数 | 调整查询语句，确保查询条件中的分组和窗口个数不超过上限                                                                                                                                     |
-| 0x8000070D | System error                                                               | 底层系统 API 返回错误                      | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x80000720 | Scheduler not exist                                                        | 当前子查询对应的客户端信息不存在           | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x80000721 | Task not exist                                                             | 子查询不存在                               | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x80000722 | Task already exist                                                         | 子查询已经存在                             | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x80000729 | Task message error                                                         | 查询消息错误                               | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x8000072B | Task status error                                                          | 子查询状态错误                             | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x8000072F | Job not exist                                                              | 查询 JOB 已经不存在                        | 保留现场和日志，github 上报 issue                                                                                                                                                          |
-| 0x80000739 | Query memory upper limit is reached                                        | 单个查询达到内存使用上限                   | 设置合理的内存上限或调整 SQL 语句                                                                                                                                                          |
-| 0x8000073A | Query memory exhausted                                                     | dnode 查询内存到达使用上限                 | 设置合理的内存上限或调整并发查询量或增大系统内存                                                                                                                                           |
-| 0x8000073B | Timeout for long time no fetch                                             | 查询被长时间中断未恢复                     | 调整应用实现尽快 fetch 数据                                                                                                                                                                |
-| 0x8000073C | Memory pool not initialized                                                | 内存池没有初始化                           | 确认开关 queryUseMemoryPool 是否打开；如果 queryUseMemoryPool 已经打开，检查服务器是否达到了开启内存池的基本条件：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G |
-| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | 更新 minReservedMemorySize 失败            | 确认当前的系统内存：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G                                                                                               |
+| 错误码        | 错误描述                                                                        | 可能的出错场景或者可能的原因                                                                                       | 建议用户采取的措施                                                                                                               |
+|------------|-----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| 0x80000700 | Invalid query handle                                                        | 当前查询句柄不存在                                                                                            | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000709 | Multiple retrieval of this query                                            | 当前子查询已经正在进行中                                                                                         | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x8000070A | Too many groups/time window in query                                        | 当前查询结果中的分组或窗口个数超过限制个数                                                                                | 调整查询语句，确保查询条件中的分组和窗口个数不超过上限                                                                                             |
+| 0x8000070D | System error                                                                | 底层系统 API 返回错误                                                                                        | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000720 | Scheduler not exist                                                         | 当前子查询对应的客户端信息不存在                                                                                     | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000721 | Task not exist                                                              | 子查询不存在                                                                                               | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000722 | Task already exist                                                          | 子查询已经存在                                                                                              | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000729 | Task message error                                                          | 查询消息错误                                                                                               | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x8000072B | Task status error                                                           | 子查询状态错误                                                                                              | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x8000072F | Job not exist                                                               | 查询 JOB 已经不存在                                                                                         | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000739 | Query memory upper limit is reached                                         | 单个查询达到内存使用上限                                                                                         | 设置合理的内存上限或调整 SQL 语句                                                                                                     |
+| 0x8000073A | Query memory exhausted                                                      | dnode 查询内存到达使用上限                                                                                     | 设置合理的内存上限或调整并发查询量或增大系统内存                                                                                                |
+| 0x8000073B | Timeout for long time no fetch                                              | 查询被长时间中断未恢复                                                                                          | 调整应用实现尽快 fetch 数据                                                                                                       |
+| 0x8000073C | Memory pool not initialized                                                 | 内存池没有初始化                                                                                             | 确认开关 queryUseMemoryPool 是否打开；如果 queryUseMemoryPool 已经打开，检查服务器是否达到了开启内存池的基本条件：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G |
+| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory  | 更新 minReservedMemorySize 失败                                                                          | 确认当前的系统内存：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G                                                                    |
+| 0x8000073E | Duplicate timestamp not allowed in count/event/state window                  | 窗口输入主键列有重复时间戳。对状态窗口、事件窗口、计数窗口做超级表查询时，所有子表数据会按照时间戳进行排序后合并为一条时间线进行计算，因此子表合并后的时间戳可能会出现重复，导致某些计算没有意义而报错。 | 如果需要对超级表查询并且使用这些窗口时，确保子表中不存在重复时间戳数据。                                                                                    |
 
 #### grant
 
@@ -469,7 +490,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002635 | Incorrect TIMESTAMP value                                                                              | 主键时间戳列值非法                                      | 检查并修正 SQL 语句                    |
 | 0x80002637 | soffset/offset can not be less than 0                                                                  | soffset/offset 值非法                                   | 检查并修正 SQL 语句                    |
 | 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query                                             | slimit/soffset 只支持 PARTITION BY/GROUP BY 语句        | 检查并修正 SQL 语句                    |
-| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                                 |
+| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                                 | 检查并修正 SQL 语句                    |
 | 0x8000263A | Cannot drop super table in batch                                                                       | 不支持批量删除超级表                                    | 检查并修正 SQL 语句                    |
 | 0x8000263B | Start(end) time of query range required or time range too large                                        | 窗口个数超出限制                                        | 检查并修正 SQL 语句                    |
 | 0x8000263C | Duplicated column names                                                                                | 列名称重复                                              | 检查并修正 SQL 语句                    |
@@ -511,7 +532,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                                        | 检查并修正 SQL 语句                    |
 | 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询            | 检查并修正 SQL 语句                    |
 | 0x80002665 | The _TAGS pseudo column can only be used for subtable and supertable queries                           | 非法 TAG 列查询                                         | 检查并修正 SQL 语句                    |
-| 0x80002666 | 子查询不含主键时间戳列输出                                                                             | 检查并修正 SQL 语句                                     |
+| 0x80002666 | Subquery does not output primary timestamp column                                                      | 子查询不含主键时间戳列输出                              | 检查并修正 SQL 语句                    |
 | 0x80002667 | Invalid usage of expr: %s                                                                              | 非法表达式                                              | 检查并修正 SQL 语句                    |
 | 0x80002687 | True_for duration cannot be negative                                                                   | true_for 的值不能是负数                                 | 检查并修正 SQL 语句                    |
 | 0x80002688 | Cannot use 'year' or 'month' as true_for duration                                                      | 不能使用 n(月), y(年) 作为 true_for 的时间单位          | 检查并修正 SQL 语句                    |
@@ -526,6 +547,17 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002696 | Invalid sliding offset                                                                                 | sliding 窗口偏移量非法                                  | 检查并修正 SQL 语句                    |
 | 0x80002697 | Invalid interval offset                                                                                | interval 窗口偏移量非法                                 | 检查并修正 SQL 语句                    |
 | 0x80002698 | Invalid extend value                                                                                   | extend 参数非法                                         | 检查并修正 SQL 语句                    |
+| 0x80002699 | Algorithm ID too long, max length is 63 character                                                      | Algorithm ID 参数非法                                   | 检查并修正 SQL 语句                    |
+| 0x8000269A | Algorithm name too long, max length is 63 character                                                    | Algorithm name 参数非法                                 | 检查并修正 SQL 语句                    |
+| 0x8000269B | Algorithm description too long, max length is 127 character                                            | Algorithm description 参数非法                          | 检查并修正 SQL 语句                    |
+| 0x8000269C | Algorithm type too long, max length is 63 character                                                    | Algorithm type 参数非法                                 | 检查并修正 SQL 语句                    |
+| 0x8000269D | Algorithm OpenSSL name too long, max length is 63 character                                            | Algorithm OpenSSL name 参数非法                         | 检查并修正 SQL 语句                    |
+| 0x8000269E | Option duplicated                                                                                      | 只允许出现一次的选项出现了多次                          | 检查并修正 SQL 语句                    |
+| 0x8000269F | Invalid option value                                                                                   | 选项的值非法                                            | 检查并修正 SQL 语句                    |
+| 0x800026A0 | Option value too long                                                                                  | 选项的值太长                                            | 检查并修正 SQL 语句                    |
+| 0x800026A1 | Option value too short                                                                                 | 选项的值太短                                            | 检查并修正 SQL 语句                    |
+| 0x800026A2 | Option value too big                                                                                   | 选项的值太大                                            | 检查并修正 SQL 语句                    |
+| 0x800026A3 | Option value too small                                                                                 | 选项的值太小                                            | 检查并修正 SQL 语句                    |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |
@@ -533,13 +565,14 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002704 | Planner slot key not found                                                                             | 生成物理计划时查找不到 slotId                           | 保留现场和日志，github 上报 issue      |
 | 0x80002705 | Planner invalid table type                                                                             | 计划器生成计划时得到了错误的表类型                      | 保留现场和日志，github 上报 issue      |
 | 0x80002706 | Planner invalid query control plan type                                                                | 计划器生成 dynamic query control 计划时得到的类型不正确 | 保留现场和日志，github 上报 issue      |
+| 0x80002707 | Planner invalid window type                                                                            | 计划器生成物理计划时得到了错误的窗口类型                | 保留现场和日志，github 上报 issue      |
 
 #### function
 
-| 错误码     | 错误描述                                     | 可能的出错场景或者可能的原因                                                                                                                                                                                                                                                          | 建议用户采取的措施                                                                                           |
-| ---------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 0x80002800 | Function internal error                      | 函数参数输入不合理造成的错误，随错误码会返回具体错误描述信息。比如 APERCENTILE 函数第三个参数指定算法时只能使用字符串"default"                                                                                                                                                        | "t-digest", 使用其他输入会报此类错误。或者 TO_ISO8601 函数第二个参数指定时区时，字符串不符合时区格式规范等。 | 根据具体错误描述信息，调整函数输入。 |
-| 0x80002801 | Invalid function para number                 | 函数输入参数个数不正确。函数规定必须要使用 n 个参数，而用户给定参数个数不为 n。比如 COUNT(col1, col2)。                                                                                                                                                                               | 调整函数输入参数为正确个数。                                                                                 |
+| 错误码     | 错误描述    | 可能的出错场景或者可能的原因    | 建议用户采取的措施        |
+| ---------- | ----- | ------------ | -------- |
+| 0x80002800 | Function internal error     | 函数参数输入不合理造成的错误，随错误码会返回具体错误描述信息。比如 APERCENTILE 函数第三个参数指定算法时只能使用字符串"default"、"t-digest", 使用其他输入会报此类错误。或者 TO_ISO8601 函数第二个参数指定时区时，字符串不符合时区格式规范等。 | 根据具体错误描述信息，调整函数输入。 |
+| 0x80002801 | Invalid function para number                 | 函数输入参数个数不正确。函数规定必须要使用 n 个参数，而用户给定参数个数不为 n。比如 COUNT(col1, col2)。    | 调整函数输入参数为正确个数。 |
 | 0x80002802 | Invalid function para type                   | 函数输入参数类型不正确。函数输入参数要求为数值类型，但是用户所给参数为字符串。比如 SUM("abc")。                                                                                                                                                                                       | 调整函数参数输入为正确类型                                                                                   |
 | 0x80002803 | Invalid function para value                  | 函数输入参数取值不正确。函数输入参数范围不正确。比如 SAMPLE 函数第二个参数指定采样个数范围为 [1, 1000], 如果不在这个范围内会会报错。                                                                                                                                                  | 调整函数参数输入为正确取值。                                                                                 |
 | 0x80002804 | Not builtin function                         | 函数非内置函数。内置函数不在的哈希表中会报错，用户应该很少遇见这个问题，否则是内部内置函数哈希初始化的时候出错或者写坏。                                                                                                                                                              | 客户应该不会遇到，如果遇到，说明程序有 bug，咨询开发人员。                                                   |
@@ -610,18 +643,29 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                     | 没有调用 subscribe，直接 poll 数据 |
 | 0x80004100 | Stream task not exist                        | 流计算任务不存在                                                                     | 具体查看 server 端的错误日志       |
 
-#### virtual table
+#### 审计
 
 | 错误码     | 错误描述                                                                    | 可能的出错场景或者可能的原因                                                   | 建议用户采取的措施                             |
 | ---------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------- |
-| 0x80006200 | Virtual table scan 算子内部错误                                             | virtual table scan 算子内部逻辑错误，一般不会出现                              | 具体查看 client 端的错误日志提示               |
-| 0x80006201 | Virtual table scan invalid downstream operator type                         | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确       | 保留 explain 执行计划，联系开发处理            |
-| 0x80006202 | Virtual table prim timestamp column should not has ref                      | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误 | 检查错误日志，联系开发处理                     |
-| 0x80006203 | Create virtual child table must use virtual super table                     | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                               | 创建虚拟子表的时候，USING 虚拟超级表           |
-| 0x80006204 | Virtual table not support decimal type                                      | 虚拟表不支持 decimal 类型                                                      | 创建虚拟表时不使用 decimal 类型的列/tag        |
-| 0x80006205 | Virtual table not support in STMT query and STMT insert                     | 不支持在 stmt 写入和查询中使用虚拟表                                           | 不在 stmt 写入和查询中使用虚拟表               |
-| 0x80006206 | Virtual table not support in Topic                                          | 不支持在订阅中使用虚拟表                                                       | 不在订阅中使用虚拟表                           |
-| 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                                   | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
+| 0x80006103 | Audit database must be encrypted                                          | 参数不正确                              | 检查并修正 SQL 语句               |
+| 0x80006104 | Audit database wal_level must be 2                                        | 参数不正确                              | 检查并修正 SQL 语句               |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                           | 参数不正确                              | 检查并修正 SQL 语句               |
+| 0x80006106 | Audit database already exist                                              | 参数不正确                              | 检查并修正 SQL 语句               |
+| 0x80006107 | Audit database is not allowed to change                                   | 参数不正确                              | 检查并修正 SQL 语句               |
+
+#### virtual table
+
+| 错误码        | 错误描述                                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施                  |
+|------------| -------------------------------------------------------------------------- |------------------------------------------------|----------------------------|
+| 0x80006200 | Virtual table scan 算子内部错误                                             | virtual table scan 算子内部逻辑错误，一般不会出现             | 具体查看 client 端的错误日志提示       |
+| 0x80006201 | Virtual table scan invalid downstream operator type                        | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确 | 保留 explain 执行计划，联系开发处理     |
+| 0x80006202 | Virtual table prim timestamp column should not has ref                     | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误        | 检查错误日志，联系开发处理              |
+| 0x80006203 | Create virtual child table must use virtual super table                    | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                       | 创建虚拟子表的时候，USING 虚拟超级表      |
+| 0x80006204 | Virtual table not support decimal type                                     | 虚拟表不支持 decimal 类型                              | 创建虚拟表时不使用 decimal 类型的列/tag |
+| 0x80006205 | Virtual table not support in STMT query and STMT insert                    | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表        |
+| 0x80006206 | Virtual table not support in Topic                                         | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表                 |
+| 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库    |
+| 0x80006208 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
 
 #### TDgpt
 
@@ -639,7 +683,6 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000449 | Analysis failed since not enough rows               | 预测分析输入数据行数太少     | 增加输入数据规模（预测至少 10 行记录）       |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | 不支持协变量/多变量预测      | 更换使用的预测模型                           |
 
-
 #### STREAM
 
 | 错误码     | 错误描述                              | 可能的出错场景或者可能的原因             | 建议用户采取的措施                                     |
@@ -652,12 +695,14 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
 
 ## 连接器
+
 下面是各语言连接器自身的错误码。连接器除了返回自身错误码外，也会返回上文中 TSDB 的错误码。
 
 ### C
 
 在 C 接口的设计中，错误码采用整数类型表示，每个错误码都对应一个特定的错误状态。如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其他是代表失败原因的错误码，当返回值是指针时，_NULL_ 表示失败。  
 C 连接器的错误码分为两种：  
+
 - 通用错误码  
     所有的错误码以及对应的原因描述在 `taoserror.h` 文件中。
     详细的错误码说明参考：[TSDB 错误码](./#tsdb)
@@ -675,7 +720,7 @@ C 连接器的错误码分为两种：
     | 0xE006 | 认证失败   | 用户名密码错误或权限不足     | 检查用户名密码，确认用户权限            |
     | 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
     | 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
-        
+
 ### Java
 
 Java 连接器可能报错的错误码包括 4 种：
@@ -683,7 +728,7 @@ Java 连接器可能报错的错误码包括 4 种：
 - JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
 - 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
 - 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
-- TDengine TSDB 其他功能模块的报错，请参考本页面 TSDB 错误码。   
+- TDengine TSDB 其他功能模块的报错，请参考本页面 TSDB 错误码。
 
 具体的错误码请参考：
 
@@ -708,7 +753,7 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0x231D | can't create connection with server within                      | 连接失败                                       | 请检查与 taosAdapter 之间的连接情况                                                      |
 | 0x231E | failed to complete the task within the specified time           | 请求处理超时                                   | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况    |
 | 0x2320 | type convert exception                                          | 类型转换错误                                   | 检查是否没有使用正确的类型                                                               |
-| 0x2321 | TDengine TSDB version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine TSDB 版本不匹配，请升级至对应版本。 或者采用 WebSocket 连接方式                 |
+| 0x2321 | TDengine TSDB version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine TSDB 版本不匹配，请升级至对应版本。或者采用 WebSocket 连接方式                 |
 | 0x2322 | resource has been freed                                         | 资源已经释放                                   | 资源已经释放，请确认操作正确                                                             |
 | 0x2323 | BLOB is unsupported on the server                               | 服务端版本低                                   | 服务端不支持 BLOB 类型，需要升级                                                         |
 | 0x2324 | line bind mode is unsupported on the server                     | 服务端版本低                                   | 服务端不支持行绑定模式，需要升级                                                         |
@@ -733,7 +778,6 @@ Java 连接器可能报错的错误码包括 4 种：
 
 - [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
-
 ### Rust
 
 | 错误码 | 错误描述   | 可能的出错场景或者可能的原因 | 建议用户采取的措施                      |
@@ -747,7 +791,6 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0xE006 | 认证失败   | 用户名密码错误或权限不足     | 检查用户名密码，确认用户权限            |
 | 0xE007 | 编解码错误 | 数据编解码异常               | 检查数据格式，排查 `taosadapter` 日志   |
 | 0xE008 | 连接断开   | WebSocket 连接断开           | 检查网络状况，重新建立连接              |
-
 
 ### Node.js
 
@@ -772,9 +815,10 @@ Java 连接器可能报错的错误码包括 4 种：
 | 110    | websocket connection has reached its maximum limit                      | 连接数达到上限                                 | WebSocket 连接达到上限，请上报 github issue                                                         |
 | 111    | topic partitions and positions are not equal in length                  | 获取给定分区当前的偏移量的数据与主题分区不匹配 |   重新订阅                                                                               |
 | 112    | version mismatch. The minimum required TDengine TSDB version is 3.3.2.0 | 版本不匹配                                     | TDengine TSDB 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。 |
+
 - [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
-### C#
+### C\#
 
 | 错误码 | 错误描述                         | 可能的出错场景或者可能的原因              | 建议用户采取的措施                                           |
 | ------ | -------------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
@@ -787,7 +831,8 @@ Java 连接器可能报错的错误码包括 4 种：
 
 ### taosAdapter
 
-| 错误码    | 错误描述                                           | 可能的出错场景或者可能的原因        | 建议用户采取的措施    |
-|--------|------------------------------------------------|-----------------------|--------------|
-| 0xFFFF | taosAdapter request parameter or process error | taosAdapter 请求参数或流程错误 | 根据错误消息检查错误原因 |
-| 0xFFFE | taosAdapter query request exceeded the limit   | taosAdapter 查询请求超过限制  | 降低查询请求并发     |
+| 错误码    | 错误描述                                           | 可能的出错场景或者可能的原因        | 建议用户采取的措施                 |
+|--------|------------------------------------------------|-----------------------|---------------------------|
+| 0xFFFF | taosAdapter request parameter or process error | taosAdapter 请求参数或流程错误 | 根据错误消息检查错误原因              |
+| 0xFFFE | taosAdapter query request exceeded the limit   | taosAdapter 查询请求超过限制  | 降低查询请求并发                  |
+| 0xFFFD | Query SQL has been rejected                    | 查询 SQL 被拒绝            | 如果不希望被拦截排查 taosAdapter 配置 |

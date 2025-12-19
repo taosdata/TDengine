@@ -85,7 +85,7 @@ The example code for stmt to bind parameters is as follows:
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/stmt_example.js:createConnect}}
+{{#include docs/examples/node/websocketexample/stmt_example.js}}
 ```
 
 </TabItem>
@@ -100,6 +100,7 @@ The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher 
 ```c
 {{#include docs/examples/c-ws-new/stmt2_insert_demo.c}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 Not supported
