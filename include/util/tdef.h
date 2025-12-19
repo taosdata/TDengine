@@ -232,6 +232,7 @@ typedef enum ELogicConditionType {
 #define TSDB_INT32_ID_LEN 11
 
 #define TSDB_NAME_DELIMITER_LEN 1
+#define TSDB_NAME_QUOTE         2
 
 #define TSDB_UNI_LEN  24
 #define TSDB_USER_LEN TSDB_UNI_LEN
