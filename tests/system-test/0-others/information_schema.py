@@ -278,6 +278,7 @@ class TDTestCase:
             'view':'View',
             'audit':'Audit',
             'storage':'Multi-Tier Storage',
+            "data_sync":'Data Synchronizaiton',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Object Storage',
             'active_active':'Active-Active',
