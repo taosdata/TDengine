@@ -22,9 +22,8 @@ class _MomentImputationService(AbstractImputationService):
         self.freq = 'H'
         self.precision = 'ms'
 
-        if  self.service_host is None:
+        if self.service_host is None:
             self.service_host = 'http://127.0.0.1:6062/imputation'
-
 
     def execute(self):
         # let's request the gpt service
@@ -75,4 +74,3 @@ class _MomentImputationService(AbstractImputationService):
 
         app_logger.log_inst.info("%s specify freq: %s, precision: %s", self.__class__.__name__,
                                  self.freq, self.precision)
-

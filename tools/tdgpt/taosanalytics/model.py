@@ -20,7 +20,7 @@ class ModelInfo:
         self.elapsed_time = 0
 
     @classmethod
-    def create_model_info(cls, model_name:str, path:str, time:datetime, note:str, el:int, service:str, model:Any):
+    def create_model_info(cls, model_name: str, path: str, time: datetime, note: str, el:int, service: str, model: Any):
         if model is None:
             app_logger.log_inst.error(f"empty model, create {model_name} model info failed")
             return None

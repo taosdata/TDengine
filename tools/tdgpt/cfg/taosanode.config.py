@@ -22,12 +22,16 @@ max_requests_jitter = 50
 
 # Timeout settings
 timeout = 1200
-keepalive = 1200 # keep-alive time
+
+# keep-alive time
+keepalive = 1200
 
 # Log Setting
 accesslog = '/var/log/taos/taosanode/access.log'
 errorlog = '/var/log/taos/taosanode/error.log'
-loglevel = 'debug' # log level: debug, info, warning, error, critical
+
+# log level: debug, info, warning, error, critical
+loglevel = 'debug'
 
 # Set process name
 proc_name = 'tdgpt_taosanode_app'

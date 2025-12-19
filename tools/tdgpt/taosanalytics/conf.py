@@ -47,6 +47,10 @@ class Configure:
         """ load the info from config file """
         self.path = new_path
 
+        if not os.path.exists(self.path):
+            print("failed to found configure file, load configure failed. Use default")
+            return
+
         # 动态加载配置文件
         spec = importlib.util.spec_from_file_location("gunicorn_config", self.path)
         config_module = importlib.util.module_from_spec(spec)

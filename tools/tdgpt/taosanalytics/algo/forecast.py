@@ -11,7 +11,7 @@ from taosanalytics.conf import app_logger, conf
 from taosanalytics.servicemgmt import loader
 
 
-def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real = None, dynamic_real = None):
+def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None):
     """ data fc handler """
     s = loader.get_service(algo_name)
 
