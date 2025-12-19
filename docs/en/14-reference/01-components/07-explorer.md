@@ -220,12 +220,12 @@ taosExplorer supports integration with third-party identity authentication syste
   - `redirect_uri`：The OAuth 2.0 authorization code callback address, which must be consistent with the callback address registered on the provider side.
 - For ordinary OAuth 2.0 providers, you need to configure parameters such as `client_id`, `client_secret`, `authorize_url`, `token_url`, `profile_url`, and `redirect_uri`.
 
-  - `client_id`：The client ID registered on the OAuth 2.0 provider side.
-  - `client_secret`：The client secret registered on the OAuth 2.0 provider side.
-  - `authorize_url`：OAuth 2.0 authorization endpoint URL.
-  - `token_url`：OAuth 2.0 token endpoint URL.
-  - `profile_url`：API URL for obtaining user information.
-  - `redirect_uri`：OAuth 2.0 authorization code callback address, usually required to be consistent with the callback address registered on the provider side.
+  - `client_id`: The client ID registered on the OAuth 2.0 provider side.
+  - `client_secret`: The client secret registered on the OAuth 2.0 provider side.
+  - `authorize_url`: OAuth 2.0 authorization endpoint URL.
+  - `token_url`: OAuth 2.0 token endpoint URL.
+  - `profile_url`: API URL for obtaining user information.
+  - `redirect_uri`: OAuth 2.0 authorization code callback address, usually required to be consistent with the callback address registered on the provider side.
 
 ### OAuth 2.0 SSO Configuration Example
 
