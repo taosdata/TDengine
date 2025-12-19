@@ -2,6 +2,7 @@
 # pylint: disable=c0103
 import json
 import threading
+import time
 from datetime import datetime
 from typing import Any
 
@@ -16,7 +17,7 @@ class ModelInfo:
         self.size = 0
         self.invoke_cls_name = None
         self.model = None
-        self.elapsed_time = 0.0
+        self.elapsed_time = 0
 
     @classmethod
     def create_model_info(cls, model_name:str, path:str, time:datetime, note:str, el:int, service:str, model:Any):
@@ -67,10 +68,14 @@ class ModelManager:
                 # protect the load procedure
                 if model_name not in self._models:
                     app_logger.log_inst.info("try to load module:%s", model_path)
+
                     model = None
+                    elapsed = 0
 
                     try:
+                        st = time.time()
                         model = model_loader(model_path)
+                        elapsed = (int) ((time.time() - st) * 1000)
                     except Exception as e:
                         app_logger.log_inst.error(
                             "failed to load model from disk: %s for %s model, code:%s, continue...",
@@ -79,11 +84,11 @@ class ModelManager:
                     if model is not None:
                         app_logger.log_inst.info("%s load model %s in file: %s completed, elapsed time:%.2fs, total loaded models:%d",
                                                  class_name, model_name, model_path,
-                                                 0, len(self._models) + 1)
+                                                 elapsed/1000.0, len(self._models) + 1)
 
                     # only lock the set procedure
                     with self._lock:
-                        info = ModelInfo.create_model_info(model_name, model_path, datetime.now(), "", 0, class_name, model)
+                        info = ModelInfo.create_model_info(model_name, model_path, datetime.now(), "", elapsed, class_name, model)
                         if info is not None:
                             self._models[model_name] = info
 
