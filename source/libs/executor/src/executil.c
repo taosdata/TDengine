@@ -1541,10 +1541,9 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
   if (ntype == QUERY_NODE_OPERATOR) {
     ret = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI, suid);
     return ret;
-  } else {
-    if (ntype != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
-      return ret;
-    }
+  }
+  if (ntype != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return ret;
   }
 
   bool                 hasTbnameCond = false;
