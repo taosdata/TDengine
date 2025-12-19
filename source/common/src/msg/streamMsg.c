@@ -3328,6 +3328,10 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cids);
       pRequest->cids = NULL;
     }
+    if (pRequest->uids != NULL) {
+      taosArrayDestroy(pRequest->uids);
+      pRequest->uids = NULL;
+    }
   } else if (pReq->base.type == STRIGGER_PULL_VTABLE_PSEUDO_COL) {
     SSTriggerVirTablePseudoColRequest *pRequest = (SSTriggerVirTablePseudoColRequest*)pReq;
     if (pRequest->cids != NULL) {
@@ -3347,54 +3351,35 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
   }
 }
 
-int32_t encodeColsArray(SEncoder* encoder, SArray* cids) {
+int32_t encodePlainArray(SEncoder *encoder, SArray *pArr) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
-  int32_t size = taosArrayGetSize(cids);
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, size));
-  for (int32_t i = 0; i < size; ++i) {
-    col_id_t* pColId = taosArrayGet(cids, i);
-    if (pColId == NULL) {
-      uError("col id is NULL at index %d", i);
-      code = TSDB_CODE_INVALID_PARA;
-      goto _exit;
-    }
-    TAOS_CHECK_EXIT(tEncodeI16(encoder, *pColId));
-  }
-  _exit:
+  int32_t  nEle = taosArrayGetSize(pArr);
+  uint8_t* buf = (nEle > 0) ? TARRAY_DATA(pArr) : NULL;
+  int32_t  len = (nEle > 0) ? (nEle * pArr->elemSize) : 0;
+  TAOS_CHECK_EXIT(tEncodeBinary(encoder, buf, len));
 
+_exit:
   return code;
 }
 
-int32_t decodeColsArray(SDecoder* decoder, SArray** cids) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  int32_t size = 0;
+int32_t decodePlainArray(SDecoder* decoder, SArray** ppArr, uint32_t elemSize) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  void*    buf = NULL;
+  uint64_t len = 0;
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(decoder, &buf, &len));
 
-  TAOS_CHECK_EXIT(tDecodeI32(decoder, &size));
-  if (size > 0){
-    *cids = taosArrayInit(size, sizeof(col_id_t));
-    if (*cids == NULL) {
-      code = terrno;
-      uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
-      goto _exit;
-    }
-  
-    for (int32_t i = 0; i < size; ++i) {
-      col_id_t* pColId = taosArrayReserve(*cids, 1);
-      if (pColId == NULL) {
-        code = terrno;
-        uError("failed to reserve memory for col id at index %d, errno: %d", i, code);
-        goto _exit;
-      }
-      TAOS_CHECK_RETURN(tDecodeI16(decoder, pColId));
-    }  
+  if (len > 0) {
+    *ppArr = taosArrayInit(0, elemSize);
+    TSDB_CHECK_NULL(*ppArr, code, lino, _exit, terrno);
+    TSWAP((*ppArr)->pData, buf);
+    (*ppArr)->size = (*ppArr)->capacity = len / elemSize;
   }
-  
+
 _exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(*cids);
-    *cids = NULL;
+  if (buf != NULL) {
+    taosMemoryFree(buf);
   }
   return code;
 }
@@ -3511,7 +3496,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
-      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      TAOS_CHECK_EXIT(encodePlainArray(&encoder, pRequest->cids));
       TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRequest->order));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
       break;
@@ -3561,13 +3546,15 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     }
     case STRIGGER_PULL_VTABLE_INFO: {
       SSTriggerVirTableInfoRequest* pRequest = (SSTriggerVirTableInfoRequest*)pReq;
-      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      TAOS_CHECK_EXIT(encodePlainArray(&encoder, pRequest->cids));
+      TAOS_CHECK_EXIT(encodePlainArray(&encoder, pRequest->uids));
+      TAOS_CHECK_EXIT(tEncodeBool(&encoder, pRequest->fetchAllTable));
       break;
     }
     case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
       SSTriggerVirTablePseudoColRequest* pRequest = (SSTriggerVirTablePseudoColRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
-      TAOS_CHECK_EXIT(encodeColsArray(&encoder, pRequest->cids));
+      TAOS_CHECK_EXIT(encodePlainArray(&encoder, pRequest->cids));
       break;
     }
     case STRIGGER_PULL_OTABLE_INFO: {
@@ -3733,7 +3720,7 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
-      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      TAOS_CHECK_EXIT(decodePlainArray(&decoder, &pRequest->cids, sizeof(col_id_t)));
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRequest->order));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
       break;
@@ -3785,13 +3772,15 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
     }
     case STRIGGER_PULL_VTABLE_INFO: {
       SSTriggerVirTableInfoRequest* pRequest = &(pReq->virTableInfoReq);
-      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      TAOS_CHECK_EXIT(decodePlainArray(&decoder, &pRequest->cids, sizeof(col_id_t)));
+      TAOS_CHECK_EXIT(decodePlainArray(&decoder, &pRequest->uids, sizeof(int64_t)));
+      TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pRequest->fetchAllTable));
       break;
     }
     case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
       SSTriggerVirTablePseudoColRequest* pRequest = &(pReq->virTablePseudoColReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
-      TAOS_CHECK_EXIT(decodeColsArray(&decoder, &pRequest->cids));
+      TAOS_CHECK_EXIT(decodePlainArray(&decoder, &pRequest->cids, sizeof(col_id_t)));
       break;
     }
     case STRIGGER_PULL_OTABLE_INFO: {
@@ -4454,12 +4443,12 @@ _exit:
   return code;
 }
  
-static int32_t encodeBlock(SEncoder* encoder, void* block) {
+static int32_t encodeBlock(SEncoder* encoder, void* block, SSHashObj* indexHash) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   if (block != NULL && ((SSDataBlock*)block)->info.rows > 0) {
     TAOS_CHECK_EXIT(tEncodeI8(encoder, 1));
-    TAOS_CHECK_EXIT(encodeData(encoder, block, NULL));
+    TAOS_CHECK_EXIT(encodeData(encoder, block, indexHash));
   } else {
     TAOS_CHECK_EXIT(tEncodeI8(encoder, 0));
   }
@@ -4477,16 +4466,10 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWal
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  if (rsp->dataBlock != NULL && ((SSDataBlock*)rsp->dataBlock)->info.rows > 0) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has real data
-    TAOS_CHECK_EXIT(encodeData(&encoder, rsp->dataBlock, rsp->indexHash));
-  } else {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no real data
-  }
-
-  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->metaBlock));
-  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->deleteBlock));
-  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->tableBlock));
+  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->dataBlock, rsp->indexHash));
+  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->metaBlock, NULL));
+  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->deleteBlock, NULL));
+  TAOS_CHECK_EXIT(encodeBlock(&encoder, rsp->tableBlock, NULL));
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, rsp->ver));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, rsp->verTime));

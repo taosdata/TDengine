@@ -160,9 +160,6 @@ typedef struct SSTriggerRealtimeContext {
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
   SSDataBlock *pTableBlock;
-  SSDataBlock *pDropBlock;
-  SSDataBlock *pAddBlock;
-  SSDataBlock *pRetireBlock;
   SArray      *pTempSlices;  // SSArray<{gid, uid, startIdx, endIdx}>
   SSHashObj   *pRanges;      // SSHashObj<gid, STimeWindow>
 

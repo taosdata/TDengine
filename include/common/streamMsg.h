@@ -855,16 +855,15 @@ typedef enum {
 
 typedef struct SSTriggerWalNewRsp {
   SSHashObj*           indexHash;
-  SSHashObj*           uidHash;
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
   void*                tableBlock;
-  void*                dropBlock;
-  void*                addBlock;
-  void*                retireBlock;
   int64_t              ver;
   int64_t              verTime;
+
+  // The following fields are not serialized and only used by the reader task
+  SSHashObj*           uidHash;
   int32_t              totalRows;
   int32_t              totalDataRows;
   bool                 isCalc;
@@ -892,6 +891,7 @@ typedef struct SSTriggerVirTableInfoRequest {
   SSTriggerPullRequest base;
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
   SArray*              uids;
+  bool                 fetchAllTable;  // if true, ignore uids and fetch all virtual tables' info
 } SSTriggerVirTableInfoRequest;
 
 typedef struct SSTriggerVirTablePseudoColRequest {
