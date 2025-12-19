@@ -1166,15 +1166,7 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   pHead->qid = taosHton64(pMsg->info.qId);
   pHead->withUserInfo = pConn->userInited == 0 ? 1 : 0;
 
-  // handle invalid drop_task resp, TD-20098
-  // if (pConn->inType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-  //   //  return TSDB_CODE_INVALID_MSG;
-  //   return 0;
-  // }
-
   pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
-  // pHead->msgType = pMsg->msgType;
-  // pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
   pHead->msgLen = htonl(pMsg->contLen + sizeof(STransMsgHead));
 
