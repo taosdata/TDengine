@@ -1,7 +1,7 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use actix_web::CustomizeResponder;
-use actix_web_rust_embed_responder::{EmbedResponse, EmbedableFileResponse, IntoResponse};
+use actix_web_rust_embed_responder::{EmbedResponse, IntoResponse};
 use anyhow::Context;
 use chrono::{SecondsFormat, TimeZone};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
@@ -49,7 +49,7 @@ use anyhow::bail;
 use awc::{cookie::Cookie, Client as AwcClient};
 use clap::Parser;
 use qid::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
-use rust_embed_for_web::RustEmbed;
+use rust_embed::{EmbeddedFile, RustEmbed};
 use serde::{Deserialize, Serialize};
 use taoslog::{
     layer::TaosLayer,
@@ -1597,9 +1597,7 @@ struct StaticAssets;
 
 /// For static assets as a SPA website.
 #[route("/{path:.*}", method = "GET", method = "HEAD")]
-async fn static_assets(
-    path: web::Path<String>,
-) -> CustomizeResponder<EmbedResponse<EmbedableFileResponse>> {
+async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
     const COOKIE_ROUTE: &str = "route";
     // Treat path as a route by responding with `index.html`.
     //

@@ -31,8 +31,9 @@ tokio-util = { workspace = true, features = ["compat"] }
 tokio-stream = { workspace = true, features = ["net", "sync"] }
 log = { workspace = true, features = ["serde"] }
 http-auth-basic = "0.3"
-rust-embed-for-web = { version = "11.3.0" }
-actix-web-rust-embed-responder = { version = "2.3.0", default-features = false, features = ["support-rust-embed-for-web"] }
+rust-embed = "6.8.1"
+# rust-embed-for-web = { version = "11.3.0" }
+actix-web-rust-embed-responder = { version = "=2.2.1", default-features = false, features = ["support-rust-embed"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror.workspace = true
