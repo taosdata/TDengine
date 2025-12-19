@@ -793,7 +793,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_error_code.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
 ## 02-Taos
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
+,,n,.,pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
 ## 03-Benchmark
 ,,n,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
