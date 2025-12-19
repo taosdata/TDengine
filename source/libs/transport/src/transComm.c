@@ -670,7 +670,7 @@ int32_t transSetCrcChecksum(char* buf, int32_t len) {
 }
 int32_t transDoCrcCheck(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
-  uint32_t       checkSum = htonl(pHead->magicNum);
+  uint32_t       checkSum = ntohl(pHead->magicNum);
 
   pHead->magicNum = 0;
 
