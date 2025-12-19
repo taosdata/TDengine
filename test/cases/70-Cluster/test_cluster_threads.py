@@ -151,26 +151,31 @@ class TestDb:
         
         print(f"Mutithread test finished.")
 
-    def test_db(self):
-        """summary: xxx
+    def test_cluster_threads(self):
+        """Cluster threads
 
-        description: xxx
+        1. Create 3 dnode cluster environment
+        2. Create 3 database for precision ns/us/ms
+        3. Create 3 normal tables in each database
+        4. Insert 2 rows data for each table
+        5. Start 10 threads to `desc table` concurrently for 100 times
+        6. Check no coredump happen
+        7. Show local/cluster variables like 'debugFlag' and check the results
+        8. Show cluster variables like 'ss%' and check the results
+        9. Show cluster variables like 'Max%' and check the results
+        10. Show cluster variables like 'ttl%' and check the results
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_db.py
 
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(replica = self.replicaVar)
 
         tdLog.printNoPrefix("==========start case1 run ...............")

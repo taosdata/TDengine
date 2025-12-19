@@ -79,23 +79,23 @@ class TestCheckTsdb:
                     else:
                         continue
 
-    def test_check_tsdb(self):
-        """summary: xxx
+    def test_com_taosd_restart(self):
+        """Taosd restart
 
-        description: xxx
+        1. Create 1 stable and 4 child tables
+        2. Insert 13 rows for each child table
+        3. Restart taosd 5 times, and query sum of columns after each restart
+        4. Check the query results
+        5. Expect all query results are correct
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_check_tsdb.py
 
         """
   # sourcery skip: extract-duplicate-method, remove-redundant-fstring

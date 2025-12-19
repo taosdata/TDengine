@@ -389,25 +389,32 @@ class TestFunctionStateduration:
         tdSql.checkRows(5)
 
     def test_function_stateduration(self):
-        """summary: xxx
+        """ Fun: stateduration()
 
-        description: xxx
+        1. Query with support types
+        2. Query with support operators
+        3. Query with empty table
+        4. Unique with super tags
+        5. Unique with common column
+        6. Unique with scalar function
+        7. Unique with filter where
+        8. Unique with union all
+        9. Unique with join
+        10. Nest query
+        11. Check boundary values
+        12. Check unit time
+        13. Check errors
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_tan.py
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

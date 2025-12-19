@@ -141,23 +141,24 @@ class TestFill:
         tdSql.checkRows(0)
         tdSql.execute("drop database nsdb")
 
-    def test_fill(self):
-        """summary: xxx
+    def test_ts_fill_method(self):
+        """Fill method
 
-        description: xxx
+        1. Create database with ns precision
+        2. Create table with different data types
+        3. Insert data with nulls
+        4. Perform fill queries with different data types and methods (value, null, prev, next)
+        5. Query with multi-threaded fill range
+        6. Validate the filled results for each data type
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_fill.py
 
         """
         self.check_ns_db_fill()

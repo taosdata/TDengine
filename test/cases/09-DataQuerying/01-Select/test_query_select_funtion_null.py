@@ -223,25 +223,35 @@ class TestFunctionNull:
         tdSql.checkData(9,0,None)
 
     def test_function_null(self):
-        """summary: xxx
+        """Select function null
 
-        description: xxx
+        1. Create table with various data types and insert data including nulls.
+        2. Execute various functions with parameter null or columns value null.
+             - abs
+             - floor
+             - ceil
+             - round 
+             - sin
+             - cos
+             - tan
+             - asin
+             - acos
+             - atan
+             - log
+             - pow
+        3. Verify result as expected.
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_function_null.py
 
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

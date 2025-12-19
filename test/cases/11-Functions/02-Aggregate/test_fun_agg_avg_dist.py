@@ -7,9 +7,6 @@ class TestDistributeAggAvg:
 
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
         cls.vnode_disbutes = None
         cls.ts = 1537146000000
 
@@ -235,22 +232,21 @@ class TestDistributeAggAvg:
         tdSql.checkData(0,5,14.086956522)
 
     def test_distribute_agg_avg(self):
-        """summary: xxx
+        """ Fun: distribute avg()
 
-        description: xxx
+        1. prepare data for distribute aggregate test
+        2. check distribute data
+        3. check avg function work status
+        4. distribute aggregate query test
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-9-24 Alex  Duan Migrated from uncatalog/system-test/2-query/test_distribute_agg_avg.py
 
         """
 
@@ -258,6 +254,3 @@ class TestDistributeAggAvg:
         self.check_distribute_datas()
         self.check_avg_status()
         self.distribute_agg_query()
-
-        #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)

@@ -1407,25 +1407,25 @@ class TestFill2:
         tdSql.execute("create database test cachemodel 'both'", queryTimes=1)
         self.check_decimal_column_ddl()
 
-    def test_fill2(self):
-        """summary: xxx
+    def test_ts_fill_datatype(self):
+        """Fill datatype
 
-        description: xxx
+        1. Create normal/super tables with various decimal/decimal64 and other data types
+        2. Insert data into the tables
+        3. Run fill queries with different fill methods (PREV, NEXT, NULL, LINEAR, NULL_F)
+        4. Validate the results to ensure correctness of the fill operation        
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_fill2.py
 
         """
+
 
         self.check_decimal_ddl()
         self.check_insert_decimal_values()
