@@ -12,11 +12,15 @@ script_dir=$(dirname $(readlink -f "$0"))
 echo -e "${script_dir}"
 
 custom_dir_set=0
-while getopts "d:" arg; do
+while getopts "hd:" arg; do
   case $arg in
     d)
       customDir="$OPTARG"
       custom_dir_set=1
+      ;;
+    h)
+      echo "Usage: $(basename $0) -d [install dir]"
+      exit 0
       ;;
     ?)
       echo "Usage: $0 [-d install_dir]"
@@ -44,8 +48,8 @@ install_venv="${INSTALL_VENV:-True}"
 
 if [ $custom_dir_set -eq 1 ]; then
   installDir="${customDir}/${PREFIX}/${PRODUCTPREFIX}"
-  logDir="${installDir}/log/"
-  dataDir="${installDir}/data/"
+  logDir="${installDir}/log"
+  dataDir="${installDir}/data"
   moduleDir="${dataDir}/model"
   resourceDir="${dataDir}/resource"
   venvDir="${dataDir}/venv"
@@ -288,7 +292,7 @@ function install_resource() {
   if [ ${custom_dir_set} -eq 0 ];then 
     ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
   fi
-  ${csudo}cp ${script_dir}/resource/*.sql ${install_main_dir}/resource/
+  ${csudo}cp ${script_dir}/resource/*.sql ${resourceDir}/
 }
 
 function install_anode_venv() {
