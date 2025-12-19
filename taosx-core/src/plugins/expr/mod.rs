@@ -613,4 +613,214 @@ mod tests {
             [Some("foo"), None, Some("bar"), Some("baz")]
         );
     }
+
+    #[test]
+    fn test_logical_and_operations() {
+        let a = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let b = Int32Array::from(vec![5, 4, 3, 2, 1]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        // a > 2: [false, false, true, true, true]
+        // b > 2: [true, true, true, false, false]
+        // AND:   [false, false, true, false, false]
+        let expr = BooleanExpr::try_new("a > 2 && b > 2".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, false, true, false, false]);
+    }
+
+    #[test]
+    fn test_logical_or_operations() {
+        let a = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let b = Int32Array::from(vec![5, 4, 3, 2, 1]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("a > 4 || b > 4".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [true, false, false, false, true]);
+    }
+
+    #[test]
+    fn test_logical_not_operations() {
+        let a = BooleanArray::from(vec![true, false, true, false]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = BooleanExpr::try_new("!a".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, true, false, true]);
+    }
+
+    #[test]
+    fn test_arithmetic_multiplication() {
+        let expr = Expr::try_new("a * b", true).unwrap();
+        let a = Int32Array::from(vec![2, 3, 4, 5]);
+        let b = Int32Array::from(vec![3, 4, 5, 6]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(6), Some(12), Some(20), Some(30)]
+        );
+    }
+
+    #[test]
+    fn test_arithmetic_division() {
+        let expr = Expr::try_new("a / b", true).unwrap();
+        let a = Int32Array::from(vec![10, 20, 30, 40]);
+        let b = Int32Array::from(vec![2, 4, 5, 8]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(5), Some(5), Some(6), Some(5)]
+        );
+    }
+
+    #[test]
+    fn test_null_handling_in_arithmetic() {
+        let expr = Expr::try_new("a + b", true).unwrap();
+        let a = Int32Array::from(vec![Some(1), None, Some(3)]);
+        let b = Int32Array::from(vec![Some(10), Some(20), None]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(11), None, None]
+        );
+    }
+
+    #[test]
+    fn test_type_coercion_float_to_int() {
+        let expr = Expr::try_new("a", true).unwrap();
+        let a = Float32Array::from(vec![1.5, 2.7, 3.2, 4.9]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(
+            values.as_primitive::<Int32Type>().iter().collect_vec(),
+            [Some(1), Some(2), Some(3), Some(4)]
+        );
+    }
+
+    #[test]
+    fn test_type_coercion_int_to_string() {
+        let expr = Expr::try_new("a", true).unwrap();
+        let a = Int32Array::from(vec![1, 22, 333, 4444]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("1"), Some("22"), Some("333"), Some("4444")]
+        );
+    }
+
+    #[test]
+    fn test_comparison_equal() {
+        let a = Int32Array::from(vec![1, 2, 3, 3, 5]);
+        let b = Int32Array::from(vec![1, 3, 3, 2, 5]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("a == b".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [true, false, true, false, true]);
+    }
+
+    #[test]
+    fn test_comparison_not_equal() {
+        let a = Int32Array::from(vec![1, 2, 3, 3, 5]);
+        let b = Int32Array::from(vec![1, 3, 3, 2, 5]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("a", Arc::new(a) as ArrayRef),
+            ("b", Arc::new(b) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("a != b".to_string()).unwrap();
+        let values = expr.eval(&batch).unwrap();
+        assert_eq!(values, [false, true, false, true, false]);
+    }
+
+    #[test]
+    fn test_filter_record_batch() {
+        let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
+        let name_array = StringArray::from(vec!["a", "b", "c", "d", "e"]);
+        let batch = RecordBatch::try_from_iter(vec![
+            ("id", Arc::new(id_array) as ArrayRef),
+            ("name", Arc::new(name_array) as ArrayRef),
+        ])
+        .unwrap();
+
+        let expr = BooleanExpr::try_new("id > 3".to_string()).unwrap();
+        let filtered = expr.filter(&batch).unwrap();
+
+        assert_eq!(filtered.num_rows(), 2);
+        let id_col = filtered.column(0).as_primitive::<Int32Type>();
+        assert_eq!(id_col.iter().collect_vec(), [Some(4), Some(5)]);
+    }
+
+    #[test]
+    fn test_empty_batch() {
+        let empty_array: Int32Array = Int32Array::from(vec![] as Vec<Option<i32>>);
+        let batch =
+            RecordBatch::try_from_iter(vec![("a", Arc::new(empty_array) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("a + 10", true).unwrap();
+        let values = expr.eval_inner(&batch).unwrap();
+        assert_eq!(values.len(), 0);
+    }
+
+    #[test]
+    fn test_expr_equality() {
+        let expr1 = Expr::try_new("a + b", true).unwrap();
+        let expr2 = Expr::try_new("a + b", true).unwrap();
+        let expr3 = Expr::try_new("a - b", true).unwrap();
+        let expr4 = Expr::try_new("a + b", false).unwrap();
+
+        assert_eq!(expr1, expr2);
+        assert_ne!(expr1, expr3);
+        assert_ne!(expr1, expr4);
+    }
+
+    #[test]
+    fn test_deserialization_with_null_if_error() {
+        let json = r#"{"expr":"a + b","null_if_error":false}"#;
+        let expr: Expr = serde_json::from_str(json).unwrap();
+        assert_eq!(expr.expr, "a + b");
+        assert!(!expr.null_if_error);
+    }
+
+    #[test]
+    fn test_deserialization_without_null_if_error() {
+        let json = r#"{"expr":"a + b"}"#;
+        let expr: Expr = serde_json::from_str(json).unwrap();
+        assert_eq!(expr.expr, "a + b");
+        assert!(expr.null_if_error); // Default value
+    }
 }

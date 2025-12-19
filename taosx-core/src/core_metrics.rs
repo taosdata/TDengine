@@ -715,4 +715,166 @@ mod tests {
         assert!(metrics.is_none());
         assert!(!db.path.exists());
     }
+
+    #[test]
+    fn test_common_metrics_new() {
+        let metrics = CommonMetrics::new(
+            "test_stable".to_string(),
+            123,
+            Some("test_task".to_string()),
+        );
+
+        assert_eq!(metrics.stable, "test_stable");
+        assert_eq!(metrics.task_id, 123);
+        assert_eq!(metrics.task_name, Some("test_task".to_string()));
+        assert_eq!(metrics.total_execute_time.load(SeqCst), 0);
+        assert_eq!(metrics.total_written_rows.load(SeqCst), 0);
+        assert_eq!(metrics.total_written_points.load(SeqCst), 0);
+    }
+
+    #[test]
+    fn test_common_metrics_default() {
+        let metrics = CommonMetrics::default();
+
+        assert_eq!(metrics.stable, "");
+        assert_eq!(metrics.task_id, -1);
+        assert_eq!(metrics.task_name, None);
+        assert_eq!(metrics.total_execute_time.load(SeqCst), 0);
+    }
+
+    #[test]
+    fn test_common_metrics_received_messages() {
+        let metrics = CommonMetrics::default();
+
+        metrics.add_received_messages(10);
+        assert_eq!(metrics.received_messages(), 10);
+
+        metrics.add_received_messages(5);
+        assert_eq!(metrics.received_messages(), 15);
+    }
+
+    #[test]
+    fn test_common_metrics_processed_messages() {
+        let metrics = CommonMetrics::default();
+
+        metrics.add_processed_messages(20);
+        assert_eq!(metrics.processed_messages(), 20);
+
+        metrics.add_processed_messages(8);
+        assert_eq!(metrics.processed_messages(), 28);
+    }
+
+    #[test]
+    fn test_common_metrics_reset() {
+        let metrics = CommonMetrics::default();
+
+        // Set some values
+        metrics.written_rows.store(100, SeqCst);
+        metrics.written_points.store(200, SeqCst);
+        metrics.execute_time.store(5000, SeqCst);
+        metrics.received_messages.store(50, SeqCst);
+        metrics.processed_messages.store(45, SeqCst);
+
+        // Reset
+        metrics.reset();
+
+        // Verify all run metrics are reset
+        assert_eq!(metrics.written_rows.load(SeqCst), 0);
+        assert_eq!(metrics.written_points.load(SeqCst), 0);
+        assert_eq!(metrics.execute_time.load(SeqCst), 0);
+        assert_eq!(metrics.received_messages.load(SeqCst), 0);
+        assert_eq!(metrics.processed_messages.load(SeqCst), 0);
+    }
+
+    #[test]
+    fn test_task_start_time() {
+        let start_time = TaskStartTime::new();
+        let initial = start_time.get();
+
+        // Sleep a bit and reset
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        start_time.reset();
+        let after_reset = start_time.get();
+
+        assert!(after_reset > initial, "Reset should update to current time");
+    }
+
+    #[test]
+    fn test_last_persist_time_elapsed() {
+        let persist_time = LastPersistTime::default();
+
+        // Sleep a bit
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        let elapsed = persist_time.elapsed_millis();
+        assert!(
+            elapsed >= 50,
+            "Elapsed time should be at least 50ms, got {}",
+            elapsed
+        );
+        assert!(
+            elapsed < 100,
+            "Elapsed time should be less than 100ms, got {}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn test_last_persist_time_reset() {
+        let persist_time = LastPersistTime::default();
+
+        // Sleep and check elapsed
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        let first_elapsed = persist_time.elapsed_millis();
+
+        // Reset
+        persist_time.reset();
+
+        // Check elapsed again should be small
+        let after_reset = persist_time.elapsed_millis();
+        assert!(
+            after_reset < first_elapsed,
+            "After reset, elapsed should be less than before"
+        );
+    }
+
+    #[test]
+    fn test_core_metrics_deref() {
+        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, None);
+        let core_metrics = CoreMetrics::Legacy(legacy_metrics);
+
+        // Test deref to CommonMetrics
+        assert_eq!(core_metrics.stable, "test");
+        assert_eq!(core_metrics.task_id, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "metrics type not match")]
+    fn test_core_metrics_legacy_panic() {
+        let tmq_metrics = TmqMetrics::new("test".to_string(), 1, None);
+        let core_metrics = CoreMetrics::TMQ(tmq_metrics);
+
+        // This should panic because it's TMQ, not Legacy
+        let _ = core_metrics.legacy();
+    }
+
+    #[test]
+    #[should_panic(expected = "metrics type not match")]
+    fn test_core_metrics_tmq_panic() {
+        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, None);
+        let core_metrics = CoreMetrics::Legacy(legacy_metrics);
+
+        // This should panic because it's Legacy, not TMQ
+        let _ = core_metrics.tmq();
+    }
+
+    #[test]
+    #[should_panic(expected = "metrics type not match")]
+    fn test_core_metrics_ipc_panic() {
+        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, None);
+        let core_metrics = CoreMetrics::Legacy(legacy_metrics);
+
+        // This should panic because it's Legacy, not IPC
+        let _ = core_metrics.ipc();
+    }
 }
