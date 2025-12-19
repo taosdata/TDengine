@@ -302,7 +302,7 @@ function install_anode_venv() {
   fi
   if [ ${install_venv} == "True" ]; then
     # build venv
-    ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
+    python3.${python_minor_ver} -m venv ${venvDir}
 
     echo -e "active Python3 virtual env: ${venvDir}"
     source ${venvDir}/bin/activate
