@@ -1,4 +1,5 @@
 # gunicorn_config.py
+import multiprocessing
 
 # list address and port
 bind = '0.0.0.0:6035'
@@ -11,7 +12,7 @@ workers = 2
 worker_class = 'sync'
 
 # Number of threads per process (recommended for model deployment)
-threads = 2
+threads = max(multiprocessing.cpu_count() / 4 + 1, 2)
 
 # Maximum number of requests, worker will restart after reaching limit, helps release memory
 max_requests = 1000
@@ -31,7 +32,7 @@ loglevel = 'debug' # log level: debug, info, warning, error, critical
 # Set process name
 proc_name = 'tdgpt_taosanode_app'
 
-# Preload application to ensure each worker has independent model instance
+# Preload application before forking worker processes. This can improve startup time and save memory
 preload_app = True
 
 # [taosanode]

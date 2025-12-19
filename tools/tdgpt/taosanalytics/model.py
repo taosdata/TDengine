@@ -16,6 +16,7 @@ class ModelInfo:
         self.size = 0
         self.invoke_cls_name = None
         self.model = None
+        self.elapsed_time = 0.0
 
     @classmethod
     def create_model_info(cls, model_name:str, path:str, time:datetime, note:str, el:int, service:str, model:Any):
@@ -54,7 +55,7 @@ class ModelManager:
                 cls._instance._model_locks = {}
             return cls._instance
 
-    def load_model(self, model_name: str, model_path: str, model_loader, class_name:str) -> None:
+    def load_model(self, model_name: str, model_path: str, model_loader, class_name:str):
         """load the model on demand"""
         if model_name not in self._models:
             with self._lock:
@@ -66,6 +67,7 @@ class ModelManager:
                 # protect the load procedure
                 if model_name not in self._models:
                     app_logger.log_inst.info("try to load module:%s", model_path)
+                    model = None
 
                     try:
                         model = model_loader(model_path)
@@ -106,7 +108,7 @@ class ModelManager:
             info = self._models.get(key)
 
             try:
-                msg[key] = json.dumps(info, default=lambda o: o.__json__())
+                msg[key] = info.__json__()
             except Exception as e:
                 app_logger.log_inst.error(
                     "failed to serialize loaded model: %s, code:%s, continue...",

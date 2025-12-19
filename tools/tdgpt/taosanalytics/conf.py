@@ -37,7 +37,7 @@ class Configure:
         return self._model_directory
 
     def get_tsfm_service(self, service_name):
-        return self._all.get('tsfm_service', None)
+        return self._all.get(service_name, None)
 
     def get_draw_result_option(self):
         """ get the option for draw results or not"""
@@ -73,9 +73,8 @@ class Configure:
         else:
             self._log_level = logging.INFO
 
-        self._model_directory = self._all.get('model_dir', '/usr/local/taos/taosanode/model/')#self.conf.get(_ANODE_SECTION_NAME, 'model-dir')
-
-        self._draw_result = self._all.get('draw_result', False) #self.conf.get(_ANODE_SECTION_NAME, 'draw-result').lower()
+        self._model_directory = self._all.get('model_dir', '/usr/local/taos/taosanode/model/')
+        self._draw_result = self._all.get('draw_result', False)
 
 
 
