@@ -48,6 +48,8 @@ class Configure:
     def reload(self, new_path: str):
         """ load the info from config file """
         self.path = new_path
+        if not os.path.exists(self.path):
+            print("config file not exist")
 
         self.conf.read(self.path)
 
