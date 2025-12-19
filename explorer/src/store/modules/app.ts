@@ -3,6 +3,10 @@ import { getAgentsData } from '@/api/agent';
 import { objToLine } from '@/utils';
 import { sendSQLReq } from '@/api/explorer';
 import { getLocalTimezone } from '@/utils';
+import { oauthLogout } from '@/api/oauth';
+import Cookies from 'js-cookie';
+import { OAuthTokenKey, SessionIdKey } from '@/const';
+import router from '@/router';
 
 const state = {
   // token: getToken(),
@@ -66,7 +70,12 @@ const state = {
   stbDefaultColumns: [], // transform 创建超级表时默认的列
   configData: [],
   activeName: 'datasource',
-  viaId: null // 点击数据源列表中的agent
+  viaId: null, // 点击数据源列表中的agent
+  oauthEnabled: false, // OAuth is enabled on the backend
+  isOAuthLogin: false, // User logged in via OAuth
+  isOAuthBinded: false, // User logged in with TSDB credentials via OAuth
+  isOAuthSyncUsersSupported: false, // Current OAuth config support sync-users API
+  sysinfo: true // User has sysinfo permission
 };
 
 // 默认用户信息需要补充的字段
@@ -279,6 +288,21 @@ const mutations = {
   },
   LOGIN() {
     // window.location.href = import.meta.env.VUE_APP_LOGIN_URL;
+  },
+  SET_OAUTH_ENABLED: (state, enabled: boolean) => {
+    state.oauthEnabled = enabled;
+  },
+  SET_OAUTH_LOGIN: (state, isOAuth: boolean) => {
+    state.isOAuthLogin = isOAuth;
+  },
+  SET_OAUTH_BINDED: (state, isOAuthBinded: boolean) => {
+    state.isOAuthBinded = isOAuthBinded;
+  },
+  SET_OAUTH_SYNC_USERS_SUPPORTED: (state, isOAuthSyncUsersSupported: boolean) => {
+    state.isOAuthSyncUsersSupported = isOAuthSyncUsersSupported;
+  },
+  SET_SYSINFO: (state, sysinfo) => {
+    state.sysinfo = sysinfo;
   }
 };
 
@@ -308,12 +332,48 @@ const actions = {
     }
     return state.userInfo;
   },
-  logout({ commit }, request = true) {
+  async logout({ commit, state }, request = true, ssoLogout = false) {
+    console.log('logout', state);
     commit('SET_TOKEN', '');
     commit('CLEAR_TIMEOUT');
     removeAppID();
     commit('LOGIN', request);
     commit('SET_USERINFO');
+    Cookies.remove(OAuthTokenKey);
+    Cookies.remove(SessionIdKey);
+
+    // If the user logged in via OAuth (server-side session), call backend logout
+    // to invalidate the httpOnly session cookie. Do not rely on localStorage-stored tokens.
+    if (state && state.isOAuthLogin) {
+      try {
+        // If the backend endpoint exists, this will clear the session cookie.
+        // The request util will include credentials for OAuth mode.
+        await oauthLogout();
+        commit('SET_OAUTH_LOGIN', false);
+        commit('SET_OAUTH_BINDED', false);
+      } catch (e) {
+        // Ignore network errors during logout; proceed with client-side cleanup.
+        // eslint-disable-next-line no-console
+        console.warn('oauthLogout failed', e);
+      }
+    }
+
+    // Clear client-side OAuth flag (do not remove oauth token from localStorage here;
+    // we no longer rely on localStorage for OAuth authentication).
+    commit('SET_OAUTH_LOGIN', false);
+    router.push('/login');
+  },
+  setOAuthEnabled({ commit }, enabled = true) {
+    commit('SET_OAUTH_ENABLED', enabled);
+  },
+  setOAuthLogin({ commit }, isOAuth = true) {
+    commit('SET_OAUTH_LOGIN', isOAuth);
+  },
+  setOAuthBinded({ commit }, isOAuthBinded = true) {
+    commit('SET_OAUTH_BINDED', isOAuthBinded);
+  },
+  setOAuthSyncUsersSupported({ commit }, isOAuthSyncUsersSupported = true) {
+    commit('SET_OAUTH_SYNC_USERS_SUPPORTED', isOAuthSyncUsersSupported);
   }
 };
 

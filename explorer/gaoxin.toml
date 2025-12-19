@@ -1,0 +1,15 @@
+cors = true
+[oauth]
+enabled = true
+provider = "geniric"
+#fallback_redirect_uri = "http://localhost:8081" # only for development
+[oauth.oidc]
+client_id = "test2"
+client_secret = "jRYp8CqZ"
+issuer_url = "http://www.dodocloud.cn:43391/loginV1"
+redirect_uri = "http://localhost:6060/api/-/oauth/"
+authorization_endpoint = "http://www.dodocloud.cn:43391/sso/oauth2.0/authorize"
+token_endpoint = "http://www.dodocloud.cn:43391/sso/oauth2.0/accessToken"
+scopes = ["profile"]
+[oauth.user_mapping]
+username = "username"

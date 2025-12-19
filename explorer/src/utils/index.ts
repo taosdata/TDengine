@@ -213,6 +213,10 @@ export function encrypt(data) {
 }
 //解密
 export function decrypt(encryptedData: string) {
+  if (!encryptedData) {
+    console.warn('encryptedData is empty');
+    return '';
+  }
   const decryptedMessage = CryptoJS.AES.decrypt(
     encryptedData,
     // spellchecker:off

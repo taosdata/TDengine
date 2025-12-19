@@ -14,10 +14,10 @@ export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
       'Content-Type': 'text/plain'
     },
     transformResponse: [
-      function (data, headers) {
-        console.log(headers);
+      function (data, _headers) {
+        // console.log('SQL response headers:', headers.toJSON());
         try {
-          console.log('Got response', data);
+          // console.log('SQL response data', data);
           return JSONbig.parse(data);
         } catch (error) {
           return data;

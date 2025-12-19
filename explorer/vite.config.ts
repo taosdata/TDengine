@@ -194,6 +194,15 @@ export default ({ mode }: { mode: any }) => {
           }
         }
       }
+    },
+    test: {
+      environment: 'happy-dom',
+      globals: true,
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html'],
+        exclude: ['node_modules/', 'node-connector-node/', 'taos-ui/']
+      }
     }
   });
 };
