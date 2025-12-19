@@ -325,6 +325,9 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+#define WINDOW_PART_HAS  0x01
+#define WINDOW_PART_TB   0x02
+
 typedef struct SWindowLogicNode {
   SLogicNode       node;
   EWindowType      winType;
@@ -350,7 +353,7 @@ typedef struct SWindowLogicNode {
   int8_t           igCheckUpdate;
   int8_t           indefRowsFunc;
   EWindowAlgorithm windowAlgo;
-  bool             isPartTb;
+  int8_t           partType;    // bit0 is for has partition, bit1 is for tb partition
   int64_t          windowCount;
   int64_t          windowSliding;
   SNodeList*       pTsmaSubplans;
