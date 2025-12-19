@@ -780,6 +780,8 @@ static int specQuery(uint16_t iface, char* dbName) {
             goto OVER;
         }
 
+        qsort(sql->delay_list, n, sizeof(uint64_t), compare);
+
         double time_cost = spend / 1E6;
         double qps = totalQueried / time_cost;
         double avgDelay = total_delays / n / 1E6;
@@ -789,7 +791,6 @@ static int specQuery(uint16_t iface, char* dbName) {
         double p95 = sql->delay_list[(uint64_t)(n * 0.95)] / 1E6;
         double p99 = sql->delay_list[(uint64_t)(n * 0.99)] / 1E6;
 
-        qsort(sql->delay_list, n, sizeof(uint64_t), compare);
         int32_t bufLen = strlen(sql->command) + 512;
         char * buf = benchCalloc(bufLen, sizeof(char), false);
         snprintf(buf , bufLen, "complete query with %d threads and %" PRIu64 " "
