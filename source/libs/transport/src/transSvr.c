@@ -698,7 +698,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   int32_t code = 0;
   STrans* pInst = pConn->pInst;
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE) {
-    int64_t qId = taosHton64(pHead->qid);
+    int64_t qId = taosNtoh64(pHead->qid);
     if (qId <= 0) {
       tError("conn:%p, recv release, but invalid sid:%" PRId64, pConn, qId);
       code = TSDB_CODE_RPC_NO_STATE;
@@ -724,7 +724,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
                       .msgType = pHead->msgType + 1,
                       .info.qId = qId,
                       .info.traceId = pHead->traceId,
-                      .info.seqNum = taosHton64(pHead->seqNum)};
+                      .info.seqNum = taosNtoh64(pHead->seqNum)};
 
     SSvrRespMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     if (srvMsg == NULL) {
@@ -762,7 +762,7 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
     memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
     memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
            len - sizeof(STransMsgHead) - sizeof(pInst->user));
-    tHead->msgLen = htonl(htonl(pHead->msgLen) - sizeof(pInst->user));
+    tHead->msgLen = ntohl(ntohl(pHead->msgLen) - sizeof(pInst->user));
 
     memcpy(pConn->user, (char*)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
     pConn->userInited = 1;
@@ -839,8 +839,8 @@ static bool uvHandleReq(SSvrConn* pConn) {
     tTrace("%s conn:%p, not reset read buf", transLabel(pInst), pConn);
   }
 
-  pHead->code = htonl(pHead->code);
-  pHead->msgLen = htonl(pHead->msgLen);
+  pHead->code = ntohl(pHead->code);
+  pHead->msgLen = ntohl(pHead->msgLen);
 
   pConn->inType = pHead->msgType;
 
@@ -881,11 +881,11 @@ static bool uvHandleReq(SSvrConn* pConn) {
   // 3. not mixed with persist
   transMsg.info.refId = pHead->noResp == 1 ? -1 : pConn->refId;
   transMsg.info.traceId = pHead->traceId;
-  transMsg.info.cliVer = htonl(pHead->compatibilityVer);
+  transMsg.info.cliVer = ntohl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
   transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
-  transMsg.info.seqNum = taosHton64(pHead->seqNum);
-  transMsg.info.qId = taosHton64(pHead->qid);
+  transMsg.info.seqNum = taosNtoh64(pHead->seqNum);
+  transMsg.info.qId = taosNtoh64(pHead->qid);
   transMsg.info.msgType = pHead->msgType;
 
   uvPerfLog_receive(pConn, pHead, &transMsg);
@@ -1160,7 +1160,6 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
-  // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
   pHead->seqNum = taosHton64(pMsg->info.seqNum);
