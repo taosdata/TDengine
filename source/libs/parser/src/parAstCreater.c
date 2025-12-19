@@ -2329,6 +2329,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   pOptions->encryptAlgorithmStr[0] = 0;
+  pOptions->isAudit = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2378,6 +2379,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactEndTime = -1;
   pOptions->compactTimeOffset = -1;
   pOptions->encryptAlgorithmStr[0] = 0;
+  pOptions->isAudit = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2546,6 +2548,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       } else {
         pDbOptions->pCompactTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
       }
+      break;
+    case DB_OPTION_IS_AUDIT:
+      pDbOptions->isAudit = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;

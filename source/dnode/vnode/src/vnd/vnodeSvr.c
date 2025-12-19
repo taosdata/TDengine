@@ -1448,6 +1448,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   char               tbName[TSDB_TABLE_FNAME_LEN];
   SArray            *tbUids = NULL;
   SArray            *tbNames = NULL;
+  int64_t            tss = taosGetTimestampMs();
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
@@ -1475,7 +1476,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     pCreateReq = req.pReqs + iReq;
     memset(&cRsp, 0, sizeof(cRsp));
 
-    if (tsEnableAudit && tsEnableAuditCreateTable) {
+    if (tsEnableAudit && tsEnableAuditCreateTable && tsAuditLevel >= AUDIT_LEVEL_CHILDTABLE) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       if (str == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1546,7 +1547,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     vError("vgId:%d, failed to encode create table batch response", TD_VID(pVnode));
   }
 
-  if (tsEnableAudit && tsEnableAuditCreateTable) {
+  if (tsEnableAudit && tsEnableAuditCreateTable && tsAuditLevel >= AUDIT_LEVEL_CHILDTABLE) {
     int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
     SName name = {0};
@@ -1568,7 +1569,10 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
     if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
-      auditAddRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len);
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditAddRecord(pOriginRpc, clusterId, "createTable", name.dbname, "", keyJoined, len, duration, 0);
     }
 
     taosStringBuilderDestroy(&sb);
@@ -1752,6 +1756,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
   int32_t          ret;
   SArray          *tbUids = NULL;
   SArray          *tbNames = NULL;
+  int64_t          tss = taosGetTimestampMs();
 
   pRsp->msgType = ((SRpcMsg *)pReq)->msgType + 1;
   pRsp->pCont = NULL;
@@ -1796,7 +1801,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
       goto _exit;
     }
 
-    if (tsEnableAuditCreateTable) {
+    if (tsEnableAudit && tsEnableAuditCreateTable && tsAuditLevel >= AUDIT_LEVEL_CHILDTABLE) {
       char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
       if (str == NULL) {
         pRsp->code = terrno;
@@ -1815,7 +1820,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
-  if (tsEnableAuditCreateTable) {
+  if (tsEnableAudit && tsEnableAuditCreateTable && tsAuditLevel >= AUDIT_LEVEL_CHILDTABLE) {
     int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
     SName name = {0};
@@ -1837,7 +1842,10 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
     if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
-      auditAddRecord(pOriginRpc, clusterId, "dropTable", name.dbname, "", keyJoined, len);
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditAddRecord(pOriginRpc, clusterId, "dropTable", name.dbname, "", keyJoined, len, duration, 0);
     }
 
     taosStringBuilderDestroy(&sb);

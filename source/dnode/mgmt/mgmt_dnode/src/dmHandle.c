@@ -25,6 +25,17 @@
 #include "tutil.h"
 
 extern SConfig *tsCfg;
+extern void setAuditDbNameToken(char *pDb, char *pToken);
+
+#ifndef TD_ENTERPRISE
+void setAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
+
+extern void getAuditDbNameToken(char *pDb, char *pToken);
+
+#ifndef TD_ENTERPRISE
+void getAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
 
 SMonVloadInfo tsVinfo = {0};
 SMnodeLoad    tsMLoad = {0};
@@ -210,6 +221,9 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
+      dGInfo("dnode:%d, set auditDB:%s, token:%s in status rsp received from mnode", pMgmt->pData->dnodeId,
+             statusRsp.auditDB, statusRsp.auditToken);
+      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken);
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
@@ -289,6 +303,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
   req.analVer = taosAnalyGetVersion();
   req.timeWhiteVer = pMgmt->pData->timeWhiteVer;
+
+  getAuditDbNameToken(req.auditDB, req.auditToken);
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {

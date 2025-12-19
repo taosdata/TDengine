@@ -706,7 +706,7 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   if (numOfCols <= 0) {
-    return -1;
+    return 0;
   }
 
   int32_t index = (tsColumnIndex == -1) ? 0 : tsColumnIndex;
