@@ -1,10 +1,50 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, etool
+import time
 
 
 class TestLimit:
 
-    def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
+    def ts6136(self): 
+        start = 1500000000000
+        tdSql.execute("drop database if exists test1;")
+        etool.benchMark(command =f"-d test1 -t 3 -n 1000000 -s {start} -y")
+        
+        while True:
+            tdSql.query("select count(*) from test1.meters;")
+            tdSql.checkRowCol(0, 0)
+            if tdSql.queryResult[0][0] == 3000000: 
+                tdLog.info(f"ts6136 data ready, sum: {tdSql.queryResult[0][0]}")
+                break
+            tdLog.info(f"waiting for data ready, sum: {tdSql.queryResult[0][0]}")
+            time.sleep(1)
+
+        tdSql.query(f"insert into test1.d0 values({start + 962000}, 1, 1, 1);")
+        tdSql.query(f"insert into test1.d0 values({start + 961000}, 1, 1, 1);")
+        tdSql.query(f"insert into test1.d0 values({start + 960000}, 1, 1, 1);")
+        tdSql.query(f"insert into test1.d0 values({start + 602000}, 1, 1, 1);")
+        tdSql.query(f"insert into test1.d1 values({start + 602000}, 1, 1, 1);")
+        tdSql.query(f"insert into test1.d0 values({start + 302000}, 1, 1, 1);")
+        tdSql.query(f"insert into test1.d0 values({start +   2000}, 1, 1, 1);")
+        tdSql.query(f"insert into test1.d0 values({start +      0}, 1, 1, 1);")
+            
+            # Query with limit 20 and store the results
+        tdSql.query("select tbname, ts, current from test1.meters where current = 1 and voltage = 1 and phase = 1 order by ts desc limit 8;")
+        tdSql.checkRows(8)
+        
+        tbname_list = [row[0] for row in tdSql.queryResult]
+        ts_list = [row[1] for row in tdSql.queryResult]
+        
+        # Test with different limits
+        for limit in range(1, 10):
+            row = min(8, limit)
+            tdSql.query(f"select tbname, ts, current from test1.meters where current = 1 and voltage = 1 and phase = 1 order by ts desc limit {limit};")
+            tdSql.checkRows(row)
+            result = tdSql.queryResult[:row]
+            
+            for i in range(min(10, len(result))):
+                tdSql.checkData(i, 0, tbname_list[i])
+                tdSql.checkData(i, 1, ts_list[i])
+
 
     def test_limit(self):
         """Limit
@@ -16,9 +56,7 @@ class TestLimit:
         5. With filtering conditions
         6. With various functions
         7. With different windows
-
-        Catalog:
-            - Query:Limit
+        8. Jira TS-6136
 
         Since: v3.0.0.0
 
@@ -33,9 +71,11 @@ class TestLimit:
             - 2025-8-19 Simon Guan Migrated from tsim/parser/table_merge_limit.sim
             - 2025-8-19 Simon Guan Migrated from tsim/parser/projection_limit_offset.sim
             - 2025-8-19 Simon Guan Migrated from tsim/query/complex_limit.sim
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_large_data.py
 
         """
 
+        self.ts6136()
         self.ParserLimit()
         tdStream.dropAllStreamsAndDbs()
         self.ParserLimit1()

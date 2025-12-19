@@ -10,16 +10,21 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql
 import random
 import time
 from faker import Faker
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Add the path to test_nestedQuery module
+nested_query_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../09-DataQuerying/08-SubQuery')
+sys.path.insert(0, os.path.abspath(nested_query_path))
+
 from test_nestedQuery import TestNestedquery as NestedQueryHelper
 
-class TestAggGroupAlwarysReturnValue:
+class TestAggGroupNotReturnValue:
+    updatecfgDict = {'countAlwaysReturnValue':0}
     
     def data_check_tbname(self,sql,groupby='Y',partitionby='Y',base_fun='',replace_fun='',base_column='',replace_column=''):
         
@@ -341,110 +346,114 @@ class TestAggGroupAlwarysReturnValue:
 
         # stable count(*)
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         #where null \ not null
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is not null group by tbname order by tbname "
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname order by tbname "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         #union
         sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
         sql = f"({sql}) union ({sql}) order by tb"
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #union all
         sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
         sql = f"({sql}) union all ({sql}) order by tb"
-        self.data_check_tbname(sql,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        
+        sql = f"select a.tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by tbname "
+        sql = f"({sql}) union all ({sql}) order by tb"
+        self.data_check_tbname(sql,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
 
         #having <=0
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) = 0 order by tbname "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) <= 0 order by tbname "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having count(*) <= 0 order by tbname "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         #count + having <=0 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having AGG(COLUMN) = 0 order by tbname "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having AGG(COLUMN) <= 0 order by tbname "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having AGG(COLUMN) = 0 order by tbname "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #having >0
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) != 0 order by tbname "
@@ -504,122 +513,122 @@ class TestAggGroupAlwarysReturnValue:
         
         #order by count(*) 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,count(*) "
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname order by tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
 
     def tbname_count_null(self, dbname="nested",base_fun="AGG",replace_fun="COUNT",base_column="COLUMN",replace_column="q_int",execute="Y"):
 
         # stable count(*)
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #where null \ not null
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is not null group by tbname order by tbname "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname order by tbname "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         #union
         sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
         sql = f"({sql}) union ({sql}) order by tb"
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #union all
         sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
         sql = f"({sql}) union all ({sql}) order by tb"
-        self.data_check_tbname(sql,'UNIONALLNULL','UNIONALLNULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'AGG4_NULL','AGG4_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'UNIONALLNULL','UNIONALLNULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG4_NULL','AGG4_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'UNIONALLNULL','UNIONALLNULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG4_NULL','AGG4_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #having <=0
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) = 0 order by tbname "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) <= 0 order by tbname "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having count(*) <= 0 order by tbname "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         #having >0
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) != 0 order by tbname "
-        self.data_check_tbname(sql,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) > 0 order by tbname "
-        self.data_check_tbname(sql,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having count(*) != 0 order by tbname "
         self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
@@ -632,40 +641,22 @@ class TestAggGroupAlwarysReturnValue:
         
         #order by count(*) 
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
-        
-        sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by a.tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-        
-        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by a.tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-        
-        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a group by tbname order by a.tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname order by tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-        
-        sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 a where ts is null group by a.tbname order by a.tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-        
-        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a where ts is null group by a.tbname order by a.tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-        
-        sql = f"select a.tbname,AGG(COLUMN) from {dbname}.stable_1 a where ts is null group by a.tbname order by tbname,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tbname "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
     def tbname_count_all(self):  
         #random data        
@@ -798,22 +789,22 @@ class TestAggGroupAlwarysReturnValue:
         
         if execute=="Y":
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) = 0 order by tbname "
-            self.data_check_tbname(sql,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')            
+            self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')            
             
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
             
             sql2 = f"select * from ({sql}) order by tbname "
-            self.data_check_tbname(sql2,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
             
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) <= 0 order by tbname "
-            self.data_check_tbname(sql,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')           
+            self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')           
             
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+            self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
             
             sql2 = f"select * from ({sql}) order by tbname "
-            self.data_check_tbname(sql2,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+            self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
 
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) != 0 order by tbname "
             self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
@@ -834,55 +825,55 @@ class TestAggGroupAlwarysReturnValue:
             self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
 
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,count(*) "
-            self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
+            self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
             
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
             
             sql2 = f"select * from ({sql}) order by tbname "
-            self.data_check_tbname(sql2,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         # Mixed scene
         if execute=="Y":
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) = 0 order by tbname "
-            self.data_check_tbname(sql,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')            
+            self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')            
             
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
             
             sql2 = f"select * from ({sql}) order by tbname "
-            self.data_check_tbname(sql2,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
 
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) <= 0 order by tbname "
-            self.data_check_tbname(sql,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')           
+            self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')           
             
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+            self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
             
             sql2 = f"select * from ({sql}) order by tbname "
-            self.data_check_tbname(sql2,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+            self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
             
             #union
             sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) = 0 order by tbname "
             sql = f"({sql}) union ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+            self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
             sql2 = f"select * from ({sql}) order by tb "
-            self.data_check_tbname(sql2,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
                    
             #union all 
             sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) <= 0 order by tbname "
             sql = f"({sql}) union all ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG20','AGG20',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+            self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG20','AGG20',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
             sql2 = f"select * from ({sql}) order by tb "
-            self.data_check_tbname(sql2,'AGG20','AGG20',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
 
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) != 0 order by tbname "
             self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
@@ -956,78 +947,66 @@ class TestAggGroupAlwarysReturnValue:
             self.data_check_tbname(sql2,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
 
             sql = f"select tbname,AGG(COLUMN),count(*) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN) "
-            self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
+            self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
             
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
             
             sql2 = f"select * from ({sql}) order by tbname "
-            self.data_check_tbname(sql2,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
             
             #union
             sql = f"select tbname tb,AGG(COLUMN),count(*) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN)"
             sql = f"({sql}) union ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+            self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
             sql2 = f"select * from ({sql}) order by tb "
-            self.data_check_tbname(sql2,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
                    
             #union all 
             sql = f"select tbname tb ,AGG(COLUMN),count(*) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN)"
             sql = f"({sql}) union all ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+            self.data_check_tbname(sql,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
             sql2 = f"select * from ({sql}) order by tb "
-            self.data_check_tbname(sql2,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
 
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN),count(*) "
-            self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
+            self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
             
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
             
             sql2 = f"select * from ({sql}) order by tbname "
-            self.data_check_tbname(sql2,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
 
             #union
             sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN),count(*)"
             sql = f"({sql}) union ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+            self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
             sql2 = f"select * from ({sql}) order by tb "
-            self.data_check_tbname(sql2,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
                    
             #union all 
             sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN),count(*)"
             sql = f"({sql}) union all ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-            
-            sql = f"select a.tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by tbname,AGG(COLUMN),count(*)"
-            sql = f"({sql}) union all ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
-            
-            sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by a.tbname order by a.tbname,AGG(COLUMN),count(*)"
-            sql = f"({sql}) union all ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
-            
-            sql = f"select a.tbname tb,AGG(COLUMN) from {dbname}.stable_1 a group by tbname order by a.tbname,AGG(COLUMN),count(*)"
-            sql = f"({sql}) union all ({sql}) order by tb"
-            self.data_check_tbname(sql,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')            
+            self.data_check_tbname(sql,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
             sql1 = f"select * from ({sql})"
-            self.data_check_tbname(sql1,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+            self.data_check_tbname(sql1,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
             sql2 = f"select * from ({sql}) order by tb "
-            self.data_check_tbname(sql2,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
+            self.data_check_tbname(sql2,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
 
     def tbname_agg_all(self):  
         #random data        
@@ -1126,110 +1105,110 @@ class TestAggGroupAlwarysReturnValue:
 
         # stable count(*)
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc "
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         #where null \ not null
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is not null group by loc order by loc "
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc order by loc "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         #union
         sql = f"select loc tb,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc "
         sql = f"({sql}) union ({sql}) order by tb"
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #union all
         sql = f"select loc tb,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc "
         sql = f"({sql}) union all ({sql}) order by tb"
-        self.data_check_tbname(sql,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'HAVING>04','HAVING>04',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
 
         #having <=0
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) = 0 order by loc "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) <= 0 order by loc "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having count(*) <= 0 order by loc "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         #count + having <=0 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having AGG(COLUMN) = 0 order by loc "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having AGG(COLUMN) <= 0 order by loc "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having AGG(COLUMN) = 0 order by loc "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #having >0
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) != 0 order by loc "
@@ -1289,122 +1268,122 @@ class TestAggGroupAlwarysReturnValue:
         
         #order by count(*) 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc,count(*) "
-        self.data_check_tbname(sql,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'Y','Y',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc order by loc,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
 
     def tag_count_null(self, dbname="nested",base_fun="AGG",replace_fun="COUNT",base_column="COLUMN",replace_column="q_int",execute="Y"):
 
         # stable count(*)
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #where null \ not null
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is not null group by loc order by loc "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc order by loc "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
         
         #union
         sql = f"select loc tb,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc "
         sql = f"({sql}) union ({sql}) order by tb"
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #union all
         sql = f"select loc tb,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc "
         sql = f"({sql}) union all ({sql}) order by tb"
-        self.data_check_tbname(sql,'UNIONALLNULL','UNIONALLNULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
+        self.data_check_tbname(sql,'AGG4_NULL','AGG4_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')         
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'UNIONALLNULL','UNIONALLNULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG4_NULL','AGG4_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by tb "
-        self.data_check_tbname(sql2,'UNIONALLNULL','UNIONALLNULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG4_NULL','AGG4_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         #having <=0
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) = 0 order by loc "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) <= 0 order by loc "
-        self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having count(*) <= 0 order by loc "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         #having >0
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) != 0 order by loc "
-        self.data_check_tbname(sql,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) > 0 order by loc "
-        self.data_check_tbname(sql,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having count(*) != 0 order by loc "
         self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
@@ -1417,22 +1396,22 @@ class TestAggGroupAlwarysReturnValue:
         
         #order by count(*) 
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc order by loc,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG2_NULL','AGG2_NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc order by loc,count(*) "
-        self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
+        self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
         
         sql1 = f"select * from ({sql})"
-        self.data_check_tbname(sql1,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql1,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
         sql2 = f"select * from ({sql}) order by loc "
-        self.data_check_tbname(sql2,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
+        self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
         
     def tag_count_all(self):  
         #random data        
@@ -1568,84 +1547,30 @@ class TestAggGroupAlwarysReturnValue:
         tdSql.execute('alter stable stable_1 drop column q_binary5;')
         tdSql.execute('alter stable stable_1 drop column q_nchar4;')
         tdSql.execute('alter stable stable_1 drop column q_binary4;')
+                        
+    def test_query_groupby_alwaysreturn(self):
+        """Group by always return close
 
-    def testTBNameUseJoin(self):
-        tdSql.execute('CREATE STABLE `meter1` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT)')
-        tdSql.execute('CREATE STABLE `meter2` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT)')
-
-        tdSql.execute('CREATE TABLE `d1` USING `meter1` (`t1`) TAGS (1)')
-        tdSql.execute('CREATE TABLE `d2` USING `meter1` (`t1`) TAGS (2)')
-        tdSql.execute('CREATE TABLE `d21` USING `meter2` (`t1`) TAGS (21)')
-        tdSql.execute('CREATE TABLE `d22` USING `meter2` (`t1`) TAGS (22)')
-
-        time.sleep(1)
-        tdSql.query('select tbname,count(*) from d2')
-        tdSql.checkData(0, 1, 0)
- 
-        tdSql.execute('insert into `d1` VALUES (now, 1)')
-        tdSql.execute('insert into `d1` VALUES (now+1s, 2)')
-        tdSql.execute('insert into `d1` VALUES (now+2s, 3)')
-        tdSql.execute('insert into `d2` VALUES (now+3s, 11)')
-        tdSql.execute('insert into `d2` VALUES (now+4s, 22)')
-        tdSql.execute('insert into `d2` VALUES (now+5s, 33)')
-        tdSql.execute('insert into `d21` select  * from `d1`')
-
-        # tdSql.query('select b.tbname, count(*) from d1 a, d2 b where a.ts = b.ts group by b.tbname')
-        # tdSql.checkData(0, 0, 'd2')
-
-        tdSql.query('select meter1.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
-        tdSql.checkData(0, 0, 'd1')
-        tdSql.checkData(0, 1, 3)
-        # tdSql.checkData(1, 0, 'd2')
-        tdSql.query('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter2.tbname order by meter2.tbname')
-        tdSql.checkData(0, 0, 'd21')
-        tdSql.checkData(0, 1, 3)
-        # tdSql.checkData(1, 0, 'd22')
-        tdSql.query('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by meter2.tbname order by meter2.tbname')
-        tdSql.checkData(0, 0, 'd21')
-        tdSql.checkData(0, 1, 3)
-        # tdSql.checkData(1, 0, 'd22')
-        tdSql.query('select m2.tbname, count(*) from meter1 m1, meter2 m2 where m1.ts = m2.ts partition by m2.tbname order by m2.tbname')
-        tdSql.checkData(0, 0, 'd21')
-        tdSql.checkData(0, 1, 3)
-        # tdSql.checkData(1, 0, 'd22')
+        1. CountAlwaysReturnValue option is false
+        2. Group by with various count(*) queries
+        3. Group by with various count(column) queries
+        4. Group by with order by 
+        5. Group by with having
+        6. Group by with where clause
+        7. Group by with union/union all
+        8. Group by with null and not null values
+        9. Group by on multiple tables
+        10. Group by with nested queries
+        11. Validate results against expected output
         
-        tdSql.execute('insert into `d22` select  * from `d1`')
-        
-        tdSql.query('select meter1.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
-        tdSql.checkData(0, 0, 'd1')
-        tdSql.checkData(0, 1, 6)
-        
-        tdSql.query('select m2.tbname, count(*) from meter1 m1, meter2 m2 where m1.ts = m2.ts partition by m2.tbname order by m2.tbname')
-        tdSql.checkData(0, 0, 'd21')
-        tdSql.checkData(0, 1, 3)
-        tdSql.checkData(1, 0, 'd22')
-        tdSql.checkData(1, 1, 3)
-        
-        tdSql.error('select tbname, count(*) from d1 a, d2 b where a.ts = b.ts group by b.tbname')
-        # tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter1.tbname order by meter1.tbname')
-        tdSql.error('select tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts group by meter2.tbname order by meter2.tbname')
-        tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by meter2.tbname order by meter.tbname')
-        tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by tbname order by meter2.tbname')
-        tdSql.error('select m2.tbname, count(*) from meter1 m1, meter2 m2 where meter1.ts = meter2.ts partition by m2.tbname order by meter2.tbname')
-  
-    def test_agg_group_AlwaysReturnValue(self):
-        """summary: xxx
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_query_groupby_noreturn.py
 
         """
 
@@ -1654,19 +1579,16 @@ class TestAggGroupAlwarysReturnValue:
         startTime = time.time() 
 
         # self.create_tables()
-        # self.insert_data()
+        # self.insert_data()     
         
-        #self.testTBNameUseJoin()
         nested_query_test = NestedQueryHelper()
         nested_query_test.dropandcreateDB_random("nested", 1)
-        self.testTBNameUseJoin()
-
         self.modify_tables()
+        tdSql.execute('alter local "countAlwaysReturnValue" "0"')
                
-        for i in range(1):
-            self.tbname_count_all() 
-            self.tag_count_all()  
-            self.tbname_agg_all()    
+        self.tag_count_all()
+        self.tbname_count_all()
+        self.tbname_agg_all()
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))

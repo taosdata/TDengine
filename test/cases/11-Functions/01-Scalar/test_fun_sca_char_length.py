@@ -221,22 +221,32 @@ class TestCharLength:
         )
 
     def test_char_length(self):
-        """summary: xxx
+        """ Fun: char_length()
 
-        description: xxx
+        1. char_length with conditions on character columns
+        2. char_length with conditions on non-character columns
+        3. char_length with group by and having
+        4. char_length error conditions
+        5. char_length after wal log flush
+        6. char_length on stable and normal table
+        7. char_length with null values
+        8. char_length with upper function
+        9. char_length with cast function
+        10. char_length with different data types
+        11. char_length with boundary values
+        12. char_length with multiple table types
+        13. char_length with various data distributions
+        14. char_length with different timestamp formats
+        15. char_length with special characters in strings
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_char_length.py
 
         """
 
