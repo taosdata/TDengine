@@ -227,6 +227,13 @@ typedef struct {
   ETrnKillMode  killMode;
   SHashObj*     redoGroupActions;
   SHashObj*     groupActionPos;
+
+  // user data is for upper layer to store some additional infomation in the transaction,
+  // it is set and interpreted by upper layer, the transaction layer does not care about it.
+  // if user data is a complex structure, the upper layer should serialize/deserialize it.
+  // user data should always alloced from heap and can be freed by taosMemoryFree.
+  void*         userData;
+  int32_t       userDataLen;
 } STrans;
 
 typedef struct {

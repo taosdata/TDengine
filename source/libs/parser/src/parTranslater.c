@@ -18196,6 +18196,20 @@ static int32_t extractScanDbResultSchema(int32_t* numOfCols, SSchema** pSchema) 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractCreateTokenResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = CREATE_USER_TOKEN_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = SCAN_DB_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "token", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
@@ -18234,6 +18248,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       return extractScanDbResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      return extractCreateTokenResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -22563,6 +22579,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
+    case QUERY_NODE_CREATE_TOKEN_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

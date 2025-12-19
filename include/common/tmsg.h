@@ -1596,6 +1596,16 @@ int32_t tDeserializeSCreateTokenReq(void* buf, int32_t bufLen, SCreateTokenReq* 
 void    tFreeSCreateTokenReq(SCreateTokenReq* pReq);
 
 typedef struct {
+  char name[TSDB_TOKEN_NAME_LEN];
+  char user[TSDB_USER_LEN];
+  char token[TSDB_TOKEN_LEN];
+} SCreateTokenRsp;
+
+int32_t tSerializeSCreateTokenResp(void* buf, int32_t bufLen, SCreateTokenRsp* pRsp);
+int32_t tDeserializeSCreateTokenResp(void* buf, int32_t bufLen, SCreateTokenRsp* pRsp);
+void    tFreeSCreateTokenResp(SCreateTokenRsp* pRsp);
+
+typedef struct {
   char    name[TSDB_TOKEN_NAME_LEN];
 
   int8_t hasEnable;

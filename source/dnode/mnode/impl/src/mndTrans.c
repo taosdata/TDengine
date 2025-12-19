@@ -24,13 +24,17 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "osTime.h"
+#include "mndToken.h"
 
-#define TRANS_VER1_NUMBER  1
-#define TRANS_VER2_NUMBER  2
-#define TRANS_VER3_NUMBER  3
-#define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 39
-#define TRANS_ACTION_TIMEOUT 1000 * 1000 * 60 * 15
+#define TRANS_VER1_NUMBER    1
+#define TRANS_VER2_NUMBER    2
+#define TRANS_VER3_NUMBER    3
+#define TRANS_VER_USER_DATA  4
+#define TRANS_VER_CURRENT    4 // current version
+
+#define TRANS_ARRAY_SIZE     8
+#define TRANS_RESERVE_SIZE   39
+#define TRANS_ACTION_TIMEOUT (1000 * 1000 * 60 * 15)
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
@@ -174,9 +178,9 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_INVALID_MSG;
-  int8_t sver = TRANS_VER3_NUMBER;
+  int8_t sver = TRANS_VER_CURRENT;
 
-  int32_t rawDataLen = sizeof(STrans) + TRANS_RESERVE_SIZE + pTrans->paramLen;
+  int32_t rawDataLen = sizeof(STrans) + TRANS_RESERVE_SIZE + pTrans->paramLen + pTrans->userDataLen;
   rawDataLen += mndTransGetActionsSize(pTrans->prepareActions);
   rawDataLen += mndTransGetActionsSize(pTrans->redoActions);
   rawDataLen += mndTransGetActionsSize(pTrans->undoActions);
@@ -257,6 +261,14 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
       pIter = taosHashIterate(pTrans->groupActionPos, pIter);
     }
   }
+
+  if (sver >= TRANS_VER_USER_DATA) {
+    SDB_SET_INT32(pRaw, dataPos, pTrans->userDataLen, _OVER)
+    if (pTrans->userDataLen > 0) {
+      SDB_SET_BINARY(pRaw, dataPos, pTrans->userData, pTrans->userDataLen, _OVER)
+    }
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -436,7 +448,7 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver > TRANS_VER3_NUMBER) {
+  if (sver > TRANS_VER_CURRENT) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -546,6 +558,15 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &groupPos, _OVER)
       if ((terrno = taosHashPut(pTrans->groupActionPos, &groupId, sizeof(int32_t), &groupPos, sizeof(int32_t))) != 0)
         goto _OVER;
+    }
+  }
+
+  if (sver >= TRANS_VER_USER_DATA) {
+    SDB_GET_INT32(pRaw, dataPos, &pTrans->userDataLen, _OVER)
+    if (pTrans->userDataLen > 0) {
+      pTrans->userData = taosMemoryMalloc(pTrans->userDataLen);
+      if (pTrans->userData == NULL) goto _OVER;
+      SDB_GET_BINARY(pRaw, dataPos, pTrans->userData, pTrans->userDataLen, _OVER)
     }
   }
 
@@ -722,6 +743,11 @@ void mndTransDropData(STrans *pTrans) {
     pTrans->param = NULL;
     pTrans->paramLen = 0;
   }
+  if (pTrans->userData != NULL) {
+    taosMemoryFree(pTrans->userData);
+    pTrans->userData = NULL;
+    pTrans->userDataLen = 0;
+  }
   (void)taosThreadMutexDestroy(&pTrans->mutex);
 }
 
@@ -771,6 +797,8 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   mndTransUpdateActions(pOld->commitActions, pNew->commitActions);
   pOld->stage = pNew->stage;
   pOld->actionPos = pNew->actionPos;
+  TSWAP(pOld->userData, pNew->userData);
+  TSWAP(pOld->userDataLen, pNew->userDataLen);
 
   void *pIter = taosHashIterate(pNew->groupActionPos, NULL);
   while (pIter != NULL) {
@@ -1071,6 +1099,14 @@ void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) 
   if (stbname != NULL) {
     tstrncpy(pTrans->stbname, stbname, TSDB_TABLE_FNAME_LEN);
   }
+}
+
+void mndTransSetUserData(STrans *pTrans, void* data, int32_t dataLen) {
+  if (pTrans->userData != NULL) {
+    taosMemoryFree(pTrans->userData);
+  }
+  pTrans->userData = data;
+  pTrans->userDataLen = dataLen;
 }
 
 void mndTransAddArbGroupId(STrans *pTrans, int32_t groupId) {
@@ -1411,7 +1447,6 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     if (pAction->actionType == TRANS_ACTION_MSG) {
       mInfo("trans:%d, action:%d, %s:%d msgType:%s", pTrans->id, index, mndTransStr(pAction->stage), pAction->id,
             TMSG_INFO(pAction->msgType));
-      ;
     } else {
       mInfo("trans:%d, action:%d, %s:%d sdbType:%s, sdbStatus:%s", pTrans->id, index, mndTransStr(pAction->stage),
             pAction->id, sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
@@ -1579,6 +1614,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         int32_t code = mndRefreshUserIpWhiteList(pMnode);
         if (code != 0) {
           mWarn("failed to refresh user ip white list since %s", tstrerror(code));
+        }
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOKEN) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateTokenResp(pTrans, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       }
 

@@ -340,6 +340,32 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SUserObj
   if (pTrans == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
+
+  // save generated token to transaction as user data
+  SCreateTokenRsp resp = { 0 };
+  tstrncpy(resp.name, tokenObj.name, sizeof(resp.name));
+  tstrncpy(resp.user, tokenObj.user, sizeof(resp.user));
+  tstrncpy(resp.token, tokenObj.token, sizeof(resp.token));
+
+  int32_t len = tSerializeSCreateTokenResp(NULL, 0, &resp);
+  if (len < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+
+  void *pData = taosMemoryMalloc(len);
+  if (pData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+
+  if (tSerializeSCreateTokenResp(pData, len, &resp) != len) {
+    code = TSDB_CODE_INVALID_MSG;
+    taosMemoryFree(pData);
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+  mndTransSetUserData(pTrans, pData, len);
+
   mInfo("trans:%d, used to create token:%s", pTrans->id, pCreate->name);
 
   // token commit log
@@ -384,6 +410,7 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
   SUserObj       *pOperUser = NULL;
   SUserObj       *pTokenUser = NULL;
   SCreateTokenReq createReq = {0};
+  int64_t         tss = taosGetTimestampMs();
 
   if (tDeserializeSCreateTokenReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
@@ -422,9 +449,12 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCreateToken(pMnode, &createReq, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char auditLog[256] = {0};
-  int32_t auditLen = tsnprintf(auditLog, sizeof(auditLog), "enable:%d, ttl:%d, provider:%s", createReq.enable, createReq.ttl, createReq.provider);
-  auditRecord(pReq, pMnode->clusterId, "createToken", "", createReq.name, auditLog, auditLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    double duration = (taosGetTimestampMs() - tss) / 1000.0;
+    char auditLog[256] = {0};
+    int32_t auditLen = tsnprintf(auditLog, sizeof(auditLog), "enable:%d, ttl:%d, provider:%s", createReq.enable, createReq.ttl, createReq.provider);
+    auditRecord(pReq, pMnode->clusterId, "createToken", "", createReq.name, auditLog, auditLen, duration, 0);
+  }
 
 _OVER:
   if (code == TSDB_CODE_MND_TOKEN_ALREADY_EXIST && createReq.ignoreExists) {
@@ -492,6 +522,7 @@ static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
   SUserObj      *pOperUser = NULL;
   STokenObj      newToken = {0};
   SAlterTokenReq alterReq = {0};
+  int64_t        tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSAlterTokenReq(pReq->pCont, pReq->contLen, &alterReq), &lino, _OVER);
   mInfo("token:%s, start to alter", alterReq.name);
@@ -536,7 +567,11 @@ static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAlterToken(pMnode, &newToken, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
-  auditRecord(pReq, pMnode->clusterId, "alterToken", "", alterReq.name, auditLog, auditLen);
+
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    double duration = (taosGetTimestampMs() - tss) / 1000.0;
+    auditRecord(pReq, pMnode->clusterId, "alterToken", "", alterReq.name, auditLog, auditLen, duration, 0);
+  }
 
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -607,6 +642,7 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
   SUserObj      *pOperUser = NULL;
   SUserObj      *pTokenUser = NULL;
   SDropTokenReq  dropReq = {0};
+  double         tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSDropTokenReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
@@ -633,7 +669,10 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndDropToken(pMnode, pToken, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "dropToken", "", dropReq.name, dropReq.sql, dropReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    double duration = (taosGetTimestampMs() - tss) / 1000.0;
+    auditRecord(pReq, pMnode->clusterId, "dropToken", "", dropReq.name, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -675,11 +714,6 @@ static int32_t mndRetrieveTokens(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     int32_t cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pToken->name, pShow->pMeta->pSchemas[cols].bytes);
-    COL_DATA_SET_VAL_GOTO((const char *)buf, false, pToken, pShow->pIter, _exit);
-
-    cols++;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pToken->token, pShow->pMeta->pSchemas[cols].bytes);
     COL_DATA_SET_VAL_GOTO((const char *)buf, false, pToken, pShow->pIter, _exit);
 
     cols++;
@@ -780,7 +814,20 @@ int32_t mndAcquireToken(SMnode *pMnode, const char *token, STokenObj **ppToken) 
   TAOS_RETURN(code);
 }
 
+
+
 void mndReleaseToken(SMnode *pMnode, STokenObj *pToken) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pToken);
+}
+
+
+
+int32_t mndBuildSMCreateTokenResp(STrans *pTrans, void **ppResp, int32_t *pRespLen) {
+  // user data is the response
+  *ppResp = pTrans->userData;
+  *pRespLen = pTrans->userDataLen;
+  pTrans->userData = NULL;
+  pTrans->userDataLen = 0;
+  return 0;
 }
