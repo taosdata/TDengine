@@ -2246,8 +2246,6 @@ function deleteExtract(index: number, name: string) {
       }
     } else {
       transformerState.transformExtractParseData = null;
-      filterArr.value.splice(0, 1);
-      transformerState.transformerFilterParseData = null;
       if (filterArr.value.length > 0 && filterRef.value[0].isexecuted) {
         filterRef.value[0].submit();
       } else {
