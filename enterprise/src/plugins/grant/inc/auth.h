@@ -104,6 +104,7 @@ typedef struct SAuthQuota {
   SAuthQuotaItem sparkplugb;      // sparkplugb:2025-12-31,100,1000
   SAuthQuotaItem orc;             // orc:2025-12-31,100,1000
   SAuthQuotaItem kinghist;        // kinghist:2025-12-31,100,1000
+  SAuthQuotaItem pulsar;          // pulsar:2025-12-31,100,1000
   SArray        *extensionArray;  // extension:2025-12-31,100,1000
 
   // IDMP
