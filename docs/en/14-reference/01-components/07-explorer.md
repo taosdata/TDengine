@@ -103,16 +103,16 @@ scopes = ["openid", "profile", "email"]
 redirect_uri = "http://localhost:6060/api/-/oauth/callback"
 
 # Example Plain OAuth 2.0 SSO with GitHub
-[oauth.plain]
-client_id = "github client id"
-client_secret = "github client secret"
-
-authorize_url = "https://github.com/login/oauth/authorize"
-token_url = "https://github.com/login/oauth/access_token"
-profile_url = "https://api.github.com/user"
-
-# Redirect URI - adjust based on your test environment
-redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+#[oauth.plain]
+#client_id = "github client id"
+#client_secret = "github client secret"
+#
+#authorize_url = "https://github.com/login/oauth/authorize"
+#token_url = "https://github.com/login/oauth/access_token"
+#profile_url = "https://api.github.com/user"
+#
+## Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
 
 # User attribute mapping
 [oauth.user_mapping]
