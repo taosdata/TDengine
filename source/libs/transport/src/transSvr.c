@@ -762,7 +762,7 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
     memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
     memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
            len - sizeof(STransMsgHead) - sizeof(pInst->user));
-    tHead->msgLen = ntohl(ntohl(pHead->msgLen) - sizeof(pInst->user));
+    tHead->msgLen = htonl(ntohl(pHead->msgLen) - sizeof(pInst->user));
 
     memcpy(pConn->user, (char*)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
     pConn->userInited = 1;
