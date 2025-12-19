@@ -185,7 +185,7 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
 
   // open env
   code = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback,
-                 pVnode->config.tdbEncryptAlgorithm, pVnode->config.tdbEncryptKey);
+                 &(pVnode->config.tdbEncryptData));
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // open pTbDb

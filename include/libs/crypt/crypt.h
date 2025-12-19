@@ -27,10 +27,13 @@ typedef struct SCryptOpts {
   char*   result;
   int32_t unitLen;
   char    key[ENCRYPT_KEY_LEN + 1];
+  char*   pOsslAlgrName;
 } SCryptOpts;
 
 int32_t CBC_Decrypt(SCryptOpts* opts);
 int32_t CBC_Encrypt(SCryptOpts* opts);
+int32_t Symmetric_Ciphers_CBC_Encrypt(SCryptOpts* opts);
+int32_t Symmetric_Ciphers_CBC_Decrypt(SCryptOpts* opts);
 
 #ifdef __cplusplus
 }
