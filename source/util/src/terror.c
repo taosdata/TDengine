@@ -402,7 +402,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_PROTOCOL,   "Xnode invalid protoco
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_MSG,       "Xnode invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST, "Xnode task already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_CANT_ACCESS,    "Xnode xnoded can't access")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RSP_IS_NULL,    "Xnode xnoded response is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_IS_NULL,    "Xnode xnoded response is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR,    "Xnode request action response not success code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NEED_USER_PASS,     "Xnode first-time setup requires username and password")
 
@@ -414,6 +414,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,         "Xnode task job 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG, "Xnode task job config too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_NOT_EXIST,            "Xnode job not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG,     "Xnode task/job reason too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT,         "Xnode xnoded response timeout")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
