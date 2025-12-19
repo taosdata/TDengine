@@ -61,11 +61,11 @@ class TestTDgptBasic:
 
         """
 
-        tdSql.execute("create anode '192.168.2.90:6090'")
+        tdSql.execute("create anode '192.168.2.15:6035'")
         tdSql.query("show anodes")
 
         tdSql.checkRows(1)
-        tdLog.info("create anode: 192.168.2.90:6090 successfully")
+        tdLog.info("create anode: 192.168.2.90:6035 successfully")
 
         tdSql.query("show anodes full")
 
