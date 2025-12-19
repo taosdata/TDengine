@@ -1196,7 +1196,7 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   wb->base = (char*)pHead;
   wb->len = len;
 
-  TAOS_UNUSED(transDoCrc((char*)pHead, len, 0));
+  TAOS_UNUSED(transSetCrcChecksum((char*)pHead, len));
   return 0;
 }
 
