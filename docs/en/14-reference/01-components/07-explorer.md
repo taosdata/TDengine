@@ -230,6 +230,8 @@ Description:
 
 taosExplorer supports integration with third-party identity authentication systems through the OAuth 2.0 protocol to achieve Single Sign-On (SSO) functionality. Supported OAuth 2.0 provider types include OpenID Connect (OIDC) and ordinary OAuth 2.0.
 
+**OAuth 2.0 is supported starting from version 3.3.8.11**.
+
 - For OIDC providers, you need to configure parameters such as `client_id`, `client_secret`, `issuer_url`, `scopes`, and `redirect_uri`.
   - `client_id`: The client ID registered on the OIDC provider side.
   - `client_secret`: The client secret registered on the OIDC provider side.

@@ -235,6 +235,8 @@ cors = true
 
 taosExplorer 支持通过 OAuth 2.0 协议与第三方身份认证系统集成，实现单点登录（SSO）功能。支持的 OAuth 2.0 提供商类型包括 OpenID Connect (OIDC) 和普通 OAuth 2.0。
 
+**OAuth 2.0 从 3.3.8.11 版本开始支持**。
+
 - 对于 OIDC 提供商，需要配置 `client_id`、`client_secret`、`issuer_url`、`scopes` 和 `redirect_uri` 等参数。
 
   - `client_id`：在 OIDC 提供商端注册的客户端 ID。
