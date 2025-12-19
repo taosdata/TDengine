@@ -10,7 +10,7 @@
             <el-form-item prop="msgbody">
               <el-input
                 v-model="msgForm.msgbody"
-                :disabled="!!supportTransform.supportSQL"
+                :disabled="!!supportTransform.supportSQL && !props.editableSample"
                 class="msgbody"
                 :placeholder="t('dataIn.transformer.msgbodytip')"
                 size="default"
@@ -19,46 +19,6 @@
               ></el-input>
             </el-form-item>
           </el-form>
-        </el-col>
-        <el-col v-if="sourceForm.type !== 'csv'" :span="7" style="padding-left: 8px">
-          <div class="flex-between">
-            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.dataLimit') }}</span>
-            <el-input-number
-              v-model="transformerState.limitOffset"
-              class="flex-1"
-              size="default"
-              :min="1"
-              :max="100"
-              controls-position="right"
-            ></el-input-number>
-          </div>
-          <div v-if="supportTransform.supportSQL" :class="['flex-between', 'mt5']">
-            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.timeout') }}</span>
-            <el-input-number
-              v-model="timeout"
-              class="flex-1"
-              size="default"
-              :min="1"
-              :max="600"
-              controls-position="right"
-            ></el-input-number>
-          </div>
-          <el-col name="second" :class="['mt5', 'msg-right']">
-            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
-              <template #content>
-                <span v-dompurify-html="t('common.communityTip')"></span>
-              </template>
-              <el-button
-                :type="dataInProps.isIdmp ? 'default' : 'primary'"
-                plain
-                size="default"
-                :loading="requesting"
-                :disabled="dataInProps.isCommunity"
-                @click="getMsgBody"
-                >{{ t('dataIn.transformer.msgbodytypes.retrieve') }}</el-button
-              >
-            </el-tooltip>
-          </el-col>
           <el-col v-if="!supportTransform.supportSQL" name="third" :class="['mt5', 'msg-right']">
             <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
               <template #content>
@@ -90,6 +50,67 @@
           <el-col v-if="!supportTransform.supportSQL" name="first" :class="['mt5', 'msg-right']">
             <el-button size="default" @click="clearMsgBody">{{ t('dataIn.transformer.msgbodytypes.type1') }}</el-button>
           </el-col>
+        </el-col>
+        <el-col v-if="sourceForm.type !== 'csv'" :span="7" style="padding-left: 8px">
+          <div class="flex-between">
+            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.dataLimit') }}</span>
+            <el-input-number
+              v-model="transformerState.limitOffset"
+              class="flex-1"
+              size="default"
+              :min="1"
+              :max="100"
+              controls-position="right"
+            ></el-input-number>
+          </div>
+          <div v-if="supportTransform.supportSQL" :class="['flex-between', 'mt5']">
+            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.timeout') }}</span>
+            <el-input-number
+              v-model="timeout"
+              class="flex-1"
+              size="default"
+              :min="1"
+              :max="600"
+              controls-position="right"
+            ></el-input-number>
+          </div>
+          <div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              align-items: flex-end;
+              width: 100%;
+              margin-top: 12px;
+            "
+          >
+            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+              <template #content>
+                <span v-dompurify-html="t('common.communityTip')"></span>
+              </template>
+              <el-button
+                :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                plain
+                size="default"
+                :loading="requesting"
+                :disabled="dataInProps.isCommunity"
+                style="width: 100%; max-width: 260px; min-width: 160px"
+                @click="getMsgBody"
+                >{{ t('dataIn.transformer.msgbodytypes.retrieve') }}</el-button
+              >
+            </el-tooltip>
+            <el-button
+              v-if="props.editableSample"
+              :type="dataInProps.isIdmp ? 'default' : 'primary'"
+              plain
+              size="default"
+              :loading="requesting"
+              :disabled="dataInProps.isCommunity"
+              style="width: 100%; max-width: 260px; min-width: 160px"
+              @click="submitParse"
+              >{{ t('dataIn.transformer.msg_submit') }}</el-button
+            >
+          </div>
         </el-col>
       </el-row>
     </section>
@@ -608,6 +629,7 @@ const dataInProps = getDataInProps();
 
 const props = defineProps<{
   parserColumns: Record<string, any>[];
+  editableSample?: boolean;
 }>();
 const sourceParent = inject<ComponentInternalInstance>('sourceParent') as any;
 const exprformat = '${c1}-${c2}:${c3}';
@@ -2173,7 +2195,13 @@ function deleteFilter(key: number) {
   }).then(() => {
     const ind = filterArr.value.findIndex((val: Recordable) => val.key == key);
     filterArr.value.splice(ind, 1);
-    transformerState.transformerFilterParseData = null;
+    if (filterArr.value.length === 0) {
+      transformerState.transformerFilterParseData = null;
+    } else {
+      transformerState.transformerFilterParseData = {
+        filter: filterArr.value[0].expression || ''
+      };
+    }
 
     if (extractRef.value && extractRef.value.length > 0) {
       extractRef.value[extractRef.value.length - 1].submitExtract(true);
