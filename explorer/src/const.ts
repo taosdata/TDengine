@@ -90,6 +90,9 @@ export const DBCustomedFiled = [
 export const TokenExpire = 1 / 24; //day
 export const AppIDKey = 'AppID';
 export const TokenKey = 'TDengine-Token';
+export const OAuthTokenKey = 'oauth_token';
+export const SessionIdKey = 'session_id';
+export const BaseUrlKey = 'base_url';
 
 // export const StreamDocsUrl = i18n.global.locale.value?.includes('en') ? "https://docs.tdengine.com/develop/stream/" : 'https://docs.taosdata.com/develop/stream/';
 export const DocsUrl = 'https://docs.tdengine.com';

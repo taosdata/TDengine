@@ -2,6 +2,9 @@ use anyhow::bail;
 use chrono::{DateTime, Duration, Utc};
 use std::str::FromStr;
 use taos::Dsn;
+use tiberius::{AuthMethod, Client};
+use tokio::net::TcpStream;
+use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 use taosx_core::plugins::config::AdvancedOptions;
 use taosx_core::utils;
@@ -294,6 +297,7 @@ pub struct ConnectConfig {
     pub(crate) port: u16,
     pub(crate) username: String,
     pub(crate) password: String,
+    pub encryption: Option<tiberius::EncryptionLevel>,
 }
 
 impl ConnectConfig {
@@ -320,12 +324,43 @@ impl ConnectConfig {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("password is required"))?;
 
+        let encryption = utils::parse_key_in_dsn::<String>(dsn, "encryption")?
+            .or(utils::parse_key_in_dsn::<String>(dsn, "encryptionLevel")?)
+            .map(|s| match s.to_lowercase().as_str() {
+                "off" => tiberius::EncryptionLevel::Off,
+                "on" => tiberius::EncryptionLevel::On,
+                "notsupported" | "not_supported" => tiberius::EncryptionLevel::NotSupported,
+                "required" => tiberius::EncryptionLevel::Required,
+                _ => {
+                    tracing::warn!("unknown encryption level: {}, use Off", s);
+                    tiberius::EncryptionLevel::Off
+                }
+            });
+
         Ok(ConnectConfig {
             host,
             port,
             username,
             password,
+            encryption,
         })
+    }
+
+    pub async fn connect(&self) -> anyhow::Result<Client<Compat<TcpStream>>> {
+        let mut config = tiberius::Config::new();
+        config.host(&self.host);
+        config.port(self.port);
+        config.database("Runtime");
+        config.authentication(AuthMethod::sql_server(&self.username, &self.password));
+        config.trust_cert();
+        if let Some(encryption) = &self.encryption {
+            config.encryption(*encryption);
+        }
+        let tcp = TcpStream::connect(config.get_addr()).await?;
+        tcp.set_nodelay(true)?;
+        let client: Client<Compat<TcpStream>> = Client::connect(config, tcp.compat_write()).await?;
+
+        Ok(client)
     }
 }
 

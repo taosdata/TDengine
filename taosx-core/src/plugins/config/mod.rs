@@ -318,4 +318,103 @@ mod tests {
             .unwrap();
         assert_eq!(keep_raw_data_dir, "/tmp");
     }
+
+    #[test]
+    fn test_from_dsn_all_options() {
+        let dsn = Dsn::from_str(
+            "ds://?log_level=debug&read_concurrency=5&write_concurrency=10&batch_size=1000&batch_timeout=500&keep_raw_data=true&keep_raw_data_days=30&keep_raw_data_dir=/data"
+        ).unwrap();
+
+        let options = AdvancedOptions::from_dsn(&dsn).unwrap();
+
+        assert_eq!(options.log_level, Some(LogLevel::Debug));
+        assert_eq!(options.read_concurrency, Some(5));
+        assert_eq!(options.write_concurrency, Some(10));
+        assert_eq!(options.batch_size, Some(1000));
+        assert_eq!(options.batch_timeout, Some(500));
+        assert_eq!(options.keep_raw_data, Some(true));
+        assert_eq!(options.keep_raw_data_days, Some(30));
+        assert_eq!(options.keep_raw_data_dir, Some("/data".to_string()));
+    }
+
+    #[test]
+    fn test_from_dsn_no_options() {
+        let dsn = Dsn::from_str("ds://").unwrap();
+
+        let options = AdvancedOptions::from_dsn(&dsn).unwrap();
+
+        assert_eq!(options.log_level, None);
+        assert_eq!(options.read_concurrency, None);
+        assert_eq!(options.write_concurrency, None);
+        assert_eq!(options.batch_size, None);
+        assert_eq!(options.batch_timeout, None);
+        assert_eq!(options.keep_raw_data, None);
+        assert_eq!(options.keep_raw_data_days, None);
+        assert_eq!(options.keep_raw_data_dir, None);
+    }
+
+    #[test]
+    fn test_from_dsn_partial_options() {
+        let dsn = Dsn::from_str("ds://?batch_size=500&keep_raw_data=false").unwrap();
+
+        let options = AdvancedOptions::from_dsn(&dsn).unwrap();
+
+        assert_eq!(options.log_level, None);
+        assert_eq!(options.read_concurrency, None);
+        assert_eq!(options.write_concurrency, None);
+        assert_eq!(options.batch_size, Some(500));
+        assert_eq!(options.batch_timeout, None);
+        assert_eq!(options.keep_raw_data, Some(false));
+        assert_eq!(options.keep_raw_data_days, None);
+        assert_eq!(options.keep_raw_data_dir, None);
+    }
+
+    #[test]
+    fn test_from_dsn_invalid_log_level() {
+        let dsn = Dsn::from_str("ds://?log_level=invalid_level").unwrap();
+        let result = AdvancedOptions::from_dsn(&dsn);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid log_level"));
+    }
+
+    #[test]
+    fn test_from_dsn_invalid_read_concurrency() {
+        let dsn = Dsn::from_str("ds://?read_concurrency=-1").unwrap();
+        let result = AdvancedOptions::from_dsn(&dsn);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid read_concurrency"));
+    }
+
+    #[test]
+    fn test_from_dsn_zero_values() {
+        let dsn = Dsn::from_str("ds://?batch_size=0&batch_timeout=0&keep_raw_data_days=0").unwrap();
+
+        let options = AdvancedOptions::from_dsn(&dsn).unwrap();
+
+        assert_eq!(options.batch_size, Some(0));
+        assert_eq!(options.batch_timeout, Some(0));
+        assert_eq!(options.keep_raw_data_days, Some(0));
+    }
+
+    #[test]
+    fn test_log_level_from_str() {
+        assert_eq!(LogLevel::from_str("error").unwrap(), LogLevel::Error);
+        assert_eq!(LogLevel::from_str("warn").unwrap(), LogLevel::Warn);
+        assert_eq!(LogLevel::from_str("info").unwrap(), LogLevel::Info);
+        assert_eq!(LogLevel::from_str("debug").unwrap(), LogLevel::Debug);
+        assert_eq!(LogLevel::from_str("trace").unwrap(), LogLevel::Trace);
+
+        let result = LogLevel::from_str("unknown");
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid log_level: unknown"
+        );
+    }
 }

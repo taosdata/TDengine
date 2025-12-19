@@ -9,19 +9,15 @@
           <el-dropdown-item>
             <router-link class="drop-block" to="/profile">
               <Icon name="profile" class="dropdown_icon"></Icon>
-              {{ $t("login.profile") }}
+              {{ $t('login.profile') }}
             </router-link>
           </el-dropdown-item>
           <div class="custom-divider"></div>
           <el-dropdown-item>
             <div class="drop-block" @click="logout">
               <!-- 图标有问题，需特殊处理 -->
-              <Icon
-                name="signout"
-                class="dropdown_icon"
-                style="width: 20px; height: 20px"
-              ></Icon>
-              <span style="color: #4259ce">{{ $t("signOut") }}</span>
+              <Icon name="signout" class="dropdown_icon" style="width: 20px; height: 20px"></Icon>
+              <span style="color: #4259ce">{{ $t('signOut') }}</span>
             </div>
           </el-dropdown-item>
         </el-dropdown-menu>
@@ -31,38 +27,29 @@
 </template>
 
 <script setup lang="ts">
-import Icon from "@/components/Icon/index.vue";
-import { useStore } from "vuex";
+import Icon from '@/components/Icon/index.vue';
+import { useStore } from 'vuex';
 
-const store = useStore()
-const router = useRouter()
+const store = useStore();
+const router = useRouter();
 
 const user = computed(() => {
-  return (
-    store.state.app.userInfo?.lastname
-      ?.trim()
-      ?.slice(0, 1)
-      ?.toUpperCase() || "T"
-  );
+  return store.state.app.userInfo?.lastname?.trim()?.slice(0, 1)?.toUpperCase() || 'T';
 });
 
 function clearLocalStorage() {
-  const lang = localStorage.getItem("local_language");
-  const disturbTimeout = localStorage.getItem("modalLastCheckedTime");
+  const lang = localStorage.getItem('local_language');
+  const disturbTimeout = localStorage.getItem('modalLastCheckedTime');
   localStorage.clear();
-  lang && localStorage.setItem("local_language", lang);
-  disturbTimeout &&
-    localStorage.setItem("modalLastCheckedTime", disturbTimeout);
+  lang && localStorage.setItem('local_language', lang);
+  disturbTimeout && localStorage.setItem('modalLastCheckedTime', disturbTimeout);
 }
 
-function logout() {
+async function logout() {
   clearLocalStorage();
 
-  store.dispatch("app/logout");
-  router.push({
-    path: "/login",
-  });
-  window.location.reload();
+  await store.dispatch('app/logout');
+  // window.location.reload();
 }
 </script>
 

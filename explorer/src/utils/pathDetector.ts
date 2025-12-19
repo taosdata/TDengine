@@ -1,11 +1,58 @@
+import Cookies from 'js-cookie';
+import { trimEnd } from 'lodash-es';
 class PathDetector {
+  _basePath: string | null = null;
   constructor() {
     this._basePath = null;
   }
 
+  /**
+   * 安全地从路径末尾移除指定的模式
+   * @param {string} path - 原始路径
+   * @param {string} pattern - 要移除的模式
+   * @returns {string} 修剪后的路径
+   */
+  static trimPathEnd(path: string, pattern: string) {
+    if (!path || !pattern) return path;
+
+    // 确保模式以斜杠结尾，用于精确匹配
+    const normalizedPattern = path.endsWith('/')
+      ? pattern.endsWith('/')
+        ? pattern
+        : pattern + '/'
+      : pattern.endsWith('/')
+        ? trimEnd(pattern, '/')
+        : pattern;
+
+    // 检查路径是否以模式结尾
+    if (path.endsWith(normalizedPattern)) {
+      return path.slice(0, -normalizedPattern.length) || '/';
+    }
+
+    // 检查路径是否等于模式（无斜杠）
+    if (path === pattern) {
+      return '/';
+    }
+
+    return path;
+  }
   // 自动检测基础路径
   detectBasePath() {
     if (this._basePath) return this._basePath;
+    // get from cookie
+    const cookieRoute = Cookies.get('route');
+    if (cookieRoute) {
+      const route = decodeURIComponent(cookieRoute);
+      const url = new URL(window.location.href);
+      const pathname = url.pathname;
+      this._basePath = PathDetector.trimPathEnd(pathname, route);
+
+      if (!this._basePath.endsWith('/')) {
+        this._basePath += '/';
+      }
+      Cookies.remove('route');
+      return this._basePath;
+    }
 
     // 方法1: 从当前URL路径解析
     const pathname = window.location.pathname;
@@ -54,14 +101,14 @@ class PathDetector {
   }
 
   // 为路径添加基础路径
-  withBasePath(path) {
+  withBasePath(path: string) {
     const basePath = this.detectBasePath();
     const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
     return `${basePath}${normalizedPath}`.replace(/\/\//g, '/');
   }
 
   // 获取相对路径（移除基础路径）
-  getRelativePath(fullPath) {
+  getRelativePath(fullPath: string) {
     const basePath = this.detectBasePath();
     if (basePath === '/') return fullPath;
 

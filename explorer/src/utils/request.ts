@@ -6,7 +6,10 @@ import store from '../store';
 import { ReLoginCode, SuccessCode } from '@/const';
 import { t } from '@/lang';
 import { $IS_OEM } from './init';
+import { getOAuthStatus } from '@/api/oauth';
+import pathDetector from '@/utils/pathDetector';
 
+const apiPath = pathDetector.getApiBasePath();
 const errorMsgDuration = 20000;
 
 const httpRequest = new HttpRequest({
@@ -17,18 +20,38 @@ const httpRequest = new HttpRequest({
 
 httpRequest.setRequestInterceptor(
   async (config: RequestConfig) => {
+    if (config.autoLogoutOn401 === undefined) config.autoLogoutOn401 = true;
     const hasToken = getToken();
-    if (config.headers.noAuth !== true) {
-      if (hasToken) {
-        // 让每个请求都携带token
-        config.headers['Authorization'] = hasToken;
-        if (!config.noRefreshToken) {
-          refreshTokenExpire();
+    // Do NOT read oauth_token from localStorage. When OAuth is used the backend
+    // manages the session via httpOnly cookies; the client should rely on the
+    // `isOAuthLogin` store flag and send credentials (cookies) with requests.
+    // Detect store OAuth login flag (if store available)
+    const isOAuthLogin =
+      (typeof store !== 'undefined' && store && store.state && store.state.app && store.state.app.isOAuthLogin) ===
+      true;
+
+    // Normalize headers object and guard access to header fields to avoid TS errors
+    const headers = ((config as any).headers = (config as any).headers || {});
+
+    if (headers.noAuth !== true) {
+      if (isOAuthLogin) {
+        // When app is in OAuth login mode, rely on server-set httpOnly session cookie.
+        // Ensure the request sends cookies to backend (so session cookie is included).
+        try {
+          (config as any).withCredentials = true;
+        } catch (e) {
+          // ignore if config type doesn't support withCredentials
         }
       } else {
-        router.push({
-          path: '/login'
-        });
+        // Non-OAuth / legacy flows: use cookie-based token (from getToken).
+        // Do NOT read oauth_token from localStorage here.
+        if (hasToken) {
+          // Traditional Basic Auth token (cookie)
+          headers['Authorization'] = hasToken;
+          if (!(config as any).noRefreshToken) {
+            refreshTokenExpire();
+          }
+        }
       }
     }
     return config;
@@ -70,6 +93,15 @@ httpRequest.setResponseInterceptor(
     }
   },
   async error => {
+    console.log('this', error);
+    console.log('api response error:', error?.response);
+    if (error?.response?.status === 401 && error.config.autoLogoutOn401) {
+      store.dispatch('app/logout', false);
+      router.push({
+        path: '/login'
+      });
+      return Promise.reject(null);
+    }
     if (error?.response?.data?.constructor === Blob) {
       blobToJson(error.response.data);
       ElMessage.closeAll();
@@ -79,7 +111,7 @@ httpRequest.setResponseInterceptor(
     if (error?.response?.status === 400) {
       ElMessage.closeAll();
       ElMessage.error({
-        message: error.response.data,
+        message: error.response.data?.desc || 'Bad Request',
         duration: errorMsgDuration,
         showClose: true
       });
@@ -125,23 +157,41 @@ httpRequest.setResponseInterceptor(
 );
 const request = httpRequest.request.bind(httpRequest);
 
-function checkStatus(code) {
-  return SuccessCode.some(item => code.includes(item));
+function checkStatus(code: string) {
+  const c = String(code || '');
+  return SuccessCode.some(item => c.includes(item));
 }
-function checkRegion(code) {
-  return ReLoginCode.some(item => code.includes(item));
+function checkRegion(code: string) {
+  const c = String(code || '');
+  return ReLoginCode.some(item => c.includes(item));
 }
-function blobToJson(blob) {
+function blobToJson(blob: Blob | any) {
   const reader = new FileReader();
   reader.readAsText(blob);
   reader.onload = () => {
     const text = reader.result;
-    const json = JSON.parse(text);
-    ElMessage.error({
-      message: json?.ElMessage,
-      duration: errorMsgDuration,
-      showClose: true
-    });
+    if (typeof text === 'string') {
+      try {
+        const json = JSON.parse(text);
+        ElMessage.error({
+          message: json?.ElMessage,
+          duration: errorMsgDuration,
+          showClose: true
+        });
+      } catch (e) {
+        ElMessage.error({
+          message: 'Failed to parse error response',
+          duration: errorMsgDuration,
+          showClose: true
+        });
+      }
+    } else {
+      ElMessage.error({
+        message: 'Unexpected error response',
+        duration: errorMsgDuration,
+        showClose: true
+      });
+    }
   };
 }
 

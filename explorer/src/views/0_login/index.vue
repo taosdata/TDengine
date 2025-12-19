@@ -22,6 +22,18 @@
           <span v-if="$INDUSTRY" class="dynamic-title">{{ $t('header.power') }}</span>
           <span v-else class="dynamic-title">{{ displaySystemTitle }}</span>
         </div>
+
+        <!-- OAuth SSO Login Button -->
+        <el-form-item v-if="oauthEnabled && !oauthBind" style="margin-bottom: 20px">
+          <el-button class="oauth-button" type="success" @click="loginWithOAuth">
+            {{
+              $t('login.loginWith', {
+                provider: getLocalLang() === 'zh' ? oauthProviderDisplayName.zh : oauthProviderDisplayName.en
+              })
+            }}
+          </el-button>
+        </el-form-item>
+        <el-divider v-if="oauthEnabled && !oauthBind"> <b>OR</b> </el-divider>
         <el-form
           ref="dynamicValidateFormRef"
           :model="dynamicValidateForm"
@@ -62,6 +74,7 @@
             }}</el-button>
           </el-form-item>
         </el-form>
+
         <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
     </section>
@@ -78,15 +91,19 @@ import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
 import dataJson from './data.json';
 import { getUrls, reportTaosdInfo, firstLoginWith } from '@/api/login';
+import { getOAuthStatus, oauthAuthorize, oauthBindTsdb, oauthMe } from '@/api/oauth';
 import { encrypt } from '@/utils/index';
 import useLicense from '@/hooks/useLicense';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import i18n from '@/lang';
 import { setLocale } from 'taos-ui/config';
+import Cookies from 'js-cookie';
+
 const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
+const route = useRoute();
 const { getGrantsFull } = useLicense();
 const { $IS_OEM, $INDUSTRY, $error, OEM_NAME } = inject('globalCustomProperties') as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
@@ -101,6 +118,14 @@ const validatePass = (_rule: any, value: string, callback: (arg0?: Error | undef
 };
 const taosxStatus = ref<boolean>(false);
 const loading = ref<boolean>(false);
+const oauthEnabled = ref<boolean>(false);
+const oauthProviderDisplayName = ref<{ en: string; zh: string }>({ en: 'OAuth', zh: 'OAuth' });
+const oauthBind = ref<boolean>(false);
+// Transient holder for a token (if IdP returns one in the URL). DO NOT persist this
+// value to localStorage — server-side httpOnly session cookies are the source of truth.
+const oauthTokenFromUrl = ref<string | undefined>(undefined);
+const error = ref(false);
+const errorMessage = ref('');
 const dynamicValidateForm = reactive({
   cluster: '',
   password: '',
@@ -112,7 +137,7 @@ const trimmedUsername = computed(() => {
 const trimmedPassword = computed(() => {
   return dynamicValidateForm.password.trim();
 });
-const pageLoading = ref(false);
+const pageLoading = ref(true);
 const formRules = reactive({
   cluster: [
     {
@@ -156,8 +181,43 @@ async function init() {
   localStorage.setItem('documentWebsite', dataJson.documentWebsite);
 }
 init();
-onMounted(() => {
+onMounted(async () => {
   usernameRef.value?.focus();
+
+  // Check OAuth status
+  try {
+    // Do NOT store OAuth tokens in localStorage when using server-side sessions.
+    // Verify the server-side session (httpOnly cookie) by calling the profile endpoint.
+    try {
+      const profileResp = await oauthMe();
+      console.log('oauth user', profileResp);
+      if (profileResp.tsdb_username) {
+        await store.dispatch('app/setOAuthLogin', true);
+        ElMessage.success(t('login.oauthLoginSuccess'));
+        return await router.push({
+          path: '/explorer'
+        });
+      }
+      pageLoading.value = false;
+      if (profileResp.user_id) {
+        // Session is valid — mark as OAuth login and allow binding flow.
+        oauthBind.value = true;
+        await store.dispatch('app/setOAuthLogin', true);
+        ElMessage.success(t('login.oauthBindSuccess'));
+      }
+    } catch (e) {
+      console.warn('Failed to verify OAuth session:', e);
+    }
+    pageLoading.value = false;
+    const status = await getOAuthStatus();
+    oauthEnabled.value = status.enabled;
+    if (status.enabled && status.provider_display_name) {
+      oauthProviderDisplayName.value = status.provider_display_name;
+    }
+  } catch (error) {
+    console.warn('Failed to get OAuth status:', error);
+    pageLoading.value = false;
+  }
   nextTick(() => {
     // if (import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== 'TDengine') {
     //   const dynamic: HTMLElement = document.querySelector('.dynamic-title') as HTMLElement;
@@ -166,6 +226,29 @@ onMounted(() => {
   });
 });
 
+function getOAuthTokenFromURL() {
+  // Extract token from URL query parameter
+  const token = route.query.token as string;
+  const errorParam = route.query.error as string;
+
+  console.log('token: ', token);
+  if (errorParam) {
+    // OAuth error from backend
+    error.value = true;
+    errorMessage.value = decodeURIComponent(errorParam);
+    loading.value = false;
+    ElMessage.error(errorMessage.value);
+    return;
+  }
+
+  if (!token) {
+    error.value = true;
+    errorMessage.value = 'No OAuth token received';
+    loading.value = false;
+    return;
+  }
+  return token;
+}
 function submitForm(formEl: FormInstance | undefined) {
   if (!formEl) return;
   formEl.validate(valid => {
@@ -206,7 +289,70 @@ async function getTaosdInfo() {
     return Promise.reject(error);
   }
 }
+async function oauthBindSubmit() {
+  loading.value = true;
+  try {
+    // For server-side session-based OAuth, prefer using the httpOnly session cookie
+    // rather than a token persisted in localStorage. If the IdP returned a token in
+    // the URL (legacy flows), we'll try to use it, but do NOT persist it client-side.
+    const urlToken = (route && route.query && (route.query.token as string)) || undefined;
+    // Pass the token if present; otherwise rely on the server to derive session from cookies.
+    // Backend should accept session cookie when token is omitted.
+    const res = await oauthBindTsdb(trimmedUsername.value, trimmedPassword.value);
+    if (res && res.code === 0) {
+      ElMessage.success('OAuth account binding successful');
+      const sql = 'select server_version()';
+      const bearerToken = urlToken ? `Bearer ${urlToken}` : null;
+      const res = await firstLoginWith(bearerToken, sql);
+
+      if (res && res.code == 0 && !res.desc) {
+        const server_version = res.data[0][0];
+        const registered_user = res.registered_user || '';
+        if (registered_user) {
+          registerKey.value = registered_user;
+          sessionStorage.setItem('registerKey', registered_user);
+        }
+        await getGrantsFull();
+        await getUserAuthority();
+
+        let [cluster_id, taosd_version] = await getTaosdInfo();
+        if (!cluster_id) {
+          cluster_id = 'unknown';
+          localStorage.setItem('local_clusterID', cluster_id);
+        }
+        if (!taosd_version) {
+          taosd_version = server_version;
+          localStorage.setItem('td_version', taosd_version);
+        }
+        const phone_email = registered_user;
+        const lang = localStorage.getItem('local_language') || '';
+        if (phone_email && phone_email != 'skipped') {
+          reportTaosdInfo({
+            phone_email,
+            lang,
+            cluster_id,
+            taosd_version
+          });
+        }
+      }
+      router.push({ path: '/explorer' });
+    } else {
+      loading.value = false;
+      oauthBind.value = false;
+      $error(res.desc || 'OAuth account binding failed');
+    }
+  } catch (error) {
+    loading.value = false;
+    oauthBind.value = false;
+    console.log('OAuth bind error:', error);
+    $error(`${t('login.oauthBindError')}: ${error.message}`);
+  }
+}
 async function login() {
+  if (oauthBind.value) {
+    await oauthBindSubmit();
+    return;
+  }
   const token = 'Basic ' + DbBase64.encode(trimmedUsername.value + ':' + trimmedPassword.value);
   store.commit('app/SET_TOKEN', token);
   localStorage.setItem('username', trimmedUsername.value);
@@ -359,6 +505,11 @@ async function getUserAuthority() {
     }
     $error(err?.desc);
   }
+}
+
+function loginWithOAuth() {
+  // Redirect to OAuth authorization endpoint
+  oauthAuthorize();
 }
 
 function switchLanguage() {
@@ -568,6 +719,28 @@ function switchLanguage() {
     cursor: pointer;
     border: 1px solid #4d6992;
     border-radius: 50%;
+  }
+
+  .oauth-button {
+    width: 100%;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+
+    //   color: #606266;
+    //   background-color: #fff;
+    //   border: 1px solid #dcdfe6;
+
+    //   &:hover {
+    //     color: #409eff;
+    //     background-color: #ecf5ff;
+    //     border-color: #c6e2ff;
+    //   }
+
+    //   .oauth-icon {
+    //     margin-right: 8px;
+    //     vertical-align: middle;
+    //   }
   }
 }
 </style>

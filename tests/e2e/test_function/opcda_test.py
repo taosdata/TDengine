@@ -52,6 +52,7 @@ def input_data():
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_1(input_data):
     """
     1.使用只包含必填列的 CSV 配置文件上传，配置文件，其他全使用默认参数
@@ -74,6 +75,7 @@ def test_sanity_1(input_data):
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_2(input_data):
     """
     2.使用包含所有列的 CSV 配置文件（tag 使用 2 列），包含不存在的点位
@@ -107,6 +109,7 @@ def test_sanity_2(input_data):
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_3(input_data):
     """
     3.使用包含所有列的 CSV 配置文件
@@ -143,6 +146,7 @@ def test_sanity_3(input_data):
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_4(input_data):
     """
     4.使用下载点位获取的 CSV 文件直接上传创建任务
@@ -179,6 +183,7 @@ def test_sanity_4(input_data):
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_5(input_data):
     """
     5.使用选择数据点位填写过滤条件创建任务，主键列为 original_ts t_{TagName}
@@ -218,6 +223,7 @@ def test_sanity_5(input_data):
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_6(input_data):
     """
     6.使用选择数据点位不填写过滤条件创建任务，主键列为 received_ts，表名称为 meters_t_{TagName}
@@ -291,6 +297,7 @@ def opcda_sanity_save(
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_check_connectivity(input_data):
     """
     7.OPC DA 连通性测试
@@ -313,6 +320,7 @@ from dateutil import parser
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_task_add_points_8(input_data):
     """
     用例概述：测试使用 CSV 配置的 OPC DA 任务运行过程中添加点位

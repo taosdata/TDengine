@@ -1003,10 +1003,25 @@ impl PutStream {
             let mut message_error_count = 0;
             let metrics_arc_clone = metrics_arc.clone();
             let notify_clone = notify.clone();
+            let controller = self.controller.clone();
             let future_flight = async move {
                 loop {
                     tokio::select! {
                         _ = heartbeat.tick() => {
+                            // Check if task is cancelled
+                            let is_cancelled = {
+                                let tasks = controller.scheduler.tasks.read().await;
+                                if let Some(job) = tasks.get_by_task_id(&task_id) {
+                                    job.task.cancellation.is_cancelled()
+                                } else {
+                                    true
+                                }
+                            };
+                            if is_cancelled {
+                                tracing::info!("Task {task_id} cancelled, stopping IPC stream");
+                                break;
+                            }
+
                             tracing::trace!("Send heartbeat");
                             put_tx
                                 .send_async(Ok(PutResult { app_metadata: "heartbeat".into() }))

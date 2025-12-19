@@ -481,8 +481,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_obj_exists_with_taos() {
-        let dsn = "taos+ws://192.168.2.139:6041";
-        // let dsn = "taos:///";
+        let dsn = "taos:///";
 
         let taos = TaosBuilder::from_dsn(dsn.into_dsn().unwrap())
             .unwrap()

@@ -91,6 +91,130 @@ mod tests {
     use super::*;
     use taos::{AsyncTBuilder, TaosBuilder};
 
+    #[test]
+    fn test_to_sql_database_privilege() {
+        let privilege = Privilege {
+            user_name: "testuser".to_string(),
+            privilege: "read".to_string(),
+            db_name: "testdb".to_string(),
+            table_name: None,
+            condition: None,
+            notes: None,
+        };
+
+        let sql = privilege.to_sql();
+        assert_eq!(sql, "GRANT read ON `testdb` TO `testuser`");
+    }
+
+    #[test]
+    fn test_to_sql_table_privilege() {
+        let privilege = Privilege {
+            user_name: "testuser".to_string(),
+            privilege: "write".to_string(),
+            db_name: "testdb".to_string(),
+            table_name: Some("testtable".to_string()),
+            condition: None,
+            notes: None,
+        };
+
+        let sql = privilege.to_sql();
+        assert_eq!(sql, "GRANT write ON `testdb`.`testtable` TO `testuser`");
+    }
+
+    #[test]
+    fn test_to_sql_with_condition() {
+        let privilege = Privilege {
+            user_name: "testuser".to_string(),
+            privilege: "read".to_string(),
+            db_name: "mydb".to_string(),
+            table_name: Some("mytable".to_string()),
+            condition: Some("`mydb`.`mytable`.col1 = 'value'".to_string()),
+            notes: None,
+        };
+
+        let sql = privilege.to_sql();
+        assert_eq!(
+            sql,
+            "GRANT read ON `mydb`.`mytable` WITH col1 = 'value' TO `testuser`"
+        );
+    }
+
+    #[test]
+    fn test_to_sql_revoke_database() {
+        let privilege = Privilege {
+            user_name: "user1".to_string(),
+            privilege: "all".to_string(),
+            db_name: "db1".to_string(),
+            table_name: None,
+            condition: None,
+            notes: None,
+        };
+
+        let sql = privilege.to_sql_revoke();
+        assert_eq!(sql, "REVOKE all ON `db1` FROM `user1`");
+    }
+
+    #[test]
+    fn test_to_sql_revoke_table() {
+        let privilege = Privilege {
+            user_name: "user2".to_string(),
+            privilege: "read".to_string(),
+            db_name: "db2".to_string(),
+            table_name: Some("table2".to_string()),
+            condition: None,
+            notes: None,
+        };
+
+        let sql = privilege.to_sql_revoke();
+        assert_eq!(sql, "REVOKE read ON `db2`.`table2` FROM `user2`");
+    }
+
+    #[test]
+    fn test_to_sql_revoke_with_condition() {
+        let privilege = Privilege {
+            user_name: "user3".to_string(),
+            privilege: "read".to_string(),
+            db_name: "db3".to_string(),
+            table_name: Some("table3".to_string()),
+            condition: Some("`db3`.`table3`.tag1 = 1".to_string()),
+            notes: None,
+        };
+
+        let sql = privilege.to_sql_revoke();
+        assert_eq!(
+            sql,
+            "REVOKE read ON `db3`.`table3` WITH tag1 = 1 FROM `user3`"
+        );
+    }
+
+    #[test]
+    fn test_target_database() {
+        let privilege = Privilege {
+            user_name: "testuser".to_string(),
+            privilege: "read".to_string(),
+            db_name: "testdb".to_string(),
+            table_name: None,
+            condition: None,
+            notes: None,
+        };
+
+        assert_eq!(privilege.target(), "read on `testdb`");
+    }
+
+    #[test]
+    fn test_target_table() {
+        let privilege = Privilege {
+            user_name: "testuser".to_string(),
+            privilege: "write".to_string(),
+            db_name: "mydb".to_string(),
+            table_name: Some("mytable".to_string()),
+            condition: None,
+            notes: None,
+        };
+
+        assert_eq!(privilege.target(), "write on `mydb`.`mytable`");
+    }
+
     #[tokio::test]
     async fn test_user_privileges_with_taos() -> anyhow::Result<()> {
         use file_guard::Lock;

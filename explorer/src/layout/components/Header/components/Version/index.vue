@@ -12,6 +12,7 @@
 import { sendSQLReq } from '@/api/explorer';
 import { getUser, getPassword, getClusterID, getBaseUrl } from '@/utils';
 import { setInstanceData } from 'taos-ui/config';
+import _ from 'lodash-es';
 
 const { OEM_NAME, $IS_TSDBLITE, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
 const route = useRoute();
@@ -79,9 +80,7 @@ async function getLicense() {
         })
       );
     });
-    await sendSQLReq(
-      `select server_version(), version from information_schema.ins_grants;`
-    ).then(res => {
+    await sendSQLReq(`select server_version(), version from information_schema.ins_grants;`).then(res => {
       license.value = res.data.map(data => {
         return Object.fromEntries(
           res.column_meta.map((item, index) => {
@@ -103,13 +102,13 @@ async function getLicense() {
         tdClusterId: getClusterID()
       });
       let versionName = license.value[0]['version'];
-      versionName = versionName.replace("official", "").trim();
+      versionName = versionName.replace('official', '').trim();
       version.value = versionName + ' ' + getVersion(license.value[0]['server_version()']);
       localStorage.setItem('serverVersion', version.value);
     });
   } catch (error: any) {
     console.error('Get license error: ', error);
-    if (error.includes('Permission denied')) {
+    if (_.includes(error, 'Permission denied')) {
       license.value = [true];
       version.value = localStorage.getItem('td_version') || '';
       localStorage.setItem('serverVersion', version.value);

@@ -749,7 +749,7 @@ impl TaskController {
             .optimize_on_close(true, None)
             .log_slow_statements(log::LevelFilter::Warn, Duration::from_secs(4))
             .statement_cache_capacity(300)
-            .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
+            .synchronous(sqlx::sqlite::SqliteSynchronous::Full)
             .journal_mode(SqliteJournalMode::Wal);
 
         // Defaults:
@@ -1085,7 +1085,8 @@ impl TaskController {
         Ok(count)
     }
 
-    #[instrument(skip_all, name = "task::create")]
+    /// Create a new task.
+    #[instrument(skip_all, name = "task::create", fields(name = task.name.as_deref(), via = task.via))]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         tracing::info!(task.name, task.via, "create new task");
 
@@ -1157,9 +1158,21 @@ impl TaskController {
         task.patch_labels();
         let now = chrono::Utc::now();
 
-        tracing::info!(task.name, task.via, "acquire task creation lock");
+        tracing::info!("acquire task creation lock");
         let lock_flag = self.lock_flag.lock().await;
-        tracing::info!(task.name, task.via, "got creation lock, create");
+        if let Some(parser) = &task.parser {
+            tracing::info!(
+                "got creation lock, create task {} with parser: {}",
+                task.name.as_deref().unwrap_or("unnamed"),
+                parser
+            );
+        } else {
+            tracing::info!(
+                "got creation lock, create task {}",
+                task.name.as_deref().unwrap_or("unnamed")
+            );
+        }
+
         if let Some(name) = &task.name {
             let tasks = self
                 .tasks(TaskFilter {
@@ -1439,7 +1452,11 @@ impl TaskController {
         }
 
         let res = query.execute(&self.pool).await?;
-
+        if let Some(parser) = &task.parser {
+            tracing::info!("updated task with parser: {}", parser);
+        } else {
+            tracing::info!("updated task");
+        }
         let now = chrono::Utc::now();
         sqlx::query!(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",

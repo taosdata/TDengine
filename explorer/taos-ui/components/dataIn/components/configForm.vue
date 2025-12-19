@@ -39,6 +39,7 @@
             v-if="item.type == 'parser'"
             ref="transformRef"
             :parser-columns="item.fields"
+            :editable-sample="item.editableSample !== undefined ? item.editableSample : parser?.editableSample"
           ></CommonTransformer>
           <CsvTransformer
             v-else-if="item.type == 'csvData'"
