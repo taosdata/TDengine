@@ -266,7 +266,7 @@ profile_url = "https://api.github.com/user"
 redirect_uri = "http://explorer.example.com:6060/api/-/oauth/callback"
 # User attribute mapping
 [oauth.user_mapping]
-username = "log"
+username = "login"
 email = "email"
 ```
 
