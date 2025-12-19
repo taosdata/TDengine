@@ -780,7 +780,7 @@ static int specQuery(uint16_t iface, char* dbName) {
             goto OVER;
         }
 
-        qsort(sql->delay_list, n, sizeof(uint64_t), compare);
+        qsort(sql->delay_list, n, sizeof(*sql->delay_list), compare);
 
         double time_cost = spend / 1E6;
         double qps = totalQueried / time_cost;
