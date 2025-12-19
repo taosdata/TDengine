@@ -1586,44 +1586,64 @@ taos> select (select 1) > 0 from tb1 SESSION(ts, 1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
 taos> select (select f1 from tb1) > 0 from tb1 SESSION(ts, 1d);
+ (select f1 from tb1) > 0 |
+===========================
+ true                     |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tb1 order by ts, f1 limit 1) > 0 from tb1 SESSION(ts, 1d);
+ (select f1 from tb1 order by ts, f1 limit 1) > 0 |
+===================================================
+ true                                             |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select count(*) from tb1) > 0 from tb1 SESSION(ts, 1d);
+ (select count(*) from tb1) > 0 |
+=================================
+ true                           |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select null from tb1) > 0 from tb1 SESSION(ts, 1d);
+ (select null from tb1) > 0 |
+=============================
+ false                      |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select * from tb1) > 0 from tb1 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tb1) > 0 from tb1 SESSION(ts, 1d);
+ (select 2 from tb1) > 0 |
+==========================
+ true                    |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select avg(f1) from tb1) > 0 from tb1 SESSION(ts, 1d);
+ (select avg(f1) from tb1) > 0 |
+================================
+ true                          |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select last(*) from tb1) > 0 from tb1 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tb1 partition by f1) > 0 from tb1 SESSION(ts, 1d);
+ (select max(f1) from tb1 partition by f1) > 0 |
+================================================
+ true                                          |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select a.ts from tb1 a join tb1 b on a.ts = b.ts) > 0 from tb1 SESSION(ts, 1d);
+ (select a.ts from tb1 a join tb1 b on a.ts = b.ts) > 0 |
+=========================================================
+ true                                                   |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select sum(f1) from tb1 interval(1d)) > 0 from tb1 SESSION(ts, 1d);
+ (select sum(f1) from tb1 interval(1d)) > 0 |
+=============================================
+ true                                       |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tb1 union select f1 from tb1) > 0 from tb1 SESSION(ts, 1d);
+ (select f1 from tb1 union select f1 from tb1) > 0 |
+====================================================
+ true                                              |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tb1 union all select f1 from tb1) > 0 from tb1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from tb1 STATE_WINDOW(f1);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -4281,43 +4301,49 @@ taos> select (select 1) > 0 from tb2 SESSION(ts, 1d);
 DB error: Not supported subquery as expr [0x800026A6] 
 taos> select (select f1 from tb2) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb2 order by ts, f1 limit 1) > 0 from tb2 SESSION(ts, 1d);
+ (select f1 from tb2 order by ts, f1 limit 1) > 0 |
+===================================================
+ true                                             |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select count(*) from tb2) > 0 from tb2 SESSION(ts, 1d);
+ (select count(*) from tb2) > 0 |
+=================================
+ true                           |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select null from tb2) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select * from tb2) > 0 from tb2 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tb2) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select avg(f1) from tb2) > 0 from tb2 SESSION(ts, 1d);
+ (select avg(f1) from tb2) > 0 |
+================================
+ true                          |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select last(*) from tb2) > 0 from tb2 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tb2 partition by f1) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select a.ts from tb2 a join tb2 b on a.ts = b.ts) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select sum(f1) from tb2 interval(1d)) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb2 union select f1 from tb2) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb2 union all select f1 from tb2) > 0 from tb2 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from tb2 STATE_WINDOW(f1);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -6920,43 +6946,49 @@ taos> select (select 1) > 0 from tb3 SESSION(ts, 1d);
 DB error: Not supported subquery as expr [0x800026A6] 
 taos> select (select f1 from tb3) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb3 order by ts, f1 limit 1) > 0 from tb3 SESSION(ts, 1d);
+ (select f1 from tb3 order by ts, f1 limit 1) > 0 |
+===================================================
+ true                                             |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select count(*) from tb3) > 0 from tb3 SESSION(ts, 1d);
+ (select count(*) from tb3) > 0 |
+=================================
+ true                           |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select null from tb3) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select * from tb3) > 0 from tb3 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tb3) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select avg(f1) from tb3) > 0 from tb3 SESSION(ts, 1d);
+ (select avg(f1) from tb3) > 0 |
+================================
+ true                          |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select last(*) from tb3) > 0 from tb3 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tb3 partition by f1) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select a.ts from tb3 a join tb3 b on a.ts = b.ts) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select sum(f1) from tb3 interval(1d)) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb3 union select f1 from tb3) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from tb3 union all select f1 from tb3) > 0 from tb3 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from tb3 STATE_WINDOW(f1);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -9858,44 +9890,64 @@ taos> select (select 1) > 0 from tba SESSION(ts, 1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
 taos> select (select f1 from tba) > 0 from tba SESSION(ts, 1d);
+ (select f1 from tba) > 0 |
+===========================
+ false                    |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tba order by ts, f1 limit 1) > 0 from tba SESSION(ts, 1d);
+ (select f1 from tba order by ts, f1 limit 1) > 0 |
+===================================================
+ false                                            |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select count(*) from tba) > 0 from tba SESSION(ts, 1d);
+ (select count(*) from tba) > 0 |
+=================================
+ true                           |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select null from tba) > 0 from tba SESSION(ts, 1d);
+ (select null from tba) > 0 |
+=============================
+ false                      |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select * from tba) > 0 from tba SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tba) > 0 from tba SESSION(ts, 1d);
+ (select 2 from tba) > 0 |
+==========================
+ true                    |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select avg(f1) from tba) > 0 from tba SESSION(ts, 1d);
+ (select avg(f1) from tba) > 0 |
+================================
+ false                         |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select last(*) from tba) > 0 from tba SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tba partition by f1) > 0 from tba SESSION(ts, 1d);
+ (select max(f1) from tba partition by f1) > 0 |
+================================================
+ false                                         |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select a.ts from tba a join tba b on a.ts = b.ts) > 0 from tba SESSION(ts, 1d);
+ (select a.ts from tba a join tba b on a.ts = b.ts) > 0 |
+=========================================================
+ true                                                   |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select sum(f1) from tba interval(1d)) > 0 from tba SESSION(ts, 1d);
+ (select sum(f1) from tba interval(1d)) > 0 |
+=============================================
+ false                                      |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tba union select f1 from tba) > 0 from tba SESSION(ts, 1d);
+ (select f1 from tba union select f1 from tba) > 0 |
+====================================================
+ false                                             |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tba union all select f1 from tba) > 0 from tba SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from tba STATE_WINDOW(f1);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -12789,44 +12841,64 @@ taos> select (select 1) > 0 from tbb SESSION(ts, 1d);
 
 DB error: Not supported subquery as expr [0x800026A6] 
 taos> select (select f1 from tbb) > 0 from tbb SESSION(ts, 1d);
+ (select f1 from tbb) > 0 |
+===========================
+ true                     |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tbb order by ts, f1 limit 1) > 0 from tbb SESSION(ts, 1d);
+ (select f1 from tbb order by ts, f1 limit 1) > 0 |
+===================================================
+ true                                             |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select count(*) from tbb) > 0 from tbb SESSION(ts, 1d);
+ (select count(*) from tbb) > 0 |
+=================================
+ true                           |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select null from tbb) > 0 from tbb SESSION(ts, 1d);
+ (select null from tbb) > 0 |
+=============================
+ false                      |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select * from tbb) > 0 from tbb SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tbb) > 0 from tbb SESSION(ts, 1d);
+ (select 2 from tbb) > 0 |
+==========================
+ true                    |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select avg(f1) from tbb) > 0 from tbb SESSION(ts, 1d);
+ (select avg(f1) from tbb) > 0 |
+================================
+ true                          |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select last(*) from tbb) > 0 from tbb SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tbb partition by f1) > 0 from tbb SESSION(ts, 1d);
+ (select max(f1) from tbb partition by f1) > 0 |
+================================================
+ true                                          |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select a.ts from tbb a join tbb b on a.ts = b.ts) > 0 from tbb SESSION(ts, 1d);
+ (select a.ts from tbb a join tbb b on a.ts = b.ts) > 0 |
+=========================================================
+ true                                                   |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select sum(f1) from tbb interval(1d)) > 0 from tbb SESSION(ts, 1d);
+ (select sum(f1) from tbb interval(1d)) > 0 |
+=============================================
+ true                                       |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tbb union select f1 from tbb) > 0 from tbb SESSION(ts, 1d);
+ (select f1 from tbb union select f1 from tbb) > 0 |
+====================================================
+ true                                              |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tbb union all select f1 from tbb) > 0 from tbb SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from tbb STATE_WINDOW(f1);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -15113,43 +15185,32 @@ taos> select (select 1) > 0 from tbe SESSION(ts, 1d);
 DB error: Not supported subquery as expr [0x800026A6] 
 taos> select (select f1 from tbe) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tbe order by ts, f1 limit 1) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select count(*) from tbe) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select null from tbe) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select * from tbe) > 0 from tbe SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from tbe) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select avg(f1) from tbe) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select last(*) from tbe) > 0 from tbe SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from tbe partition by f1) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select a.ts from tbe a join tbe b on a.ts = b.ts) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select sum(f1) from tbe interval(1d)) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tbe union select f1 from tbe) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select f1 from tbe union all select f1 from tbe) > 0 from tbe SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from tbe STATE_WINDOW(f1);
 
 DB error: Not supported subquery as expr [0x800026A6] 
@@ -17446,43 +17507,49 @@ taos> select (select 1) > 0 from st1 SESSION(ts, 1d);
 DB error: Not supported subquery as expr [0x800026A6] 
 taos> select (select f1 from st1) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from st1 order by ts, f1 limit 1) > 0 from st1 SESSION(ts, 1d);
+ (select f1 from st1 order by ts, f1 limit 1) > 0 |
+===================================================
+ true                                             |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select count(*) from st1) > 0 from st1 SESSION(ts, 1d);
+ (select count(*) from st1) > 0 |
+=================================
+ true                           |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select null from st1) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select * from st1) > 0 from st1 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 2 from st1) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select avg(f1) from st1) > 0 from st1 SESSION(ts, 1d);
+ (select avg(f1) from st1) > 0 |
+================================
+ true                          |
 
-DB error: No valid function in window query [0x8000265E] 
 taos> select (select last(*) from st1) > 0 from st1 SESSION(ts, 1d);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select max(f1) from st1 partition by f1) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select a.ts from st1 a join st1 b on a.ts = b.ts) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select sum(f1) from st1 interval(1d)) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from st1 union select f1 from st1) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select (select f1 from st1 union all select f1 from st1) > 0 from st1 SESSION(ts, 1d);
 
-DB error: No valid function in window query [0x8000265E] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
 
 DB error: Not supported subquery as expr [0x800026A6] 

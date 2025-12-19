@@ -3036,6 +3036,15 @@ taos> select f1 from v4 where f1 > (select 2 from st1 limit 1) order by 1;
 ==============
            4 |
 
+taos> insert into tbb select now, (select 0 from st1 limit 1) from tb1;
+Insert OK, 1 row(s) affected 
+
+taos> insert into tbb select now, (select 1 from st1 limit 1) from tb1;
+Insert OK, 1 row(s) affected 
+
+taos> insert into tbb select now, (select 2 from st1 limit 1) from tb1;
+Insert OK, 1 row(s) affected 
+
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 partition by (select 1 from tb3 limit 1) into out1 as select * from tb3;
 
 DB error: Expr subquery not supported in current clause [0x800026A8] 
@@ -3043,8 +3052,5 @@ taos> create stream stm1 interval(1d) sliding(1d) from tb1 into out2 as select t
 
 DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> create topic topic1 as select (select 1 from tb3 limit 1) from tb3;
-
-DB error: Expr subquery not supported in current clause [0x800026A8] 
-taos> insert into tbb select now, (select 1 from tb3 limit 1) from tb1;
 
 DB error: Expr subquery not supported in current clause [0x800026A8] 

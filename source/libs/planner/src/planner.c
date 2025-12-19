@@ -80,7 +80,19 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
   SNodeList* pSubQueries = NULL;
   SNode* pNode = NULL;
   SQueryPlan* pPlan = NULL;
-  SNode* pRoot = (QUERY_NODE_EXPLAIN_STMT == nodeType(pSrc->pAstRoot)) ? ((SExplainStmt*)pSrc->pAstRoot)->pQuery : pSrc->pAstRoot;
+  SNode* pRoot = NULL;
+
+  switch (nodeType(pSrc->pAstRoot)) {
+    case QUERY_NODE_EXPLAIN_STMT:
+      pRoot = ((SExplainStmt*)pSrc->pAstRoot)->pQuery;
+      break;
+    case QUERY_NODE_INSERT_STMT:
+      pRoot = ((SInsertStmt*)pSrc->pAstRoot)->pQuery;
+      break;
+    default:
+      pRoot = pSrc->pAstRoot;
+      break;
+  }
   
   switch (nodeType(pRoot)) {
     case QUERY_NODE_SELECT_STMT: {

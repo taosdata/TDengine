@@ -26,8 +26,7 @@ class TestScalarSubQuery2:
     unsupportedSqls = [
         "create stream stm1 interval(1d) sliding(1d) from tb1 partition by {scalarSql} into out1 as select * from {tableName}",
         "create stream stm1 interval(1d) sliding(1d) from tb1 into out2 as select ts, {scalarSql} from {tableName}",
-        "create topic topic1 as select {scalarSql} from {tableName}",
-        "insert into tbb select now, {scalarSql} from tb1",        
+        "create topic topic1 as select {scalarSql} from {tableName}",      
     ]
 
     speCFuncSqls = [
@@ -227,6 +226,9 @@ class TestScalarSubQuery2:
         "select f1 from v2 where f1 > {scalarSql} order by 1",
         "select f1 from v3 where f1 > {scalarSql} order by 1",
         "select f1 from v4 where f1 > {scalarSql} order by 1",
+
+        # insert
+        "insert into tbb select now, {scalarSql} from tb1",  
     ]
 
 
@@ -308,7 +310,6 @@ class TestScalarSubQuery2:
             "INSERT INTO tb3 VALUES ('2025-12-02 00:00:00.000', 5, 32)",
             "INSERT INTO tb3 VALUES ('2025-12-03 00:00:00.000', 6, 33)",
             "INSERT INTO tba VALUES ('2025-12-01 00:00:00.000', 0)",
-            "INSERT INTO tbb VALUES ('2025-12-02 00:00:00.000', 1)",
             "create view v1 as select f1 from tb1",
             "create view v2 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1)",
             "create view v3 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1 offset 1)",

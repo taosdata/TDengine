@@ -22728,6 +22728,10 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
+  
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
@@ -22746,6 +22750,11 @@ static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
       transferSubQueries(pCxt, pExplain->pQuery);
       break;
     }
+    case QUERY_NODE_INSERT_STMT: {
+      SInsertStmt* pInsert = (SInsertStmt*)pNode;
+      transferSubQueries(pCxt, pInsert->pQuery);
+      break;
+    }
     default:
       break;
   }
@@ -22756,6 +22765,7 @@ int32_t checkSubQueryStmt(SNode* pNode) {
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_SET_OPERATOR:
     case QUERY_NODE_EXPLAIN_STMT:
+    case QUERY_NODE_INSERT_STMT:
       return TSDB_CODE_SUCCESS;
     default:
       break;
