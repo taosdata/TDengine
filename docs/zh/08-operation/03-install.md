@@ -218,7 +218,7 @@ sudo launchctl print system/com.tdengine.taosd
 下面以将 taosd 服务的启动重试统计窗口改为 60 秒为例，说明如何使用 drop-in 文件。
 
 1. 创建 drop-in 目录
-drop-in 目录的路径为 /etc/systemd/system/<unit-name>.service.d/（对于 taosd 服务，即为 /etc/systemd/system/taosd.service.d/），用于存放 `.conf` 格式的覆盖配置文件。
+drop-in 目录的路径为`/etc/systemd/system/<unit-name>.service.d/`（对于 taosd 服务，即为`/etc/systemd/system/taosd.service.d/`），用于存放 `.conf` 格式的覆盖配置文件。
 
 ```bash
 sudo mkdir -p /etc/systemd/system/taosd.service.d
