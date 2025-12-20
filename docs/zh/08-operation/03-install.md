@@ -157,12 +157,23 @@ systemctl restart taosd
 systemctl status taosd
 ```
 
+如果希望自定义 TDengine TSDB 的服务，则可以采用 Systemd 提供的 `drop-in files` 机制来实现。
+比如修改 taosd.service 中的 StartLimitInterval 为60s，这里用户无需修改主 service 文件，只需在`taosd.conf`写要改/要加的行，其余沿用主文件，修改操作步骤如下：
+
+```bash
+mkdir -p /etc/systemd/system/taosd.service.d/
+cd /etc/systemd/system/taosd.service.d/
+echo "StartLimitInterval=60s" >>  taosd.conf
+systemctl daemon-reload
+systemctl restart taosd
+```
+
+
 :::info
 
 - `systemctl` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
 - `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine TSDB 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 - 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine TSDB 服务。
-
 :::
 
 </TabItem>
