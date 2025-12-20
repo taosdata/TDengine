@@ -35,19 +35,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-embed"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c98712e024dd57b911850c78d6fc5277e8be54afcdef70d6f4b628812c07dcf7"
-dependencies = [
- "actix-web",
- "futures-core",
- "hex",
- "mime_guess",
- "rust-embed 6.8.1",
-]
-
-[[package]]
 name = "actix-files"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -83,7 +70,7 @@ dependencies = [
  "actix-utils",
  "base64 0.22.1",
  "bitflags 2.9.1",
- "brotli 8.0.1",
+ "brotli",
  "bytes",
  "bytestring",
  "derive_more 2.0.1",
@@ -316,19 +303,19 @@ dependencies = [
 
 [[package]]
 name = "actix-web-rust-embed-responder"
-version = "2.2.1"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7efa1e54fcedeb4d75ecc42ee9105194fe347230123441bc9203e9c83c1195c"
+checksum = "c13f506cf23af2c79505d155ebd2724677761cf0aa4b636a3c011a2b1e60a358"
 dependencies = [
  "actix-web",
- "base64 0.21.7",
- "brotli 3.5.0",
+ "base64 0.22.1",
+ "brotli",
  "chrono",
  "flate2",
  "futures-core",
  "lazy_static",
  "regex",
- "rust-embed 6.8.1",
+ "rust-embed",
 ]
 
 [[package]]
@@ -1835,34 +1822,13 @@ dependencies = [
 
 [[package]]
 name = "brotli"
-version = "3.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d640d25bc63c50fb1f0b545ffd80207d2e10a4c965530809b40ba3386825c391"
-dependencies = [
- "alloc-no-stdlib",
- "alloc-stdlib",
- "brotli-decompressor 2.5.1",
-]
-
-[[package]]
-name = "brotli"
 version = "8.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9991eea70ea4f293524138648e41ee89b0b2b12ddef3b255effa43c8056e0e0d"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
- "brotli-decompressor 5.0.0",
-]
-
-[[package]]
-name = "brotli-decompressor"
-version = "2.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e2e4afe60d7dd600fdd3de8d0f08c2b7ec039712e3b6137ff98b7004e82de4f"
-dependencies = [
- "alloc-no-stdlib",
- "alloc-stdlib",
+ "brotli-decompressor",
 ]
 
 [[package]]
@@ -6527,7 +6493,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "base64 0.22.1",
- "brotli 8.0.1",
+ "brotli",
  "bytes",
  "chrono",
  "flate2",
@@ -8006,36 +7972,14 @@ dependencies = [
 
 [[package]]
 name = "rust-embed"
-version = "6.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a36224c3276f8c4ebc8c20f158eca7ca4359c8db89991c4925132aaaf6702661"
-dependencies = [
- "rust-embed-impl 6.8.1",
- "rust-embed-utils 7.8.1",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed"
 version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "947d7f3fad52b283d261c4c99a084937e2fe492248cb9a68a8435a861b8798ca"
 dependencies = [
- "rust-embed-impl 8.9.0",
- "rust-embed-utils 8.9.0",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-impl"
-version = "6.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49b94b81e5b2c284684141a2fb9e2a31be90638caf040bf9afbc5a0416afe1ac"
-dependencies = [
- "proc-macro2",
- "quote",
- "rust-embed-utils 7.8.1",
- "syn 2.0.104",
+ "actix-web",
+ "mime_guess",
+ "rust-embed-impl",
+ "rust-embed-utils",
  "walkdir",
 ]
 
@@ -8047,18 +7991,8 @@ checksum = "5fa2c8c9e8711e10f9c4fd2d64317ef13feaab820a4c51541f1a8c8e2e851ab2"
 dependencies = [
  "proc-macro2",
  "quote",
- "rust-embed-utils 8.9.0",
+ "rust-embed-utils",
  "syn 2.0.104",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-utils"
-version = "7.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d38ff6bf570dc3bb7100fce9f7b60c33fa71d80e88da3f2580df4ff2bdded74"
-dependencies = [
- "sha2",
  "walkdir",
 ]
 
@@ -8068,6 +8002,7 @@ version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60b161f275cb337fe0a44d924a5f4df0ed69c2c39519858f931ce61c779d3475"
 dependencies = [
+ "mime_guess",
  "sha2",
  "walkdir",
 ]
@@ -9919,7 +9854,6 @@ name = "taos-explorer"
 version = "1.10.0"
 dependencies = [
  "actix-cors",
- "actix-embed",
  "actix-files",
  "actix-session",
  "actix-web",
@@ -9957,13 +9891,14 @@ dependencies = [
  "log",
  "metrics",
  "mimalloc",
+ "mime_guess",
  "mockito",
  "openidconnect 3.5.0",
  "pin-project-lite",
  "rand 0.8.5",
  "regex",
  "reqwest 0.11.27",
- "rust-embed 6.8.1",
+ "rust-embed",
  "rustls 0.23.29",
  "rustls-pemfile 2.2.0",
  "scc",
@@ -11630,7 +11565,7 @@ dependencies = [
  "mime_guess",
  "regex",
  "reqwest 0.12.22",
- "rust-embed 8.9.0",
+ "rust-embed",
  "serde",
  "serde_json",
  "url",

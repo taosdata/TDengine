@@ -17,6 +17,7 @@ use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
 use serde_with::{serde_as, FromInto};
 use std::{
+    borrow::Cow,
     collections::HashMap,
     ffi::OsString,
     fmt::Display,
@@ -533,7 +534,11 @@ async fn main() -> anyhow::Result<()> {
                     .show_files_listing(),
             )
         } else {
-            app.service(static_assets)
+            app.service(web::redirect("/docs", "/docs/"))
+                .service(docs_assets)
+                .service(web::redirect("/docs-en", "/docs-en/"))
+                .service(docs_en_assets)
+                .service(static_assets)
         }
     });
 
@@ -1595,9 +1600,18 @@ async fn x_api_doc(
 #[folder = "../dist/"]
 struct StaticAssets;
 
-/// For static assets as a SPA website.
-#[route("/{path:.*}", method = "GET", method = "HEAD")]
-async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+/// Serve static assets with a prefix.
+///
+/// Each prefix is treated as a root path by responding with `index.html`.
+///
+/// In Explorer, this is used to serve the static assets for the UI and docs, including:
+/// - ""
+/// - "docs/"
+/// - "docs-en/"
+async fn static_assets_with_prefix(
+    prefix: &str,
+    path: &str,
+) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
     const COOKIE_ROUTE: &str = "route";
     // Treat path as a route by responding with `index.html`.
     //
@@ -1610,22 +1624,91 @@ async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedRespo
         || path.ends_with('/')
         || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
     {
-        let index = "index.html";
+        let index = format!("{prefix}index.html");
         let cookie = Cookie::build(
             COOKIE_ROUTE,
-            if path.is_empty() { "/" } else { path.as_str() },
+            if path.is_empty() {
+                Cow::Borrowed(prefix)
+            } else {
+                Cow::Owned(format!("{prefix}{path}"))
+            },
         )
         .path("/")
         .finish();
+        tracing::info!("SPA route to {path}");
+        return StaticAssets::get(&index)
+            .into_response()
+            .customize()
+            .add_cookie(&cookie);
+    }
+    let path = format!("{prefix}{path}");
+    if let Some(file) = StaticAssets::get(&path) {
+        file.into_response().customize()
+    } else {
+        path.char_indices()
+            .filter(|&(_, c)| c == '/')
+            .filter_map(|(i, _)| {
+                let part = &path[i + 1..];
+                StaticAssets::get(part)
+            })
+            .next()
+            .into_response()
+            .customize()
+    }
+}
+/// For docs.
+#[route("/docs/{path:.*}", method = "GET", method = "HEAD")]
+async fn docs_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+    static_assets_with_prefix("docs/", path.as_str()).await
+}
+/// For docs.
+#[route("/docs-en/{path:.*}", method = "GET", method = "HEAD")]
+#[instrument(skip_all, fields(path = path.as_str()))]
+async fn docs_en_assets(
+    path: web::Path<String>,
+) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+    static_assets_with_prefix("docs-en/", path.as_str()).await
+}
+
+/// For static assets as a SPA website.
+#[route("/{path:.*}", method = "GET", method = "HEAD")]
+async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+    const COOKIE_ROUTE: &str = "route";
+    let path = path.as_str();
+    // Treat path as a route by responding with `index.html`.
+    //
+    // Examples:
+    // - ""
+    // - "/about"
+    // - "/about/"
+    // - "/dataIn/task"
+    if path.is_empty()
+        || path.ends_with('/')
+        || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
+    {
+        let index = "index.html";
+        let cookie = Cookie::build(COOKIE_ROUTE, if path.is_empty() { "/" } else { path })
+            .path("/")
+            .finish();
         tracing::info!("SPA route to {path}");
         return StaticAssets::get(index)
             .into_response()
             .customize()
             .add_cookie(&cookie);
     }
-    let path = path.into_inner();
-    if let Some(file) = StaticAssets::get(&path) {
-        file.into_response().customize()
+    tracing::info!("path: {path}");
+    if let Some(file) = StaticAssets::get(path) {
+        if path.ends_with(".js") {
+            return file
+                .into_response()
+                .customize()
+                .append_header(("Content-Type", "application/javascript"));
+        }
+        // guess mime type from path
+        let mime = mime_guess::from_path(path).first_or_octet_stream();
+        file.into_response()
+            .customize()
+            .append_header(("Content-Type", mime.essence_str()))
     } else {
         path.char_indices()
             .filter(|&(_, c)| c == '/')

@@ -28,8 +28,8 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
       if (to.query?.token) {
         console.log('Login with token', to.query.token);
         Cookies.set(SessionIdKey, to.query.token as string, { sameSite: 'lax', expires: 1 });
+        await store.dispatch('app/setOAuthLogin', true);
       }
-      await store.dispatch('app/setOAuthLogin', true);
       try {
         console.log('try', store.state.app.isOAuthLogin);
         const user = await oauthMe(false);
