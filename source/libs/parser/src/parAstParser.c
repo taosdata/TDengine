@@ -1405,24 +1405,7 @@ static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pSt
 }
 
 static int32_t collectMetaKeyFromRevoke(SCollectMetaKeyCxt* pCxt, SRevokeStmt* pStmt) {
-  if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
-    if (pStmt->roleName[0] == 'S' && pStmt->roleName[1] == 'Y' && pStmt->roleName[2] == 'S') {
-      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
-        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_SYSDBA,
-                                      pCxt->pMetaCache);
-      }
-      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
-        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_SYSSEC,
-                                      pCxt->pMetaCache);
-      }
-      if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
-        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_SYSAUDIT,
-                                      pCxt->pMetaCache);
-      }
-    }
-  }
-  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_REVOKE_PRIVILEGE,
-                                pCxt->pMetaCache);
+  return collectMetaKeyFromGrant(pCxt, (SGrantStmt*)pStmt);
 }
 
 static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreateViewStmt* pStmt) {

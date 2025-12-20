@@ -16147,7 +16147,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
   if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
     if (pStmt->pCond) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "The With clause can only be used for table level privilege");
+                                     "The With clause can only be used for specific table name");
     } else {
       return TSDB_CODE_SUCCESS;
     }
@@ -16478,15 +16478,15 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
 
     if (LIST_LENGTH((SNodeList*)pPrivSetArgs->selectCols) > 0 && PRIV_HAS(&pPrivSetArgs->privSet, PRIV_TBL_SELECT)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Cannot grant table-level and column-level SELECT privileges simultaneously");
+                                     "Cannot grant table-level and column-level select privileges simultaneously");
     }
     if (LIST_LENGTH((SNodeList*)pPrivSetArgs->insertCols) > 0 && PRIV_HAS(&pPrivSetArgs->privSet, PRIV_TBL_INSERT)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Cannot grant table-level and column-level INSERT privileges simultaneously");
+                                     "Cannot grant table-level and column-level insert privileges simultaneously");
     }
     if (LIST_LENGTH((SNodeList*)pPrivSetArgs->updateCols) > 0 && PRIV_HAS(&pPrivSetArgs->privSet, PRIV_TBL_UPDATE)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Cannot grant table-level and column-level UPDATE privileges simultaneously");
+                                     "Cannot grant table-level and column-level update privileges simultaneously");
     }
 
     SRealTableNode* pTable = NULL;

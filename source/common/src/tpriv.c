@@ -378,7 +378,8 @@ int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const
 }
 
 // objType.1.db or objType.1.db.tb
-int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen) {
+int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen,
+                        bool fullDb) {
   char* p = strchr(str, '.');
   if (!p) {
     return TSDB_CODE_INVALID_DATA_FMT;
@@ -393,15 +394,15 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
   }
   char* qNext = strchr(pNext + 1, '.');
   if (qNext) {
-    size_t dbLength = qNext - (p + 1);
+    size_t dbLength = qNext - (fullDb ? (p + 1) : (pNext + 1));
     if (dbLength >= (size_t)dbLen) {
       return TSDB_CODE_INVALID_DATA_FMT;
     }
-    strncpy(db, p + 1, dbLength);
+    strncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength);
     db[dbLength] = '\0';
     strncpy(tb, qNext + 1, tbLen);
   } else {
-    strcpy(db, p + 1);
+    strcpy(db, fullDb ? (p + 1) : (pNext + 1));
     tb[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;

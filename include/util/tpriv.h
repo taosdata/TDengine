@@ -387,7 +387,7 @@ int32_t privTblPoliciesMerge(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool
 
 int32_t privObjKeyF(SPrivInfo* pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen);
 int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf, int32_t bufLen);
-int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen);
+int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen, bool fullDb);
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
 const char* privObjTypeName(EPrivObjType objType);

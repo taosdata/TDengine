@@ -233,7 +233,7 @@ static int32_t mndCreateDefaultRole(SMnode *pMnode, char *role, uint32_t roleTyp
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-role");
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
-    mError("user:%s, failed to create since %s", pNew->name, terrstr());
+    mError("role:%s, failed to create since %s", pNew->name, terrstr());
     TAOS_CHECK_EXIT(terrno);
   }
   mInfo("trans:%d, used to create role:%s", pTrans->id, pNew->name);
@@ -975,7 +975,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
-      // skip db, table, condition, notes, row_span, columns
+      // skip db, table, condition, notes, columns, update_time
       COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(PRIV_OBJ_CLUSTER), pShow->pMeta->pSchemas[cols].bytes);
@@ -995,7 +995,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char    dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
-      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName)))) {
+      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
         sdbRelease(pSdb, pObj);
         sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_EXIT(code);
@@ -1024,7 +1024,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
           COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
         }
 
-        // skip condition, notes, row_span, columns
+        // skip condition, notes, columns, update_time
         COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
 
         if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
@@ -1112,12 +1112,14 @@ static int32_t mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBl
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
 
-      for (int32_t i = 0; i < 6; i++) {  // skip db, table, condition, notes, row_span, columns
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, "", 2);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-      }
+      // for (int32_t i = 0; i < 6; i++) {
+      //   if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      //     STR_WITH_MAXSIZE_TO_VARSTR(pBuf, "", 2);
+      //     COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      //   }
+      // }
+      // skip db, table, condition, notes, columns, update_time
+      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
       numOfRows++;
     }
 

@@ -4848,6 +4848,88 @@ _exit:
 }
 #endif
 
+static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, SUserObj *pObj,
+                                      SHashObj *privTbs, EPrivType privType, char *pBuf, int32_t bufSize) {
+  int32_t code = 0, lino = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t numOfRows = 0;
+  int32_t cols = 0;
+  char   *qBuf = NULL;
+  char   *sql = NULL;
+  char    roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {
+    SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
+    SArray           *tblPolicies = pPolices->policy;
+
+    char   *key = taosHashGetKey(pPolices, NULL);
+    int32_t objType = PRIV_OBJ_UNKNOWN;
+    char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pShow->pIter);
+      TAOS_CHECK_EXIT(code);
+    }
+
+    int32_t nTbPolicies = taosArrayGetSize(tblPolicies);
+    for (int32_t i = 0; i < nTbPolicies; ++i) {
+      SPrivTblPolicy *tbPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(tblPolicies, i);
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privInfoGetName(PRIV_TBL_SELECT), pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, dbName, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+
+      // condition
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // notes
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // columns
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // update_time
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        TAOS_CHECK_EXIT(
+            taosFormatUtcTime(pBuf, pShow->pMeta->pSchemas[cols].bytes, tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO));
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pBuf, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(objType), pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      numOfRows++;
+    }
+  }
+  pShow->numOfRows += numOfRows;
+_exit:
+  TAOS_RETURN(code);
+}
+
 static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   int32_t   code = 0, lino = 0;
   SMnode   *pMnode = pReq->info.node;
@@ -4904,7 +4986,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
-      // skip db, table, condition, notes, row_span, columns
+      // skip db, table, condition, notes, columns, update_time
       COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(PRIV_OBJ_CLUSTER), pShow->pMeta->pSchemas[cols].bytes);
@@ -4920,9 +5002,9 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
       char   *key = taosHashGetKey(pPolices, NULL);
       int32_t objType = PRIV_OBJ_UNKNOWN;
-      char    dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName)))) {
+      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
         sdbRelease(pSdb, pObj);
         sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_EXIT(code);
@@ -4951,7 +5033,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
           COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
         }
 
-        // skip condition, notes, row_span, columns
+        // skip condition, notes, columns, update_time
         COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
 
         if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
@@ -4961,9 +5043,58 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         numOfRows++;
       }
     }
-    // row level privileges
 
     // table level privileges
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->selectTbs,
+                                           PRIV_TBL_SELECT, pBuf, bufSize));
+#if 0
+    while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {
+      SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
+      SArray           *tblPolicies = pPolices->policy;
+
+      char   *key = taosHashGetKey(pPolices, NULL);
+      int32_t objType = PRIV_OBJ_UNKNOWN;
+      char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
+        sdbRelease(pSdb, pObj);
+        sdbCancelFetch(pSdb, pShow->pIter);
+        TAOS_CHECK_EXIT(code);
+      }
+
+      int32_t nTbPolicies = taosArrayGetSize(tblPolicies);
+      for (int32_t i = 0; i < nTbPolicies; ++i) {
+        SPrivTblPolicy *tbPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(tblPolicies, i);
+        cols = 0;
+        SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+        COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privInfoGetName(PRIV_TBL_SELECT), pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, dbName, pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        // skip condition, notes, columns, update_time
+        COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(objType), pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+        numOfRows++;
+      }
+    }
+#endif
     sdbRelease(pSdb, pObj);
   }
 
