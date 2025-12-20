@@ -162,7 +162,7 @@ systemctl status taosd
 - `systemctl` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
 - `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine TSDB 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 - 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine TSDB 服务。
-- 如果希望自定义 TDengine TSDB 的服务里的参数，则参考 [使用 Systemd drop-in 文件自定义 taosd 启动参数](#使用-systemd-drop-in-文件自定义-taosd-启动参数) 章节。
+- 如果希望自定义 TDengine TSDB 服务参数，则参考 [使用 Systemd drop-in 文件自定义 taosd 启动参数](#使用-systemd-drop-in-文件自定义-taosd-启动参数)。
 
 :::
 
@@ -218,7 +218,7 @@ sudo launchctl print system/com.tdengine.taosd
 下面以将 taosd 服务的启动重试统计窗口改为 60 秒为例，说明如何使用 drop-in 文件。
 
 1. 创建 drop-in 目录
-drop-in 目录固定为 /etc/systemd/system/<unit-name>.service.d/，里面放任意 .conf 文件
+drop-in 目录的路径为 /etc/systemd/system/<unit-name>.service.d/（对于 taosd 服务，即为 /etc/systemd/system/taosd.service.d/），用于存放 `.conf` 格式的覆盖配置文件。
 
 ```bash
 sudo mkdir -p /etc/systemd/system/taosd.service.d
