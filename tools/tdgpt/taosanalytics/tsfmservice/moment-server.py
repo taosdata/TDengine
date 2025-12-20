@@ -349,7 +349,7 @@ def main():
 
     if num_of_arg == 2 and sys.argv[1] == '--help':
         print(usage())
-        exit(0)
+        sys.exit(0)
 
     if num_of_arg == 1:
         # use the implicit download capability
@@ -361,7 +361,8 @@ def main():
         # python moirai-server.py model_index
         model_index = int(sys.argv[1])
         if model_index < 0 or model_index >= len(_model_list):
-            print(f"invalid model index parameter, valid index:\n 0. {_model_list[0]}\n 1. {_model_list[1]}")
+            print(
+                f"invalid model index parameter, valid indices are 0 to {len(_model_list) - 1}. Available models: {_model_list}")
             exit(-1)
 
         pretrained_model = MOMENTPipeline.from_pretrained(
@@ -372,7 +373,7 @@ def main():
         # let's load the model file from the user specified directory
         model_folder = sys.argv[1].strip('\'"')
         model_name = sys.argv[2].strip('\'"')
-        enable_ep = bool(sys.argv[3])
+        enable_ep = sys.argv[3].lower() in ('true', '1', 't', 'y', 'yes')
 
         if model_name not in _model_list:
             print(f"invalid model_name, valid model name as follows: {_model_list}")
@@ -382,8 +383,8 @@ def main():
             print(f"the specified folder: {model_folder} not exists, start to create it")
 
         # check if the model file exists or not
-        model_file = model_folder + '/model.safetensors'
-        model_conf_file = model_folder + '/config.json'
+        model_file = os.path.join(model_folder, 'model.safetensors')
+        model_conf_file = os.path.join(model_folder, 'config.json')
 
         if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
             download_model(model_name, model_folder, enable_ep=enable_ep)
