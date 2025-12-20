@@ -16240,8 +16240,8 @@ static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pS
   STableMeta* pTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
 
-  EPrivObjType objType = pReq->targetType;
-  int32_t      objLevel = pReq->targetLevel;
+  EPrivObjType objType = pReq->objType;
+  int32_t      objLevel = pReq->objLevel;
 
   if (objType < PRIV_OBJ_DB || objType >= PRIV_OBJ_MAX) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid object type for privileges");
@@ -16404,7 +16404,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     pCol->node.resType.bytes = pSchema->bytes;
   }
 
-  if (!(*ppReqCols = taosArrayInit(TMIN(nCols, columnNum), sizeof(colNameFlag)))) {
+  if (!(*ppReqCols = taosArrayInit(TMIN(nCols, columnNum), sizeof(SColNameFlag)))) {
     return terrno;
   }
 
@@ -16437,7 +16437,7 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
   SPrivSetArgs*    pPrivSetArgs = &pStmt->privileges;
   SPrivSetReqArgs* pReqArgs = &pReq->privileges;
 
-  if (pReq->targetType != PRIV_OBJ_TABLE) return TSDB_CODE_SUCCESS;
+  if (pReq->objType != PRIV_OBJ_TABLE) return TSDB_CODE_SUCCESS;
 #if 0
   if (pPrivSetArgs->rowSpans) {
     if (LIST_LENGTH((SNodeList*)pPrivSetArgs->rowSpans) != 2) {
@@ -16474,6 +16474,19 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
     if (pStmt->tabName[0] == '\0' || strncmp(pStmt->tabName, "*", 2) == 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Column-level privileges require a specific table name");
+    }
+
+    if (LIST_LENGTH((SNodeList*)pPrivSetArgs->selectCols) > 0 && PRIV_HAS(&pPrivSetArgs->privSet, PRIV_TBL_SELECT)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Cannot grant table-level and column-level SELECT privileges simultaneously");
+    }
+    if (LIST_LENGTH((SNodeList*)pPrivSetArgs->insertCols) > 0 && PRIV_HAS(&pPrivSetArgs->privSet, PRIV_TBL_INSERT)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Cannot grant table-level and column-level INSERT privileges simultaneously");
+    }
+    if (LIST_LENGTH((SNodeList*)pPrivSetArgs->updateCols) > 0 && PRIV_HAS(&pPrivSetArgs->privSet, PRIV_TBL_UPDATE)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Cannot grant table-level and column-level UPDATE privileges simultaneously");
     }
 
     SRealTableNode* pTable = NULL;
@@ -16563,8 +16576,8 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
                                                   privInfoGet(PRIV_VG_BALANCE)->name));
         }
       } else {
-        req.targetType = objType;
-        req.targetLevel = objLevel;
+        req.objType = objType;
+        req.objLevel = objLevel;
         TAOS_CHECK_EXIT(translateGrantFillPrivileges(pCxt, pStmt, &req));
         TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, &req, grant));
       }

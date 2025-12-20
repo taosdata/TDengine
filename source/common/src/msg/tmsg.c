@@ -2622,7 +2622,7 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->alterType));
-  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->targetType));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->objType));
   TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pReq->flag));
   if (pReq->alterType == TSDB_ALTER_ROLE_ROLE) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->roleName));
@@ -2678,7 +2678,7 @@ int32_t tDeserializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeU8(&decoder, (int8_t *)&pReq->alterType));
-  TAOS_CHECK_EXIT(tDecodeU8(&decoder, (int8_t *)&pReq->targetType));
+  TAOS_CHECK_EXIT(tDecodeU8(&decoder, (int8_t *)&pReq->objType));
   TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pReq->flag));
   if (pReq->alterType == TSDB_ALTER_ROLE_ROLE) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->roleName));

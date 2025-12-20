@@ -352,6 +352,11 @@ static FORCE_INLINE void privRemoveSet(SPrivSet* privSet1, const SPrivSet* privS
   }
 }
 
+static FORCE_INLINE void privRemoveType(SPrivSet* privSet, EPrivType type) {
+  if (type < 0 || type > MAX_PRIV_TYPE) return;
+  privSet->set[PRIV_GROUP(type)] &= ~(1ULL << PRIV_OFFSET(type));
+}
+
 static FORCE_INLINE bool privIsEmptySet(SPrivSet* privSet) {
   for (int i = 0; i < PRIV_GROUP_CNT; i++) {
     if (privSet->set[i] != 0) return false;

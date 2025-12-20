@@ -3226,7 +3226,7 @@ static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj *useD
   if (alterReq->tagCond != NULL && alterReq->tagCondLen != 0) {
     char *value = taosHashGet(hash, tbFName, len);
     if (value != NULL) {
-      TAOS_RETURN(TSDB_CODE_MND_PRIVILEDGE_EXIST);
+      TAOS_RETURN(TSDB_CODE_MND_PRIVILEGE_EXIST);
     }
 
     int32_t condLen = alterReq->tagCondLen;
@@ -3503,14 +3503,14 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-    if ((code = mndAlterUserPrivInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_MND_INVALID_ALTER_OPER) {
+    if ((code = mndAlterUserPrivInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
       goto _exit;
     } else {
       TAOS_CHECK_EXIT(code);
     }
   } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
-    if ((code = mndAlterUserRoleInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_MND_INVALID_ALTER_OPER) {
+    if ((code = mndAlterUserRoleInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
       goto _exit;
     } else {

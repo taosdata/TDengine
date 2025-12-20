@@ -1394,15 +1394,15 @@ typedef struct {
 } SPrivSetReqArgs;
 
 typedef struct {
-  uint8_t alterType;
-  uint8_t targetType;  // db, table, view, rsma, etc.
+  uint8_t alterType;  // TSDB_ALTER_ROLE_LOCK, TSDB_ALTER_ROLE_ROLE, TSDB_ALTER_ROLE_PRIVILEGES
+  uint8_t objType;    // db, table, view, rsma, etc.
   union {
     uint32_t flag;
     struct {
-      uint32_t lock : 1;         // lock or unlock role
-      uint32_t add : 1;          // add or remove
-      uint32_t sysPriv : 1;      // system or object privileges
-      uint32_t targetLevel : 2;
+      uint32_t lock : 1;     // lock or unlock role
+      uint32_t add : 1;      // add or remove
+      uint32_t sysPriv : 1;  // system or object privileges
+      uint32_t objLevel : 2;
       uint32_t reserve : 27;
     };
   };
