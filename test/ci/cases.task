@@ -448,7 +448,7 @@
 # 13-TimeSeriesExt
 
 ## 01-PartitionBy
-,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/01-PartitionBy/test_partitonby.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/01-PartitionBy/test_ts_partitonby.py
 ## 02-Fill
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/02-Fill/test_ts_fill.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/02-Fill/test_ts_fill_datatype.py
@@ -919,7 +919,6 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
 
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py

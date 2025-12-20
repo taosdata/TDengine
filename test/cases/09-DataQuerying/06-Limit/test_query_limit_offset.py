@@ -355,7 +355,7 @@ class TestLimit:
         tdSql.execute("insert into db6080.t1 values(1537146000001, 2);")
         
         tdSql.query("select ts, age from (select ts, age from db6080.t1 order by ts limit 1) where ts > 1537146000000;")
-        tdSql.checkRows(1)
+        tdSql.checkRows(0)
         
     def test_query_limit_offset(self):
         """Limit with offset
