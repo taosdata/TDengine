@@ -12,18 +12,22 @@ script_dir=$(dirname $(readlink -f "$0"))
 echo -e "${script_dir}"
 
 custom_dir_set=0
-while getopts "hd:" arg; do
+all_venv=0
+while getopts "hd:a" arg; do
   case $arg in
     d)
       customDir="$OPTARG"
       custom_dir_set=1
       ;;
+    a)
+      all_venv=1
+      ;;
     h)
-      echo "Usage: $(basename $0) -d [install dir]"
+      echo "Usage: $(basename $0) -d [install dir] -a"
       exit 0
       ;;
     ?)
-      echo "Usage: $0 [-d install_dir]"
+      echo "Usage: $0 [-d install_dir] [-a]"
       exit 1
       ;;
   esac
@@ -46,6 +50,7 @@ bin_link_dir="/usr/bin"
 # if install python venv
 install_venv="${INSTALL_VENV:-True}"
 
+# default env:transformers 4.40.0
 if [ $custom_dir_set -eq 1 ]; then
   installDir="${customDir}/${PREFIX}/${PRODUCTPREFIX}"
   logDir="${installDir}/log"
@@ -62,8 +67,13 @@ else
   venvDir="${dataDir}/venv"
 fi
 
+
 #install main path
 install_main_dir=${installDir}
+# chronos-forecasting venv:transformers==4.55.0
+chronos_venv_dir="${dataDir}/venv_chronos"
+# momentfm venv:transformers==4.33.0
+momentfm_venv_dir="${dataDir}/venv_momentfm"
 
 service_config_dir="/etc/systemd/system"
 
@@ -306,7 +316,7 @@ function install_anode_venv() {
 
     echo -e "active Python3 virtual env: ${venvDir}"
     source ${venvDir}/bin/activate
-
+    # default env transformers==4.40.0
     echo -e "install the required packages by pip3, this may take a while depending on the network condition"
     ${csudo}${venvDir}/bin/pip3 install -r ${script_dir}/requirements_ess.txt
 
@@ -314,6 +324,28 @@ function install_anode_venv() {
   else
     echo -e "Install python library for venv skipped!"
   fi
+}
+
+function install_extra_venvs() {
+  # chronos-forecasting venv: transformers==4.55.0
+  if [ -d "${chronos_venv_dir}" ]; then
+    rm -rf "${chronos_venv_dir}"
+  fi
+  cp -rf "${venvDir}" "${chronos_venv_dir}"
+  # shellcheck source=/dev/null
+  source "${chronos_venv_dir}/bin/activate"
+  "${chronos_venv_dir}/bin/pip3" install --upgrade transformers==4.55.0
+  deactivate
+
+  # moment venv: transformers==4.33.0
+  if [ -d "${momentfm_venv_dir}" ]; then
+    rm -rf "${momentfm_venv_dir}"
+  fi
+  cp -rf "${venvDir}" "${momentfm_venv_dir}"
+  # shellcheck source=/dev/null
+  source "${momentfm_venv_dir}/bin/activate"
+  "${momentfm_venv_dir}/bin/pip3" install --upgrade transformers==4.33.0
+  deactivate
 }
 
 function clean_service_on_sysvinit() {
@@ -446,6 +478,11 @@ function installProduct() {
   echo
   echo -e "\033[44;32;1mStart to create virtual python env in ${venvDir}${NC}"
   install_anode_venv
+
+  if [ ${all_venv} -eq 1 ]; then
+    echo -e "\033[44;32;1mStart to create extra venvs for chronos-forecasting and momentfm${NC}"
+    install_extra_venvs
+  fi
 }
 
 # check for python version, only the 3.10/3.11/3.12 is supported

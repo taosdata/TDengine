@@ -3,12 +3,13 @@
 # Generate install package for Linux Platform
 
 set -e
-
-while getopts "e:v:m:" opt; do
+all_models=0
+while getopts "e:v:m:a" opt; do
     case "$opt" in
         e) edition="$OPTARG" ;;  # -e enterprise/community
         v) version="$OPTARG" ;;  # -v version
         m) model_dir="$OPTARG" ;;  # -m model_dir
+        a) all_models=1 ;;         # -a 打包所有模型
         *) echo "Usage: $0 -e edition -v version"; exit 1 ;;
     esac
 done
@@ -90,6 +91,14 @@ if [ -d "${model_dir}" ]; then
   echo "copy ${xhs_model_name} model files "
   cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
   echo "copy ${xhs_model_name} model files done"
+
+  if [ "$all_models" == "1" ]; then
+    for extra_model in chronos moment-large moirai timesfm; do
+      echo "copy ${extra_model} model files"
+      cp -r ${model_dir}/${extra_model}.tar.gz ${model_install_dir} || :
+      echo "copy ${extra_model} model files done"
+    done
+  fi
 fi
 
 # tar lib and model files
