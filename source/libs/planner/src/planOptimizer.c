@@ -9330,9 +9330,7 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
 
   PLAN_ERR_JRET(rebuildVstbScanTargets(pDynVstbScan, pVirtualChildAgg));
 
-  if (!batchProcessChild) {
-    clearChildList((SLogicNode*)pNewAgg);
-  }
+  clearChildList((SLogicNode*)pNewAgg);
   clearChildList((SLogicNode*)pVirtualScanNode);
   clearChildList((SLogicNode*)pVirtualChildAgg);
   clearChildList((SLogicNode*)pDynVstbScan);
@@ -9352,6 +9350,7 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
 
   if (batchProcessChild) {
     PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pDynVstbScan));
+    nodesDestroyNode((SNode*)pNewAgg);
   } else {
     PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pNewAgg));
   }
@@ -9428,9 +9427,9 @@ static int32_t vstableAggOptimizeWithPartition(SOptimizeContext* pCxt, SLogicSub
   clearChildList((SLogicNode *)pVirtualScanNode);
   clearChildList((SLogicNode *)pDynVstbScan);
   clearChildList((SLogicNode *)pPartition);
+  clearChildList((SLogicNode *)pNewAgg);
 
   if (!batchProcessChild) {
-    clearChildList((SLogicNode *)pNewAgg);
     PLAN_ERR_JRET(appendNewChild((SLogicNode*)pNewAgg, (SLogicNode*)pDynVstbScan));
   }
 
@@ -9444,6 +9443,7 @@ static int32_t vstableAggOptimizeWithPartition(SOptimizeContext* pCxt, SLogicSub
 
   if (batchProcessChild) {
     PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pDynVstbScan));
+    nodesDestroyNode((SNode*)pNewAgg);
   } else {
     PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pNewAgg));
   }

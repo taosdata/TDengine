@@ -1225,26 +1225,16 @@ void freeExchangeGetBasicOperatorParam(void* pParam) {
   if (pBasic->uidList) {
     taosArrayDestroy(pBasic->uidList);
   }
-  if (pBasic->colMap) {
-    taosArrayDestroy(pBasic->colMap->colMap);
-    taosMemoryFreeClear(pBasic->colMap);
+  if (pBasic->orgTbInfo) {
+    taosArrayDestroy(pBasic->orgTbInfo->colMap);
+    taosMemoryFreeClear(pBasic->orgTbInfo);
   }
-  if (pBasic->batchColMap) {
-    for (int32_t i = 0; i < taosArrayGetSize(pBasic->batchColMap); i++) {
-      SOrgTbInfo* pOrgTbInfo = (SOrgTbInfo*)taosArrayGet(pBasic->batchColMap, i);
-      taosArrayDestroy(pOrgTbInfo->colMap);
-    }
-    taosArrayDestroy(pBasic->batchColMap);
-    pBasic->batchColMap = NULL;
+  if (pBasic->batchOrgTbInfo) {
+    taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
+    pBasic->batchOrgTbInfo = NULL;
   }
   if (pBasic->tagList) {
-    for (int32_t i = 0; i < taosArrayGetSize(pBasic->tagList); i++) {
-      STagVal* pTagVal = (STagVal*)taosArrayGet(pBasic->tagList, i);
-      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-        taosMemoryFreeClear(pTagVal->pData);
-      }
-    }
-    taosArrayDestroy(pBasic->tagList);
+    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
     pBasic->tagList = NULL;
   }
 }

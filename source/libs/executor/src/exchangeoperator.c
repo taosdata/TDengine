@@ -46,8 +46,8 @@ typedef struct SSourceDataInfo {
   bool                tableSeq;
   char*               decompBuf;
   int32_t             decompBufSize;
-  SOrgTbInfo*         colMap;
-  SArray*             batchColMap; // SArray<SOrgTbInfo>
+  SOrgTbInfo*         orgTbInfo;
+  SArray*             batchOrgTbInfo; // SArray<SOrgTbInfo>
   SArray*             tagList;
   EExchangeSourceType type;
   bool                isNewParam;
@@ -883,6 +883,7 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   pScan->tableSeq = tableSeq;
   pScan->pOrgTbInfo = NULL;
   pScan->pBatchTbInfo = NULL;
+  pScan->pTagList = NULL;
   pScan->isNewParam = false;
   pScan->window.skey = INT64_MAX;
   pScan->window.ekey = INT64_MIN;
@@ -1196,9 +1197,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     switch (pDataInfo->type) {
       case EX_SRC_TYPE_VSTB_SCAN: {
-        code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->colMap, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam);
-        taosArrayDestroy(pDataInfo->colMap->colMap);
-        taosMemoryFreeClear(pDataInfo->colMap);
+        code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->orgTbInfo, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam);
+        taosArrayDestroy(pDataInfo->orgTbInfo->colMap);
+        taosMemoryFreeClear(pDataInfo->orgTbInfo);
         taosArrayDestroy(pDataInfo->pSrcUidList);
         pDataInfo->pSrcUidList = NULL;
         if (TSDB_CODE_SUCCESS != code) {
@@ -1233,26 +1234,20 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         break;
       }
       case EX_SRC_TYPE_VSTB_AGG_SCAN: {
-        if (pDataInfo->batchColMap) {
-          code = buildAggOperatorParam(&req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->batchColMap, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam);
-          if (pDataInfo->batchColMap) {
-            for (int32_t i = 0; i < taosArrayGetSize(pDataInfo->batchColMap); ++i) {
-              SOrgTbInfo* pColMap = taosArrayGet(pDataInfo->batchColMap, i);
+        if (pDataInfo->batchOrgTbInfo) {
+          code = buildAggOperatorParam(&req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam);
+          if (pDataInfo->batchOrgTbInfo) {
+            for (int32_t i = 0; i < taosArrayGetSize(pDataInfo->batchOrgTbInfo); ++i) {
+              SOrgTbInfo* pColMap = taosArrayGet(pDataInfo->batchOrgTbInfo, i);
               if (pColMap) {
                 taosArrayDestroy(pColMap->colMap);
               }
             }
-            taosArrayDestroy(pDataInfo->batchColMap);
-            pDataInfo->batchColMap = NULL;
+            taosArrayDestroy(pDataInfo->batchOrgTbInfo);
+            pDataInfo->batchOrgTbInfo = NULL;
           }
           if (pDataInfo->tagList) {
-            for (int32_t i = 0; i < taosArrayGetSize(pDataInfo->tagList); ++i) {
-              STagVal* pTag = taosArrayGet(pDataInfo->tagList, i);
-              if (pTag && IS_VAR_DATA_TYPE(pTag->type)) {
-                taosMemoryFreeClear(pTag->pData);
-              }
-            }
-            taosArrayDestroy(pDataInfo->tagList);
+            taosArrayDestroyEx(pDataInfo->tagList, destroyTagVal);
             pDataInfo->tagList = NULL;
           }
           if (pDataInfo->pSrcUidList) {
@@ -1694,27 +1689,22 @@ _error:
 
 void clearVtbScanDataInfo(void* pItem) {
   SSourceDataInfo *pInfo = (SSourceDataInfo *)pItem;
-  if (pInfo->colMap) {
-    taosArrayDestroy(pInfo->colMap->colMap);
-    taosMemoryFreeClear(pInfo->colMap);
+  if (pInfo->orgTbInfo) {
+    taosArrayDestroy(pInfo->orgTbInfo->colMap);
+    taosMemoryFreeClear(pInfo->orgTbInfo);
   }
-  if (pInfo->batchColMap) {
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->batchColMap); ++i) {
-      SOrgTbInfo* pColMap = taosArrayGet(pInfo->batchColMap, i);
+  if (pInfo->batchOrgTbInfo) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->batchOrgTbInfo); ++i) {
+      SOrgTbInfo* pColMap = taosArrayGet(pInfo->batchOrgTbInfo, i);
       if (pColMap) {
         taosArrayDestroy(pColMap->colMap);
       }
     }
-    taosArrayDestroy(pInfo->batchColMap);
+    taosArrayDestroy(pInfo->batchOrgTbInfo);
   }
   if (pInfo->tagList) {
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->tagList); ++i) {
-      STagVal* pTag = taosArrayGet(pInfo->tagList, i);
-      if (pTag && IS_VAR_DATA_TYPE(pTag->type)) {
-        taosMemoryFreeClear(pTag->pData);
-      }
-    }
-    taosArrayDestroy(pInfo->tagList);
+    taosArrayDestroyEx(pInfo->tagList, destroyTagVal);
+    pInfo->tagList = NULL;
   }
   taosArrayDestroy(pInfo->pSrcUidList);
 }
@@ -1772,12 +1762,12 @@ int32_t loadBatchColMapFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOpera
   SOrgTbInfo  dstOrgTbInfo = {0};
   bool        needFree = false;
 
-  if (pBasicParam->batchColMap) {
-    pDataInfo->batchColMap = taosArrayInit(1, sizeof(SOrgTbInfo));
-    QUERY_CHECK_NULL(pDataInfo->batchColMap, code, lino, _return, terrno);
+  if (pBasicParam->batchOrgTbInfo) {
+    pDataInfo->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
+    QUERY_CHECK_NULL(pDataInfo->batchOrgTbInfo, code, lino, _return, terrno);
 
-    for (int32_t i = 0; i < taosArrayGetSize(pBasicParam->batchColMap); ++i) {
-      SOrgTbInfo* pSrcOrgTbInfo = taosArrayGet(pBasicParam->batchColMap, i);
+    for (int32_t i = 0; i < taosArrayGetSize(pBasicParam->batchOrgTbInfo); ++i) {
+      SOrgTbInfo* pSrcOrgTbInfo = taosArrayGet(pBasicParam->batchOrgTbInfo, i);
       QUERY_CHECK_NULL(pSrcOrgTbInfo, code, lino, _return, terrno);
 
       dstOrgTbInfo = (SOrgTbInfo){0};
@@ -1788,11 +1778,11 @@ int32_t loadBatchColMapFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOpera
       QUERY_CHECK_NULL(dstOrgTbInfo.colMap, code, lino, _return, terrno);
 
       needFree = true;
-      QUERY_CHECK_NULL(taosArrayPush(pDataInfo->batchColMap, &dstOrgTbInfo), code, lino, _return, terrno);
+      QUERY_CHECK_NULL(taosArrayPush(pDataInfo->batchOrgTbInfo, &dstOrgTbInfo), code, lino, _return, terrno);
       needFree = false;
     }
   } else {
-    pBasicParam->batchColMap = NULL;
+    pBasicParam->batchOrgTbInfo = NULL;
   }
 
   return code;
@@ -1848,8 +1838,8 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         dataInfo.groupid = pBasicParam->groupid;
         dataInfo.window = pBasicParam->window;
         dataInfo.isNewParam = pBasicParam->isNewParam;
-        dataInfo.batchColMap = taosArrayInit(1, sizeof(SOrgTbInfo));
-        QUERY_CHECK_NULL(dataInfo.batchColMap, code, lino, _return, terrno);
+        dataInfo.batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
+        QUERY_CHECK_NULL(dataInfo.batchOrgTbInfo, code, lino, _return, terrno);
 
         code = loadTagListFromBasicParam(&dataInfo, pBasicParam);
         QUERY_CHECK_CODE(code, lino, _return);
@@ -1857,7 +1847,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         code = loadBatchColMapFromBasicParam(&dataInfo, pBasicParam);
         QUERY_CHECK_CODE(code, lino, _return);
 
-        dataInfo.colMap = NULL;
+        dataInfo.orgTbInfo = NULL;
 
         dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
         QUERY_CHECK_NULL(dataInfo.pSrcUidList, code, lino, _return, terrno);
@@ -1889,7 +1879,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         code = loadBatchColMapFromBasicParam(pDataInfo, pBasicParam);
         QUERY_CHECK_CODE(code, lino, _return);
 
-        pDataInfo->colMap = NULL;
+        pDataInfo->orgTbInfo = NULL;
 
         pDataInfo->pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
         QUERY_CHECK_NULL(pDataInfo->pSrcUidList, code, lino, _return, terrno);
@@ -1908,7 +1898,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
       dataInfo.index = pIdx->srcIdx;
       dataInfo.window = pBasicParam->window;
       dataInfo.groupid = 0;
-      dataInfo.colMap = NULL;
+      dataInfo.orgTbInfo = NULL;
       dataInfo.tagList = NULL;
 
       dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
@@ -1932,12 +1922,12 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
       dataInfo.groupid = 0;
       dataInfo.isNewParam = pBasicParam->isNewParam;
       dataInfo.tagList = NULL;
-      dataInfo.colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
-      QUERY_CHECK_NULL(dataInfo.colMap, code, lino, _return, terrno);
-      dataInfo.colMap->vgId = pBasicParam->colMap->vgId;
-      tstrncpy(dataInfo.colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
-      dataInfo.colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
-      QUERY_CHECK_NULL(dataInfo.colMap->colMap, code, lino, _return, terrno);
+      dataInfo.orgTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
+      QUERY_CHECK_NULL(dataInfo.orgTbInfo, code, lino, _return, terrno);
+      dataInfo.orgTbInfo->vgId = pBasicParam->orgTbInfo->vgId;
+      tstrncpy(dataInfo.orgTbInfo->tbName, pBasicParam->orgTbInfo->tbName, TSDB_TABLE_FNAME_LEN);
+      dataInfo.orgTbInfo->colMap = taosArrayDup(pBasicParam->orgTbInfo->colMap, NULL);
+      QUERY_CHECK_NULL(dataInfo.orgTbInfo->colMap, code, lino, _return, terrno);
 
       dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
       QUERY_CHECK_NULL(dataInfo.pSrcUidList, code, lino, _return, terrno);

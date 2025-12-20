@@ -3611,6 +3611,8 @@ typedef struct SOrgTbInfo {
   SArray* colMap;  // SArray<SColIdNameKV>
 } SOrgTbInfo;
 
+void destroySOrgTbInfo(void *info);
+
 typedef enum {
   DYN_TYPE_STB_JOIN = 1,
   DYN_TYPE_VSTB_SINGLE_SCAN,

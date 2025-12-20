@@ -186,8 +186,8 @@ typedef struct SExchangeOperatorBasicParam {
   bool                  isNewDeployed; // used with newDeployedSrc
   bool                  isNewParam;
   uint64_t              groupid;
-  SOrgTbInfo*           colMap;
-  SArray*               batchColMap; // SArray<SOrgTbInfo>
+  SOrgTbInfo*           orgTbInfo;
+  SArray*               batchOrgTbInfo; // SArray<SOrgTbInfo>
   SArray*               tagList;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
