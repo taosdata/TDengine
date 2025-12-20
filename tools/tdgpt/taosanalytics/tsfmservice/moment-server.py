@@ -1,8 +1,11 @@
+import os
 import re
+import sys
 from datetime import timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from huggingface_hub import snapshot_download
 
 from sklearn.preprocessing import StandardScaler
 
@@ -13,28 +16,12 @@ from momentfm.utils.utils import control_randomness
 from momentfm import MOMENTPipeline
 
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 control_randomness(seed=13) # Set random seeds for PyTorch, Numpy etc.
 
 app = Flask(__name__)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-_model_list = [
-    'AutonLab/MOMENT-1-small',  # small model with 37.9M parameters
-    'AutonLab/MOMENT-1-base',   # small model with 113M parameters
-    'AutonLab/MOMENT-1-large',  # small model with 346M parameters
-]
-
-model = MOMENTPipeline.from_pretrained(
-    _model_list[0],
-    model_kwargs={'task_name': 'reconstruction'} # For imputation, we will load MOMENT in `reconstruction` mode
-    # local_files_only=True,  # Whether or not to only look at local files (i.e., do not try to download the model).
-)
-
-model.init()
-print(model)
-
 device = "cuda:1" if torch.cuda.is_available() else "cpu"
-model = model.to(device).float()
 
 @app.route('/imputation', methods=['POST'])
 def moment():
@@ -245,7 +232,7 @@ def do_handle_input_data(value_list, ts_list, precision, freq):
 
             # Reshape to [batch_size * n_channels, 1, window_size]
             batch_x = batch_x.reshape((-1, 1, stride_len))
-            output = model(x_enc=batch_x, input_mask=input_masks, mask=mask)  # [batch_size, n_channels, window_size]
+            output = pretrained_model(x_enc=batch_x, input_mask=input_masks, mask=mask)  # [batch_size, n_channels, window_size]
 
             reconstruction = output.reconstruction.detach().cpu().numpy()
             mask = mask.detach().squeeze().cpu().numpy()
@@ -306,10 +293,121 @@ def convert_ts(ts_list, precision):
 
     return ts_list.tolist()
 
-if __name__ == '__main__':
+
+def usage():
+    name = os.path.basename(__file__)
+    s = [
+        "Usage:",
+        f"Python {name}                    #use implicit download of small model",
+        f"Python {name} model_index        #specify the model that would load when starting",
+        f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy",
+        "",
+        "Available models as follows:",
+        'AutonLab/MOMENT-1-small',  # small model with 37.9M parameters
+        'AutonLab/MOMENT-1-base',  # small model with 113M parameters
+        'AutonLab/MOMENT-1-large',  # small model with 346M parameters
+    ]
+
+    return '\n'.join(s)
+
+def download_model(model_name, root_dir, enable_ep = False):
+    # model_list = ['Salesforce/moirai-moe-1.0-R-small']
+    ep = 'https://hf-mirror.com' if enable_ep else None
+    model_list = [model_name]
+
+    # root_dir = '/var/lib/taos/taosanode/model/moment/'
+    if not os.path.exists(root_dir):
+        os.mkdir(root_dir)
+
+    dst_folder = root_dir + '/'
+    if not os.path.exists(dst_folder):
+        os.mkdir(dst_folder)
+
+    for item in tqdm(model_list):
+        snapshot_download(
+            repo_id=item,
+            local_dir=dst_folder,  # storage directory
+            local_dir_use_symlinks=False,   # disable the link
+            resume_download=True,
+            endpoint=ep
+        )
+
+def main():
+    """
+    main function
+    """
+
+    global pretrained_model
+
+    _model_list = [
+        'AutonLab/MOMENT-1-small',  # small model with 37.9M parameters
+        'AutonLab/MOMENT-1-base',  # small model with 113M parameters
+        'AutonLab/MOMENT-1-large',  # small model with 346M parameters
+    ]
+
+    num_of_arg = len(sys.argv)
+
+    if num_of_arg == 2 and sys.argv[1] == '--help':
+        print(usage())
+        exit(0)
+
+    if num_of_arg == 1:
+        # use the implicit download capability
+        pretrained_model = MOMENTPipeline.from_pretrained(
+            _model_list[0],
+            model_kwargs={'task_name': 'reconstruction'}  # For imputation, we will load MOMENT in `reconstruction` mode
+        ).to(device).float()
+    elif num_of_arg == 2:
+        # python moirai-server.py model_index
+        model_index = int(sys.argv[1])
+        if model_index < 0 or model_index >= len(_model_list):
+            print(f"invalid model index parameter, valid index:\n 0. {_model_list[0]}\n 1. {_model_list[1]}")
+            exit(-1)
+
+        pretrained_model = MOMENTPipeline.from_pretrained(
+            _model_list[model_index],
+            model_kwargs={'task_name': 'reconstruction'}  # For imputation, we will load MOMENT in `reconstruction` mode
+        ).to(device).float()
+    elif num_of_arg == 4:
+        # let's load the model file from the user specified directory
+        model_folder = sys.argv[1].strip('\'"')
+        model_name = sys.argv[2].strip('\'"')
+        enable_ep = bool(sys.argv[3])
+
+        if model_name not in _model_list:
+            print(f"invalid model_name, valid model name as follows: {_model_list}")
+            exit(-1)
+
+        if not os.path.exists(model_folder):
+            print(f"the specified folder: {model_folder} not exists, start to create it")
+
+        # check if the model file exists or not
+        model_file = model_folder + '/model.safetensors'
+        model_conf_file = model_folder + '/config.json'
+
+        if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
+            download_model(model_name, model_folder, enable_ep=enable_ep)
+        else:
+            print("model file exists, start directly")
+
+        """load the model from local folder"""
+        pretrained_model = MOMENTPipeline.from_pretrained(
+            model_folder,
+            model_kwargs={'task_name': 'reconstruction'}  # For imputation, we will load MOMENT in `reconstruction` mode
+        ).to(device).float()
+
+    else:
+        print("invalid parameters")
+        print(usage())
+        exit(-1)
+
     app.run(
         host='0.0.0.0',
         port=6062,
         threaded=True,
         debug=False
     )
+
+
+if __name__ == "__main__":
+    main()
