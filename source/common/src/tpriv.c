@@ -458,19 +458,9 @@ int32_t privTblPolicyCopy(SPrivTblPolicy* dest, SPrivTblPolicy* src) {
     dest->cond = NULL;
   }
 
-  if (src->cols) {
-    dest->cols = taosArrayInit_s(sizeof(SColNameFlag), taosArrayGetSize(src->cols));
-    if (dest->cols == NULL) {
-      return terrno;
-    }
-
-    for (int32_t i = 0; i < TARRAY_SIZE(src->cols); ++i) {
-      SColNameFlag* pSrcCol = (SColNameFlag*)TARRAY_GET_ELEM(src->cols, i);
-      SColNameFlag* destCol = (SColNameFlag*)TARRAY_GET_ELEM(dest->cols, i);
-      destCol->colId = pSrcCol->colId;
-      destCol->flags = pSrcCol->flags;
-      (void)snprintf(destCol->colName, TSDB_COL_NAME_LEN, "%s", pSrcCol->colName);
-    }
+  if (taosArrayGetSize(src->cols) > 0) {
+    dest->cols = taosArrayDup(src->cols, NULL);
+    if (!dest->cols) return terrno;
   } else {
     dest->cols = NULL;
   }
