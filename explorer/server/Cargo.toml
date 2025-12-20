@@ -6,7 +6,6 @@ description = "TDengine Explorer UI"
 
 [dependencies]
 actix-cors.workspace = true
-actix-embed = "0.1.0"
 actix-files.workspace = true
 actix-web.workspace = true
 actix-ws.workspace = true
@@ -31,9 +30,9 @@ tokio-util = { workspace = true, features = ["compat"] }
 tokio-stream = { workspace = true, features = ["net", "sync"] }
 log = { workspace = true, features = ["serde"] }
 http-auth-basic = "0.3"
-rust-embed = "6.8.1"
+rust-embed = { version = "8.9.0", default-features = false, features = ["actix", "mime-guess"] }
 # rust-embed-for-web = { version = "11.3.0" }
-actix-web-rust-embed-responder = { version = "=2.2.1", default-features = false, features = ["support-rust-embed"] }
+actix-web-rust-embed-responder = { version = "2.3.0", default-features = false, features = ["support-rust-embed"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror.workspace = true
@@ -82,6 +81,7 @@ cbc = { version = "0.1.2", features = ["std"] }
 aes = "0.8.4"
 hkdf = "0.12.4"
 hmac = "0.12.1"
+mime_guess = "2.0.5"
 
 [dependencies.taos]
 workspace = true

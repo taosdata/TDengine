@@ -574,6 +574,7 @@ export TARGET_DIR=$PWD/target/${PLATFORM}
 mkdir -p $TARGET_DIR
 docker run --platform $PLATFORM --rm \
   -v .:/app \
+  -e VER_NUMBER=${VER_NUMBER} \
   -v $HOME/.cargo/registry:/root/.cargo/registry \
   -v $HOME/.cargo/git:/root/.cargo/git \
   -v $TARGET_DIR:/app/target \
@@ -632,6 +633,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v "$TARGET_DIR":/app/target \
       -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
+      -e VER_NUMBER=${VER_NUMBER} \
       taosx/dev:${RUST_VERSION} \
       cargo build --profile "${BUILD_PROFILE}" ${EXTRAS}
     ;;
