@@ -230,6 +230,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_stmt_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_write_stmt_error.py
 ## 03-SML
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_influxdb_line.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_json.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_telnet.py
@@ -334,6 +335,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/10-Operators/05-Comparison/test_null.py
 ## 06-Logical
 ,,y,.,./ci/pytest.sh pytest cases/10-Operators/06-Logical/test_and_or.py
+,,y,.,./ci/pytest.sh pytest cases/10-Operators/06-Logical/test_and_or_coltag.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Operators/06-Logical/test_if_smoking.py
 
 # 11-Functions
@@ -359,6 +361,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_log.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_lower.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_ltrim.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_now.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_pow.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_round.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_rtrim.py
@@ -657,6 +660,8 @@
 # 19-TSMAs
 
 90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
 
 # 20-RSMAs
@@ -918,16 +923,7 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
 
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaBasic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml_TS-3724.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml-TD19291.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varbinary.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py

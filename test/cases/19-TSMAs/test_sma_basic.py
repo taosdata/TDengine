@@ -269,23 +269,25 @@ class TestSmabasic:
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
 
-    def test_smaBasic(self):
-        """summary: xxx
+    def test_sma_basic(self):
+        """Sma basic
+        
+        1. Create 1 super table and 5 child tables
+        2. Insert 1 million rows data into each child table
+        3. Put special number value (8764231) on c2 column interval 3200 rows
+        4. Query and check the result of count/max/min/sum on c1/c2 column with different where condition
+        5. Query count(*) where c2 != specail number(8764231) as no using sma
+        6. Query count(*) no where as using sma
+        7. Expect the performance step5 < step6 * 8
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_smaBasic.py
 
         """
 

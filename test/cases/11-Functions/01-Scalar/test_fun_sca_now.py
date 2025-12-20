@@ -98,25 +98,26 @@ class TestNow:
             self.data_check(self.stbname,'stable')
             tdSql.execute(f'drop database {self.dbname}')
     def test_Now(self):
-        """summary: xxx
+        """ Fun: now()
+        
+        1. Now with insert clause
+        2. Now with select clause
+        3. Now with where clause
+        4. Now with time arithmetic
+        5. Now with different precisions
+        6. Now with error values
 
-        description: xxx
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_Now.py
 
         """
-  # sourcery skip: extract-duplicate-method
 
         self.now_check_ntb()
         self.now_check_stb()

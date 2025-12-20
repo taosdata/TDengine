@@ -52,22 +52,19 @@ class TestSmatest:
 
     # run case
     def test_smaTest(self):
-        """summary: xxx
+        """Sma bugs
+        
+        1. JIRA TD-33336
+        2. JIRA TS-5900        
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_smaTest.py
 
         """
 
@@ -188,15 +185,4 @@ class TestSmatest:
             tdLog.info(f"ts5900 test {i} ............ [OK]")
             time.sleep(1)
 
-    # test case1 base
-    # def test_case1(self):
-    #     #
-    #     # limit base function
-    #     #
-    #     # base no where
-    #     sql = "select * from t1 limit 10"
-    #     tdSql.waitedQuery(sql, 10, WAITS)
 
-#
-# add case with filename
-#

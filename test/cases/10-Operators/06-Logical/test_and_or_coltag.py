@@ -19,20 +19,20 @@ class TestQueryColsTagsAndOr:
         #tdSql.init(conn.cursor(), logSql)
 
     def insertData(self, tb_name):
-        insert_sql_list = [f'insert into {tb_name} values ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1, 2, 3, 4)',
-                           f'insert into {tb_name} values ("2021-01-05 12:00:00", 2, 2, 1, 3, 1.1, 1.1, "binary", "nchar", true, 2, 3, 4, 5)',
-                           f'insert into {tb_name} values ("2021-01-07 12:00:00", 1, 3, 1, 2, 1.1, 1.1, "binary", "nchar", true, 3, 4, 5, 6)',
-                           f'insert into {tb_name} values ("2021-01-09 12:00:00", 1, 2, 4, 3, 1.1, 1.1, "binary", "nchar", true, 4, 5, 6, 7)',
-                           f'insert into {tb_name} values ("2021-01-11 12:00:00", 1, 2, 5, 5, 1.1, 1.1, "binary", "nchar", true, 5, 6, 7, 8)',
-                           f'insert into {tb_name} values ("2021-01-13 12:00:00", 1, 2, 1, 3, 6.6, 1.1, "binary", "nchar", true, 6, 7, 8, 9)',
-                           f'insert into {tb_name} values ("2021-01-15 12:00:00", 1, 2, 1, 3, 1.1, 7.7, "binary", "nchar", true, 7, 9, 9, 10)',
-                           f'insert into {tb_name} values ("2021-01-17 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary8", "nchar", true, 8, 9, 10, 11)',
-                           f'insert into {tb_name} values ("2021-01-19 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary", "nchar9", true, 9, 10, 11, 12)',
-                           f'insert into {tb_name} values ("2021-01-21 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary", "nchar", false, 10, 11, 12, 13)',
-                           f'insert into {tb_name} values ("2021-01-23 12:00:00", 1, 3, 1, 3, 1.1, 1.1, Null, Null, false, 11, 12, 13, 14)'
+        insert_sql_list = [f' ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1, 2, 3, 4)',
+                           f' ("2021-01-05 12:00:00", 2, 2, 1, 3, 1.1, 1.1, "binary", "nchar", true, 2, 3, 4, 5)',
+                           f' ("2021-01-07 12:00:00", 1, 3, 1, 2, 1.1, 1.1, "binary", "nchar", true, 3, 4, 5, 6)',
+                           f' ("2021-01-09 12:00:00", 1, 2, 4, 3, 1.1, 1.1, "binary", "nchar", true, 4, 5, 6, 7)',
+                           f' ("2021-01-11 12:00:00", 1, 2, 5, 5, 1.1, 1.1, "binary", "nchar", true, 5, 6, 7, 8)',
+                           f' ("2021-01-13 12:00:00", 1, 2, 1, 3, 6.6, 1.1, "binary", "nchar", true, 6, 7, 8, 9)',
+                           f' ("2021-01-15 12:00:00", 1, 2, 1, 3, 1.1, 7.7, "binary", "nchar", true, 7, 9, 9, 10)',
+                           f' ("2021-01-17 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary8", "nchar", true, 8, 9, 10, 11)',
+                           f' ("2021-01-19 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary", "nchar9", true, 9, 10, 11, 12)',
+                           f' ("2021-01-21 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary", "nchar", false, 10, 11, 12, 13)',
+                           f' ("2021-01-23 12:00:00", 1, 3, 1, 3, 1.1, 1.1, Null, Null, false, 11, 12, 13, 14)'
                            ]
-        for sql in insert_sql_list:
-            tdSql.execute(sql)
+        values = " ".join(insert_sql_list)
+        tdSql.execute(f"insert into {tb_name} values {values}")
 
     def initTb(self, dbname="db"):
         tdCom.cleanTb(dbname)
@@ -2115,25 +2115,26 @@ class TestQueryColsTagsAndOr:
         tb_name = self.initTwoStb()
         self.queryJoin(tb_name)
 
-    def test_query_cols_tags_and_or(self):
-        """summary: xxx
+    def test_and_or_coltag(self):
+        """ Logical and & or on col and tag
+        
+        1. And/or on various data types of columns in ordinary table
+        2. And/or on various data types of tags in super table
+        3. And/or on timestamp and columns in ordinary table
+        4. And/or on join clauses
+        
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
 
         """
+
 
         tdSql.prepare()
         column_name = random.choice(["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10", "c11", "c12", "c13"])
