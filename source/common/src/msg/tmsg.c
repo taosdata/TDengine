@@ -2634,23 +2634,26 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
     int32_t nSelectCols = taosArrayGetSize(pReq->privileges.selectCols);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nSelectCols));
     for (int32_t i = 0; i < nSelectCols; i++) {
-      SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.selectCols, i);
+      SColNameFlag *pCol = TARRAY_GET_ELEM(pReq->privileges.selectCols, i);
       TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pCol->colId));
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pCol->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pCol->flags));
     }
     int32_t nInsertCols = taosArrayGetSize(pReq->privileges.insertCols);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nInsertCols));
     for (int32_t i = 0; i < nInsertCols; i++) {
-      SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.insertCols, i);
+      SColNameFlag *pCol = TARRAY_GET_ELEM(pReq->privileges.insertCols, i);
       TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pCol->colId));
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pCol->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pCol->flags));
     }
     int32_t nUpdateCols = taosArrayGetSize(pReq->privileges.updateCols);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nUpdateCols));
     for (int32_t i = 0; i < nUpdateCols; i++) {
-      SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.updateCols, i);
+      SColNameFlag *pCol = TARRAY_GET_ELEM(pReq->privileges.updateCols, i);
       TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pCol->colId));
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pCol->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pCol->flags));
     }
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->privileges.cond, pReq->privileges.condLen));
   }
@@ -2696,40 +2699,43 @@ int32_t tDeserializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq
     int32_t nSelectCols = 0;
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nSelectCols));
     if (nSelectCols > 0) {
-      pReq->privileges.selectCols = taosArrayInit_s(sizeof(SColIdNameKV), nSelectCols);
+      pReq->privileges.selectCols = taosArrayInit_s(sizeof(SColNameFlag), nSelectCols);
       if (pReq->privileges.selectCols == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
       for (int32_t i = 0; i < nSelectCols; i++) {
-        SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.selectCols, i);
+        SColNameFlag *pCol = TARRAY_GET_ELEM(pReq->privileges.selectCols, i);
         TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pCol->colId));
         TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pCol->colName));
+        TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pCol->flags));
       }
     }
     int32_t nInsertCols = 0;
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nInsertCols));
     if (nInsertCols > 0) {
-      pReq->privileges.insertCols = taosArrayInit_s(sizeof(SColIdNameKV), nInsertCols);
+      pReq->privileges.insertCols = taosArrayInit_s(sizeof(SColNameFlag), nInsertCols);
       if (pReq->privileges.insertCols == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
       for (int32_t i = 0; i < nInsertCols; i++) {
-        SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.insertCols, i);
+        SColNameFlag *pCol = TARRAY_GET_ELEM(pReq->privileges.insertCols, i);
         TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pCol->colId));
         TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pCol->colName));
+        TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pCol->flags));
       }
     }
     int32_t nUpdateCols = 0;
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nUpdateCols));
     if (nUpdateCols > 0) {
-      pReq->privileges.updateCols = taosArrayInit_s(sizeof(SColIdNameKV), nUpdateCols);
+      pReq->privileges.updateCols = taosArrayInit_s(sizeof(SColNameFlag), nUpdateCols);
       if (pReq->privileges.updateCols == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
       for (int32_t i = 0; i < nUpdateCols; i++) {
-        SColIdNameKV *pCol = TARRAY_GET_ELEM(pReq->privileges.updateCols, i);
+        SColNameFlag *pCol = TARRAY_GET_ELEM(pReq->privileges.updateCols, i);
         TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pCol->colId));
         TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pCol->colName));
+        TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pCol->flags));
       }
     }
     uint64_t condLen = 0;

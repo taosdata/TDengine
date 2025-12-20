@@ -4854,7 +4854,7 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
-  int32_t     cols = 0;
+  int32_t     cols = 0, qBufSize = bufSize - VARSTR_HEADER_SIZE;
   char       *qBuf = NULL;
   char       *sql = NULL;
   char        roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -4898,7 +4898,6 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
-
       // condition
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);
@@ -4911,7 +4910,26 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
       }
       // columns
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);
+        SArray *pCols = tbPolicy->cols;
+        int32_t nCols = taosArrayGetSize(pCols);
+        int32_t totalLen = 0;
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        for (int32_t j = 0; j < nCols; ++j) {
+          SColNameFlag *pCol = (SColNameFlag *)TARRAY_GET_ELEM(pCols, j);
+          char          tmpBuf[TSDB_COL_NAME_LEN + 16] = {0};
+          int32_t       tmpLen = 0;
+          if (IS_MASK_ON(pCol)) {
+            tmpLen = snprintf(tmpBuf, sizeof(tmpBuf), "mask(%s)%s", pCol->colName, j == nCols - 1 ? "" : ",");
+          } else {
+            tmpLen = snprintf(tmpBuf, sizeof(tmpBuf), "%s%s", pCol->colName, j == nCols - 1 ? "" : ",");
+          }
+          if(totalLen + tmpLen > qBufSize) {
+            break;
+          }
+          (void)memcpy(POINTER_SHIFT(qBuf, totalLen), tmpBuf, tmpLen);
+          totalLen += tmpLen;
+        }
+        varDataSetLen(pBuf, totalLen);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
       // update_time
