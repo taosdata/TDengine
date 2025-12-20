@@ -4323,16 +4323,16 @@ int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash) {
       char tbKey[TSDB_TABLE_FNAME_LEN] = {0};
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, tbKey));
       SPrivTblPolicies tblPolicies = {0};
-      int32_t          nPolicies = 0;
-      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nPolicies));
-      for (int32_t k = 0; k < nPolicies; ++k) {
+      int32_t          nTblPolicies = 0;
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTblPolicies));
+      for (int32_t k = 0; k < nTblPolicies; ++k) {
         SPrivTblPolicy policy = {0};
         TAOS_CHECK_EXIT(tDecodeI64v(pDecoder, &policy.updateUs));
         // decode columns
         int32_t nCols = 0;
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nCols));
         if (nCols > 0) {
-          if (!(policy.cols = taosArrayInit_s(nCols, sizeof(SColNameFlag)))) {
+          if (!(policy.cols = taosArrayInit_s(sizeof(SColNameFlag), nCols))) {
             TAOS_CHECK_EXIT(terrno);
           }
           for (int32_t k = 0; k < nCols; ++k) {
@@ -4347,7 +4347,7 @@ int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash) {
         if (policy.condLen > 0) {
           TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &policy.cond));
         }
-        if (!(tblPolicies.policy = taosArrayInit(nPolicies, sizeof(SPrivTblPolicy)))) {
+        if (!(tblPolicies.policy = taosArrayInit(nTblPolicies, sizeof(SPrivTblPolicy)))) {
           TAOS_CHECK_EXIT(terrno);
         }
         if (!taosArrayPush(tblPolicies.policy, &policy)) {

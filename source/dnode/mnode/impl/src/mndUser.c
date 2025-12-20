@@ -4850,17 +4850,20 @@ _exit:
 
 static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, SUserObj *pObj,
                                       SHashObj *privTbs, EPrivType privType, char *pBuf, int32_t bufSize) {
-  int32_t code = 0, lino = 0;
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfRows = 0;
-  int32_t cols = 0;
-  char   *qBuf = NULL;
-  char   *sql = NULL;
-  char    roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
+  int32_t     code = 0, lino = 0;
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  int32_t     numOfRows = 0;
+  int32_t     cols = 0;
+  char       *qBuf = NULL;
+  char       *sql = NULL;
+  char        roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
+  const char *privName = privInfoGetName(privType);
+
+  STR_WITH_MAXSIZE_TO_VARSTR(roleName, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
 
   void *pIter = NULL;
-  while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {
+  while ((pIter = taosHashIterate(privTbs, pIter))) {
     SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
     SArray           *tblPolicies = pPolices->policy;
 
@@ -4882,7 +4885,7 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
       COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privInfoGetName(PRIV_TBL_SELECT), pShow->pMeta->pSchemas[cols].bytes);
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privName, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
 
@@ -4913,9 +4916,9 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
       }
       // update_time
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        TAOS_CHECK_EXIT(
-            taosFormatUtcTime(pBuf, pShow->pMeta->pSchemas[cols].bytes, tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO));
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pBuf, pShow->pMeta->pSchemas[cols].bytes);
+        char updateTime[40] = {0};
+        (void)formatTimestampLocal(updateTime, tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, updateTime, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
@@ -5047,6 +5050,12 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     // table level privileges
     TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->selectTbs,
                                            PRIV_TBL_SELECT, pBuf, bufSize));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->insertTbs,
+                                           PRIV_TBL_INSERT, pBuf, bufSize));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->updateTbs,
+                                           PRIV_TBL_UPDATE, pBuf, bufSize));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->deleteTbs,
+                                           PRIV_TBL_DELETE, pBuf, bufSize));
 #if 0
     while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {
       SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
