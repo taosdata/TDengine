@@ -279,7 +279,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
 ## 05-Aliase
 ## 06-Limit
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_limit.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_basic.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_offset.py
 ## 07-SLimit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit_basic.py
@@ -917,9 +918,7 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py

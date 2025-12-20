@@ -4,6 +4,7 @@ import time
 
 class TestLimit:
 
+    # test_large_data.py
     def ts6136(self): 
         start = 1500000000000
         tdSql.execute("drop database if exists test1;")
@@ -46,8 +47,8 @@ class TestLimit:
                 tdSql.checkData(i, 1, ts_list[i])
 
 
-    def test_limit(self):
-        """Limit
+    def test_query_limit_basic(self):
+        """Limit basic
 
         1. Including multiple data types
         2. With ORDER BY clause

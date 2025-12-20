@@ -344,36 +344,38 @@ class TestLimit:
         tdSql.checkRows(0)
         tdLog.info("check db1 vgroups 1 limit 1 offset 100 successfully!")
 
-    def ts6080(self):
+    def fix_ts6080(self):
         tdLog.printNoPrefix("======== test case 6080: ")
         tdSql.execute("create database db6080 vgroups 1;")
         tdSql.execute("use db6080;")
         tdSql.execute("create table db6080.st(ts timestamp, age int) tags(area int);")
         tdSql.execute("create table db6080.t1 using db6080.st tags(1);")
         
-        tdSql.Execute("insert into db6080.t1 values(1537146000000, 1);")
-        tdSql.Execute("insert into db6080.t1 values(1537146000001, 2);")
+        tdSql.execute("insert into db6080.t1 values(1537146000000, 1);")
+        tdSql.execute("insert into db6080.t1 values(1537146000001, 2);")
         
         tdSql.query("select ts, age from (select ts, age from db6080.t1 order by ts limit 1) where ts > 1537146000000;")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
         
-    def test_limit(self):
-        """summary: xxx
+    def test_query_limit_offset(self):
+        """Limit with offset
 
-        description: xxx
+        1. Limit offset with nested query
+        2. Limit offset with different vgroups
+        3. Limit offset with interval and fill
+        4. Limit offset with group by
+        5. Limit offset with partition by
+        6. Limit offset with different database vgroups
+        7. JIRA TS-6080 
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_limit.py
 
         """
 
@@ -383,8 +385,7 @@ class TestLimit:
 
         # one vgroup diff more than one vgroup check
         self.checkVGroups()
-
-        #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        
+        self.fix_ts6080()
 
 event = threading.Event()

@@ -1,32 +1,149 @@
-# author : wenzhouwww
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
-class TestMaxPartition:
+
+class TestPartitonBy:
+
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
         cls.row_nums = 10
         cls.tb_nums = 10
         cls.ts = 1537146000000
 
+    def do_partitionby(self):
+        dbPrefix = "db"
+        tbPrefix1 = "tba"
+        tbPrefix2 = "tbb"
+        mtPrefix = "stb"
+        tbNum = 10
+        rowNum = 2
+
+        tdLog.info(f"=============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt1 = mtPrefix + str(i)
+        i = 1
+        mt2 = mtPrefix + str(i)
+
+        tdSql.execute(f"create database {db} vgroups 3")
+        tdSql.execute(f"use {db}")
+        tdSql.execute(
+            f"create table {mt1} (ts timestamp, f1 int) TAGS(tag1 int, tag2 binary(500))"
+        )
+        sql = "create table "
+        sql += f" tb0 using {mt1} tags(0, 'a')"
+        sql += f" tb1 using {mt1} tags(1, 'b')"
+        sql += f" tb2 using {mt1} tags(2, 'a')"
+        sql += f" tb3 using {mt1} tags(3, 'a')"
+        sql += f" tb4 using {mt1} tags(4, 'b')"
+        sql += f" tb5 using {mt1} tags(5, 'a')"
+        sql += f" tb6 using {mt1} tags(6, 'b')"
+        sql += f" tb7 using {mt1} tags(7, 'b')"
+        tdSql.execute(sql)
+
+        tdSql.query(f"select * from {mt1} partition by tag1,tag2 limit 1")
+        tdSql.checkRows(0)
+
+        sql = "insert into "
+        sql += " tb0 values ('2022-04-26 15:15:08', 1)"
+        sql += " tb1 values ('2022-04-26 15:15:07', 2)"
+        sql += " tb2 values ('2022-04-26 15:15:06', 3)"
+        sql += " tb3 values ('2022-04-26 15:15:05', 4)"
+        sql += " tb4 values ('2022-04-26 15:15:04', 5)"
+        sql += " tb5 values ('2022-04-26 15:15:03', 6)"
+        sql += " tb6 values ('2022-04-26 15:15:02', 7)"
+        sql += " tb7 values ('2022-04-26 15:15:01', 8)"
+        tdSql.execute(sql)
+
+        tdSql.query(
+            f"select _wstart as ts, count(*) from {mt1} partition by tag1 interval(1s) order by _wstart;"
+        )
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 0, "2022-04-26 15:15:01.000")
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, "2022-04-26 15:15:02.000")
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, "2022-04-26 15:15:03.000")
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 0, "2022-04-26 15:15:04.000")
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(4, 0, "2022-04-26 15:15:05.000")
+        tdSql.checkData(4, 1, 1)
+        tdSql.checkData(5, 0, "2022-04-26 15:15:06.000")
+        tdSql.checkData(5, 1, 1)
+        tdSql.checkData(6, 0, "2022-04-26 15:15:07.000")
+        tdSql.checkData(6, 1, 1)
+        tdSql.checkData(7, 0, "2022-04-26 15:15:08.000")
+        tdSql.checkData(7, 1, 1)
+
+        tdSql.query(
+            f"select * from (select _wstart as ts, count(*) from {mt1} partition by tag1 interval(1s) order by _wstart) order by ts;"
+        )
+        tdSql.query(
+            f"select _wstart as ts, count(*) from {mt1} interval(1s) order by _wstart;"
+        )
+        tdSql.query(
+            f"select * from (select _wstart as ts, count(*) from {mt1} interval(1s) order by _wstart) order by ts;"
+        )
+        tdSql.query(
+            f"select diff(a) from (select _wstart as ts, count(*) a from {mt1} interval(1s) order by _wstart);"
+        )
+        tdSql.query(
+            f"select diff(a) from (select _wstart as ts, count(*) a from {mt1} partition by tag1 interval(1s) order by _wstart);"
+        )
+
+        tdSql.execute(f"insert into tb0 values (now, 0);")
+        tdSql.execute(f"insert into tb1 values (now, 1);")
+        tdSql.execute(f"insert into tb2 values (now, 2);")
+        tdSql.execute(f"insert into tb3 values (now, 3);")
+        tdSql.execute(f"insert into tb4 values (now, 4);")
+        tdSql.execute(f"insert into tb5 values (now, 5);")
+        tdSql.execute(f"insert into tb6 values (now, 6);")
+        tdSql.execute(f"insert into tb7 values (now, 7);")
+
+        tdSql.query(
+            f"select * from (select 1 from {mt1} where ts is not null partition by tbname limit 1);"
+        )
+        tdSql.checkRows(8)
+
+        tdSql.query(
+            f"select count(*) from (select ts from {mt1} where ts is not null partition by tbname slimit 2);"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 4)
+
+        tdSql.query(
+            f"select count(*) from (select ts from {mt1} where ts is not null partition by tbname limit 2);"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 16)
+
+        print("do 2-query case ....................... [passed]")
+
+    #
+    # ------------------- test_max_partition.py ----------------
+    #
     def prepare_datas(self, stb_name , tb_nums , row_nums, dbname="db" ):
         tdSql.execute(f" create stable {dbname}.{stb_name} (ts timestamp , c1 int , c2 bigint , c3 float , c4 double , c5 smallint , c6 tinyint , c7 bool , c8 binary(36) , c9 nchar(36) , uc1 int unsigned,\
             uc2 bigint unsigned ,uc3 smallint unsigned , uc4 tinyint unsigned ) tags(t1 timestamp , t2 int , t3 bigint , t4 float , t5 double , t6 smallint , t7 tinyint , t8 bool , t9 binary(36)\
                 , t10 nchar(36) , t11 int unsigned , t12 bigint unsigned ,t13 smallint unsigned , t14 tinyint unsigned ) ")
 
+        sql1 = "create table "
+        sql2 = "insert into "
         for i in range(tb_nums):
             tbname = f"{dbname}.sub_{stb_name}_{i}"
             ts = self.ts + i*1000*120
-            tdSql.execute(f"create table {tbname} using {dbname}.{stb_name} tags ({ts} , {i} , %d , %f , %f , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )"%(i*10,i*1.0,i*1.0))
+            sql1 += f" {tbname} using {dbname}.{stb_name} tags ({ts} , {i} , %d , %f , %f , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )"%(i*10,i*1.0,i*1.0)
 
+            sql2 += f" {tbname} values"
             for row in range(row_nums):
                 ts = ts + row*1000
-                tdSql.execute(f"insert into {tbname} values({ts} , {row} , {row} , {row} , {row} , 1 , 2 , 'true' , 'binary_{row}' , 'nchar_{row}' , {row} , {row} , 1 ,2 )")
+                sql2 += f"({ts} , {row} , {row} , {row} , {row} , 1 , 2 , 'true' , 'binary_{row}' , 'nchar_{row}' , {row} , {row} , 1 ,2 )"
 
             for null in range(5):
                 ts = ts + row_nums*1000 + null*1000
-                tdSql.execute(f"insert into {tbname} values({ts} , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL )")
+                sql2 += f"({ts} , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL )"
+
+        tdSql.execute(sql1)
+        tdSql.execute(sql2)
 
     def basic_query(self, dbname="db"):
         tdSql.query(f"select count(*) from {dbname}.stb")
@@ -199,26 +316,7 @@ class TestMaxPartition:
         tdSql.query(f'select max(c1) from {dbname}.stb where ts>={self.ts} and ts < {self.ts}+1000 interval(50s) sliding(30s)')
         tdSql.query(f'select tbname , max(c1) from {dbname}.stb where ts>={self.ts} and ts < {self.ts}+1000 interval(50s) sliding(30s)')
 
-    def test_max_partition(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-
-        """
-
+    def do_max_partition(self):
         dbname = "db"
         tdSql.prepare()
         self.prepare_datas("stb",self.tb_nums,self.row_nums)
@@ -230,6 +328,33 @@ class TestMaxPartition:
         tdSql.query(f"select tbname ,max(ceil(c1)) from {dbname}.stb group by tbname ")
         tdSql.query(f"select avg(abs(c1)) , tbname from {dbname}.stb group by tbname ")
         tdSql.query(f"select t1,c1 from {dbname}.stb where abs(t2+c1)=1 ")
+    
+        print("do max partiton by .................... [passed]")
 
-        #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+    #
+    # ------------------- main ----------------
+    #
+    def test_ts_partitionby(self):
+        """Time series partition by
+        
+        1. Create stable with multiple tags
+        2. Create multiple subtables using the stable with different tags
+        3. Insert data into the subtables
+        4. Query with partition by on different tags and verify the results
+        5. Query various aggregate functions with partition by clause
+        6. Query interval and sliding window with partition by clause
+        7. Query edge cases and error handling for partition by queries
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_max_partition.py
+
+        """
+        self.do_partitionby()
+        self.do_max_partition()
+ 
