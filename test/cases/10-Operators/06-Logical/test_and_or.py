@@ -869,6 +869,7 @@ limit 5000''')
     def do_notCondition(self):
         dbname = "nottest"
         stbname = "st1"
+        self.ts = 1537146000000
         
         tdsql = tdCom.newTdSql()
         tdsql.execute(f"create database if not exists {dbname}")

@@ -168,6 +168,7 @@ class TestSml:
         print("cmdStr:", cmdStr)
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)
+        print(f"cmd={cmdStr} ret:{ret}")
         if ret != 0:
             tdLog.info("sml_test ret != 0")
 
@@ -276,7 +277,7 @@ class TestSml:
             - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_sml-TD19291.py
 
         """
+        self.do_sml_TS_3724()
         self.do_sml()
         self.do_sml_TD19291()
-        self.do_sml_TS_3724()
         
