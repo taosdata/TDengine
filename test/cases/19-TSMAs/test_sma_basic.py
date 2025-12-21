@@ -428,6 +428,7 @@ class TestSmabasic:
 
         History:
             - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_smaBasic.py
+            - 2025-12-21 Alex Duan Migrated from uncatalog/system-test/2-query/test_blockSMA.py
 
         """
 

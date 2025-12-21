@@ -132,6 +132,7 @@ class TestUnionBugs:
                     ORDER BY _wstart);"""
         )
         tdSql.checkRows(6)
+        tdSql.execute(f"drop database {db};")
 
     def test_setOp_orderBy_pseudo(self):
         """Operator union
@@ -210,6 +211,7 @@ class TestUnionBugs:
         tdSql.noError("select _wstart ts, sum(v1) v1 from t1 interval(1s) \
                     union select ts, v1 from t2 \
                     order by ts;") # use alias
+        tdSql.execute(f"drop database {db};")
 
     def test_setOp_orderby_normal_func(self):
         """Operator union order by functions
@@ -306,6 +308,7 @@ class TestUnionBugs:
         for row_idx, row_data in enumerate(expected):
             for col_idx, cell_data in enumerate(row_data):
                 tdSql.checkData(row_idx, col_idx, cell_data)
+        tdSql.execute(f"drop database {db};")
 
     def test_setOp_with_const_condition(self):
         """union with const condition
@@ -339,6 +342,7 @@ class TestUnionBugs:
         tdSql.checkRows(0)
         tdSql.query("(select ts, deviceid, c0,c1 from t1 where c0=119) union all (select ts, deviceid, c0,c1 from t1 where c0=119)")
         tdSql.checkRows(6)
+        tdSql.execute(f"drop database {db};")
         
 
     #
@@ -792,4 +796,4 @@ class TestUnionBugs:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
         self.check_TD_33137()
-        self.check_case_for_nodes_match_node()        
+        self.check_case_for_nodes_match_node()

@@ -112,7 +112,8 @@ class TestSml:
         # tdSql.checkRows(4)
         # tdSql.checkData(0, 2, "POINT (4.343000 89.342000)")
         # tdSql.checkData(3, 2, "GEOMETRYCOLLECTION (MULTIPOINT ((0.000000 0.000000), (1.000000 1.000000)), POINT (3.000000 4.000000), LINESTRING (2.000000 3.000000, 3.000000 4.000000))")
-        return
+        tdSql.execute(f"drop database {dbname};")
+        
 
     def do_sml(self):
         tdSql.prepare()
