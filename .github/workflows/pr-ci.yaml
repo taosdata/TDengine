@@ -80,7 +80,7 @@ jobs:
       - name: Unit Test
         run: |
           cargo make test
-      
+
       - name: Artifact Upload
         uses: actions/upload-artifact@v4
         with:
@@ -98,6 +98,7 @@ jobs:
     name: Upload Coverage Report
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: taosx-ci-coverage-report
