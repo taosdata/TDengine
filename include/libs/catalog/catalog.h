@@ -55,7 +55,7 @@ typedef struct SUserAuthInfo {
   char      user[TSDB_USER_LEN];
   SName     tbName;
   bool      isView;
-  AUTH_TYPE type;
+  EPrivType type;
 } SUserAuthInfo;
 
 typedef enum {

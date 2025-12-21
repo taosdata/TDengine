@@ -2121,7 +2121,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
-  SHashObj*        pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->selectTbs : pInfo->insertTbs;
+  SHashObj*        pTbs = (PRIV_TBL_SELECT== req->singleType) ? pInfo->selectTbs : pInfo->insertTbs;
   char* stbName = NULL;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -2505,7 +2505,7 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
   int32_t len = strlen(viewFName) + 1;
 
   switch (pReq->type) {
-    case AUTH_TYPE_READ: {
+    case PRIV_VIEW_SELECT: {
       char* value = taosHashGet(pInfo->readViews, viewFName, len);
       if (NULL != value) {
         pRes->pass[AUTH_RES_VIEW] = true;
@@ -2513,7 +2513,7 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
       }
       break;
     }
-    case AUTH_TYPE_WRITE: {
+    case PRIV_TBL_INSERT: {
       char* value = taosHashGet(pInfo->writeViews, viewFName, len);
       if (NULL != value) {
         pRes->pass[AUTH_RES_VIEW] = true;
@@ -2521,7 +2521,7 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
       }
       break;
     }
-    case AUTH_TYPE_ALTER: {
+    case PRIV_VIEW_CREATE: {
       char* value = taosHashGet(pInfo->alterViews, viewFName, len);
       if (NULL != value) {
         pRes->pass[AUTH_RES_VIEW] = true;

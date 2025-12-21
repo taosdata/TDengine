@@ -34,7 +34,7 @@ typedef struct SAuthRewriteCxt {
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
-static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
+static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, EPrivType type,
                                bool isView, bool effective, SUserAuthInfo* pAuth) {
   if (effective) {
     snprintf(pAuth->user, sizeof(pAuth->user), "%s", pCxt->pEffectiveUser ? pCxt->pEffectiveUser : "");
@@ -89,7 +89,7 @@ _exit:
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond,
+static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type, SNode** pCond,
                              bool isView, bool effective) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
   if (pParseCxt->isSuperUser) {
@@ -128,7 +128,7 @@ _exit:
                                    : code;
 }
 
-static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond) {
+static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type, SNode** pCond) {
   return checkAuthImpl(pCxt, pDbName, pTabName, type, pCond, false, false);
 }
 
@@ -143,16 +143,16 @@ static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char
   return checkAuth(pCxt, pDbName, pTabName, type, NULL);
 }
 
-static int32_t checkEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
+static int32_t checkEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type,
                                   SNode** pCond) {
   return checkAuthImpl(pCxt, pDbName, pTabName, type, NULL, false, true);
 }
 
-static int32_t checkViewAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond) {
+static int32_t checkViewAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type, SNode** pCond) {
   return checkAuthImpl(pCxt, pDbName, pTabName, type, NULL, true, false);
 }
 
-static int32_t checkViewEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type,
+static int32_t checkViewEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType type,
                                       SNode** pCond) {
   return checkAuthImpl(pCxt, pDbName, pTabName, type, NULL, true, true);
 }
@@ -368,7 +368,7 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
 static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNode*     pNode = NULL;
-  SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;);
+  SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE));
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE));
   if (NULL == pTmpList) {
@@ -500,6 +500,7 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
   if (!pStmt->withOpt) {
     PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_TBL_DROP, NULL));
   }
+  return 0;
 }
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {

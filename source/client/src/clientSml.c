@@ -111,7 +111,7 @@ int64_t smlToMilli[] = {3600000LL, 60000LL, 1000LL};
 int64_t smlFactorNS[] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
 int64_t smlFactorS[] = {1000LL, 1000000LL, 1000000000LL};
 
-static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char *pTabName, AUTH_TYPE type) {
+static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char *pTabName, EPrivType type) {
   SUserAuthInfo pAuth = {0};
   (void)snprintf(pAuth.user, sizeof(pAuth.user), "%s", info->taos->user);
   if (NULL == pTabName) {
@@ -995,7 +995,7 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SArray *cols, bool isTag
     if (action == SCHEMA_ACTION_NULL) {
       continue;
     }
-    SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, AUTH_TYPE_WRITE));
+    SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, PRIV_TBL_INSERT));
 
     SML_CHECK_CODE(changeMeta(info, schemaHash, conn, kv, action, tableMeta, isTag, pName));
   }
@@ -1083,7 +1083,7 @@ static int32_t smlCreateTable(SSmlHandle *info, SRequestConnInfo *conn, SSmlSTab
   int32_t lino = 0;
   SArray *pColumns = NULL;
   SArray *pTags = NULL;
-  SML_CHECK_CODE(smlCheckAuth(info, conn, NULL, AUTH_TYPE_WRITE));
+  SML_CHECK_CODE(smlCheckAuth(info, conn, NULL, PRIV_TBL_CREATE));
   uDebug("SML:0x%" PRIx64 ", %s create table:%s", info->id, __FUNCTION__, pName->tname);
   pColumns = taosArrayInit(taosArrayGetSize(sTableData->cols), sizeof(SField));
   SML_CHECK_NULL(pColumns);
