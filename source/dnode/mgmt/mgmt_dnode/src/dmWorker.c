@@ -757,7 +757,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_ENCRYPT_KEY:
       code = dmProcessCreateEncryptKeyReq(pMgmt, pMsg);
       break;
-    case TDMT_DND_ALTER_ENCRYPT_KEY:
+    case TDMT_MND_ALTER_ENCRYPT_KEY:
       code = dmProcessAlterEncryptKeyReq(pMgmt, pMsg);
       break;
     case TDMT_DND_RELOAD_DNODE_TLS:

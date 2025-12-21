@@ -1097,6 +1097,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode);
       break;
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      code = makeNode(type, sizeof(SAlterEncryptKeyStmt), &pNode);
+      break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;

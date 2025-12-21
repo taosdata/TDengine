@@ -422,6 +422,8 @@ static SKeyword keywordTable[] = {
     {"_IMPMARK",             TK_IMPMARK},
     {"SCAN",                 TK_SCAN},
     {"SCANS",                TK_SCANS},
+    {"SVR_KEY",              TK_SVR_KEY},
+    {"DB_KEY",               TK_DB_KEY},
     {"_ANOMALYMARK",         TK_ANOMALYMARK},
     {"CHANGEPASS",           TK_CHANGEPASS},
     {"SESSION_PER_USER",     TK_SESSION_PER_USER},

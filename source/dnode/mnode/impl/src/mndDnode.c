@@ -2083,7 +2083,7 @@ static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKey
         sdbRelease(pSdb, pDnode);
         goto _exit;
       }
-      SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
+      SRpcMsg rpcMsg = {.msgType = TDMT_MND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
       int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
       if (ret != 0) {
         mGError("msg:%p, failed to send alter encrypt_key req to dnode:%d, error:%s", pReq, pDnode->id, tstrerror(ret));
