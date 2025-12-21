@@ -2358,6 +2358,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->selectTbs, pNew->selectTbs);
   TSWAP(pOld->insertTbs, pNew->insertTbs);
   TSWAP(pOld->updateTbs, pNew->updateTbs);
+  TSWAP(pOld->deleteTbs, pNew->deleteTbs);
   TSWAP(pOld->useDbs, pNew->useDbs);
   TSWAP(pOld->roles, pNew->roles);
 
