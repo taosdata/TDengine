@@ -215,6 +215,35 @@ mod tests {
         assert_eq!(privilege.target(), "write on `mydb`.`mytable`");
     }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_privileges_roundtrip_with_taos() -> anyhow::Result<()> {
+        use file_guard::Lock;
+        use std::fs::OpenOptions;
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("./tests/migrations.lock")?;
+
+        let _lock = file_guard::lock(&mut file, Lock::Exclusive, 0, 1)?;
+
+        let pool = TaosBuilder::from_dsn("taos://")?.pool()?;
+        let conn = pool.get().await?;
+
+        let privileges = super::get_user_privileges(&conn).await?;
+        for p in privileges.iter().take(1) {
+            let grant = p.to_sql();
+            let revoke = p.to_sql_revoke();
+            let _ = conn.exec(&revoke).await;
+            let _ = conn.exec(&grant).await;
+        }
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_user_privileges_with_taos() -> anyhow::Result<()> {
         use file_guard::Lock;

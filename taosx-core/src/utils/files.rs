@@ -325,7 +325,11 @@ fn read_parquet_dir_entries(task_id: i64, filename: &String) -> anyhow::Result<V
 
 #[cfg(test)]
 mod tests {
+    use base64::Engine;
+    use flate2::write::GzEncoder;
+    use std::io::Write;
     use std::sync::Arc;
+    use tempfile::NamedTempFile;
 
     use arrow::array::{ArrayRef, Int32Array, StringArray};
 
@@ -409,5 +413,36 @@ mod tests {
         let filename = "archive".to_string();
         let res = read_parquet_dir_entries(task_id, &filename);
         dbg!(&res);
+    }
+
+    #[test]
+    fn get_encode_detects_utf8() {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "plain utf8").unwrap();
+        let enc = get_encode(f.path()).unwrap();
+        assert_eq!(enc.name(), "UTF-8");
+    }
+
+    #[test]
+    fn decode_csv_content_handles_base64_and_plain() {
+        let plain = decode_csv_content("a,b,c", false).unwrap();
+        assert_eq!(plain, b"a,b,c");
+
+        let encoded = base64::engine::general_purpose::STANDARD.encode("x,y,z");
+        let decoded = decode_csv_content(&encoded, true).unwrap();
+        assert_eq!(decoded, b"x,y,z");
+    }
+
+    #[test]
+    fn decompress_and_write_file_outputs_contents() {
+        let tmp = NamedTempFile::new().unwrap();
+        let data = {
+            let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
+            write!(encoder, "hello").unwrap();
+            encoder.finish().unwrap()
+        };
+        decompress_and_write_file(&tmp.path().to_path_buf(), &data).unwrap();
+        let contents = std::fs::read_to_string(tmp.path()).unwrap();
+        assert_eq!(contents, "hello");
     }
 }

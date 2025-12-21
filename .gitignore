@@ -5,7 +5,6 @@ USER_MANUAL.md TODO.md
 TDengine
 .vscode
 /conf
-/docs
 cobertura.xml
 lcov.info
 tarpaulin-report.html

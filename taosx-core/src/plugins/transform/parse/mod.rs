@@ -64,7 +64,7 @@ pub enum ParseError {
 
 /// Parse will be applied to one filed of data with [ArrayRef].
 ///
-/// ```rust,no-run
+/// ```rust,no_run
 /// use Parse;
 /// let field = Field::new("a1", DataType::Utf8, false);
 /// let array = Arc::new(StringArray::try_from_iter(["2022-02-02"]))

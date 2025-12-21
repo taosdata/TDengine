@@ -295,3 +295,110 @@ impl TaskMetrics for IpcMetrics {
             .ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core_metrics::TaskMetrics;
+    use faststr::FastStr;
+
+    #[test]
+    fn test_counters_and_reset() {
+        let metrics = IpcMetrics::new("stable".into(), 7, Some("task".into()));
+
+        metrics.add_received_batches(3);
+        metrics.add_processed_batches(2);
+        metrics.add_failed_batches(1);
+        metrics.add_processed_rows(5);
+        metrics.add_failed_rows(1);
+        metrics.add_drained_rows(7);
+        metrics.add_archived_rows(9);
+        metrics.add_inserted_sqls(4);
+        metrics.add_failed_sqls(1);
+        metrics.add_created_stables(1);
+        metrics.add_created_tables(2);
+        metrics.add_failed_points(1);
+        metrics.add_written_raw_blocks(2);
+        metrics.add_failed_raw_blocks(1);
+        metrics.com().add_received_messages(5);
+        metrics.com().add_processed_messages(4);
+
+        let foo = FastStr::from_static_str("foo");
+        let total_bar = FastStr::from_static_str("total_bar");
+        metrics.set_extra_metric(&foo, 10);
+        metrics.set_extra_metric(&total_bar, 20);
+
+        assert_eq!(metrics.total_received_batches(), 3);
+        assert_eq!(metrics.received_batches.load(SeqCst), 3);
+        assert_eq!(metrics.processed_batches.load(SeqCst), 2);
+        assert_eq!(metrics.processed_rows.load(SeqCst), 5);
+        assert_eq!(metrics.total_processed_rows.load(SeqCst), 5);
+        assert_eq!(metrics.failed_rows.load(SeqCst), 1);
+        assert_eq!(metrics.total_failed_rows.load(SeqCst), 1);
+        assert_eq!(metrics.total_created_stables.load(SeqCst), 1);
+        assert_eq!(metrics.total_created_tables.load(SeqCst), 2);
+        assert_eq!(metrics.failed_points.load(SeqCst), 1);
+        assert_eq!(metrics.written_raw_blocks.load(SeqCst), 2);
+        assert_eq!(metrics.failed_raw_blocks.load(SeqCst), 1);
+        assert_eq!(metrics.drained_rows.load(SeqCst), 7);
+        assert_eq!(metrics.archived_rows.load(SeqCst), 9);
+        assert_eq!(metrics.com().received_messages(), 5);
+        assert_eq!(metrics.com().processed_messages(), 4);
+        assert_eq!(*metrics.extras.get(&foo).unwrap().get(), 10);
+        assert_eq!(*metrics.extras.get(&total_bar).unwrap().get(), 20);
+
+        metrics.reset();
+
+        assert_eq!(metrics.received_batches.load(SeqCst), 0);
+        assert_eq!(metrics.processed_batches.load(SeqCst), 0);
+        assert_eq!(metrics.processed_rows.load(SeqCst), 0);
+        assert_eq!(metrics.failed_rows.load(SeqCst), 0);
+        assert_eq!(metrics.drained_rows.load(SeqCst), 0);
+        assert_eq!(metrics.archived_rows.load(SeqCst), 0);
+        assert_eq!(metrics.written_raw_blocks.load(SeqCst), 0);
+        assert_eq!(metrics.failed_raw_blocks.load(SeqCst), 0);
+        assert_eq!(metrics.failed_batches.load(SeqCst), 0);
+        assert_eq!(metrics.com().received_messages(), 0);
+        assert_eq!(metrics.com().processed_messages(), 0);
+
+        // Totals remain accumulated
+        assert_eq!(metrics.total_received_batches(), 3);
+        assert_eq!(metrics.total_processed_rows.load(SeqCst), 5);
+        assert_eq!(metrics.total_failed_rows.load(SeqCst), 1);
+        assert_eq!(metrics.total_created_stables.load(SeqCst), 1);
+        assert_eq!(metrics.total_created_tables.load(SeqCst), 2);
+        assert_eq!(metrics.total_failed_points.load(SeqCst), 1);
+        assert_eq!(metrics.total_written_raw_blocks.load(SeqCst), 2);
+        assert_eq!(metrics.total_failed_raw_blocks.load(SeqCst), 1);
+        assert_eq!(metrics.total_failed_batches.load(SeqCst), 1);
+        assert_eq!(metrics.total_archived_rows.load(SeqCst), 9);
+
+        // Extras without "total" are dropped on reset
+        assert!(metrics.extras.get(&foo).is_none());
+        assert_eq!(*metrics.extras.get(&total_bar).unwrap().get(), 20);
+    }
+
+    #[test]
+    fn test_json_roundtrip() {
+        let metrics = IpcMetrics::new("stable".into(), 9, None);
+        metrics.add_processed_rows(11);
+        metrics.add_failed_rows(2);
+        let key = FastStr::from_static_str("total_custom");
+        metrics.set_extra_metric(&key, 5);
+
+        let json = metrics.to_json();
+        let decoded = IpcMetrics::from_json(&json).expect("should deserialize");
+
+        assert_eq!(decoded.com.stable, "stable");
+        assert_eq!(decoded.task_id(), 9);
+        assert_eq!(
+            decoded.total_processed_rows.load(SeqCst),
+            metrics.total_processed_rows.load(SeqCst)
+        );
+        assert_eq!(
+            decoded.total_failed_rows.load(SeqCst),
+            metrics.total_failed_rows.load(SeqCst)
+        );
+        assert_eq!(*decoded.extras.get(&key).unwrap().get(), 5);
+    }
+}

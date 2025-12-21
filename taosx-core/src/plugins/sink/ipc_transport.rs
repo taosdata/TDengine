@@ -104,3 +104,74 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use tokio::time::Duration;
+    use tokio_util::sync::CancellationToken;
+
+    struct MockFactory {
+        attempts: Mutex<usize>,
+        succeed_on: usize,
+    }
+
+    impl MockFactory {
+        fn new(succeed_on: usize) -> Self {
+            Self {
+                attempts: Mutex::new(0),
+                succeed_on,
+            }
+        }
+
+        fn attempts(&self) -> usize {
+            *self.attempts.lock().unwrap()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ChannelFactory for MockFactory {
+        async fn connect(&self, _remote: &str) -> anyhow::Result<Channel> {
+            let mut guard = self.attempts.lock().unwrap();
+            *guard += 1;
+            let attempt = *guard;
+            drop(guard);
+
+            if attempt >= self.succeed_on {
+                Ok(Channel::from_static("http://example.com").connect_lazy())
+            } else {
+                Err(anyhow::anyhow!(format!("fail attempt {attempt}")))
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_retry_connect_succeeds_after_retries() {
+        let factory = MockFactory::new(2);
+        let cancel = CancellationToken::new();
+        let cfg = RetryConfig::new(3, Duration::from_millis(1), Duration::from_millis(10));
+
+        let result = retry_connect(&factory, "http://example.com", cfg, false, &cancel)
+            .await
+            .unwrap();
+
+        assert!(result.is_some());
+        assert_eq!(factory.attempts(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_retry_connect_cancelled_returns_none() {
+        let factory = MockFactory::new(10);
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        let cfg = RetryConfig::new(5, Duration::from_millis(5), Duration::from_millis(20));
+
+        let result = retry_connect(&factory, "http://example.com", cfg, false, &cancel)
+            .await
+            .unwrap();
+
+        assert!(result.is_none());
+        assert_eq!(factory.attempts(), 1);
+    }
+}

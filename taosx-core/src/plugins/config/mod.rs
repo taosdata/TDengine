@@ -392,6 +392,64 @@ mod tests {
     }
 
     #[test]
+    fn test_from_dsn_invalid_write_concurrency() {
+        let dsn = Dsn::from_str("ds://?write_concurrency=-2").unwrap();
+        let result = AdvancedOptions::from_dsn(&dsn);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid write_concurrency"));
+    }
+
+    #[test]
+    fn test_from_dsn_invalid_keep_raw_data() {
+        let dsn = Dsn::from_str("ds://?keep_raw_data=maybe").unwrap();
+        let result = AdvancedOptions::from_dsn(&dsn);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid keep_raw_data"));
+    }
+
+    #[test]
+    fn test_from_dsn_invalid_keep_raw_data_days() {
+        let dsn = Dsn::from_str("ds://?keep_raw_data_days=-5").unwrap();
+        let result = AdvancedOptions::from_dsn(&dsn);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid keep_raw_data_days"));
+    }
+
+    #[test]
+    fn test_parse_options_absent_return_none() {
+        let dsn = Dsn::from_str("ds://").unwrap();
+        assert!(AdvancedOptions::parse_log_level(&dsn).unwrap().is_none());
+        assert!(AdvancedOptions::parse_read_concurrency(&dsn)
+            .unwrap()
+            .is_none());
+        assert!(AdvancedOptions::parse_write_concurrency(&dsn)
+            .unwrap()
+            .is_none());
+        assert!(AdvancedOptions::parse_batch_size(&dsn).unwrap().is_none());
+        assert!(AdvancedOptions::parse_batch_timeout(&dsn)
+            .unwrap()
+            .is_none());
+        assert!(AdvancedOptions::parse_keep_raw_data(&dsn)
+            .unwrap()
+            .is_none());
+        assert!(AdvancedOptions::parse_keep_raw_data_days(&dsn)
+            .unwrap()
+            .is_none());
+        assert!(AdvancedOptions::parse_keep_raw_data_dir(&dsn)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
     fn test_from_dsn_zero_values() {
         let dsn = Dsn::from_str("ds://?batch_size=0&batch_timeout=0&keep_raw_data_days=0").unwrap();
 

@@ -2334,6 +2334,99 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         assert!(!PointConfig::is_expr(SourceType::OPCUA, "tbname", "tb123"));
     }
 
+    fn build_point_model_with_two_points() -> PointModelConfig {
+        let mut point_config_map = LinkedHashMap::new();
+        point_config_map.insert(
+            "p1".to_string(),
+            PointConfig {
+                row_index: 1,
+                code: "t1".to_string(),
+                stable: Some("opc_int".to_string()),
+                tag_values: Some(HashMap::from([("tag".to_string(), "1".to_string())])),
+                value_type: Some(IpcDataType::Int32),
+            },
+        );
+        point_config_map.insert(
+            "p2".to_string(),
+            PointConfig {
+                row_index: 2,
+                code: "t2".to_string(),
+                stable: Some("opc_int".to_string()),
+                tag_values: Some(HashMap::from([("tag".to_string(), "2".to_string())])),
+                value_type: Some(IpcDataType::Int32),
+            },
+        );
+
+        let column_configs = vec![
+            ColumnConfig {
+                name: ColumnConfig::ORIGINAL_TS.to_string(),
+                r#type: Some(Ty::Timestamp),
+                alias: Some("ts".to_string()),
+                transform: None,
+                is_primary_key: true,
+            },
+            ColumnConfig {
+                name: ColumnConfig::VALUE.to_string(),
+                r#type: Some(Ty::Int),
+                alias: Some("val".to_string()),
+                transform: None,
+                is_primary_key: false,
+            },
+            ColumnConfig {
+                name: ColumnConfig::QUALITY.to_string(),
+                r#type: Some(Ty::Int),
+                alias: Some("quality".to_string()),
+                transform: None,
+                is_primary_key: false,
+            },
+        ];
+        let tag_configs = vec![TagConfig {
+            name: "tag".to_string(),
+            r#type: IpcDataType::Int32,
+        }];
+        let table_cfg = TableConfig {
+            enabled: Some(1),
+            stable_prefix: None,
+            column_configs: column_configs.clone(),
+            tag_configs: Some(tag_configs.clone()),
+        };
+        let mut table_config_map = LinkedHashMap::new();
+        table_config_map.insert("p1".to_string(), table_cfg.clone());
+        table_config_map.insert("p2".to_string(), table_cfg);
+
+        PointModelConfig {
+            source_type: SourceType::OPCUA,
+            update_mode: None,
+            generate_rule: None,
+            point_config_map,
+            table_config_map,
+        }
+    }
+
+    #[test]
+    fn test_to_stable_sqls_single_stable() {
+        let config = build_point_model_with_two_points();
+        let sqls = config.to_stable_sqls();
+
+        assert_eq!(sqls.len(), 1);
+        let lower = sqls[0].to_lowercase();
+        assert!(lower.contains("create table if not exists `opc_int`"));
+        assert!(lower.contains("`ts` timestamp"));
+        assert!(lower.contains("`val` int"));
+        assert!(lower.contains("tags(`tag`"));
+    }
+
+    #[test]
+    fn test_to_table_sqls_combines_segments() {
+        let config = build_point_model_with_two_points();
+        let sqls = config.to_table_sqls();
+
+        assert_eq!(sqls.len(), 1);
+        let lower = sqls[0].to_lowercase();
+        assert!(lower.contains("create table if not exists `t1` using `opc_int` (`tag`) tags(1)"));
+        assert!(lower.contains("if not exists `t2` using `opc_int` (`tag`) tags(2)"));
+    }
+
     #[tokio::test]
     async fn test_parse_stable() {
         let header = CsvHeader::try_new(

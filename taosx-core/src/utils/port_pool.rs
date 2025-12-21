@@ -140,3 +140,29 @@ fn is_free_tcp(port: u16) -> bool {
 fn test_bind_tcp<A: ToSocketAddrs>(addr: A) -> Option<u16> {
     Some(TcpListener::bind(addr).ok()?.local_addr().ok()?.port())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn allocates_and_releases_ports() {
+        let pool = PortPool::default();
+        let port1 = pool.get().await.expect("should allocate first port");
+        let value1 = *port1;
+        drop(port1);
+
+        let port2 = pool.get().await.expect("should allocate after drop");
+        let value2 = *port2;
+        // With the bitmap cleared on drop, we should be able to reuse the same slot.
+        assert_eq!(value1, value2);
+    }
+
+    #[tokio::test]
+    async fn allocates_multiple_distinct_ports() {
+        let pool = PortPool::default();
+        let p1 = pool.get().await.expect("first port");
+        let p2 = pool.get().await.expect("second port");
+        assert_ne!(*p1, *p2);
+    }
+}

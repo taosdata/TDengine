@@ -172,6 +172,18 @@ mod tests {
     }
 
     #[test]
+    fn test_from_dsn_update_mode_and_interval() {
+        let dsn = Dsn::from_str("opcda://?update_mode=append&update_interval=60").unwrap();
+        let config = PointsConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.update_mode, Some(UpdateMode::Append));
+        assert_eq!(config.update_interval, Some(60));
+
+        let dsn = Dsn::from_str("opcda://?update_mode=update&update_interval=bad").unwrap();
+        let err = PointsConfig::from_dsn(&dsn).unwrap_err();
+        assert!(err.to_string().contains("invalid update_interval"));
+    }
+
+    #[test]
     fn test_from_dsn_of_points_ua_config() {
         let dsn = Dsn::from_str("opc://?root=Root&namespaces=1,2,3").unwrap();
         let points_ua_config = PointsUaConfig::from_dsn(&dsn).unwrap();
