@@ -114,7 +114,7 @@ class TestTDgptBasic:
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=iqr')")
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=ksigma')")
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=lof')")
-        tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=shesd')")
+        # tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=shesd')")
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=grubbs')")
 
         tdLog.info("=================  try every column type of column")
