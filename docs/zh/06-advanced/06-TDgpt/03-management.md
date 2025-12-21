@@ -22,19 +22,19 @@ systemctl status taosanoded
 
 ```bash
 # 启动涛思时序数据基础模型
-start-tdtsfm
+start-model tdtsfm
 # 启动 Time-MoE 基础模型
-start-time-moe
+start-model timemoe
 ```
 
 ```bash
 # 停止涛思时序数据基础模型
-stop-tdtsfm
+stop-model tdtsfm
 # 停止 Time-MoE 基础模型
-stop-time-moe
+stop-model timemoe
 ```
 
-> 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。
+> 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。更多信息请参考[时序模型服务启动和停止脚本](./dev/tsfm/#时序模型服务启动和停止脚本)。
 
 ### 目录及配置文件说明
 
