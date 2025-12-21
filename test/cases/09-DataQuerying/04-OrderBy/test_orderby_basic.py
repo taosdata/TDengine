@@ -528,6 +528,37 @@ class TestOrderByBasic:
         print("do ts4467 ............................. [passed]")     
 
     #
+    # ------------------- 4 test_projectionDesc.py ----------------
+    # 
+    def do_projectionDesc(self):
+        rowNum = 10
+        batchNum = 5        
+        dbname = "db"
+        ts = 1537146000000
+        tdSql.prepare()
+
+        tdSql.execute(f'''create table {dbname}.stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double,
+                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
+        tdSql.execute(f"create table {dbname}.stb_1 using {dbname}.stb tags('beijing')")
+        for n in range(batchNum):
+            sql = f"insert into {dbname}.stb_1 values"
+            for i in range(rowNum):
+                sql += f" (%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)"\
+                            % (ts, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1)
+            tdSql.execute(sql)
+            tdSql.execute(f"flush database {dbname}")
+
+        tdSql.query(f"select * from {dbname}.stb_1 order by ts desc")
+        tdSql.checkRows(1)
+        #tdSql.checkData(0,0,1537146000000)
+        tdSql.checkData(0,1,10)
+
+        tdSql.query(f"select * from {dbname}.stb_1 order by 'aaa' desc")
+        
+        print("do proj desc .......................... [passed]")     
+
+
+    #
     # ------------------- main ----------------
     # 
     def test_orderby_basic(self):
@@ -552,6 +583,11 @@ class TestOrderByBasic:
         11. Order by on joined tables
         12. Memleak for order by
         13. Bug TS-4467: join query with order by desc causes crash
+        14. Projection query with order by desc
+        15. Order by on select list columns
+        16. Order by with agg functions and alias
+        17. Order by with constant 'aaa'
+        
 
         Since: v3.3.6.34
 
@@ -564,9 +600,11 @@ class TestOrderByBasic:
             - 2025-12-09 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_tms_memleak.py
             - 2025-12-09 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_orderBy.py
             - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_test_ts4467.py
+            - 2025-12-21 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_projectionDesc.py
 
         """
         self.do_orderby_select_list()
         self.do_orderby_memleak()
         self.do_orderby()
         self.do_ts4467()
+        self.do_projectionDesc()

@@ -230,11 +230,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_stmt_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_write_stmt_error.py
 ## 03-SML
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_bugs.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_cfg.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_influxdb_line.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_json.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_opentsdb_telnet.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_restart.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_td19291.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/03-SML/test_write_sml_ts3724.py
 ## 04-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Import/test_write_import_csv.py
 ## 05-Others
@@ -318,6 +320,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
+## 18-Stability
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stablity.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stablity_v2.6.py
 
 # 10-Operators
 
@@ -923,18 +928,10 @@
 ### 2-query
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
+#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
 
 
-
-
-
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tagFilter.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_backslash_g.py
 
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_queryQnode.py
@@ -943,7 +940,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_odbc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill_with_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
+
 
 #develop test
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py

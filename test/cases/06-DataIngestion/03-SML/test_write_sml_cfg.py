@@ -10,11 +10,6 @@ class TestSml:
     updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'smlAutoChildTableNameDelimiter': '', 'fqdn': 'localhost', 'smlDot2Underline': 0}, 'fqdn': 'localhost'}
     print("===================: ", updatecfgDict)
 
-    def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
-
     #
     # ------------------- test_sml.py ----------------
     #
@@ -258,13 +253,12 @@ class TestSml:
     # ------------------- main ----------------
     #
     def test_sml_bugs(self):
-        """Sml bugs
+        """Sml config
 
-        1. Jira TS-3724
-        2. Jira TS-5528
-        3. Jira TD-19291
-        4. Jira TD-25540
-        5. Jira TS-3724
+        1. Update taos.cfg with sml related configurations
+        2. Restart taosd to make configurations take effect
+        3. Use sml_test tool to ingest sml data
+        4. Verify the data correctness after ingestion        
 
         Since: v3.0.0.0
 
@@ -274,11 +268,8 @@ class TestSml:
 
         History:
             - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_sml.py
-            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_sml_TS-3724.py
-            - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_sml-TD19291.py
+
 
         """
-        self.do_sml_TS_3724()
         self.do_sml()
-        self.do_sml_TD19291()
         

@@ -14,28 +14,32 @@ from new_test_framework.utils import tdLog, tdSql
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from test_stablity import TestStablity as StabilityHelper
+from test_query_stablity import TestStablity as StabilityHelper
 import time
 
 class TestStability1:
 
     def test_stablity_1(self):
-        """summary: xxx
+        """Stablity for query v2.6
 
-        description: xxx
+        1. Create 4 stable and 2 regular tables
+        2. Insert data into each table 100 rows
+        3. Query nested queries with 2.6 support functions:
+            - String functions
+                - LTRIM, RTRIM, LOWER, UPPER, LENGTH, CHAR_LENGTH, SUBSTR, CONCAT, CONCAT_WS
+            - Time functions: 
+                - CAST, NOW, TODAY, TIMEZONE, TIMETRUNCATE, TO_ISO8601, TO_UNIXTIMESTAMP, ELAPSED, TIMEDIFF
+        4. Query nested queries with various child clauses:
+            - WHERE, INTERVAL, LIMIT, SESSION, STATE WINDOW
+        5. Execute 'taos -f' command to run the generated SQL file
+        
 
-        Since: xxx
+        Since: v3.3.0.0
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Labels: common,ci
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-21 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_stablity_1.py
 
         """
 
@@ -85,6 +89,3 @@ class TestStability1:
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-
-        #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
