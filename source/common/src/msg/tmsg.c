@@ -4305,8 +4305,8 @@ int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, SHashObj *pHash) {
         }
         // encode with condition
         TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pPolicy->condLen));
-        if (pPolicy->condLen > 0) {
-          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pPolicy->cond, pPolicy->condLen));
+        if (pPolicy->condLen > 0) { // the condLen contains the last '\0'
+          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pPolicy->cond, pPolicy->condLen - 1));
         }
       }
     }

@@ -16194,19 +16194,19 @@ _tagCond:
   
   if (PRIV_HAS(privSet, PRIV_TBL_DROP)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_DROP));
+                                   "Not support with condition for privilege:%s", privInfoGetName(PRIV_TBL_DROP));
   }
   if (PRIV_HAS(privSet, PRIV_TBL_ALTER)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_ALTER));
+                                   "Not support with condition for privilege:%s", privInfoGetName(PRIV_TBL_ALTER));
   }
   if (PRIV_HAS(privSet, PRIV_TBL_SHOW)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_SHOW));
+                                   "Not support with condition for privilege:%s", privInfoGetName(PRIV_TBL_SHOW));
   }
   if (PRIV_HAS(privSet, PRIV_TBL_SHOW_CREATE)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support tag condition for privilege:%s", privInfoGetName(PRIV_TBL_SHOW_CREATE));
+                                   "Not support with condition for privilege:%s", privInfoGetName(PRIV_TBL_SHOW_CREATE));
   }
 
   pCxt->pCurrStmt = (SNode*)pStmt;
@@ -16496,6 +16496,12 @@ static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt*
     code = getTargetMeta(pCxt, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS != code) {
       TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code)));
+    }
+
+    if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
+      TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+          "Only ALTER, DROP, SHOW or SHOW CREATE table privilege can be granted on child table"));
     }
 
     TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->selectCols, pTableMeta, (SNodeList*)pPrivSetArgs->selectCols));
