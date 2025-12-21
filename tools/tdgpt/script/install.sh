@@ -1,5 +1,5 @@
 #!/bin/bash
-#
+# shellcheck disable=SC1091
 # This file is used to install analysis platform on linux systems. The operating system
 # is required to use systemd to manage services at boot
 
@@ -70,10 +70,15 @@ fi
 
 #install main path
 install_main_dir=${installDir}
+# timesfm venv:transformers==4.40.0
+timesfm_venv_dir="${dataDir}/venv_timesfm"
+# moirai venv:transformers==4.40.0
+moirai_venv_dir="${dataDir}/venv_moirai"
 # chronos-forecasting venv:transformers==4.55.0
 chronos_venv_dir="${dataDir}/venv_chronos"
 # momentfm venv:transformers==4.33.0
 momentfm_venv_dir="${dataDir}/venv_momentfm"
+
 
 service_config_dir="/etc/systemd/system"
 
@@ -210,6 +215,7 @@ function install_bin_and_lib() {
     ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
     ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
     ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
+    ["start-model"]="${install_main_dir}/bin/start-model.sh"
     ["start-model-from-remote"]="${install_main_dir}/bin/start_model_from_remote.sh"
   )
 
@@ -294,7 +300,18 @@ function install_module() {
   if [ ${custom_dir_set} -eq 0 ];then 
     ${csudo}ln -sf ${moduleDir} "${install_main_dir}/model"
   fi
-  [ -f "${script_dir}/model/${tar_td_model_name}" ] && cp -r ${script_dir}/model/* ${moduleDir}/ || : 
+
+  # 默认模型，解压到 moduleDir
+  [ -f "${script_dir}/model/${tar_td_model_name}" ] && tar -zxf "${script_dir}/model/${tar_td_model_name}" -C "${moduleDir}" || :
+  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf "${script_dir}/model/${tar_xhs_model_name}" -C "${moduleDir}" || :
+
+  # all_venv 模式下，直接解压指定模型包到 moduleDir
+  if [ ${all_venv} -eq 1 ]; then
+    for extra_model in chronos moment-large moirai timesfm; do
+      model_tar="${script_dir}/model/${extra_model}.tar.gz"
+      [ -f "$model_tar" ] && tar -zxf "$model_tar" -C "${moduleDir}" || :
+    done
+  fi
 }
 
 function install_resource() {
@@ -312,7 +329,7 @@ function install_anode_venv() {
   fi
   if [ ${install_venv} == "True" ]; then
     # build venv
-    python3.${python_minor_ver} -m venv ${venvDir}
+    "python3.${python_minor_ver}" -m venv ${venvDir}
 
     echo -e "active Python3 virtual env: ${venvDir}"
     source ${venvDir}/bin/activate
@@ -327,25 +344,56 @@ function install_anode_venv() {
 }
 
 function install_extra_venvs() {
-  # chronos-forecasting venv: transformers==4.55.0
-  if [ -d "${chronos_venv_dir}" ]; then
-    rm -rf "${chronos_venv_dir}"
+  echo -e "${GREEN}Creating timesfm venv at ${timesfm_venv_dir}${NC}"
+  if [ -d "${timesfm_venv_dir}" ]; then
+    echo "Removing existing timesfm venv..."
+    rm -rf "${timesfm_venv_dir}"
   fi
-  cp -rf "${venvDir}" "${chronos_venv_dir}"
-  # shellcheck source=/dev/null
-  source "${chronos_venv_dir}/bin/activate"
-  "${chronos_venv_dir}/bin/pip3" install --upgrade transformers==4.55.0
+  "python3.${python_minor_ver}" -m venv "${timesfm_venv_dir}"
+  echo "Activating timesfm venv and installing dependencies..."
+  source "${timesfm_venv_dir}/bin/activate"
+  "${timesfm_venv_dir}/bin/pip3" install torch==2.3.1+cpu jax timesfm flask==3.0.3 \
+      -f https://download.pytorch.org/whl/torch_stable.html
   deactivate
 
-  # moment venv: transformers==4.33.0
+  echo -e "${GREEN}Creating moirai venv at ${moirai_venv_dir}${NC}"
+  if [ -d "${moirai_venv_dir}" ]; then
+    echo "Removing existing moirai venv..."
+    rm -rf "${moirai_venv_dir}"
+  fi
+  "python3.${python_minor_ver}" -m venv "${moirai_venv_dir}"
+  echo "Activating moirai venv and installing dependencies..."
+  source "${moirai_venv_dir}/bin/activate"
+  "${moirai_venv_dir}/bin/pip3" install torch==2.3.1+cpu uni2ts flask \
+   -f https://download.pytorch.org/whl/torch_stable.html
+  deactivate
+
+  echo -e "${GREEN}Creating chronos venv at ${chronos_venv_dir}${NC}"
+  if [ -d "${chronos_venv_dir}" ]; then
+    echo "Removing existing chronos venv..."
+    rm -rf "${chronos_venv_dir}"
+  fi
+  "python3.${python_minor_ver}" -m venv "${chronos_venv_dir}"
+  echo "Activating chronos venv and installing dependencies..."
+  source "${chronos_venv_dir}/bin/activate"
+  "${chronos_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu chronos-forecasting flask \
+    -f https://download.pytorch.org/whl/torch_stable.html
+  deactivate
+
+  echo -e "${GREEN}Creating momentfm venv at ${momentfm_venv_dir}${NC}"
   if [ -d "${momentfm_venv_dir}" ]; then
+    echo "Removing existing momentfm venv..."
     rm -rf "${momentfm_venv_dir}"
   fi
-  cp -rf "${venvDir}" "${momentfm_venv_dir}"
-  # shellcheck source=/dev/null
+  "python3.${python_minor_ver}" -m venv "${momentfm_venv_dir}"
+  echo "Activating momentfm venv and installing dependencies..."
   source "${momentfm_venv_dir}/bin/activate"
-  "${momentfm_venv_dir}/bin/pip3" install --upgrade transformers==4.33.0
+  "${momentfm_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu transformers==4.33.3 numpy==1.25.2 \
+    matplotlib pandas==1.5 scikit-learn flask==3.0.3 momentfm \
+    -f https://download.pytorch.org/whl/torch_stable.html
   deactivate
+
+  echo -e "${GREEN}All extra venvs created and dependencies installed.${NC}"
 }
 
 function clean_service_on_sysvinit() {
@@ -454,9 +502,6 @@ function installProduct() {
 
   tar -zxf ${tarName}
  
-  [ -f "${script_dir}/model/${tar_td_model_name}" ]  && tar -zxf ${script_dir}/model/${tar_td_model_name} -C ${script_dir}/model || :
-  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf ${script_dir}/model/${tar_xhs_model_name} -C ${script_dir}/model || :
-
   echo "Start to install ${productName}..."
 
   install_main_path
