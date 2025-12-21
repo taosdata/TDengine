@@ -32,7 +32,7 @@ extern "C" {
 #define TD_ENCRYPT_MAGIC_LEN    16
 
 // Key loading timeout configuration
-#define TD_ENCRYPT_KEY_WAIT_TIMEOUT_MS 3000  // 3 seconds timeout for waiting encryption key
+#define TD_ENCRYPT_KEY_WAIT_TIMEOUT_MS 30000  // 30 seconds timeout for waiting encryption key
 
 // Database encryption status
 typedef enum {

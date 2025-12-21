@@ -409,8 +409,9 @@ typedef enum ENodeType {
   QUERY_NODE_SCAN_VGROUPS_STMT,
   QUERY_NODE_TRIM_DATABASE_WAL_STMT,
   QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT,
+  QUERY_NODE_ALTER_ENCRYPT_KEY_STMT,
 
-  // placeholder for [154, 180]
+  // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
@@ -3218,6 +3219,17 @@ typedef struct {
 int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 void    tFreeSMCfgDnodeReq(SMCfgDnodeReq* pReq);
+
+typedef struct {
+  int8_t  keyType;  // 0: SVR_KEY, 1: DB_KEY
+  char    newKey[ENCRYPT_KEY_LEN + 1];
+  int32_t sqlLen;
+  char*   sql;
+} SMAlterEncryptKeyReq;
+
+int32_t tSerializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
+int32_t tDeserializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
+void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
 
 typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];

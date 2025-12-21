@@ -865,6 +865,233 @@ _exit:
 #endif
 }
 
+#ifdef TD_ENTERPRISE
+static int32_t dmUpdateSvrKey(const char *newKey) {
+  if (newKey == NULL || newKey[0] == '\0') {
+    dError("invalid new SVR_KEY, key is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char masterKeyFile[PATH_MAX] = {0};
+  char derivedKeyFile[PATH_MAX] = {0};
+
+  // Build path to key files
+  int32_t nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    dError("failed to build master key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                    TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    dError("failed to build derived key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Load current keys
+  char    svrKey[129] = {0};
+  char    dbKey[129] = {0};
+  char    cfgKey[129] = {0};
+  char    metaKey[129] = {0};
+  char    dataKey[129] = {0};
+  int32_t algorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  int32_t code =
+      taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                           &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to load encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update SVR_KEY
+  int64_t now = taosGetTimestampMs();
+  int32_t newKeyVersion = keyVersion + 1;
+
+  dInfo("updating SVR_KEY, old version:%d, new version:%d", keyVersion, newKeyVersion);
+  tstrncpy(svrKey, newKey, sizeof(svrKey));
+  svrKeyUpdateTime = now;
+
+  // Save updated keys
+  code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm,
+                              newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to save updated encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update global variables
+  tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
+  tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
+  tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
+  tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
+  tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
+  tsEncryptAlgorithmType = algorithm;
+  tsEncryptFileVersion = fileVersion;
+  tsEncryptKeyVersion = newKeyVersion;
+  tsEncryptKeyCreateTime = createTime;
+  tsSvrKeyUpdateTime = svrKeyUpdateTime;
+  tsDbKeyUpdateTime = dbKeyUpdateTime;
+
+  // Update encryption key status for backward compatibility
+  int keyLen = strlen(tsDataKey);
+  if (keyLen > ENCRYPT_KEY_LEN) {
+    keyLen = ENCRYPT_KEY_LEN;
+  }
+  memset(tsEncryptKey, 0, ENCRYPT_KEY_LEN + 1);
+  memcpy(tsEncryptKey, tsDataKey, keyLen);
+  tsEncryptKey[ENCRYPT_KEY_LEN] = '\0';
+  tsEncryptionKeyChksum = taosCalcChecksum(0, (const uint8_t *)tsEncryptKey, strlen(tsEncryptKey));
+
+  dInfo("successfully updated SVR_KEY to version:%d", newKeyVersion);
+  return 0;
+}
+
+static int32_t dmUpdateDbKey(const char *newKey) {
+  if (newKey == NULL || newKey[0] == '\0') {
+    dError("invalid new DB_KEY, key is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char masterKeyFile[PATH_MAX] = {0};
+  char derivedKeyFile[PATH_MAX] = {0};
+
+  // Build path to key files
+  int32_t nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    dError("failed to build master key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                    TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    dError("failed to build derived key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Load current keys
+  char    svrKey[129] = {0};
+  char    dbKey[129] = {0};
+  char    cfgKey[129] = {0};
+  char    metaKey[129] = {0};
+  char    dataKey[129] = {0};
+  int32_t algorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  int32_t code =
+      taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                           &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to load encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update DB_KEY
+  int64_t now = taosGetTimestampMs();
+  int32_t newKeyVersion = keyVersion + 1;
+
+  dInfo("updating DB_KEY, old version:%d, new version:%d", keyVersion, newKeyVersion);
+  tstrncpy(dbKey, newKey, sizeof(dbKey));
+  dbKeyUpdateTime = now;
+
+  // Save updated keys
+  code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm,
+                              newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to save updated encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update global variables
+  tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
+  tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
+  tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
+  tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
+  tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
+  tsEncryptAlgorithmType = algorithm;
+  tsEncryptFileVersion = fileVersion;
+  tsEncryptKeyVersion = newKeyVersion;
+  tsEncryptKeyCreateTime = createTime;
+  tsSvrKeyUpdateTime = svrKeyUpdateTime;
+  tsDbKeyUpdateTime = dbKeyUpdateTime;
+
+  // Update encryption key status for backward compatibility
+  int keyLen = strlen(tsDataKey);
+  if (keyLen > ENCRYPT_KEY_LEN) {
+    keyLen = ENCRYPT_KEY_LEN;
+  }
+  memset(tsEncryptKey, 0, ENCRYPT_KEY_LEN + 1);
+  memcpy(tsEncryptKey, tsDataKey, keyLen);
+  tsEncryptKey[ENCRYPT_KEY_LEN] = '\0';
+  tsEncryptionKeyChksum = taosCalcChecksum(0, (const uint8_t *)tsEncryptKey, strlen(tsEncryptKey));
+
+  dInfo("successfully updated DB_KEY to version:%d", newKeyVersion);
+  return 0;
+}
+#endif
+
+int32_t dmProcessAlterEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#ifdef TD_ENTERPRISE
+  int32_t              code = 0;
+  SMAlterEncryptKeyReq alterKeyReq = {0};
+  if (tDeserializeSMAlterEncryptKeyReq(pMsg->pCont, pMsg->contLen, &alterKeyReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    dError("failed to deserialize alter encrypt key req, since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("received alter encrypt key req, keyType:%d", alterKeyReq.keyType);
+
+  // Update the specified key (svr_key or db_key)
+  if (alterKeyReq.keyType == 0) {
+    // Update SVR_KEY
+    code = dmUpdateSvrKey(alterKeyReq.newKey);
+    if (code == 0) {
+      dInfo("successfully updated SVR_KEY");
+    } else {
+      dError("failed to update SVR_KEY, since %s", tstrerror(code));
+    }
+  } else if (alterKeyReq.keyType == 1) {
+    // Update DB_KEY
+    code = dmUpdateDbKey(alterKeyReq.newKey);
+    if (code == 0) {
+      dInfo("successfully updated DB_KEY");
+    } else {
+      dError("failed to update DB_KEY, since %s", tstrerror(code));
+    }
+  } else {
+    dError("invalid keyType:%d, must be 0 (SVR_KEY) or 1 (DB_KEY)", alterKeyReq.keyType);
+    code = TSDB_CODE_INVALID_PARA;
+  }
+
+_exit:
+  tFreeSMAlterEncryptKeyReq(&alterKeyReq);
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return code;
+#else
+  dError("encryption key management is only available in enterprise edition");
+  pMsg->code = TSDB_CODE_OPS_NOT_SUPPORT;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
 int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1153,6 +1380,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RELOAD_DNODE_TLS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 

@@ -780,6 +780,12 @@ typedef struct SAlterLocalStmt {
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
 
+typedef struct SAlterEncryptKeyStmt {
+  ENodeType type;
+  int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
+  char      newKey[ENCRYPT_KEY_LEN + 1];
+} SAlterEncryptKeyStmt;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];

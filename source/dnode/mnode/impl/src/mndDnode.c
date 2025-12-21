@@ -103,7 +103,7 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq);
 static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq);
 static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq);
 static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp);
-
+static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq);
 
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
@@ -144,6 +144,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC, mndProcessKeySyncReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC_RSP, mndProcessKeySyncRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ENCRYPT_KEY, mndProcessAlterEncryptKeyReq);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -2027,4 +2028,121 @@ static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp) {
     mInfo("succeed to reload dnode tls config");
   }
   return code;
+}
+
+static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKeyReq *pAlterReq) {
+  int32_t code = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  const STraceId *trace = &pReq->info.traceId;
+
+  // Validate key type
+  if (pAlterReq->keyType != 0 && pAlterReq->keyType != 1) {
+    mGError("msg:%p, failed to alter encrypt key since invalid key type:%d, must be 0 (SVR_KEY) or 1 (DB_KEY)", pReq,
+            pAlterReq->keyType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Validate new key length
+  int32_t klen = strlen(pAlterReq->newKey);
+  if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
+    mGError("msg:%p, failed to alter encrypt key since invalid key length:%d, valid range:[%d, %d]", pReq, klen,
+            ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
+    return TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN;
+  }
+
+  // Prepare SMAlterEncryptKeyReq for distribution to dnodes
+  SMAlterEncryptKeyReq alterKeyReq = {0};
+  alterKeyReq.keyType = pAlterReq->keyType;
+  tstrncpy(alterKeyReq.newKey, pAlterReq->newKey, sizeof(alterKeyReq.newKey));
+  alterKeyReq.sqlLen = 0;
+  alterKeyReq.sql = NULL;
+
+  // Send request to all online dnodes
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    if (pDnode->offlineReason != DND_REASON_ONLINE) {
+      mGWarn("msg:%p, don't send alter encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+             offlineReason[pDnode->offlineReason]);
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
+
+    SEpSet  epSet = mndGetDnodeEpset(pDnode);
+    int32_t bufLen = tSerializeSMAlterEncryptKeyReq(NULL, 0, &alterKeyReq);
+    void   *pBuf = rpcMallocCont(bufLen);
+
+    if (pBuf != NULL) {
+      if ((bufLen = tSerializeSMAlterEncryptKeyReq(pBuf, bufLen, &alterKeyReq)) <= 0) {
+        code = bufLen;
+        sdbRelease(pSdb, pDnode);
+        goto _exit;
+      }
+      SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
+      int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
+      if (ret != 0) {
+        mGError("msg:%p, failed to send alter encrypt_key req to dnode:%d, error:%s", pReq, pDnode->id, tstrerror(ret));
+      } else {
+        mGInfo("msg:%p, send alter encrypt_key req to dnode:%d, keyType:%d", pReq, pDnode->id, pAlterReq->keyType);
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  // Note: mnode runs on dnode, so the local keys will be updated by dnode itself
+  // when it receives the alter encrypt key request from mnode
+  mGInfo("msg:%p, successfully sent alter encrypt key request to all dnodes, keyType:%d", pReq, pAlterReq->keyType);
+
+_exit:
+  if (code != 0) {
+    if (terrno == 0) terrno = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq) {
+  SMnode              *pMnode = pReq->info.node;
+  SMAlterEncryptKeyReq alterReq = {0};
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+
+  // Check privilege - only admin can alter encryption keys
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE), &lino, _OVER);
+
+  // Deserialize request
+  code = tDeserializeSMAlterEncryptKeyReq(pReq->pCont, pReq->contLen, &alterReq);
+  if (code != 0) {
+    mError("failed to deserialize alter encrypt key req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+
+  mInfo("received alter encrypt key req, keyType:%d", alterReq.keyType);
+
+#ifdef TD_ENTERPRISE
+  // Process and distribute to all dnodes
+  code = mndProcessAlterEncryptKeyReqImpl(pReq, &alterReq);
+  if (code == 0) {
+    // Audit log
+    auditRecord(pReq, pMnode->clusterId, "alterEncryptKey", "", alterReq.keyType == 0 ? "SVR_KEY" : "DB_KEY",
+                alterReq.sql, alterReq.sqlLen);
+  }
+#else
+  // Community edition - no encryption support
+  mError("encryption key management is only available in enterprise edition");
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to alter encrypt key, keyType:%d, since %s", alterReq.keyType, tstrerror(code));
+  }
+
+  tFreeSMAlterEncryptKeyReq(&alterReq);
+  TAOS_RETURN(code);
 }

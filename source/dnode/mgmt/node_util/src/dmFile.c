@@ -667,6 +667,7 @@ int32_t dmGetEncryptKey() {
   // First try to load from taosk key files (master.bin and derived.bin)
   code = dmGetEncryptKeyFromTaosk();
   if (code == 0) {
+    tsEncryptKeysLoaded = true;
     dInfo("encryption keys loaded from taosk key files");
     return 0;
   }

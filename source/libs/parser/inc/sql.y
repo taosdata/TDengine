@@ -404,6 +404,10 @@ cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                        
 cmd ::= CREATE ENCRYPT_ALGR NK_STRING(A) ALGR_NAME NK_STRING(B) DESC NK_STRING(C) ALGR_TYPE NK_STRING(D) OSSL_ALGR_NAME NK_STRING(E).                                          { pCxt->pRootNode = createCreateAlgrStmt(pCxt, &A, &B, &C, &D, &E); }
 
 cmd ::= DROP ENCRYPT_ALGR NK_STRING(A).                                           { pCxt->pRootNode = createDropEncryptAlgrStmt(pCxt, &A); }
+
+/************************************************ alter encrypt key *********************************************/
+cmd ::= ALTER SYSTEM SET SVR_KEY NK_STRING(A).                                    { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 0, &A); }
+cmd ::= ALTER SYSTEM SET DB_KEY NK_STRING(A).                                     { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 1, &A); }
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
 cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
