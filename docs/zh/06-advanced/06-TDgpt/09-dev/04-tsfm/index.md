@@ -295,11 +295,11 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 ### 启动脚本
 
-`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。该脚本会根据用户指定的模型名称，加载对应的 Python 虚拟环境，并启动相应的模型服务脚本。
+`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。该脚本会根据用户指定的模型名称，加载对应的`Python`虚拟环境，并启动相应的模型服务脚本。
 
-使用 root 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/start-model`，方便全局使用。
+使用`root` 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/start-model`，方便全局使用。
 
-默认日志输出到 /var/log/taos/taosanode/ 目录下的 taosanode_service_<model_name>.log 文件中。
+默认日志输出到 `/var/log/taos/taosanode/` 目录下的 `taosanode_service_<model_name>.log` 文件中。
 
 **用法说明**：
 
@@ -324,7 +324,7 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 ### 停止脚本
 
-`stop-model.sh`用于一键停止指定或全部时序基础模型服务。脚本会自动查找并终止对应模型的 Python 进程，使用方式与启动脚本一致，便于批量运维。
+`stop-model.sh`用于一键停止指定或全部时序基础模型服务。脚本会自动查找并终止对应模型的`Python`进程，使用方式与启动脚本一致，便于批量运维。
 
 **使用示例说明**：
 
