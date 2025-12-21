@@ -4900,7 +4900,23 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
       }
       // condition
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);
+        SNode  *pAst = NULL;
+        int32_t sqlLen = 0;
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        if (tbPolicy->condLen > 0) {
+          if (nodesStringToNode(tbPolicy->cond, &pAst) == 0) {
+            if (nodesNodeToSQLFormat(pAst, qBuf, qBufSize, &sqlLen, true) != 0) {
+              sqlLen = tsnprintf(qBuf, qBufSize, "error");
+            }
+            nodesDestroyNode(pAst);
+          }
+          if (sqlLen == 0) {
+            sqlLen = tsnprintf(qBuf, qBufSize, "error");
+          }
+        } else {
+          sqlLen = tsnprintf(qBuf, qBufSize, "");
+        }
+        varDataSetLen(pBuf, sqlLen);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
       // notes
