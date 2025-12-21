@@ -12,7 +12,14 @@ NC='\033[0m'
 
 PRODUCTPREFIX="taosanode"
 installDir="/usr/local/taos/taosanode"
-venv_dir="/var/lib/taos/taosanode/venv"
+dataDir="/var/lib/taos/taosanode"
+venv_list=(
+  "${dataDir}/venv"
+  "${dataDir}/timesfm_venv"
+  "${dataDir}/moirai_venv"
+  "${dataDir}/chronos_venv"
+  "${dataDir}/momentfm_venv"
+)
 serverName="${PRODUCTPREFIX}d"
 uninstallName="rmtaosanode"
 productName="TDengine TDgpt"
@@ -30,7 +37,7 @@ local_log_dir=${installDir}/log
 local_conf_dir=${installDir}/cfg
 local_model_dir=${installDir}/model
 
-global_log_dir="/var/log/taos/${PRODUCTPREFIX}"
+global_log_dir="/var/log/taos/taosanode"
 global_conf_dir="/etc/taos/"
 
 service_config_dir="/etc/systemd/system"
@@ -170,9 +177,12 @@ remove_service() {
 function clean_venv() {
   # Remove python virtual environment
   #${csudo}rm ${venv_dir}/* || :
-  if [ ! -z "${venv_dir}" ]; then
-    echo -e "${csudo}rm -rf ${venv_dir}/*"
-  fi  
+  for venv_dir in "${venv_list[@]}"; do
+    if [ -d "$venv_dir" ]; then
+      echo "Removing venv: $venv_dir"
+      ${csudo}rm -rf "$venv_dir" || :
+    fi
+  done
 }
 
 function clean_module() {

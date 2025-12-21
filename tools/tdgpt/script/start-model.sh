@@ -65,9 +65,9 @@ main() {
   if [[ "$1" == "all" ]]; then
     shift
     for m in tdtsfm timesfm timemoe moirai chronos moment; do
-      echo "Starting $m ..."
       "$0" -c "$CONFIG_FILE" "$m" "$@" &
       sleep 1
+      echo
     done
     echo "All models started."
     exit 0
@@ -102,35 +102,35 @@ main() {
       sub_model_dir="${model_dir%/}/timesfm"
       py_script="timesfm-server.py"
       model_param="google/timesfm-2.0-500m-pytorch"
-      py_args="${sub_model_dir} ${model_param} False $*"
+      set -- "${sub_model_dir}" "${model_param}" False "$@"
       ;;
     timemoe)
       venv_dir="${default_venv}"
       sub_model_dir="${model_dir%/}/timemoe"
       py_script="timemoe-server.py"
       model_param="Maple728/TimeMoE-200M"
-      py_args="${sub_model_dir} ${model_param} False $*"
+      set -- "${sub_model_dir}" "${model_param}" False "$@"
       ;;
     moirai)
       venv_dir="${moirai_venv}"
       sub_model_dir="${model_dir%/}/moirai"
       py_script="moirai-server.py"
       model_param="Salesforce/moirai-moe-1.0-R-base"
-      py_args="${sub_model_dir} ${model_param} False $*"
+      set -- "${sub_model_dir}" "${model_param}" False "$@"
       ;;
     chronos)
       venv_dir="${chronos_venv}"
       sub_model_dir="${model_dir%/}/chronos"
       py_script="chronos-server.py"
       model_param="amazon/chronos-bolt-base"
-      py_args="${sub_model_dir} ${model_param} False $*"
+      set -- "${sub_model_dir}" "${model_param}" False "$@"
       ;;
     moment)
       venv_dir="${moment_venv}"
       sub_model_dir="${model_dir%/}/moment-large"
       py_script="moment-server.py"
       model_param="AutonLab/MOMENT-1-large"
-      py_args="${sub_model_dir} ${model_param} False $*"
+      set -- "${sub_model_dir}" "${model_param}" False "$@"
       ;;
     *)
       show_help
@@ -146,7 +146,7 @@ main() {
     # shellcheck source=/dev/null
     source "${venv_dir}/bin/activate"
     echo "nohup ${venv_dir}/bin/python3 ${py_script} ${py_args} > ${service_log} 2>&1 &"
-    nohup "${venv_dir}/bin/python3" "${py_script}" "${py_args}" > "${service_log}" 2>&1 &
+    nohup "${venv_dir}/bin/python3" "${py_script}" "$@" >> "${service_log}" 2>&1 &
     echo "check the pid of the ${py_script} to confirm it is running"
     pid=$(pgrep -f "${py_script}")
     echo "PID of the ${py_script} is $pid"

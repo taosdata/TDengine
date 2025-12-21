@@ -71,13 +71,13 @@ fi
 #install main path
 install_main_dir=${installDir}
 # timesfm venv:transformers==4.40.0
-timesfm_venv_dir="${dataDir}/venv_timesfm"
+timesfm_venv_dir="${dataDir}/timesfm_venv"
 # moirai venv:transformers==4.40.0
-moirai_venv_dir="${dataDir}/venv_moirai"
+moirai_venv_dir="${dataDir}/moirai_venv"
 # chronos-forecasting venv:transformers==4.55.0
-chronos_venv_dir="${dataDir}/venv_chronos"
+chronos_venv_dir="${dataDir}/chronos_venv"
 # momentfm venv:transformers==4.33.0
-momentfm_venv_dir="${dataDir}/venv_momentfm"
+momentfm_venv_dir="${dataDir}/momentfm_venv"
 
 
 service_config_dir="/etc/systemd/system"
