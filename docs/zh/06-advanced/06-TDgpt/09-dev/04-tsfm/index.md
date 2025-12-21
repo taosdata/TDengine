@@ -294,13 +294,14 @@ nohup python moment-server.py > service_output.out 2>&1 &
 为了方便用户启动和停止时序基础模型服务，TDgpt 在 3.4.0.0 及之后的版本提供了统一的启动脚本 `start-model.sh` 和停止脚本 `stop-model.sh`，用于一键启动或停止指定或全部时序基础模型服务。
 
 ### 启动脚本
-`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。 该脚本会根据用户指定的模型名称，加载对应的 Python 虚拟环境，并启动相应的模型服务脚本。
+
+`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。该脚本会根据用户指定的模型名称，加载对应的 Python 虚拟环境，并启动相应的模型服务脚本。
 
 使用 root 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/start-model`，方便全局使用。
 
 默认日志输出到 /var/log/taos/taosanode/ 目录下的 taosanode_service_<model_name>.log 文件中
 
-**用法说明**
+**用法说明** 
  
 ```bash
 用法：/usr/bin/start-model [-c 配置文件] [模型名|all] [其他参数...]
@@ -319,14 +320,14 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 1. 在后台启动全部的模型服务：`/usr/bin/start-model all`
 2. 单独启动某个模型服务，例如：`/usr/bin/start-model timesfm`
-3. 支持通过 -c 参数指定自定义配置文件，未指定时默认使用 /etc/taos/taosanode.ini 作为配置文件，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.ini`
+3. 支持通过 `-c` 参数指定自定义配置文件，未指定时默认使用`/etc/taos/taosanode.ini` 作为配置文件，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.ini`
 
 
 ### 停止脚本
 `stop-model.sh`用于一键停止指定或全部时序基础模型服务。脚本会自动查找并终止对应模型的 Python 进程，使用方式与启动脚本一致，便于批量运维。
 
 **使用示例说明**：
-1. 停止 timesfm 服务,`/usr/bin/stop-model timesfm`
+1. 停止 timesfm 服务，`/usr/bin/stop-model timesfm`
 2. 一键停止全部模型服务`/usr/bin/stop-model all`
 
 
