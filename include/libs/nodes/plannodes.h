@@ -338,6 +338,9 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+#define WINDOW_PART_HAS  0x01
+#define WINDOW_PART_TB   0x02
+
 typedef struct SWindowLogicNode {
   // for all window types
   SLogicNode            node;
@@ -378,7 +381,7 @@ typedef struct SWindowLogicNode {
   tb_uid_t              orgTableUid;
 
   // for external and interval window
-  bool                  isPartTb;
+  int8_t                partType;      // bit0 is for has partition, bit1 is for tb partition
   // for anomaly window
   SNode*                pAnomalyExpr;
   char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
