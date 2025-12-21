@@ -7,7 +7,7 @@ class TestQnodeBasic1:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_qnode_basic1(self):
+    def test_qnode_basic(self):
         """Qnode basic
 
         1. Repeated create and drop qnodes
