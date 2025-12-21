@@ -2206,11 +2206,15 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
   SPrivInfo*       privInfo = req->privInfo;
+  int32_t          sizeTbPrivs = taosHashGetSize(req->tbPrivs);
   SUserAuthInfo*   pReq = req->pRawReq;
   SUserAuthRes*    pRes = res->pRawRes;
   char*            stbName = NULL;
 
-  if (taosHashGetSize(pInfo->objPrivs) <= 0) return code;
+#if 0  // in most cases, there is table level privilege, so skip the check first
+  if (taosHashGetSize(pInfo->objPrivs) <= 0 && taosHashGetSize(tbPrivs) <= 0)
+    return code;
+#endif
 
   char tbName[TSDB_TABLE_NAME_LEN];
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -2233,10 +2237,9 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       goto _return;
     }
 
-    if (privInfo->privType == PRIV_TBL_SELECT || privInfo->privType == PRIV_TBL_DELETE) {
+    if (sizeTbPrivs > 0) {
       SPrivTblPolicy* tblPolicy =
-          privGetConstraintTblPrivileges(privInfo->privType == PRIV_TBL_SELECT ? pInfo->selectTbs : pInfo->deleteTbs,
-                                         pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo);
+          privGetConstraintTblPrivileges(req->tbPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo);
       if (tblPolicy) {
         if (strlen(tblPolicy->cond) > 0) {
           CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
@@ -2362,9 +2365,30 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           // N/A: no update clause, update is done by insert clause
           break;
         }
-        case PRIV_TBL_SELECT:
-        case PRIV_TBL_INSERT:
-        case PRIV_TBL_DELETE:
+        case PRIV_TBL_SELECT: {
+          req->tbPrivs = pInfo->selectTbs;
+          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+        case PRIV_TBL_INSERT: {
+          req->tbPrivs = pInfo->insertTbs;
+          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+        case PRIV_TBL_DELETE: {
+          req->tbPrivs = pInfo->deleteTbs;
+          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
         case PRIV_TBL_ALTER:
         case PRIV_TBL_DROP:
         case PRIV_TBL_SHOW_CREATE: {

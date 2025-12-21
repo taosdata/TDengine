@@ -166,6 +166,7 @@ typedef struct SCtgAuthReq {
   SRequestConnInfo* pConn;
   SPrivInfo*        privInfo;
   SUserAuthInfo*    pRawReq;
+  SHashObj*         tbPrivs;
   SGetUserAuthRsp   authInfo;
   AUTH_TYPE         singleType;
   bool              onlyCache;
