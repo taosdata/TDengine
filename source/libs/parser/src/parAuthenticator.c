@@ -228,6 +228,10 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       pAuthCxt->errCode = TSDB_CODE_PAR_PERMISSION_DENIED;
       return DEAL_RES_ERROR;
     }
+    if(authObjPrivileges(pAuthCxt, pTable->dbName, NULL, PRIV_DB_USE)){
+      pAuthCxt->errCode = TSDB_CODE_PAR_PERMISSION_DENIED;
+      return DEAL_RES_ERROR;
+    }
 #ifdef TD_ENTERPRISE
     SName name = {0};
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
@@ -240,17 +244,17 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     taosMemoryFree(pTableMeta);
 #endif
     if (!isView) {
-      pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, &pTagCond);
+      pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, &pTagCond);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
-        pAuthCxt->errCode = checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, NULL);
+        pAuthCxt->errCode = checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, NULL);
       }
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pTagCond) {
         pAuthCxt->errCode = rewriteAppendStableTagCond(&pCxt->pSelect->pWhere, pTagCond, pTable);
       }
     } else {
-      pAuthCxt->errCode = checkViewAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, NULL);
+      pAuthCxt->errCode = checkViewAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, NULL);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
-        pAuthCxt->errCode = checkViewEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, NULL);
+        pAuthCxt->errCode = checkViewEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, NULL);
       }
     }
     return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;

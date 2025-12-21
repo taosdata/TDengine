@@ -78,15 +78,15 @@ typedef enum {
   PRIV_SHOW_SSMIGRATES = 36,  // SHOW SSMIGRATES
 
   // ==================== Table Privileges(50-69)  ================
-  PRIV_TBL_CREATE = 50,  // CREATE TABLE
-  PRIV_TBL_DROP,         // DROP TABLE
-  PRIV_TBL_ALTER,        // ALTER TABLE
-  PRIV_TBL_SHOW,         // SHOW TABLES
-  PRIV_TBL_SHOW_CREATE,  // SHOW CREATE TABLE
-  PRIV_TBL_SELECT,       // SELECT TABLE
-  PRIV_TBL_INSERT,       // INSERT TABLE
-  PRIV_TBL_UPDATE,       // UPDATE TABLE(reserved)
-  PRIV_TBL_DELETE = 58,  // DELETE TABLE
+  PRIV_TBL_CREATE = 50,       // CREATE TABLE
+  PRIV_TBL_DROP = 51,         // DROP TABLE
+  PRIV_TBL_ALTER = 52,        // ALTER TABLE
+  PRIV_TBL_SHOW = 53,         // SHOW TABLES
+  PRIV_TBL_SHOW_CREATE = 54,  // SHOW CREATE TABLE
+  PRIV_TBL_SELECT = 55,       // SELECT TABLE
+  PRIV_TBL_INSERT = 56,       // INSERT TABLE
+  PRIV_TBL_UPDATE = 57,       // UPDATE TABLE(reserved)
+  PRIV_TBL_DELETE = 58,       // DELETE TABLE
 
   // ==================== Other Privileges ================
   // function management
@@ -390,13 +390,15 @@ int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen, bool fullDb);
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
-const char* privObjTypeName(EPrivObjType objType);
-const char* privInfoGetName(EPrivType privType);
-SPrivInfo*  privInfoGet(EPrivType privType);
-int32_t     getSysRoleType(const char* roleName);
-bool        isPrivInheritName(const char* name);
-bool        privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
-                                   SPrivInfo* privInfo);
+const char*     privObjTypeName(EPrivObjType objType);
+const char*     privInfoGetName(EPrivType privType);
+SPrivInfo*      privInfoGet(EPrivType privType);
+int32_t         getSysRoleType(const char* roleName);
+bool            isPrivInheritName(const char* name);
+bool            privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
+                                       SPrivInfo* privInfo);
+SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
+                                               SPrivInfo* privInfo);
 
 #ifdef __cplusplus
 }

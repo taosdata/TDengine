@@ -578,6 +578,33 @@ _retry:
   return false;
 }
 
+SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
+                                             SPrivInfo* privInfo) {
+#if 0  // debug info, remove when release
+  SPrivObjPolicies* pp = NULL;
+  while ((pp = taosHashIterate(privs, pp))) {
+    char* pKey = taosHashGetKey(pp, NULL);
+    printf("%s:%d key is %s\n", __func__, __LINE__, pKey);
+  }
+#endif
+
+  if (taosHashGetSize(privs) == 0) return NULL;
+
+  const char* pObjName = objName;
+  const char* pTbName = tbName;
+  char        key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  int32_t     klen = 0;
+
+  klen = privObjKey(privInfo, acctId, pObjName, pTbName, key, sizeof(key));
+
+  SPrivTblPolicies* policies = taosHashGet(privs, key, klen + 1);
+  if (policies) {
+    return (SPrivTblPolicy*)taosArrayGet(policies->policy, 0);
+  }
+
+  return NULL;
+}
+
 SPrivInfo* privInfoGet(EPrivType privType) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
   SPrivInfo* result = (privType >= 0 && privType <= MAX_PRIV_TYPE) ? privLookup[privType] : NULL;
@@ -585,7 +612,7 @@ SPrivInfo* privInfoGet(EPrivType privType) {
   return result;
 }
 
-const char*  privInfoGetName(EPrivType privType) {
+const char* privInfoGetName(EPrivType privType) {
   SPrivInfo* privInfo = privInfoGet(privType);
-  return privInfo?privInfo->name:"privUnkown";
+  return privInfo ? privInfo->name : "privUnkown";
 }

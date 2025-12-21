@@ -2233,6 +2233,20 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       goto _return;
     }
 
+    if (privInfo->privType == PRIV_TBL_SELECT || privInfo->privType == PRIV_TBL_DELETE) {
+      SPrivTblPolicy* tblPolicy =
+          privGetConstraintTblPrivileges(privInfo->privType == PRIV_TBL_SELECT ? pInfo->selectTbs : pInfo->deleteTbs,
+                                         pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo);
+      if (tblPolicy) {
+        if (strlen(tblPolicy->cond) > 0) {
+          CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
+        }
+        // TODO: check the columns
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+        goto _return;
+      }
+    }
+
     if (stbName) {
       res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
@@ -2344,19 +2358,13 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       req->singleType = pReq->type;
       req->privInfo = privInfo;
       switch (pReq->type) {
-        case PRIV_TBL_SELECT: {  // support tag condition
-          break;
-        }
-        case PRIV_TBL_INSERT: {  // support tag condition
-          break;
-        }
-        case PRIV_TBL_DELETE: {  // support tag condition
-          break;
-        }
         case PRIV_TBL_UPDATE: {  // support tag condition
           // N/A: no update clause, update is done by insert clause
           break;
         }
+        case PRIV_TBL_SELECT:
+        case PRIV_TBL_INSERT:
+        case PRIV_TBL_DELETE:
         case PRIV_TBL_ALTER:
         case PRIV_TBL_DROP:
         case PRIV_TBL_SHOW_CREATE: {
