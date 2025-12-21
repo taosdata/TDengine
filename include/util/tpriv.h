@@ -95,18 +95,19 @@ typedef enum {
   PRIV_FUNC_SHOW,         // SHOW FUNCTIONS
 
   // index management
-  PRIV_IDX_CREATE = 73,  // CREATE INDEX
+  PRIV_IDX_CREATE = 74,  // CREATE INDEX
   PRIV_IDX_DROP,         //  DROP INDEX
   PRIV_IDX_SHOW,         //  SHOW INDEXES
 
   // view management
-  PRIV_VIEW_CREATE = 76,  // CREATE VIEW
+  PRIV_VIEW_CREATE = 78,  // CREATE VIEW
   PRIV_VIEW_DROP,         // DROP VIEW
   PRIV_VIEW_SHOW,         // SHOW VIEWS
-  PRIV_VIEW_READ,         // READ VIEW
+  PRIV_VIEW_SHOW_CREATE,  // SHOW CREATE VIEW
+  PRIV_VIEW_SELECT,       // SELECT VIEW
 
   // SMA management
-  PRIV_RSMA_CREATE = 80,  // CREATE RSMA
+  PRIV_RSMA_CREATE = 83,  // CREATE RSMA
   PRIV_RSMA_DROP,         // DROP RSMA
   PRIV_RSMA_ALTER,        // ALTER RSMA
   PRIV_RSMA_SHOW,         // SHOW RSMAS
@@ -116,12 +117,12 @@ typedef enum {
   PRIV_TSMA_SHOW,         // SHOW TSMAS
 
   // mount management
-  PRIV_MOUNT_CREATE = 90,  // CREATE MOUNT
+  PRIV_MOUNT_CREATE = 92,  // CREATE MOUNT
   PRIV_MOUNT_DROP,         // DROP MOUNT
   PRIV_MOUNT_SHOW,         // SHOW MOUNTS
 
   // password management
-  PRIV_PASS_ALTER = 93,  // ALTER PASS
+  PRIV_PASS_ALTER = 96,  // ALTER PASS
   PRIV_PASS_ALTER_SELF,  // ALTER SELF PASS
 
   // role management

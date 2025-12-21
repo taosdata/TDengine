@@ -488,7 +488,8 @@ priv_type(A) ::= SHOW INDEXES.                                                  
 priv_type(A) ::= CREATE VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_CREATE); }
 priv_type(A) ::= DROP VIEW.                                                       { A = PRIV_SET_TYPE(PRIV_VIEW_DROP); }
 priv_type(A) ::= SHOW VIEWS.                                                      { A = PRIV_SET_TYPE(PRIV_VIEW_SHOW); }
-priv_type(A) ::= READ VIEW.                                                       { A = PRIV_SET_TYPE(PRIV_VIEW_READ); }
+priv_type(A) ::= SHOW CREATE VIEW.                                                { A = PRIV_SET_TYPE(PRIV_VIEW_SHOW_CREATE); }
+priv_type(A) ::= SELECT VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_SELECT); }
 
 priv_type(A) ::= CREATE RSMA.                                                     { A = PRIV_SET_TYPE(PRIV_RSMA_CREATE); }
 priv_type(A) ::= DROP RSMA.                                                       { A = PRIV_SET_TYPE(PRIV_RSMA_DROP); }

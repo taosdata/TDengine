@@ -291,7 +291,10 @@ static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
 static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   SNode*      pTagCond = NULL;
   STableNode* pTable = (STableNode*)pDelete->pFromTable;
-  int32_t     code = checkAuth(pCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_WRITE, &pTagCond);
+  int32_t     code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_DELETE, &pTagCond);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
     code = rewriteAppendStableTagCond(&pDelete->pWhere, pTagCond, pTable);
   }
@@ -302,9 +305,9 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   SNode*      pTagCond = NULL;
   STableNode* pTable = (STableNode*)pInsert->pTable;
   // todo check tag condition for subtable
-  int32_t code = checkAuth(pCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_WRITE, &pTagCond);
+  int32_t code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    code = authQuery(pCxt, pInsert->pQuery);
+    code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_INSERT, &pTagCond);
   }
   return code;
 }
@@ -318,7 +321,7 @@ static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
 static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) { return authShowTables(pCxt, pStmt); }
 
 static int32_t authShowUsage(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
+  return authObjPrivileges(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, PRIV_DB_USE);
 }
 
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
@@ -346,7 +349,8 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
 }
 
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL));
+  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE));
+  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE));
   SNode* pCol = NULL;
   FOREACH(pCol, pStmt->pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
@@ -355,7 +359,7 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
     }
     SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
-      PAR_ERR_RET(checkAuth(pCxt, pOptions->refDb, pOptions->refTable, AUTH_TYPE_READ, NULL));
+      PAR_ERR_RET(authObjPrivileges(pCxt, pOptions->refDb, pOptions->refTable, PRIV_TBL_SELECT));
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -364,8 +368,9 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
 static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNode*     pNode = NULL;
-  SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL));
+  SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;);
+  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE));
+  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE));
   if (NULL == pTmpList) {
     // no column reference
     return TSDB_CODE_SUCCESS;
@@ -376,7 +381,7 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
     if (NULL == pColRef) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
-    PAR_ERR_RET(checkAuth(pCxt, pColRef->refDbName, pColRef->refTableName, AUTH_TYPE_READ, NULL));
+    PAR_ERR_RET(authObjPrivileges(pCxt, pColRef->refDbName, pColRef->refTableName, PRIV_TBL_SELECT));
   }
   return code;
 }
@@ -431,13 +436,21 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
   FOREACH(pNode, pStmt->pSubTables) {
     if (pNode->type == QUERY_NODE_CREATE_SUBTABLE_CLAUSE) {
       SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-      code = checkAuth(pCxt, pClause->dbName, NULL, AUTH_TYPE_WRITE, NULL);
+      code = authObjPrivileges(pCxt, pClause->dbName, NULL, PRIV_DB_USE);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+      code = authObjPrivileges(pCxt, pClause->dbName, pClause->tableName, PRIV_TBL_CREATE);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
     } else {
       SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
-      code = checkAuth(pCxt, pClause->useDbName, NULL, AUTH_TYPE_WRITE, NULL);
+      code = authObjPrivileges(pCxt, pClause->useDbName, NULL, PRIV_DB_USE);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+      code = authObjPrivileges(pCxt, pClause->useDbName, pClause->useTableName, PRIV_TBL_CREATE);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
@@ -483,7 +496,10 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, NULL));
+  if (!pStmt->withOpt) {
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_TBL_DROP, NULL));
+  }
 }
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
@@ -494,10 +510,12 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 }
 
 static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL));
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, NULL));
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_TBL_ALTER, NULL));
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->refTableName, AUTH_TYPE_READ, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, NULL, PRIV_DB_USE, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, NULL));
   }
   PAR_RET(TSDB_CODE_SUCCESS);
 }
@@ -506,14 +524,18 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
-  return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL);
+  return checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, NULL);
 }
 
 static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
-  return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
+  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, PRIV_VIEW_DROP, NULL);
+  }
+  return code;
 }
 
 static int32_t authCreateIndex(SAuthCxt* pCxt, SCreateIndexStmt* pStmt) {
@@ -690,7 +712,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     // case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
+    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT: // TODO: check in mnode
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -808,6 +830,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SSsMigrateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_SSMIGRATE);
     case QUERY_NODE_SHOW_USAGE_STMT: // disk info
+      return authShowUsage(pCxt, (SShowStmt*)pStmt);
       // check in mnode
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:

@@ -4633,7 +4633,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         rows) {
       mInfo(
           "will restore. current num of rows: %d, read dbs %d, write dbs %d, topics %d, read tables %d, write tables "
-          "%d, alter tables %d, read views %d, write views %d, alter views %d",
+          "%d, alter tables %d, SELECT VIEWs %d, write views %d, alter views %d",
           numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs, numOfAlterTbs,
           numOfReadViews, numOfWriteViews, numOfAlterViews);
       pShow->restore = true;
