@@ -216,23 +216,30 @@ class TestTsbsquery:
         # 3. avg-vs-projected-fuel-consumption
         tdSql.query(f"select avg(fuel_consumption) as avg_fuel_consumption,avg(nominal_fuel_consumption) as nominal_fuel_consumption from {dbname}.readings where velocity > 1 group by fleet")
 
-    def test_tsbsQuery(self):
-        """summary: xxx
+    def test_query_partitionby_tsbs(self):
+        """Partiton by tsbs
+        
+        1. create database and table,insert data 
+        2. run tsbs iot queries
+           - interval 
+           - partition by
+           - where clause
+           - order by 
+           - sub-query
+           - funciton last/avg/count/diff/fill
+           - pseudo time-column _wstart/_wend
+        3. stop and start dnode
+        4. run tsbs iot queries again
 
-        description: xxx
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-21 Alex Duan Migrated from uncatalog/system-test/2-query/test_tsbsQuery.py
 
         """
 

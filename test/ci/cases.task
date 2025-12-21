@@ -315,6 +315,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_query_explain.py
 ## 16-PartitionBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
 
@@ -325,8 +326,8 @@
 ## 02-Bit
 ## 03-JSON
 ## 04-Set
-,,y,.,./ci/pytest.sh pytest cases/10-Operators/04-Set/test_union.py
-,,y,.,./ci/pytest.sh pytest cases/10-Operators/04-Set/test_unionall.py
+,,y,.,./ci/pytest.sh pytest cases/10-Operators/04-Set/test_union_basic.py
+,,y,.,./ci/pytest.sh pytest cases/10-Operators/04-Set/test_union_bugs.py
 ## 05-Comparison
 ,,y,.,./ci/pytest.sh pytest cases/10-Operators/05-Comparison/test_between_and.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Operators/05-Comparison/test_in.py
@@ -923,15 +924,12 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varbinary.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py
+
+
+
+
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py
