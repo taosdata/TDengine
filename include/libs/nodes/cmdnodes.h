@@ -601,7 +601,7 @@ typedef struct {
   // Create xnode with new user.
   char user[TSDB_USER_LEN + 3];
   // Create xnode with new user password. `user` and `pass` should exist along with each other.
-  char pass[TSDB_USET_PASSWORD_LONGLEN + 3];
+  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
 } SCreateXnodeStmt;
 
 typedef struct {

@@ -37,7 +37,7 @@ extern "C" {
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
 #ifndef XNODE_USER_PASS_LEN
-#define XNODE_USER_PASS_LEN (TSDB_USER_LEN + TSDB_USET_PASSWORD_LONGLEN + 16)
+#define XNODE_USER_PASS_LEN (TSDB_USER_LEN + TSDB_USER_PASSWORD_LONGLEN + 16)
 #endif
 
 typedef struct SXnode SXnode;

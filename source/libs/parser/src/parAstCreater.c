@@ -4813,7 +4813,9 @@ SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* 
     COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUser);
   }
   if (pPass != NULL) {
-    CHECK_NAME(checkPassword(pCxt, pPass, pStmt->pass));
+    // CHECK_NAME(checkPassword(pCxt, pPass, pStmt->pass));
+    strncpy(pStmt->pass, pPass->z, sizeof(pStmt->pass));
+    pStmt->pass[sizeof(pStmt->pass) - 1] = '\0';
   }
   return (SNode*)pStmt;
 _err:

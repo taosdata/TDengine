@@ -12920,7 +12920,7 @@ static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* p
   tstrncpy(createReq.user, pStmt->user, createReq.userLen);
 
   createReq.passLen = strlen(pStmt->pass) + 1;
-  if (createReq.urlLen > TSDB_USET_PASSWORD_LONGLEN) {
+  if (createReq.urlLen > TSDB_USER_PASSWORD_LONGLEN) {
     return TSDB_CODE_MND_INVALID_PASS_FORMAT;
   }
   createReq.pass = taosMemoryCalloc(createReq.passLen, 1);

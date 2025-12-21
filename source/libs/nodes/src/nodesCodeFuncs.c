@@ -4177,19 +4177,12 @@ static const char* jkDynQueryCtrlPhysiPlanSrcScan0 = "SrcScan[0]";
 static const char* jkDynQueryCtrlPhysiPlanSrcScan1 = "SrcScan[1]";
 static const char* jkDynQueryCtrlPhysiPlanDynTbname = "DynTbname";
 static const char* jkDynQueryCtrlPhysiPlanScanAllCols = "ScanAllCols";
-<<<<<<< HEAD
-static const char* jkDynQueryCtrlPhysiPlanDbName = "DbName";
-static const char* jkDynQueryCtrlPhysiPlanStbName = "StbName";
-static const char* jkDynQueryCtrlPhysiPlanSuid = "Suid";
-static const char* jkDynQueryCtrlPhysiPlanAccountId = "AccountId";
-=======
 static const char* jkDynQueryCtrlPhysiPlanIsSuperTable = "IsSuperTable";
 static const char* jkDynQueryCtrlPhysiPlanDbName= "DbName";
 static const char* jkDynQueryCtrlPhysiPlanStbName= "StbName";
 static const char* jkDynQueryCtrlPhysiPlanSuid= "Suid";
 static const char* jkDynQueryCtrlPhysiPlanUid= "Uid";
 static const char* jkDynQueryCtrlPhysiPlanAccountId= "AccountId";
->>>>>>> 3.0
 static const char* jkDynQueryCtrlPhysiPlanEpSet = "EpSet";
 static const char* jkDynQueryCtrlPhysiPlanScanCols = "ScanCols";
 static const char* jkDynQueryCtrlPhysiPlanRVersion = "RVersion";

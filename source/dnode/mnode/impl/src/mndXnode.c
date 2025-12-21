@@ -1425,7 +1425,7 @@ static int32_t mndStoreXnodeUserPass(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnod
   (void)memcpy(upObj.user, pCreate->user, pCreate->userLen);
 
   upObj.passLen = pCreate->passLen;
-  if (upObj.passLen > TSDB_USET_PASSWORD_LONGLEN) {
+  if (upObj.passLen > TSDB_USER_PASSWORD_LONGLEN) {
     code = TSDB_CODE_MND_INVALID_PASS_FORMAT;
     goto _OVER;
   }
