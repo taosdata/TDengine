@@ -29,6 +29,7 @@ bool mstEventHandledChkSet(int32_t event);
 typedef enum {
   STM_ERR_TASK_NOT_EXISTS = 1,
   STM_ERR_STREAM_STOPPED,
+  STM_ERR_PROCESSING_ERR,
 } EStmErrType;
 
 
@@ -58,13 +59,19 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 
 
 #define MND_STREAM_RUNNER_DEPLOY_NUM 3
-#define MND_STREAM_ISOLATION_PERIOD_NUM 3
+#define MND_STREAM_RUNNER_REPLICA_NUM 5
+#define MND_STREAM_ISOLATION_PERIOD_NUM 10
 #define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
+#define MST_SHORT_ISOLATION_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM / 3)
 #define MST_ISOLATION_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
 #define MND_STREAM_HEALTH_CHECK_PERIOD_SEC (MND_STREAM_REPORT_PERIOD / 1000)
-#define MST_MAX_RETRY_DURATION (MST_ISOLATION_DURATION * 40)
+#define MST_MAX_RETRY_DURATION (MST_ISOLATION_DURATION * 20)
 
 #define MST_PASS_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
+#define MST_PASS_SHORT_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_SHORT_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
+
+#define MST_STM_STATIC_PASS_SHORT_ISOLATION(_s) (MST_PASS_SHORT_ISOLATION((_s)->updateTime, 1))
+
 #define MST_STM_STATIC_PASS_ISOLATION(_s) (MST_PASS_ISOLATION((_s)->updateTime, 1))
 #define MST_STM_PROC_PASS_ISOLATION(_d) (MST_PASS_ISOLATION((_d)->lastActionTs, 1))
 #define MST_STM_PASS_ISOLATION(_s, _d) (MST_STM_STATIC_PASS_ISOLATION(_s) && MST_STM_PROC_PASS_ISOLATION(_d))
@@ -90,7 +97,8 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_ACT_RECALC     (1 << 4)
 
 #define MND_STREAM_RESERVE_SIZE      64
-#define MND_STREAM_VER_NUMBER        7
+#define MND_STREAM_VER_NUMBER        8
+#define MND_STREAM_COMPATIBLE_VER_NUMBER 7
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
 #define MND_STREAM_DEFAULT_NUM       100
 #define MND_STREAM_DEFAULT_TASK_NUM  200
@@ -111,6 +119,8 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MST_IS_RUNNER_GETTING_READY(_t) (STREAM_STATUS_INIT == (_t)->status && STREAM_RUNNER_TASK == (_t)->type)
 
 #define MST_COPY_STR(_p) ((_p) ? (taosStrdup(_p)) : NULL)
+
+#define MST_LIST_SIZE(_l) ((_l) ? TD_DLIST_NELES(_l) : 0)
 
 // clang-format off
 #define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MSTM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
@@ -174,6 +184,7 @@ typedef struct SStmTaskId {
   int64_t seriousId;
   int32_t nodeId;
   int32_t taskIdx;
+  int64_t uid;
 } SStmTaskId;
 
 
@@ -269,9 +280,10 @@ typedef struct SStmStatus {
   int64_t           fatalRetryTs;
   int64_t           fatalRetryTimes;
 
+  SRWLatch          resetLock;
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
   SArray*           trigOReaders;       // SArray<SStmTaskStatus>, virtable table only
-  SArray*           calcReaders;        // SArray<SStmTaskStatus>  
+  SList*            calcReaders;        // SList<SStmTaskStatus>
   SStmTaskStatus*   triggerTask;
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
 
@@ -490,6 +502,7 @@ int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq,
 int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
+int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
 int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
 void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
@@ -517,7 +530,6 @@ void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus);
 void mstDestroySStmSnodeStreamStatus(void* p);
 int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes);
 int32_t mstGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId);
-void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p);
 void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);

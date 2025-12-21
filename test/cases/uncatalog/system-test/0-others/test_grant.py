@@ -32,21 +32,6 @@ class TestGrant:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def deploy_cluster(self ,dnodes_nums):
 
@@ -83,7 +68,7 @@ class TestGrant:
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
             dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
             dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
-            cmd = f"{self.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s \"create dnode \\\"{dnode_id}\\\"\""
+            cmd = f"{tdCom.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s \"create dnode \\\"{dnode_id}\\\"\""
             print(cmd)
             os.system(cmd)
 
@@ -248,7 +233,7 @@ class TestGrant:
                 tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
                 tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
                 tdSql.query(f'show grants full;')
-                nGrantItems = 47
+                nGrantItems = 49
                 tdSql.checkRows(nGrantItems)
                 tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
                 for i in range(1, nGrantItems):

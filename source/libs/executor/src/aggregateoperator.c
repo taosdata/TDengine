@@ -64,7 +64,7 @@ static int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** pp
 static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
                                 const char* pKey);
 
-static int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
+// static int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
 static int32_t doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 
@@ -236,6 +236,8 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     pAggInfo->hasValidBlock = true;
     pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
 
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
@@ -309,7 +311,7 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     while (1) {
       doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (!hasRemainResults(&pAggInfo->groupResInfo)) {
@@ -332,6 +334,8 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+
+  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
   (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
   return code;
@@ -744,6 +748,7 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     pSup->pCtx[i].hasWindowOrGroup = pSup->hasWindowOrGroup;
+    pSup->pCtx[i].hasWindow= pSup->hasWindow;
     if (pState) {
       pSup->pCtx[i].saveHandle.pBuf = NULL;
       pSup->pCtx[i].saveHandle.pState = pState;
@@ -862,6 +867,8 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   cleanupGroupResInfo(&pAgg->groupResInfo);
   resetBasicOperatorState(&pAgg->binfo);
   
+  pAgg->pNewGroupBlock = NULL;
+
   int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
     keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
 

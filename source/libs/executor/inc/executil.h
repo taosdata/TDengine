@@ -24,6 +24,7 @@
 #include "tcommon.h"
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
+#include "tjson.h"
 
 #define T_LONG_JMP(_obj, _c)                                                              \
   do {                                                                                    \
@@ -39,7 +40,7 @@
 
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
-typedef struct SGroupResInfo {
+struct SGroupResInfo {
   int32_t index;    // rows consumed in func:doCopyToSDataBlockXX
   int32_t iter;     // relate to index-1, last consumed data's slot id in hash table
   void*   dataPos;  // relate to index-1, last consumed data's position, in the nodelist of cur slot
@@ -47,9 +48,9 @@ typedef struct SGroupResInfo {
   SArray* pRows;    // SArray<SResKeyPos>
   char*   pBuf;
   bool    freeItem;
-} SGroupResInfo;
+};
 
-typedef struct SResultRow {
+struct SResultRow {
   int32_t                    version;
   int32_t                    pageId;  // pageId & rowId is the position of current result in disk-based output buffer
   int32_t                    offset : 29;  // row index in buffer page
@@ -58,8 +59,9 @@ typedef struct SResultRow {
   bool                       closed;       // this result status: closed or opened
   uint32_t                   numOfRows;    // number of rows of current time window
   STimeWindow                win;
+  int32_t                    winIdx;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
-} SResultRow;
+};
 
 typedef struct SResultRowPosition {
   int32_t pageId;
@@ -72,11 +74,11 @@ typedef struct SResKeyPos {
   char               key[];
 } SResKeyPos;
 
-typedef struct SResultRowInfo {
+struct SResultRowInfo {
   int32_t            size;  // number of result set
   SResultRowPosition cur;
   SList*             openWindow;
-} SResultRowInfo;
+};
 
 typedef struct SColMatchItem {
   int32_t   colId;
@@ -92,8 +94,6 @@ typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
-
-typedef struct SExecTaskInfo SExecTaskInfo;
 
 typedef struct STableListIdInfo {
   uint64_t suid;
@@ -123,6 +123,13 @@ typedef struct SDBVgInfoMgr {
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
+typedef struct SInsertTableInfo {
+  int64_t                  uid;
+  int64_t                  vgid;
+  int32_t                  version;
+  STSchema*                pSchema;
+  char*                    tbname;
+} SInsertTableInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
@@ -135,6 +142,7 @@ int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
 uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
+int32_t         sortTableGroup(STableListInfo* pTableListInfo);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
 int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes);
@@ -142,7 +150,10 @@ uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
 void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
-
+int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
+                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo);
+int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
+  SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
@@ -200,7 +211,7 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode,
-                               const SReadHandle* readHandle);
+                               const SReadHandle* readHandle, bool applyExtWin);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
 
@@ -236,5 +247,10 @@ int32_t extractKeysLen(const SArray* keys, int32_t* pLen);
 
 int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo);
 void    rmDbVgInfoFromCache(const char* dbFName);
+
+int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
+int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
+
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
 
 #endif  // TDENGINE_EXECUTIL_H

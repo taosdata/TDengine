@@ -636,6 +636,50 @@ taos> select truncate(8888.88, -1);
     8880.000000000000000 |
 ```
 
+#### CORR
+
+```sql
+CORR(expr1, expr2)
+```
+
+**功能说明**：计算两列数据之间的皮尔逊相关系数（Pearson correlation coefficient），该数值反映了两个序列之间的线性关系强度和方向，返回结果在 -1 和 1 之间。
+
+**版本**：v3.3.8.0
+
+**返回结果类型**：double 类型。
+
+**适用数据类型**：
+
+- `expr1`：数值类型。
+- `expr2`：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
+
+**举例**：
+
+```sql
+taos> select k, j from test_corr;
+      k      |      j      |
+============================
+           1 |           2 |
+           2 |           3 |
+           3 |           5 |
+           4 |           7 |
+           5 |           8 |
+
+
+taos> select corr(k, j) from test_corr;
+         corr(k,j)         |
+============================
+         0.992277876713668 |
+```
+
 ### 位运算函数
 
 #### CRC32
@@ -871,6 +915,22 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 
 **适用于**：表和超级表。
 
+#### FIND_IN_SET
+
+```sql
+FIND_IN_SET(expr1, expr2[, expr3])
+```
+
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号，不存在则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
+
+**返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 2 个，最大参数个数为 3 个。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
 #### LENGTH
 
 ```sql
@@ -882,6 +942,22 @@ LENGTH(expr)
 **返回结果类型**：BIGINT。
 
 **适用数据类型**：VARCHAR、NCHAR、VARBINARY。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+#### LIKE_IN_SET
+
+```sql
+LIKE_IN_SET(expr1, expr2[, expr3])
+```
+
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 使用 `LIKE` 运算符的语义与列表中的字符串进行匹配，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
+
+**返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 2 个，最大参数个数为 3 个。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -967,6 +1043,22 @@ taos> select position('d' in 'cba');
 =========================
                       0 |
 ```
+
+#### REGEXP_IN_SET
+
+```sql
+REGEXP_IN_SET(expr1, expr2[, expr3])
+```
+
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 作为正则表达式匹配列表中的字符串，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
+
+**返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 2 个，最大参数个数为 3 个。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
 
 #### REPEAT
 
@@ -1284,6 +1376,354 @@ taos> select to_base64("你好 世界");
  5L2g5aW9IOS4lueVjA==        |
 ```
 
+#### FROM_BASE64
+
+```sql
+FROM_BASE64(expr)
+```
+
+**功能说明**: 解码 base64 编码的字符串。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select from_base64("SGVsbG8sIHdvcmxkIQ==");
+ from_base64("SGVsbG8sIHdvcmxkIQ==") |
+======================================
+ Hello, world!                       |
+Query OK, 1 row(s) in set (0.000786s)
+```
+
+### 哈希函数
+
+#### MD5
+
+```sql
+MD5(expr)
+```
+
+**功能说明**: 计算字符串的 MD5 128 位校验和。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select md5('mytext')\G;
+*************************** 1.row ***************************
+md5('mytext'): 947ef8c8db156a568d5974d71f7638f4
+Query OK, 1 row(s) in set (0.000522s)
+
+taos> insert into db.tb values(now, md5('mytext'));
+Insert OK, 1 row(s) affected (0.005111s)
+```
+
+#### SHA1 / SHA
+
+```sql
+SHA1(expr)
+```
+
+**功能说明**: 计算 SHA1 160 位校验和，具体可参考 RFC 3174。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+- SHA 与 SHA1 是同义词。
+
+**举例**:
+
+```sql
+taos> select sha('mytext')\G;
+*************************** 1.row ***************************
+sha('mytext'): 65d922aad93c7e165ed888a2ab85befe9841fd39
+Query OK, 1 row(s) in set (0.000658s)
+```
+
+#### SHA2
+
+```sql
+SHA2(expr, hash_length)
+```
+
+**功能说明**: 计算 SHA2 系列的哈希函数（SHA-224, SHA-256, SHA-384, and SHA-512）。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+- `hash_length`: 224, 256, 384, 512
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select sha2('mytext', 224)\G;
+*************************** 1.row ***************************
+sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
+Query OK, 1 row(s) in set (0.000569s)
+```
+
+### 脱敏函数
+
+#### MASK_FULL
+
+```sql
+MASK_FULL(str, replace_value)
+```
+
+**功能说明**: 将目标数据进行全脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_FULL('mytext', 'CONFIDENTIAL');
+ mask_full('mytext', 'CONFIDENTIAL') |
+======================================
+ CONFIDENTIAL                        |
+Query OK, 1 row(s) in set (0.002790s)
+```
+
+#### MASK_PARTIAL
+
+```sql
+MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
+```
+
+**功能说明**: 将目标数据进行部分脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `prefix_length`: 从字符串开头要屏蔽的字符数。
+- `suffix_length`: 从字符串末尾要屏蔽的字符数。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_partial('mytext', 1, 2, '*');
+ mask_partial('mytext', 1, 2, '*') |
+====================================
+ *yte**                            |
+Query OK, 1 row(s) in set (0.002787s)
+```
+
+#### MASK_NONE
+
+```sql
+MASK_NONE(str)
+```
+
+**功能说明**: 将目标数据进行空脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_NONE('mytext');
+ mask_none('mytext') |
+======================
+ mytext              |
+Query OK, 1 row(s) in set (0.001474s)
+```
+
+### 加密函数
+
+#### SM4_ENCRYPT
+
+```sql
+SM4_ENCRYPT(str, key_str)
+```
+
+**功能说明**: 使用 SM4 算法对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**举例**:
+
+```sql
+taos> SELECT sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.003432s)
+```
+
+#### SM4_DECRYPT
+
+```sql
+SM4_DECRYPT(str, key_str)
+```
+
+**功能说明**: 使用 SM4 算法对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**举例**:
+见 `sm4_encrypt`。
+
+#### AES_ENCRYPT
+
+```sql
+AES_ENCRYPT(str, key_str[, init_vector])
+```
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`: 初始化向量
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**举例**:
+
+```sql
+taos> SELECT aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.000514s)
+```
+
+#### AES_DECRYPT
+
+```sql
+AES_DECRYPT(str, key_str[, init_vector])
+```
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`: 初始化向量
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**举例**:
+见 `aes_encrypt`。
+
 ### 类型转换函数
 
 转换函数将值从一种数据类型转换为另一种数据类型。
@@ -1498,13 +1938,14 @@ DATE(expr)
 
 - 返回日期的格式为 `yyyy-mm-dd`。
 - 若 `expr` 为 NULL，返回 NULL。
-- 若 `expr` 为VARCHAR、NCHAR 类型但不符合 ISO8601/RFC3339 标准，返回NULL。
+- 若 `expr` 为 VARCHAR、NCHAR 类型但不符合 ISO8601/RFC3339 标准，返回 NULL。
 - 输入时间表达式的精度由所查询表的精度确定，未指定表，则精度为毫秒。
 - 输入与返回值的时区与客户端的系统时区一致，为避免转换时使用了非预期的时区，推荐在输入时间表达式中携带时区信息。
 
 **举例**：
 
-(注意：例中语句在UTC+0800时区执行，精度为毫秒)
+(注意：例中语句在 UTC+0800 时区执行，精度为毫秒)
+
 ```sql
 taos> select date(946656000000);
        date(946656000000)       |
@@ -1540,7 +1981,7 @@ DAYOFWEEK(expr)
 - 返回值 1 代表周日，2 代表周一 ... 7 代表周六
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
-  
+
 **举例**：
 
 ```sql
@@ -1824,7 +2265,7 @@ taos> select weekofyear('2000-01-01');
 
 ## 选择函数
 
-### ​基础选择
+### 基础选择
 
 选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
 
@@ -1908,7 +2349,6 @@ LAST_ROW(expr)
 
 - 如果要返回各个列的最后一条记录（时间戳最大），可以使用 LAST_ROW(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST_ROW(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
 - 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
-- 不能与 INTERVAL 一起使用。
 - 与 LAST 函数一样，对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
 
 #### MAX
@@ -2142,14 +2582,52 @@ taos> select stddev_pop(id) from test_stddev;
          1.414213562373095 |
 ```
 
+#### STD
+
+与 [STDDEV](#stddev)  函数的行为相同，从 v3.3.8.0 版本开始支持。
+
 #### STDDEV_POP
 
 与 [STDDEV](#stddev)  函数的行为相同
 
-#### VAR_POP
+#### STDDEV_SAMP
 
 ```sql
-VAR_POP(expr)
+STDDEV_SAMP
+```
+
+**功能说明**：统计表中某列的样本标准差。
+
+**版本**：v3.3.8.0
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**举例**：
+
+```sql
+taos> select id from test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> select stddev_samp(id) from test_stddev;
+      stddev_samp(id)       |
+============================
+         1.58113883008419   |
+```
+
+#### VARIANCE
+
+```sql
+VARIANCE(expr)
 ```
 
 **功能说明**：统计表中某列的总体方差。
@@ -2174,10 +2652,48 @@ taos> select id from test_var;
            4 |
            5 |
 
-taos> select var_pop(id) from test_var;
+taos> select variance(id) from test_var;
         var_pop(id)        |
 ============================
          2.000000000000000 |
+```
+
+#### VAR_POP
+
+与 [VARIANCE](#variance)  函数的行为相同
+
+#### VAR_SAMP
+
+```sql
+VAR_SAMP(expr)
+```
+
+**功能说明**：统计表中某列的样本方差。
+
+**版本**：v3.3.8.0
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**举例**：
+
+```sql
+taos> select id from test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+
+taos> select var_samp(id) from test_var;
+        var_samp(id)        |
+============================
+         2.500000000000000 |
 ```
 
 #### SPREAD
@@ -2193,6 +2709,38 @@ SPREAD(expr)
 **适用数据类型**：INTEGER、TIMESTAMP。
 
 **适用于**：表和超级表。
+
+#### GROUP_CONCAT
+
+```sql
+GROUP_CONCAT(expr)
+```
+
+**功能说明**：将多个字段值连接为一个字符串。
+
+**版本**：v3.3.8.0
+
+**返回数据类型**：VARCHAR。
+
+**适用数据类型**：字符串类型。
+
+**适用于**：表和超级表。
+
+**举例**：
+
+```sql
+taos> select str1, str2 from test_var;
+     id      |      id      |
+=============================
+          a1 |       b1     |
+          a2 |       b2     |
+          a3 |       b3     |
+
+taos> select group_concat(str1, str2, ':') from test_var;
+         group_concat(str1, str2, ':')   |
+==========================================
+         a1b1:a2b2:a3b3                  |
+```
 
 ### 分位数与近似统计
 
@@ -2237,6 +2785,7 @@ PERCENTILE(expr, p [, p1] ... )
 
 **使用说明**：
 
+- PERCENTILE 函数不支持虚拟表。
 - *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
 - 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
   比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。
@@ -2314,6 +2863,100 @@ HYPERLOGLOG(expr)
 **适用数据类型**：任何类型。
 
 **适用于**：表和超级表。
+
+## 比较函数
+
+### IF
+
+```sql
+IF(expr1, expr2, expr3)
+```
+
+**功能说明**：如果 expr1 为真，返回 expr2，否则返回 expr3。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**使用说明**：
+
+- 类似于 CASE 表达式。
+
+**举例**：
+
+```sql
+taos> SELECT IF(1>2,2,3);
+      if(1>2,2,3)      |
+========================
+                     3 |
+```
+
+### IFNULL
+
+```sql
+IFNULL(expr1, expr2)
+```
+
+**功能说明**：如果 expr1 非空真，返回 expr1，否则返回 expr2。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**举例**：
+
+```sql
+taos> SELECT IFNULL(1,0); 
+      ifnull(1,0)      |
+========================
+                     1 |
+```
+
+### NVL
+
+与 [IFNULL](#ifnull)  函数的行为相同
+
+### NULLIF
+
+```sql
+NULLIF(expr1, expr2)
+```
+
+**功能说明**：如果 expr1 = expr2，返回 NULL，否则返回 expr1。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**举例**：
+
+```sql
+taos> SELECT NULLIF(1,1);
+      nullif(1,1)      |
+========================
+ NULL                  |
+```
+
+### NVL2
+
+```sql
+NVL2(expr1, expr2, expr3)
+```
+
+**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr3。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**举例**：
+
+```sql
+taos> SELECT NVL2(NULL,1,2);
+    nvl2(null,1,2)     |
+========================
+                     2 |
+```
 
 ## 时序函数
 

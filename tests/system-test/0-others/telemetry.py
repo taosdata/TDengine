@@ -15,7 +15,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 
-telemetryPort = '80'
+telemetryPort = '1080'
 
 #{
 #	"instanceId":	"5cf4cd7a-acd4-43ba-8b0d-e84395b76a65",

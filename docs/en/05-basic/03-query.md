@@ -4,12 +4,6 @@ title: Data Querying
 slug: /basic-features/data-querying
 ---
 
-import Image from '@theme/IdealImage';
-import windowModel from '../assets/data-querying-01-window.png';
-import slidingWindow from '../assets/data-querying-02-time-window.webp';
-import sessionWindow from '../assets/data-querying-03-session-window.png';
-import eventWindow from '../assets/data-querying-04-event-window.png';
-
 Compared to many other time-series and real-time databases, a unique advantage of TDengine since its first release is its support for standard SQL queries. This feature significantly reduces the learning curve for users. This chapter will use the data model of smart meters as an example to demonstrate how to use SQL queries in TDengine to handle time-series data. For further details and features of SQL syntax, it is recommended to refer to the official TDengine documentation. By studying this chapter, you will be able to master TDengine's SQL querying techniques and efficiently operate and analyze time-series data.
 
 ## Basic Query
@@ -151,13 +145,10 @@ In TDengine, you can use the window clause to perform aggregation queries by tim
 
 The window clause allows you to partition the queried data set by windows and aggregate the data within each window. The logic of window partitioning is shown in the following image:
 
-<figure>
-<Image img={windowModel} alt="Windowing description"/>
-<figcaption>Figure 1. Windowing logic</figcaption>
-</figure>
+![Windowing logic](../assets/data-querying-01-window.png)
 
 - Time Window: Data is divided based on time intervals, supporting sliding and tumbling time windows, suitable for data aggregation over fixed time periods.
-- Status Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
+- State Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
@@ -167,7 +158,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
@@ -185,7 +176,7 @@ When using the window clause, the following rules should be observed:
 
 ### Timestamp Pseudocolumns
 
-In the window aggregation query results, if the SQL does not specify the timestamp column in the output query results, the final results will not automatically include the time column information of the window. However, if you need to output the time window information corresponding to the aggregated query results in the results, you can use the timestamp-related pseudocolumns in the select clause, such as the start time of the time window (`_wstart`), the end time of the time window (`_wend`), the duration of the time window (`_wduration`), and the pseudocolumns related to the overall query window, such as the start time of the query window (`_qstart`) and the end time of the query window (`_qend`). Note that both the start and end times of the time window are closed intervals, and the duration of the time window is the value under the current time resolution of the data. For example, if the current database's time precision is milliseconds (ms), then 500 in the results represents the duration of the current time window is 500ms.
+In the window aggregation query results, if the SQL does not specify the timestamp column in the output query results, the final results will not automatically include the time column information of the window. However, if you need to output the time window information corresponding to the aggregated query results in the results, you can use the timestamp-related pseudocolumns in the select clause, such as the start time of the time window (`_wstart`), the end time of the time window (`_wend`), the duration of the time window (`_wduration`), and the pseudocolumns related to the overall query window, such as the start time of the query window (`_qstart`) and the end time of the query window (`_qend`). It should be noted that, except that the end time of the INTERVAL window is an open interval, the start time and end time of other time windows are both closed intervals, and the duration of the time window is the value under the current time resolution of the data. For example, if the current database's time precision is milliseconds (ms), then 500 in the results represents the duration of the current time window is 500ms.
 
 ### Time Windows
 
@@ -245,10 +236,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 Each query execution is a time window, and the time window slides forward as time progresses. When defining a continuous query, it is necessary to specify the size of the time window (time window) and the forward increment time (forward sliding times). As shown in the figure below, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three consecutive queries, and the time range of the window's forward sliding is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window.
 
-<figure>
-<Image img={slidingWindow} alt="Sliding window logic"/>
-<figcaption>Figure 2. Sliding window logic</figcaption>
-</figure>
+![Sliding window logic](../assets/data-querying-02-time-window.webp)
 
 :::note
 
@@ -411,7 +399,7 @@ STATE_WINDOW(
 SLIMIT 2;
 ```
 
-The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into status windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
+The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into state windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |    status     |
@@ -445,10 +433,7 @@ Query OK, 22 row(s) in set (0.153403s)
 
 The session window determines whether records belong to the same session based on the value of the timestamp primary key. As shown in the figure below, if the interval between consecutive timestamps is set to be less than or equal to 12 seconds, the following 6 records form 2 session windows: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, which exceeds the continuous interval (12 seconds).
 
-<figure>
-<Image img={sessionWindow} alt="Session window example"/>
-<figcaption>Figure 3. Session window example</figcaption>
-</figure>
+![Session window example](../assets/data-querying-03-session-window.png)
 
 Within the tol_value time interval, results are considered to belong to the same window. If the time between two consecutive records exceeds tol_val, a new window is automatically started.
 
@@ -502,10 +487,7 @@ Consider the following SQL statement, the event window segmentation is illustrat
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-<figure>
-<Image img={eventWindow} alt="Event window example"/>
-<figcaption>Figure 4. Event window example</figcaption>
-</figure>
+![Event window example](../assets/data-querying-04-event-window.png)
 
 Example SQL:
 
@@ -570,6 +552,30 @@ The above SQL query returns the data from the supertable meters where the timest
 Query OK, 10 row(s) in set (0.062794s)
 ```
 
+## Time Range Expression
+
+In queries of time series databases, it is often necessary to query based on the time range of the primary key column. TDengine provides a series of functions and expressions to facilitate users in expressing time ranges. Here, common time range expressions and their differences from MySQL and PostgreSQL are listed:
+
+| Time Range          |   MySQL Expression                                                    |  PostgreSQL Expression   |   TDengine Expression   |
+|:------------:|:--------------------------------------------------------------------:|:-----------------------------------:|:--------------------------------:|
+| Yesterday​ | CURDATE() - INTERVAL 1 DAY,<br/> CURDATE() | CURRENT_DATE - INTERVAL '1 day',<br/> CURRENT_DATE | TODAY() - 1d,<br/> TODAY() |
+| Today |​ CURDATE(),<br/> CURDATE() + INTERVAL 1 DAY | CURRENT_DATE,<br/> CURRENT_DATE + INTERVAL '1 day' | TODAY(),<br/> TODAY() + 1d |
+| Last Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1d) - (7 + WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000 |
+| This Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) + (7 - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000 |
+| Last Month | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) |TO_TIMESTAMP(TO_CHAR(NOW() -1n, 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM') |
+| This Month | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') |TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1n, 'YYYY-MM'), 'YYYY-MM') |
+| Last Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TO_TIMESTAMP(CASE WHEN TO_CHAR(NOW(), 'MM') < 4 THEN CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') - 1 AS VARCHAR(5)), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') + 8) / 3) &ast; 3 + 1 AS VARCHAR(3))) ELSE CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 4) / 3) &ast; 3 + 1 AS VARCHAR(3))) END, 'YYYY-MM'),<br/>TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM') |
+| This Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') + CASE WHEN TO_CHAR(NOW(), 'MM') > 9 THEN 1 ELSE 0 END AS VARCHAR), "-", CAST((FLOOR((TO_CHAR(NOW(), 'MM') + 2) / 3) &ast; 3 + 1) % 12 AS VARCHAR)), 'YYYY-MM') |
+| Last Year | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TO_TIMESTAMP(TO_CHAR(NOW() - 1y, 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY') |
+| This Year | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
+
+### Description
+
+1. Each time range interval is left-closed and right-open.
+2. The writing style is not unique, and this is provided here as an example for reference only.
+3. Here, Monday is used as the start of the week, and scenarios that do not start on Monday need to be adjusted.
+4. Here, the timestamp in the TDengine example uses milliseconds as the time unit.
+
 ## Time-Series Extensions
 
 Time-series extensions are a set of functions specially designed by TDengine for time-series data query scenarios. In general databases, similar functions usually require complex query statements and are less efficient. To reduce user costs and simplify the query process, TDengine provides these functions in the form of built-in functions, thus achieving efficient and easy-to-use time series data processing capabilities. The time series specific functions are as follows.
@@ -584,6 +590,17 @@ Time-series extensions are a set of functions specially designed by TDengine for
 |STATECOUNT | Returns the number of consecutive records that meet a certain condition, appending the result as a new column at the end of each row. The condition is calculated based on the parameter, adding 1 if true, resetting to -1 if false, and skipping if the data is NULL. |
 |STATEDURATION | Returns the duration of consecutive records that meet a certain condition, appending the result as a new column at the end of each row. The condition is calculated based on the parameter, adding the time length between two records if true (the time length of the first record meeting the condition is counted as 0), resetting to -1 if false, and skipping if the data is NULL.|
 |TWA | Time Weighted Average function. Calculates the time-weighted average of a column over a period of time. |
+
+### Integral Calculation
+
+With TDengine's time-series specific functions, computing integrals over time-series data becomes straightforward: use the time-weighted average multiplied by the time window duration. For example, to calculate daily energy consumption for smart meters, use:
+
+```sql
+SELECT twa(voltage * current) * _wduration
+FROM meters
+PARTITION BY tbname
+INTERVAL(1d);
+```
 
 ## Nested Queries
 
@@ -614,7 +631,12 @@ TDengine's nested queries follow these rules:
 
 ## UNION Clause
 
-TDengine supports the UNION operator. That is, if multiple SELECT clauses return result sets with the exact same structure (column names, types, number, and order), these result sets can be combined using the UNION clause.
+In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+
+1. Each SELECT clause must return results with the same number of columns;
+2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
+
+After combination, the column names of the result set are determined by those defined in the first SELECT clause.
 
 Example:
 

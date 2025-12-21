@@ -27,6 +27,8 @@
 #include "stream.h"
 // clang-format on
 
+extern void cryptUnloadProviders();
+
 #define DM_INIT_AUDIT()                       \
   do {                                        \
     auditCfg.port = tsMonitorPort;            \
@@ -220,6 +222,11 @@ static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
 void dmCleanup() {
   dDebug("start to cleanup dnode env");
   SDnode *pDnode = dmInstance();
+
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+  cryptUnloadProviders();
+#endif
+
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
   monCleanup();
@@ -238,8 +245,8 @@ void dmCleanup() {
 
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
-    tssCloseDefaultInstance();
-    tssUninit();
+    (void)tssCloseDefaultInstance();
+    (void)tssUninit();
   }
 #endif
 
@@ -496,7 +503,9 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,
+      .setVnodeSyncTimeoutFp = dmSetVnodeSyncTimeout,
       .getMnodeLoadsFp = dmGetMnodeLoads,
+      .setMnodeSyncTimeoutFp = dmSetMnodeSyncTimeout,
       .getQnodeLoadsFp = dmGetQnodeLoads,
       .stopDnodeFp = dmStop,
   };

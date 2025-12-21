@@ -67,9 +67,15 @@ _exit:
 
   tDestroySTriggerCalcRequest(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
-  rpcSendResponse(&rsp);
-
+  if (rpcSendResponse(&rsp) != 0) {
+    sndError("failed to send response, msg:%p", &rsp);
+  }
+  
   streamReleaseTask(taskAddr);
+
+  if(code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
+    code = 0; // not real error, just notify trigger the table is not created
+  }
 
   if (code) {
     sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -127,7 +133,10 @@ end:
     } 
   }
   
-  rpcSendResponse(&rsp);
+  if (rpcSendResponse(&rsp) != 0) {
+    sndError("failed to send write checkpoint response, msg:%p", &rsp);
+  }
+
   return 0;
 }
 
@@ -150,12 +159,12 @@ static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   return streamCheckpointSetReady(streamId);
 }
 
-static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
+static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf =  NULL;
 
-  int32_t blockSize = pBlock == NULL ? 0 : blockGetEncodeSize(pBlock);
+  int32_t blockSize = pBlock == NULL ? 0 : blockGetInternalEncodeSize(pBlock);
   size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
   buf = rpcMallocCont(dataEncodeBufSize);
   if (!buf) {
@@ -176,7 +185,7 @@ static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int
   } else {
     pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
     pRetrieve->numOfBlocks = htonl(1);
-    int32_t actualLen = blockEncode(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+    int32_t actualLen = blockEncodeInternal(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     if (actualLen < 0) {
       code = terrno;
       goto end;
@@ -215,6 +224,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.execId = req.execId;
   calcReq.sessionId = req.pStRtFuncInfo->sessionId;
   calcReq.triggerType = req.pStRtFuncInfo->triggerType;
+  calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
+  calcReq.precision = req.pStRtFuncInfo->precision;
   TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
   TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
   calcReq.gid = req.pStRtFuncInfo->groupId;
@@ -229,7 +240,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
 
-  TAOS_CHECK_EXIT(buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
+  TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
 
 _exit:
 
@@ -261,17 +272,21 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   readInfo.taskInfo.taskId = req.taskId;
   readInfo.taskInfo.sessionId = req.pStRtFuncInfo->sessionId;
   readInfo.gid = req.pStRtFuncInfo->groupId;
-  SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
-  readInfo.start = pParam->wstart;
-  readInfo.end = pParam->wend;
+  //SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+  readInfo.start = req.pStRtFuncInfo->curWindow.skey;
+  readInfo.end = req.pStRtFuncInfo->curWindow.ekey;
   bool finished;
   TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
 
-  TAOS_CHECK_EXIT(buildFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
+  TAOS_CHECK_EXIT(buildStreamFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
 
 _exit:
 
-  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d", req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size);  
+  printDataBlock(readInfo.pBlock, __func__, "fetchFromCache", streamId);
+
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d, time range:[%" PRId64 ", %" PRId64 "]", 
+      req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size, readInfo.start, readInfo.end);  
+      
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
 
@@ -297,6 +312,31 @@ static void sndSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
   tmsgSendRsp(&rspMsg);
 }
 
+static int32_t handleStreamDropTableReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  SSTriggerDropRequest req = {0};
+  SStreamRunnerTask* pTask = NULL;
+  void* taskAddr = NULL;
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(tDeserializeSTriggerDropTableRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
+  TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
+  
+  pTask->msgCb = pSnode->msgCb;
+  TAOS_CHECK_EXIT(stRunnerTaskDropTable(pTask, &req));
+
+_exit:
+  tDestroySSTriggerDropRequest(&req);
+  if (code) {
+    sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+    sndSendErrorRrsp(pRpcMsg, code);
+  } else {
+    SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_TRIGGER_DROP_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
+    tmsgSendRsp(&rsp);
+  }
+  streamReleaseTask(taskAddr);
+
+  return code;
+}
+
 
 int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
@@ -318,6 +358,9 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
       break;
     case TDMT_STREAM_FETCH_FROM_CACHE:
       TAOS_CHECK_EXIT(handleStreamFetchFromCache(pSnode, pMsg));
+      break;
+      case TDMT_STREAM_TRIGGER_DROP:
+     TAOS_CHECK_EXIT(handleStreamDropTableReq(pSnode, pMsg));
       break;
     default:
       sndError("invalid snode msg:%d", pMsg->msgType);

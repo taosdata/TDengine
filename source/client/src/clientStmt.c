@@ -245,6 +245,8 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   char      tbFName[TSDB_TABLE_FNAME_LEN];
   int32_t   code = tNameExtractFullName(tbName, tbFName);
   if (code != 0) {
+    qDestroyBoundColInfo(tags);
+    taosMemoryFreeClear(tags);
     return code;
   }
 
@@ -256,6 +258,10 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   pStmt->bInfo.tbSuid = pTableMeta->suid;
   pStmt->bInfo.tbVgId = pTableMeta->vgId;
   pStmt->bInfo.tbType = pTableMeta->tableType;
+  if (pStmt->bInfo.boundTags && !pStmt->bInfo.tagsCached) {
+    qDestroyBoundColInfo(pStmt->bInfo.boundTags);
+    taosMemoryFreeClear(pStmt->bInfo.boundTags);
+  }
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
   pStmt->bInfo.tbNameFlag = tbNameFlag;
@@ -1345,7 +1351,8 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
                          .pTransporter = pStmt->taos->pAppInfo->pTransporter,
                          .pStmtCb = NULL,
                          .pUser = pStmt->taos->user,
-                         .setQueryFp = setQueryRequest};
+                         .setQueryFp = setQueryRequest,
+                         .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
 
     ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog));

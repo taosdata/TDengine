@@ -40,6 +40,9 @@ database_option: {
   | COMPACT_INTERVAL value
   | COMPACT_TIME_RANGE value
   | COMPACT_TIME_OFFSET value
+  | SS_KEEPLOCAL value
+  | SS_CHUNKPAGES value
+  | SS_COMPACT value
 }
 ```
 
@@ -61,7 +64,6 @@ database_option: {
 
 表示数据库副本数，取值为 1、2 或 3，默认为 1; 2 仅在**企业版支持**。在集群中使用时，副本数必须小于或等于 DNODE 的数目。且使用时存在以下限制：
 
-- 暂不支持对双副本数据库相关 Vgroup 进行 SPLIT VGROUP 或 REDISTRIBUTE VGROUP 操作
 - 单副本数据库可变更为双副本数据库，但不支持从双副本变更为其它副本数，也不支持从三副本变更为双副本。
 
 #### BUFFER
@@ -117,6 +119,7 @@ Note：CacheModel 值来回切换有可能导致 last/last_row 的查询结果�
 #### KEEP
 
 表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 3 倍的 DURATION 参数值。
+
 - 数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间；
 - KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位；
 - 也可以不写单位，如 KEEP 50，此时默认单位为天；
@@ -141,12 +144,14 @@ Note：CacheModel 值来回切换有可能导致 last/last_row 的查询结果�
 #### SINGLE_STABLE
 
 表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
+
 - 0：表示可以创建多张超级表。
 - 1：表示只可以创建一张超级表。
 
 #### TABLE_PREFIX
 
 分配数据表到某个 vgroup 时，用于忽略或仅使用表名前缀的长度值。
+
 - 当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的前缀；
 - 当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的前缀；
 - 例如：假定表名为 "v30001"，当 TSDB_PREFIX = 2 时，使用 "0001" 来决定分配到哪个 vgroup，当 TSDB_PREFIX = -2 时使用 "v3" 来决定分配到哪个 vgroup。
@@ -154,6 +159,7 @@ Note：CacheModel 值来回切换有可能导致 last/last_row 的查询结果�
 #### TABLE_SUFFIX
 
 分配数据表到某个 vgroup 时，用于忽略或仅使用表名后缀的长度值。
+
 - 当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的后缀；
 - 当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的后缀；
 - 例如：假定表名为 "v30001"，当 TSDB_SUFFIX = 2 时，使用 "v300" 来决定分配到哪个 vgroup，当 TSDB_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。
@@ -169,6 +175,7 @@ Note：CacheModel 值来回切换有可能导致 last/last_row 的查询结果�
 #### WAL_LEVEL
 
 WAL 级别，默认为 1。
+
 - 1：写 WAL，但不执行 fsync。
 - 2：写 WAL，而且执行 fsync。
 
@@ -195,6 +202,7 @@ WAL 级别，默认为 1。
 #### COMPACT_TIME_RANGE
 
 自动 compact 任务触发的 compact 时间范围（**仅企业版支持**）。
+
 - 取值范围：[-keep2, -duration]，单位：m（分钟），h（小时），d（天）；
 - 不加时间单位时默认单位为天，默认值为 [0, 0]；
 - 取默认值 [0, 0] 时，如果 COMPACT_INTERVAL 大于 0，会按照 [-keep2, -duration] 下发自动 compact；
@@ -203,8 +211,24 @@ WAL 级别，默认为 1。
 #### COMPACT_TIME_OFFSET
 
 自动 compact 任务触发的 compact 时间相对本地时间的偏移量（**仅企业版支持**）。取值范围：[0, 23]，单位：h（小时），默认值为 0。以 UTC 0 时区为例：
+
 - 如果 COMPACT_INTERVAL 为 1d，当 COMPACT_TIME_OFFSET 为 0 时，在每天 0 点下发自动 compact；
 - 如果 COMPACT_TIME_OFFSET 为 2，在每天 2 点下发自动 compact。
+
+#### SS_KEEPLOCAL
+
+使用共享存储时，数据再本地保留的时长，即数据文件在本地磁盘保留多长事件后可以上传到共享存储（**仅企业版支持**）。取值范围为 1 天 - 36500 天，且必须大于或等于 `DURATION` 参数的 3 倍。默认为 365 天。
+
+#### SS_CHUNKPAGES
+
+使用共享存储时，上传对象大小的阈值（**仅企业版支持**），小于此选项的数据文件不会上传，单位是 TSDB 的页（默认每页 4K 字节）。
+
+- 取值范围：[131072, 1048576]，默认值为 131072。
+- 只能在创建数据库时指定，创建后不可修改。
+
+#### SS_COMPACT
+
+首次上传共享存储前，是否对文件组进行 Compact（**仅企业版支持**）。0 表示首次迁移前不进行 Compact，1 表示首次迁移前进行 Compact。默认值是 1。
 
 ### 创建示例
 
@@ -315,7 +339,15 @@ TRIM DATABASE db_name;
 
 删除过期数据，并根据多级存储的配置归整数据。
 
-### 落盘内存数据
+## 手动删除过期 WAL
+
+```sql
+TRIM DATABASE db_name WAL;
+```
+
+删除过期的 WAL 日志。使用 `trim wal` 删除过期 WAL 日志时，会忽略 vgroup 的 `keep_version` 限制。
+
+## 落盘内存数据
 
 ```sql
 FLUSH DATABASE db_name;
@@ -351,7 +383,7 @@ SHOW db_name.ALIVE;
 - 1：完全可用；
 - 2：部分可用（即数据库包含的 VNODE 部分节点可用，部分节点不可用）。
 
-### 查看 DB 的磁盘空间占用
+### 查看数据库的磁盘空间占用
 
 ```sql
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
@@ -363,6 +395,6 @@ select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
 SHOW db_name.disk_info;
 ```
 
-查看数据库 db_name 的数据压缩压缩率和数据在磁盘上所占用的大小。
+查看数据库 db_name 的数据压缩率和数据在磁盘上所占用的大小。
 
 该命令本质上等同于： `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname";`。

@@ -36,7 +36,7 @@
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
-#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
+#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) != TSDB_ORDER_DESC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
@@ -79,9 +79,6 @@ static void    doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* p
 
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
-static void    doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup,
-                                  int64_t minWindowSize);
 
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, int32_t interBufSize) {
   SFilePage* pData = NULL;
@@ -234,7 +231,7 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
   pColData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
   pColData->info.bytes = sizeof(int64_t);
 
-  int32_t code = colInfoDataEnsureCapacity(pColData, 5, false);
+  int32_t code = colInfoDataEnsureCapacity(pColData, 6, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -245,6 +242,9 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
   colDataSetInt64(pColData, 2, &interval);  // this value may be variable in case of 'n' and 'y'.
   colDataSetInt64(pColData, 3, &pQueryWindow->skey);
   colDataSetInt64(pColData, 4, &pQueryWindow->ekey);
+
+  interval = -1;
+  colDataSetInt64(pColData, 5,  &interval);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -577,7 +577,7 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
-int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
@@ -592,10 +592,10 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
 
   int32_t status = 0;
   code =
-      filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+      filterExecute(pFilterInfo, pBlock, pRet != NULL ? pRet : &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
-  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, pRet != NULL ? *pRet : p, status);
   QUERY_CHECK_CODE(code, lino, _err);
 
   if (pColMatchInfo != NULL) {
@@ -871,7 +871,7 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
       continue;
     }
     // skip the window which is less than the windowMinSize
-    if (pRow->win.ekey - pRow->win.skey < minWindowSize) {
+    if (llabs(pRow->win.ekey - pRow->win.skey) < minWindowSize) {
       qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64, pPos->groupId,
              pRow->win.ekey - pRow->win.skey, minWindowSize);
       pGroupResInfo->index += 1;
@@ -1066,6 +1066,15 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, S
   return TSDB_CODE_SUCCESS;
 }
 
+void checkIndefRowsFuncs(SExprSupp* pSup) {
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    if (fmIsIndefiniteRowsFunc(pSup->pCtx[i].functionId)) {
+      pSup->hasIndefRowsFunc = true;
+      break;
+    }
+  }
+}
+
 void cleanupExprSupp(SExprSupp* pSupp) {
   destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
   if (pSupp->pExprInfo != NULL) {
@@ -1244,6 +1253,12 @@ void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeTagScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
 
+void freeMergeGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
+void freeDynQueryCtrlGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
+void freeDynQueryCtrlNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
@@ -1258,10 +1273,22 @@ void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeMergeNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
   pParam->reUse = false;
   freeOperatorParam(pParam, OP_GET_PARAM);
+}
+
+void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
+  SExternalWindowOperatorParam *pExtParam = (SExternalWindowOperatorParam*)pParam->value;
+  taosArrayDestroy(pExtParam->ExtWins);
+  for (int32_t i = 0; i < taosArrayGetSize(pParam->pChildren); i++) {
+    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet(pParam->pChildren, i);
+    pChild->reUse = false;
+  }
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
@@ -1272,6 +1299,8 @@ void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
 }
 
 void freeVTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
+void freeExternalWindowNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
   if (NULL == pParam || pParam->reUse) {
@@ -1296,6 +1325,15 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE:
+      type == OP_GET_PARAM ? freeMergeGetOperatorParam(pParam) : freeMergeNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      type == OP_GET_PARAM ? freeExternalWindowGetOperatorParam(pParam) : freeExternalWindowNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
+      type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);

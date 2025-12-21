@@ -66,6 +66,7 @@ typedef enum {
 #define MERGE_TASK_ASYNC     2
 #define COMPACT_TASK_ASYNC   3
 #define RETENTION_TASK_ASYNC 4
+#define SCAN_TASK_ASYNC      5
 
 int32_t vnodeAsyncOpen();
 void    vnodeAsyncClose();
@@ -104,7 +105,6 @@ struct SVBufPool {
   SVnode*           pVnode;
   int32_t           id;
   volatile int32_t  nRef;
-  TdThreadSpinlock* lock;
   int64_t           size;
   uint8_t*          ptr;
   SVBufPoolNode*    pTail;
@@ -140,6 +140,7 @@ int32_t vnodeCommitInfo(const char* dir);
 int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int32_t vnodeSyncCommit(SVnode* pVnode);
 int32_t vnodeAsyncCommit(SVnode* pVnode);
+int32_t vnodeAsyncCommitEx(SVnode* pVnode, bool forceTrim);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
@@ -153,6 +154,7 @@ void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
+int32_t    vnodeSetElectBaseline(SVnode* pVnode, int32_t ms);
 
 #ifdef __cplusplus
 }

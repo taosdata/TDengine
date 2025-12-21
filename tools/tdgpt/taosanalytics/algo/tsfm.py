@@ -6,7 +6,7 @@ import requests
 
 from taosanalytics.algo.forecast import insert_ts_list
 from taosanalytics.conf import app_logger, conf
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.service import AbstractForecastService, AnalyticsService
 
 
 class TsfmBaseService(AbstractForecastService):
@@ -28,6 +28,7 @@ class TsfmBaseService(AbstractForecastService):
         # let's request the gpt service
         data = {
             "input": self.list,
+            "ts": self.ts_list,
             "next_len": self.rows,
             "past_dynamic_real": self.past_dynamic_real,
             "dynamic_real":self.dynamic_real,
@@ -85,3 +86,11 @@ class TsfmBaseService(AbstractForecastService):
         app_logger.log_inst.info("%s specify gpt host service: %s", self.__class__.__name__,
                                  self.service_host)
 
+    def get_status(self) -> str:
+        try:
+            _ = requests.get(self.service_host, headers=self.headers, timeout=5)
+        except Exception as e:
+            app_logger.log_inst.error("failed to connect the service: %s %s", self.service_host, str(e))
+            return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
+
+        return super().get_status()

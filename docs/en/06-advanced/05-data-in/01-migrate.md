@@ -3,12 +3,6 @@ title: TDengine Query
 slug: /advanced-features/data-connectors/tdengine-2
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep1 from '../../assets/tdengine-2-01.png';
-import imgStep2 from '../../assets/tdengine-2-02.png';
-import imgStep3 from '../../assets/tdengine-2-03.png';
-import imgStep4 from '../../assets/tdengine-2-04.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -35,26 +29,12 @@ For more options, it is recommended to read the description of each form field o
 
 First, click on the "Data Writing" menu on the left, then click the "Add Data Source" button on the right.
 
-<figure>
-<Image img={imgStep1} alt="Add data source"/>
-<figcaption>Figure 1. Add a data source</figcaption>
-</figure>
+![Add data source](../../assets/tdengine-2-01.png)
 
 Then enter the task name, such as "migrate-test", and finally select the type "TDengine Query". At this point, the form switches to a form dedicated to migrating data from "TDengine Query", containing a large number of options, each with detailed explanations, as shown in the images below.
 
-<figure>
-<Image img={imgStep2} alt="Add data source"/>
-<figcaption>Figure 2. Add a data source</figcaption>
-</figure>
-
-<figure>
-<Image img={imgStep3} alt="Add data source"/>
-<figcaption>Figure 3. Add a data source</figcaption>
-</figure>
-
-<figure>
-<Image img={imgStep4} alt="Add data source"/>
-<figcaption>Figure 4. Add a data source</figcaption>
-</figure>
+![Configure basic settings](../../assets/tdengine-2-02.png)
+![Configure migration options](../../assets/tdengine-2-03.png)
+![Configure real-time mode settings](../../assets/tdengine-2-04.png)
 
 After clicking the "Submit" button to submit the task, return to the "Data Source" task list page to monitor the status of the task.

@@ -25,13 +25,13 @@ static void *dmStatusThreadFp(void *param) {
   setThreadName("dnode-status");
 
   while (1) {
-    taosMsleep(200);
+    taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
-    float interval = (curTime - lastTime) / 1000.0f;
-    if (interval >= tsStatusInterval) {
+    float interval = curTime - lastTime;
+    if (interval >= tsStatusIntervalMs) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
     }
@@ -45,13 +45,13 @@ static void *dmConfigThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-config");
   while (1) {
-    taosMsleep(200);
+    taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
-    float interval = (curTime - lastTime) / 1000.0f;
-    if (interval >= tsStatusInterval) {
+    float interval = curTime - lastTime;
+    if (interval >= tsStatusIntervalMs) {
       dmSendConfigReq(pMgmt);
       lastTime = curTime;
     }
@@ -68,13 +68,13 @@ static void *dmStatusInfoThreadFp(void *param) {
   int64_t upTime = 0;
 
   while (1) {
-    taosMsleep(200);
+    taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
-    float interval = (curTime - lastTime) / 1000.0f;
-    if (interval >= tsStatusInterval) {
+    float interval = curTime - lastTime;
+    if (interval >= tsStatusIntervalMs) {
       dmUpdateStatusInfo(pMgmt);
       lastTime = curTime;
 
@@ -633,7 +633,12 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_ENCRYPT_KEY:
       code = dmProcessCreateEncryptKeyReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_RELOAD_DNODE_TLS:
+      code = dmProcessReloadTlsConfig(pMgmt, pMsg);
+      // code = dmProcessReloadEncryptKeyReq(pMgmt, pMsg);
+      break;
     default:
+
       code = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in mgmt queue, reason:%s", pMsg, tstrerror(code));
       break;

@@ -14,6 +14,7 @@
  */
 
 #include "tq.h"
+#include <string.h>
 #include "osDef.h"
 #include "taoserror.h"
 #include "stream.h"
@@ -36,6 +37,7 @@ void tqDestroyTqHandle(void* data) {
 
   if (pData->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     taosMemoryFreeClear(pData->execHandle.execCol.qmsg);
+    taosMemoryFreeClear(pData->execHandle.execCol.pSW.pSchema);
   } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     tqReaderClose(pData->execHandle.pTqReader);
     walCloseReader(pData->pWalReader);
@@ -104,12 +106,6 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
     return terrno;
   }
 
-  pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pTq->pCheckInfo == NULL) {
-    return terrno;
-  }
-  taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
-
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   if (pTq->pOffset == NULL) {
     return terrno;
@@ -152,7 +148,6 @@ void tqClose(STQ* pTq) {
 
   taosHashCleanup(pTq->pHandle);
   taosHashCleanup(pTq->pPushMgr);
-  taosHashCleanup(pTq->pCheckInfo);
   taosHashCleanup(pTq->pOffset);
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
@@ -250,6 +245,11 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     goto end;  // no need to update the offset value
   }
 
+  // if (pOffset->val.type == TMQ_OFFSET__LOG && vgOffset.markWal) {
+  //   int32_t ret = walSetKeepVersion(pTq->pVnode->pWal, pOffset->val.version);
+  //   tqDebug("set wal reader keep version to %" PRId64 " for vgId:%d sub:%s, code:%d", pOffset->val.version, vgId,
+  //           pOffset->subKey, ret);
+  // }
   // save the new offset value
   code = taosHashPut(pTq->pOffset, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
   if (code != 0) {
@@ -304,39 +304,6 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
 end:
   rsp.code = code;
   tmsgSendRsp(&rsp);
-  return 0;
-}
-
-int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
-  if (pTq == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  void* pIter = NULL;
-
-  while (1) {
-    pIter = taosHashIterate(pTq->pCheckInfo, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    STqCheckInfo* pCheck = (STqCheckInfo*)pIter;
-
-    if (pCheck->ntbUid == tbUid) {
-      int32_t sz = taosArrayGetSize(pCheck->colIdList);
-      for (int32_t i = 0; i < sz; i++) {
-        int16_t* pForbidColId = taosArrayGet(pCheck->colIdList, i);
-        if (pForbidColId == NULL) {
-          continue;
-        }
-
-        if ((*pForbidColId) == colId) {
-          taosHashCancelIterate(pTq->pCheckInfo, pIter);
-          return -1;
-        }
-      }
-    }
-  }
-
   return 0;
 }
 
@@ -649,40 +616,6 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   return 0;
 }
 
-int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  if (pTq == NULL || msg == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  STqCheckInfo info = {0};
-  int32_t      code = tqMetaDecodeCheckInfo(&info, msg, msgLen >= 0 ? msgLen : 0);
-  if (code != 0) {
-    return code;
-  }
-
-  code = taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo));
-  if (code != 0) {
-    tDeleteSTqCheckInfo(&info);
-    return code;
-  }
-  taosWLockLatch(&pTq->lock);
-  code  = tqMetaSaveInfo(pTq, pTq->pCheckStore, info.topic, strlen(info.topic), msg, msgLen >= 0 ? msgLen : 0);
-  taosWUnLockLatch(&pTq->lock);
-  return code;
-}
-
-int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  if (pTq == NULL || msg == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (taosHashRemove(pTq->pCheckInfo, msg, strlen(msg)) < 0) {
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
-  taosWLockLatch(&pTq->lock);
-  int32_t code = tqMetaDeleteInfo(pTq, pTq->pCheckStore, msg, strlen(msg));
-  taosWUnLockLatch(&pTq->lock);
-  return code;
-}
-
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   if (pTq == NULL || msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -697,14 +630,14 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     goto end;
   }
 
-  tqInfo("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+  tqInfo("vgId:%d, tq process subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
 
   taosRLockLatch(&pTq->lock);
   STqHandle* pHandle = NULL;
   int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
   if (code != 0){
-    tqInfo("vgId:%d, tq process sub req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
+    tqInfo("vgId:%d, tq process subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
   }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
@@ -732,13 +665,27 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       taosWLockLatch(&pTq->lock);
       bool exec = tqIsHandleExec(pHandle);
       if (exec) {
-        tqInfo("vgId:%d, topic:%s, subscription is executing, sub wait for 10ms and retry, pHandle:%p",
+        tqInfo("vgId:%d, topic:%s, subscribe is executing, subscribe wait for 10ms and retry, pHandle:%p",
                pTq->pVnode->config.vgId, pHandle->subKey, pHandle);
         taosWUnLockLatch(&pTq->lock);
         taosMsleep(10);
         continue;
       }
-      if (pHandle->consumerId == req.newConsumerId) {  // do nothing
+      if (req.subType == TOPIC_SUB_TYPE__COLUMN && strcmp(req.qmsg, pHandle->execHandle.execCol.qmsg) != 0) {
+        tqInfo("vgId:%d, topic:%s, subscribe qmsg changed from %s to %s, need recreate handle", pTq->pVnode->config.vgId,
+               pHandle->subKey, pHandle->execHandle.execCol.qmsg, req.qmsg);
+        tqUnregisterPushHandle(pTq, pHandle);
+        STqHandle handle = {0};
+        ret = tqMetaCreateHandle(pTq, &req, &handle);
+        if (ret < 0) {
+          tqDestroyTqHandle(&handle);
+          taosWUnLockLatch(&pTq->lock);
+          goto end;
+        }
+        ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
+        tqInfo("vgId:%d, reload subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+         req.oldConsumerId, req.newConsumerId);
+      } else if (pHandle->consumerId == req.newConsumerId) {  // do nothing
         tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains, because redo wal log", req.vgId, req.newConsumerId);
       } else {
         tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
@@ -755,6 +702,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   }
 
 end:
+  if (req.schema.pSchema != NULL) {
+    taosMemoryFree(req.schema.pSchema);
+  }
   tDecoderClear(&dc);
   return ret;
 }

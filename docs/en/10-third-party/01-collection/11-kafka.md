@@ -4,27 +4,17 @@ title: Kafka Connect
 slug: /third-party-tools/data-collection/kafka-connect
 ---
 
-import Image from '@theme/IdealImage';
-import imgKafkaConnect from '../../assets/kafka-connect-01.png';
-import imgKafkaIntegration from '../../assets/kafka-connect-02.png';
-
 The TDengine Kafka Connector includes two plugins: TDengine Source Connector and TDengine Sink Connector. Users only need to provide a simple configuration file to synchronize data from a specified topic in Kafka to TDengine, or synchronize data from a specified database in TDengine to Kafka, either in batches or in real-time.
 
 ## What is Kafka Connect?
 
 Kafka Connect is a component of [Apache Kafka](https://kafka.apache.org/) that facilitates easy connections to Kafka from other systems, such as databases, cloud services, and file systems. Data can flow from these systems to Kafka and from Kafka to these systems through Kafka Connect. Plugins that read data from other systems are called Source Connectors, and plugins that write data to other systems are called Sink Connectors. Neither Source Connectors nor Sink Connectors connect directly to Kafka Brokers; instead, Source Connectors pass data to Kafka Connect, and Sink Connectors receive data from Kafka Connect.
 
-<figure>
-<Image img={imgKafkaConnect} alt="Kafka Connect structure"/>
-<figcaption>Figure 1. Kafka Connect structure</figcaption>
-</figure>
+![Kafka Connect architecture](../../assets/kafka-connect-01.png)
 
 The TDengine Source Connector is used to read data in real-time from TDengine and send it to Kafka Connect. The TDengine Sink Connector receives data from Kafka Connect and writes it to TDengine.
 
-<figure>
-<Image img={imgKafkaIntegration} alt="Streaming integration with Kafka Connect"/>
-<figcaption>Figure 2. Streaming integration with Kafka Connect</figcaption>
-</figure>
+![Streaming integration with Kafka Connect](../../assets/kafka-connect-02.png)
 
 ## Prerequisites
 
@@ -40,9 +30,10 @@ Prerequisites for running the examples in this tutorial.
 - Execute in any directory:
 
     ```shell
-    curl -O https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
-    tar xzf kafka_2.13-3.4.0.tgz -C /opt/
-    ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
+    KAFKA_PKG="kafka_2.13-3.4.0"
+    curl -O "https://archive.apache.org/dist/kafka/3.4.0/${KAFKA_PKG}.tgz"
+    tar xzf "${KAFKA_PKG}.tgz" -C /opt/
+    ln -s "/opt/${KAFKA_PKG}" /opt/kafka
     ```
 
 - Then, add the `$KAFKA_HOME/bin` directory to PATH.

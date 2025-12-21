@@ -1,7 +1,7 @@
 aux_source_directory(src IMPLEMENT_SRC)
 add_library(dnode STATIC ${IMPLEMENT_SRC})
 target_link_libraries(
-  dnode PUBLIC mgmt_mnode mgmt_qnode mgmt_snode mgmt_bnode mgmt_vnode mgmt_dnode mgmt_xnode monitorfw tss
+  dnode PUBLIC mgmt_mnode mgmt_qnode mgmt_snode mgmt_bnode mgmt_vnode mgmt_dnode mgmt_xnode monitorfw tss crypt
 )
 
 IF(TD_ENTERPRISE)

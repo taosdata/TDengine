@@ -119,6 +119,18 @@ typedef struct SParseMetaCache {
   bool      forceFetchViewMeta;
 } SParseMetaCache;
 
+typedef struct SParseStreamInfo {
+  int64_t          placeHolderBitmap;
+  bool             calcClause;
+  bool             triggerClause;
+  bool             outTableClause;
+  bool             extLeftEq; // used for external window, true means include left border
+  bool             extRightEq; // used for external window, true means include right border
+  SNode*           triggerTbl;
+  SNodeList*       triggerPartitionList;
+  SHashObj*        calcDbs;
+} SParseStreamInfo;
+
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
 int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFormat, ...);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
@@ -184,7 +196,6 @@ void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint, SNode** ppSelect);
 int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas);
 int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma);
-
 /**
  * @brief return a - b with overflow check
  * @retval val range between [INT64_MIN, INT64_MAX]

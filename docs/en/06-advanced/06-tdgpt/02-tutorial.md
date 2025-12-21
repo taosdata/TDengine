@@ -70,6 +70,7 @@ docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:3.3.7.0
 ```
 
 Note: TDgpt runs on TCP port 6035. The standard image also uses port 6036, and the full image uses port 6037.
+
 TDgpt is a stateless analytics agent and does not persist data. It only saves log files to local disk.
 
 Confirm that your Docker container is running:
@@ -96,7 +97,7 @@ You can try TDgpt with a free TDengine Cloud account. In TDengine Cloud, open **
 
 To use the analytics capabilities offered by TDgpt, you deploy an AI node (anode) in your TDengine cluster. You must deploy the anode on a Linux machine. The environment must meet the following requirements:
 
-- Python: 3.10 or later.
+- Python: 3.10 or 3.11. 3.12 is not supported for now due to library conflict.
 - TDengine: 3.3.6.0 or later
 - C compiler: Because uWSGI is compiled during the TDgpt installation process, your environment must contain a C compiler.
 
@@ -163,12 +164,15 @@ cd TDengine-TDgpt-<version>
 ```
 
 To prevent TDgpt from affecting Python environments that may exist on your machine, anodes are installed in a virtual environment. When you install an anode, a virtual Python environment is deployed in the `/var/lib/taos/taosanode/venv/` directory. All libraries required by the anode are installed in this directory.
+
 Note that this virtual environment is not uninstalled automatically by the `rmtaosanode` command. If you are sure that you do not want to use TDgpt on a machine, you can remove the directory manually.
 
 ### Activate the Virtual Environment
 
 The virtual Python environment for TDgpt is located in the `/var/lib/taos/taosanode/venv/` directory. Once the environment is created, PiPy is used to install the Python dependencies for TDgpt.
+
 This environment is not removed y the `rmtaosanode` command. You can remove it manually if desired.
+
 Any algorithms or models that you create for TDgpt must be installed into this virtual environment using Pip.
 
 ### Uninstalling TDgpt

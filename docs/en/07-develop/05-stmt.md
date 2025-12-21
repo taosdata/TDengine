@@ -19,9 +19,9 @@ It is recommended to use parameter binding for data insertion.
    We only recommend using the following two forms of SQL for parameter binding data insertion:
 
     ```sql
-    a. Subtables already exists:
+    a. Ensure that the subtable exists. Not adding a tag can improve write performance. (If the subtable does not exist, this behavior is inconsistent with Taos Shell. Taos Shell automatically creates a table with a tag of NULL, and stmt reports an error to prevent accidental table creation due to incorrect table name setting)
        1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
-    b. Automatic table creation on insert:
+    b. The subtable does not exist, specify the tag to automatically create the subtable:
        1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
        2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
     ```
@@ -85,7 +85,7 @@ The example code for stmt to bind parameters is as follows:
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/stmt_example.js:createConnect}}
+{{#include docs/examples/node/websocketexample/stmt_example.js}}
 ```
 
 </TabItem>
@@ -100,6 +100,7 @@ The example code for binding parameters with stmt2 (TDengine v3.3.5.0 or higher 
 ```c
 {{#include docs/examples/c-ws-new/stmt2_insert_demo.c}}
 ```
+
 </TabItem>
 <TabItem label="REST API" value="rest">
 Not supported

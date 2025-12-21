@@ -114,8 +114,13 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
   return rowLen <= maxLen;
 }
 
-bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
-  if (!pSchema || !VALIDNUMOFCOLS(numOfCols)) {
+bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual) {
+  if (!pSchema) {
+    qError("invalid numOfCols: %d", numOfCols);
+    return false;
+  }
+
+  if ((isVirtual && !VALIDNUMOFCOLSVIRTUAL(numOfCols)) || (!isVirtual && !VALIDNUMOFCOLS(numOfCols))) {
     qError("invalid numOfCols: %d", numOfCols);
     return false;
   }
@@ -131,7 +136,7 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
     return false;
   }
 
-  if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
+  if (!doValidateSchema(pSchema, numOfCols, isVirtual ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW)) {
     qError("validate schema columns failed");
     return false;
   }
@@ -286,6 +291,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
 int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
+
 int32_t asyncFreeConnById(void* pTransporter, int64_t pid) {
   QUERY_PARAM_CHECK(pTransporter);
   return rpcFreeConnById(pTransporter, pid);
@@ -441,7 +447,7 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
 
       *str = '"';
       int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1, NULL);
-      if (length <= 0) {
+      if (length < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       *(str + length + 1) = '"';

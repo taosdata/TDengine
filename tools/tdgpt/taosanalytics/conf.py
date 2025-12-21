@@ -48,6 +48,8 @@ class Configure:
     def reload(self, new_path: str):
         """ load the info from config file """
         self.path = new_path
+        if not os.path.exists(self.path):
+            logging.warning("Configuration file not found: %s. Using default settings.", self.path)
 
         self.conf.read(self.path)
 
@@ -71,7 +73,13 @@ class Configure:
             self._model_directory = self.conf.get(_ANODE_SECTION_NAME, 'model-dir')
 
         if self.conf.has_option(_ANODE_SECTION_NAME, 'draw-result'):
-            self._draw_result = self.conf.get(_ANODE_SECTION_NAME, 'draw-result')
+            draw_result = self.conf.get(_ANODE_SECTION_NAME, 'draw-result').lower()
+            if draw_result not in ('true', 'false'):
+                draw_result = int(draw_result)
+                self._draw_result = bool(draw_result)
+            else:
+                self._draw_result = False if draw_result=='false' else True
+
 
 
 class AppLogger():

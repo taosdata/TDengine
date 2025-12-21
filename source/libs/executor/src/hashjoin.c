@@ -92,7 +92,7 @@ int32_t hLeftJoinHandleSeqRowRemains(struct SOperatorInfo* pOperator, SHJoinOper
   while (!allFetched) {
     hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
     if (pJoin->midBlk->info.rows > 0) {
-      HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL));
+      HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
       if (pJoin->midBlk->info.rows > 0) {
         pCtx->readMatch = true;
         HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
@@ -172,7 +172,7 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
     while (!allFetched) {
       hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
       if (pJoin->midBlk->info.rows > 0) {
-        HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL));
+        HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
         if (pJoin->midBlk->info.rows > 0) {
           pCtx->readMatch = true;
           HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));

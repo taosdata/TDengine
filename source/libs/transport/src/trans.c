@@ -14,6 +14,7 @@
  */
 
 #include "transComm.h"
+#include "transTLS.h"
 
 #ifndef TD_ASTRA_RPC
 void* (*taosInitHandle[])(SIpAddr* addr, char* label, int32_t numOfThreads, void* fp, void* pInit) = {transInitServer,
@@ -44,12 +45,12 @@ void* rpcOpen(const SRpcInit* pInit) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pRpc->startReadTimer = pInit->startReadTimer;
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
     memcpy(pRpc->label, pInit->label, len);
   }
 
+  pRpc->startReadTimer = pInit->startReadTimer;
   pRpc->compressSize = pInit->compressSize;
   if (pRpc->compressSize < 0) {
     pRpc->compressSize = -1;
@@ -117,20 +118,67 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
   pRpc->ipv6 = pInit->ipv6;
 
+
+  code = transTlsCxtMgtInit((STlsCxtMgt **)&pRpc->pTlsMgt); 
+  TAOS_CHECK_GOTO(code, NULL, _end);
+
+  if (pInit->enableSSL == 1) {
+    SSslCtx* pCxt = NULL;
+    code = transTlsCxtCreate(pInit, (SSslCtx**)&pCxt);
+    TAOS_CHECK_GOTO(code, NULL, _end);
+
+    if (pCxt == NULL) {
+      tError("Failed to create SSL context for %s", pRpc->label);
+      TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    }
+
+    code = transTlsCxtMgtAppend((STlsCxtMgt*)pRpc->pTlsMgt, pCxt);
+    TAOS_CHECK_GOTO(code, NULL, _end);
+
+
+    tInfo("TLS is enabled for %s", pRpc->label);
+    pRpc->enableSSL = 1;
+  } else {
+    tInfo("TLS is not enabled for %s", pRpc->label);
+    pRpc->enableSSL = 0;
+  }
+
+  pRpc->enableSasl = pInit->enableSasl;
+
+  if (pRpc->enableSasl) {
+    tInfo("SASL is enabled for %s", pRpc->label);
+    if (!pRpc->enableSSL) {
+      tWarn("Enabling SASL without TLS may expose sensitive information for %s", pRpc->label);
+      TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    }
+  } else {
+    tInfo("SASL is not enabled for %s", pRpc->label);
+  }
+
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(&addr, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
     tError("failed to init rpc handle");
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
+  pRpc->shareConn = pInit->shareConn;
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
-  void*   tmp = transAcquireExHandle(transGetInstMgt(), refId);
+  TAOS_UNUSED(transAcquireExHandle(transGetInstMgt(), refId));
+
+  code = transCachePut(refId, (STrans*)pRpc);
+  TAOS_CHECK_GOTO(code, NULL, _end);
+
   pRpc->refId = refId;
 
-  pRpc->shareConn = pInit->shareConn;
   return (void*)refId;
 _end:
+  if (pRpc->pTlsMgt) {
+    transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
+  }
+  // if (pRpc->pSSLContext) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  // }
   taosMemoryFree(pRpc);
   terrno = code;
 
@@ -141,6 +189,7 @@ void rpcClose(void* arg) {
   if (arg == NULL) {
     return;
   }
+  transCacheRemoveByRefId((int64_t)arg);
   transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
   tInfo("end to close rpc");
@@ -152,6 +201,17 @@ void rpcCloseImpl(void* arg) {
   if (pRpc->tcphandle != NULL) {
     (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   }
+
+  // if (pRpc->pSSLContext) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  //   pRpc->pSSLContext = NULL;
+  // }
+  transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
+
+  // if (pRpc->pNewSSLContext != NULL) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pNewSSLContext);
+  //   pRpc->pNewSSLContext = NULL;
+  // }
   taosMemoryFree(pRpc);
 }
 
@@ -229,6 +289,9 @@ int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
 }
 // server only
 int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
+
+int32_t rpcSetTimeIpWhite(void* thandle, void* arg) { return transSetTimeIpWhiteList(thandle, arg, NULL); }
+int32_t rpcReloadTlsConfig(void* handle, int8_t type) { return transReloadTlsConfig(handle, type); }
 
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 

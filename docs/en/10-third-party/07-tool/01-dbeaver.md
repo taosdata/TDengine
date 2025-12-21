@@ -3,13 +3,6 @@ title: DBeaver
 slug: /third-party-tools/management/dbeaver
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/dbeaver-01.webp';
-import imgStep02 from '../../assets/dbeaver-02.webp';
-import imgStep03 from '../../assets/dbeaver-03.webp';
-import imgStep04 from '../../assets/dbeaver-04.webp';
-import imgStep05 from '../../assets/dbeaver-05.webp';
-
 DBeaver is a popular cross-platform database management tool that facilitates developers, database administrators, and data analysts in managing data. DBeaver has embedded support for TDengine starting from version 23.1.1. It supports both standalone deployed TDengine clusters and TDengine Cloud.
 
 ## Prerequisites
@@ -23,30 +16,20 @@ Using DBeaver to manage TDengine requires the following preparations.
 
 1. Launch the DBeaver application, click the button or menu item to "New Database Connection", then select TDengine in the time-series category.
 
-   <figure>
-   <Image img={imgStep01} alt=""/>
-   </figure>
+   ![Select TDengine connection](../../assets/dbeaver-01.webp)
 
 2. Configure the TDengine connection by entering the host address, port number (6041), username, and password. For example, use TDengine server host address `www.taosdemo.com` and port number `6041`. It is recommended to select URL connection and add connection parameters `varcharAsString=true&conmode=1`. For parameter meanings, refer to the [JDBC documentation](../../../tdengine-reference/client-libraries/java/#properties). Click "Test Connection" to test whether the connection is available. If the TDengine Java connector is not installed on the local machine, DBeaver will prompt you to download and install it.
 
-   <figure>
-   <Image img={imgStep02} alt=""/>
-   </figure>
+   ![Download JDBC client library](../../assets/dbeaver-02.webp)
 
 3. A successful connection will be displayed as shown below. If the connection fails, check whether the TDengine service and taosAdapter are running correctly, and whether the host address, port number, username, and password are correct.
 
-   <figure>
-   <Image img={imgStep03} alt=""/>
-   </figure>
+   ![Configure JDBC connection settings](../../assets/dbeaver-03.webp)
 
 4. Using DBeaver to select databases and tables allows you to browse data from the TDengine service.
 
-   <figure>
-   <Image img={imgStep04} alt=""/>
-   </figure>
+   ![Select tables to browse in DBeaver](../../assets/dbeaver-04.webp)
 
 5. You can also operate on TDengine data by executing SQL commands.
 
-   <figure>
-   <Image img={imgStep05} alt=""/>
-   </figure>
+   ![Run SQL statements on TDengine data](../../assets/dbeaver-05.webp)

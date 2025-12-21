@@ -69,7 +69,7 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
     return terrno;
   }
 
-  buildTaskId(taskId, queryId, p->id.str);
+  buildTaskId(taskId, queryId, p->id.str, 64);
   p->schemaInfos = taosArrayInit(1, sizeof(SSchemaInfo));
   if (p->id.str == NULL || p->schemaInfos == NULL) {
     doDestroyTask(p);
@@ -301,6 +301,9 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   taosMemoryFreeClear(pTaskInfo);
 }
 
-void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
-  sprintf(dst, "TID:%" PRIx64 " QID:%" PRIx64, taskId, queryId);
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len) {
+  int32_t ret = snprintf(dst, len, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
+  if (ret < 0) {
+    qError("TID:0x%"PRIx64" QID:0x%"PRIx64" create task id failed,  ignore and continue", taskId, queryId);
+  }
 }

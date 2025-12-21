@@ -3,19 +3,6 @@ title: EMQX Platform
 slug: /third-party-tools/data-collection/emqx-platform
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/emqx-platform-01.png';
-import imgStep02 from '../../assets/emqx-platform-02.png';
-import imgStep03 from '../../assets/emqx-platform-03.png';
-import imgStep04 from '../../assets/emqx-platform-04.png';
-import imgStep05 from '../../assets/emqx-platform-05.png';
-import imgStep06 from '../../assets/emqx-platform-06.png';
-import imgStep07 from '../../assets/emqx-platform-07.png';
-import imgStep08 from '../../assets/emqx-platform-08.png';
-import imgStep09 from '../../assets/emqx-platform-09.png';
-import imgStep10 from '../../assets/emqx-platform-10.png';
-import imgStep11 from '../../assets/emqx-platform-11.png';
-
 MQTT is a popular IoT data transmission protocol, and [EMQX](https://github.com/emqx/emqx) is an open-source MQTT Broker software. Without any coding, you can directly write MQTT data into TDengine by simply configuring "rules" in the EMQX Dashboard. EMQX supports saving data to TDengine by sending it to a web service and also provides a native TDengine driver in the enterprise version for direct saving.
 
 ## Prerequisites
@@ -50,17 +37,13 @@ Since the configuration interface differs across EMQX versions, this section is 
 
 Open the URL `http://IP:18083` in a browser and log in to the EMQX Dashboard. The initial username is `admin` and the password is: `public`.
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![Log in to EMQX dashboard](../../assets/emqx-platform-01.png)
 
 ### Create a Rule (Rule)
 
 Select "Rule Engine (Rule Engine)" on the left, then "Rule (Rule)" and click the "Create (Create)" button:
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![Create a rule](../../assets/emqx-platform-02.png)
 
 ### Edit SQL Field
 
@@ -75,21 +58,15 @@ FROM
 
 Where `payload` represents the entire message body, `sensor/data` is the message topic selected for this rule.
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![Edit SQL](../../assets/emqx-platform-03.png)
 
 ### Add "Action Handler (action handler)"
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![Add action handler](../../assets/emqx-platform-04.png)
 
 ### Add "Resource (Resource)"
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![Add resource](../../assets/emqx-platform-05.png)
 
 Select "Send Data to Web Service" and click the "Create Resource" button:
 
@@ -99,9 +76,7 @@ Select "WebHook" and fill in the "Request URL" with the address provided by taos
 
 Please keep other properties at their default values.
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![Edit resource](../../assets/emqx-platform-06.png)
 
 ### Edit "Action"
 
@@ -132,9 +107,7 @@ INSERT INTO test.sensor_data VALUES(
 )
 ```
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![Edit action](../../assets/emqx-platform-07.png)
 
 Finally, click the "Create" button at the bottom left to save the rule.
 
@@ -146,9 +119,7 @@ Finally, click the "Create" button at the bottom left to save the rule.
 
 Note: In the code, CLIENT_NUM can be set to a smaller value at the start of the test to avoid hardware performance not being able to fully handle a large number of concurrent clients.
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![CLIENT_NUM in test program](../../assets/emqx-platform-08.png)
 
 ## Execute Test Simulation Sending MQTT Data
 
@@ -157,24 +128,18 @@ npm install mqtt mockjs --save --registry=https://registry.npm.taobao.org
 node mock.js
 ```
 
-<figure>
-<Image img={imgStep09} alt=""/>
-</figure>
+![Run test simulation](../../assets/emqx-platform-09.png)
 
 ## Verify EMQX Received Data
 
 Refresh the EMQX Dashboard rule engine interface to see how many records were correctly received:
 
-<figure>
-<Image img={imgStep10} alt=""/>
-</figure>
+![Verify that data is received by EMQX](../../assets/emqx-platform-10.png)
 
 ## Verify Data Written to TDengine
 
 Use the TDengine CLI program to log in and query the relevant database and table to verify that the data has been correctly written to TDengine:
 
-<figure>
-<Image img={imgStep11} alt=""/>
-</figure>
+![Verify that data is written to TDengine](../../assets/emqx-platform-11.png)
 
 For detailed usage of EMQX, please refer to [EMQX Official Documentation](https://docs.emqx.com/en/emqx/v4.4/rule/rule-engine.html).

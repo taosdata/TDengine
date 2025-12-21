@@ -33,7 +33,7 @@ trigger_type: {
     PERIOD(period_time[, offset_time])
   | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
@@ -96,6 +96,24 @@ tag_definition:
 - `%%tbname`：触发表每个分组表名的引用，可作为查询表名使用（`FROM %%tbname`）
 - `%%trows`：触发表每个分组的触发数据集（满足本次触发的数据集）的引用
 
+### 控制选项
+
+控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
+
+- WATERMARK(duration_time)：数据乱序的容忍时长。
+- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据。
+- IGNORE_DISORDER：指定忽略触发表的乱序数据。
+- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除。
+- FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算。
+- FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算。
+- CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表。
+- LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。
+- PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断。
+- FORCE_OUTPUT：指定计算结果强制输出选项。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间）。
+- EVENT_TYPE(event_types)：指定窗口触发的事件类型，包括窗口启动事件和窗口关闭事件。
+- IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发。
+
 ### 通知机制
 
 事件通知是流在事件触发后可选的执行动作，支持通过 `WebSocket` 协议发送事件通知到应用。用户可以指定需要通知的事件，以及用于接收通知消息的目标地址。通知内容可以包含计算结果，也可以在没有计算结果时只通知事件相关信息。
@@ -117,7 +135,7 @@ CREATE STREAM sm1 COUNT_WINDOW(1) FROM tb1
 
 ```SQL
 CREATE STREAM sm2 COUNT_WINDOW(10, 1, col1) FROM tb1 
-  STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
+  STREAM_OPTIONS(CALC_NOTIFY_ONLY | PRE_FILTER(col1 > 0)) 
   NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
   AS 
     SELECT avg(col1) FROM %%trows;
@@ -206,3 +224,21 @@ CREATE STREAM sm1 PERIOD(1h)
 对于超出 `WATERMARK` 的乱序、更新、删除场景，使用重新计算的方式来保证最终结果的正确性，重新计算意味着对于乱序、更新和删除的数据覆盖区间重新进行触发和运算。为了保证这种方式的有效性，用户需要确保其计算语句和数据源表是与处理时间无关的，也就是说同一个触发即使执行多次其结果依然是有效的。
 
 重新计算可以分为自动重新计算与手动重新计算，如果用户不需要自动重新计算，可以通过选项关闭。
+
+## 连续异常检测
+
+流计算框架可通过与异常检测模块搭配，按需提供针对时序数据的连续异常监测服务。通过流计算调用异常检测服务，首先需要[部署 TDgpt](./06-TDgpt/03-management.md)，请并确保其正常工作。
+
+然后可以在创建流的语句中，调用异常检测的模型即可对目标表进行异常检测操作。
+
+```sql
+CREATE STREAM sample_stream SLIDING(5m) FROM target_table INTO res_table
+AS
+  SELECT _wstart, count(*), first(col_name) 
+  FROM target_table
+  WHERE ts>=_tprev_ts
+  ANOMALY_WINDOW(col_name, 'algo=iqr, wncheck=0')
+
+```
+
+上述的语句创建了一个 `sample_stream` 的流，针对 `target_table` 进行每隔 `5分钟` 对 `col_name`列进行一次异常检测，进行异常检测调用的模型是 `iqr`，同时忽略白噪声检查，并将结果写入 `res_table`。针对检测到的异常窗口，将窗口起始时间戳，窗口中包含了异常点数量和第一个点的值写入 `res_table` 中。

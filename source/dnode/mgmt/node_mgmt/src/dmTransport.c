@@ -18,8 +18,7 @@
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
-
-#define IS_STREAM_TRIGGER_RSP_MSG(_msg) (TDMT_STREAM_TRIGGER_CALC_RSP == (_msg) || TDMT_STREAM_TRIGGER_PULL_RSP == (_msg))
+#define IS_STREAM_TRIGGER_RSP_MSG(_msg) (TDMT_STREAM_TRIGGER_CALC_RSP == (_msg) || TDMT_STREAM_TRIGGER_PULL_RSP == (_msg) || TDMT_STREAM_TRIGGER_DROP_RSP == (_msg))
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
@@ -113,13 +112,34 @@ static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *
   pRpc->pCont = NULL;
   return;
 }
-static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
-  if (forbidden) {
-    dError("User:%s host:%s not in ip white list", user, IP_ADDR_STR(clientIp));
-    return true;
+static int32_t dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
+  if (IP_FORBIDDEN_CHECK_WHITE_LIST(forbidden)) {
+    dError("User:%s host:%s not in ip white list or in block white list", user, IP_ADDR_STR(clientIp));
+    return TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+
+  } else if (IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(forbidden)) {
+    dError("User:%s host:%s alread expired", user, IP_ADDR_STR(clientIp));
+    return TSDB_CODE_MND_USER_DISABLED;
   } else {
-    return false;
+    return 0;
   }
+}
+
+static void dmUpdateRpcTimeWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  int32_t        code = 0;
+  SRetrieveDateTimeWhiteListRsp timeWhite = {0};
+  code = tDeserializeSRetrieveDateTimeWhiteListRsp(pRpc->pCont, pRpc->contLen, &timeWhite);
+  if (code < 0) {
+    dError("failed to update rpc datetime-white since: %s", tstrerror(code));
+    return;
+  }
+  // TODO: implement rpcSetTimeWhite
+  code = rpcSetTimeIpWhite(pTrans, &timeWhite);
+  pData->timeWhiteVer = timeWhite.ver;
+
+  (void)tFreeSRetrieveDateTimeWhiteListRsp(&timeWhite);
+
+  rpcFreeCont(pRpc->pCont);
 }
 
 static void dmUpdateAnalyticFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
@@ -155,9 +175,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
-  if (isForbidden) {
-    code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
+  if (code != 0) {
     goto _OVER;
   }
 
@@ -174,6 +193,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_STREAM_FETCH_RSP:
     case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
     case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
+    case TDMT_VND_SNODE_DROP_TABLE_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
@@ -181,11 +201,14 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
-    case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_RSP:
       dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
+    case TDMT_MND_RETRIEVE_DATETIME_WHITELIST_RSP:
+      dmUpdateRpcTimeWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
       dmUpdateAnalyticFunc(&pDnode->data, pTrans->serverRpc, pRpc);
@@ -414,7 +437,8 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
 }
 static bool rpcNoDelayMsg(tmsg_t msgType) {
   if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_QUERY_SSMIGRATE_PROGRESS ||
-      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE) {
+      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE ||
+      msgType == TDMT_VND_QUERY_SCAN_PROGRESS || msgType == TDMT_VND_QUERY_TRIM_PROGRESS) {
     return true;
   }
   return false;
@@ -460,6 +484,14 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -510,6 +542,14 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSasl = tsEnableSasl;
+
+  rpcInit.enableSSL = tsEnableTLS;
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -561,7 +601,14 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
   }
@@ -619,6 +666,14 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);

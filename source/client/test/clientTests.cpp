@@ -19,6 +19,7 @@
 #include "osSemaphore.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "totp.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -336,6 +337,67 @@ TEST(clientCase, connect_Test) {
   taos_free_result(pRes);
 
   taos_close(pConn);
+}
+
+
+TEST(clientCase, connect_totp_Test) {
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
+  }
+
+  uint8_t secret[64] = {0};
+  size_t secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
+
+  TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totpseed 'AAbb1122'");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+  taos_close(pConn);
+
+
+  int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
+  pConn = taos_connect_totp("localhost", "totp_u", "taosdata", "123456", NULL, 0);
+  if (pConn != NULL) {
+    (void)printf("connect to server with wrong totp");
+    taos_close(pConn);
+  }
+
+  int code = taos_connect_test("localhost", "totp_u", "taosdata", "123456", NULL, 0);
+  if (code != TSDB_CODE_MND_WRONG_TOTP_CODE) {
+    (void)printf("test connect to server with wrong totp return wrong code:%d\n", code);
+    taos_close(pConn);
+  }
+
+  char totp[16] = {0};
+  (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
+  pConn = taos_connect_totp("localhost", "totp_u", "taosdata", totp, NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server with totp, reason:%s\n", taos_errstr(NULL));
+  }
+
+  pRes = taos_query(pConn, "show users");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  taos_close(pConn);
+
+  totpCode = taosGenerateTotpCode(secret, secretLen, 6);
+  (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
+  code = taos_connect_test("localhost", "totp_u", "taosdata", totp, NULL, 0);
+  if (code != 0) {
+    (void)printf("test connect to server with correct totp return wrong code:%d\n", code);
+  }
+}
+
+
+TEST(clientCase, connect_with_dsn_Test) {
+  TAOS* pConn = taos_connect_with_dsn(NULL);
+  ASSERT_EQ(pConn, nullptr);
 }
 
 TEST(clientCase, create_user_Test) {
@@ -807,63 +869,13 @@ TEST(clientCase, projection_query_tables) {
 
   TAOS_RES* pRes = NULL;
   
-  pRes= taos_query(pConn, "use test");
+  pRes= taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select forecast(val,past_co_val,future_col_val, 'algo=moirai,rows=3,wncheck=0,dynamic_real_1=[1.0 2.0 3.0],dynamic_real_1_col=future_col_val ') from foo;");
-
-//  pRes = taos_query(pConn, "select forecast(k,'algo=moirai,wncheck=0,') from t1 where ts<='2024-11-15 1:7:44'");
+  pRes = taos_query(pConn, "select imputation(a) from (select _wstart, count(*) a from t1 where ts<='2025-3-6 11:17:44' interval(1s));");
+  // pRes = taos_query(pConn, "select imputation(a) from t1 where ts<='2024-11-15 1:7:44'");
   if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table t1 (ts timestamp, v1 varchar(20) primary key, v2 int)");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("failed to create table st1, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  int64_t start = 1685959190000;
-  const char* pstr =
-      "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefgh"
-      "ijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnop"
-      "qrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx"
-      "yzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdef"
-      "ghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz!@#$%^&&*&^^%$#@!qQWERTYUIOPASDFGHJKL:"
-      "QWERTYUIOP{}";
-
-  bool up = true;
-  int32_t a = 0;
-  for(int32_t i = 0; i < 9000; ++i, ++a) {
-    char str[1024] = {0};
-    (void)sprintf(str, "insert into t1 values(%" PRId64 ", 'abcdefghijklmn', %d)", start + i, a);
-
-    TAOS_RES* px = taos_query(pConn, str);
-    if (taos_errno(px) != 0) {
-      (void)printf("failed to create table tu, reason:%s\n", taos_errstr(px));
-    }
-    taos_free_result(px);
-
-    if (i == 8191 && up) {
-      i -= 1;
-      up = false;
-      taos_query(pConn, "flush database abc1");
-    }
-  }
-
-  for(int32_t j = 0; j < 1; ++j) {
-    start += 20;
-    for (int32_t i = 0; i < 1; ++i) {
-      createNewTable(pConn, i, 10000, 0, pstr);
-    }
-  }
-
-  pRes = taos_query(pConn, "select * from abc1.st2");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
+    (void)printf("failed to do forecast query, reason:%s\n", taos_errstr(pRes));
   }
 
   TAOS_ROW    pRow = NULL;

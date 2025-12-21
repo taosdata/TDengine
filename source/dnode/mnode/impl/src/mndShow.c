@@ -74,6 +74,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ANODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_ANODE_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_BNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_XNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_XNODES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_TASKS, len) == 0) {
@@ -132,6 +134,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
     type = TSDB_MGMT_TABLE_APPS;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_INSTANCES, len) == 0) {
+    type = TSDB_MGMT_TABLE_INSTANCE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAM_TASKS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_RECALCULATES, len) == 0) {
@@ -142,8 +146,16 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VIEWS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SCANS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SCAN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SCAN_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SCAN_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SSMIGRATES, len) == 0) {
+    type = TSDB_MGMT_TABLE_SSMIGRATE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANSACTION_DETAIL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
@@ -164,8 +176,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VC_COL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_MOUNTS, len) == 0) {
     type = TSDB_MGMT_TABLE_MOUNT;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
-    type = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RSMAS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RSMA;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTIONS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RETENTION;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTION_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RETENTION_DETAIL;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

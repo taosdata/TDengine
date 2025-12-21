@@ -63,7 +63,7 @@ extern "C" int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType);
 //extern "C" int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
 extern "C" int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
-extern "C" void schInitTaskRetryTimes(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel);
+extern "C" void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel);
 extern "C" int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_t execId);
 extern "C" int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask);
@@ -1586,11 +1586,12 @@ TEST(otherTest, branch) {
   SSchLevel level = {0};
   SSubplan subplan;
   memset(&subplan, 0, sizeof(subplan));
-  job.attr.queryJob = true;
+  job.attr.type = JOB_TYPE_QUERY;
   schMgmt.cfg.schPolicy = SCH_ALL;
   task.plan = &subplan;
-  schInitTaskRetryTimes(&job, &task, &level);
-  job.attr.queryJob = false;
+  schInitTaskRetryInfo(&job, &task, &level);
+  
+  job.attr.type = JOB_TYPE_INSERT;
   memset(&schMgmt.cfg, 0, sizeof(schMgmt.cfg));
   memset(&level, 0, sizeof(level));
 
@@ -1624,13 +1625,9 @@ TEST(otherTest, branch) {
 
   subplan.subplanType = SUBPLAN_TYPE_SCAN;
   task.plan = &subplan;
-  SEpSet epset = {0};
-  epset.numOfEps = 127;
-  schChkUpdateRedirectCtx(&job, &task, &epset, 0);
+  schChkUpdateRedirectCtx(&job, &task, 0);
 
-  schChkUpdateRedirectCtx(&job, &task, NULL, 0);
   task.plan = NULL;
-
   schPushTaskToExecList(&job, &task);
 
   job.execTasks = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
@@ -1717,7 +1714,7 @@ TEST(otherTest, branch) {
 
   job.fetchTask = &task;
   job.attr.localExec = true;
-  job.attr.queryJob = true;
+  job.attr.type = JOB_TYPE_QUERY;
   subplan.subplanType = SUBPLAN_TYPE_MERGE;
   task.plan = &subplan;
   void* p = taosMemoryCalloc(1, 1024);

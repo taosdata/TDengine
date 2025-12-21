@@ -72,11 +72,10 @@ TARGET_PATTERN="__pycache__"
 find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {} +
 
 # script to control start/stop/uninstall process
-
-
 cp -r ${top_dir}/taosanalytics/ ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
+cp -r ${top_dir}/requirements_ess.txt ${install_dir}/ || :
 
 # copy model files
 model_dir=${model_dir:-""}
@@ -88,7 +87,7 @@ if [ -d "${model_dir}" ]; then
   echo "copy ${td_model_name} model files"
   cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
   echo "copy ${td_model_name} model files done"
-  xhs_model_name="time-moe"
+  xhs_model_name="timemoe"
   echo "copy ${xhs_model_name} model files "
   cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
   echo "copy ${xhs_model_name} model files done"

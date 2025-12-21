@@ -2,6 +2,7 @@ from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.common import tdCom
 
 import os
+import platform
 
 class TestVarbinary:
     def setup_class(cls):
@@ -13,7 +14,8 @@ class TestVarbinary:
         tdLog.info(" test")
 
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/varbinary_test'%(buildPath)
+        exe_file = "varbinary_test" if platform.system() != "Windows" else "varbinary_test.exe"
+        cmdStr = os.path.join(tdCom.getBuildPath(), "build", "bin", exe_file)
         print("cmdStr:", cmdStr)
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)

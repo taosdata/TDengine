@@ -222,10 +222,10 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (pkey->type == TSDB_DATA_TYPE_JSON) {
-        if (tTagIsJson(val)) {
-          terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
-          return;
-        }
+        // if (tTagIsJson(val)) {
+        //   terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+        //   return;
+        // }
         int32_t dataLen = getJsonValueLen(val);
         memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
@@ -441,7 +441,7 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
   while (1) {
     doBuildResultDatablockByHash(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
 
-    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (!hasRemainResultByHash(pOperator)) {
@@ -579,6 +579,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
 
   pOperator->pPhyNode = (SNode*)pAggNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
+  pOperator->exprSupp.hasWindow = false;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
   if (pResBlock == NULL) {

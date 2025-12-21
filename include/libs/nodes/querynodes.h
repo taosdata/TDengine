@@ -158,6 +158,8 @@ typedef enum EHintOption {
   HINT_SMALLDATA_TS_SORT,
   HINT_HASH_JOIN,
   HINT_SKIP_TSMA,
+  HINT_WIN_OPTIMIZE_BATCH,
+  HINT_WIN_OPTIMIZE_SINGLE,
 } EHintOption;
 
 typedef struct SHintNode {
@@ -313,6 +315,7 @@ typedef enum EJoinAlgorithm {
 typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
   DYN_QTYPE_VTB_SCAN,
+  DYN_QTYPE_VTB_WINDOW,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
@@ -341,7 +344,7 @@ typedef struct SGroupingSetNode {
   SNodeList*       pParameterList;
 } SGroupingSetNode;
 
-typedef enum EOrder { ORDER_ASC = 1, ORDER_DESC } EOrder;
+typedef enum EOrder { ORDER_UNKNOWN = 0, ORDER_ASC = 1, ORDER_DESC} EOrder;
 
 typedef enum ENullOrder { NULL_ORDER_DEFAULT = 1, NULL_ORDER_FIRST, NULL_ORDER_LAST } ENullOrder;
 
@@ -358,11 +361,19 @@ typedef struct SLimitNode {
   SValueNode* offset;
 } SLimitNode;
 
+typedef enum EStateWinExtendOption {
+  STATE_WIN_EXTEND_OPTION_DEFAULT  = 0,
+  STATE_WIN_EXTEND_OPTION_BACKWARD = 1,
+  STATE_WIN_EXTEND_OPTION_FORWARD  = 2,
+} EStateWinExtendOption;
+
 typedef struct SStateWindowNode {
   ENodeType type;  // QUERY_NODE_STATE_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
   SNode*    pTrueForLimit;
+  SNode*    pExtend;  // SValueNode
+  SNode*    pZeroth;  // SValueNode
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -424,6 +435,7 @@ typedef struct SExternalWindowNode {
   SNodeList*  pProjectionList;
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
+  SNode*      pTimeRange;
   void*       timezone;
 } SExternalWindowNode;
 
@@ -552,7 +564,13 @@ typedef struct STimeRangeNode {
   ENodeType type; // QUERY_NODE_TIME_RANGE
   SNode*    pStart;
   SNode*    pEnd;
+  bool      needCalc;
 } STimeRangeNode;
+
+typedef struct SExtWinTimeWindow {
+  STimeWindow tw;
+  int32_t     winOutIdx;
+} SExtWinTimeWindow;
 
 typedef struct SSelectStmt {
   ENodeType       type;  // QUERY_NODE_SELECT_STMT
@@ -582,7 +600,7 @@ typedef struct SSelectStmt {
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
   int32_t         lastProcessByRowFuncId;
-  bool            timeLineFromOrderBy;
+  int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
   bool            hasAggFuncs;
@@ -598,6 +616,7 @@ typedef struct SSelectStmt {
   bool            hasInterpPseudoColFunc;
   bool            hasForecastFunc;
   bool            hasForecastPseudoColFunc;
+  bool            hasGenericAnalysisFunc;
   bool            hasLastRowFunc;
   bool            hasLastFunc;
   bool            hasTimeLineFunc;
@@ -800,6 +819,7 @@ bool nodesIsExprNode(const SNode* pNode);
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);

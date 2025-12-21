@@ -28,6 +28,7 @@
 typedef struct STimeSliceOperatorInfo {
   SSDataBlock*         pRes;
   STimeWindow          win;
+  SNode*               pWin;        // for stream
   SInterval            interval;
   int64_t              current;
   SArray*              pPrevRow;     // SArray<SGroupValue>
@@ -1113,12 +1114,17 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
+  } else if (pOperator->status == OP_NOT_OPENED && pSliceInfo->pWin) {
+    code = streamCalcCurrWinTimeRange((STimeRangeNode*)pSliceInfo->pWin, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pSliceInfo->win, NULL, 3);
+    TSDB_CHECK_CODE(code, lino, _finished);
+    OPTR_SET_OPENED(pOperator);    
+    pSliceInfo->current = pSliceInfo->win.skey;
   }
 
-  STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   SSDataBlock*            pResBlock = pSliceInfo->pRes;
 
   blockDataCleanup(pResBlock);
@@ -1127,7 +1133,7 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pSliceInfo->pNextGroupRes != NULL) {
       doHandleTimeslice(pOperator, pSliceInfo->pNextGroupRes);
       if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _finished);
         if (pSliceInfo->pRemainRes == NULL) {
           pSliceInfo->pNextGroupRes = NULL;
@@ -1163,7 +1169,7 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       doHandleTimeslice(pOperator, pBlock);
       if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _finished);
         if (pResBlock->info.rows != 0) {
           goto _finished;
@@ -1176,7 +1182,7 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     // except for fill(next), fill(linear)
     genInterpAfterDataBlock(pSliceInfo, pOperator, 0);
 
-    code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _finished);
     if (pOperator->status == OP_EXEC_DONE) {
       break;
@@ -1221,47 +1227,6 @@ static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn
     }
   }
   return TSDB_CODE_SUCCESS;
-}
-
-/**
- * @brief Determine the actual time range for reading data based on the RANGE clause and the WHERE conditions.
- * @param[in] cond The range specified by WHERE condition.
- * @param[in] range The range specified by RANGE clause.
- * @param[out] twindow The range to be read in DESC order, and only one record is needed.
- * @param[out] extTwindow The external range to read for only one record, which is used for FILL clause.
- * @note `cond` and `twindow` may be the same address.
- */
-static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* range, STimeWindow* twindow,
-                                 STimeWindow* extTwindows) {
-  int32_t     code = TSDB_CODE_SUCCESS;
-  int32_t     lino = 0;
-  STimeWindow tempWindow;
-
-  if (cond->skey > cond->ekey || range->skey > range->ekey) {
-    *twindow = extTwindows[0] = extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
-    return code;
-  }
-
-  if (range->ekey < cond->skey) {
-    extTwindows[1] = *cond;
-    *twindow = extTwindows[0] = TSWINDOW_DESC_INITIALIZER;
-    return code;
-  }
-
-  if (cond->ekey < range->skey) {
-    extTwindows[0] = *cond;
-    *twindow = extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
-    return code;
-  }
-
-  // Only scan data in the time range intersecion.
-  extTwindows[0] = extTwindows[1] = *cond;
-  twindow->skey = TMAX(cond->skey, range->skey);
-  twindow->ekey = TMIN(cond->ekey, range->ekey);
-  extTwindows[0].ekey = twindow->skey - 1;
-  extTwindows[1].skey = twindow->ekey + 1;
-
-  return code;
 }
 
 static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
@@ -1381,6 +1346,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   pInfo->win = pInterpPhyNode->timeRange;
+  code = nodesCloneNode(pInterpPhyNode->pTimeRange, &pInfo->pWin);
+  QUERY_CHECK_CODE(code, lino, _error);
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
   pInfo->prevTsSet = false;
@@ -1403,6 +1370,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     }
   }
 
+/*
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo*      pScanInfo = (STableScanInfo*)downstream->info;
     SQueryTableDataCond* cond = &pScanInfo->base.cond;
@@ -1410,7 +1378,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     code = getQueryExtWindow(&cond->twindows, &pInfo->win, &cond->twindows, cond->extTwindows);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-  
+*/
+
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
@@ -1478,6 +1447,7 @@ void destroyTimeSliceOperatorInfo(void* param) {
     }
     taosMemoryFree(pInfo->pFillColInfo);
   }
+  nodesDestroyNode(pInfo->pWin);
   taosMemoryFreeClear(param);
 }
 

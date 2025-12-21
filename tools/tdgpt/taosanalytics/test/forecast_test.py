@@ -26,7 +26,7 @@ class ForecastTest(unittest.TestCase):
         url = ('https://raw.githubusercontent.com/jbrownlee/Datasets/refs/heads/master/'
                'airline-passengers.csv')
         data = pd.read_csv(url, index_col='Month', parse_dates=True)
-
+        
         ts_list = data[['Passengers']].index.tolist()
         dst_list = [int(item.timestamp()) for item in ts_list]
 
@@ -60,7 +60,6 @@ class ForecastTest(unittest.TestCase):
         )
 
         r = s.execute()
-
         draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winter_invalid_params(self):
@@ -125,6 +124,27 @@ class ForecastTest(unittest.TestCase):
         #
         # rows = len(r["res"][0])
         # draw_fc_results(data, False, r["res"], rows, "gpt")
+
+    def test_prophet_forecast(self):
+        """prophet algorithm check"""
+        s = loader.get_service("prophet")
+        data, ts = self.get_input_list()
+
+        s.set_input_list(data, ts)
+        self.assertRaises(ValueError, s.execute)
+
+       
+        s.set_params({
+        "rows": 10,
+        "start_ts": 171000000,
+        "time_step": 86400 * 30,
+        "seasonality_mode": "additive",
+        "changepoint_prior_scale": 0.05,
+        })
+        r = s.execute()
+
+        rows = len(r["res"][0])
+        draw_fc_results(data, len(r["res"]) > 1, s.conf, r["res"], "prophet")
 
 
 if __name__ == '__main__':

@@ -619,19 +619,19 @@ TEST(stmtCase, update) {
   ASSERT_NE(taos, nullptr);
 
   do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_6");
-  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_6");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_6 precision 'us'");
   do_query(taos, "USE stmt_testdb_6");
   do_query(taos,
            "create table stmt_testdb_6.devices(ts timestamp,device_id int,status binary(10),temperature float,humidity "
            "float);");
   do_query(taos,
            "insert into stmt_testdb_6.devices (ts,device_id,status,temperature,humidity) "
-           "values(1591060628000,1,'abc',1.0,1.1);");
+           "values(1591060628000000,1,'abc',1.0,1.1);");
 
   float   temperature = 10.0;
   float   humidity = 10.1;
   int32_t device_id = 2;
-  int64_t ts = 1591060628000;
+  int64_t ts = 1591060628000000;
 
   int32_t c1_len = sizeof(float);
   int32_t c2_len = sizeof(float);
@@ -694,6 +694,7 @@ TEST(stmtCase, update) {
     ASSERT_STREQ(pFields[1].name, "humidity");
     ASSERT_STREQ(pFields[2].name, "device_id");
     ASSERT_STREQ(pFields[3].name, "ts");
+    ASSERT_EQ(pFields[3].precision, 1);
     ASSERT_STREQ(pFields[4].name, "device_id");
 
     taosMemoryFree(pFields);
@@ -708,7 +709,7 @@ TEST(stmtCase, update) {
     checkError(stmt, code);
 
     TAOS_RES *result =
-        taos_query(taos, "select temperature,humidity,device_id from stmt_testdb_6.devices where ts=1591060628000");
+        taos_query(taos, "select temperature,humidity,device_id from stmt_testdb_6.devices where ts=1591060628000000");
     ASSERT_NE(result, nullptr);
     ASSERT_EQ(taos_errno(result), 0);
 
@@ -950,7 +951,7 @@ TEST(stmtCase, update) {
            "float,humidity float);");
   do_query(taos,
            "insert into stmt_testdb_6.devices2 (ts,device_id,status,temperature,humidity) "
-           "values(1591060628000,1,'abc',1.0,1.1);");
+           "values(1591060628000000,1,'abc',1.0,1.1);");
   {
     printf("case 9 : composite key\n");
     TAOS_STMT *stmt = taos_stmt_init(taos);
@@ -984,7 +985,7 @@ TEST(stmtCase, update) {
     checkError(stmt, code);
 
     TAOS_RES *result =
-        taos_query(taos, "select temperature,humidity,device_id from stmt_testdb_6.devices2 where ts=1591060628000");
+        taos_query(taos, "select temperature,humidity,device_id from stmt_testdb_6.devices2 where ts=1591060628000000");
     ASSERT_NE(result, nullptr);
     ASSERT_EQ(taos_errno(result), 0);
 

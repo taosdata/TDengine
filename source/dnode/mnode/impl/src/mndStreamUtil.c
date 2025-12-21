@@ -36,11 +36,6 @@ bool mstWaitLock(SRWLatch* pLock, bool readLock) {
   return true;
 }
 
-void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p) {
-  taosArrayDestroy(p->cont.vgIds);
-  taosArrayDestroy(p->cont.readerList);
-}
-
 void mstDestroySStmVgStreamStatus(void* p) { 
   SStmVgStreamStatus* pStatus = (SStmVgStreamStatus*)p;
   taosArrayDestroy(pStatus->trigReaders); 
@@ -112,12 +107,13 @@ void mstDestroySStmVgroupStatus(void* param) {
 }
 
 void mstResetSStmStatus(SStmStatus* pStatus) {
+  (void)mstWaitLock(&pStatus->resetLock, false);
+
   taosArrayDestroy(pStatus->trigReaders);
   pStatus->trigReaders = NULL;
   taosArrayDestroy(pStatus->trigOReaders);
   pStatus->trigOReaders = NULL;
-  taosArrayDestroy(pStatus->calcReaders);
-  pStatus->calcReaders = NULL;
+  pStatus->calcReaders = tdListFree(pStatus->calcReaders);
   if (pStatus->triggerTask) {
     (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, false);
     taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
@@ -128,6 +124,8 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
     taosArrayDestroy(pStatus->runners[i]);
     pStatus->runners[i] = NULL;
   }
+
+  taosWUnLockLatch(&pStatus->resetLock);
 }
 
 void mstDestroySStmStatus(void* param) {
@@ -555,14 +553,14 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
 
   mstsDebugL("create_info: name:%s sql:%s streamDB:%s triggerDB:%s outDB:%s calcDBNum:%d triggerTblName:%s outTblName:%s "
       "igExists:%d triggerType:%d igDisorder:%d deleteReCalc:%d deleteOutTbl:%d fillHistory:%d fillHistroyFirst:%d "
-      "calcNotifyOnly:%d lowLatencyCalc:%d igNoDataTrigger:%d notifyUrlNum:%d notifyEventTypes:%d notifyErrorHandle:%d notifyHistory:%d "
+      "calcNotifyOnly:%d lowLatencyCalc:%d igNoDataTrigger:%d notifyUrlNum:%d notifyEventTypes:%d addOptions:%d notifyHistory:%d "
       "outColsNum:%d outTagsNum:%d maxDelay:%" PRId64 " fillHistoryStartTs:%" PRId64 " watermark:%" PRId64 " expiredTime:%" PRId64 " "
       "triggerTblType:%d triggerTblUid:%" PRIx64 " triggerTblSuid:%" PRIx64 " vtableCalc:%d outTblType:%d outStbExists:%d outStbUid:%" PRIu64 " outStbSversion:%d "
       "eventTypes:0x%" PRIx64 " flags:0x%" PRIx64 " tsmaId:0x%" PRIx64 " placeHolderBitmap:0x%" PRIx64 " calcTsSlotId:%d triTsSlotId:%d "
       "triggerTblVgId:%d outTblVgId:%d calcScanPlanNum:%d forceOutCols:%d",
       q->name, q->sql, q->streamDB, q->triggerDB, q->outDB, calcDBNum, q->triggerTblName, q->outTblName,
       q->igExists, q->triggerType, q->igDisorder, q->deleteReCalc, q->deleteOutTbl, q->fillHistory, q->fillHistoryFirst,
-      q->calcNotifyOnly, q->lowLatencyCalc, q->igNoDataTrigger, notifyUrlNum, q->notifyEventTypes, q->notifyErrorHandle, q->notifyHistory,
+      q->calcNotifyOnly, q->lowLatencyCalc, q->igNoDataTrigger, notifyUrlNum, q->notifyEventTypes, q->addOptions, q->notifyHistory,
       outColNum, outTagNum, q->maxDelay, q->fillHistoryStartTime, q->watermark, q->expiredTime,
       q->triggerTblType, q->triggerTblUid, q->triggerTblSuid, q->vtableCalc, q->outTblType, q->outStbExists, q->outStbUid, q->outStbSversion,
       q->eventTypes, q->flags, q->tsmaId, q->placeHolderBitmap, q->calcTsSlotId, q->triTsSlotId,
@@ -582,7 +580,7 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_STATE: {
       SStateWinTrigger* t = &q->trigger.stateWin;
-      mstsDebug("state trigger options, slotId:%d, trueForDuration:%" PRId64, t->slotId, t->trueForDuration);
+      mstsDebug("state trigger options, slotId:%d, expr:%s, extend:%d, zeroth:%s, trueForDuration:%" PRId64, t->slotId, (char *)t->expr, t->extend, (char *)t->zeroth, t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_EVENT:{
@@ -664,7 +662,7 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
 
   int32_t trigReaderNum = taosArrayGetSize(p->trigReaders);
   int32_t trigOReaderNum = taosArrayGetSize(p->trigOReaders);
-  int32_t calcReaderNum = taosArrayGetSize(p->calcReaders);
+  int32_t calcReaderNum = MST_LIST_SIZE(p->calcReaders);
   int32_t triggerNum = p->triggerTask ? 1 : 0;
   int32_t runnerNum = 0;
 
@@ -689,9 +687,11 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
     mstLogSStmTaskStatus("trigOReader task", streamId, pTask, i);
   }
 
+  SListNode* pNode = listHead(p->calcReaders);
   for (int32_t i = 0; i < calcReaderNum; ++i) {
-    pTask = taosArrayGet(p->calcReaders, i);
+    pTask = (SStmTaskStatus*)pNode->data;
     mstLogSStmTaskStatus("calcReader task", streamId, pTask, i);
+    pNode = TD_DLIST_NODE_NEXT(pNode);
   }
 
   if (triggerNum > 0) {
@@ -714,7 +714,7 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
 }
 
 bool mstEventPassIsolation(int32_t num, int32_t event) {
-  bool ret = ((mStreamMgmt.lastTs[event].ts + num * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs);
+  bool ret = ((mStreamMgmt.lastTs[event].ts + num * MST_SHORT_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs);
   if (ret) {
     mstDebug("event %s passed %d isolation, last:%" PRId64 ", curr:%" PRId64, 
         gMndStreamEvent[event], num, mStreamMgmt.lastTs[event].ts, mStreamMgmt.hCtx.currentTs);
@@ -1063,7 +1063,7 @@ _end:
 }
 
 int32_t mstGetNumOfStreamTasks(SStmStatus* pStatus) {
-  int32_t num = taosArrayGetSize(pStatus->trigReaders) + taosArrayGetSize(pStatus->trigOReaders) + taosArrayGetSize(pStatus->calcReaders) + (pStatus->triggerTask ? 1 : 0);
+  int32_t num = taosArrayGetSize(pStatus->trigReaders) + taosArrayGetSize(pStatus->trigOReaders) + MST_LIST_SIZE(pStatus->calcReaders) + (pStatus->triggerTask ? 1 : 0);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
     num += taosArrayGetSize(pStatus->runners[i]);
   }
@@ -1075,6 +1075,7 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
+  bool    statusLocked = false;
 
   (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
 
@@ -1089,6 +1090,9 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
     mstsDebug("stream stopped %d, ignore it", stopped);
     goto _exit;
   }
+
+  (void)mstWaitLock(&pStatus->resetLock, true);
+  statusLocked = true;
   
   int32_t count = mstGetNumOfStreamTasks(pStatus);
 
@@ -1121,14 +1125,17 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
     }
   }
 
-
-  int32_t calcReaderNum = taosArrayGetSize(pStatus->calcReaders);
-  for (int32_t i = 0; i < calcReaderNum; ++i) {
-    pTask = taosArrayGet(pStatus->calcReaders, i);
-  
-    code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
-    if (code == TSDB_CODE_SUCCESS) {
-      (*numOfRows)++;
+  if (pStatus->calcReaders) {
+    int32_t calcReaderNum = MST_LIST_SIZE(pStatus->calcReaders);
+    SListNode* pNode = listHead(pStatus->calcReaders);
+    for (int32_t i = 0; i < calcReaderNum; ++i) {
+      pTask = (SStmTaskStatus*)pNode->data;
+    
+      code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
+      if (code == TSDB_CODE_SUCCESS) {
+        (*numOfRows)++;
+      }
+      pNode = TD_DLIST_NODE_NEXT(pNode);
     }
   }
 
@@ -1155,6 +1162,10 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
   pBlock->info.rows = *numOfRows;
 
 _exit:
+
+  if (statusLocked) {
+    taosRUnLockLatch(&pStatus->resetLock);
+  }
   
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
 
@@ -1338,5 +1349,26 @@ _exit:
   return code;
 }
 
+int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
+  SSubplan* pSubplan = NULL;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  
+  TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
+
+  if (pSubplan->pNode && nodeType(pSubplan->pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    SScanPhysiNode* pScanNode = (SScanPhysiNode*)pSubplan->pNode;
+    *uid = pScanNode->uid;
+  }
+  
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  nodesDestroyNode((SNode *)pSubplan);
+
+  return code;
+}
 
 

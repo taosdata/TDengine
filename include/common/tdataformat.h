@@ -29,19 +29,21 @@
 extern "C" {
 #endif
 
-typedef struct SSchema    SSchema;
-typedef struct SSchema2   SSchema2;
-typedef struct SSchemaExt SSchemaExt;
-typedef struct STColumn   STColumn;
-typedef struct STSchema   STSchema;
-typedef struct SValue     SValue;
-typedef struct SColVal    SColVal;
-typedef struct SRow       SRow;
-typedef struct SRowIter   SRowIter;
-typedef struct STagVal    STagVal;
-typedef struct STag       STag;
-typedef struct SColData   SColData;
-typedef struct SBlobSet   SBlobSet;
+typedef struct SSchema     SSchema;
+typedef struct SSchema2    SSchema2;
+typedef struct SSchemaExt  SSchemaExt;
+typedef struct SSchemaRsma SSchemaRsma;
+typedef struct STColumn    STColumn;
+typedef struct STSchema    STSchema;
+typedef struct SRSchema    SRSchema;
+typedef struct SValue      SValue;
+typedef struct SColVal     SColVal;
+typedef struct SRow        SRow;
+typedef struct SRowIter    SRowIter;
+typedef struct STagVal     STagVal;
+typedef struct STag        STag;
+typedef struct SColData    SColData;
+typedef struct SBlobSet    SBlobSet;
 
 typedef struct SRowKey           SRowKey;
 typedef struct SValueColumn      SValueColumn;
@@ -254,9 +256,12 @@ int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobSet *pBlob);
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
+
+int32_t tColDataAddValueByDataBlockWithBlob(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows,
+                                            char *lengthOrbitmap, char *data, void *pBlobSet);
 // for encode/decode
 int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
-int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
@@ -279,6 +284,27 @@ struct STSchema {
   int32_t  tlen;
   STColumn columns[];
 };
+
+struct SRSchema {
+  char       tbName[TSDB_TABLE_NAME_LEN];
+  int8_t     tbType;
+  int32_t    rowSize;
+  int32_t    maxBufRows;
+  tb_uid_t   tbUid;
+  int64_t    interval[2];
+  func_id_t *funcIds;
+  STSchema  *tSchema;
+  void      *extSchema;  // SExtSchema, for decimal type
+};
+
+static FORCE_INLINE void tFreeSRSchema(SRSchema **rSchema) {
+  if (rSchema && *rSchema) {
+    taosMemoryFreeClear((*rSchema)->funcIds);
+    taosMemoryFreeClear((*rSchema)->tSchema);
+    taosMemoryFreeClear((*rSchema)->extSchema);
+    taosMemoryFreeClear(*rSchema);
+  }
+}
 
 /*
  * 1. Tuple format:

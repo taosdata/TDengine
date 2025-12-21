@@ -1672,7 +1672,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
 
   SRowIter **aIter = taosMemoryCalloc(nRow, sizeof(SRowIter *));
   if (aIter == NULL) {
-    TAOS_CHECK_RETURN(code = terrno);
+    TAOS_CHECK_GOTO(terrno, &lino, _error);
   }
 
   for (int32_t i = 0; i < nRow; i++) {
@@ -1680,6 +1680,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
     code = tRowIterOpen(pRowT, pTSchema, &aIter[i]);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
+
   for (int32_t i = 0; i < nRow; i++) {
     SColVal *pColVal = tRowIterNext(aIter[i]);
     do {
@@ -1701,6 +1702,7 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
   for (int32_t i = 0; i < taosArrayGetSize(aColVal); i++) {
     uint64_t seq = 0;
     SColVal *pVal = taosArrayGet(aColVal, i);
+
     code = tBlobSetTransferTo(pBlob, pTempBlob, pVal);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
@@ -1727,8 +1729,8 @@ _error:
 
 static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlob) {
   int32_t code = 0;
+  int32_t lino = 0;
 
-  int32_t   lino = 0;
   SBlobSet *pTempBlobSet = NULL;
   int32_t   size = taosArrayGetSize(aRowP);
   if (size <= 1) {
@@ -1743,6 +1745,8 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
   }
 
   code = tBlobSetCreate(pBlob->cap, pBlob->type, &pTempBlobSet);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
   int32_t iStart = 0;
   while (iStart < aRowP->size) {
     SRowKey key1;
@@ -1775,8 +1779,12 @@ static int32_t tRowMergeAndRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobS
     // the array is also changing, so the iStart just ++ instead of iEnd
     iStart++;
   }
+
 _error:
-  tBlobSetSwap(pBlob, pTempBlobSet);
+  if (pBlob && pTempBlobSet) {
+    tBlobSetSwap(pBlob, pTempBlobSet);
+  }
+
   tBlobSetDestroy(pTempBlobSet);
   return code;
 }
@@ -4560,7 +4568,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
             goto _exit;
           }
         } else {
-          if (varDataTLen(data + offset) > bytes) {
+          if (varDataTLen(data + offset) > bytes || (type == TSDB_DATA_TYPE_NCHAR && varDataLen(data + offset) % TSDB_NCHAR_SIZE != 0)) {
             uError("var data length invalid, varDataTLen(data + offset):%d > bytes:%d", (int)varDataTLen(data + offset),
                    bytes);
             code = TSDB_CODE_PAR_VALUE_TOO_LONG;
@@ -4590,6 +4598,107 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
           }
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)blobDataVal(data + offset),
                                                                         blobDataLen(data + offset));
+        }
+      }
+    }
+  } else {  // fixed-length data type
+    bool allValue = true;
+    bool allNull = true;
+    for (int32_t i = 0; i < nRows; ++i) {
+      if (!BMIsNull(lengthOrbitmap, i)) {
+        allNull = false;
+      } else {
+        allValue = false;
+      }
+    }
+    if ((pColData->cflag & COL_IS_KEY) && !allValue) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+      goto _exit;
+    }
+
+    if (allValue) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
+      }
+    } else if (allNull) {
+      // optimize (todo)
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+        if (code) goto _exit;
+      }
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        if (BMIsNull(lengthOrbitmap, i)) {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)data + bytes * i, bytes);
+        }
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+int32_t tColDataAddValueByDataBlockWithBlob(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows,
+                                            char *lengthOrbitmap, char *data, void *pBlobSet) {
+  int32_t code = 0;
+  if (data == NULL) {
+    if (pColData->cflag & COL_IS_KEY) {
+      code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+      }
+    }
+    goto _exit;
+  }
+
+  if (IS_VAR_DATA_TYPE(type)) {  // var-length data type
+    if (!IS_STR_DATA_BLOB(type)) {
+      for (int32_t i = 0; i < nRows; ++i) {
+        int32_t offset = *((int32_t *)lengthOrbitmap + i);
+        if (offset == -1) {
+          if (pColData->cflag & COL_IS_KEY) {
+            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+            goto _exit;
+          }
+          if ((code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0))) {
+            goto _exit;
+          }
+        } else {
+          if (varDataTLen(data + offset) > bytes) {
+            uError("var data length invalid, varDataTLen(data + offset):%d > bytes:%d", (int)varDataTLen(data + offset),
+                   bytes);
+            code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+            goto _exit;
+          }
+          code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
+                                                                        varDataLen(data + offset));
+        }
+      }
+    } else {
+      for (int32_t i = 0; i < nRows; ++i) {
+        int32_t offset = *((int32_t *)lengthOrbitmap + i);
+        if (offset == -1) {
+          if (pColData->cflag & COL_IS_KEY) {
+            code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+            goto _exit;
+          }
+          if ((code = tColDataAppendValueBlobImpl[pColData->flag][CV_FLAG_NULL](pBlobSet, pColData, NULL, 0))) {
+            goto _exit;
+          }
+        } else {
+          if (blobDataTLen(data + offset) > TSDB_MAX_BLOB_LEN) {
+            uError("var data length invalid, varDataTLen(data + offset):%d > bytes:%d",
+                   (int)blobDataTLen(data + offset), bytes);
+            code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+            goto _exit;
+          }
+          code = tColDataAppendValueBlobImpl[pColData->flag][CV_FLAG_VALUE](
+              pBlobSet, pColData, (uint8_t *)blobDataVal(data + offset), blobDataLen(data + offset));
         }
       }
     }
@@ -4985,7 +5094,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   }
 
   int32_t code = 0;
-  int32_t numOfRows = infos[0].bind->num;
+  int32_t numOfRows = -1;
   SArray *colValArray, *bufArray;
   SColVal colVal;
   int32_t numOfFixedValue = 0;
@@ -5005,6 +5114,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
         continue;
       }
     }
+    if (numOfRows == -1) {
+      numOfRows = infos[i].bind->num;
+    }
+
     if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
       taosArrayDestroy(colValArray);
       taosArrayDestroy(bufArray);
@@ -5840,16 +5953,38 @@ int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData) 
     return tEncodeColDataVersion0(pEncoder, pColData);
   } else if (version == 1) {
     return tEncodeColDataVersion1(pEncoder, pColData);
+  } else if (version == 2) {
+    int32_t posStart = pEncoder->pos;
+    pEncoder->pos += INT_BYTES;
+    int32_t code = tEncodeColDataVersion1(pEncoder, pColData);
+    if (code) return code;
+    int32_t posEnd = pEncoder->pos;
+    int32_t pos = posEnd - posStart;
+    pEncoder->pos = posStart;
+    code = tEncodeI32(pEncoder, pos);
+    pEncoder->pos = posEnd;
+    return code;
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
 }
 
-int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData) {
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump) {
   if (version == 0) {
     return tDecodeColDataVersion0(pDecoder, pColData);
   } else if (version == 1) {
     return tDecodeColDataVersion1(pDecoder, pColData);
+  } else if (version == 2) {
+    if (jump) {
+      int32_t len = 0;
+      int32_t code = tDecodeI32(pDecoder, &len);
+      if (code) return code;
+      pDecoder->pos += (len - INT_BYTES);
+      return TSDB_CODE_SUCCESS;
+    } else {
+      pDecoder->pos += INT_BYTES;
+      return tDecodeColDataVersion1(pDecoder, pColData);
+    }    
   } else {
     return TSDB_CODE_INVALID_PARA;
   }

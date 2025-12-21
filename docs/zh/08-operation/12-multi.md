@@ -46,7 +46,7 @@ dataDir /mnt/data5 2 0
 dataDir /mnt/data6 2 0
 ```
 
-**注意**
+**注意** ：
 
 1. 多级存储不允许跨级配置，合法的配置方案有：仅 0 级、仅 0 级 + 1 级、以及 0 级 + 1 级 + 2 级。而不允许只配置 level=0 和 level=2，而不配置 level=1。
 2. 禁止手动移除使用中的挂载盘，挂载盘目前不支持非本地的网络盘。
@@ -85,7 +85,7 @@ dataDir /mnt/data6 2 0
 
 ### 存储设备的连接参数
 
-配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。 
+配置参数 `ssAccessString` 中可使用的选项与具体存储设备类型相关。
 
 #### S3 对象存储
 
@@ -109,7 +109,7 @@ dataDir /mnt/data6 2 0
 
 例如：
 
-```
+```shell
 ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3
 ```
 
@@ -117,13 +117,13 @@ ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protoc
 
 对 TDengine 来说，网络存储设备挂载到本地后等同于本地磁盘，当使用此类设备作为共享存储时，`ssAccessString` 的 `device-type` 必须是 `fs`，可以使用的选项如下：
 
-| 名称            |   含义 | 
-| ----------------|----------------------------------------------| 
-| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。| 
+| 名称            |   含义 |
+| ----------------|----------------------------------------------|
+| baseDir         | 一个路径，TDengine 将使用其对应的目录作为共享存储。|
 
 例如：
 
-```
+```shell
 ssAccessString fs:baseDir=/var/taos/ss
 ```
 
@@ -131,7 +131,7 @@ ssAccessString fs:baseDir=/var/taos/ss
 
 在 taos.cfg 中完成对共享存储的配置后，通过 taosd 命令的 checkss 参数可以检查所配置的共享存储服务是否可用：
 
-```
+```shell
 taosd --checkss
 ```
 
@@ -206,6 +206,7 @@ ssmigrate database <db_name>;
 本节介绍在 TDengine TSDB Enterprise 版本中如何使用微软 Azure Blob 存储。本功能可以通过两个方式使用：利用 Flexify 服务提供的 S3 网关功能和不依赖 Flexify 服务。通过配置参数，可以把大部分较冷的时序数据存储到 Azure Blob 服务中。
 
 #### Flexify 服务
+
 Flexify 是 Azure Marketplace 中的一款应用程序，允许兼容 S3 的应用程序通过标准 S3 API 在 Azure Blob Storage 中存储数据。可使用多个 Flexify 服务对同一个 Blob 存储建立多个 S3 网关。
 
 部署方式请参考 [Flexify](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/flexify.azure-s3-api?tab=Overview)  应用页面说明。
@@ -214,7 +215,7 @@ Flexify 是 Azure Marketplace 中的一款应用程序，允许兼容 S3 的应�
 
 在配置文件 /etc/taos/taos.cfg 中，添加用于 S3 访问的参数：
 
-```
+```bash
 s3EndPoint   http //20.191.157.23,http://20.191.157.24,http://20.191.157.25
 s3AccessKey  FLIOMMNL0:uhRNdeZMLD4wo,ABCIOMMN:uhRNdeZMD4wog,DEFOMMNL049ba:uhRNdeZMLD4wogXd
 s3BucketName td-test
@@ -232,7 +233,7 @@ s3BucketName td-test
 
 | # | 参数 | 示例值 | 描述 |
 |:--|:-------------|:-----------------------------------------|:----------------------------------|
-| 1 | s3EndPoint   | https://fd2d01c73.blob.core.windows.net  | Blob URL                          |
+| 1 | s3EndPoint   | `https://fd2d01c73.blob.core.windows.net` | Blob URL                          |
 | 2 | s3AccessKey  | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg== | 冒号分隔的用户 accountId:accountKey |
 | 3 | s3BucketName | test-container                           | Container name                    |
 

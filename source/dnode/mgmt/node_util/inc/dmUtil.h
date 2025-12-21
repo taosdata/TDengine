@@ -126,6 +126,8 @@ typedef void (*MetricsCleanExpiredSamplesFp)();
 typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
+typedef void (*SetMnodeSyncTimeoutFp)();
+typedef void (*SetVnodeSyncTimeoutFp)();
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*StopDnodeFp)();
@@ -147,6 +149,7 @@ typedef struct {
   SMsgCb         msgCb;
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
+  int64_t        timeWhiteVer;
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
   EEncryptAlgor  encryptAlgorigthm;
   EEncryptScope  encryptScope;
@@ -171,7 +174,9 @@ typedef struct {
   SendAuditRecordsFp           sendAuditRecordFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  SetVnodeSyncTimeoutFp        setVnodeSyncTimeoutFp;
   GetMnodeLoadsFp              getMnodeLoadsFp;
+  SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
   StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;

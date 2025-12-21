@@ -397,6 +397,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:
@@ -603,7 +604,7 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  return (pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {

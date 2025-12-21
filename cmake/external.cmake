@@ -870,8 +870,10 @@ endif(NOT ${TD_WINDOWS})    # }
 if(NOT ${TD_WINDOWS})       # {
     if(${TD_LINUX})
         set(ext_curl_static libcurl.a)
+        set(_c_flags_list -fPIC)
     elseif(${TD_DARWIN})
         set(ext_curl_static libcurl.a)
+        set(_c_flags_list)
     endif()
     INIT_EXT(ext_curl
         INC_DIR          include
@@ -880,6 +882,7 @@ if(NOT ${TD_WINDOWS})       # {
         #            libcurl4-openssl-dev on ubuntu 22.04 is too old
         # CHK_NAME         CURL4_OPENSSL
     )
+    string(JOIN " " _c_flags ${_c_flags_list})
     # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
     # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
     get_from_local_if_exists("https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz")
@@ -899,6 +902,8 @@ if(NOT ${TD_WINDOWS})       # {
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
                     --without-librtmp #--enable-debug
+                    CFLAGS=${_c_flags}
+                    CXXFLAGS=${_c_flags}
         BUILD_COMMAND
             COMMAND make -j4
         INSTALL_COMMAND
@@ -1089,6 +1094,8 @@ if(${BUILD_PCRE2})          # {
     add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
 endif()                     # }
 
+include(GNUInstallDirs)
+message(STATUS "Using libdir: ${CMAKE_INSTALL_LIBDIR}")
 if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     if(${TD_LINUX})
         set(ext_rocksdb_static librocksdb.a)
@@ -1099,7 +1106,7 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     endif()
     INIT_EXT(ext_rocksdb
         INC_DIR          include
-        LIB              lib/${ext_rocksdb_static}
+        LIB              ${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}
     )
     # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
     # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
@@ -1581,23 +1588,23 @@ if(NOT ${TD_WINDOWS})        # {
     add_dependencies(build_externals ext_cos)
 endif()                      # }
 
-IF(TD_WEBSOCKET)
-    MESSAGE("${Green} use libtaos-ws${ColourReset}")
+if(TD_WEBSOCKET)
+    message("${Green} use libtaos-ws${ColourReset}")
     if(${TD_LINUX})
-        set(ext_taosws_dll      libtaosws.so)
+        set(ext_taosws_dll libtaosws.so)
         set(ext_taosws_lib_from libtaosws.a)
-        set(ext_taosws_lib_to   libtaosws.a)
-        set(ext_taosws_link     ${ext_taosws_dll})
+        set(ext_taosws_lib_to libtaosws.a)
+        set(ext_taosws_link ${ext_taosws_dll})
     elseif(${TD_DARWIN})
-        set(ext_taosws_dll      libtaosws.dylib)
+        set(ext_taosws_dll libtaosws.dylib)
         set(ext_taosws_lib_from libtaosws.a)
-        set(ext_taosws_lib_to   libtaosws.a)
-        set(ext_taosws_link     ${ext_taosws_dll})
+        set(ext_taosws_lib_to libtaosws.a)
+        set(ext_taosws_link ${ext_taosws_dll})
     elseif(${TD_WINDOWS})
-        set(ext_taosws_dll      taosws.dll)
+        set(ext_taosws_dll taosws.dll)
         set(ext_taosws_lib_from taosws.dll.lib)
-        set(ext_taosws_lib_to   taosws.lib)
-        set(ext_taosws_link     ${ext_taosws_lib_to})
+        set(ext_taosws_lib_to taosws.lib)
+        set(ext_taosws_link ${ext_taosws_lib_to})
     endif()
     INIT_EXT(ext_taosws
         INC_DIR include
@@ -1612,16 +1619,52 @@ IF(TD_WEBSOCKET)
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E echo "taosws-rs no need cmake to config"
+        COMMAND "${CMAKE_COMMAND}" -E echo "taosws-rs no need cmake to config"
         BUILD_COMMAND
-            COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
+        COMMAND "${CMAKE_COMMAND}" -E env "TD_VERSION=${TD_VER_NUMBER}" cargo build --release --locked -p taos-ws-sys --features rustls
         INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws.h
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_dll} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ext_taosws_dll}
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${ext_taosws_lib_from} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${ext_taosws_lib_to}
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../include/taosws.h
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
     add_dependencies(build_externals ext_taosws)
 ENDIF()
 
+
+if(TD_LINUX AND TD_ENTERPRISE)        # {
+if(${BUILD_LIBSASL})      # {
+    if(${TD_LINUX})
+        set(ext_sasl2 libsasl2.a)
+        set(_c_flags_list -fPIC)
+    endif()
+
+    INIT_EXT(ext_sasl2
+        INC_DIR          include
+        LIB              lib/${ext_sasl2}
+    )
+    # GIT_REPOSITORY https://github.com/davea42/libdwarf-addr2line.git
+    # GIT_TAG main
+    get_from_local_repo_if_exists("https://github.com/cyrusimap/cyrus-sasl.git")
+    ExternalProject_Add(ext_sasl2
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG cyrus-sasl-2.1.27 
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND
+            COMMAND ./autogen.sh
+        CONFIGURE_COMMAND
+            COMMAND ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
+        BUILD_COMMAND
+            COMMAND make 
+        INSTALL_COMMAND
+            COMMAND make install
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
+endif(${BUILD_LIBSASL})   # }
+endif()

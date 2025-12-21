@@ -241,7 +241,7 @@ To better operate the above data structures, some convenience functions are prov
 
 ### C UDF Example Code
 
-#### Scalar Function Example [bit_and](https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-UDFs/sh/bit_and.c)
+#### Scalar Function Example [bit_and](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/bit_and.c)
 
 `bit_and` implements the bitwise AND function for multiple columns. If there is only one column, it returns that column. `bit_and` ignores null values.
 
@@ -249,12 +249,12 @@ To better operate the above data structures, some convenience functions are prov
 <summary>bit_and.c</summary>
 
 ```c
-{{#include test/cases/25-UDFs/sh/bit_and.c}}
+{{#include test/cases/12-UDFs/sh/bit_and.c}}
 ```
 
 </details>
 
-#### Aggregate Function Example 1 Returning Numeric Type [l2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-UDFs/sh/l2norm.c)
+#### Aggregate Function Example 1 Returning Numeric Type [l2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/l2norm.c)
 
 `l2norm` implements the second-order norm of all data in the input columns, i.e., squaring each data point, then summing them up, and finally taking the square root.
 
@@ -262,12 +262,12 @@ To better operate the above data structures, some convenience functions are prov
 <summary>l2norm.c</summary>
 
 ```c
-{{#include test/cases/25-UDFs/sh/l2norm.c}}
+{{#include test/cases/12-UDFs/sh/l2norm.c}}
 ```
 
 </details>
 
-#### Aggregate Function Example 2 Returning String Type [max_vol](https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-UDFs/sh/max_vol.c)
+#### Aggregate Function Example 2 Returning String Type [max_vol](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/max_vol.c)
 
 `max_vol` implements finding the maximum voltage from multiple input voltage columns, returning a composite string value consisting of the device ID + the position (row, column) of the maximum voltage + the maximum voltage value.
 
@@ -293,12 +293,12 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 <summary>max_vol.c</summary>
 
 ```c
-{{#include test/cases/25-UDFs/sh/max_vol.c}}
+{{#include test/cases/12-UDFs/sh/max_vol.c}}
 ```
 
 </details>
 
-#### Aggregate Function Example 3 Split string and calculate average value [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-UDFs/sh/extract_avg.c)
+#### Aggregate Function Example 3 Split string and calculate average value [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/extract_avg.c)
 
 The `extract_avg` function converts a comma-separated string sequence into a set of numerical values, counts the results of all rows, and calculates the final average. Note when implementing:
 
@@ -331,10 +331,10 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ```
 
 <details>
-<summary>max_vol.c</summary>
+<summary>extract_avg.c</summary>
 
 ```c
-{{#include test/cases/25-UDFs/sh/max_vol.c}}
+{{#include test/cases/12-UDFs/sh/extract_avg.c}}
 ```
 
 </details>
@@ -469,7 +469,11 @@ The table below describes the mapping between TDengine SQL data types and Python
 
 This article includes 5 example programs, ranging from basic to advanced, and also contains numerous practical debugging tips.
 
-Note: **Within UDF, logging cannot be done using the print function; you must write to a file or use Python's built-in logging library.**
+:::note
+
+Within UDF, logging cannot be done using the print function; you must write to a file or use Python's built-in logging library.
+
+:::
 
 #### Example One
 
@@ -862,7 +866,7 @@ Through this example, we learned how to define aggregate functions and print cus
 
 ### More Python UDF Example Code
 
-#### Scalar Function Example [pybitand](https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-UDFs/sh/pybitand.py)
+#### Scalar Function Example [pybitand](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pybitand.py)
 
 `pybitand` implements the bitwise AND function for multiple columns. If there is only one column, it returns that column. `pybitand` ignores null values.
 
@@ -870,32 +874,32 @@ Through this example, we learned how to define aggregate functions and print cus
 <summary>pybitand.py</summary>
 
 ```python
-{{#include test/cases/25-UDFs/sh/pybitand.py}}
+{{#include test/cases/12-UDFs/sh/pybitand.py}}
 ```
 
 </details>
 
-#### Aggregate Function Example [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-UDFs/sh/pyl2norm.py)
+#### Aggregate Function Example [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pyl2norm.py)
 
 `pyl2norm` calculates the second-order norm of all data in the input column, i.e., squares each data point, then sums them up, and finally takes the square root.
 
 <details>
 <summary>pyl2norm.py</summary>
 
-```c
-{{#include test/cases/25-UDFs/sh/pyl2norm.py}}
+```python
+{{#include test/cases/12-UDFs/sh/pyl2norm.py}}
 ```
 
 </details>
 
-#### Aggregate Function Example [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-UDFs/sh/pycumsum.py)
+#### Aggregate Function Example [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pycumsum.py)
 
 `pycumsum` uses numpy to calculate the cumulative sum of all data in the input column.
 <details>
 <summary>pycumsum.py</summary>
 
-```c
-{{#include test/cases/25-UDFs/sh/pycumsum.py}}
+```python
+{{#include test/cases/12-UDFs/sh/pycumsum.py}}
 ```
 
 </details>

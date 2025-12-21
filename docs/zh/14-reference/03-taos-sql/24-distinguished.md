@@ -40,14 +40,14 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## 窗口切分查询
 
-TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）、事件窗口（event window）、计数窗口（count window）五种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
+TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（state window）、会话窗口（session window）、事件窗口（event window）、计数窗口（count window）五种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
 
 窗口子句语法如下：
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -68,7 +68,7 @@ window_clause: {
   - _wstart 伪列、_wend 伪列和_wduration 伪列。
   - 聚集函数（包括选择函数和可以由参数确定输出行数的时序特有函数）。
   - 包含上面表达式的表达式。
-  - 且至少包含一个聚集函数。
+  - 且至少包含一个聚集函数 (3.4.0.0 之后不再有该限制)。
 - 窗口子句不可以和 GROUP BY 子句一起使用。
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
 
@@ -112,13 +112,13 @@ INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗
 
 INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用。以下 SQL 语句非法：
 
-```
+```sql
 SELECT * FROM temp_tb_1 INTERVAL(1m);
 ```
 
 SLIDING 的向前滑动的时间不能超过一个窗口的时间范围。以下语句非法：
 
-```
+```sql
 SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 ```
 
@@ -145,31 +145,100 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 ### 状态窗口
 
-使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。如下图所示，根据状态量确定的状态窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12] 两个。
+使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭，NULL 不会触发窗口关闭。如下图所示，根据状态量确定的状态窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12] 两个。
 
 ![TDengine TSDB Database 状态窗口示意图](./pic/state_window.png)
 
 使用 STATE_WINDOW 来确定状态窗口划分的列。例如
 
-```
+```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
 仅关心 status 为 2 时的状态窗口的信息。例如
 
-```
+```sql
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
 TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。例如，智能电表的电压正常范围是 205V 到 235V，那么可以通过监控电压来判断电路是否正常。
 
-```
+```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
+```
+
+Extend 参数可以设置窗口开始结束时的扩展策略，可选值为 0（默认值）、1、2。
+
+- 默认情况下，窗口开始、结束时间为该状态的第一条和最后一条数据对应的时间戳；
+- extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；
+- extend 值为 2 值窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
+
+全部查询数据起始位置状态值为 NULL 的数据将被包含在第一个窗口中，同样全部查询数据尾部状态值为 NULL 的数据将被包含在最后一个窗口中。以如下数据为例
+
+```sql
+taos> select * from state_window_example;
+           ts            |   status    |
+========================================
+ 2025-01-01 00:00:00.000 | NULL        |
+ 2025-01-01 00:00:01.000 |           1 |
+ 2025-01-01 00:00:02.000 | NULL        |
+ 2025-01-01 00:00:03.000 |           1 |
+ 2025-01-01 00:00:04.000 | NULL        |
+ 2025-01-01 00:00:05.000 |           2 |
+ 2025-01-01 00:00:06.000 |           2 |
+ 2025-01-01 00:00:07.000 |           1 |
+ 2025-01-01 00:00:08.000 | NULL        |
+```
+
+当 `extend` 值为 0 时
+
+```sql
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:05.000 |                  1000 | 2025-01-01 00:00:06.000 |                     2 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
+当 `extend` 值为 1 时
+
+```sql
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 1);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  4999 | 2025-01-01 00:00:04.999 |                     5 |
+ 2025-01-01 00:00:05.000 |                  1999 | 2025-01-01 00:00:06.999 |                     2 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
+当 `extend` 值为 2 时
+
+```sql
+select _wstart, _wduration, _wend, count(*) from state_window_test state_window(status, 2);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
+ 2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
+Zeroth_state 指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
+仍以相同数据为例
+
+当 `zeroth_state` 值为 `2` 时
+
+```sql
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
 状态窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个状态窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
-```
+```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
 ```
 
@@ -181,8 +250,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
 
-```
-
+```sql
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
 
@@ -207,7 +275,7 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
 
-```
+```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
 ```
 
@@ -225,19 +293,19 @@ select _wstart, _wend, count(*) from t count_window(4);
 
 ### 时间戳伪列
 
-窗口聚合查询结果中，如果 SQL 语句中没有指定输出查询结果中的时间戳列，那么最终结果中不会自动包含窗口的时间列信息。如果需要在结果中输出聚合结果所对应的时间窗口信息，需要在 SELECT 子句中使用时间戳相关的伪列：时间窗口起始时间 (\_WSTART)，时间窗口结束时间 (\_WEND)，时间窗口持续时间 (\_WDURATION)，以及查询整体窗口相关的伪列：查询窗口起始时间 (\_QSTART) 和查询窗口结束时间 (\_QEND)。需要注意的是时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间分辨率是毫秒，那么结果中 500 就表示当前时间窗口的持续时间是 500 毫秒 (500 ms)。
+窗口聚合查询结果中，如果 SQL 语句中没有指定输出查询结果中的时间戳列，那么最终结果中不会自动包含窗口的时间列信息。如果需要在结果中输出聚合结果所对应的时间窗口信息，需要在 SELECT 子句中使用时间戳相关的伪列：时间窗口起始时间 (\_WSTART)，时间窗口结束时间 (\_WEND)，时间窗口持续时间 (\_WDURATION)，以及查询整体窗口相关的伪列：查询窗口起始时间 (\_QSTART) 和查询窗口结束时间 (\_QEND)。需要注意的是，除 INTERVAL 窗口的结束时间为开区间外，其他时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间分辨率是毫秒，那么结果中 500 就表示当前时间窗口的持续时间是 500 毫秒 (500 ms)。
 
 ### 示例
 
 智能电表的建表语句如下：
 
-```
+```sql
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
 针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
 
-```
+```sql
 SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
   WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)

@@ -7,15 +7,12 @@ class TestStableCreateMt:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stable_create_mt(self):
-        """Name: basic
+        """Stable name basic
 
         1. Attempt to create stables with invalid table names, column names, and invalid data types
         2. Create a super table containing multiple tag types
         3. Create child tables and insert data
         4. Query using tags
-
-        Catalog:
-            - SuperTables:Create
 
         Since: v3.0.0.0
 

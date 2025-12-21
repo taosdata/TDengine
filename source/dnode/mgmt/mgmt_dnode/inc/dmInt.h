@@ -48,7 +48,9 @@ typedef struct SDnodeMgmt {
   SendAuditRecordsFp           sendAuditRecordsFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  SetVnodeSyncTimeoutFp        setVnodeSyncTimeoutFp;
   GetMnodeLoadsFp              getMnodeLoadsFp;
+  SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
   int32_t                      statusSeq;
   SDispatchWorkerPool          streamMgmtWorker;
@@ -68,6 +70,8 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
+int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

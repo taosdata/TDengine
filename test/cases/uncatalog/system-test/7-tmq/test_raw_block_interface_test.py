@@ -4,6 +4,7 @@ import sys
 import time
 import socket
 import os
+import platform
 import threading
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
@@ -27,7 +28,8 @@ class TestCase:
 
     def check(self):
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/write_raw_block_test'%(buildPath)
+        exe_file = 'write_raw_block_test' if platform.system().lower() != 'windows' else 'write_raw_block_test.exe'
+        cmdStr = os.path.join(buildPath, 'build', 'bin', exe_file)
         tdLog.info(cmdStr)
         retCode = os.system(cmdStr)
         # run program code from system return , 0 is success

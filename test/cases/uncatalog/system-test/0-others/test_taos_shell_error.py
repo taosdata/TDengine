@@ -1,5 +1,5 @@
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, tdDnodes, tdCom
 import taos
 import sys
 import time
@@ -41,19 +41,34 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
 
     tdLog.info ("taos cmd: %s" % taosCmd)
 
-    child = taosExpect.spawn(taosCmd, timeout=3)
-    #output = child.readline()
-    #print (output.decode())
-    if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=40)
+    # 修改：Windows下合并stdout和stderr
+    if sys.platform.startswith("win"):
+        import subprocess
+        result = subprocess.run(
+            taosCmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=True
+        )
+        retResult = result.stdout + result.stderr
+        tdLog.info("cmd return result:\n%s\n" % retResult)
+        tdLog.info("expect string: %s\n" % expectString)
+        # 判断期望字符串
+        if len(expectString) != 0 and expectString in retResult:
+            i = 0
+        else:
+            i = 1
     else:
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=40)
-
-    if platform.system().lower() == 'windows':
-        retResult = child.before
-    else:
+        child = taosExpect.spawn(taosCmd, timeout=3)
+        #output = child.readline()
+        #print (output.decode())
+        if len(expectString) != 0:
+            i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=40)
+        else:
+            i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=40)
         retResult = child.before.decode()
-    print("cmd return result:\n%s\n"%retResult)
+        print("cmd return result:\n%s\n"%retResult)
     # print(child.after.decode())
     if i == 0:
         print ('taos login success! Here can run sql, taos> ')
@@ -112,21 +127,6 @@ class TestTaosShellError:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def test_taos_shell_error(self):
         """summary: xxx
@@ -153,12 +153,16 @@ class TestTaosShellError:
         #hostname = socket.gethostname()
         #tdLog.info ("hostname: %s" % hostname)
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        if platform.system().lower() == 'windows':
+            cfgPath = buildPath + "\..\sim\psim\cfg"
+            cfgPath = cfgPath.replace('\\','\\\\')
+        else:
+            cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']
@@ -226,7 +230,7 @@ class TestTaosShellError:
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
-        keyDict['P'] = '\'3\''
+        keyDict['P'] = "3"
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
             tdLog.info("taos -P %s test success"%keyDict['P'])
@@ -240,7 +244,7 @@ class TestTaosShellError:
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
-        keyDict['P'] = '\'12ab\''
+        keyDict['P'] = "12ab"
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
             tdLog.info("taos -P %s test success"%keyDict['P'])

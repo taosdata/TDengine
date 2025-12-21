@@ -262,6 +262,10 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
 //      1. 需要把 pIter 指向迭代器的下一位，如果没有数据了，返回 NULL
 int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock);
 
+// @brief 清理数据缓存中的数据
+// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
+int32_t cleanStreamDataCache(void* pCache, int64_t groupId);
+
 // @brief 取消对读取结果的遍历
 // @note
 //      1. 调用者在使用 pIter 遍历数据时，可以用这个接口提前结束遍历，通常用于异常情况

@@ -80,6 +80,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_VND_DISABLE_WRITE:
       code = vmProcessDisableVnodeWriteReq(pMgmt, pMsg);
       break;
+    case TDMT_VND_SET_KEEP_VERSION:
+      code = vmProcessSetKeepVersionReq(pMgmt, pMsg);
+      break;
     case TDMT_VND_ALTER_HASHRANGE:
       code = vmProcessAlterHashRangeReq(pMgmt, pMsg);
       break;
@@ -91,6 +94,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_VND_ARB_HEARTBEAT:
       code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
+      break;
+    case TDMT_VND_ALTER_ELECTBASELINE:
+      code = vmProcessAlterVnodeElectBaselineReq(pMgmt, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
@@ -225,19 +231,19 @@ static int32_t vmAcquireVnodeWrapper(SVnodeMgmt *pMgt, int32_t vgId, SVnodeObj *
 }
 static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   int32_t         code = 0;
+  SMsgHead *      pHead = pMsg->pCont;
+  SVnodeObj *     pVnode = NULL;
   const STraceId *trace = &pMsg->info.traceId;
+
   if (pMsg->contLen < sizeof(SMsgHead)) {
     dGError("invalid rpc msg with no msg head at pCont. pMsg:%p, type:%s, contLen:%d", pMsg, TMSG_INFO(pMsg->msgType),
             pMsg->contLen);
     return TSDB_CODE_INVALID_MSG;
   }
 
-  SMsgHead *pHead = pMsg->pCont;
-
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
-
-  SVnodeObj *pVnode = NULL;
+  
   code = vmAcquireVnodeWrapper(pMgmt, pHead->vgId, &pVnode);
   if (code != 0) {
     dGDebug("vgId:%d, msg:%p, failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
@@ -247,6 +253,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
+      // let's put into different query processing queue. The query type is extracted during preprocessing procedure,
+      // mquery-queue for meta info query, and query-queue for ordinary users' queries.
       code = vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
       if (code) {
         dError("vgId:%d, msg:%p, preprocess query msg failed since %s", pVnode->vgId, pMsg, tstrerror(code));
@@ -440,7 +448,7 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   }
 
   pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
-  pVnode->pStreamReaderQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessStreamReaderQueue);
+  pVnode->pStreamReaderQ = tQueryAutoQWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, (FItem)vmProcessStreamReaderQueue);
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
@@ -467,9 +475,8 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   tQueryAutoQWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
   tQueryAutoQWorkerFreeQueue(&pMgmt->streamReaderPool, pVnode->pStreamReaderQ);
   tWWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
-  pVnode->pQueryQ = NULL;
-  pVnode->pFetchQ = NULL;
 
+  pVnode->pQueryQ = NULL;
   pVnode->pFetchQ = NULL;
   pVnode->pStreamReaderQ = NULL;
   dDebug("vgId:%d, queue is freed", pVnode->vgId);

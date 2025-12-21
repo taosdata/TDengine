@@ -2242,8 +2242,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     int8_t        precision = FILTER_UNIT_DATA_PRECISION(unit);
     SFilterField *fi = right;
 
-    SValueNode *var = (SValueNode *)fi->desc;
-    if (var == NULL) {
+    if (fi->desc == NULL) {
       if (!fi->data) {
         fltError("filterInitValFieldData get invalid field data : NULL");
         return TSDB_CODE_APP_ERROR;
@@ -2252,6 +2251,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == OP_TYPE_IN) {
+      // QUERY_NODE_NODE_LIST
       FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0, 0));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
@@ -2261,6 +2261,16 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       FILTER_SET_FLAG(fi->flag, FLD_DATA_IS_HASH);
 
       continue;
+    }
+
+    if ((nodeType(fi->desc) != QUERY_NODE_VALUE)) {
+      fltError("filterInitValFieldData get invalid field desc node type : %d", nodeType(fi->desc));
+      return TSDB_CODE_APP_ERROR;
+    }
+    SValueNode *var = (SValueNode *)fi->desc;
+    if (var->isNull) {
+      fltError("filterInitValFieldData get value data is null");
+      return TSDB_CODE_APP_ERROR;
     }
 
     SDataType *dType = &var->node.resType;
@@ -5655,6 +5665,7 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
     if (fmIsPseudoColumnFunc(pFunc->funcId)) {
       if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
         pCxt->hasTagCol = true;
+      } else if (fmIsPlaceHolderFunc(pFunc->funcId)) {
       } else {
         pCxt->hasOtherCol = true;
       }
@@ -5666,11 +5677,23 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
 EConditionType filterClassifyCondition(SNode *pNode) {
   SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
-  return cxt.hasOtherCol ? COND_TYPE_NORMAL
-                         : (cxt.hasPrimaryKey && cxt.hasTagCol
-                                ? COND_TYPE_NORMAL
-                                : (cxt.hasPrimaryKey ? COND_TYPE_PRIMARY_KEY
-                                                     : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX : COND_TYPE_TAG)));
+  if (cxt.hasOtherCol || (cxt.hasPrimaryKey && cxt.hasTagCol)) {
+    return COND_TYPE_NORMAL;
+  }
+
+  if (cxt.hasPrimaryKey) {
+    return COND_TYPE_PRIMARY_KEY;
+  }
+
+  if (cxt.hasTagIndexCol) {
+    return COND_TYPE_TAG_INDEX;
+  }
+
+  if (cxt.hasTagCol) {
+    return COND_TYPE_TAG;
+  }
+
+  return COND_TYPE_NORMAL;
 }
 
 int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res) {

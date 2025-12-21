@@ -24,6 +24,7 @@ set(
     "src/vnd/vnodeApi.c"
     "src/vnd/vnodeHash.c"
     "src/vnd/vnodeStream.c"
+    "src/vnd/vnodeScan.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -113,6 +114,7 @@ if(TD_VNODE_PLUGINS)
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/metaCompact.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbRollup.c
     )
 endif()
 

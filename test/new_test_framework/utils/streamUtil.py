@@ -993,7 +993,7 @@ class StreamUtil:
             sql = f"create view view{v} as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.t{v}"
             tdSql.execute(sql)
 
-    # for StreamCheckItem, see cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+    # for StreamCheckItem, see cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
     def checkAll(self, streams):
         for stream in streams:
             tdLog.info(f"stream:{stream.db} - create database, table, stream", color='blue')
@@ -1111,6 +1111,47 @@ class StreamUtil:
                 stream.check9()
 
         tdLog.info(f"total:{len(streams)} streams check successfully", color='yellow')
+
+    # get stream status
+    def getStreamStatus(self, dbname, stream):
+        tdSql.query(f"select status from information_schema.ins_streams where stream_name='{stream}' and db_name='{dbname}' ")
+        return tdSql.getData(0, 0)
+
+    #  check stream status
+    def waitStreamStatus(self, dbname, stream, status, waitSeconds = 60):
+        val = ""
+        for i in range(waitSeconds):
+            val = self.getStreamStatus(dbname, stream)
+            #print(f"i={i} {stream} current status {val} ... ")
+            if val == status:
+                return
+            time.sleep(1)
+        tdLog.exit(f"stream:{stream} expect status:{status} actual:{val}.")
+
+    # start stream
+    def startStream(self, dbname, stream):
+        sql = f"start stream {dbname}.{stream}"
+        print(sql)
+        tdSql.execute(sql)
+        self.waitStreamStatus(dbname, stream, "Running")
+
+    # stop stream
+    def stopStream(self, dbname, stream):
+        sql = f"stop stream {dbname}.{stream}"
+        print(sql)
+        tdSql.execute(sql)
+        self.waitStreamStatus(dbname, stream, "Stopped")
+
+    # drop stream
+    def dropStream(self, dbname, stream):
+        # drop
+        sql = f"drop stream {dbname}.{stream}"
+        print(sql)
+        tdSql.execute(sql)
+        # check drop ok
+        sql = f"select count(*) from information_schema.ins_streams where db_name='{dbname}' and stream_name='{stream}'"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 0)
 
 
 tdStream = StreamUtil()

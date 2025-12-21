@@ -255,7 +255,7 @@ Parameters related to supertable creation are configured in the `super_tables` s
 
 - **insert_mode**: Insertion mode, options include taosc, rest, stmt, stmt2, sml, sml-rest, corresponding to normal writing, restful interface writing, parameter binding interface writing, schemaless interface writing, restful schemaless interface writing (provided by taosAdapter). Default is taosc.
 
-- **non_stop_mode**: Specifies whether to continue writing, if "yes" then insert_rows is ineffective, writing stops only when Ctrl + C stops the program. Default is "no", i.e., stop after writing a specified number of records. Note: Even in continuous writing mode, insert_rows must still be configured as a non-zero positive integer.
+- **non_stop_mode**: Specifies whether to continue writing (this parameter only supports `interlace_rows > 0`), if "yes" then insert_rows is ineffective, writing stops only when Ctrl + C stops the program. Default is "no", i.e., stop after writing a specified number of records. Note: Even in continuous writing mode, insert_rows must still be configured as a non-zero positive integer.
 
 - **line_protocol** : Use line protocol to insert data, effective only when insert_mode is sml or sml-rest, options include line, telnet, json.
 
@@ -435,7 +435,7 @@ If the execution time of the query exceeds the interval time, it will no longer 
 #### Supertables
 
 Configuration parameters for querying supertables are set in `super_table_query`.  
-The thread mode of the super table query is the same as the `Normal Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
+The thread mode of the super table query is the same as the `General Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
 
 - **stblname** : The name of the supertable to query, required.
 - **query_interval** : Query interval, in seconds, default is 0.
@@ -468,7 +468,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
    name: Specify the topic name.
    sql:  Specify the sql statement for creating topic, Ensure that the sql is correct, and the framework will automatically create topic.
 
-For the following parameters, see the description of [Subscription](../../../advanced-features/data-subscription/):
+For the following parameters, see the description of [Subscription](../../../advanced/subscription/):
 
 - **client.id**
 - **auto.offset.reset**
@@ -501,7 +501,7 @@ For the following parameters, see the description of [Subscription](../../../adv
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
 | 19  |  DECIMAL           |    decimal
-| 20  |  BLOB              |    blob 
+| 20  |  BLOB              |    blob
 
 Note: Data types in the taosBenchmark configuration file must be in lowercase to be recognized.
 
@@ -515,7 +515,7 @@ Below are a few examples of configuration files:
 <summary>insert.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/insert.json}}
+{{#include tools/taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -526,7 +526,7 @@ Below are a few examples of configuration files:
 <summary>query.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/query.json}}
+{{#include tools/taos-tools/example/query.json}}
 ```
 
 </details>
@@ -535,7 +535,7 @@ Below are a few examples of configuration files:
 <summary>queryStb.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/queryStb.json}}
+{{#include tools/taos-tools/example/queryStb.json}}
 ```
 
 </details>
@@ -546,7 +546,7 @@ Below are a few examples of configuration files:
 <summary>tmq.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/tmq.json}}
+{{#include tools/taos-tools/example/tmq.json}}
 ```
 
 </details>
@@ -557,7 +557,7 @@ Below are a few examples of configuration files:
 <summary>csv-export.json</summary>
 
 ```json
-{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
+{{#include tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

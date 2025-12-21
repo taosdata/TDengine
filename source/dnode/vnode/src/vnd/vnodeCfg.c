@@ -140,7 +140,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
       TAOS_CHECK_RETURN(tjsonAddItemToArray(pNodeRetentions, pNodeRetention));
     }
   }
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgr));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "tsdb.encryptAlgrName", pCfg->tsdbCfg.encryptData.encryptAlgrName));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.vgId", pCfg->walCfg.vgId));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod));
@@ -149,8 +150,10 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.clearFiles", pCfg->walCfg.clearFiles));
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm));
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgr));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "wal.encryptAlgrName", pCfg->walCfg.encryptData.encryptAlgrName));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgr));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "tdbEncryptAlgrName", pCfg->tdbEncryptData.encryptAlgrName));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd));
@@ -166,6 +169,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntables", pCfg->vndStats.numOfNTables));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs));
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) {
@@ -261,14 +265,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit, code);
     if (code) return code;
   }
-  tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm, code);
+  tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgr, code);
   if (code) return code;
+  code = tjsonGetStringValue(pJson, "tsdb.encryptAlgrName", pCfg->tsdbCfg.encryptData.encryptAlgrName);
+  if (code) return code;
+  if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 && pCfg->tsdbCfg.encryptData.encryptAlgrName[0] == '\0') {
+    tstrncpy(pCfg->tsdbCfg.encryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
+  if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 || pCfg->tsdbCfg.encryptData.encryptAlgrName[0] != '\0') {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -288,25 +297,35 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "wal.clearFiles", pCfg->walCfg.clearFiles, code);
   if (code) return code;
-  tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm, code);
+  tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgr, code);
   if (code) return code;
+  code = tjsonGetStringValue(pJson, "wal.encryptAlgrName", pCfg->walCfg.encryptData.encryptAlgrName);
+  if (code) return code;
+  if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 && pCfg->walCfg.encryptData.encryptAlgrName[0] == '\0') {
+    tstrncpy(pCfg->walCfg.encryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (pCfg->walCfg.encryptAlgorithm == DND_CA_SM4) {
+  if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 || pCfg->walCfg.encryptData.encryptAlgrName[0] != '\0') {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
-  tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm, code);
+  tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgr, code);
   if (code) return code;
+  code = tjsonGetStringValue(pJson, "tdbEncryptAlgrName", pCfg->tdbEncryptData.encryptAlgrName);
+  if (code) return code;
+  if (pCfg->tdbEncryptAlgr == DND_CA_SM4 && pCfg->tdbEncryptData.encryptAlgrName[0] == '\0') {
+    tstrncpy(pCfg->tdbEncryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
+  if (pCfg->tdbEncryptData.encryptAlgrName[0] != '\0') {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tdbEncryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -341,6 +360,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries, code);
   if (code) return code;
   tjsonGetNumberValue(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries, code);
+  if (code) return code;
+  tjsonGetNumberValue(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs, code);
   if (code) return code;
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");

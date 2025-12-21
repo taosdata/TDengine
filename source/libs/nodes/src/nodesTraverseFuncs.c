@@ -266,6 +266,31 @@ void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContex
   res = walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
+static void markOpLeftAndRightAsParam(SOperatorNode* pOp) {
+  if (NULL != pOp->pLeft) {
+    if (nodeType(pOp->pLeft) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pOp->pLeft)->node.asParam = true;
+    }
+    if (nodeType(pOp->pLeft) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pOp->pLeft)->node.asParam = true;
+    }
+    if (nodeType(pOp->pLeft) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pOp->pLeft)->node.asParam = true;
+    }
+  }
+  if (NULL != pOp->pRight) {
+    if (nodeType(pOp->pRight) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pOp->pRight)->node.asParam = true;
+    }
+    if (nodeType(pOp->pRight) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pOp->pRight)->node.asParam = true;
+    }
+    if (nodeType(pOp->pRight) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pOp->pRight)->node.asParam = true;
+    }
+  }
+}
+
 static void checkParamIsFunc(SFunctionNode* pFunc) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   for (int32_t i = 0; i < numOfParams; ++i) {
@@ -307,6 +332,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+      markOpLeftAndRightAsParam(pOpNode);
       res = rewriteExpr(&(pOpNode->pLeft), order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pOpNode->pRight), order, rewriter, pContext);
@@ -351,6 +377,12 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pState->pTrueForLimit, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pState->pExtend, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pState->pZeroth, order, rewriter, pContext);
       }
       break;
     }

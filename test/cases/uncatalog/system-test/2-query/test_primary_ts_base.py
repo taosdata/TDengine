@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import random
 
 import time
@@ -21,21 +21,6 @@ class TestPrimaryTsBase:
         self.testcasePath = os.path.split(__file__)[0]
         self.testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def dropandcreateDB_primary_key(self,database,once_insert_num,updata_num=1,dropdb='yes',insertdata='yes',deletedata='yes'): #fixed
         tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))

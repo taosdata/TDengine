@@ -27,7 +27,7 @@ from .sql import tdSql
 TAOS = "taos"
 TAOSDUMP = "taosdump"
 TAOSBENCHMARK = "taosBenchmark"
-TAOSADAPTER = "taosAdapter"
+TAOSADAPTER = "taosadapter"
 
 # taos
 def taosFile():
@@ -123,7 +123,7 @@ def curFile(fullPath, filename):
     Returns:
         str: The full path to the file in the current directory.
     """
-    return os.path.dirname(fullPath) + "/" + filename
+    return os.path.join(os.path.dirname(fullPath), filename)
 
 
 # run build/bin file
@@ -195,3 +195,18 @@ def taosdump(command, show = True, checkRun = True, retFail = True):
 
 def benchmark(command, show = True, checkRun = True, retFail = True):
     return runBinFile(TAOSBENCHMARK, command, show, checkRun, retFail)        
+
+def getFilePath(base_dir, *parts):
+    """
+    Get the full path to a file, ensuring compatibility with Windows paths.
+    
+    Args:
+        *parts (str): The parts of the file path.
+        
+    Returns:
+        str: The full path to the file.
+    """
+    file_path = os.path.join(os.path.dirname(base_dir), *parts)
+    if platform.system().lower() == 'windows':
+        file_path = file_path.replace("\\", "\\\\")
+    return file_path

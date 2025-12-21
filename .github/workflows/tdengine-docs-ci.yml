@@ -53,20 +53,30 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: AutoCorrect
+        id: autocorrect
         uses: huacnlee/autocorrect-action@v2
         with:
           args: --lint docs/zh/* docs/en/*
         continue-on-error: true
+        
       - name: Report ReviewDog
-        if: failure() && steps.autocorrect.conclusion == 'failure'
+        if: always() && steps.autocorrect.outcome == 'failure'
         uses: tomchon/autocorrect-action@fix/review-dog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           reviewdog: true
           args: ./docs/zh/*  ./docs/en/*  **/*.md
+      
+      - name: Fail if AutoCorrect found issues
+        if: steps.autocorrect.outcome == 'failure'
+        run: |
+          echo "❌ AutoCorrect found formatting issues"
+          exit 1
 
   check-with-markdownlint:
     runs-on: ubuntu-latest
@@ -89,6 +99,7 @@ jobs:
         with:
           config: 'docs/.markdownlint-cli2.jsonc'
           globs: ${{ steps.changed-files.outputs.all_changed_files }}
+          separator: ','
 
   build-doc:
     runs-on:
@@ -158,6 +169,7 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
           rm -rf docs/* && git restore docs/ 
           git checkout -f master && git pull origin master 
+          yarn install 
           yarn ass local
           yarn build
       - name: Build the english document
@@ -166,5 +178,6 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           rm -rf docs/* && git restore docs/
           git checkout -f main && git pull origin main 
+          yarn install 
           yarn ass local
           yarn build

@@ -28,7 +28,9 @@ extern "C" {
 
 #define STREAM_MAX_GROUP_NUM  5
 #define STREAM_MAX_THREAD_NUM 5
-#define STREAM_RETURN_ROWS_NUM 4096
+#define STREAM_RETURN_ROWS_NUM  4096
+#define STREAM_RETURN_BLOCK_NUM 4096
+// #define STREAM_RETURN_ROWS_NUM_NEW 1000000
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
 
@@ -42,18 +44,7 @@ extern "C" {
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
-#define STREAM_CALC_REQ_MAX_WIN_NUM 4096
-
-
-typedef enum EStreamTriggerType {
-  STREAM_TRIGGER_PERIOD = 0,
-  STREAM_TRIGGER_SLIDING,  // sliding is 1 , can not change, because used in doOpenExternalWindow
-  STREAM_TRIGGER_SESSION,
-  STREAM_TRIGGER_COUNT,
-  STREAM_TRIGGER_STATE,
-  STREAM_TRIGGER_EVENT,
-} EStreamTriggerType;
-
+#define STREAM_CALC_REQ_MAX_WIN_NUM 40960
 
 typedef struct SStreamReaderTask {
   SStreamTask task;
@@ -78,10 +69,10 @@ typedef struct SStreamRunnerTaskExecution {
   SStreamRuntimeInfo runtimeInfo;
   char               tbname[TSDB_TABLE_NAME_LEN];
   void              *pSinkHandle;
+  SSDataBlock       *pOutBlock;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
-  struct SSDataBlock *pBlock;
   char                outDbFName[TSDB_DB_FNAME_LEN];
   char                outSTbName[TSDB_TABLE_NAME_LEN];
   int8_t              outTblType;
@@ -89,14 +80,13 @@ typedef struct SStreamRunnerTaskOutput {
   SArray             *outTags;  // array of SFieldWithOptions
   uint64_t            outStbUid;
   int32_t             outStbVersion;
-  SNodeList           *pTagValExprs;
+  SNodeList          *pTagValExprs;
 } SStreamRunnerTaskOutput;
 
 typedef struct SStreamRunnerTaskNotification {
   int8_t calcNotifyOnly;
   // notify options
   SArray* pNotifyAddrUrls;
-  int32_t notifyErrorHandle;
 } SStreamRunnerTaskNotification;
 
 typedef struct SStreamRunnerTaskExecMgr {
@@ -104,6 +94,7 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pRunningExecs;
   TdThreadMutex lock;
   bool          lockInited;
+  int32_t       execBuildNum;
 } SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamTagInfo {
@@ -124,7 +115,11 @@ typedef struct SStreamRunnerTask {
   void                         *pSubTableExpr;
   SArray                       *forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
+  bool                          lowLatencyCalc;
+  int8_t                        vtableDeployGot;
   char                         *streamName;
+  int32_t                       addOptions;
+  int64_t                       mgmtReqId;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {
@@ -183,26 +178,18 @@ typedef struct SStreamCacheReadInfo {
     goto end;                                 \
   }
 
-#define STREAM_PRINT_LOG_END(code, lino)                                              \
+#define STREAM_PRINT_LOG_END(code, lino)                                       \
   if (code != 0) {                                                             \
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
   } else {                                                                     \
     stDebug("%s done success", __func__);                                      \
   }
 
-#define STREAM_PRINT_LOG_END_WITHID(code, lino)                                              \
-  if (sStreamReaderInfo) {                                                              \
-    if (code != 0) {                                                             \
-      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
-    } else {                                                                     \
-      ST_TASK_DLOG("%s done success", __func__);                                      \
-    }                                                                                 \
-  } else {                                                                            \
-    if (code != 0) {                                                             \
-      stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
-    } else {                                                                     \
-      stDebug("%s done success", __func__);                                      \
-    }                                                                                 \
+#define STREAM_PRINT_LOG_END_WITHID(code, lino)                                     \
+  if (code != 0) {                                                                  \
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+  } else {                                                                          \
+    ST_TASK_DLOG("%s done success", __func__);                                      \
   }
 
 // clang-format off
@@ -286,6 +273,7 @@ void    streamDeleteAllCheckpoints();
 void    smUndeploySnodeTasks(bool cleanup);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
+int32_t stTriggerTaskGetDelay(SStreamTask *pTask, int64_t *pDelay, bool *pFillHisFinished);
 
 #ifdef __cplusplus
 }

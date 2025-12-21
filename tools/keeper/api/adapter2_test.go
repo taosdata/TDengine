@@ -2,12 +2,18 @@ package api
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
@@ -157,5 +163,133 @@ func Test_adapterTableSql(t *testing.T) {
 		} else {
 			assert.NoError(t, err)
 		}
+	}
+}
+
+func TestAdapter_tableName(t *testing.T) {
+	a := &Adapter{}
+	endpoint := strings.Repeat("x", util.MAX_TABLE_NAME_LEN)
+
+	gotRest := a.tableName(endpoint, rest)
+	sumRest := md5.Sum([]byte(fmt.Sprintf("%s%d", endpoint, rest)))
+	wantRest := fmt.Sprintf("adapter_req_%s", hex.EncodeToString(sumRest[:]))
+	assert.Equal(t, wantRest, gotRest)
+
+	gotWS := a.tableName(endpoint, ws)
+	sumWS := md5.Sum([]byte(fmt.Sprintf("%s%d", endpoint, ws)))
+	wantWS := fmt.Sprintf("adapter_req_%s", hex.EncodeToString(sumWS[:]))
+	assert.Equal(t, wantWS, gotWS)
+
+	assert.NotEqual(t, gotRest, gotWS)
+}
+
+func TestAdapter_handleFunc_NoConnection_Returns500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Adapter{conn: nil}
+	r.POST("/adapter_report", a.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/adapter_report", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "1")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusInternalServerError)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
+	}
+	if body["error"] != "no connection" {
+		t.Fatalf(`error=%q, want "no connection"`, body["error"])
+	}
+}
+
+type badReader struct{ err error }
+
+func (b badReader) Read(p []byte) (int, error) { return 0, b.err }
+
+func TestAdapter_handleFunc_GetRawDataError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Adapter{conn: &db.Connector{}}
+	r.POST("/adapter_report", a.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/adapter_report", badReader{err: errors.New("boom")})
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
+	}
+	if body["error"] != "get adapter report data error. boom" {
+		t.Fatalf("error=%q, want %q", body["error"], "get adapter report data error. boom")
+	}
+}
+
+func TestAdapter_handleFunc_TraceReceiveData_LogsWhenEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	a := &Adapter{conn: &db.Connector{}}
+	r.POST("/adapter_report", a.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/adapter_report", strings.NewReader(`{`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestAdapter_handleFunc_ParseError_ReturnsBadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	a := &Adapter{conn: &db.Connector{}}
+	r.POST("/adapter_report", a.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/adapter_report", strings.NewReader(`{`)) // invalid JSON
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "1")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+	if !strings.HasPrefix(body["error"], "parse adapter report data error: ") {
+		t.Fatalf("error prefix mismatch, got %q", body["error"])
+	}
+}
+
+func TestAdapter_createTable_NoConnection_ReturnsErrNoConnection(t *testing.T) {
+	a := &Adapter{conn: nil}
+
+	err := a.createTable()
+	if !errors.Is(err, errNoConnection) {
+		t.Fatalf("expected errNoConnection, got %v", err)
 	}
 }

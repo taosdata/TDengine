@@ -11,7 +11,7 @@ toc_max_heading_level: 4
 
 这些时序数据是周期、准周期产生的，或事件触发产生的，有的采集频率高，有的采集频率低。一般被发送至服务器进行汇总并进行实时分析和处理，对系统的运行做出实时监测或预警，对股市行情进行预测。这些数据也可以被长期保存下来，用以进行离线数据分析。比如统计时间区间内设备的运行节奏与产出，分析如何进一步优化配置来提升生产效率；统计一段时间内生产过程中的成本分布，分析如何降低生产成本；统计一段时间内的设备异常值，结合业务分析潜在的安全隐患，以降低故障时长等等。
 
-过去的二十年，随着数据通讯成本的急剧下降，以及各种传感技术和智能设备的出现，特别是物联网与工业 4.0 的推动，工业、物联网企业为了监测设备、环境、生产线及整个系统的运行状态，在各个关键点都配有传感器，采集各种数据。从手环、共享出行、智能电表、环境监测设备到电梯、数控机床、挖掘机、工业生产线等都在源源不断的产生海量的实时数据，时序数据的体量正指数级的增长。以智能电表为例，智能电表每隔 15 分钟采集一次数据，每天会自动生成 96 条记录。现在全中国已经有超过 10 亿台智能电表，一天就产生 960 亿条时序数据。一台联网的汽车往往每隔 10 到 15 秒采集一次数据发到云端，那么一天下来就很容易产生 1000 条记录。假设中国有 2 亿车辆联网，它们每天将产生总计 2000 亿条甚至更多的时序数据。
+过去的二十年，随着数据通讯成本的急剧下降，以及各种传感技术和智能设备的出现，特别是物联网与工业 4.0 的推动，工业、物联网企业为了监测设备、环境、生产线及整个系统的运行状态，在各个关键点都配有传感器，采集各种数据。从手环、共享出行、智能电表、环境监测设备到电梯、数控机床、挖掘机、工业生产线等都在源源不断的产生海量的实时数据，时序数据的体量正指数级的增长。以智能电表为例，智能电表每隔 15 分钟采集一次数据，每天会自动生成 96 条记录。现在全中国已经有超过 10 亿台智能电表，一天就产生 960 亿条时序数据。一台联网的汽车往往每隔 10 到 15 秒采集一次数据发到云端，那么一天下来就很容易产生 6000 条记录。假设中国有 2 亿车辆联网，它们每天将产生总计 12000 亿条甚至更多的时序数据。
 
 由于数据量指数级的增长，而且对分析和实时计算的需求越来越多，特别是在人工智能的时代，传统的时序数据处理工具难以满足需求，对每天高达 10TB 级别的海量时序大数据如何进行实时的存储、分析和计算，成为一个技术挑战，因此海量时序大数据的高效处理在过去的十年获得全球工业界的高度关注。
 
@@ -136,3 +136,29 @@ toc_max_heading_level: 4
 18. 需要支持私有化部署。因为很多企业出于安全以及各种因素的考虑，希望采用私有化部署。而传统的企业往往没有很强的 IT 运维团队，因此在安装、部署、运维等方面需要做到简单、快捷，可维护性强。
 
 总之，时序大数据平台应具备高效、可扩展、实时、可靠、灵活、开放、简单、易维护等特点。近年来，众多企业纷纷将时序数据从传统大数据平台或关系型数据库迁移到专用时序大数据平台，以保障海量时序数据得到快速和有效处理，支撑相关业务的持续增长。
+
+## 时序数据库基础知识
+
+为便于大家进一步了解时序数据库，在此收集整理了相关内容的文章，欢迎大家收藏阅读。
+
+1. 时序数据库与关系型数据库、NoSQL 等通用数据库有何不同？点击[什么是时序数据库（TSDB）？我们为什么需要时序数据库？](https://www.taosdata.com/tdengine/time-series-database/what-is-a-time-series-database)，了解相关内容。
+
+2. 什么是时序数据？为什么不建议使用通用大数据架构来处理时序数据？点击[时间序列数据的特点](https://www.taosdata.com/tdengine/time-series-database/characteristics-of-time-series-data)，了解相关内容。
+
+3. 近两年，时序数据库成为流行度最高的数据库，在过去的 10 年里，至少有 20 个新的时序数据库发布，那么，如何做好时序数据库的选型？点击[如何选择一款最佳的时序数据库](https://www.taosdata.com/tdengine/time-series-database/how-to-choose-the-best-time-series-database)，了解相关内容。
+
+4. 数据模型是数据库系统的核心，不同的时序数据库采用不同的数据模型。那么，InfluxDB 和 TDengine 等市场上领先的实时数据库使用的数据模型有何不同？点击[数据模型对比之 InfluxDB vs TDengine](https://www.taosdata.com/tdengine/time-series-database/data-model-comparisons-between-time-series-databases)，了解相关内容。
+
+5. 数据集的高基数（High-Cardinality）问题一直困扰着诸多主流的时序数据库产品。TDengine 3.0 是第一个解决了高基数问题的时序数据库。其设计思路是什么？点击[TDengine 3.0 是如何解决时序数据库中的高基数问题的？](https://www.taosdata.com/tdengine/time-series-database/high-cardinality-in-time-series-data)，了解相关内容。
+
+6. TDengine 发布了基于 TSBS 标准数据集时序数据库 InfluxDB 与 TDengine 的性能对比测试报告，从写入、查询、磁盘空间等三个角度，对 InfluxDB 和 TDengine 进行了全方位的对比，详细分析报告如下：
+
+    - [时序数据库写入性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-write-performance)
+    - [时序数据库查询性能对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-queries-performance)
+    - [时序数据库磁盘空间占用对比：InfluxDB vs. TDengine](https://www.taosdata.com/influxdb-vs-tdengine-diskusage)
+
+7. TDengine 发布了基于 TSBS 标准数据集时序数据库 TimescaleDB 与 TDengine 的性能对比测试报告，从写入、查询、磁盘空间等三个角度，对 TimescaleDB 和 TDengine 进行了全方位的对比，详细分析报告如下：
+
+    - [时序数据库写入性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-write-performance)
+    - [时序数据库查询性能对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-queries-performance)
+    - [时序数据库磁盘空间占用对比：TimescaleDB vs. TDengine](https://www.taosdata.com/timescaledb-vs-tdengine-diskusage)

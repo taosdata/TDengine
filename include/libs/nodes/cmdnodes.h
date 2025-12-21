@@ -24,6 +24,7 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 #include "tdef.h"
+#include "tglobal.h"
 
 #define DESCRIBE_RESULT_COLS               4
 #define DESCRIBE_RESULT_COLS_COMPRESS      7
@@ -40,11 +41,15 @@ extern "C" {
 
 #define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
+// Use tsMaxSQLLength * 3 for buffer size to accommodate CREATE TABLE statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength * 3))
 
 #define SHOW_CREATE_VIEW_RESULT_COLS       2
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
+// Use tsMaxSQLLength + header for buffer size to accommodate CREATE VIEW statement
+// Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
@@ -56,6 +61,10 @@ extern "C" {
 #define COMPACT_DB_RESULT_COLS       3
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
 #define COMPACT_DB_RESULT_FIELD3_LEN 128
+
+#define SCAN_DB_RESULT_COLS       3
+#define SCAN_DB_RESULT_FIELD1_LEN 32
+#define SCAN_DB_RESULT_FIELD3_LEN 128
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
@@ -74,9 +83,11 @@ extern "C" {
 #define EVENT_WINDOW_CLOSE BIT_FLAG_MASK(0)
 #define EVENT_WINDOW_OPEN  BIT_FLAG_MASK(1)
 
-#define NOTIFY_NONE             0
-#define NOTIFY_HISTORY          BIT_FLAG_MASK(0)
-#define NOTIFY_ON_FAILURE_PAUSE BIT_FLAG_MASK(1)
+#define NOTIFY_NONE              0
+#define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
+#define NOTIFY_ON_FAILURE_PAUSE  BIT_FLAG_MASK(1)
+#define NOTIFY_HAS_FILTER        BIT_FLAG_MASK(2)
+#define CALC_SLIDING_OVERLAP     BIT_FLAG_MASK(3)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;
@@ -88,7 +99,7 @@ typedef struct SDatabaseOptions {
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
   char        dnodeListStr[TSDB_DNODE_LIST_LEN];
-  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
+  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGR_NAME_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
   int32_t     maxRowsPerBlock;
@@ -135,6 +146,7 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
+  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -184,7 +196,22 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
   bool      metaOnly;
+  bool      force;
 } SCompactDatabaseStmt;
+
+typedef struct SRollupDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SRollupDatabaseStmt;
+
+typedef struct SScanDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SScanDatabaseStmt;
 
 typedef struct SCreateMountStmt {
   ENodeType type;
@@ -207,7 +234,24 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pStart;
   SNode*     pEnd;
   bool       metaOnly;
+  bool       force;
 } SCompactVgroupsStmt;
+
+typedef struct SRollupVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SRollupVgroupsStmt;
+
+typedef struct SScanVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SScanVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType   type;
@@ -366,37 +410,131 @@ typedef struct SAlterTableMultiStmt {
   SNodeList* pNodeListTagValue;
 } SAlterTableMultiStmt;
 
+
+// ip range for user options
+typedef struct SIpRangeNode{
+  ENodeType type;
+  SIpRange range;
+} SIpRangeNode;
+
+
+// date time range for user options
+typedef struct SDateTimeRangeNode {
+  ENodeType type;
+  SDateTimeRange range;
+} SDateTimeRangeNode;
+
+
+typedef struct SUserOptions {
+  ENodeType type;
+
+  bool hasPassword;
+  bool hasTotpseed;
+  bool hasEnable;
+  bool hasSysinfo;
+  bool hasIsImport;
+  bool hasCreatedb;
+  bool hasChangepass;
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
+  char   password[TSDB_USER_PASSWORD_LONGLEN];
+  char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+  int8_t enable;
+  int8_t sysinfo;
+  int8_t isImport;
+  int8_t createdb;
+  int8_t changepass;
+  int32_t sessionPerUser;
+  int32_t connectTime;
+  int32_t connectIdleTime;
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;
+  int32_t passwordReuseTime;
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;
+  int32_t passwordGraceTime;
+  int32_t inactiveAccountTime;
+  int32_t allowTokenNum;
+
+  SNodeList* pIpRanges;
+  SNodeList* pDropIpRanges;  // only for alter user
+  SNodeList* pTimeRanges;
+  SNodeList* pDropTimeRanges;  // only for alter user
+
+} SUserOptions;
+
 typedef struct SCreateUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
-  char      password[TSDB_USET_PASSWORD_LONGLEN];
-  int8_t    sysinfo;
-  int8_t    createDb;
-  int8_t    isImport;
+  char      password[TSDB_USER_PASSWORD_LONGLEN];
+  char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+
+  int8_t ignoreExisting;
+  int8_t sysinfo;
+  int8_t createDb;
+  int8_t isImport;
+  int8_t changepass;
+  int8_t enable;
+
+  int32_t sessionPerUser;
+  int32_t connectTime;
+  int32_t connectIdleTime;
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;
+  int32_t passwordReuseTime;
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;
+  int32_t passwordGraceTime;
+  int32_t inactiveAccountTime;
+  int32_t allowTokenNum;
+
   int32_t   numIpRanges;
   SIpRange* pIpRanges;
 
-  SNodeList* pNodeListIpRanges;
+  int32_t         numTimeRanges;
+  SDateTimeRange* pTimeRanges;
 } SCreateUserStmt;
 
-typedef struct SAlterUserStmt {
+typedef struct SCreateEncryptAlgrStmt {
   ENodeType type;
-  char      userName[TSDB_USER_LEN];
-  int8_t    alterType;
-  char      password[TSDB_USET_PASSWORD_LONGLEN];
-  int8_t    enable;
-  int8_t    sysinfo;
-  int8_t    createdb;
-  int32_t   numIpRanges;
-  SIpRange* pIpRanges;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  char      algrType[TSDB_ENCRYPT_ALGR_TYPE_LEN];
+  char      osslAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SCreateEncryptAlgrStmt;
 
-  SNodeList* pNodeListIpRanges;
+typedef struct SAlterUserStmt {
+  ENodeType   type;
+  char        userName[TSDB_USER_LEN];
+  SUserOptions* pUserOptions;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
+
+typedef struct SDropEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SDropEncryptAlgrStmt;
 
 typedef struct SCreateDnodeStmt {
   ENodeType type;
@@ -609,6 +747,14 @@ typedef struct SShowCreateViewStmt {
   void*     pViewMeta;
 } SShowCreateViewStmt;
 
+typedef struct SShowCreateRsmaStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+  void*     pRsmaMeta;  // SRsmaInfoRsp;
+  void*     pTableCfg;  // STableCfg
+} SShowCreateRsmaStmt;
+
 typedef struct SShowTableDistributedStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -643,10 +789,25 @@ typedef struct SShowCompactsStmt {
   ENodeType type;
 } SShowCompactsStmt;
 
+typedef struct SShowScansStmt {
+  ENodeType type;
+} SShowScansStmt;
+
 typedef struct SShowCompactDetailsStmt {
   ENodeType type;
-  SNode*    pCompactId;
+  SNode*    pId;
 } SShowCompactDetailsStmt;
+
+typedef SShowCompactDetailsStmt SShowRetentionDetailsStmt;
+
+typedef struct SShowScanDetailsStmt {
+  ENodeType type;
+  SNode*    pScanId;
+} SShowScanDetailsStmt;
+
+typedef struct SShowSsMigratesStmt {
+  ENodeType type;
+} SShowSsMigratesStmt;
 
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
@@ -708,6 +869,7 @@ typedef struct SCreateTopicStmt {
   int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
+  bool      reload;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
@@ -871,6 +1033,17 @@ typedef struct SBalanceVgroupLeaderStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SBalanceVgroupLeaderStmt;
 
+typedef struct SSetVgroupKeepVersionStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int64_t   keepVersion;
+} SSetVgroupKeepVersionStmt;
+
+typedef struct STrimDbWalStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_FNAME_LEN];
+} STrimDbWalStmt;
+
 typedef struct SMergeVgroupStmt {
   ENodeType type;
   int32_t   vgId1;
@@ -918,6 +1091,32 @@ typedef struct SDropTSMAStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
+
+typedef struct SCreateRsmaStmt {
+  ENodeType  type;
+  bool       ignoreExists;
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList* pFuncs;
+  SNodeList* pIntervals;
+} SCreateRsmaStmt;
+
+typedef struct SDropRsmaStmt {
+  ENodeType type;
+  bool      ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+} SDropRsmaStmt;
+
+typedef struct SAlterRsmaStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreNotExists;
+  int8_t     alterType;
+  SNodeList* pFuncs;
+} SAlterRsmaStmt;
 
 #ifdef __cplusplus
 }

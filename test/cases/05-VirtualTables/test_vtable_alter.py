@@ -398,7 +398,7 @@ class TestVtableAlter():
         tdSql.checkData(0, 0, "NCHAR(64)")
 
     def test_alter_virtual_super_table_and_create_child(self):
-        """Alter: virtual super table then create child table
+        """Alter: virtual stable create child table
 
         1. add column
         2. drop column
@@ -507,4 +507,9 @@ class TestVtableAlter():
 
         # 3.4. add tag with decimal type
         tdSql.error("alter stable vtb_virtual_stb add tag extra_decimal_tag decimal(38,38)")
+
+        # 3.5 drop virtual child table's origin table and create a new origin table with same name but different column type
+        tdSql.execute("drop table vtb_org_child_10")
+        tdSql.execute("create table vtb_org_child_10(ts timestamp, bool_col float)")
+        tdSql.error("select * from vtb_virtual_stb")
 

@@ -7,11 +7,8 @@ slug: /tdengine-reference/client-libraries/rust
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-
-import Preparation from "../../assets/resources/_preparation.mdx"
+import Preparation from "../../assets/resources/_preparation.mdx";
 import RequestId from "../../assets/resources/_request_id.mdx";
-
-[![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` is the official Rust language connector for TDengine. Rust developers can use it to develop applications that access the TDengine database.
 
@@ -56,7 +53,7 @@ match conn.exec(sql) {
 }
 ```
 
-The error code of the error message can be referred to: [Error Codes](../../error-codes/)
+For specific error codes, please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 

@@ -42,8 +42,8 @@ typedef enum {
 } EJobTaskType;
 
 typedef enum {
-  TASK_TYPE_PERSISTENT = 1,
-  TASK_TYPE_TEMP,
+  TASK_TYPE_HQUERY = 1,
+  TASK_TYPE_QUERY,
 } ETaskType;
 
 typedef enum {
@@ -154,6 +154,9 @@ typedef struct SViewMeta {
   int32_t  numOfCols;
   SSchema* pSchema;
 } SViewMeta;
+
+typedef SRsmaInfoRsp SRsmaMeta;
+typedef SRsmaMeta SRsmaMetaOutput;
 
 typedef struct SDBVgInfo {
   int32_t vgVersion;
@@ -276,6 +279,7 @@ typedef struct STableColsData {
 
 typedef struct STableVgUid {
   uint64_t uid;
+  uint64_t suid;
   int32_t  vgid;
 } STableVgUid;
 
@@ -401,7 +405,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput* pOut, SUseDbRsp* usedbRsp);
 void initQueryModuleMsgHandle();
 
 const SSchema* tGetTbnameColumnSchema();
-bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
+bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual);
 int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
@@ -428,7 +432,7 @@ void tFreeStreamVtbVtbInfo(void* param);
 void tFreeStreamVtbDbVgInfo(void* param);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
-                                          void* (*mallocFp)(int64_t));
+                                          void* (*mallocFp)(int64_t), void (*freeFp)(void*));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
 
 void* getTaskPoolWorkerCb();

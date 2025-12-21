@@ -23,6 +23,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tmsg.h"
+#include "tmsg.h"
 
 #ifdef USE_ANALYTICS
 
@@ -77,7 +78,7 @@ typedef struct SForecastOperatorInfo {
   SForecastSupp forecastSupp;
 } SForecastOperatorInfo;
 
-static void destroyForecastInfo(void* param);
+static void    destroyForecastInfo(void* param);
 static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id);
 
 static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int32_t newRowsNum) {
@@ -220,6 +221,12 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
     return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
   }
 
+  if (pSupp->cachedRows < ANALY_TDTSFM_FORECAST_MIN_ROWS && strcmp(pSupp->algoName, "tdtsfm_1") == 0) {
+    qError("%s history rows for forecasting when using tdtsfm model not enough, min required:%d, current:%" PRId64, id,
+           ANALY_TDTSFM_FORECAST_MIN_ROWS, pSupp->forecastRows);
+    return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
+  }
+
   code = taosAnalyBufWriteOptInt(pBuf, "forecast_rows", pSupp->forecastRows);
   if (code != 0) return code;
 
@@ -247,9 +254,6 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
 static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       resCurRow = pBlock->info.rows;
-  int8_t        tmpI8 = 0;
-  int16_t       tmpI16 = 0;
-  int32_t       tmpI32 = 0;
   int64_t       tmpI64 = 0;
   double        tmpDouble = 0;
   int32_t       code = 0;
@@ -265,7 +269,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   SColumnInfoData* pResHighCol =
       (pSupp->resHighSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resHighSlot) : NULL);
 
-  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout);
+  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout, pId);
   if (pJson == NULL) {
     return terrno;
   }
@@ -273,26 +277,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
-    code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
-
-    char    pMsg[1024] = {0};
-    int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
-    
-    if (ret == 0) {
-      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
-      void* p = strstr(pMsg, "white noise");
-      if (p != NULL) {
-        code = TSDB_CODE_ANA_WN_DATA;
-      } else {
-        p = strstr(pMsg, "[Errno 111] Connection refused");
-        if (p != NULL) {  // the specified forecast model not loaded yet
-          code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
-        }
-      }
-    } else {
-      qError("%s failed to extract msg from server, unknown error", pId);
-    }
-
+    code = parseErrorMsgFromAnalyticServer(pJson, pId);
     tjsonDelete(pJson);
     return code;
   }
@@ -690,7 +675,7 @@ static void initForecastOpt(SForecastSupp* pSupp) {
   pSupp->maxTs = 0;
   pSupp->minTs = INT64_MAX;
   pSupp->numOfRows = 0;
-  pSupp->wncheck = ANALY_FORECAST_DEFAULT_WNCHECK;
+  pSupp->wncheck = ANALY_DEFAULT_WNCHECK;
   pSupp->forecastRows = ANALY_FORECAST_DEFAULT_ROWS;
   pSupp->conf = ANALY_FORECAST_DEFAULT_CONF;
   pSupp->setEvery = 0;
@@ -996,17 +981,17 @@ _end:
   return code;
 }
 
-static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
+static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
-  int64_t       ts = 0;  // taosGetTimestampMs();
+  int64_t       ts = taosGetTimestampNs();
   int32_t       index = 0;
 
   pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
-  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%" PRId64, tsTempDir, ts);
+  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%p-%" PRId64, tsTempDir, pSupp, ts);
 
   int32_t numOfCols = taosArrayGetSize(pSupp->pCovariateSlotList) + 2;
 
-  int32_t code = tsosAnalyBufOpen(pBuf, numOfCols);
+  int32_t code = tsosAnalyBufOpen(pBuf, numOfCols, pId);
   if (code != 0) goto _OVER;
 
   code = taosAnalyBufWriteColMeta(pBuf, index++, TSDB_DATA_TYPE_TIMESTAMP, "ts");
@@ -1103,8 +1088,7 @@ static int32_t resetForecastOperState(SOperatorInfo* pOper) {
   TAOS_CHECK_EXIT(forecastParseOutput(&pInfo->forecastSupp, &pOper->exprSupp));
 
   TAOS_CHECK_EXIT(forecastParseOpt(&pInfo->forecastSupp, pId));
-
-  TAOS_CHECK_EXIT(forecastCreateBuf(&pInfo->forecastSupp));
+  TAOS_CHECK_EXIT(forecastCreateBuf(&pInfo->forecastSupp, pId));
 
   if (pForecastPhyNode->pExprs != NULL) {
     int32_t    num = 0;
@@ -1178,7 +1162,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   code = forecastParseOpt(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = forecastCreateBuf(pSupp);
+  code = forecastCreateBuf(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);

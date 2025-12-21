@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define TSDB_REF_OBJECTS        100
+#define TSDB_REF_OBJECTS        2000
 #define TSDB_REF_STATE_EMPTY    0
 #define TSDB_REF_STATE_ACTIVE   1
 #define TSDB_REF_STATE_DELETED  2
@@ -227,9 +227,9 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
     iter++;
     pNode = pNode->next;
   }
-
-  if (iter >= TSDB_REF_ITER_THRESHOLD) {
-    uWarn("rid:0x%" PRIx64 ", iter:%d, rsetId:%d", rid, iter, rsetId);
+ 
+ if (iter >= TSDB_REF_ITER_THRESHOLD) {
+    uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
   }
 
   if (pNode) {
@@ -477,6 +477,7 @@ static void taosLockList(int64_t *lockedBy) {
     if (++i % 100 == 0) {
       (void)sched_yield();
     }
+
   }
 }
 

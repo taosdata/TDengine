@@ -998,6 +998,50 @@ TEST(dataSinkTest, multiThreadGet) {
   destroyStreamDataCache(pCache);
 }
 
+TEST(dataSinkTest, cleanSlidingStreamData) {
+  INIT_DATA_SINK(); 
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  int64_t streamId = 1;
+  int64_t taskId = 1;
+  int64_t groupID = 1;
+  int32_t cleanMode = DATA_CLEAN_EXPIRED;
+  TSKEY   wstart = baseTestTime1 + 0;
+  TSKEY   wend = baseTestTime1 + 100;
+  void*   pCache = NULL;
+  int32_t code = initStreamDataCache(streamId, taskId, 0, cleanMode, 0, &pCache);
+  ASSERT_EQ(code, 0);
+
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+  ASSERT_EQ(code, 0);
+  blockDataDestroy(pBlock);
+  code = cleanStreamDataCache(pCache, groupID);
+  ASSERT_EQ(code, 0);
+
+  pBlock = createTestBlock(baseTestTime1, 100);
+  cleanMode = DATA_CLEAN_EXPIRED;
+  wstart = baseTestTime1 + 100;
+  wend = baseTestTime1 + 200;
+  code = putStreamDataCache(pCache, groupID, wstart, wend, pBlock, 0, 99);
+  ASSERT_EQ(code, 0);
+  void* pIter = NULL;
+  blockDataDestroy(pBlock);
+  pBlock = NULL;
+  code = getStreamDataCache(pCache, groupID, baseTestTime1 + 50, baseTestTime1 + 150, &pIter);
+  ASSERT_EQ(code, 0);
+  SSDataBlock* pBlock1 = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock1);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock1, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+  int rows = pBlock1->info.rows;
+  ASSERT_EQ(rows, 51);
+  blockDataDestroy(pBlock1);
+  pBlock1 = NULL;
+
+  destroyDataSinkMgr();
+}
+
 int main(int argc, char** argv) {
   taos_init();
   ::testing::InitGoogleTest(&argc, argv);

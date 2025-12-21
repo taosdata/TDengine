@@ -227,7 +227,7 @@ typedef struct {
   int8_t  retryInit;
   int8_t  epsetRetryCnt;
 } SReqCtx;
-typedef enum { Normal, Quit, Release, Register, Update, FreeById } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -331,6 +331,7 @@ void    transDestroyBuffer(SConnBuffer* buf);
 int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len);
 int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
@@ -390,6 +391,7 @@ int32_t transSendResponse(const STransMsg* msg);
 int32_t transRegisterMsg(const STransMsg* msg);
 int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
+int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func);
 void    transRefSrvHandle(void* handle);
 void    transUnrefSrvHandle(void* handle);
 
@@ -399,6 +401,13 @@ int32_t transGetRefCount(void* handle);
 
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
+
+int32_t transReloadTlsConfig(void* handle, int8_t type);
+
+int32_t transReloadClientTlsConfig(void* handle);
+
+int32_t transReloadServerTlsConfig(void* handle);
+
 
 #endif
 
@@ -622,8 +631,17 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
 void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
 
 int32_t transSetReadOption(uv_handle_t* handle);
-#endif
 
+int32_t transCachePut(int64_t refId, STrans* pTrans);
+int32_t transCacheGet(int64_t refId, STrans** pTrans);
+void    transCacheRemoveByRefId(int64_t refId);
+void    transCacheDestroy();
+
+STrans* transGetInst(int64_t mgtId, int64_t instId);
+
+STrans* transInstAcquire(int64_t mgtId, int64_t instId);
+void    transInstRelease(int64_t instId);
+#endif
 #ifdef __cplusplus
 }
 #endif

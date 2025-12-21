@@ -95,7 +95,17 @@ typedef struct {
   int8_t        startReadTimer;
   int64_t       readTimeout;
   int8_t        ipv6;
+  int8_t        enableSasl;
   TdThreadMutex mutex;
+
+  int8_t enableSSL;
+
+  // void* pSSLContext;  // SSL context for mTLS
+  // void* pNewSSLContext;  // SSL context for mTLS update version  
+  
+  // int32_t loadTlsCount;   
+  // int8_t tlsLoading;
+  void *pTlsMgt;
 } SRpcInfo;
 #else
 void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);

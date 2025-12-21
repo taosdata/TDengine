@@ -59,7 +59,7 @@ typedef enum {
 
 #define SCH_DEFAULT_TASK_TIMEOUT_USEC 30000000
 #define SCH_MAX_TASK_TIMEOUT_USEC     300000000
-#define SCH_DEFAULT_MAX_RETRY_NUM     6
+#define SCH_DEFAULT_MAX_RETRY_NUM     12
 #define SCH_MIN_AYSNC_EXEC_NUM        3
 #define SCH_DEFAULT_RETRY_TOTAL_ROUND 3
 #define SCH_DEFAULT_TASK_CAPACITY_NUM 1000
@@ -210,11 +210,8 @@ typedef struct SSchTaskProfile {
 } SSchTaskProfile;
 
 typedef struct SSchRedirectCtx {
-  int32_t periodMs;
+  int32_t redirectDelayMs;
   bool    inRedirect;
-  int32_t totalTimes;
-  int32_t roundTotal;
-  int32_t roundTimes;  // retry times in current round
   int64_t startTs;
 } SSchRedirectCtx;
 
@@ -261,10 +258,15 @@ typedef struct SSchTask {
   SSchTimerParam  delayLaunchPar; 
 } SSchTask;
 
+typedef enum {
+  JOB_TYPE_INSERT = 0x01,
+  JOB_TYPE_QUERY  = 0x02,
+  JOB_TYPE_HQUERY = 0x04,  // high-priority query is also a query.
+} EJobType;
+
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
-  bool         queryJob;
-  bool         insertJob;
+  EJobType     type;  // job type 
   bool         needFetch;
   bool         needFlowCtrl;
   bool         localExec;
@@ -386,16 +388,10 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_NEED_FETCH(_task)     ((_task)->plan->subplanType != SUBPLAN_TYPE_MODIFY)
 #define SCH_MULTI_LEVEL_LAUNCHED(_job) ((_job)->levelIdx != ((_job)->levelNum - 1))
 
-#define SCH_SET_JOB_TYPE(_job, type)     \
-  do {                                   \
-    if ((type) != SUBPLAN_TYPE_MODIFY) { \
-      (_job)->attr.queryJob = true;      \
-    } else {                             \
-      (_job)->attr.insertJob = true;     \
-    }                                    \
-  } while (0)
-#define SCH_IS_QUERY_JOB(_job)   ((_job)->attr.queryJob)
-#define SCH_IS_INSERT_JOB(_job)  ((_job)->attr.insertJob)
+void schSetJobType(SSchJob* pJob, ESubplanType type);
+
+#define SCH_IS_QUERY_JOB(_job)   (((_job)->attr.type & JOB_TYPE_QUERY) != 0 || (((_job)->attr.type & JOB_TYPE_HQUERY) != 0))
+#define SCH_IS_INSERT_JOB(_job)  (((_job)->attr.type & JOB_TYPE_INSERT) != 0)
 #define SCH_JOB_NEED_FETCH(_job) ((_job)->attr.needFetch)
 #define SCH_JOB_NEED_WAIT(_job)  (!SCH_IS_QUERY_JOB(_job))
 #define SCH_JOB_NEED_DROP(_job)  (SCH_IS_QUERY_JOB(_job))
@@ -681,8 +677,10 @@ int32_t  schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp);
 int32_t  schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
 int32_t  schChkResetJobRetry(SSchJob *pJob, int32_t rspCode);
 void     schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask);
-int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode);
+int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, bool resetRetry);
 int32_t  schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
+int32_t  schFailedTaskNeedRetry(SSchTask *pTask, SSchJob *pJob, int32_t rspCode);
+int32_t  schGetTaskCurrentNodeAddr(SSchTask *pTask, SSchJob *pJob, SQueryNodeAddr **ppAddr);
 
 extern SSchDebug gSCHDebug;
 

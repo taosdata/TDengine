@@ -23,7 +23,7 @@ description: 可配置的数据压缩算法
 
 ### 压缩算法列表
 
-- 编码算法列表（一级压缩）：simple8b、bit-packing、delta-i、delta-d、disabled、bss(byte-stream-split) 
+- 编码算法列表（一级压缩）：simple8b、bit-packing、delta-i、delta-d、disabled、bss(byte-stream-split)
 
 - 压缩算法列表（二级压缩）：lz4、zlib、zstd、tsz、xz、disabled
 

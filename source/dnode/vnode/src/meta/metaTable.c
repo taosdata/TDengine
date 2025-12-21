@@ -173,7 +173,8 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
 
 int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
                              STableMetaRsp *pMetaRsp, int8_t tableType) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SHashObj* pColRefHash = NULL;
   if (!pRef) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -199,6 +200,30 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *p
     code = terrno;
     goto _return;
   }
+
+  pColRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (!pColRefHash) {
+    code = terrno;
+    goto _return;
+  }
+
+  for (int32_t i = 0; i < pRef->nCols; i++) {
+    SColRef* pColRef = &pRef->pColRef[i];
+    if (pColRef->hasRef) {
+      code = taosHashPut(pColRefHash, pColRef->refTableName, strlen(pColRef->refTableName), NULL, 0);
+      if (code) {
+        goto _return;
+      }
+    }
+  }
+
+  if (taosHashGetSize(pColRefHash) > 1000) {
+    code = TSDB_CODE_VTABLE_TOO_MANY_REFERENCE;
+    goto _return;
+  }
+
+
+
   memcpy(pMetaRsp->pColRefs, pRef->pColRef, pRef->nCols * sizeof(SColRef));
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
@@ -213,8 +238,10 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *p
   pMetaRsp->numOfColRefs = pRef->nCols;
   pMetaRsp->rversion = pRef->version;
 
+  taosHashCleanup(pColRefHash);
   return code;
 _return:
+  taosHashCleanup(pColRefHash);
   taosMemoryFreeClear(pMetaRsp->pSchemaExt);
   taosMemoryFreeClear(pMetaRsp->pSchemas);
   taosMemoryFreeClear(pMetaRsp->pColRefs);
@@ -639,6 +666,14 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
         }
 
         if (pSysTbl) *pSysTbl = metaTbInFilterCache(pMeta, stbEntry.name, 1) ? 1 : 0;
+        
+        ret = metaStableTagFilterCacheUpdateUid(
+          pMeta, &e, &stbEntry, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
+        if (ret < 0) {
+          metaError("vgId:%d, failed to update stable tag filter cache:%s "
+            "uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
+            e.ctbEntry.suid, tstrerror(ret));
+        }
 
         SSchema        *pTagColumn = NULL;
         SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
@@ -766,6 +801,11 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
     if (ret < 0) {
       metaError("vgId:%d, failed to clear uid cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name, e.uid,
                 tstrerror(ret));
+    }
+    ret = metaStableTagFilterCacheDropSTable(pMeta, uid);
+    if (ret < 0) {
+      metaError("vgId:%d, failed to clear stable tag filter cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
+                e.uid, tstrerror(ret));
     }
     ret = metaTbGroupCacheClear(pMeta, uid);
     if (ret < 0) {

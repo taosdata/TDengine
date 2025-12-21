@@ -55,8 +55,10 @@ class TestInformationSchema:
         cls.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_bnodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_virtual_child_columns', 'ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates"]
-        cls.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
+                        "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms' ]
+        cls.perf_list = ['perf_connections', 'perf_queries',
+                         'perf_consumers',  'perf_trans', 'perf_apps', 'perf_instances']
 
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -214,8 +216,9 @@ class TestInformationSchema:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
+        
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(62)
+        tdSql.checkRows(70)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -270,6 +273,7 @@ class TestInformationSchema:
             'view':'View',
             'audit':'Audit',
             'storage':'Multi-Tier Storage',
+            'data_sync':'Data Synchronization',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Shared Storage',
             'active_active':'Active-Active',
@@ -294,6 +298,8 @@ class TestInformationSchema:
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
             'orc':'ORC',
+            'kinghist':'KingHistorian',
+            'pulsar':'Pulsar',
             'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
             'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
             'idmp_element':'TDengine IDMP Elements',
@@ -361,7 +367,7 @@ class TestInformationSchema:
         tdSql.execute('drop database if exists db2')
         tdSql.execute('create encrypt_key \'12345678\'')
         time.sleep(3)
-        tdSql.execute('create database if not exists db2 vgroups 1 replica 1 encrypt_algorithm \'sm4\'')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1 encrypt_algorithm \'SM4-CBC\'')
         tdSql.query(f'select * from information_schema.ins_encryptions')
         result = tdSql.queryResult
         index = 0

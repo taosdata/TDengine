@@ -38,16 +38,16 @@ extern "C" {
 //
 //  --------------  define ------------------
 //
- 
+
 // connect mode string
 #define STR_NATIVE    "Native"
 #define STR_WEBSOCKET "WebSocket"
 
 #define DRIVER_OPT     "driver"
-#define DRIVER_DESC    "Connect driver , value can be \"Native\" or \"WebSocket\""
+#define DRIVER_DESC    "Connect driver , value can be \"Native\" or \"WebSocket\", default is Native."
 
 #define DSN_DESC       "The dsn to connect the cloud service."
-#define OLD_DSN_DESC   "same with -X options"
+#define OLD_DSN_DESC   "Alias for the -X/--dsn option."
 
 #define DSN_NATIVE_CONFLICT "DSN option not support in native connection mode.\n"
 
@@ -62,7 +62,7 @@ extern "C" {
 #define TIP_ENGINE_ERR "Call engine failed."
 
 // default port
-#define DEFAULT_PORT_WS_LOCAL 6041   
+#define DEFAULT_PORT_WS_LOCAL 6041
 #define DEFAULT_PORT_WS_CLOUD 443
 #define DEFAULT_PORT_NATIVE   6030
 

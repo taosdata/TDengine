@@ -25,6 +25,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 | Connector Version | Major Changes                                                                                                            | TDengine Version   |
 |-------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------|
+| 3.1.9             | The external interface of stmt remains unchanged; the internal implementation has been refactored into stmt2.            | -                  |
 | 3.1.8             | Support connection-level timezone settings and strictly validate the binding types of statements against database types. | -                  |
 | 3.1.7             | Support IPv6 connections and DECIMAL data type.                                                                          | 3.3.6.0 and higher |
 | 3.1.6             | Optimize WebSocket connection message handling.                                                                          | -                  |
@@ -39,6 +40,8 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 `TDengine.Connector` will throw exceptions, and applications need to handle these exceptions. The taosc exception type `TDengineError` includes an error code and error message, which applications can use to handle the error.
 For error reporting in other TDengine modules, please refer to [Error Codes](../../error-codes/)
+
+For error code information please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 
@@ -63,17 +66,17 @@ For error reporting in other TDengine modules, please refer to [Error Codes](../
 | GEOMETRY          | byte[]   |
 | DECIMAL           | decimal  |
 
-**Note**: 
+**Note**:
 
 - JSON type is only supported in tags.
 - The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)
 For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
-- The DECIMAL type in C# is represented using the `decimal` type, which supports high-precision decimal numbers. 
+- The DECIMAL type in C# is represented using the `decimal` type, which supports high-precision decimal numbers.
 Since C#'s `decimal` type differs from TDengine's DECIMAL type in precision and range,
 the C#'s `decimal` has a maximum precision of 29 digits, while TDengine's DECIMAL type supports up to 38 digits of precision.
 The following should be noted when using it:
   - When the value does not exceed the range of C#'s `decimal` type, you can use `GetDecimal` or `GetValue` to retrieve it.
-  - When the value exceeds the range of C#'s `decimal` type, the `GetDecimal` and `GetValue` methods will throw an `OverflowException`. 
+  - When the value exceeds the range of C#'s `decimal` type, the `GetDecimal` and `GetValue` methods will throw an `OverflowException`.
   In such cases, you can use the `GetString` method to obtain the string representation.
 
 ## Summary of Example Programs
@@ -181,6 +184,7 @@ The `timezone` parameter sets the timezone used for parsing time types in query 
 - On Linux and macOS, it uses timezone information provided by the [ICU library](https://unicode-org.github.io/icu/userguide/datetime/timezone/).
 
 For example, for New York timezone:
+
 - Windows uses `Eastern Standard Time`
 - Linux and macOS use `America/New_York`
 
@@ -394,7 +398,7 @@ The `DbDataReader` interface provides the following methods to retrieve the resu
   - **Parameter Description**:
     - `ordinal`: Column index.
   - **Return Value**: Decimal value.
-  - **Exception**: 
+  - **Exception**:
     - Throws `InvalidCastException` if the type does not correspond.
     - Throws `OverflowException` if the value exceeds the range of C#'s `decimal` type.
 

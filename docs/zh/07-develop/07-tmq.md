@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
+TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/topic/) 。
 
 ## 创建主题
 

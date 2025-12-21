@@ -14,6 +14,8 @@
 
 #include "transComm.h"
 #include "transLog.h"
+#include "transSasl.h"
+#include "transTLS.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -25,6 +27,11 @@ typedef struct {
   int       init;         // init or not
   STransMsg msg;
 } SSvrRegArg;
+
+typedef enum {
+  IP_WHITE_LIST = 0,
+  IP_TIME_WHITE_LIST,
+} SIpListType;
 
 typedef struct SSvrConn {
   int32_t    ref;
@@ -60,12 +67,18 @@ typedef struct SSvrConn {
   char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
 
   int64_t whiteListVer;
+  int64_t dataTimeWhiteListVer;
 
   // state req dict
   SHashObj* pQTable;
   uv_buf_t* buf;
   int32_t   bufSize;
   queue     wq;  // uv_write_t queue
+
+  int8_t enableSSL;
+
+  STransTLS* pTls;  // TLS connection
+  SSaslConn* saslConn;
 } SSvrConn;
 
 typedef struct SSvrRespMsg {
@@ -77,7 +90,7 @@ typedef struct SSvrRespMsg {
   void*         arg;
   FilteFunc     func;
   int8_t        sent;
-
+  SIpListType   ipListType;
 } SSvrRespMsg;
 
 typedef struct {
@@ -89,6 +102,11 @@ typedef struct {
   SHashObj* pList;
   int64_t   ver;
 } SIpWhiteListTab;
+
+typedef struct {
+  SHashObj* pList;
+  int64_t   ver;
+} SDataTimeWhiteListTab;
 typedef struct SWorkThrd {
   TdThread     thread;
   uv_connect_t connect_req;
@@ -105,6 +123,10 @@ typedef struct SWorkThrd {
   SIpWhiteListTab* pWhiteList;
   int64_t          whiteListVer;
   int8_t           enableIpWhiteList;
+
+  SDataTimeWhiteListTab* pDataTimeWhiteList;
+  int64_t                dataTimeWhiteListVer;
+  int8_t                 enableDataTimeWhiteList;
 
   int32_t connRefMgt;
 
@@ -151,6 +173,9 @@ static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf)
 static void uvWorkerAsyncCb(uv_async_t* handle);
 static void uvAcceptAsyncCb(uv_async_t* handle);
 static void uvShutDownCb(uv_shutdown_t* req, int status);
+static void uvOnSendAuthWithTLSCb(uv_write_t* req, int status);
+
+static int32_t uvSendAuthWithTLS(SSvrConn* conn);
 
 /*
  * time-consuming task throwed into BG work thread
@@ -179,8 +204,11 @@ static void uvHandleRelease(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void uvHandleResp(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void uvHandleRegister(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void uvHandleUpdate(SSvrRespMsg* pMsg, SWorkThrd* thrd);
-static void (*transAsyncHandle[])(SSvrRespMsg* msg, SWorkThrd* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
-                                                                        uvHandleRegister, uvHandleUpdate};
+static void uvHandleFreeById(SSvrRespMsg* pMsg, SWorkThrd* thrd);
+static void uvHandleReloadTlsConfig(SSvrRespMsg* pMsg, SWorkThrd* thrd);
+static void (*transAsyncHandle[])(SSvrRespMsg* msg, SWorkThrd* thrd) = {
+    uvHandleResp,   uvHandleQuit,     uvHandleRelease,        uvHandleRegister,
+    uvHandleUpdate, uvHandleFreeById, uvHandleReloadTlsConfig};
 
 static void uvDestroyConn(uv_handle_t* handle);
 
@@ -216,6 +244,17 @@ void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   SSvrConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   int32_t      code = transAllocBuffer(pBuf, buf);
+  if (code < 0) {
+    tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
+  }
+}
+
+void uvAllocRecvBufferCbSSL(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+  int32_t     code = 0;
+  SSvrConn*   conn = handle->data;
+  SSslBuffer* pBuf = &conn->pTls->readBuf;
+
+  code = sslBufferRealloc(pBuf, suggested_size, buf);
   if (code < 0) {
     tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
   }
@@ -294,6 +333,9 @@ int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
   return len;
 }
 void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
+  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
   int32_t   len = 0;
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
@@ -379,6 +421,13 @@ _error:
   return false;
 }
 
+static char* ip2Str(SIpAddr* p) {
+  if (p->type == 0) {
+    return p->ipv4;
+  } else {
+    return p->ipv6;
+  }
+}
 bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
   // impl check
   SHashObj* pWhiteList = pWhite->pList;
@@ -393,27 +442,197 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t
   SWhiteUserList* pUserList = *ppList;
   if (pUserList->ver == ver) return true;
 
+  int8_t inBlackList = 0;
+  int8_t inWhiteList = 0;
+
   SIpWhiteListDual* pIpWhiteList = pUserList->pList;
   for (int i = 0; i < pIpWhiteList->num; i++) {
     SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (uvCheckIp(pRange, pIp)) {
-      valid = true;
+    if (pRange->neg == 0 && uvCheckIp(pRange, pIp)) {
+      inWhiteList = 1;
       break;
     }
   }
+
+  for (int i = 0; i < pIpWhiteList->num; i++) {
+    SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
+    if (pRange->neg == 1 && uvCheckIp(pRange, pIp)) {
+      inBlackList = 1;
+      break;
+    }
+  }
+
+  if (inBlackList == 0 && inWhiteList == 1) {
+    valid = true;
+  } else {
+    tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), inBlackList, inWhiteList);
+    valid = false;
+  }
+
   return valid;
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
-  if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE ||
-      pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE_DUAL || taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
+  if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST ||
+      pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL || taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
       pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
   return uvWhiteListFilte(pWhite, pConn->user, &pConn->clientIp, pConn->whiteListVer);
 }
+
 void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   // if conn already check by current whiteLis
   pConn->whiteListVer = pWhite->ver;
+}
+// data time white list
+SDataTimeWhiteListTab* uvDataTimeWhiteListCreate() {
+  SDataTimeWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SDataTimeWhiteListTab));
+  if (pWhiteList == NULL) {
+    return NULL;
+  }
+
+  pWhiteList->pList = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
+  if (pWhiteList->pList == NULL) {
+    taosMemoryFree(pWhiteList);
+    return NULL;
+  }
+
+  pWhiteList->ver = -1;
+  return pWhiteList;
+}
+void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
+  if (pWhite == NULL) {
+    return;
+  }
+  SHashObj* pWhiteList = pWhite->pList;
+  void*     pIter = taosHashIterate(pWhiteList, NULL);
+  while (pIter) {
+    SUserDateTimeWhiteList* pUserList = (SUserDateTimeWhiteList*)pIter;
+    tFreeSUserDateTimeWhiteList(pUserList);
+
+    pIter = taosHashIterate(pWhiteList, pIter);
+  }
+  taosHashCleanup(pWhiteList);
+  taosMemoryFree(pWhite);
+}
+
+static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* user, char** ppBuf) {
+  int32_t code = 0;
+  if (plist == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t len = 0;
+  int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
+  char*   pBuf = taosMemoryCalloc(1, limit);
+  for (int32_t i = 0; i < plist->numWhiteLists; i++) {
+    SDateTimeWhiteListItem* pItem = &plist->pWhiteLists[i];
+    if (i == 0) {
+      len = snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "user:%s duration:%" PRId64 ", start:%" PRId64 "; ",
+                     user, (int64_t)(pItem->duration), pItem->start);
+    } else {
+      len = sprintf(pBuf + strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
+                    pItem->start);
+    }
+  }
+  return len;
+}
+void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
+  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+  if (pWrite == NULL) {
+    return;
+  }
+  int32_t   len = 0;
+  SHashObj* pWhiteList = pWrite->pList;
+  void*     pIter = taosHashIterate(pWhiteList, NULL);
+  while (pIter) {
+    size_t klen = 0;
+    char   user[TSDB_USER_LEN + 1] = {0};
+    char*  pUser = taosHashGetKey(pIter, &klen);
+    memcpy(user, pUser, klen);
+
+    SUserDateTimeWhiteList* pUserList = *(SUserDateTimeWhiteList**)pIter;
+
+    char* pBuf = NULL;
+    len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
+    if (len > 0) {
+      tDebug("dataTime white list %s", pBuf);
+      taosMemoryFree(pBuf);
+    }
+
+    pIter = taosHashIterate(pWhiteList, pIter);
+  }
+}
+int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
+  int32_t   code = 0;
+  if (pWhite == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SUserDateTimeWhiteList* pUserList = taosHashGet(pWhiteList, user, strlen(user));
+  if (pUserList == NULL) {
+    code = taosHashPut(pWhiteList, user, strlen(user), &plist, sizeof(void*));
+    if (code != 0) {
+      return code;
+    }
+  } else {
+    taosMemoryFreeClear(pUserList->pWhiteLists);
+    pUserList->numWhiteLists = plist->numWhiteLists;
+    pUserList->pWhiteLists = plist->pWhiteLists;
+    pUserList->ver = ver;
+  }
+  return code;
+}
+
+static bool uvDataTimeWhiteListIsDefaultAddr(SIpAddr* ip) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  return code;
+}
+
+bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
+  // impl check
+  SHashObj* pWhiteList = pWhite->pList;
+  bool      valid = true;
+
+  // if (uvDataTimeWhiteListIsDefaultAddr(pIp)) return true;
+
+  SUserDateTimeWhiteList* pList = taosHashGet(pWhiteList, user, strlen(user));
+  if (pList == NULL) {
+    return true;
+  }
+
+  SDateTimeWhiteList* p = (SDateTimeWhiteList*)&pList->numWhiteLists;
+  int64_t             now = taosGetTimestampSec();
+
+  if (isTimeInDateTimeWhiteList(p, now)) {
+    valid = true;
+  } else {
+    valid = false;
+  }
+
+  return valid;
+}
+bool uvDataTimeWhiteListCheckConn(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
+  if (pWhite == NULL) {
+    return true;
+  }
+  if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST ||
+      pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL || taosIpAddrIsEqual(&pConn->clientIp, &pConn->serverIp) ||
+      pWhite->ver == pConn->dataTimeWhiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
+    return true;
+
+  return uvDataTimeWhiteListFilte(pWhite, pConn->user, &pConn->clientIp, pConn->whiteListVer);
+}
+
+void uvDataTimeWhiteListSetVer(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
+  // if conn already check by current whiteLis
+  pConn->dataTimeWhiteListVer = pWhite->ver;
 }
 
 static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* pTransMsg) {
@@ -424,33 +643,38 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   STrans*   pInst = pConn->pInst;
   STraceId* trace = &pHead->traceId;
 
-  int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
-  static int64_t EXCEPTION_LIMIT_US = 1000 * 1000;
+  int64_t cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
+  int64_t threshold = tsRpcRecvLogThreshold * 1000 * 1000;  // in us
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
-    if (cost >= EXCEPTION_LIMIT_US) {
-      tGWarn("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
-             ", sid:%" PRId64,
-             transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-             (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
-    } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", sid:%" PRId64,
-              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
-    }
-  } else {
-    if (cost >= EXCEPTION_LIMIT_US) {
+    if (cost >= threshold) {
       tGWarn(
-          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold: %d, recv exception, "
           "seqNum:%" PRId64 ", sid:%" PRId64,
           transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-          pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+          (int)cost, (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%" PRId64
-              ", "
-              "sid:%" PRId64,
+      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold:%dus, seqNum:%" PRId64
+              ", sid:%" PRId64,
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+              (int)cost, (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
+    }
+  } else {
+    if (cost >= threshold) {
+      tGWarn(
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, "
+          "threshold:%d, recv exception, "
+          "seqNum:%" PRId64 ", sid:%" PRId64,
+          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+          pHead->noResp, pTransMsg->code, (int)(cost), (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
+    } else {
+      tGDebug(
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, threshold:%dus, "
+          "seqNum:%" PRId64
+          ", "
+          "sid:%" PRId64,
+          transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+          pHead->noResp, pTransMsg->code, (int)(cost), (int)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
   }
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pInst), pTransMsg->info.handle, pConn,
@@ -550,6 +774,37 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   }
   return false;
 }
+
+static int8_t uvCheckConn(SSvrConn* pConn) {
+  SWorkThrd* pThrd = pConn->hostThrd;
+  int8_t     status = 0;
+  int8_t     forbiddenIp = 0;
+  int8_t     timeForbiddenIp = 0;
+
+  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
+    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
+    if (forbiddenIp == 0) {
+      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
+    }
+  }
+
+  if (pThrd->enableDataTimeWhiteList) {
+    timeForbiddenIp = !uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn) ? 1 : 0;
+    if (timeForbiddenIp == 0) {
+      uvDataTimeWhiteListSetVer(pThrd->pDataTimeWhiteList, pConn);
+    }
+  }
+
+  if (forbiddenIp) {
+    IP_FORBIDDEN_SET_VAL(status, IP_FORBIDDEN_WHITE_LIST);
+  }
+  if (timeForbiddenIp) {
+    IP_FORBIDDEN_SET_VAL(status, IP_FORBIDDEN_DATA_TIME_WHITE_LIST);
+  }
+
+  return status;
+}
+
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
@@ -589,13 +844,17 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   pConn->inType = pHead->msgType;
 
-  int8_t forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
-    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-    if (forbiddenIp == 0) {
-      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-    }
-  }
+  int8_t forbiddenIp = uvCheckConn(pConn);
+  // int8_t forbiddenIp = 0;
+  // int8_t timeForbiddenIp = 0;
+  // if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
+  //   forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
+  //   if (forbiddenIp == 0) {
+  //     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
+  //   }
+  // }
+
+  // timeForbiddenIp = uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn);
 
   if (uvMayHandleReleaseReq(pConn, pHead)) {
     return true;
@@ -643,6 +902,32 @@ static bool uvHandleReq(SSvrConn* pConn) {
   return true;
 }
 
+static int32_t uvSendAuthWithTLS(SSvrConn* conn) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  if (req == NULL) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  req->data = conn;
+  uv_buf_t buf = {.base = (char*)conn->saslConn->out.buf, .len = conn->saslConn->out.len};
+
+  int ret = sslWrite(conn->pTls, (uv_stream_t*)conn->pTcp, req, &buf, 1, uvOnSendAuthWithTLSCb);
+  if (ret != 0) {
+    tError("%s conn:%p, failed to send sasl auth data since %s", transLabel(conn->pInst), conn, uv_strerror(ret));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+_error:
+  if (code != 0) {
+    tError("conn %p failed to send auth since %s", conn, tstrerror(code));
+  }
+  return code;
+}
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   int32_t    code = 0;
   SSvrConn*  conn = cli->data;
@@ -693,6 +978,76 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     transUnrefSrvHandle(conn);
   }
 }
+void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SSvrConn*  conn = cli->data;
+  STrans*    pInst = conn->pInst;
+  SWorkThrd* pThrd = conn->hostThrd;
+
+  STUB_RAND_NETWORK_ERR(nread);
+
+  if (true == pThrd->quit) {
+    tInfo("work thread received quit msg, destroy conn");
+    destroyConn(conn, true);
+    return;
+  }
+
+  code = transSetReadOption((uv_handle_t*)cli);
+  if (code != 0) {
+    tWarn("%s conn:%p, failed to set recv opt since %s", transLabel(pInst), conn, tstrerror(code));
+  }
+
+  SConnBuffer* pBuf = &conn->readBuf;
+  if (nread > 0) {
+    code = sslRead(conn->pTls, pBuf, nread, 0);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    if (conn->saslConn) conn->saslConn->isAuthed = 1;
+    if (conn->saslConn && sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
+      code = saslConnHandleAuth(conn->saslConn, (const char*)pBuf->buf, pBuf->len);
+      TAOS_CHECK_GOTO(code, &lino, _error);
+
+      if (conn->saslConn->out.len == 0) {
+        return;
+      }
+
+      code = uvSendAuthWithTLS(conn);
+      TAOS_CHECK_GOTO(code, &lino, _error);
+
+      pBuf->len = 0;
+      return;
+    }
+
+    if (sslIsInited(conn->pTls) && saslAuthIsInited(conn->saslConn) && pBuf->len <= TRANS_PACKET_LIMIT) {
+      while (transReadComplete(pBuf)) {
+        if (true == pBuf->invalid || false == uvHandleReq(conn)) {
+          tError("%s conn:%p, read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
+                 conn->src);
+          conn->broken = true;
+          transUnrefSrvHandle(conn);
+          return;
+        }
+      }
+      return;
+    }
+    return;
+  } else if (nread == 0) {
+    return;
+  } else {
+    tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,
+           uv_err_name(nread), conn->dst, conn->src);
+    transUnrefSrvHandle(conn);
+    return;
+  }
+
+  tDebug("%s conn:%p, read error:%s", transLabel(pInst), conn, uv_err_name(nread));
+_error:
+  if (nread < 0 || code != 0) {
+    conn->broken = true;
+    transUnrefSrvHandle(conn);
+  }
+}
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->len = 2;
   buf->base = taosMemoryCalloc(1, sizeof(char) * buf->len);
@@ -707,6 +1062,31 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
   tError("conn:%p, time out", pConn);
 }
 
+void uvOnSendCbSSL(uv_write_t* req, int status) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SSvrConn* pConn = req->data;
+  STrans*   pInst = pConn->pInst;
+
+  if (status != 0) {
+    tDebug("%s conn:%p, failed to send msg since %s", transLabel(pConn), pConn, uv_err_name(status));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  tDebug("%s conn:%p, send ssl msg successfully", transLabel(pConn), pConn);
+  if (!sslIsInited(pConn->pTls)) {
+    tDebug("%s conn:%p, ssl not inited, skip send msg", transLabel(pConn), pConn);
+    goto _error;
+  }
+  // if (!SSL_is_init_finished(pTls->ssl)) {
+  //   tDebug("%s conn:%p, ssl not init finished, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+  //   return;
+  // }
+_error:
+  taosMemoryFree(req);
+  return;
+}
 void uvOnSendCb(uv_write_t* req, int status) {
   STUB_RAND_NETWORK_ERR(status);
 
@@ -718,6 +1098,9 @@ void uvOnSendCb(uv_write_t* req, int status) {
   QUEUE_MOVE(&wrapper->node, &src);
 
   freeWReqToWQ(&conn->wq, wrapper);
+  if (conn->enableSSL) {
+    sslBufferUnref(&conn->pTls->sendBuf);
+  }
 
   tTrace("%s conn:%p, send data out", transLabel(conn->pInst), conn);
 
@@ -891,10 +1274,17 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   }
 
   transRefSrvHandle(pConn);
+  if (pConn->enableSSL == 0) {
+    int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
+    if (ret != 0) {
+      tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+    }
+  } else {
+    code = sslWrite(pConn->pTls, (uv_stream_t*)pConn->pTcp, req, pBuf, bufNum, uvOnSendCb);
+  }
 
-  int32_t ret = uv_write(req, (uv_stream_t*)pConn->pTcp, pBuf, bufNum, uvOnSendCb);
-  if (ret != 0) {
-    tError("conn:%p, failed to write data since %s", pConn, uv_err_name(ret));
+  if (code != 0) {
     pConn->broken = true;
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
       queue* head = QUEUE_HEAD(&pWreq->node);
@@ -991,7 +1381,7 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
     }
 
     // release handle to rpc init
-    if (msg->type == Quit || msg->type == Update) {
+    if (msg->type == Quit || msg->type == Update || msg->type == ReloadTLS) {
       (*transAsyncHandle[msg->type])(msg, pThrd);
     } else {
       STransMsg transMsg = msg->msg;
@@ -1035,6 +1425,26 @@ static void uvShutDownCb(uv_shutdown_t* req, int status) {
   }
   uv_close((uv_handle_t*)req->handle, uvDestroyConn);
   taosMemoryFree(req);
+}
+
+static void uvOnSendAuthWithTLSCb(uv_write_t* req, int status) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SSvrConn* pConn = req->data;
+  STrans*   pInst = pConn->pInst;
+
+  if (status != 0) {
+    tDebug("%s conn:%p, failed to send sasl auth data since %s", transLabel(pConn), pConn, uv_err_name(status));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  } else {
+    tDebug("%s conn:%p, send sasl auth data successfully", transLabel(pConn), pConn);
+  }
+  saslBufferClear(&pConn->saslConn->out);
+
+_error:
+  taosMemoryFree(req);
+  return;
 }
 static void uvWorkDoTask(uv_work_t* req) {
   // doing time-consumeing task
@@ -1108,14 +1518,18 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
   if (addr->sa_family == AF_INET) {
     struct sockaddr_in* addr_in = (struct sockaddr_in*)addr;
-    inet_ntop(AF_INET, &addr_in->sin_addr, ip->ipv4, INET_ADDRSTRLEN);
+    if (inet_ntop(AF_INET, &addr_in->sin_addr, ip->ipv4, INET_ADDRSTRLEN) == NULL) {
+      uInfo("failed to convert ipv4 address");
+    }
     ip->type = 0;
     ip->port = ntohs(addr_in->sin_port);
     ip->mask = 32;
   } else if (addr->sa_family == AF_INET6) {
     struct sockaddr_in6* addr_in = (struct sockaddr_in6*)addr;
     ip->port = ntohs(addr_in->sin6_port);
-    inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN);
+    if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
+      uInfo("failed to convert ipv6 address");
+    }
     ip->type = 1;
     ip->mask = 128;
   }
@@ -1207,12 +1621,49 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     if (code != 0) {
       tWarn("failed to set tcp option since %s", tstrerror(code));
     }
-    code = uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
+
+    void (*pAllocCb)(uv_handle_t*, size_t, uv_buf_t*) = uvAllocRecvBufferCb;
+    void (*pRecvCb)(uv_stream_t*, ssize_t, const uv_buf_t*) = uvOnRecvCb;
+    if (pConn->enableSSL) {
+      pAllocCb = uvAllocRecvBufferCbSSL;
+      pRecvCb = uvOnRecvCbSSL;
+      sslSetMode(pConn->pTls, 0);
+    }
+
+    code = uv_read_start((uv_stream_t*)(pConn->pTcp), pAllocCb, pRecvCb);
     if (code != 0) {
       tWarn("conn:%p, failed to start to read since %s", pConn, uv_err_name(code));
       transUnrefSrvHandle(pConn);
       return;
     }
+
+    if (sslIsInited(pConn->pTls) && !saslAuthIsInited(pConn->saslConn)) {
+      code = saslConnHandleAuth(pConn->saslConn, NULL, 0);
+      if (code != 0) {
+        tWarn("conn:%p, failed to handle auth since %s", pConn, tstrerror(code));
+        transUnrefSrvHandle(pConn);
+        return;
+      }
+
+      if (pConn->saslConn->out.len == 0) {
+        tDebug("conn:%p, no need to send auth data", pConn);
+        return;
+      }
+
+      code = uvSendAuthWithTLS(pConn);
+      if (code != 0) {
+        tWarn("conn:%p, failed to handle auth since %s", pConn, tstrerror(code));
+        transUnrefSrvHandle(pConn);
+        return;
+      }
+
+      if (!saslAuthIsInited(pConn->saslConn)) {
+        tDebug("conn:%p, need to do sasl auth", pConn);
+      } else {
+        tDebug("conn:%p, sasl auth done", pConn);
+      }
+    }
+
   } else {
     tDebug("failed to create new connection reason %s", uv_err_name(code));
     transUnrefSrvHandle(pConn);
@@ -1370,6 +1821,8 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
   int32_t    lino;
   int8_t     wqInited = 0;
+  int8_t     queueInited = 0;
+  STrans*    pInst = pThrd->pInst;
   SSvrConn*  pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
   if (pConn == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
@@ -1405,7 +1858,6 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     TAOS_CHECK_GOTO(TSDB_CODE_REF_INVALID_ID, NULL, _end);
   }
 
-  STrans* pInst = pThrd->pInst;
   pConn->refId = exh->refId;
 
   QUEUE_INIT(&exh->q);
@@ -1423,13 +1875,13 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   // init client handle
   pConn->pTcp = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   if (pConn->pTcp == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+    TAOS_CHECK_GOTO(terrno, &lino, _end);
   }
 
   pConn->bufSize = pInst->shareConnLimit;
-  pConn->buf = taosMemoryCalloc(1, pInst->shareConnLimit * sizeof(uv_buf_t));
+  pConn->buf = taosMemoryCalloc(1, pConn->bufSize * sizeof(uv_buf_t));
   if (pConn->buf == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
+    TAOS_CHECK_GOTO(terrno, &lino, _end);
   }
 
   code = uv_tcp_init(pThrd->loop, pConn->pTcp);
@@ -1439,9 +1891,29 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   }
   pConn->pTcp->data = pConn;
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
+  queueInited = 1;
 
   pConn->pInst = pThrd->pInst;
   pConn->hostThrd = pThrd;
+
+  if (pInst->enableSSL) {
+    SSslCtx* pCxt = NULL;
+    code = transTlsCxtMgtGet(pInst->pTlsMgt, &pCxt);
+    TAOS_CHECK_GOTO(code, &lino, _end);
+
+    code = sslInit(pCxt, &pConn->pTls);
+    TAOS_CHECK_GOTO(code, &lino, _end);
+
+    pConn->pTls->writeCb = uvOnSendCbSSL;
+    pConn->enableSSL = 1;
+    pConn->pTls->pConn = pConn;
+    pConn->pTls->pStream = pConn->pTcp;
+  }
+
+  if (pInst->enableSasl) {
+    TAOS_CHECK_GOTO(saslConnCreate(&pConn->saslConn, 1), &lino, _end);
+    pConn->saslConn->pUvConn = pConn;
+  }
 
   transRefSrvHandle(pConn);
   return pConn;
@@ -1459,6 +1931,17 @@ _end:
     taosMemoryFree(pConn->pTcp);
     if (wqInited) destroyWQ(&pConn->wq);
     taosMemoryFree(pConn->buf);
+
+    if (queueInited) QUEUE_REMOVE(&pConn->queue);
+
+    if (pConn->pTls) {
+      sslDestroy(pConn->pTls);
+      pConn->pTls = NULL;
+    }
+
+    saslConnCleanup(pConn->saslConn);
+    pConn->saslConn = NULL;
+
     taosMemoryFree(pConn);
     pConn = NULL;
   }
@@ -1509,7 +1992,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transRemoveExHandle(uvGetConnRefOfThrd(thrd), conn->refId);
 
   STrans* pInst = thrd->pInst;
-  tDebug("%s conn:%p, destroy", transLabel(pInst), conn);
+  tDebug("%s conn:%p try to destroy", transLabel(pInst), conn);
 
   transQueueDestroy(&conn->resps);
 
@@ -1522,7 +2005,13 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transDestroyBuffer(&conn->readBuf);
 
   destroyWQ(&conn->wq);
+  sslDestroy(conn->pTls);
+
+  saslConnCleanup(conn->saslConn);
+  conn->saslConn = NULL;
+
   taosMemoryFree(conn->buf);
+  tDebug("%s conn:%p destroy successful", transLabel(pInst), conn);
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
@@ -1648,6 +2137,13 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
       code = terrno;
       goto End;
     }
+
+    thrd->pDataTimeWhiteList = uvDataTimeWhiteListCreate();
+    if (thrd->pDataTimeWhiteList == NULL) {
+      destroyWorkThrdObj(thrd);
+      code = terrno;
+      goto End;
+    }
     thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
     if (thrd->connRefMgt < 0) {
       code = thrd->connRefMgt;
@@ -1692,6 +2188,13 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
     thrd->pInst = pInit;
     thrd->pWhiteList = uvWhiteListCreate();
     if (thrd->pWhiteList == NULL) {
+      destroyWorkThrdObj(thrd);
+      code = terrno;
+      goto End;
+    }
+
+    thrd->pDataTimeWhiteList = uvDataTimeWhiteListCreate();
+    if (thrd->pDataTimeWhiteList == NULL) {
       destroyWorkThrdObj(thrd);
       code = terrno;
       goto End;
@@ -1819,7 +2322,7 @@ void uvHandleRegister(SSvrRespMsg* msg, SWorkThrd* thrd) {
   taosMemoryFree(msg);
 }
 
-void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
+void uvHandleUpdateIpWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
   SUpdateIpWhite* req = msg->arg;
   if (req == NULL) {
     tDebug("ip-white-list disable on trans");
@@ -1843,6 +2346,7 @@ void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
     memcpy(pList->pIpRanges, pUser->pIpDualRanges, sz);
     code = uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
     if (code != 0) {
+      taosMemoryFree(pList);
       break;
     }
   }
@@ -1858,12 +2362,85 @@ void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
   taosMemoryFree(msg);
 }
 
+void uvHandleUpdateDataTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  int32_t                        code = 0;
+  int32_t                        lino = 0;
+  SRetrieveDateTimeWhiteListRsp* req = msg->arg;
+
+  if (req == NULL) {
+    tDebug("ip-white-list disable on trans");
+    thrd->enableDataTimeWhiteList = 0;
+    taosMemoryFree(msg);
+    return;
+  }
+
+  for (int i = 0; i < req->numOfUser; i++) {
+    SUserDateTimeWhiteList* pUser = &req->pUsers[i];
+
+    SUserDateTimeWhiteList dest;
+    code = cloneSUserDateTimeWhiteList(pUser, &dest);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    code = uvDataTimeWhiteListAdd(thrd->pDataTimeWhiteList, pUser->user, &dest, pUser->ver);
+    if (code != 0) {
+      tFreeSUserDateTimeWhiteList(&dest);
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+  }
+
+  uvDataTimeWhiteListDebug(thrd->pDataTimeWhiteList);
+  if (code == 0) {
+    thrd->pDataTimeWhiteList->ver = req->ver;
+    thrd->enableDataTimeWhiteList = 1;
+  } else {
+    tError("failed to update ip-white-list since %s", tstrerror(code));
+  }
+_error:
+  if (code != 0) {
+    tError("failed to update data-time-white-list since %s", tstrerror(code));
+  }
+  tFreeSRetrieveDateTimeWhiteListRsp(req);
+  taosMemoryFree(req);
+  taosMemoryFree(msg);
+}
+
+void uvHandleUpdate(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  if (msg->ipListType == IP_WHITE_LIST) {
+    uvHandleUpdateIpWhiteList(msg, thrd);
+  } else if (msg->ipListType == IP_TIME_WHITE_LIST) {
+    uvHandleUpdateDataTimeWhiteList(msg, thrd);
+  } else {
+    tError("unknown ip list type:%d", msg->ipListType);
+    taosMemoryFree(msg);
+  }
+}
+
+void uvHandleFreeById(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  // placeholder function
+  return;
+}
+
+void uvHandleReloadTlsConfig(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  STrans* pInst = thrd->pInst;
+
+  int8_t result = transDoReloadTlsConfig(pInst->pTlsMgt, pInst->numOfThreads);
+  if (result == 0) {
+    tInfo("%s not ready to reload TLS config", transLabel(pInst));
+  } else {
+    tDebug("%s succ to reload TLS config", transLabel(pInst));
+  }
+
+  taosMemoryFree(msg);
+  return;
+}
+
 void destroyWorkThrdObj(SWorkThrd* pThrd) {
   if (pThrd == NULL) {
     return;
   }
   transAsyncPoolDestroy(pThrd->asyncPool);
   uvWhiteListDestroy(pThrd->pWhiteList);
+  uvDataTimeWhiteListDestroy(pThrd->pDataTimeWhiteList);
   taosCloseRef(pThrd->connRefMgt);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
@@ -2102,7 +2679,7 @@ _return2:
 }
 
 int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
-  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+  STrans* pInst = (STrans*)transInstAcquire(transGetInstMgt(), (int64_t)thandle);
   if (pInst == NULL) {
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
@@ -2129,10 +2706,57 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
 
     msg->type = Update;
     msg->arg = pReq;
+    msg->ipListType = IP_WHITE_LIST;
 
     if ((code = transAsyncSend(pThrd->asyncPool, &msg->q)) != 0) {
       code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
       tFreeSUpdateIpWhiteReq(pReq);
+      taosMemoryFree(pReq);
+      taosMemoryFree(msg);
+      break;
+    }
+  }
+
+  if (code != 0) {
+    tError("ip-white-list update failed since %s", tstrerror(code));
+  }
+  transInstRelease((int64_t)thandle);
+  return code;
+}
+
+int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
+  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+  if (pInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  int32_t code = 0;
+
+  tDebug("time-ip-white-list update on rpc");
+  SServerObj* svrObj = pInst->tcphandle;
+  for (int i = 0; i < svrObj->numOfThreads; i++) {
+    SWorkThrd* pThrd = svrObj->pThreadObj[i];
+
+    SSvrRespMsg* msg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
+    if (msg == NULL) {
+      code = terrno;
+      break;
+    }
+
+    SRetrieveDateTimeWhiteListRsp* pReq = NULL;
+    code = cloneDataTimeWhiteListRsp((SRetrieveDateTimeWhiteListRsp*)arg, &pReq);
+    if (code != 0) {
+      taosMemoryFree(msg);
+      break;
+    }
+
+    msg->type = Update;
+    msg->arg = pReq;
+    msg->ipListType = IP_TIME_WHITE_LIST;
+
+    if ((code = transAsyncSend(pThrd->asyncPool, &msg->q)) != 0) {
+      code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+      tFreeSRetrieveDateTimeWhiteListRsp(pReq);
       taosMemoryFree(pReq);
       taosMemoryFree(msg);
       break;
@@ -2145,6 +2769,45 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   }
   return code;
 }
+
+int32_t transReloadServerTlsConfig(void* handle) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
+  if (pInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  code = transTlsCxtMgtCreateNewCxt(pInst->pTlsMgt, TAOS_CONN_SERVER);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  SServerObj* svrObj = pInst->tcphandle;
+  for (int i = 0; i < svrObj->numOfThreads; i++) {
+    SWorkThrd*   pThrd = svrObj->pThreadObj[i];
+    SSvrRespMsg* msg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
+    if (msg == NULL) {
+      code = terrno;
+      break;
+    }
+
+    msg->type = ReloadTLS;
+
+    if ((code = transAsyncSend(pThrd->asyncPool, &msg->q)) != 0) {
+      code = (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
+      taosMemoryFree(msg);
+      break;
+    }
+  }
+
+_error:
+
+  transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
+  if (code != 0) {
+    tError("trans failed to update tls config  since %s", tstrerror(code));
+  }
+  return code;
+}
+
 #else
 int32_t transReleaseSrvHandle(void *handle, int32_t status) {
   tDebug("rpc start to release svr handle");
@@ -2176,7 +2839,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-   // impl later
+  // impl later
   return;
 }
 

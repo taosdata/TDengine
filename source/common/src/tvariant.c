@@ -460,7 +460,7 @@ void taosVariantDestroy(SVariant *pVar) {
 
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR ||
       pVar->nType == TSDB_DATA_TYPE_JSON || pVar->nType == TSDB_DATA_TYPE_GEOMETRY ||
-      pVar->nType == TSDB_DATA_TYPE_VARBINARY) {
+      pVar->nType == TSDB_DATA_TYPE_VARBINARY || pVar->nType == TSDB_DATA_TYPE_DECIMAL) {
     taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }

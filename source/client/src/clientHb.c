@@ -74,7 +74,53 @@ _return:
   return code;
 }
 
+static int32_t updateUserSessMetric(const char *user, SUserSessCfg *pCfg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (user == NULL || pCfg == NULL) {
+    return code;
+  }
+
+  SUserSessCfg cfg = {0, 0, 0, 0, 0};
+
+  if (memcmp(pCfg, &cfg, sizeof(SUserSessCfg)) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  tscInfo(
+      "update session metric for user:%s, sessPerUser:%d, sessConnTime:%d, sessConnIdleTime:%d, sessMaxConcurrency:%d, "
+      "sessMaxCallVnodeNum:%d",
+      user, pCfg->sessPerUser, pCfg->sessConnTime, pCfg->sessConnIdleTime, pCfg->sessMaxConcurrency,
+      pCfg->sessMaxCallVnodeNum);
+
+  if (pCfg->sessPerUser != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_PER_USER, pCfg->sessPerUser);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessConnTime != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_CONN_TIME, pCfg->sessConnTime);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessConnIdleTime != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_CONN_IDLE_TIME, pCfg->sessConnIdleTime);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessMaxConcurrency != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_MAX_CONCURRENCY, pCfg->sessMaxConcurrency);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessMaxCallVnodeNum != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_MAX_CALL_VNODE_NUM, pCfg->sessMaxCallVnodeNum);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+_error:
+  return code;
+}
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
+  int32_t code = 0;
   int64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
   for (int i = 0; i < TARRAY_SIZE(clientHbMgr.appHbMgrs); ++i) {
     SAppHbMgr *hbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
@@ -114,11 +160,18 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             }
           }
         }
+        code = sessMgtRemoveUser(pTscObj->user);
+        if (code != 0) {
+          tscError("failed to remove user session metric, user:%s, code:%d", pTscObj->user, code);  
+        }
         releaseTscObj(pReq->connKey.tscRid);
         continue;
       }
 
       pTscObj->authVer = pRsp->version;
+      if (updateUserSessMetric(pTscObj->user, &pRsp->sessCfg) != 0) {
+        tscError("failed to update user session metric, user:%s", pTscObj->user);
+      }
 
       if (pTscObj->sysInfo != pRsp->sysInfo) {
         tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user,
@@ -157,6 +210,25 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
         atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
         tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
+                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+      }
+
+      if (pTscObj->dateTimeWhiteListInfo.fp) {
+        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        if (oldVer != pRsp->timeWhiteListVer) {
+          atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+          if (whiteListInfo->fp) {
+            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->timeWhiteListVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
+          }
+          tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
+                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+        }
+      } else {
+        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
+        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
+        atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+        tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
                  oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
       releaseTscObj(pReq->connKey.tscRid);
@@ -578,7 +650,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     }
     int32_t now = taosGetTimestampSec();
     int32_t delta = abs(now - pRsp.svrTimestamp);
-    if (delta > timestampDeltaLimit) {
+    if (delta > tsTimestampDeltaLimit) {
       code = TSDB_CODE_TIME_UNSYNCED;
       tscError("time diff:%ds is too big", delta);
     }
@@ -612,6 +684,9 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   pInst->serverCfg.monitorParas = pRsp.monitorParas;
   pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
+  pInst->serverCfg.enableAuditSelect = pRsp.enableAuditSelect;
+  pInst->serverCfg.enableAuditInsert = pRsp.enableAuditInsert;
+  pInst->serverCfg.auditLevel = pRsp.auditLevel;
   pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
@@ -1202,8 +1277,11 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     }
 
     tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
+    tstrncpy(pOneReq->cInfo, pTscObj->optionInfo.cInfo, sizeof(pOneReq->cInfo));
     pOneReq->userIp = pTscObj->optionInfo.userIp;
     pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
+    tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
+
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);

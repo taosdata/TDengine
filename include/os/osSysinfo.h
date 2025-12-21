@@ -44,7 +44,7 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
 int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma, char* avx512);
 int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
-int32_t taosGetSysMemory(int64_t *usedKB);
+int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferKB);
 int32_t taosGetSysAvailMemory(int64_t *availSize);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
 int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);

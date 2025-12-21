@@ -27,13 +27,13 @@ Telegraf 是一款十分流行的指标采集开源软件。在数据采集和�
 
 重启 Telegraf 服务：
 
-```
+```bash
 sudo systemctl restart telegraf
 ```
 
 使用 TDengine TSDB CLI 验证从 Telegraf 向 TDengine TSDB 写入数据并能够正确读出：
 
-```
+```sql
 taos> show databases;
               name              |
 =================================

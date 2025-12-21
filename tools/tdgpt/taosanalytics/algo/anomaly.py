@@ -31,8 +31,8 @@ def do_ad_check(input_list, ts_list, algo_name, params):
 
     # draw_ad_results(input_list, res, algo_name, s.valid_code)
 
-    ano_window = convert_results_to_windows(res, ts_list, s.valid_code)
-    return res, ano_window
+    ano_window, mask_list = convert_results_to_windows(res, ts_list, s.valid_code)
+    return res, ano_window, mask_list
 
 
 def draw_ad_results(input_list, res, fig_name, valid_code):

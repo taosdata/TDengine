@@ -56,7 +56,7 @@ ns: http://example.org/ns#
 ]]
 ```
 
-**Format Description:**
+#### Format Description
 
 | Key Field | Description |
 |:----------|:------------|
@@ -64,7 +64,7 @@ ns: http://example.org/ns#
 | source    | TDengine SQL query statement (supports complex queries) |  
 | target    | Field mapping relationship (uses default conversion rules when type not specified) |
 
-**You can specify mapping data types in the target. If not specified, the following conversion rules apply:**
+You can specify mapping data types in the target. If not specified, the following conversion rules apply:
 
 | TDengine JDBC Data Type | Ontop Data Type |
 |:------------------------|:----------------|
@@ -129,7 +129,7 @@ Reuse the example content from the [Configure Table Mapping](#configure-table-ma
 
    ```sparql
     PREFIX ns: <http://example.org/ns#>
-
+   
     SELECT ?ts ?voltage ?phase ?groupid ?location
     WHERE {
         ?m a ns:Meters ;
@@ -148,7 +148,7 @@ Reuse the example content from the [Configure Table Mapping](#configure-table-ma
 
 2. Enter the above statement in the SPARQL query interface, click the "Run" button. Query results are shown below:
 
-   ![ontop-query](img/ontop-query.webp)
+   ![Run SPARQL query](../../assets/ontop-01.webp)
 
 3. Results are returned in SPARQL JSON format, containing meter collection timestamps, voltage readings, phase, group ID, and device location information.
 

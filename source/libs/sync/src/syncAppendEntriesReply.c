@@ -59,7 +59,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     if (pMsg->term != raftStoreGetTerm(ths)) {
       syncLogRecvAppendEntriesReply(ths, pMsg, "error term", &pRpcMsg->info.traceId);
-      syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
+      syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "appendEntryReply");
       return TSDB_CODE_SYN_WRONG_TERM;
     }
 
@@ -80,7 +80,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           sInfo("vgId:%d, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
                 ", assignedCommitIndex:%" PRId64,
                 ths->vgId, ths->assignedCommitIndex, commitIndex);
-          syncNodeStepDown(ths, pMsg->term, pMsg->destId);
+          syncNodeStepDown(ths, pMsg->term, pMsg->destId, "appendEntryReply");
         }
       } else {
         TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex, &pRpcMsg->info.traceId, "sync-append-entries-reply"));

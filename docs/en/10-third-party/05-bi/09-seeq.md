@@ -3,12 +3,6 @@ title: Seeq
 slug: /third-party-tools/analytics/seeq
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/seeq-01.png';
-import imgStep02 from '../../assets/seeq-02.png';
-import imgStep03 from '../../assets/seeq-03.png';
-import imgStep04 from '../../assets/seeq-04.png';
-
 Seeq is advanced analytics software for the manufacturing and Industrial Internet of Things (IIOT). Seeq supports innovative new features using machine learning in process manufacturing organizations. These features enable organizations to deploy their own or third-party machine learning algorithms to advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline staff.
 
 Through the `TDengine Java connector`, Seeq can easily support querying time-series data provided by TDengine and offer data presentation, analysis, prediction, and other functions.
@@ -55,9 +49,7 @@ CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS 
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![Create tables in TDengine](../../assets/seeq-01.png)
 
 **Step 2**, Construct data in TDengine.
 
@@ -252,9 +244,7 @@ The source code is hosted on [GitHub Repository](https://github.com/sangshuduo/t
 
 Log in to the Seeq service page and create a new Seeq Workbench. By selecting data sources from search results and choosing different tools as needed, you can display data or make predictions. For detailed usage methods, refer to the [official knowledge base](https://support.seeq.com/space/KB/146440193/Seeq+Workbench).
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![Create Seeq Workbench](../../assets/seeq-02.png)
 
 ### Further Data Analysis with Seeq Data Lab Server
 
@@ -323,9 +313,7 @@ plt.show()
 
 Program output results:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![Output results](../../assets/seeq-03.png)
 
 ### Solution Summary
 

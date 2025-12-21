@@ -21,7 +21,7 @@
 #include "tsdbInt.h"
 
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate);
+extern int32_t tsdbAsyncCompact(STsdb* tsdb, const STimeWindow* tw, ETsdbOpType type);
 
 
 // migrate monitor related functions
@@ -586,10 +586,11 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   }
 
   if (pCfg->ssCompact && flocal->f->lcn < 0) {
-    int32_t lcn = flocal->f->lcn;
+    int32_t     lcn = flocal->f->lcn;
     STimeWindow win = {0};
     tsdbFidKeyRange(pLocalFset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
-    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, true);
+    ETsdbOpType type = VND_IS_RSMA((rtner->tsdb->pVnode)) ? TSDB_OPTR_ROLLUP : TSDB_OPTR_SSMIGRATE;
+    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, type);
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, fileset need compact, lcn: %d", vid, pLocalFset->fid, lcn);
     if (*pCode) {
       setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
@@ -614,11 +615,11 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false;
   }
 
-  // 'mtime >= rtner->now - tsSsUploadDelaySec' means the file is active writing, and we should skip
+  // 'mtime >= rtner->tw.ekey - tsSsUploadDelaySec' means the file is active writing, and we should skip
   // the migration. However, this may also be a result of the [ssCompact] option, which should not
   // be skipped, so we also check 'mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact', note
   // this is not an acurate condition, but is simple and good enough.
-  if (mtime >= rtner->now - tsSsUploadDelaySec && (mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact)) {
+  if (mtime >= rtner->tw.ekey - tsSsUploadDelaySec && (mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact)) {
     tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is active writting, modified at %" PRId64, vid, pLocalFset->fid, mtime);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // still active writing, postpone migration
@@ -1008,7 +1009,7 @@ static int32_t tsdbAsyncMigrateFileSetImpl(STsdb *tsdb,  const SSsMigrateFileSet
     return TSDB_CODE_FAILED;
   }
 
-  STFileSet *fset, *fset1;
+  STFileSet *fset = NULL, *fset1;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset1) {
     if (fset1->fid == pReq->fid) {
       fset = fset1;
@@ -1034,10 +1035,11 @@ static int32_t tsdbAsyncMigrateFileSetImpl(STsdb *tsdb,  const SSsMigrateFileSet
   }
 
   arg->tsdb = tsdb;
-  arg->now = pReq->startTimeSec;
+  arg->tw.skey = INT64_MIN;
+  arg->tw.ekey = pReq->startTimeSec;
   arg->fid = fset->fid;
   arg->nodeId = pReq->nodeId;
-  arg->ssMigrate = true;
+  arg->optrType = TSDB_OPTR_SSMIGRATE;
   arg->lastCommit = fset->lastCommit;
 
   pmm->ssMigrateId = pReq->ssMigrateId;
@@ -1045,8 +1047,7 @@ static int32_t tsdbAsyncMigrateFileSetImpl(STsdb *tsdb,  const SSsMigrateFileSet
   pmm->state = SSMIGRATE_FILESET_STATE_IN_PROGRESS;
   pmm->startTimeSec = pReq->startTimeSec;
 
-  code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
-                    &fset->retentionTask);
+  code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, &fset->migrateTask);
   if (code) {
     tsdbError("vgId:%d, fid:%d, ssMigrateId:%d, schedule async task failed", vid, pReq->fid, pReq->ssMigrateId);
     taosMemoryFree(arg);
@@ -1065,6 +1066,37 @@ int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   return code;
+}
+
+
+void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId) {
+  (void)taosThreadMutexLock(&tsdb->mutex);
+
+  if (tsdb->pSsMigrateMonitor == NULL) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  if (tsdb->pSsMigrateMonitor->ssMigrateId != ssMigrateId) {
+    tsdbInfo("vgId:%d, ssMigrateId:%d, migration task not found", TD_VID(tsdb->pVnode), ssMigrateId);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  if (tsdb->pSsMigrateMonitor->state != SSMIGRATE_FILESET_STATE_IN_PROGRESS) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (fset->fid == tsdb->pSsMigrateMonitor->fid) {
+      (void)vnodeACancel(&fset->migrateTask);
+      break;
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 }
 
 #endif

@@ -41,6 +41,7 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;
   pEvent->inWindow = false;
+  pEvent->winSup.lastTs = INT64_MIN;
 
   colDataDestroy(&pEvent->twAggSup.timeWindowData);
   int32_t code = initExecTimeWindowInfo(&pEvent->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -73,6 +74,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
+  pOperator->exprSupp.hasWindow = true;
 
   SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
 
@@ -122,9 +124,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
   pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
-
-  pInfo->twAggSup = (STimeWindowAggSupp){.waterMark = pEventWindowNode->window.watermark,
-                                         .calTrigger = pEventWindowNode->window.triggerType};
+  pInfo->winSup.lastTs = INT64_MIN;
 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -229,7 +229,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
-    code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
@@ -245,7 +245,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     code = eventWindowAggImpl(pOperator, pInfo, pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pRes, pSup->pFilterInfo, NULL);
+    code = doFilter(pRes, pSup->pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows >= pOperator->resultInfo.threshold ||
@@ -290,7 +290,7 @@ static int32_t doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* 
   int32_t numOfOutput = pSup->numOfExprs;
   int32_t numOfRows = endIndex - startIndex + 1;
 
-  doKeepTuple(pRowSup, tsList[endIndex], pBlock->info.id.groupId);
+  doKeepTuple(pRowSup, tsList[endIndex], endIndex, pBlock->info.id.groupId);
 
   code = setSingleOutputTupleBufv1(&pInfo->binfo.resultRowInfo, &pRowSup->win, &pInfo->pRow, pSup, &pInfo->aggSup);
   if (code != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -326,6 +326,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     // this is a new group, reset the info
     pInfo->inWindow = false;
     pInfo->groupId = gid;
+    pInfo->winSup.lastTs = INT64_MIN;
     pInfo->pPreDataBlock = pBlock;
     goto _return;
   }
@@ -348,6 +349,22 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   code = filterExecute(pInfo->pEndCondInfo, pBlock, &pe, NULL, param2.numOfCols, &status2);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (pBlock->info.scanFlag != PRE_SCAN) {
+      if (pInfo->winSup.lastTs == INT64_MIN) {
+        pInfo->winSup.lastTs = tsList[i];
+      } else {
+        if (tsList[i] == pInfo->winSup.lastTs) {
+          qError("duplicate timestamp found in event window operator, groupId: %" PRId64 ", timestamp: %" PRId64,
+                 gid, tsList[i]);
+          code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+          QUERY_CHECK_CODE(code, lino, _return);
+        } else {
+          pInfo->winSup.lastTs = tsList[i];
+        }
+      }
+    }
+  }
   int32_t startIndex = pInfo->inWindow ? 0 : -1;
   while (rowIndex < pBlock->info.rows) {
     if (pInfo->inWindow) {  // let's find the first end value
@@ -362,9 +379,13 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         QUERY_CHECK_CODE(code, lino, _return);
         doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
-        if (pRowSup->win.ekey - pRowSup->win.skey < minWindowSize) {
+        int64_t delta = pRowSup->win.ekey - pRowSup->win.skey;
+        if(pInfo->binfo.inputTsOrder == ORDER_DESC) {
+          delta = -delta;
+        }
+        if (delta < minWindowSize) {
           qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64,
-                 pInfo->groupId, pRowSup->win.ekey - pRowSup->win.skey, minWindowSize);
+                 pInfo->groupId, delta, minWindowSize);
         } else {
           // check buffer size
           if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {

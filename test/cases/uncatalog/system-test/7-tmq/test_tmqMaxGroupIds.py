@@ -245,8 +245,9 @@ class TestCase:
         """
         self.prepareTestEnv()
         self.tmqCase1()
+        if platform.system().lower() == 'windows':
+           os.system("taskkill /f /im taosBenchmark.exe")
 
         tdLog.success(f"{__file__} successfully executed")
 
-event = threading.Event()
 

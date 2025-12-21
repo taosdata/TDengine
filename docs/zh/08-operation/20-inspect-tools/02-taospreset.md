@@ -12,7 +12,7 @@ TDengine TSDB 的安装部署对环境系统有一定的依赖和要求，安装
 
 工具支持通过 help 参数查看支持的语法
 
-```help
+```bash
 usage: taospreset [-h] [--model {local,ssh}] [--config CONFIG] [--backend] [--disable-kysec] [--result RESULT] [--version] [--log-level {debug,info}]
 
 Pre-set for Database installation
@@ -112,30 +112,30 @@ root hard stack=65536
 
 在工具所在节点以 local 模式执行安装前预配置
 
-```
+```bash
 ./taospreset 
 ```
 
 以 SSH 模式在所有节点执行安装前预配置
 
-```
+```bash
 ./taospreset -m ssh
 ```
 
 指定配置文件并以 SSH 模式在所有节点执行安装前预配置
 
-```
+```bash
 ./taospreset -m ssh -f /path_to_file/preset.cfg
 ```
 
 以 SSH 模式在所有节点执行安装前预配置并关闭 Kylin Security 服务
 
-```
+```bash
 ./taospreset -m ssh -d
 ```
 
 以 SSH 模式在所有节点执行安装前预配置，开启日志 debug 级别
 
-```
+```bash
 ./taospreset -m ssh -l debug
 ```

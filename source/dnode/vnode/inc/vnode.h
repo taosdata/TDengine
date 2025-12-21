@@ -76,6 +76,7 @@ int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
+int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion);
 void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables);
 int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
@@ -103,6 +104,7 @@ int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema);
 
 void    vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
+int32_t vnodeSetSyncTimeout(SVnode *pVnode, int32_t ms);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
@@ -124,6 +126,7 @@ void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, S
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
 int32_t     metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList);
@@ -140,6 +143,22 @@ int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *k
                                    bool *acquired);
 int32_t  metaUidFilterCachePut(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen, double selectivityRatio);
+int32_t  metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
+  const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
+  const uint8_t* pKey, int32_t keyLen, SArray* pList, bool* acquired);
+int32_t  metaStableTagFilterCachePut(void* pVnode, uint64_t suid,
+  const void* pTagCondKey, int32_t tagCondKeyLen,
+  const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
+int32_t metaStableTagFilterCacheDropSTable(SMeta* pMeta, tb_uid_t suid);
+typedef enum {
+  STABLE_TAG_FILTER_CACHE_DROP_TABLE = 1,
+  STABLE_TAG_FILTER_CACHE_ADD_TABLE = 2,
+} ETagFilterCacheAction;
+int32_t metaStableTagFilterCacheUpdateUid(
+  SMeta* pMeta, const SMetaEntry* pDroppedTable,
+  const SMetaEntry* pSuperTable, ETagFilterCacheAction action);
+int32_t metaStableTagFilterCacheDropTag(
+  SMeta* pMeta, tb_uid_t suid, col_id_t tagColId);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
@@ -176,9 +195,11 @@ void     tsdbReaderClose2(void *pReader);
 int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
 int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
 void     tsdbReleaseDataBlock2(void *pReader);
-int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock, SArray *pIdList);
+int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock);
 int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+void     tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock);
+void     tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock);
 int64_t  tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
 void    *tsdbGetIdx2(SMeta *pMeta);
 void    *tsdbGetIvtIdx2(SMeta *pMeta);
@@ -187,8 +208,10 @@ void     tsdbReaderSetCloseFlag(STsdbReader *pReader);
 int64_t  tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
 void     tsdbSetFilesetDelimited(STsdbReader *pReader);
 void     tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
-int32_t  tsdbReaderGetProgress(const STsdbReader *pReader, void **pBuf, uint64_t *pLen);
-int32_t  tsdbReaderSetProgress(STsdbReader *pReader, const void *buf, uint64_t len);
+int32_t  tsdbCreateFirstLastTsIter(void *pVnode, STimeWindow *pWindow, SVersionRange *pVerRange, uint64_t suid, void *pTableList,
+                                   int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
+int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes, bool* hasNext);
+void     tsdbDestroyFirstLastTsIter(void *pIter);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -241,7 +264,6 @@ typedef struct STqReader {
   int64_t           lastTs;
   bool              hasPrimaryKey;
   SExtSchema       *extSchema;
-  SVTSourceScanInfo vtSourceScanInfo;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -265,17 +287,12 @@ SWalReader  *tqGetWalReader(STqReader *pReader);
 SSDataBlock *tqGetResultBlock(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);
 
-int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList);
+int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList, SDecoder* decoder);
 void    tqReaderClearSubmitMsg(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp* pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
 
-int32_t tqReaderSetVtableInfo(STqReader *pReader, void *vnode, void *pAPI, SSHashObj *pVtableInfos,
-                              SSDataBlock **ppResBlock, const char *idstr);
-int32_t tqRetrieveVTableDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
-bool    tqNextVTableSourceBlockImpl(STqReader *pReader, const char *idstr);
-bool    tqReaderIsQueriedSourceTable(STqReader *pReader, uint64_t uid);
 int32_t tqCommitOffset(void* p);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -312,8 +329,8 @@ struct STsdbCfg {
   int32_t keep2;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
   int32_t keepTimeOffset;  // just for save config, use STsdbKeepCfg in STsdb instead
   SRetention retentions[TSDB_RETENTION_MAX];
-  int32_t    encryptAlgorithm;
-  char       encryptKey[ENCRYPT_KEY_LEN + 1];
+  int32_t    encryptAlgr;
+  SEncryptData encryptData;
 };
 
 typedef struct {
@@ -322,6 +339,7 @@ typedef struct {
   int64_t numOfNTables;
   int64_t numOfVTables;
   int64_t numOfVCTables;
+  int64_t numOfRSMAs;
   int64_t numOfReportedTimeSeries;
   int64_t numOfNTimeSeries;
   int64_t numOfTimeSeries;
@@ -359,16 +377,17 @@ struct SVnodeCfg {
   int16_t     hashPrefix;
   int16_t     hashSuffix;
   int32_t     tsdbPageSize;
-  int32_t     tdbEncryptAlgorithm;
-  char        tdbEncryptKey[ENCRYPT_KEY_LEN + 1];
+  int32_t      tdbEncryptAlgr;
+  SEncryptData tdbEncryptData;
   int32_t     ssChunkSize;
   int32_t     ssKeepLocal;
   int8_t      ssCompact;
 };
 
-#define TABLE_ROLLUP_ON       ((int8_t)0x1)
-#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
-#define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
+#define TABLE_ROLLUP_ON         ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)    (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_SET_ROLLUP(FLG)   ((FLG) |= TABLE_ROLLUP_ON)
+#define TABLE_RESET_ROLLUP(FLG) ((FLG) &= ~TABLE_ROLLUP_ON)
 
 #define TABLE_COL_COMPRESSED          ((int8_t)0x2)
 #define TABLE_IS_COL_COMPRESSED(FLG)  (((FLG) & (TABLE_COL_COMPRESSED)) != 0)

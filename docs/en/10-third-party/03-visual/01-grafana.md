@@ -5,18 +5,6 @@ slug: /third-party-tools/visualization/grafana
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/grafana-01.png';
-import imgStep02 from '../../assets/grafana-02.png';
-import imgStep03 from '../../assets/grafana-03.png';
-import imgStep04 from '../../assets/grafana-04.png';
-import imgStep05 from '../../assets/grafana-05.png';
-import imgStep06 from '../../assets/grafana-06.png';
-import imgStep07 from '../../assets/grafana-07.png';
-import imgStep08 from '../../assets/grafana-08.png';
-import imgStep09 from '../../assets/grafana-09.png';
-import imgStep10 from '../../assets/grafana-10.png';
-import imgStep11 from '../../assets/grafana-11.png';
 
 ## Overview
 
@@ -285,9 +273,7 @@ Detailed introduction to the above features can be found at [Distinguished Queri
 With the foundational knowledge from earlier, we can configure a time-series data display Dashboard based on the TDengine data source.  
 Create a Dashboard on the Grafana main interface, click on **Add Query** to enter the panel query page:
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![Create a dashboard](../../assets/grafana-01.png)
 
 As shown in the image above, select the `TDengine` data source in "Query", and enter the corresponding SQL in the query box below. Continuing with the example of smart meters, to display a beautiful curve, **virtual data is used here**.
 
@@ -301,9 +287,7 @@ Suppose we want to query the average current size over a period of time, with th
 
 In the custom variables at the top, if the value of `selected_groups` is set to 1, then querying the average value changes of all devices' current in the `meters` supertable with `groupid` 1 is shown in the following image:
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![Filter by group](../../assets/grafana-02.png)
 
 :::note
 
@@ -320,9 +304,7 @@ Suppose we want to query the average current size over a period of time and disp
 
 After completing the settings, the display grouped by `groupid` is shown in the following image:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![Group results by tag](../../assets/grafana-03.png)
 
 > For information on how to use Grafana to create corresponding monitoring interfaces and more about using Grafana, please refer to the official [documentation](https://grafana.com/docs/) of Grafana.
 
@@ -335,9 +317,7 @@ After completing the settings, the display grouped by `groupid` is shown in the 
 
 On the data source configuration page, you can import the TDinsight panel for this data source, serving as a monitoring visualization tool for the TDengine cluster. If the TDengine server is version 3.0, please select `TDinsight for 3.x` for import. Note that TDinsight for 3.x requires running and configuring taoskeeper.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![Import TDinsight dashboard](../../assets/grafana-04.png)
 
 The Dashboard compatible with TDengine 2.* has been released on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
 
@@ -399,23 +379,17 @@ On the Grafana page, go to "Home" -> "Alerting" -> "Contact points" and create a
 "Name": Email Contact Point  
 "Integration": Select the contact type, here choose Email, fill in the email receiving address, and save the contact point after completion  
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![Configure contact points](../../assets/grafana-05.png)
 
 ### Configure Notification Policies
 
 After configuring the contact points, you can see there is a Default Policy
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![Configure notification policies](../../assets/grafana-06.png)
 
 Click on the right side "..." -> "Edit", then edit the default notification policy, a configuration window pops up:
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![Edit notification policy](../../assets/grafana-07.png)
 
 Then configure the following parameters:
 
@@ -450,9 +424,7 @@ In "Define query and alert condition" configure the alert rule.
 
 After setting, you can see the image displayed below:
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![Preview results](../../assets/grafana-08.png)
 
 Grafana's "Expression" (expression) supports various operations and calculations on data, which are divided into:
 
@@ -475,9 +447,7 @@ As shown in the screenshot above, here we set the maximum value to trigger an al
 
 #### Configure Rule Evaluation Strategy
 
-<figure>
-<Image img={imgStep09} alt=""/>
-</figure>
+![Configure evaluation behavior](../../assets/grafana-09.png)
 
 Complete the following configurations:  
 
@@ -487,9 +457,7 @@ Complete the following configurations:
 
 #### Configure Labels and Alert Channels
 
-<figure>
-<Image img={imgStep10} alt=""/>
-</figure>
+![Configure labels and notifications](../../assets/grafana-10.png)
 
 Complete the following configurations:  
 
@@ -498,8 +466,6 @@ Complete the following configurations:
 
 #### Configure Notification Text
 
-<figure>
-<Image img={imgStep11} alt=""/>
-</figure>
+![Configure annotations](../../assets/grafana-11.png)
 
 Set "Summary" and "Description", and if an alert is triggered, you will receive a notification.

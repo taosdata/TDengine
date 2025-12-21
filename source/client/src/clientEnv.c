@@ -39,6 +39,7 @@
 #include "tversion.h"
 
 #include "cus_name.h"
+#include "clientSession.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -70,8 +71,6 @@ int32_t   clientReqRefPool = -1;
 int32_t   clientConnRefPool = -1;
 int32_t   clientStop = -1;
 SHashObj *pTimezoneMap = NULL;
-
-int32_t timestampDeltaLimit = 900;  // s
 
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
@@ -383,6 +382,14 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (TSDB_CODE_SUCCESS != code) {
@@ -462,6 +469,10 @@ void destroyAppInst(void *info) {
 
   taosMemoryFree(pAppInfo);
 }
+
+//  tscObj 1--->conn1
+/// tscObj 2-->conn1
+//  tscObj 3-->conn1
 
 void destroyTscObj(void *pObj) {
   if (NULL == pObj) {
@@ -712,6 +723,9 @@ void doDestroyRequest(void *p) {
   if (TSDB_CODE_SUCCESS != tsem_destroy(&pRequest->body.rspSem)) {
     tscError("failed to destroy semaphore");
   }
+
+  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = -1};
+  code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->targetTableList);
@@ -1077,6 +1091,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
+    SET_ERROR_MSG("Create %s failed:%s. configDir=%s", logName, strerror(ERRNO), configDir);
     tscInitRes = terrno;
     return;
   }
@@ -1130,6 +1145,9 @@ void taos_init_imp(void) {
 #ifdef TAOSD_INTEGRATED
   ENV_ERR_RET(shellStartDaemon(0, NULL), "failed to start taosd daemon");
 #endif
+
+  ENV_ERR_RET(sessMgtInit(), "failed to init session management");
+  
   tscInfo("TAOS driver is initialized successfully");
 }
 

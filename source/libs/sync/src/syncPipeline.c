@@ -825,9 +825,10 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   if (commitIndex <= pBuf->commitIndex) {
     sGDebug(trace, "vgId:%d, stale commit index:%" PRId64 ", notified:%" PRId64, vgId, commitIndex, pBuf->commitIndex);
     if (!pNode->restoreFinish && commitIndex > 0 && commitIndex == pBuf->commitIndex) {
+      sInfo("vgId:%d, try to get entry for restore check at index:%" PRId64, vgId, commitIndex);
       int32_t ret = syncLogBufferGetOneEntry(pBuf, pNode, commitIndex, &inBuf, &pEntry);
       if (ret != 0) {
-        sError("vgId:%d, failed to get entry at index:%" PRId64, vgId, commitIndex);
+        sWarn("vgId:%d, failed to get entry for restore check at index:%" PRId64, vgId, commitIndex);
       }
     }
     goto _out;

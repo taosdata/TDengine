@@ -67,6 +67,26 @@ class CompatibilityBase:
         else:
             tdLog.info(f'this processName is not stopped in 60s')
 
+    def version_compare(self, version1, version2):
+        """
+        Compare two version strings.
+        Returns 1 if version1 > version2, -1 if version1 < version2, 0 if equal
+        """
+        v1_parts = [int(x) for x in version1.split('.')]
+        v2_parts = [int(x) for x in version2.split('.')]
+        
+        # Pad shorter version with zeros
+        max_len = max(len(v1_parts), len(v2_parts))
+        v1_parts.extend([0] * (max_len - len(v1_parts)))
+        v2_parts.extend([0] * (max_len - len(v2_parts)))
+        
+        for v1, v2 in zip(v1_parts, v2_parts):
+            if v1 > v2:
+                return 1
+            elif v1 < v2:
+                return -1
+        return 0
+
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
         packagePath = "/usr/local/src/"
@@ -125,16 +145,31 @@ class CompatibilityBase:
         dataPath = cPath + "/../data/"
         packageType = "server"
 
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
-        else:
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+        # Check if version is 3.3.7.0 or later
+        if self.version_compare(base_version, "3.3.7.0") >= 0:
+            # Use new download URL format for 3.3.7.0 and later versions
+            if platform.system() == "Linux" and platform.machine() == "aarch64":
+                packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
+                download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
+            else:
+                packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
+                download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
             
-        # Determine download URL
-        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
+            # Extract package name without extension for installation
+            packageTPath = packageName.replace("-linux-x64.tar.gz", "")
+        else:
+            # Use old download URL format for versions before 3.3.7.0
+            if platform.system() == "Linux" and platform.machine() == "aarch64":
+                packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
+            else:
+                packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+                
+            # Determine download URL
+            download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
+            packageTPath = packageName.split("-Linux-")[0]
+            
         tdLog.info(f"wget {download_url}")
         
-        packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
@@ -218,7 +253,7 @@ class CompatibilityBase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
 
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database curdb '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database curdb  cachemodel \"both\" '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select count(*) from curdb.meters '")
@@ -269,12 +304,12 @@ class CompatibilityBase:
 
         consumer.close()
         
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
 
         # os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/13-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/18-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
 
         # add deleted  data
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{deletedDataSql}" ')
@@ -298,7 +333,6 @@ class CompatibilityBase:
             if output:
                 found_pids = [pid for pid in output.strip().split('\n') if pid] 
             tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
-
             if len(found_pids) == 0:
                 tdLog.info("No taosd process found keep going")
             else: 
@@ -346,6 +380,7 @@ class CompatibilityBase:
             self.buildTaosd(bPath)
             tdLog.info(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
             os.system(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
+        self.checkstatus()
 
     def checkTagSizeAndAlterStb(self,tdsql):
         tdsql.query("select * from information_schema.ins_tags where db_name = 'db_all_insert_mode'")
@@ -443,7 +478,7 @@ class CompatibilityBase:
         tdsql.execute("flush database deldata;")
         tdsql.query("select avg(c1) from deldata.ct1;")
 
-    def verifyBackticksInTaosSql(self,bPath):
+    def verifyBackticksInTaosSql(self,bPath,base_version):
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix("==========step4:verify backticks in taos Sql-TD18542")
         tdsql.execute("drop database if exists db")
@@ -513,26 +548,27 @@ class CompatibilityBase:
         tdLog.info(tdsql.queryResult)
         # tdsql.checkRows(tableNumbers)
         
-        tdsql.query(f"select last(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
-        tdsql.checkData(0,1,119) 
-        tdsql.checkData(0,2,191)
-        tdsql.checkData(0,3,0.25)
-        
-        tdsql.query(f"select last_row(*) from test.meters")
-        tdLog.info(tdsql.queryResult)
-        tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
-        tdsql.checkData(0,1,119) 
-        tdsql.checkData(0,2,191)
-        tdsql.checkData(0,3,0.25)
+        if self.version_compare(base_version, "3.3.6.0") >= 0:
+            tdsql.query(f"select last(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
+            tdsql.checkData(0,1,119) 
+            tdsql.checkData(0,2,191)
+            tdsql.checkData(0,3,0.25)
+            
+            tdsql.query(f"select last_row(*) from test.meters")
+            tdLog.info(tdsql.queryResult)
+            tdsql.checkData(0,0,"2033-07-14 08:39:59.000")
+            tdsql.checkData(0,1,119) 
+            tdsql.checkData(0,2,191)
+            tdsql.checkData(0,3,0.25)
 
-        tdsql.query(f"select last(*) from test.d1")
-        tdLog.info(tdsql.queryResult)       
-        tdsql.checkData(0,0,"2032-08-14 08:39:59.001")
-        tdsql.checkData(0,1,11) 
-        tdsql.checkData(0,2,190)
-        tdsql.checkData(0,3,0.21)      
+            tdsql.query(f"select last(*) from test.d1")
+            tdLog.info(tdsql.queryResult)       
+            tdsql.checkData(0,0,"2032-08-14 08:39:59.001")
+            tdsql.checkData(0,1,11) 
+            tdsql.checkData(0,2,190)
+            tdsql.checkData(0,3,0.21)      
 
         # update data and check
         tdsql.execute("insert into test.d2 values ('2033-07-14 08:39:59.002', 139, 182, 1.10) (now+2s, 12, 191, 0.22) test.d2  (ts) values ('2033-07-14 08:39:59.003');")
@@ -613,6 +649,64 @@ class CompatibilityBase:
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
+    def checkstatus(self,retry_times=30):
+        
+        # sleep before check status to avoid dnodes not ready issue
+        time.sleep(10)
+        tdsql=tdCom.newTdSql()
+        dnodes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show dnodes;")
+            dnode_nums = tdsql.queryRows
+            ready_nums = 0
+
+            for j in range(tdsql.queryRows):
+                if tdsql.queryResult[j][4] == "ready":
+                    ready_nums += 1
+            if ready_nums == dnode_nums:
+                dnodes_ready = True
+                break
+
+            time.sleep(1)
+
+        if not dnodes_ready:
+            tdLog.exit(f"dnodes are not ready in {retry_times}s")
+        tdLog.info(f"dnodes are ready in {retry_times}s")
+
+        modes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show mnodes;")
+            mnode_nums = tdsql.queryRows
+            ready_nums = 0
+            for j in range(tdsql.queryRows):
+                if tdsql.queryResult[j][3] == "ready":
+                    ready_nums += 1
+            if ready_nums == mnode_nums:
+                modes_ready = True
+                break
+            time.sleep(1)
+
+        if not modes_ready:
+            tdLog.exit(f"mnodes are not ready in {retry_times}s")
+        tdLog.info(f"mnodes are ready in {retry_times}s")
+
+    
+        vnodes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show vnodes;")
+            vnode_nums = tdsql.queryRows
+            ready_nums = 0
+            for j in range(tdsql.queryRows):
+                if str(tdsql.queryResult[j][6]).lower() == "true":
+                    ready_nums += 1
+            if ready_nums == vnode_nums:
+                vnodes_ready = True
+                break
+            time.sleep(1)
+    
+        if not vnodes_ready:
+            tdLog.exit(f"vnodes are not ready in {retry_times}s") 
+        tdLog.info(f"vnodes are ready in {retry_times}s")
 
 # Create instance for compatibility
 tdCb = CompatibilityBase() 

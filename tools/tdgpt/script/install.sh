@@ -26,10 +26,12 @@ venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
 installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
 tar_td_model_name="tdtsfm.tar.gz"
-tar_xhs_model_name="time-moe.tar.gz"
+tar_xhs_model_name="timemoe.tar.gz"
 
 python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
+# if install python venv
+install_venv="${INSTALL_VENV:-True}"
 
 #install main path
 install_main_dir=${installDir}
@@ -111,36 +113,9 @@ else
 fi
 
 # =============================  get input parameters =================================================
-
-# install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
-
 # set parameters by default value
-interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
-
-while getopts "hv:e:" arg; do
-  case $arg in
-  e)
-    #echo "interactiveFqdn=$OPTARG"
-    interactiveFqdn=$(echo $OPTARG)
-    ;;
-  v)
-    #echo "verType=$OPTARG"
-    verType=$(echo $OPTARG)
-    ;;
-  h)
-    echo "Usage: $(basename $0) -v [server | client]  -e [yes | no]"
-    exit 0
-    ;;
-  ?) #unknow option
-    echo "unknown argument"
-    exit 1
-    ;;
-  esac
-done
-
-#echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
 services=(${serverName})
 
@@ -191,6 +166,7 @@ function install_bin_and_lib() {
     ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
     ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
     ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
+    ["start-model-from-remote"]="${install_main_dir}/bin/start_model_from_remote.sh"
   )
 
   # Iterate over the array and create/remove links as needed
@@ -278,33 +254,20 @@ function install_anode_venv() {
   ${csudo}mkdir -p ${venvDir} && ${csudo}chmod 777 ${venvDir}
   ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
 
-  # build venv
-  ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
+  if [ ${install_venv} == "True" ]; then
+    # build venv
+    ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
 
-  echo -e "active Python3 virtual env: ${venvDir}"
-  source ${venvDir}/bin/activate
+    echo -e "active Python3 virtual env: ${venvDir}"
+    source ${venvDir}/bin/activate
 
-  echo -e "install the required packages by pip3, this may take a while depending on the network condition"
-  ${csudo}${venvDir}/bin/pip3 install numpy==1.26.4
-  ${csudo}${venvDir}/bin/pip3 install pandas==1.5.0
+    echo -e "install the required packages by pip3, this may take a while depending on the network condition"
+    ${csudo}${venvDir}/bin/pip3 install -r ${script_dir}/requirements_ess.txt
 
-  ${csudo}${venvDir}/bin/pip3 install scikit-learn
-  ${csudo}${venvDir}/bin/pip3 install outlier_utils
-  ${csudo}${venvDir}/bin/pip3 install statsmodels
-  ${csudo}${venvDir}/bin/pip3 install pyculiarity
-  ${csudo}${venvDir}/bin/pip3 install pmdarima
-  ${csudo}${venvDir}/bin/pip3 install flask
-  ${csudo}${venvDir}/bin/pip3 install matplotlib
-  ${csudo}${venvDir}/bin/pip3 install uwsgi
-  ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
-  ${csudo}${venvDir}/bin/pip3 install keras==3.10.0
-  ${csudo}${venvDir}/bin/pip3 install requests
-  ${csudo}${venvDir}/bin/pip3 install taospy
-  ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
-  ${csudo}${venvDir}/bin/pip3 install accelerate
-  ${csudo}${venvDir}/bin/pip3 install tensorflow-cpu==2.15.0
-
-  echo -e "Install python library for venv completed!"
+    echo -e "Install python library for venv completed!"
+  else
+    echo -e "Install python library for venv skipped!"
+  fi
 }
 
 function clean_service_on_sysvinit() {
@@ -403,159 +366,6 @@ function install_service() {
   fi
 }
 
-vercomp() {
-  if [[ $1 == $2 ]]; then
-    return 0
-  fi
-  local IFS=.
-  local i ver1=($1) ver2=($2)
-  # fill empty fields in ver1 with zeros
-  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
-    ver1[i]=0
-  done
-
-  for ((i = 0; i < ${#ver1[@]}; i++)); do
-    if [[ -z ${ver2[i]} ]]; then
-      # fill empty fields in ver2 with zeros
-      ver2[i]=0
-    fi
-    if ((10#${ver1[i]} > 10#${ver2[i]})); then
-      return 1
-    fi
-    if ((10#${ver1[i]} < 10#${ver2[i]})); then
-      return 2
-    fi
-  done
-  return 0
-}
-
-function is_version_compatible() {
-
-  curr_version=$(ls ${script_dir}/driver/libtaos.so* | awk -F 'libtaos.so.' '{print $2}')
-
-  if [ -f ${script_dir}/driver/vercomp.txt ]; then
-    min_compatible_version=$(cat ${script_dir}/driver/vercomp.txt)
-  else
-    min_compatible_version=$(${script_dir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 5)
-  fi
-
-  exist_version=$(${installDir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 3)
-  vercomp $exist_version "3.0.0.0"
-  case $? in
-  2)
-    prompt_force=1
-    ;;
-  esac
-
-  vercomp $curr_version $min_compatible_version
-  echo "" # avoid $? value not update
-
-  case $? in
-  0) return 0 ;;
-  1) return 0 ;;
-  2) return 1 ;;
-  esac
-}
-
-deb_erase() {
-  confirm=""
-  while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
-    read confirm
-    if [ "yes" == "$confirm" ]; then
-      ${csudo}dpkg --remove tdengine || :
-      break
-    elif [ "no" == "$confirm" ]; then
-      break
-    fi
-  done
-}
-
-rpm_erase() {
-  confirm=""
-  while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
-    read confirm
-    if [ "yes" == "$confirm" ]; then
-      ${csudo}rpm -e tdengine || :
-      break
-    elif [ "no" == "$confirm" ]; then
-      break
-    fi
-  done
-}
-
-function updateProduct() {
-  # Check if version compatible
-  if ! is_version_compatible; then
-    echo -e "${RED}Version incompatible${NC}"
-    return 1
-  fi
-
-  # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
-
-  if echo $osinfo | grep -qwi "centos"; then
-    rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
-  elif echo $osinfo | grep -qwi "ubuntu"; then
-    dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
-  fi
-
-  tar -zxf ${tarName}
-
-  echo "Start to update ${productName}..."
-  # Stop the service if running
-  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
-    if ((${service_mod} == 0)); then
-      ${csudo}systemctl stop ${serverName} || :
-    elif ((${service_mod} == 1)); then
-      ${csudo}service ${serverName} stop || :
-    else
-      kill_process ${serverName}
-    fi
-    sleep 1
-  fi
-
-  install_main_path
-  install_log
-  install_module
-  install_resource
-  install_config
-
-  if [ -z $1 ]; then
-    install_bin
-    if ! is_container; then
-      install_services
-    fi
-
-    echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${global_conf_dir}/${configFile}"
-    [ -f ${global_conf_dir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
-      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${global_conf_dir}/${adapterName}.toml"
-    echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${global_conf_dir}/explorer.toml"
-    if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
-    elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
-    else
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ./${serverName}${NC}"
-    fi
-
-    echo
-    echo "${productName} is updated successfully!"
-    echo
-
-  else
-    install_bin
-  fi
-
-  cd $script_dir
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
-}
-
 function installProduct() {
   # Start to install
   if [ ! -e ${tarName} ]; then
@@ -576,7 +386,6 @@ function installProduct() {
   install_module
   install_resource
   
-  
   install_bin_and_lib
   kill_model_service
 
@@ -592,7 +401,7 @@ function installProduct() {
   install_anode_venv
 }
 
-# check for python version, only the 3.10/3.11 is supported
+# check for python version, only the 3.10/3.11/3.12 is supported
 check_python3_env() {
   if ! command -v python3 &> /dev/null
   then
@@ -604,12 +413,12 @@ check_python3_env() {
 
   python3_version_ok=false
   python_minor_ver=$(echo "$python3_version" | cut -d"." -f2)
-  if [[ $(echo "$python3_version" | cut -d"." -f1) -eq 3 && $(echo "$python3_version" | cut -d"." -f2) -ge 10 ]]; then
+  if [[ $(echo "$python3_version" | cut -d"." -f1) -eq 3 && $python_minor_ver =~ ^(10|11|12)$ ]]; then
     python3_version_ok=true
   fi
 
   if $python3_version_ok; then
-    echo -e "\033[32mPython3 ${python3_version} has been found.\033[0m"
+    echo -e "\033[32mPython ${python3_version} has been found.\033[0m"
   else
     if command -v python3.10 &> /dev/null
     then
@@ -619,18 +428,28 @@ check_python3_env() {
     then
       python_minor_ver=11
       echo -e "\033[32mPython3.11 has been found.\033[0m"
+    elif command -v python3.12 &> /dev/nul
+    then
+      python_minor_ver=12
+      echo -e "\033[32mPython3.12 has been found.\033[0m"
+
     else
-      echo -e "\033[31mWarning: Python3.10/3.11 is required, only found python${python3_version}.\033[0m"
+      echo -e "\033[31mWarning: Python3.10/3.11/3.12 allowed, only found python${python3_version}.\033[0m"
       exit 1
     fi
   fi
 
+  if [[ $python_minor_ver -eq 12 ]]; then
+    echo "Python 3.12: Update Pandas from 1.5.3 to 2.2.0 in Requirements_ess.txt"
+    sed -i '1s/pandas==1.5.3/pandas==2.2.0/' ${script_dir}/requirements_ess.txt
+  fi
+
 #  echo -e "Python3 minor version is:${python_minor_ver}"
 
-  # check the existence pip3.10/pip3.11
+  # check the existence pip3.10/pip3.11/pip3.12
   if ! command -v pip3 &> /dev/null
   then
-    echo -e "\033[31mWarning: Pip3 command not found. Version 3.10/3.11 is required.\033[0m"
+    echo -e "\033[31mWarning: Pip3 command not found. Version 3.10/3.11 allowed.\033[0m"
     exit 1
   fi
 
@@ -650,7 +469,7 @@ check_python3_env() {
     then
       echo -e "\033[32mpip3.${python_minor_ver} has been found.\033[0m"
     else
-      echo -e "\033[31mWarning: pip3.10/3.11 is required, only found pip${pip3_version}.\033[0m"
+      echo -e "\033[31mWarning: pip3.10/3.11/3.12 allowed, only found pip${pip3_version}.\033[0m"
      exit 1
     fi
   fi

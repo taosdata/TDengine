@@ -15,7 +15,7 @@
 
 #ifndef _TD_VNODE_SMA_H_
 #define _TD_VNODE_SMA_H_
-
+#if 0
 #include "vnodeInt.h"
 
 #ifdef __cplusplus
@@ -241,5 +241,5 @@ void tdRSmaGetDirName(SVnode *pVnode, STfs *pTfs, bool endWithSep, char *outputN
 #ifdef __cplusplus
 }
 #endif
-
+#endif
 #endif /*_TD_VNODE_SMA_H_*/

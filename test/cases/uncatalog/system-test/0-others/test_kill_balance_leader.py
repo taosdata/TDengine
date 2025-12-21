@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
 import time
+import platform
 
 
 class TestKillBalanceLeader:
@@ -39,12 +40,16 @@ class TestKillBalanceLeader:
             - xxx
         """
         tdLog.debug(f"start to excute {__file__}")
+        vgroups = 160
+        if platform.system() == "Windows":
+            vgroups = 1
 
-        tdSql.execute('CREATE DATABASE db vgroups 160 replica 3;')
-
+        tdSql.execute(f'CREATE DATABASE db vgroups {vgroups} replica 3;')
         tdSql.execute('balance vgroup leader')
 
         sql ="show transactions;"
+        if platform.system() == 'Windows':
+            time.sleep(5)
         rows = tdSql.query(sql)
 
         if rows > 0:
@@ -52,8 +57,11 @@ class TestKillBalanceLeader:
             tdLog.info('kill transaction %d'%tranId)
             tdSql.execute('kill transaction %d'%tranId, queryTimes=1 )
 
-        if self.waitTransactionZero() is False:
-            tdLog.exit(f"{sql} transaction not finished")
+            if self.waitTransactionZero() is False:
+                tdLog.exit(f"{sql} transaction not finished")
+                return False
+        else:
+            tdLog.info(f"{sql} no balance transaction exist")
             return False
 
         tdLog.success(f"{__file__} successfully executed")

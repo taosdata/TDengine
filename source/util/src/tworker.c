@@ -20,6 +20,7 @@
 #include "tgeosctx.h"
 #include "tlog.h"
 #include "ttrace.h"
+#include "tcurl.h"
 
 #define QUEUE_THRESHOLD (1000 * 1000)
 
@@ -253,6 +254,7 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
     taosUpdateItemSize(qinfo.queue, 1);
   }
   DestoryThreadLocalRegComp();
+  closeThreadNotificationConn();
 
   return NULL;
 }
@@ -710,6 +712,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
   }
 
   DestoryThreadLocalRegComp();
+  closeThreadNotificationConn();
 
   return NULL;
 }
@@ -1073,7 +1076,7 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (taosThreadCreate(&pWorker->thread, &thAttr, (ThreadFp)tQueryAutoQWorkerThreadFp, pWorker) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    uError("create queryAutoWorker thread failed, error:%s", tstrerror(terrno));
     return terrno;
   }
   (void)taosThreadAttrDestroy(&thAttr);
@@ -1158,6 +1161,7 @@ static void *tDispatchWorkerThreadFp(SDispatchWorker *pWorker) {
     }
   }
   DestoryThreadLocalRegComp();
+  closeThreadNotificationConn();
   return NULL;
 }
 
