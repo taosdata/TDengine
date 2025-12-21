@@ -65,7 +65,9 @@ main() {
   if [[ "$1" == "all" ]]; then
     shift
     for m in tdtsfm timesfm timemoe moirai chronos moment; do
-      "$0" -c "$CONFIG_FILE" "$m" "$@" &
+      (
+        "$0" -c "$CONFIG_FILE" "$m" "$@" | sed "s/^/[$m] /"
+      ) &
       sleep 1
       echo
     done
@@ -95,7 +97,7 @@ main() {
       venv_dir="${default_venv}"
       sub_model_dir="${model_dir%/}/tdtsfm"
       py_script="tdtsfm-server.py"
-      py_args="--action server $*"
+      set -- "${sub_model_dir}" "--action" "server" "$@"
       ;;
     timesfm)
       venv_dir="${timesfm_venv}"
@@ -145,11 +147,22 @@ main() {
     cd "${service_dir}" || exit
     # shellcheck source=/dev/null
     source "${venv_dir}/bin/activate"
-    echo "nohup ${venv_dir}/bin/python3 ${py_script} ${py_args} > ${service_log} 2>&1 &"
+    echo "nohup ${venv_dir}/bin/python3 ${py_script} $* >> ${service_log} 2>&1 &"
     nohup "${venv_dir}/bin/python3" "${py_script}" "$@" >> "${service_log}" 2>&1 &
     echo "check the pid of the ${py_script} to confirm it is running"
-    pid=$(pgrep -f "${py_script}")
-    echo "PID of the ${py_script} is $pid"
+    pid=""
+    for _ in {1..10}; do
+      pid=$(pgrep -f "${py_script}")
+      if [ -n "$pid" ]; then
+        break
+      fi
+      sleep 1
+    done
+    if [ -n "$pid" ]; then
+      echo "PID of the ${py_script} is $pid"
+    else
+      echo "PID of the ${py_script} not found after waiting, it may still be starting or failed."
+    fi
   else
     echo "Directory ${sub_model_dir} does not exist."
     exit 1
