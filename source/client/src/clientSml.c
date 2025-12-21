@@ -1515,7 +1515,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     conn.requestObjRefId = info->pRequest->self;
     conn.mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
 
-    SML_CHECK_CODE(smlCheckAuth(info, &conn, pName.tname, AUTH_TYPE_WRITE));
+    SML_CHECK_CODE(smlCheckAuth(info, &conn, pName.tname, PRIV_TBL_INSERT));
 
     SVgroupInfo vg = {0};
     SML_CHECK_CODE(catalogGetTableHashVgroup(info->pCatalog, &conn, &pName, &vg));

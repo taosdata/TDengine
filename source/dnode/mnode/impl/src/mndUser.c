@@ -1456,7 +1456,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   // save white list
   int32_t num = pUser->pIpWhiteListDual->num;
   int32_t tlen = sizeof(SIpWhiteListDual) + num * sizeof(SIpRange) + 4;
-  int32_t maxBufLen = MAX(tlen, sizeExt);
+  int32_t maxBufLen = TMAX(tlen, sizeExt);
   if ((buf = taosMemoryCalloc(1, maxBufLen)) == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
