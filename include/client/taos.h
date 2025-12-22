@@ -78,6 +78,7 @@ typedef enum {
 
 typedef enum {
   TSDB_CONNECTION_INFO_USER = 0,         // name of current user
+  TSDB_CONNECTION_INFO_TOKEN,            // token name of current connection, if authenticated by token
   TSDB_MAX_CONNECTION_INFO
 } TSDB_CONNECTION_INFO;
 

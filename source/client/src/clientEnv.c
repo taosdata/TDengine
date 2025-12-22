@@ -353,7 +353,7 @@ static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
 }
 
 // TODO refactor
-int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread, void **pDnodeConn) {
+int32_t openTransporter(const char *user, int32_t numOfThread, void **pDnodeConn) {
   SRpcInit rpcInit;
   (void)memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
@@ -518,8 +518,15 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
-  tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
-  (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
+  if (user == NULL) {
+    (*pObj)->user[0] = 0;
+    (*pObj)->pass[0] = 0;
+    tstrncpy((*pObj)->token, auth, sizeof((*pObj)->token));
+  } else {
+    tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
+    (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
+  }
+  (*pObj)->tokenName[0] = 0;
 
   if (db != NULL) {
     tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));

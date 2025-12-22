@@ -702,6 +702,7 @@ static const SSysTableMeta infosMeta[] = {
 static const SSysDbTableSchema connectionsSchema[] = {
     {.name = "conn_id", .bytes = 4, .type = TSDB_DATA_TYPE_UINT, .sysInfo = false},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "token", .bytes = TSDB_TOKEN_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_UINT, .sysInfo = false},
     {.name = "end_point", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},

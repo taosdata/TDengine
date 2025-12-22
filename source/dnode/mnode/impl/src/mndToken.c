@@ -73,6 +73,7 @@ static int32_t tokenCacheAdd(const STokenObj* token) {
   if (ti == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
+  tstrncpy(ti->name, token->name, sizeof(ti->name));
   tstrncpy(ti->user, token->user, sizeof(ti->user));
   ti->expireTime = token->expireTime;
   ti->enabled = token->enabled;
@@ -134,6 +135,15 @@ static void tokenCacheRemove(const char* token) {
     }
   }
   taosThreadRwlockUnlock(&tokenCache.rw);
+}
+
+
+
+static bool tokenCacheExist(const char* token) {
+  (void)taosThreadRwlockRdlock(&tokenCache.rw);
+  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1);
+  taosThreadRwlockUnlock(&tokenCache.rw);
+  return pp != NULL;
 }
 
 
@@ -330,7 +340,9 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SUserObj
   tokenObj.enabled    = pCreate->enable;
   tokenObj.createdTime = taosGetTimestampSec();
   tokenObj.expireTime = (pCreate->ttl > 0) ? (tokenObj.createdTime + pCreate->ttl) : 0;
-  generateToken(tokenObj.token, sizeof(tokenObj.token));
+  do {
+    generateToken(tokenObj.token, sizeof(tokenObj.token));
+  } while (tokenCacheExist(tokenObj.token));
 
   SUserObj newUser = {0};
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);

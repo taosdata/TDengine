@@ -322,7 +322,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   }
 
   STscObj *pObj = NULL;
-  int32_t  code = taos_connect_internal(ip, user, pass, NULL, NULL, db, port, CONN_TYPE__QUERY, &pObj);
+  int32_t  code = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
@@ -1556,6 +1556,9 @@ _return:
   return code;
 }
 
+// buffer is allocated by caller, len is in/out parameter, input is buffer length, output is actual length.
+// because this is a general purpose api, buffer is not null-terminated string even for string info, and
+// the return length is the actual length of the info, not including null-terminator.
 int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len) {
   if (len == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1571,15 +1574,29 @@ int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer
 
   switch (info) {
     case TSDB_CONNECTION_INFO_USER:
-      int userLen = strlen(pTscObj->user) + 1;
+      int userLen = strlen(pTscObj->user);
       if (buffer == NULL || *len < userLen) {
         *len = userLen;
         TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
       } else {
         *len = userLen;
-        tstrncpy(buffer, pTscObj->user, userLen);
+        (void)memcpy(buffer, pTscObj->user, userLen);
       }
       break;
+
+    case TSDB_CONNECTION_INFO_TOKEN:
+      int tokenLen = strlen(pTscObj->tokenName);
+      if (tokenLen == 0) {
+        *len = 0;
+      } else if (buffer == NULL || *len < tokenLen) {
+        *len = tokenLen;
+        TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
+      } else {
+        *len = tokenLen;
+        (void)memcpy(buffer, pTscObj->tokenName, tokenLen);
+      }
+      break;
+
     default:
         TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
