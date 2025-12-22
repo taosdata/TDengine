@@ -40,8 +40,8 @@ typedef struct STimeSliceOperatorInfo {
   SColumn              tsCol;         // primary timestamp column
   SExprSupp            scalarSup;     // scalar calculation
   struct SFillColInfo* pFillColInfo;  // fill column info
-  SRowKey              prevKey;       // to detect invalid timestamps
-  bool                 prevTsSet;     // denote if previous timestamp is set, todo(remove)
+  SRowKey              prevKey;       // record previous row key
+  bool                 prevTsSet;     // denotes if previous timestamp is set
   uint64_t             groupId;
   SArray*              pPrevGroupKeys;
   SSDataBlock*         pNextGroupRes;
@@ -220,12 +220,19 @@ static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t r
   Timestamp is invalid if current timestamp <= previous timestamp.
   Only timestamp is considered even if composite primary key exists.
 */
-static bool checkInvalidTimestamps(STimeSliceOperatorInfo* pSliceInfo,
-                                   SColumnInfoData* pTsCol,
-                                   SColumnInfoData* pPkCol, int32_t curIndex) {
-  int64_t currentTs = *(int64_t*)colDataGetData(pTsCol, curIndex);
+static bool isInvalidTimestamp(STimeSliceOperatorInfo* pSliceInfo,
+                                   int64_t currentTs, SColumnInfoData* pPkCol,
+                                   int32_t curIndex) {
   if (currentTs > pSliceInfo->win.ekey) {
     return false;
+  }
+  if (pSliceInfo->prevTsSet && currentTs <= pSliceInfo->prevKey.ts) {
+    /*
+      Input data of time slice operator must be ordered by
+      timestamp ascendingly, except the prev scan.
+      So prevTs should never be updated to equal or smaller timestamp.
+    */
+    return true;
   }
 
   SRowKey cur = {.ts = currentTs, .numOfPKs = (pPkCol != NULL) ? 1 : 0};
@@ -237,11 +244,6 @@ static bool checkInvalidTimestamps(STimeSliceOperatorInfo* pSliceInfo,
       valueSetDatum(cur.pks, pPkCol->info.type,
                     colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
     }
-  }
-
-  // let's discard the invalid ts
-  if (pSliceInfo->prevTsSet && currentTs <= pSliceInfo->prevKey.ts) {
-    return true;
   }
 
   pSliceInfo->prevTsSet = true;
@@ -891,11 +893,32 @@ static void saveBlockStatus(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBl
   pSliceInfo->pRemainRes = NULL;
 }
 
-static int32_t timeSliceOptrNotifyDownstream(SOperatorInfo* pDownOptr) {
+/*
+  @brief create the notify parameter and notify the downstream operator
+  @param pDownOptr the downstream operator info
+  @param pInput the input parameter for the notify function
+  @return the code of the operation
+*/
+static int32_t timeSliceOptrNotifyDownstream(SOperatorInfo* pDownOptr,
+                                             int64_t notifyTs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SOperatorParam* pNotifyParam = NULL;
   if (pDownOptr != NULL && pDownOptr->fpSet.notifyFn != NULL) {
-    return pDownOptr->fpSet.notifyFn(pDownOptr, NULL);
+    code = buildOperatorStepDoneNotifyParam(&pNotifyParam,
+                                            pDownOptr->operatorType, notifyTs);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = pDownOptr->fpSet.notifyFn(pDownOptr, pNotifyParam);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
-  return TSDB_CODE_SUCCESS;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  freeOperatorParam(pNotifyParam, OP_NOTIFY_PARAM);
+  return code;
 }
 
 static int64_t getNextTimestamp(int64_t current, SInterval* pInterval) {
@@ -904,14 +927,15 @@ static int64_t getNextTimestamp(int64_t current, SInterval* pInterval) {
 }
 
 static void doTimesliceImpl(SOperatorInfo* pOperator,
-                            STimeSliceOperatorInfo* pSliceInfo,
-                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                            bool ignoreNull) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
+                               STimeSliceOperatorInfo* pSliceInfo,
+                               SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
+                               bool ignoreNull) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
   bool         notified = false;
+  SOperatorParam* pNotifyParam = NULL;
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock,
                                          pSliceInfo->tsCol.slotId);
@@ -925,17 +949,18 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
   for (; i < pBlock->info.rows; ++i) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
-    if (checkInvalidTimestamps(pSliceInfo, pTsCol, pPkCol, i) ||
-        checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
+    if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull) ||
+        isInvalidTimestamp(pSliceInfo, ts, pPkCol, i)) {
       continue;
     }
 
-    if (!notified) {
+    if (!notified && (ts < pSliceInfo->win.ekey || ts > pSliceInfo->win.skey)) {
       /*
-        When downstream is table scan operator,
-        notify it only once when the first valid row comes.
+        When downstream contains table scan operator, it may do prev/next
+        scan to fill(prev/next/linear/near) the first/last row. To reduce 
+        the overhead, notify it only once when the first valid row comes.
       */
-      code = timeSliceOptrNotifyDownstream(pOperator->pDownstream[0]);
+      code = timeSliceOptrNotifyDownstream(pOperator->pDownstream[0], ts);
       QUERY_CHECK_CODE(code, lino, _end);
       notified = true;
     }
@@ -975,8 +1000,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
         }
       }
 
-
-      // add current row if timestamp match
+      // add current row if timestamp matches
       if (ts == pSliceInfo->current &&
           pSliceInfo->current <= pSliceInfo->win.ekey) {
         code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp,
@@ -1068,6 +1092,8 @@ static void resetTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
 }
 
 static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
@@ -1076,36 +1102,30 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                 order = TSDB_ORDER_ASC;
 
   if (checkWindowBoundReached(pSliceInfo)) {
-    int32_t code = timeSliceOptrNotifyDownstream(pOperator->pDownstream[0]);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
-    return;
+    code = timeSliceOptrNotifyDownstream(pOperator->pDownstream[0],
+                                         pSliceInfo->current);
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
   }
 
-  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
-  if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
+  code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pSliceInfo->scalarSup.pExprInfo != NULL) {
     SExprSupp* pExprSup = &pSliceInfo->scalarSup;
     code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
                                  GET_STM_RTINFO(pOperator->pTaskInfo));
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   // the pDataBlock are always the same one, no need to call this again
   code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
+  QUERY_CHECK_CODE(code, lino, _end);
   doTimesliceImpl(pOperator, pSliceInfo, pBlock, pTaskInfo, ignoreNull);
   code = copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKeys, pBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     T_LONG_JMP(pTaskInfo->env, code);

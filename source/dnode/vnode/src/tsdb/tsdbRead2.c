@@ -5750,7 +5750,8 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 
     /*
       Inner readers needs to fetch data until found a valid row,
-      so we set a proper capacity instead of 1 for them.
+      so we set a proper capacity instead of 1 for them, to avoid
+      the overhead of reallocating buffers and copying data.
     */
     code = tsdbReaderCreate(pVnode, pCond,
                             (void**)&((STsdbReader*)pReader)->innerReader[0],
@@ -7401,10 +7402,11 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
 }
 
 /*
-  Mark the current step done, so next
-  tsdbNextDatablock2 will switch to the next step
+  @brief Mark the current step done, so next step will be triggered.
+  @param pReader the reader to mark the step done
+  @param notifyTs the timestamp to notify, used to determine whether  
 */
-int32_t tsdbReaderStepDone(STsdbReader* pReader) {
+int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
   if (pReader == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -7413,9 +7415,26 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader) {
   int32_t code = tsdbAcquireReader(pReader);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  pReader->currentStepDone = true;
-  if (pReader->step == EXTERNAL_ROWS_NEXT) {
-    pReader->step = EXTERNAL_ROWS_DONE;
+  if (pReader->step == EXTERNAL_ROWS_PREV && NULL != pReader->innerReader[0]) {
+    /*
+      If current step is PREV and the notify timestamp is
+      less than or equal to the end timestamp of the PREV window,
+      mark the current step as done.
+    */
+    if (notifyTs <= pReader->innerReader[0]->info.window.ekey) {
+      pReader->currentStepDone = true;
+    }
+  }
+
+  if (pReader->step == EXTERNAL_ROWS_NEXT && NULL != pReader->innerReader[1]) {
+    /*
+      If current step is NEXT and the notify timestamp is
+      greater than or equal to the start timestamp of the NEXT window,
+      mark the current step as done.
+    */
+    if (notifyTs >= pReader->innerReader[1]->info.window.skey) {
+      pReader->currentStepDone = true;
+    }
   }
 
   code = tsdbReleaseReader(pReader);

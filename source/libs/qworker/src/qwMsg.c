@@ -747,7 +747,8 @@ int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
 
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .code = pMsg->code, .connInfo = pMsg->info, .msgType = msg.type};
+  SQWMsg qwMsg = {.node = node, .msg = &msg, .msgLen = 0, .code = pMsg->code,
+                  .connInfo = pMsg->info, .msgType = msg.type};
 
   QW_SCH_TASK_DLOG("processNotify start, node:%p, handle:%p", node, pMsg->info.handle);
 

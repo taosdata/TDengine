@@ -5866,12 +5866,18 @@ static void destoryTableCountScanOperator(void* param) {
 
 int32_t scanOptrNotifyReaderStepDone(struct SOperatorInfo* pOptr,
                                      SOperatorParam* param) {
-  (void)param;  /* not used */
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pOptr->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    STableScanInfo* pTableScanInfo = (STableScanInfo*)pOptr->info;
-    TsdReader* pAPI = &pOptr->pTaskInfo->storageAPI.tsdReader;
-    code = pAPI->tsdReaderStepDone(pTableScanInfo->base.dataReader);
+  if (param == NULL || param->value == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int64_t notifyTs = *(int64_t*)param->value;
+  STableScanInfo* pTableScanInfo = (STableScanInfo*)pOptr->info;
+  TsdReader* pAPI = &pOptr->pTaskInfo->storageAPI.tsdReader;
+  code = pAPI->tsdReaderStepDone(pTableScanInfo->base.dataReader, notifyTs);
+  
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed to notify reader step done, since:%s", 
+           GET_TASKID(pOptr->pTaskInfo), tstrerror(code));
   }
   return code;
 }

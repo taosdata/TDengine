@@ -2281,15 +2281,14 @@ end:
   return code;
 }
 
-int32_t notifyTableScanTask(qTaskInfo_t tinfo) {
+int32_t notifyTableScanTask(qTaskInfo_t tinfo, SOperatorParam* pNotifyParam) {
   int32_t code = TSDB_CODE_SUCCESS;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   if (pTaskInfo->pRoot != NULL) {
     SOperatorInfo* pOperator = pTaskInfo->pRoot;
     if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
         pOperator->fpSet.notifyFn != NULL) {
-      code = pOperator->fpSet.notifyFn(pOperator,
-                                       pOperator->pOperatorNotifyParam);
+      code = pOperator->fpSet.notifyFn(pOperator, pNotifyParam);
       if (TSDB_CODE_SUCCESS != code) {
         qError("%s, failed to notify table scan operator, since:%s",
                pTaskInfo->id.str, tstrerror(code));

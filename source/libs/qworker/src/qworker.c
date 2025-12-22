@@ -1240,7 +1240,9 @@ int32_t qwProcessNotify(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       break;
     case TASK_NOTIFY_STEP_DONE: {
       if (ctx->taskHandle != NULL) {
-        QW_ERR_JRET(notifyTableScanTask(ctx->taskHandle));
+        QW_ERR_JRET(
+          notifyTableScanTask(ctx->taskHandle,
+                              ((STaskNotifyReq*)qwMsg->msg)->pOpParam));
       }
       break;
     }

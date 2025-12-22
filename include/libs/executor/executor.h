@@ -318,8 +318,10 @@ bool    isTaskKilled(void* pTaskInfo);
 
 /*
   @brief notify the REMOTE scan operator's reader that current step is done
+  @param tinfo the TableScan task info
+  @param pNotifyParam the notify parameter
 */
-int32_t notifyTableScanTask(qTaskInfo_t tinfo);
+int32_t notifyTableScanTask(qTaskInfo_t tinfo, SOperatorParam* pNotifyParam);
 
 int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
 

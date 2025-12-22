@@ -12555,7 +12555,7 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
   taosArrayDestroyP(pReq->subEndPoints, NULL);
 }
 
-int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
+static int32_t tSerializeSOperatorGetParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->opType));
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->downstreamIdx));
   TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pOpParam->reUse));
@@ -12660,7 +12660,7 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
   return 0;
 }
 
-int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam) {
+static int32_t tDeserializeSOperatorGetParam(SDecoder *pDecoder, SOperatorParam *pOpParam) {
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->opType));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->downstreamIdx));
   TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pOpParam->reUse));
@@ -12818,7 +12818,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
       if (NULL == pChild) {
         TAOS_CHECK_RETURN(terrno);
       }
-      TAOS_CHECK_RETURN(tDeserializeSOperatorParam(pDecoder, pChild));
+      TAOS_CHECK_RETURN(tDeserializeSOperatorGetParam(pDecoder, pChild));
       if (taosArrayPush(pOpParam->pChildren, &pChild) == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }
@@ -12856,7 +12856,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->execId));
   if (pReq->pOpParam) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
-    TAOS_CHECK_EXIT(tSerializeSOperatorParam(&encoder, pReq->pOpParam));
+    TAOS_CHECK_EXIT(tSerializeSOperatorGetParam(&encoder, pReq->pOpParam));
   } else {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
   }
@@ -12916,7 +12916,7 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
     if (NULL == pReq->pOpParam) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tDeserializeSOperatorParam(&decoder, pReq->pOpParam));
+    TAOS_CHECK_EXIT(tDeserializeSOperatorGetParam(&decoder, pReq->pOpParam));
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
@@ -13125,7 +13125,75 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSTaskNotifyReq(void *buf, int32_t bufLen, STaskNotifyReq *pReq) {
+static int32_t tSerializeSOperatorNotifyParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->opType));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->downstreamIdx));
+  switch (pOpParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, *(int64_t*)pOpParam->value));
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t n = taosArrayGetSize(pOpParam->pChildren);
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, n));
+  for (int32_t i = 0; i < n; ++i) {
+    SOperatorParam *pChild = *(SOperatorParam **)taosArrayGet(pOpParam->pChildren, i);
+    TAOS_CHECK_RETURN(tSerializeSOperatorNotifyParam(pEncoder, pChild));
+  }
+
+  TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pOpParam->reUse));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tDeserializeSOperatorNotifyParam(SDecoder *pDecoder, SOperatorParam *pOpParam) {
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->opType));
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->downstreamIdx));
+  switch (pOpParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+      pOpParam->value = taosMemoryMalloc(sizeof(int64_t));
+      if (NULL == pOpParam->value) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, (int64_t*)pOpParam->value));
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t childrenNum = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &childrenNum));
+
+  if (childrenNum > 0) {
+    pOpParam->pChildren = taosArrayInit(childrenNum, POINTER_BYTES);
+    if (NULL == pOpParam->pChildren) {
+      TAOS_CHECK_RETURN(terrno);
+    }
+    for (int32_t i = 0; i < childrenNum; ++i) {
+      SOperatorParam *pChild = taosMemoryCalloc(1, sizeof(SOperatorParam));
+      if (NULL == pChild) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+      TAOS_CHECK_RETURN(tDeserializeSOperatorNotifyParam(pDecoder, pChild));
+      if (taosArrayPush(pOpParam->pChildren, &pChild) == NULL) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+    }
+  } else {
+    pOpParam->pChildren = NULL;
+  }
+
+  TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pOpParam->reUse));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tSerializeSTaskNotifyReq(void *buf, int32_t bufLen,
+                                 STaskNotifyReq *pReq) {
   int32_t code = 0;
   int32_t lino;
   int32_t tlen;
@@ -13141,11 +13209,14 @@ int32_t tSerializeSTaskNotifyReq(void *buf, int32_t bufLen, STaskNotifyReq *pReq
 
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->sId));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->queryId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->taskId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->refId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->execId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->type));
-  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, (int32_t)pReq->type));
+  if (pReq->pOpParam) {
+    TAOS_CHECK_EXIT(tSerializeSOperatorNotifyParam(&encoder, pReq->pOpParam));
+  }
 
   tEndEncode(&encoder);
 
@@ -13167,7 +13238,8 @@ _exit:
   }
 }
 
-int32_t tDeserializeSTaskNotifyReq(void *buf, int32_t bufLen, STaskNotifyReq *pReq) {
+int32_t tDeserializeSTaskNotifyReq(void *buf, int32_t bufLen,
+                                   STaskNotifyReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
   int32_t code = 0;
   int32_t lino;
@@ -13183,14 +13255,17 @@ int32_t tDeserializeSTaskNotifyReq(void *buf, int32_t bufLen, STaskNotifyReq *pR
 
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->sId));
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->queryId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->taskId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->refId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->execId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, (int32_t *)&pReq->type));
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
-  } else {
-    pReq->clientId = 0;
+    pReq->pOpParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
+    if (NULL == pReq->pOpParam) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDeserializeSOperatorNotifyParam(&decoder, pReq->pOpParam));
   }
 
   tEndDecode(&decoder);

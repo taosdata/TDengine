@@ -1305,6 +1305,14 @@ void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamI
 
 void freeMergeNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeTimeSliceGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeTimeSliceNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
   pParam->reUse = false;
@@ -1366,8 +1374,12 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      type == OP_GET_PARAM ? freeTimeSliceGetOperatorParam(pParam) : freeTimeSliceNotifyOperatorParam(pParam);
+      break;
     default:
-      qError("unsupported op %d param, type %d", pParam->opType, type);
+      qError("%s unsupported op %d param, param type %d",
+             __func__, pParam->opType, type);
       break;
   }
 }
@@ -1451,4 +1463,32 @@ bool compareVal(const char* v, const SStateKeys* pKey) {
   } else {
     return memcmp(pKey->pData, v, pKey->bytes) == 0;
   }
+}
+
+/*
+  @brief build the step done notify parameter
+  @param ppRes the pointer to the notify parameter
+  @param opType the type of the operator to notify
+  @param ts the timestamp to notify
+*/
+int32_t buildOperatorStepDoneNotifyParam(SOperatorParam** ppRes,
+                                         int32_t opType, int64_t ts) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SOperatorParam* pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _end, terrno);
+  pParam->opType = opType;
+  pParam->value = taosMemoryCalloc(1, sizeof(int64_t));
+  QUERY_CHECK_NULL(pParam->value, code, lino, _end, terrno);
+  *(int64_t*)pParam->value = ts;
+  pParam->pChildren = taosArrayInit(0, sizeof(SOperatorParam*));
+  pParam->reUse = false;
+  *ppRes = pParam;
+  return code;
+_end:
+  qError("%s failed at line %d, failed to build operator step done notify "
+         "param, opType:%d, ts:%ld, since:%s", __func__, lino, opType, ts,
+         tstrerror(code));
+  freeOperatorParam(pParam, OP_NOTIFY_PARAM);
+  return code;
 }
