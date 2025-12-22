@@ -61,16 +61,15 @@ class TestTDgptBasic:
 
         """
 
-        tdSql.execute("create anode '192.168.2.15:6035'")
+        tdSql.execute("create anode '192.168.2.90:6090'")
         tdSql.query("show anodes")
 
         tdSql.checkRows(1)
-        tdLog.info("create anode: 192.168.2.90:6035 successfully")
-
+        tdLog.info("create anode: 192.168.2.90:6090 successfully")
         tdSql.query("show anodes full")
 
         # there are 17 analysis model for forecasting or anomaly-detection.
-        tdSql.checkRows(16)
+        tdSql.checkRows(17)
 
         tdSql.execute("create database d0 vgroups 1")
         tdSql.query("select * from information_schema.ins_databases")
@@ -114,7 +113,7 @@ class TestTDgptBasic:
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=iqr')")
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=ksigma')")
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=lof')")
-        # tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=shesd')")
+        tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=shesd')")
         tdSql.query("select count(*) from ct1 anomaly_window(c1, 'algo=grubbs')")
 
         tdLog.info("=================  try every column type of column")
