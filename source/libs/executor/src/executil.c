@@ -3016,6 +3016,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->pStore = pStore;
     pCtx->hasWindowOrGroup = false;
     pCtx->needCleanup = false;
+    pCtx->skipDynDataCheck = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
