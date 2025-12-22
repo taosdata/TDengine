@@ -10,22 +10,20 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from new_test_framework.utils.streamUtil import StreamItem
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from new_test_framework.utils.common import TDCom, tdCom
 from random import randrange
-from datetime import timezone
 from tzlocal import get_localzone
 
 import random
 import queue
-import time
 import threading
-import secrets
 
 ROUND: int = 500
 
 class TestInterpFill:
-    
+
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -153,7 +151,6 @@ class TestInterpFill:
             - 2025-5-08 Huo Hong Migrated to new test framework
 
         """
-        testCase = "interp"
         tdLog.info("test abnormal query.")
         tdSql.error("select interp(c1) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', -1s) every(2s) fill(prev, 99);")
         tdSql.error("select interp(c1), interp(c4) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', 1s) every(2s) fill(prev, 99);")
@@ -729,7 +726,49 @@ class TestInterpFill:
         Labels: common,ci
 
         History:
-            - 2025-12-12 Tony Zhang created
+            - 2025-12-22 Tony Zhang created
 
         """
-        pass
+        tdSql.execute("create table trigger_table(ts timestamp, c1 int)")
+        streams: list[StreamItem] = []
+
+        stream: StreamItem = StreamItem(
+            id=0,
+            stream="""create stream s0 count_window(1) from test.trigger_table
+                into test.r0 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1) from test.ntb range(_twstart+1s) fill(prev)""",
+            res_query="",
+            exp_query=""
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=1,
+            stream="""create stream s1 count_window(1) from test.trigger_table
+                into test.r1 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1) from test.ntb range(_twstart+1s) fill(next)""",
+            res_query="",
+            exp_query=""
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=2,
+            stream="""create stream s2 count_window(1) from test.trigger_table
+                into test.r2 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1) from test.ntb range(_twstart+1s) fill(near)""",
+            res_query="",
+            exp_query=""
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=3,
+            stream="""create stream s3 count_window(1) from test.trigger_table
+                into test.r3 as select _irowts,
+                interp(c1) from test.ntb range(_twstart+1s) fill(linear)""",
+            res_query="",
+            exp_query=""
+        )
+        streams.append(stream)
+        

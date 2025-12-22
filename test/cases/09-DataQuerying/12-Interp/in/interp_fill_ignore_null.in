@@ -1,30 +1,44 @@
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(prev);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(next);
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(linear);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(near);
+select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(linear);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(prev);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(next);
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(linear);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(near);
+select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(linear);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(prev);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(next);
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(near);
+select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
 
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(prev);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(next);
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(near);
+select _irowts, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(prev);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(next);
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(near);
+select _irowts, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
 
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(prev);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(next);
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(linear);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(near);
+select _irowts, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(linear);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(prev);
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(next);
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(near);
+select _irowts, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear);
 
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(prev) order by tbname, _irowts;
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(next) order by tbname, _irowts;
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by tbname, _irowts;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(near) order by tbname, _irowts;
+select _irowts, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by tbname, _irowts;
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(prev) order by gid, _irowts;
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(next) order by gid, _irowts;
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by gid, _irowts;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(near) order by gid, _irowts;
+select _irowts, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by gid, _irowts;
+
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(prev);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(next);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(near);
+select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(linear);
