@@ -16541,13 +16541,20 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   (void)snprintf(req.principal, TSDB_ROLE_LEN, "%s", pStmt->principal);
 
   switch (req.alterType) {
-#ifdef TD_ENTERPRISE
+// #ifdef TD_ENTERPRISE
+#if 1
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
-      EPrivObjType  objType = PRIV_OBJ_UNKNOWN;
-      uint8_t       objLevel = 0;
+      EPrivObjType  objType = pStmt->privileges.objType;
+      uint8_t       objLevel = privObjGetLevel(objType);
       SPrivSet      privSet = pStmt->privileges.privSet;
       EPrivType     conflict0 = PRIV_TYPE_UNKNOWN, conflict1 = PRIV_TYPE_UNKNOWN;
+
+      if (objType <= PRIV_OBJ_UNKNOWN || objType >= PRIV_OBJ_MAX) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Unknown object type of privileges: %d", objType);
+      }
+
       // The SQL "grant select, select(c0,c1) on d0.t1 to u1" is legal , and table-level and column-level privileges are
       // granted simultaneously. It is equivalent to "grant select on d0.t1 to u1" combined with "grant select(c0,c1) on
       // d0.t1 to u1". And "revoke select on d0.t1 from u1" will revoked the table-level and column-level privileges
@@ -16557,26 +16564,31 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       if (pStmt->privileges.updateCols) privAddType(&privSet, PRIV_TBL_UPDATE);
       int32_t conflict = checkPrivConflicts(&privSet, &category, &objType, &objLevel, &conflict0, &conflict1);
       if (conflict > 0) {
-        SPrivInfo* info0 = privInfoGet(conflict0);
-        SPrivInfo* info1 = privInfoGet(conflict1);
-        if (!info0 || !info1) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, terrno);
-        }
+        // SPrivInfo* info0 = privInfoGet(conflict0);
+        // SPrivInfo* info1 = privInfoGet(conflict1);
+        // if (!info0 || !info1) {
+        //   return generateSyntaxErrMsg(&pCxt->msgBuf, terrno);
+        // }
         if (conflict == 1) {
-          if (info0->category != PRIV_CATEGORY_SYSTEM) {
-            TSWAP(info0, info1);
-          }
+          // if (info0->category != PRIV_CATEGORY_SYSTEM) {
+          //   TSWAP(info0, info1);
+          // }
+
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "System privileges and object privileges cannot be mixed: %s, %s", info0->name,
-                                         info1->name);
+                                         "System privileges and object privileges cannot be mixed");
         } else if (conflict == 2) {
+          if (pStmt->objName[0] == 0)
+            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                           "The object of non-system privileges cannot be empty");
+
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Object privileges of different types cannot be mixed: %s, %s", info0->name,
-                                         info1->name);
+                                         "Object privileges of different types cannot be mixed");
         } else if (conflict == 3) {
+          if (pStmt->objName[0] == 0)
+            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                           "The object of non-system privileges cannot be empty");
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Object privileges of different levels cannot be mixed: %s, %s", info0->name,
-                                         info1->name);
+                                         "Object privileges of different levels cannot be mixed");
         }
       } else if (conflict != 0) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, conflict);

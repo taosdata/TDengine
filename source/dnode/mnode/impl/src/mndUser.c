@@ -55,11 +55,11 @@
 #define ALTER_USER_ADD_PRIVS(_type) ((_type) == TSDB_ALTER_USER_ADD_PRIVILEGES)
 #define ALTER_USER_DEL_PRIVS(_type) ((_type) == TSDB_ALTER_USER_DEL_PRIVILEGES)
 
-#define ALTER_USER_ALL_PRIV(_priv)       (PRIV_HAS((_priv), PRIV_TYPE_ALL))
-#define ALTER_USER_READ_PRIV(_priv)      (PRIV_HAS((_priv), PRIV_TYPE_READ) || PRIV_HAS((_priv), PRIV_TYPE_ALL))
-#define ALTER_USER_WRITE_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_TYPE_WRITE) || PRIV_HAS((_priv), PRIV_TYPE_ALL))
-#define ALTER_USER_ALTER_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_TYPE_ALTER) || PRIV_HAS((_priv), PRIV_TYPE_ALL))
-#define ALTER_USER_SUBSCRIBE_PRIV(_priv) (PRIV_HAS((_priv), PRIV_TYPE_SUBSCRIBE))
+#define ALTER_USER_ALL_PRIV(_priv)       (PRIV_HAS((_priv), PRIV_COMMON_ALL))
+#define ALTER_USER_READ_PRIV(_priv)      (PRIV_HAS((_priv), PRIV_COMMON_READ) || PRIV_HAS((_priv), PRIV_COMMON_ALL))
+#define ALTER_USER_WRITE_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_COMMON_WRITE) || PRIV_HAS((_priv), PRIV_COMMON_ALL))
+#define ALTER_USER_ALTER_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_COMMON_ALTER) || PRIV_HAS((_priv), PRIV_COMMON_ALL))
+#define ALTER_USER_SUBSCRIBE_PRIV(_priv) (PRIV_HAS((_priv), PRIV_TOPIC_SUBSCRIBE))
 
 #define ALTER_USER_TARGET_DB(_tbname) (0 == (_tbname)[0])
 #define ALTER_USER_TARGET_TB(_tbname) (0 != (_tbname)[0])
@@ -4957,7 +4957,7 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(objType), pShow->pMeta->pSchemas[cols].bytes);
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
       ++numOfRows;
@@ -5027,7 +5027,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       // skip db, table, condition, notes, columns, update_time
       COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(PRIV_OBJ_CLUSTER), pShow->pMeta->pSchemas[cols].bytes);
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(PRIV_OBJ_CLUSTER), pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }
       numOfRows++;
@@ -5075,7 +5075,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
 
         if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(objType), pShow->pMeta->pSchemas[cols].bytes);
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
           COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
         }
         numOfRows++;
@@ -5132,7 +5132,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
 
         if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjTypeName(objType), pShow->pMeta->pSchemas[cols].bytes);
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
           COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
         }
         numOfRows++;

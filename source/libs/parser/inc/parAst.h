@@ -144,6 +144,7 @@ typedef struct STokenTriplet {
 typedef struct {
   SToken     first;
   SToken     second;
+  int16_t    objType;
   SNodeList* cols;
 } SPrivLevelArgs;
 

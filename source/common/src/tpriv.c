@@ -20,9 +20,15 @@
 
 static TdThreadOnce privInit = PTHREAD_ONCE_INIT;
 
-static const char* privObjTypeNames[] = {
-    "CLUSTER", "NODE", "DATABASE", "TABLE", "FUNCTION", "INDEX", "VIEW",  "USER",
-    "ROLE",    "RSMA", "TSMA",     "TOPIC", "STREAM",   "MOUNT", "AUDIT", "TOKEN",
+typedef struct {
+  const char* name;
+  int32_t     level;
+} SPrivObjInfo;
+
+static const SPrivObjInfo __privObjInfo[] = {
+    {"CLUSTER", 0}, {"NODE", 0},  {"DATABASE", 0}, {"TABLE", 1}, {"FUNCTION", 0}, {"INDEX", 1},
+    {"VIEW", 1},    {"USER", 0},  {"ROLE", 0},     {"RSMA", 1},  {"TSMA", 1},     {"TOPIC", 1},
+    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0},
 };
 
 /**
@@ -35,6 +41,19 @@ static const char* privObjTypeNames[] = {
 #define SYS_ADMIN_ALL_ROLES   (SYS_ADMIN_BASIC_ROLES | T_ROLE_SYSAUDIT_LOG | T_ROLE_SYSINFO_0 | T_ROLE_SYSINFO_1)
 
 static SPrivInfo privInfoTable[] = {
+    // ==================== common privileges ====================
+    {PRIV_COMMON_ALL, PRIV_CATEGORY_COMMON, 0, 0, 0, "ALL"},
+    {PRIV_COMMON_READ, PRIV_CATEGORY_COMMON, 0, 0, 0, "READ"},
+    {PRIV_COMMON_WRITE, PRIV_CATEGORY_COMMON, 0, 0, 0, "WRITE"},
+    {PRIV_COMMON_ALTER, PRIV_CATEGORY_COMMON, 0, 0, 0, "ALTER"},
+    {PRIV_COMMON_DROP, PRIV_CATEGORY_COMMON, 0, 0, 0, "DROP"},
+    {PRIV_COMMON_SHOW, PRIV_CATEGORY_COMMON, 0, 0, 0, "SHOW"},
+    {PRIV_COMMON_SHOW_CREATE, PRIV_CATEGORY_COMMON, 0, 0, 0, "SHOW CREATE"},
+    {PRIV_COMMON_START, PRIV_CATEGORY_COMMON, 0, 0, 0, "START"},
+    {PRIV_COMMON_STOP, PRIV_CATEGORY_COMMON, 0, 0, 0, "STOP"},
+    {PRIV_COMMON_RECALC, PRIV_CATEGORY_COMMON, 0, 0, 0, "RECALCULATE"},
+    {PRIV_COMMON_KILL, PRIV_CATEGORY_COMMON, 0, 0, 0, "KILL"},
+
     // ==================== system privileges ====================
     // Database Management
     {PRIV_DB_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, "CREATE DATABASE"},
@@ -166,7 +185,7 @@ static SPrivInfo privInfoTable[] = {
 
     // RSMA Privileges
     {PRIV_RSMA_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TABLE, 1, T_ROLE_SYSDBA, "CREATE RSMA"},
-    {PRIV_RSMA_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, T_ROLE_SYSDBA, "DROP RSMA"},
+    {PRIV_COMMON_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, T_ROLE_SYSDBA, "DROP RSMA"},
     {PRIV_RSMA_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, T_ROLE_SYSDBA, "ALTER RSMA"},
     {PRIV_RSMA_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, SYS_ADMIN_INFO_ROLES, "SHOW RSMAS"},
     {PRIV_RSMA_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, SYS_ADMIN_INFO_ROLES, "SHOW CREATE RSMA"},
@@ -197,21 +216,16 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_STREAM_START, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "START STREAM"},
     {PRIV_STREAM_STOP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "STOP STREAM"},
     {PRIV_STREAM_RECALC, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "RECALC STREAM"},
-
-    // ==================== legacy privileges ====================
-    {PRIV_TYPE_ALL, PRIV_CATEGORY_LEGACY, 0, 0, 0, "ALL PRIVILEGES"},
-    {PRIV_TYPE_READ, PRIV_CATEGORY_LEGACY, 0, 0, 0, "READ PRIVILEGE"},
-    {PRIV_TYPE_WRITE, PRIV_CATEGORY_LEGACY, 0, 0, 0, "WRITE PRIVILEGE"},
-    {PRIV_TYPE_SUBSCRIBE, PRIV_CATEGORY_LEGACY, 0, 0, 0, "SUBSCRIBE PRIVILEGE"},
-    {PRIV_TYPE_ALTER, PRIV_CATEGORY_LEGACY, 0, 0, 0, "ALTER PRIVILEGE"},
 };
 
 static SPrivInfo* privLookup[MAX_PRIV_TYPE + 1] = {0};
 
 static void initPrivLookup(void) {
   for (size_t i = 0; i < sizeof(privInfoTable) / sizeof(privInfoTable[0]); ++i) {
-    if (privInfoTable[i].privType <= MAX_PRIV_TYPE) {
-      privLookup[privInfoTable[i].privType] = &privInfoTable[i];
+    EPrivType privType = privInfoTable[i].privType;
+    if (privType <= MAX_PRIV_TYPE &&
+        !privLookup[privType]) {  // duplicated items for other purpose, e.g. createDefaultRoles.
+      privLookup[privType] = &privInfoTable[i];
     }
   }
 }
@@ -227,11 +241,9 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
 
   bool hasSystemPriv = false;
   bool hasObjectPriv = false;
-  bool hasLegacyPriv = false;
+  bool hasCommonPriv = false;
 
-  EPrivType    lastPriv = PRIV_TYPE_UNKNOWN;
-  EPrivObjType objectType = PRIV_OBJ_UNKNOWN;
-  uint8_t      objectLevel = -1;
+  EPrivType lastPriv = PRIV_TYPE_UNKNOWN;
 
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     uint64_t chunk = privSet->set[i];
@@ -247,7 +259,7 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
 
       switch (privInfo->category) {
         case PRIV_CATEGORY_SYSTEM: {
-          if (hasObjectPriv || hasLegacyPriv) {
+          if (hasObjectPriv || hasCommonPriv) {
             code = 1;
             goto _exit;
           }
@@ -256,17 +268,15 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
           break;
         }
         case PRIV_CATEGORY_OBJECT: {
-          if (hasSystemPriv || hasLegacyPriv) {
+          if (hasSystemPriv) {
             code = 1;
             goto _exit;
           }
-          if (objectType == PRIV_OBJ_UNKNOWN) {
-            objectType = privInfo->objType;
-            objectLevel = privInfo->objLevel;
-          } else if (objectType != privInfo->objType) {
+          if (*pObjType != privInfo->objType) {
             code = 2;
             goto _exit;
-          } else if (objectLevel != privInfo->objLevel) {
+          }
+          if (*pObjLevel != privInfo->objLevel) {
             code = 3;
             goto _exit;
           }
@@ -274,22 +284,12 @@ int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
           lastPriv = privInfo->privType;
           break;
         }
-        case PRIV_CATEGORY_LEGACY: {
-          if (hasSystemPriv || hasObjectPriv) {
+        case PRIV_CATEGORY_COMMON: {
+          if (hasSystemPriv) {
             code = 1;
             goto _exit;
           }
-          if (objectType == PRIV_OBJ_UNKNOWN) {
-            objectType = privInfo->objType;
-            objectLevel = privInfo->objLevel;
-          } else if (objectType != privInfo->objType) {
-            code = 2;
-            goto _exit;
-          } else if (objectLevel != privInfo->objLevel) {
-            code = 3;
-            goto _exit;
-          }
-          hasLegacyPriv = true;
+          hasCommonPriv = true;
           lastPriv = privInfo->privType;
           break;
         }
@@ -309,14 +309,8 @@ _exit:
   if (pCategory) {
     *pCategory = hasSystemPriv   ? PRIV_CATEGORY_SYSTEM
                  : hasObjectPriv ? PRIV_CATEGORY_OBJECT
-                 : hasLegacyPriv ? PRIV_CATEGORY_LEGACY
+                 : hasCommonPriv ? PRIV_CATEGORY_COMMON
                                  : PRIV_CATEGORY_UNKNOWN;
-  }
-  if (pObjType) {
-    *pObjType = objectType;
-  }
-  if (pObjLevel) {
-    *pObjLevel = objectLevel;
   }
 
   return 0;
@@ -413,11 +407,18 @@ int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen) {
   return snprintf(buf, bufLen, "%s.%s", db ? db : "", tb ? tb : "");
 }
 
-const char* privObjTypeName(EPrivObjType objType) {
+const char* privObjGetName(EPrivObjType objType) {
   if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
     return "UNKNOWN";
   }
-  return privObjTypeNames[objType];
+  return __privObjInfo[objType].name;
+}
+
+int32_t privObjGetLevel(EPrivObjType objType) {
+  if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
+    return -1;
+  }
+  return __privObjInfo[objType].level;
 }
 
 int32_t getSysRoleType(const char* roleName) {

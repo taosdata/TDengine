@@ -42,14 +42,21 @@ extern "C" {
 #define PRIV_INFO_TABLE_VERSION 1
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
-  // ==================== Legacy Privilege ====================
-  PRIV_TYPE_ALL = 0,        // ALL PRIVILEGES
-  PRIV_TYPE_READ = 1,       // READ PRIVILEGE
-  PRIV_TYPE_WRITE = 2,      // WRITE PRIVILEGE
-  PRIV_TYPE_SUBSCRIBE = 3,  // SUBSCRIBE PRIVILEGE
-  PRIV_TYPE_ALTER = 4,      // ALTER PRIVILEGE
+  // ==================== Common Privilege ====================
+  PRIV_COMMON_ALL = 0,          // ALL PRIVILEGES
+  PRIV_COMMON_READ = 1,         // READ PRIVILEGE
+  PRIV_COMMON_WRITE = 2,        // WRITE PRIVILEGE
+  PRIV_COMMON_ALTER = 3,        // ALTER PRIVILEGE
+  PRIV_COMMON_DROP = 4,         // DROP PRIVILEGE
+  PRIV_COMMON_SHOW = 5,         // SHOW PRIVILEGE
+  PRIV_COMMON_SHOW_CREATE = 6,  // SHOW CREATE PRIVILEGE
+  PRIV_COMMON_START = 7,        // START PRIVILEGE
+  PRIV_COMMON_STOP = 8,         // STOP PRIVILEGE
+  PRIV_COMMON_RECALC = 9,       // RECALC PRIVILEGE
+  PRIV_COMMON_KILL = 10,        // KILL PRIVILEGE
+  PRIV_COMMON_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
-  PRIV_DB_CREATE = 5,      // CREATE DATABASE
+  PRIV_DB_CREATE = 30,     // CREATE DATABASE
   PRIV_DB_ALTER,           // ALTER DATABASE
   PRIV_DB_DROP,            // DROP DATABASE
   PRIV_DB_DROP_OWNED,      // DROP OWNED DATABASE
@@ -59,55 +66,55 @@ typedef enum {
   PRIV_DB_TRIM,            // TRIM DATABASE
   PRIV_DB_ROLLUP,          // ROLLUP DATABASE
   PRIV_DB_SCAN,            // SCAN DATABASE
-  PRIV_DB_SSMIGRATE = 15,  // SSMIGRATE DATABASE
+  PRIV_DB_SSMIGRATE = 40,  // SSMIGRATE DATABASE
 
   // VGroup Operations
-  PRIV_VG_BALANCE = 25,    // BALANCE VGROUP
+  PRIV_VG_BALANCE = 50,    // BALANCE VGROUP
   PRIV_VG_BALANCE_LEADER,  // BALANCE VGROUP LEADER
   PRIV_VG_MERGE,           // MERGE VGROUP
   PRIV_VG_REDISTRIBUTE,    // REDISTRIBUTE VGROUP
-  PRIV_VG_SPLIT = 29,      // SPLIT VGROUP
+  PRIV_VG_SPLIT = 54,      // SPLIT VGROUP
 
   // DB Show Operations
-  PRIV_SHOW_DATABASES = 30,   // SHOW DATABASES
+  PRIV_SHOW_DATABASES = 60,   // SHOW DATABASES
   PRIV_SHOW_VNODES,           // SHOW VNODES
   PRIV_SHOW_VGROUPS,          // SHOW VGROUPS
   PRIV_SHOW_COMPACTS,         // SHOW COMPACTS
   PRIV_SHOW_RETENTIONS,       // SHOW RETENTIONS
   PRIV_SHOW_SCANS,            // SHOW SCANS
-  PRIV_SHOW_SSMIGRATES = 36,  // SHOW SSMIGRATES
+  PRIV_SHOW_SSMIGRATES = 66,  // SHOW SSMIGRATES
 
   // ==================== Table Privileges(50-69)  ================
-  PRIV_TBL_CREATE = 50,       // CREATE TABLE
-  PRIV_TBL_DROP = 51,         // DROP TABLE
-  PRIV_TBL_ALTER = 52,        // ALTER TABLE
-  PRIV_TBL_SHOW = 53,         // SHOW TABLES
-  PRIV_TBL_SHOW_CREATE = 54,  // SHOW CREATE TABLE
-  PRIV_TBL_SELECT = 55,       // SELECT TABLE
-  PRIV_TBL_INSERT = 56,       // INSERT TABLE
-  PRIV_TBL_UPDATE = 57,       // UPDATE TABLE(reserved)
-  PRIV_TBL_DELETE = 58,       // DELETE TABLE
+  PRIV_TBL_CREATE = 70,       // CREATE TABLE
+  PRIV_TBL_DROP = 71,         // DROP TABLE
+  PRIV_TBL_ALTER = 72,        // ALTER TABLE
+  PRIV_TBL_SHOW = 73,         // SHOW TABLES
+  PRIV_TBL_SHOW_CREATE = 74,  // SHOW CREATE TABLE
+  PRIV_TBL_SELECT = 75,       // SELECT TABLE
+  PRIV_TBL_INSERT = 76,       // INSERT TABLE
+  PRIV_TBL_UPDATE = 77,       // UPDATE TABLE(reserved)
+  PRIV_TBL_DELETE = 78,       // DELETE TABLE
 
   // ==================== Other Privileges ================
   // function management
-  PRIV_FUNC_CREATE = 70,  // CREATE FUNCTION
+  PRIV_FUNC_CREATE = 80,  // CREATE FUNCTION
   PRIV_FUNC_DROP,         // DROP FUNCTION
   PRIV_FUNC_SHOW,         // SHOW FUNCTIONS
 
   // index management
-  PRIV_IDX_CREATE = 74,  // CREATE INDEX
+  PRIV_IDX_CREATE = 84,  // CREATE INDEX
   PRIV_IDX_DROP,         //  DROP INDEX
   PRIV_IDX_SHOW,         //  SHOW INDEXES
 
   // view management
-  PRIV_VIEW_CREATE = 78,  // CREATE VIEW
+  PRIV_VIEW_CREATE = 88,  // CREATE VIEW
   PRIV_VIEW_DROP,         // DROP VIEW
   PRIV_VIEW_SHOW,         // SHOW VIEWS
   PRIV_VIEW_SHOW_CREATE,  // SHOW CREATE VIEW
   PRIV_VIEW_SELECT,       // SELECT VIEW
 
   // SMA management
-  PRIV_RSMA_CREATE = 83,  // CREATE RSMA
+  PRIV_RSMA_CREATE = 95,  // CREATE RSMA
   PRIV_RSMA_DROP,         // DROP RSMA
   PRIV_RSMA_ALTER,        // ALTER RSMA
   PRIV_RSMA_SHOW,         // SHOW RSMAS
@@ -117,23 +124,23 @@ typedef enum {
   PRIV_TSMA_SHOW,         // SHOW TSMAS
 
   // mount management
-  PRIV_MOUNT_CREATE = 92,  // CREATE MOUNT
-  PRIV_MOUNT_DROP,         // DROP MOUNT
-  PRIV_MOUNT_SHOW,         // SHOW MOUNTS
+  PRIV_MOUNT_CREATE = 100,  // CREATE MOUNT
+  PRIV_MOUNT_DROP,          // DROP MOUNT
+  PRIV_MOUNT_SHOW,          // SHOW MOUNTS
 
   // password management
-  PRIV_PASS_ALTER = 96,  // ALTER PASS
-  PRIV_PASS_ALTER_SELF,  // ALTER SELF PASS
+  PRIV_PASS_ALTER = 105,  // ALTER PASS
+  PRIV_PASS_ALTER_SELF,   // ALTER SELF PASS
 
   // role management
-  PRIV_ROLE_CREATE = 100,  // CREATE ROLE
+  PRIV_ROLE_CREATE = 110,  // CREATE ROLE
   PRIV_ROLE_DROP,          // DROP ROLE
   PRIV_ROLE_SHOW,          // SHOW ROLES
   PRIV_ROLE_LOCK,          // LOCK ROLE
   PRIV_ROLE_UNLOCK,        // UNLOCK ROLE
 
   // user management
-  PRIV_USER_CREATE = 110,  // CREATE USER
+  PRIV_USER_CREATE = 130,  // CREATE USER
   PRIV_USER_DROP,          // DROP USER
   PRIV_USER_SET_SECURITY,  // SET USER SECURITY INFO
   PRIV_USER_SET_AUDIT,     // SET USER AUDIT INFO
@@ -143,25 +150,25 @@ typedef enum {
   PRIV_USER_SHOW,          // SHOW USERS
 
   // audit management
-  PRIV_AUDIT_DB_CREATE = 120,  // CREATE AUDIT DATABASE
+  PRIV_AUDIT_DB_CREATE = 140,  // CREATE AUDIT DATABASE
   PRIV_AUDIT_DB_DROP,          // DROP AUDIT DATABASE
   PRIV_AUDIT_DB_ALTER,         // ALTER AUDIT DATABASE
   PRIV_AUDIT_DB_USE,           // USE AUDIT DATABASE
 
   // token management
-  PRIV_TOKEN_CREATE = 130,  // CREATE TOKEN
+  PRIV_TOKEN_CREATE = 150,  // CREATE TOKEN
   PRIV_TOKEN_DROP,          // DROP TOKEN
   PRIV_TOKEN_ALTER,         // ALTER TOKEN
   PRIV_TOKEN_SHOW,          // SHOW TOKENS
 
   // key management
-  PRIV_KEY_UPDATE = 140,  // UPDATE KEY
+  PRIV_KEY_UPDATE = 160,  // UPDATE KEY
   PRIV_TOTP_CREATE,       // CREATE TOTP
   PRIV_TOTP_DROP,         // DROP TOTP
   PRIV_TOTP_UPDATE,       // UPDATE TOTP
 
   // grant/revoke privileges
-  PRIV_GRANT_PRIVILEGE = 150,  // GRANT PRIVILEGE
+  PRIV_GRANT_PRIVILEGE = 170,  // GRANT PRIVILEGE
   PRIV_REVOKE_PRIVILEGE,       // REVOKE PRIVILEGE
   PRIV_SHOW_PRIVILEGES,        // SHOW PRIVILEGES
   PRIV_GRANT_SYSDBA,           // GRANT SYSDBA PRIVILEGE
@@ -172,12 +179,12 @@ typedef enum {
   PRIV_REVOKE_SYSAUDIT,        // REVOKE SYSAUDIT PRIVILEGE
 
   // node management
-  PRIV_NODE_CREATE = 160,  // CREATE NODE
+  PRIV_NODE_CREATE = 190,  // CREATE NODE
   PRIV_NODE_DROP,          // DROP NODE
   PRIV_NODES_SHOW,         // SHOW NODES
 
   // system variables
-  PRIV_VAR_SECURITY_ALTER = 190,  // ALTER SECURITY VARIABLE
+  PRIV_VAR_SECURITY_ALTER = 200,  // ALTER SECURITY VARIABLE
   PRIV_VAR_AUDIT_ALTER,           // ALTER AUDIT VARIABLE
   PRIV_VAR_SYSTEM_ALTER,          // ALTER SYSTEM VARIABLE
   PRIV_VAR_DEBUG_ALTER,           // ALTER DEBUG VARIABLE
@@ -187,14 +194,15 @@ typedef enum {
   PRIV_VAR_DEBUG_SHOW,            // SHOW DEBUG VARIABLES
 
   // topic management
-  PRIV_TOPIC_CREATE = 200,  // CREATE TOPIC
+  PRIV_TOPIC_CREATE = 210,  // CREATE TOPIC
   PRIV_TOPIC_DROP,          // DROP TOPIC
   PRIV_TOPIC_SHOW,          // SHOW TOPICS
+  PRIV_TOPIC_SUBSCRIBE,     // SUBSCRIBE TOPICS
   PRIV_CONSUMER_SHOW,       // SHOW CONSUMERS
   PRIV_SUBSCRIPTION_SHOW,   // SHOW SUBSCRIPTIONS
 
   // stream management
-  PRIV_STREAM_CREATE = 210,  // CREATE STREAM
+  PRIV_STREAM_CREATE = 220,  // CREATE STREAM
   PRIV_STREAM_DROP,          // DROP STREAM
   PRIV_STREAM_SHOW,          // SHOW STREAMS
   PRIV_STREAM_START,         // START STREAM
@@ -202,7 +210,7 @@ typedef enum {
   PRIV_STREAM_RECALC,        // RECALC STREAM
 
   // system operation management
-  PRIV_TRANS_SHOW = 220,  // SHOW TRANS
+  PRIV_TRANS_SHOW = 230,  // SHOW TRANS
   PRIV_TRANS_KILL,        // KILL TRANS
   PRIV_CONNECTION_SHOW,   // SHOW CONNECTIONS
   PRIV_CONNECTION_KILL,   // KILL CONNECTION
@@ -210,7 +218,7 @@ typedef enum {
   PRIV_QUERY_KILL,        // KILL QUERY
 
   // system info
-  PRIV_INFO_SCHEMA_USE = 230,   // USE INFORMATION_SCHEMA
+  PRIV_INFO_SCHEMA_USE = 240,   // USE INFORMATION_SCHEMA
   PRIV_PERF_SCHEMA_USE,         // USE PERFORMANCE_SCHEMA
   PRIV_INFO_SCHEMA_READ_LIMIT,  // READ INFORMATION_SCHEMA LIMIT
   PRIV_INFO_SCHEMA_READ_SEC,    // READ INFORMATION_SCHEMA SECURITY
@@ -239,9 +247,9 @@ typedef struct {
 #define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
 
 typedef struct {
-  int32_t  nPrivArgs;
   SPrivSet privSet;
-  // void*    rowSpans;    // SNodeList*
+  int32_t  nPrivArgs;
+  int16_t  objType;    // EPrivObjType
   void*    selectCols;  // SNodeList*
   void*    insertCols;  // SNodeList*
   void*    updateCols;  // SNodeList*
@@ -267,7 +275,7 @@ typedef enum {
   PRIV_CATEGORY_UNKNOWN = -1,
   PRIV_CATEGORY_SYSTEM,
   PRIV_CATEGORY_OBJECT,
-  PRIV_CATEGORY_LEGACY,
+  PRIV_CATEGORY_COMMON,
   PRIV_CATEGORY_MAX,
 } EPrivCategory;
 
@@ -391,7 +399,8 @@ int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen, bool fullDb);
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
-const char*     privObjTypeName(EPrivObjType objType);
+const char*     privObjGetName(EPrivObjType objType);
+int32_t         privObjGetLevel(EPrivObjType objType);
 const char*     privInfoGetName(EPrivType privType);
 SPrivInfo*      privInfoGet(EPrivType privType);
 int32_t         getSysRoleType(const char* roleName);
