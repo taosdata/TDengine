@@ -302,11 +302,11 @@ function install_module() {
     ${csudo}ln -sf ${moduleDir} "${install_main_dir}/model"
   fi
 
-  # 默认模型，解压到 moduleDir
+  # Default models: extract them into moduleDir
   [ -f "${script_dir}/model/${tar_td_model_name}" ] && tar -zxf "${script_dir}/model/${tar_td_model_name}" -C "${moduleDir}" || :
   [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf "${script_dir}/model/${tar_xhs_model_name}" -C "${moduleDir}" || :
 
-  # all_venv 模式下，直接解压指定模型包到 moduleDir
+   # In all_venv mode, directly extract specified model packages into moduleDir
   if [ ${all_venv} -eq 1 ]; then
     for extra_model in chronos moment-large moirai timesfm; do
       model_tar="${script_dir}/model/${extra_model}.tar.gz"
@@ -334,7 +334,7 @@ function install_anode_venv() {
 
     echo -e "active Python3 virtual env: ${venvDir}"
     source ${venvDir}/bin/activate
-    # default env transformers==4.40.0
+    # Install default virtualenv dependencies; requirements_ess.txt pins transformers==4.40.0
     echo -e "install the required packages by pip3, this may take a while depending on the network condition"
     ${csudo}${venvDir}/bin/pip3 install -r ${script_dir}/requirements_ess.txt
 
@@ -464,12 +464,13 @@ function install_service_on_systemd() {
 
   cfg_source_dir=${script_dir}/cfg
   
-  if [ -f ${cfg_source_dir}/$1.service ]; then
-    sed -i \
+  if [ -f "${cfg_source_dir}/$1.service" ]; then
+    sed -i.bak \
         -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \
         -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
         "${cfg_source_dir}/$1.service"
-    ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+    rm -rf "${cfg_source_dir}/$1.service.bak" || :
+    ${csudo}cp "${cfg_source_dir}/$1.service" "${service_config_dir}/" || :
   fi
 
   ${csudo}systemctl enable $1

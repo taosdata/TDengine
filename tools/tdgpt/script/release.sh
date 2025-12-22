@@ -7,9 +7,9 @@ all_models=0
 while getopts "e:v:m:a" opt; do
     case "$opt" in
         e) edition="$OPTARG" ;;  # -e enterprise/community
-        v) version="$OPTARG" ;;  # -v version
-        m) model_dir="$OPTARG" ;;  # -m model_dir
-        a) all_models=1 ;;         # -a 打包所有模型
+        v) version="$OPTARG" ;;  # -v tdgpt version
+        m) model_dir="$OPTARG" ;;  # -m model files dir
+        a) all_models=1 ;;         # -a pack all models
         *) echo "Usage: $0 -e edition -v version"; exit 1 ;;
     esac
 done
