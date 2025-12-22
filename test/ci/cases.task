@@ -321,8 +321,8 @@
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
 ## 18-Stability
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stablity.py
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stablity_v2.6.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability_v2.6.py
 
 # 10-Operators
 
