@@ -391,7 +391,7 @@ When the 'batch_query' switch is turned on, it indicates the interval time after
 If the execution time of the query exceeds the interval time, it will no longer wait. If the execution time of the query is less than the interval time, it is necessary to wait to make up for the interval time.
 
 - **threads:** Number of threads executing the SQL query, default is 1.
-- **sqls:** 
+- <b>sqls:</b>
   - **sql:** The SQL command to execute, required.
   - **result:** File to save the query results, if not specified, results are not saved.
 
@@ -403,7 +403,7 @@ The thread mode of the super table query is the same as the `Normal Query` mode 
 - **stblname:** The name of the supertable to query, required.
 - **query_interval:** Query interval, in seconds, default is 0.
 - **threads:** Number of threads executing the SQL query, default is 1.
-- **sqls:**
+- <b>sqls:</b>
   - **sql:** The SQL command to execute, required; for supertable queries, keep "xxxx" in the SQL command, the program will automatically replace it with all subtable names of the supertable.
   - **result:** File to save the query results, if not specified, results are not saved.
   - **Note:** The maximum number of SQL arrays configured under SQL is 100.
