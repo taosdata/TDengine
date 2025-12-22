@@ -33,6 +33,7 @@
 #include "trpc.h"
 #include "tversion.h"
 #include "version.h"
+#include "clientSession.h"
 #include "ttime.h"
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -283,6 +284,8 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
+  sessMgtDestroy();
+
   taosConvDestroy();
   DestroyRegexCache();
 #ifdef TAOSD_INTEGRATED
@@ -333,6 +336,98 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   }
 
   return NULL;
+}
+
+void taos_set_option(OPTIONS *options, const char *key, const char *value) {
+  if (options == NULL || key == NULL || value == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    tscError("taos_set_option invalid parameter, options: %p, key: %p, value: %p", options, key, value);
+    return;
+  }
+
+  size_t count = (size_t)options->count;
+  size_t len = sizeof(options->keys) / sizeof(options->keys[0]);
+  if (count >= len) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    tscError("taos_set_option overflow, count: %zu, reached capacity: %zu", count, len);
+    return;
+  }
+
+  options->keys[count] = key;
+  options->values[count] = value;
+  options->count = (uint16_t)(count + 1);
+}
+
+static int set_connection_option_or_close(TAOS *taos, TSDB_OPTION_CONNECTION option, const char *value) {
+  if (value == NULL) return TSDB_CODE_SUCCESS;
+  int code = taos_options_connection(taos, option, value);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("failed to set option(%d): %s", (int)option, value);
+    taos_close(taos);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+TAOS *taos_connect_with(const OPTIONS *options) {
+  const char *ip = NULL;
+  const char *user = NULL;
+  const char *pass = NULL;
+  const char *db = NULL;
+  uint16_t port = 0;
+
+  const char *charset = NULL;
+  const char *timezone = NULL;
+  const char *userIp = NULL;
+  const char *userApp = NULL;
+  const char *connectorInfo = NULL;
+
+  if (options && options->count > 0) {
+    size_t count = (size_t)options->count;
+    for (size_t i = 0; i < count; ++i) {
+      const char *key = options->keys[i];
+      const char *value = options->values[i];
+      if (key == NULL || value == NULL) {
+        tscWarn("taos_connect_with option key or value is NULL, index: %zu", i);
+        continue;
+      }
+
+      if (strcmp(key, "ip") == 0) {
+        ip = value;
+      } else if (strcmp(key, "user") == 0) {
+        user = value;
+      } else if (strcmp(key, "pass") == 0) {
+        pass = value;
+      } else if (strcmp(key, "db") == 0) {
+        db = value;
+      } else if (strcmp(key, "port") == 0) {
+        port = (uint16_t)atoi(value);
+      } else if (strcmp(key, "charset") == 0) {
+        charset = value;
+      } else if (strcmp(key, "timezone") == 0) {
+        timezone = value;
+      } else if (strcmp(key, "userIp") == 0) {
+        userIp = value;
+      } else if (strcmp(key, "userApp") == 0) {
+        userApp = value;
+      } else if (strcmp(key, "connectorInfo") == 0) {
+        connectorInfo = value;
+      } else {
+        tscWarn("taos_connect_with unknown option key: %s", key);
+      }
+    }
+  }
+
+  TAOS* taos = taos_connect(ip, user, pass, db, port);
+  if (taos == NULL) return NULL;
+
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CHARSET, charset) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_TIMEZONE, timezone) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_IP, userIp) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_APP, userApp) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, connectorInfo) != TSDB_CODE_SUCCESS) return NULL;
+
+  return taos;
 }
 
 TAOS *taos_connect_with_dsn(const char *dsn) {
@@ -843,9 +938,17 @@ void taos_close_internal(void *taos) {
   if (taos == NULL) {
     return;
   }
+  int32_t code = 0;
 
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+
+  SSessParam para = {.type = SESSION_PER_USER, .value = -1};
+  code = sessMgtUpdateUserMetric((char *)pTscObj->user, &para);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("conn:0x%" PRIx64 ", failed to update user:%s metric when close connection, code:%d", pTscObj->id,
+            pTscObj->user, code);
+  } 
 
   if (TSDB_CODE_SUCCESS != taosRemoveRef(clientConnRefPool, pTscObj->id)) {
     tscError("conn:0x%" PRIx64 ", failed to remove ref from conn pool", pTscObj->id);
@@ -882,7 +985,12 @@ int taos_errno(TAOS_RES *res) {
 
 const char *taos_errstr(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
-    return (const char *)tstrerror(terrno);
+    if (*(taosGetErrMsg()) == 0) {
+      return (const char *)tstrerror(terrno);
+    } else {
+      (void)snprintf(taosGetErrMsgReturn(), ERR_MSG_LEN, "%s", taosGetErrMsg());
+      return (const char*)taosGetErrMsgReturn();
+    }
   }
 
   if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
@@ -2765,6 +2873,7 @@ TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
 char *taos_stmt2_error(TAOS_STMT2 *stmt) { return (char *)stmtErrstr2(stmt); }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {
+  int32_t code = 0;
   if (taos == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -2782,13 +2891,40 @@ int taos_set_conn_mode(TAOS *taos, int mode, int value) {
       break;
     default:
       tscError("not supported mode.");
-      return TSDB_CODE_INVALID_PARA;
+      code = TSDB_CODE_INVALID_PARA;
   }
-  return 0;
+  releaseTscObj(*(int64_t *)taos);
+  return code;
 }
 
 char *getBuildInfo() { return td_buildinfo; }
 
+int32_t taos_connect_is_alive(TAOS *taos) {
+  int32_t code = 0, lino = 0;
+  if (taos == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  code = sessMgtCheckConnStatus(pObj->user, &pObj->sessInfo);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  releaseTscObj(*(int64_t *)taos);
+
+  if (code != 0) {
+    tscError("taos conn failed to check alive, code:%d - %s", code, tstrerror(code));
+  }
+
+  return code != 0 ? 0 : 1;
+}
 static int32_t buildInstanceRegisterSql(const SInstanceRegisterReq *req, char **ppSql, uint32_t *pLen) {
   const char *action = (req->expire < 0) ? "UNREGISTER" : "REGISTER";
   int32_t     len = 0;
@@ -2835,7 +2971,7 @@ static int32_t sendInstanceRegisterReq(STscObj *pObj, const SInstanceRegisterReq
     return code;
   }
 
-  code = buildInstanceRegisterSql(req, &pRequest->sqlstr, &pRequest->sqlLen);
+  code = buildInstanceRegisterSql(req, &pRequest->sqlstr, (uint32_t *)&pRequest->sqlLen);
   if (code != TSDB_CODE_SUCCESS) {
     goto _cleanup;
   }

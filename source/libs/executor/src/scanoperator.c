@@ -1316,14 +1316,18 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
 
   // virtual table's origin table scan do not has ts column.
-  SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID, .orgColId = PRIMARYKEY_TIMESTAMP_COL_ID};
+  SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID, .orgColId = PRIMARYKEY_TIMESTAMP_COL_ID,
+                       .type.type = TSDB_DATA_TYPE_TIMESTAMP,
+                       .type.bytes = 8};
   QUERY_CHECK_NULL(taosArrayPush(pColArray, &tsPair), code, lino, _return, terrno);
 
   for (int32_t i = 0; i < taosArrayGetSize(pParam->pOrgTbInfo->colMap); ++i) {
     SColIdNameKV* kv = taosArrayGet(pParam->pOrgTbInfo->colMap, i);
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
-        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(schema->pSchema[j].colId)};
+        SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(schema->pSchema[j].colId),
+                            .type.type = schema->pSchema[j].type,
+                            .type.bytes = schema->pSchema[j].bytes};
         QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
         break;
       }
@@ -1335,6 +1339,12 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
       SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
       if (pItem->colId == pPair->vtbColId) {
+        if (pItem->dataType.type != pPair->type.type ||
+            pItem->dataType.bytes != pPair->type.bytes) {
+          qError("column type not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId, pPair->orgColId, orgTable.me.name);
+          code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+          goto _return;
+        }
         SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
         QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
         break;
@@ -2081,7 +2091,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   const char*     id = GET_TASKID(pTaskInfo);
-  bool            isVtableSourceScan = (pTaskInfo->pSubplan->pVTables != NULL);
+  SArray* pColList = NULL;
 
   code = blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2092,14 +2102,9 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pBlockInfo->version = pBlock->info.version;
 
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-  if (!isVtableSourceScan) {
-    pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
-  } else {
-    // use original table uid as groupId for vtable
-    pBlockInfo->id.groupId = pBlock->info.id.groupId;
-  }
+  pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
 
-  SArray* pColList = taosArrayInit(4, sizeof(int32_t));
+  pColList = taosArrayInit(4, sizeof(int32_t));
   QUERY_CHECK_NULL(pColList, code, lino, _end, terrno);
 
   // todo extract method
@@ -2137,7 +2142,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   }
 
   // currently only the tbname pseudo column
-  if (pInfo->numOfPseudoExpr > 0 && !isVtableSourceScan) {
+  if (pInfo->numOfPseudoExpr > 0) {
     code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
                                   pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
@@ -2175,18 +2180,14 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     j += 1;
   }
 
-  taosArrayDestroy(pColList);
-
   code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   QUERY_CHECK_CODE(code, lino, _end);
-  if (pInfo->pRes->info.rows == 0) {
-    return 0;
-  }
 
 _end:
+  taosArrayDestroy(pColList);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2638,7 +2639,6 @@ _end:
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   const char*      idstr = pTaskInfo->id.str;
-  SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
   if (pInfo == NULL || pOperator == NULL) {
     code = terrno;
@@ -3032,7 +3032,9 @@ static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray*
   code = tagScanCreateResultData(&type, numOfTables, &output);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = scalarCalculate(pTagCond, pBlockList, &output, pStreamRuntimeInfo, NULL);
+  gTaskScalarExtra.pStreamInfo = (void*)pStreamRuntimeInfo;
+  gTaskScalarExtra.pStreamRange = NULL;
+  code = scalarCalculate(pTagCond, pBlockList, &output, &gTaskScalarExtra);
   QUERY_CHECK_CODE(code, lino, _end);
 
   bool* result = (bool*)output.columnData->pData;

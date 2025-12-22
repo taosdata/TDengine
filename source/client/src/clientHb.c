@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "scheduler.h"
 #include "tglobal.h"
 #include "trpc.h"
@@ -74,7 +75,53 @@ _return:
   return code;
 }
 
+static int32_t updateUserSessMetric(const char *user, SUserSessCfg *pCfg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (user == NULL || pCfg == NULL) {
+    return code;
+  }
+
+  SUserSessCfg cfg = {0, 0, 0, 0, 0};
+
+  if (memcmp(pCfg, &cfg, sizeof(SUserSessCfg)) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  tscInfo(
+      "update session metric for user:%s, sessPerUser:%d, sessConnTime:%d, sessConnIdleTime:%d, sessMaxConcurrency:%d, "
+      "sessMaxCallVnodeNum:%d",
+      user, pCfg->sessPerUser, pCfg->sessConnTime, pCfg->sessConnIdleTime, pCfg->sessMaxConcurrency,
+      pCfg->sessMaxCallVnodeNum);
+
+  if (pCfg->sessPerUser != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_PER_USER, pCfg->sessPerUser);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessConnTime != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_CONN_TIME, pCfg->sessConnTime);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessConnIdleTime != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_CONN_IDLE_TIME, pCfg->sessConnIdleTime);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessMaxConcurrency != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_MAX_CONCURRENCY, pCfg->sessMaxConcurrency);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  if (pCfg->sessMaxCallVnodeNum != 0) {
+    code = sessMgtUpdataLimit((char *)user, SESSION_MAX_CALL_VNODE_NUM, pCfg->sessMaxCallVnodeNum);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+_error:
+  return code;
+}
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
+  int32_t code = 0;
   int64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
   for (int i = 0; i < TARRAY_SIZE(clientHbMgr.appHbMgrs); ++i) {
     SAppHbMgr *hbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
@@ -114,11 +161,18 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             }
           }
         }
+        code = sessMgtRemoveUser(pTscObj->user);
+        if (code != 0) {
+          tscError("failed to remove user session metric, user:%s, code:%d", pTscObj->user, code);  
+        }
         releaseTscObj(pReq->connKey.tscRid);
         continue;
       }
 
       pTscObj->authVer = pRsp->version;
+      if (updateUserSessMetric(pTscObj->user, &pRsp->sessCfg) != 0) {
+        tscError("failed to update user session metric, user:%s", pTscObj->user);
+      }
 
       if (pTscObj->sysInfo != pRsp->sysInfo) {
         tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user,
@@ -631,6 +685,9 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   pInst->serverCfg.monitorParas = pRsp.monitorParas;
   pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
+  pInst->serverCfg.enableAuditSelect = pRsp.enableAuditSelect;
+  pInst->serverCfg.enableAuditInsert = pRsp.enableAuditInsert;
+  pInst->serverCfg.auditLevel = pRsp.auditLevel;
   pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
@@ -707,6 +764,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       if (code) {
         taosArrayDestroy(desc.subDesc);
         desc.subDesc = NULL;
+        code = TSDB_CODE_SUCCESS;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
     } else {

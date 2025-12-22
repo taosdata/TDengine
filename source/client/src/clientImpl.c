@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "command.h"
 #include "decimal.h"
 #include "scheduler.h"
@@ -72,22 +73,22 @@ static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, 
   if (dst == NULL || src == NULL || srcLength == 0) {
     return 0;
   }
-  
+
   size_t escapeLength = 0;
-  for(size_t i = 0; i < srcLength; ++i) {
-    if( src[i] == '\"' || src[i] == '\\' || src[i] == '\b' || src[i] == '\f' || src[i] == '\n' ||
-        src[i] == '\r' || src[i] == '\t') {
-      escapeLength += 1; 
-    }    
+  for (size_t i = 0; i < srcLength; ++i) {
+    if (src[i] == '\"' || src[i] == '\\' || src[i] == '\b' || src[i] == '\f' || src[i] == '\n' || src[i] == '\r' ||
+        src[i] == '\t') {
+      escapeLength += 1;
+    }
   }
 
   size_t dstLength = srcLength;
-  if(escapeLength == 0) {
-     (void)memcpy(dst, src, srcLength);
+  if (escapeLength == 0) {
+    (void)memcpy(dst, src, srcLength);
   } else {
     dstLength = 0;
-    for(size_t i = 0; i < srcLength && dstLength <= maxDstLength; i++) {
-      switch(src[i]) {
+    for (size_t i = 0; i < srcLength && dstLength <= maxDstLength; i++) {
+      switch (src[i]) {
         case '\"':
           dst[dstLength++] = '\\';
           dst[dstLength++] = '\"';
@@ -117,7 +118,7 @@ static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, 
           dst[dstLength++] = 't';
           break;
         default:
-           dst[dstLength++] = src[i];
+          dst[dstLength++] = src[i];
       }
     }
   }
@@ -143,11 +144,12 @@ void cleanupAppInfo() {
   tscInfo("cluster instance map cleaned");
 }
 
-static int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, const char* db, __taos_async_fn_t fp, void* param,
-                               SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj);
+static int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, const char* db,
+                               __taos_async_fn_t fp, void* param, SAppInstInfo* pAppInfo, int connType,
+                               STscObj** pTscObj);
 
-int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* totp, const char* db,
-                              uint16_t port, int connType, STscObj** pObj) {
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* totp,
+                              const char* db, uint16_t port, int connType, STscObj** pObj) {
   TSC_ERR_RET(taos_init());
   if (!validateUserName(user)) {
     TSC_ERR_RET(TSDB_CODE_TSC_INVALID_USER_LENGTH);
@@ -177,7 +179,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
 
   int32_t totpCode = -1;
   if (totp != NULL) {
-    char *endptr = NULL;
+    char* endptr = NULL;
     totpCode = taosStr2Int32(totp, &endptr, 10);
     if (endptr == totp || *endptr != '\0' || totpCode < 0 || totpCode > 999999) {
       TSC_ERR_RET(TSDB_CODE_TSC_INVALID_TOTP_CODE);
@@ -205,14 +207,6 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
     tscInfo("ep:%d, %s:%u", i, epSet.epSet.eps[i].fqdn, epSet.epSet.eps[i].port);
   }
-  // for (int32_t i = 0; i < epSet.epSet.numOfEps; i++) {
-  //   if ((code = taosValidFqdn(tsEnableIpv6, epSet.epSet.eps[i].fqdn)) != 0) {
-  //     taosMemFree(key);
-  //     tscError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6,
-  //              epSet.epSet.eps[i].fqdn, tstrerror(code));
-  //     TSC_ERR_RET(code);
-  //   }
-  // }
 
   SAppInstInfo** pInst = NULL;
   code = taosThreadMutexLock(&appInfo.mutex);
@@ -274,6 +268,12 @@ _return:
     taosMemoryFreeClear(key);
     if (TSDB_CODE_SUCCESS != code) {
       tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
+      return code;
+    }
+    SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
+    code = sessMgtUpdateUserMetric((char*)user, &pPara);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("failed to connect with user:%s, code:%s", user, tstrerror(code));
       return code;
     }
     return taosConnectImpl(user, &secretEncrypt[0], totpCode, localDb, NULL, NULL, *pInst, connType, pObj);
@@ -1386,6 +1386,12 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
         if (!pRequest->validateOnly) {
           SArray* pNodeList = NULL;
           code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
+
+          if (TSDB_CODE_SUCCESS == code) {
+            SSessParam para = {.type = SESSION_MAX_CALL_VNODE_NUM, .value = taosArrayGetSize(pNodeList)};
+            code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
+          }
+
           if (TSDB_CODE_SUCCESS == code) {
             code = scheduleQuery(pRequest, pDag, pNodeList);
           }
@@ -1697,8 +1703,8 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
   return 0;
 }
 
-int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, const char* db, __taos_async_fn_t fp, void* param,
-                        SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj) {
+int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, const char* db, __taos_async_fn_t fp,
+                        void* param, SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj) {
   *pTscObj = NULL;
   int32_t code = createTscObj(user, auth, db, connType, pAppInfo, pTscObj);
   if (TSDB_CODE_SUCCESS != code) {
@@ -2007,9 +2013,8 @@ _exit:
   }
 }
 
-
-
-TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) {
+TAOS* taos_connect_totp(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
+                        uint16_t port) {
   tscInfo("try to connect to %s:%u by totp, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
     user = TSDB_DEFAULT_USER;
@@ -2019,16 +2024,16 @@ TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, cons
     pass = TSDB_DEFAULT_PASS;
   }
 
-  STscObj *pObj = NULL;
+  STscObj* pObj = NULL;
   int32_t  code = taos_connect_internal(ip, user, pass, NULL, totp, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
-    int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
+    int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
       return NULL;
     }
     *rid = pObj->id;
-    return (TAOS *)rid;
+    return (TAOS*)rid;
   } else {
     terrno = code;
   }
@@ -2036,8 +2041,8 @@ TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, cons
   return NULL;
 }
 
-
-int taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) {
+int taos_connect_test(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
+                      uint16_t port) {
   tscInfo("try to connect to %s:%u by totp, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
     user = TSDB_DEFAULT_USER;
@@ -2047,15 +2052,11 @@ int taos_connect_test(const char *ip, const char *user, const char *pass, const 
     pass = TSDB_DEFAULT_PASS;
   }
 
-  STscObj *pObj = NULL;
+  STscObj* pObj = NULL;
   return taos_connect_internal(ip, user, pass, NULL, totp, db, port, CONN_TYPE__AUTH_TEST, &pObj);
 }
 
-
-TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port) {
-  return NULL;
-}
-
+TAOS* taos_connect_token(const char* ip, const char* token, const char* db, uint16_t port) { return NULL; }
 
 TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, const char* db, uint16_t port) {
   tscInfo("try to connect to %s:%u by auth, user:%s db:%s", ip, port, user, db);
@@ -2501,14 +2502,15 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           *(char*)varDataVal(dst) = '\"';
           char    tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
-          int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
-                                         varDataVal(tmp), pResultInfo->charsetCxt);
+          int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(tmp),
+                                         pResultInfo->charsetCxt);
           if (length <= 0) {
             tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
                      pResultInfo->charsetCxt != NULL ? ((SConvInfo*)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
-          int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,varDataVal(tmp), length);
+          int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,
+                                                 varDataVal(tmp), length);
           varDataSetLen(dst, escapeLength + CHAR_BYTES * 2);
           *(char*)POINTER_SHIFT(varDataVal(dst), escapeLength + CHAR_BYTES) = '\"';
           tscError("value:%s.", varDataVal(dst));
@@ -3132,6 +3134,13 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
     return;
   }
 
+  code = connCheckAndUpateMetric(connId);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    fp(param, NULL, terrno);
+    return;
+  }
+
   pRequest->source = source;
   pRequest->body.queryFp = fp;
   doAsyncQuery(pRequest, false);
@@ -3166,7 +3175,16 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
     return;
   }
 
+  code = connCheckAndUpateMetric(connId);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    fp(param, NULL, terrno);
+    return;
+  }
+
   pRequest->body.queryFp = fp;
+
   doAsyncQuery(pRequest, false);
 }
 
@@ -3180,6 +3198,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   if (NULL == param) {
     return NULL;
   }
+
   int32_t code = tsem_init(&param->sem, 0, 0);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -3364,3 +3383,15 @@ int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool pa
   return clientParseSqlImpl(param, dbName, sql, parseOnly, effectiveUser, pRes);
 #endif
 }
+
+void updateConnAccessInfo(SConnAccessInfo *pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+  int64_t ts = taosGetTimestampMs();
+  if (pInfo->startTime == 0) {
+    pInfo->startTime = ts;
+  }
+  pInfo->lastAccessTime = ts;
+}
+ 

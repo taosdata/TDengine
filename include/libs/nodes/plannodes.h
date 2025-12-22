@@ -338,6 +338,9 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+#define WINDOW_PART_HAS  0x01
+#define WINDOW_PART_TB   0x02
+
 typedef struct SWindowLogicNode {
   // for all window types
   SLogicNode            node;
@@ -378,7 +381,7 @@ typedef struct SWindowLogicNode {
   tb_uid_t              orgTableUid;
 
   // for external and interval window
-  bool                  isPartTb;
+  int8_t                partType;      // bit0 is for has partition, bit1 is for tb partition
   // for anomaly window
   SNode*                pAnomalyExpr;
   char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
@@ -715,16 +718,6 @@ typedef struct SAggPhysiNode {
   bool       hasCountLikeFunc;
 } SAggPhysiNode;
 
-typedef struct SDownstreamSourceNode {
-  ENodeType      type;
-  SQueryNodeAddr addr;
-  uint64_t       clientId;
-  uint64_t       taskId;
-  uint64_t       sId;
-  int32_t        execId;
-  int32_t        fetchMsgType;
-  bool           localExec;
-} SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
@@ -936,9 +929,12 @@ typedef struct SExplainInfo {
 
 typedef struct SQueryPlan {
   ENodeType    type;
+  bool         isScalarQ;
   uint64_t     queryId;
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SNodeList*   pChildren;  // Element is SQueryPlan*
+  char*        subSql;
   SExplainInfo explainInfo;
   void*        pPostPlan;
 } SQueryPlan;

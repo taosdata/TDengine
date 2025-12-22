@@ -16,14 +16,26 @@
 #define _DEFAULT_SOURCE
 #include "audit.h"
 #include "dmInt.h"
+// #include "dmMgmt.h"
 #include "monitor.h"
+#include "stream.h"
 #include "systable.h"
 #include "tanalytics.h"
 #include "tchecksum.h"
 #include "tutil.h"
-#include "stream.h"
 
 extern SConfig *tsCfg;
+extern void setAuditDbNameToken(char *pDb, char *pToken);
+
+#ifndef TD_ENTERPRISE
+void setAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
+
+extern void getAuditDbNameToken(char *pDb, char *pToken);
+
+#ifndef TD_ENTERPRISE
+void getAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
 
 SMonVloadInfo tsVinfo = {0};
 SMnodeLoad    tsMLoad = {0};
@@ -209,6 +221,9 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
+      dGInfo("dnode:%d, set auditDB:%s, token:%s in status rsp received from mnode", pMgmt->pData->dnodeId,
+             statusRsp.auditDB, statusRsp.auditToken);
+      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken);
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
@@ -288,6 +303,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
   req.analVer = taosAnalyGetVersion();
   req.timeWhiteVer = pMgmt->pData->timeWhiteVer;
+
+  getAuditDbNameToken(req.auditDB, req.auditToken);
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
@@ -734,6 +751,44 @@ _exit:
 #endif
 }
 
+int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SMsgCb *msgCb = &pMgmt->msgCb;
+  void *pTransCli = msgCb->clientRpc;
+  void *pTransStatus = msgCb->statusRpc;  
+  void *pTransSync = msgCb->syncRpc; 
+  void *pTransServer = msgCb->serverRpc;
+
+  code = rpcReloadTlsConfig(pTransServer, TAOS_CONN_SERVER);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "server", tstrerror(code));
+    goto _error;
+  }
+
+  code = rpcReloadTlsConfig(pTransCli, TAOS_CONN_CLIENT);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "cli", tstrerror(code));
+    goto _error;
+  }
+
+  code = rpcReloadTlsConfig(pTransStatus, TAOS_CONN_CLIENT);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "status-cli", tstrerror(code));
+    goto _error;
+  }
+
+  code = rpcReloadTlsConfig(pTransSync, TAOS_CONN_CLIENT);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "sync-cli", tstrerror(code));
+    goto _error;
+  }
+
+_error:
+  
+  return code;
+}
+
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   pStatus->details[0] = 0;
@@ -985,6 +1040,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_RELOAD_DNODE_TLS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

@@ -70,6 +70,7 @@ char tsTLSCliCertPath[PATH_MAX] = {0};
 char tsTLSCliKeyPath[PATH_MAX] = {0};
 
 int8_t tsEnableTLS = 0;
+int8_t tsEnableSasl = 0;
 // common
 int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
@@ -205,12 +206,20 @@ bool    tsMonitorForceV2 = false;
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
 bool    tsEnableAuditDelete = true;
+bool    tsEnableAuditSelect = true;
+bool    tsEnableAuditInsert = true;
 int32_t tsAuditInterval = 5000;
+int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
+bool    tsAuditHttps = false;
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;
 bool    tsEnableAuditDelete = false;
+bool    tsEnableAuditSelect = false;
+bool    tsEnableAuditInsert = false;
 int32_t tsAuditInterval = 200000;
+int32_t tsAuditLevel = AUDIT_LEVEL_NONE;
+bool    tsAuditHttps = false;
 #endif
 
 // telem
@@ -306,7 +315,7 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsMaxInsertBatchRows = 1000000;
 
 // maximum length of a SQL statement
-int32_t tsMaxSQLLength = (1 * 1024 * 1024);  // 1MB
+int32_t tsMaxSQLLength = (4 * 1024 * 1024);  // 1MB
 
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
@@ -421,7 +430,16 @@ bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show 
 
 int64_t tsTimestampDeltaLimit = 900;  // s
 int32_t tsRpcRecvLogThreshold = 3;        // in seconds, default 3s
+
+int32_t sessionPerUser = -1;
+int32_t sessionConnTime = -1;
+int32_t sessionConnIdleTime = -1;
+int32_t sessionMaxConcurrency = -1;
+int32_t sessionMaxCallVnodeNum = -1;
+
+bool    tsSessionControl = 0;
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
+
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
@@ -728,8 +746,27 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionPerUser", sessionPerUser, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionConnTime", sessionConnTime, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionConnIdleTime", sessionConnIdleTime, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionMaxConcurrency", sessionMaxConcurrency, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sessionMaxCallVnodeNum", sessionMaxCallVnodeNum, -1, INT32_MAX,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxSQLLength", tsMaxSQLLength, 1024 * 1024, 64 * 1024 * 1024, CFG_SCOPE_CLIENT,
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "sessionControl", tsSessionControl, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT_LAZY, CFG_CATEGORY_LOCAL));
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -787,6 +824,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
       cfgAddString(pCfg, "tlsCliKeyPath", tsTLSCliKeyPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableTLS", tsEnableTLS, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSasl", tsEnableSasl, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -930,8 +969,12 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditDelete", tsEnableAuditDelete, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditSelect", tsEnableAuditSelect, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAuditInsert", tsEnableAuditInsert, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditLevel", tsAuditLevel, 0, 5, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditHttps", tsAuditHttps, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1532,8 +1575,13 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
   tsEnableTLS = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableSasl");
+  tsEnableSasl = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxSQLLength");
   tsMaxSQLLength = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sessionControl");
+  tsSessionControl = pItem->bval;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -1746,6 +1794,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditDelete");
   tsEnableAuditDelete = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditSelect");
+  tsEnableAuditSelect = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAuditInsert");
+  tsEnableAuditInsert = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditLevel");
+  tsAuditLevel = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditHttps");
+  tsAuditHttps = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
@@ -2043,6 +2103,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
   tsEnableTLS = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableSasl");
+  tsEnableSasl = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcRecvLogThreshold");
   tsRpcRecvLogThreshold = pItem->i32;
 
@@ -2776,6 +2838,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"monitorMaxLogs", &tsMonitorMaxLogs},
                                          {"auditCreateTable", &tsEnableAuditCreateTable},
                                          {"auditInterval", &tsAuditInterval},
+                                         {"auditLevel", &tsAuditLevel},
+                                         {"auditHttps", &tsAuditHttps},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
                                          {"compressMsgSize", &tsCompressMsgSize},
                                          {"compressor", &tsCompressor},
@@ -2862,6 +2926,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"metricsLevel", &tsMetricsLevel},
                                          {"forceKillTrans", &tsForceKillTrans},
                                          {"enableTLS", &tsEnableTLS},
+                                         {"enableSasl", &tsEnableSasl},
                                          {"rpcRecvLogThreshold", &tsRpcRecvLogThreshold},
                                          {"tagFilterCache", &tsTagFilterCache},
                                          {"stableTagFilterCache", &tsStableTagFilterCache}};

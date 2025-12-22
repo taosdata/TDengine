@@ -246,6 +246,7 @@ static SKeyword keywordTable[] = {
     {"RECURSIVE",            TK_RECURSIVE},
     {"REDISTRIBUTE",         TK_REDISTRIBUTE},
     {"RENAME",               TK_RENAME},
+    {"RELOAD",               TK_RELOAD},
     {"RECALCULATE",          TK_RECALCULATE},
     {"REPLACE",              TK_REPLACE},
     {"REPLICAS",             TK_REPLICAS},
@@ -437,12 +438,14 @@ static SKeyword keywordTable[] = {
     {"ALLOW_TOKEN_NUM",      TK_ALLOW_TOKEN_NUM},
     {"NOT_ALLOW_HOST",       TK_NOT_ALLOW_HOST},
     {"ALLOW_DATETIME",       TK_ALLOW_DATETIME},
+    {"RELOAD",   TK_RELOAD},
     {"NOT_ALLOW_DATETIME",   TK_NOT_ALLOW_DATETIME},
     {"ENCRYPT_ALGORITHMS",   TK_ENCRYPT_ALGORITHMS},
     {"ALGR_NAME",            TK_ALGR_NAME},
     {"ALGR_TYPE",            TK_ALGR_TYPE},
     {"ENCRYPT_ALGR",         TK_ENCRYPT_ALGR},
     {"OSSL_ALGR_NAME",       TK_OSSL_ALGR_NAME},
+    {"IS_AUDIT",       TK_IS_AUDIT},
 };
 // clang-format on
 

@@ -30,8 +30,11 @@
 #include "mndUser.h"
 #include "tmisce.h"
 
-#define VGROUP_VER_NUMBER   1
-#define VGROUP_RESERVE_SIZE 60
+#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER 2
+#define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_MOUNT_KEEP_VER
+#define VGROUP_RESERVE_SIZE              60
+// since 3.3.6.32/3.3.8.6 mountId + keepVersion + keepVersionTime + VGROUP_RESERVE_SIZE = 4 + 8 + 8 + 60 = 80
+#define DLEN_AFTER_SYNC_CONF_CHANGE_VER 80
 
 static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
@@ -180,14 +183,28 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   if (dataPos + 2 * sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
   }
-  SDB_GET_INT32(pRaw, dataPos, &pVgroup->mountVgId, _OVER)
+
+  int32_t dlenAfterSyncConfChangeVer = pRaw->dataLen - dataPos;
+  if (dataPos + sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_INT32(pRaw, dataPos, &pVgroup->mountVgId, _OVER)
+  }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersion, _OVER)
   }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersionTime, _OVER)
   }
-  SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
+  if (dataPos + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
+  }
+
+  if (sver < VGROUP_VER_COMPAT_MOUNT_KEEP_VER) {
+    if (dlenAfterSyncConfChangeVer == DLEN_AFTER_SYNC_CONF_CHANGE_VER) {
+      pVgroup->mountVgId = 0;
+    }
+    pVgroup->keepVersion = -1;
+    pVgroup->keepVersionTime = 0;
+  }
 
   terrno = 0;
 
@@ -2606,6 +2623,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   int32_t    oldDnodeId[3] = {0};
   int32_t    newIndex = -1;
   int32_t    oldIndex = -1;
+  int64_t    tss = taosGetTimestampMs();
 
   SRedistributeVgroupReq req = {0};
   if (tDeserializeSRedistributeVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
@@ -2901,11 +2919,15 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[33] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", req.vgId);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char obj[33] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", req.vgId);
 
-  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", "", obj, req.sql, req.sqlLen);
-
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", "", obj, req.sql, req.sqlLen, duration, 0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("vgId:%d, failed to redistribute to dnode %d:%d:%d since %s", req.vgId, req.dnodeId1, req.dnodeId2,
@@ -3948,6 +3970,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   SArray *pArray = NULL;
   void   *pIter = NULL;
   int64_t curMs = taosGetTimestampMs();
+  int64_t tss = taosGetTimestampMs();
 
   SBalanceVgroupReq req = {0};
   if (tDeserializeSBalanceVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
@@ -3994,7 +4017,12 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
     code = mndBalanceVgroup(pMnode, pReq, pArray);
   }
 
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", req.sql, req.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", req.sql, req.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

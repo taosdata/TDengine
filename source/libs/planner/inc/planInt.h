@@ -107,7 +107,6 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
 bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr);
 void rewriteTargetsWithResId(SNodeList* pTargets);
 
-
 #ifdef __cplusplus
 }
 #endif

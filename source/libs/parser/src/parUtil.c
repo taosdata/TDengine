@@ -15,10 +15,10 @@
 
 #include "parUtil.h"
 #include "cJSON.h"
+#include "decimal.h"
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
-#include "decimal.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -631,7 +631,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   const char* valueStr = NULL;
   int32_t     valueLen = 0;
 
-  if (pVal->placeholderNo != 0) {
+  if ((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) && pVal->placeholderNo != 0) {
     if (NULL == pVal->datum.p) {
       qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
              pVal->placeholderNo, pCol->colName, pVal->literal ? pVal->literal : "NULL");
@@ -1625,7 +1625,6 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   return code;
 }
 
-
 int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pOutput) {
   char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t code = tNameExtractFullName(pName, fullName);
@@ -1727,3 +1726,77 @@ STypeMod calcTypeMod(const SDataType* pType) {
   }
   return 0;
 }
+
+
+int32_t validateScalarSubQuery(SNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      if (pSelect->pProjectionList && pSelect->pProjectionList->length != 1) {
+        return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS;
+      }
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      if (pSet->pProjectionList && pSet->pProjectionList->length != 1) {
+        return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS;
+      }
+      break;
+    }
+    default:
+      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+      break;
+  }
+
+  return code;
+}
+
+void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0);
+      memcpy(pType, &pExpr->resType, sizeof(*pType));
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      SExprNode* pExpr = (SExprNode*)nodesListGetNode(pSet->pProjectionList, 0);
+      memcpy(pType, &pExpr->resType, sizeof(*pType));
+      break;
+    }
+    default:
+      break;
+  }
+
+  return;
+}
+
+int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pSelect->subQType = type;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      pSet->subQType = type;
+      break;
+    }
+    default:
+      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+      break;
+  }
+
+  return code;
+}
+
+

@@ -188,12 +188,20 @@ typedef struct TAOS_STMT_OPTIONS {
   bool    singleTableBindOnce;
 } TAOS_STMT_OPTIONS;
 
+typedef struct OPTIONS {
+  const char* keys[256];
+  const char* values[256];
+  uint16_t count;
+} OPTIONS;
+
 DLL_EXPORT int   taos_init(void);
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT int   taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
+DLL_EXPORT void  taos_set_option(OPTIONS *options, const char *key, const char *value);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_with(const OPTIONS *options);
 /**
  * taos_connect_with_dsn
  * Note: This API is currently not supported in this client library.
@@ -470,6 +478,8 @@ DLL_EXPORT void    tmq_free_raw(tmq_raw_data raw);
 // Returning null means error. Returned result need to be freed by tmq_free_json_meta
 DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
 DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
+
+DLL_EXPORT int32_t taos_connect_is_alive(TAOS *taos);
 /* ---- end ---- */
 
 /* -- implemented in the native interface, for internal component only, the API may change -- */

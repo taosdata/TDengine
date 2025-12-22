@@ -339,6 +339,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SConnObj       *pConn = NULL;
   int32_t         code = 0;
   SConnectReq     connReq = {0};
+  int64_t         tss = taosGetTimestampMs();
   const STraceId *trace = &pReq->info.traceId;
 
   char    *ip = IP_ADDR_STR(&pReq->info.conn.cliAddr);
@@ -439,7 +440,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   } else {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
     goto _OVER;
-  }
+  } 
 
   if (connReq.db[0]) {
     char db[TSDB_DB_FNAME_LEN] = {0};
@@ -489,6 +490,9 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   connectRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
   connectRsp.enableAuditDelete = tsEnableAuditDelete;
+  connectRsp.enableAuditSelect = tsEnableAuditSelect;
+  connectRsp.enableAuditInsert = tsEnableAuditInsert;
+  connectRsp.auditLevel = tsAuditLevel;
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
   connectRsp.timeWhiteListVer = pUser->timeWhiteListVer;
@@ -520,12 +524,17 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   code = 0;
 
-  char    detail[1000] = {0};
-  int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
-  if ((uint32_t)nBytes < sizeof(detail)) {
-    auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
-  } else {
-    mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char    detail[1000] = {0};
+    int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
+    if ((uint32_t)nBytes < sizeof(detail)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail), duration, 0);
+    } else {
+      mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
 
 _OVER:
@@ -900,6 +909,9 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   batchRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
   batchRsp.enableAuditDelete = tsEnableAuditDelete;
+  batchRsp.enableAuditSelect = tsEnableAuditSelect;
+  batchRsp.enableAuditInsert = tsEnableAuditInsert;
+  batchRsp.auditLevel = tsAuditLevel;
   batchRsp.enableStrongPass = tsEnableStrongPassword;
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);

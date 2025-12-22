@@ -83,6 +83,7 @@ extern char tsTLSSvrKeyPath[];
 extern char tsTLSCliCertPath[];
 extern char tsTLSCliKeyPath[];
 extern int8_t tsEnableTLS;
+extern int8_t tsEnableSasl;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -206,7 +207,11 @@ extern bool     tsMonitorForceV2;
 extern bool    tsEnableAudit;
 extern bool    tsEnableAuditCreateTable;
 extern bool    tsEnableAuditDelete;
+extern bool    tsEnableAuditSelect;
+extern bool    tsEnableAuditInsert;
+extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
+extern bool    tsAuditHttps;
 
 // telem
 extern bool     tsEnableTelem;
@@ -345,6 +350,11 @@ extern int32_t tsSsBlockSize;
 extern int32_t tsSsBlockCacheSize;
 extern int32_t tsSsPageCacheSize;
 
+extern int32_t sessionPerUser; 
+extern int32_t sessionConnTime; 
+extern int32_t sessionConnIdleTime;
+extern int32_t sessionMaxConcurrency;  
+extern int32_t sessionMaxCallVnodeNum;
 // insert performance
 extern bool tsInsertPerfEnabled;
 
@@ -359,6 +369,7 @@ extern bool    tsAuthReq;
 extern int32_t tsAuthReqInterval;
 extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
+extern bool    tsSessionControl;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

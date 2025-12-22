@@ -75,7 +75,7 @@
       break;                                                            \
     }                                                                   \
     int32_t code = nodesCloneList((pSrc)->fldname, &((pDst)->fldname)); \
-    if (NULL == (pDst)->fldname) {                                      \
+    if (TSDB_CODE_SUCCESS != code) {                                    \
       return code;                                                      \
     }                                                                   \
   } while (0)
@@ -149,7 +149,7 @@ static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDs
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
+int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(flag);
@@ -504,6 +504,13 @@ static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDs
   CLONE_NODE_FIELD(pStart);
   CLONE_NODE_FIELD(pEnd);
   COPY_SCALAR_FIELD(needCalc);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t remoteValueCopy(const SRemoteValueNode* pSrc, SRemoteValueNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(val, valueNodeCopy);
+  //COPY_SCALAR_FIELD(valSet);
+  COPY_SCALAR_FIELD(subQIdx);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1230,6 +1237,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_TIME_RANGE:
       code = timeRangeNodeCopy((const STimeRangeNode*)pNode, (STimeRangeNode*)pDst);
+      break;
+    case QUERY_NODE_REMOTE_VALUE:
+      code = remoteValueCopy((const SRemoteValueNode*)pNode, (SRemoteValueNode*)pDst);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);
