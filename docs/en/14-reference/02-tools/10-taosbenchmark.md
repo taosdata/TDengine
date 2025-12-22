@@ -72,56 +72,39 @@ taosBenchmark -f <json file>
 - **-I/--interface \<insertMode>:**
   Insert mode, options include taosc, rest, stmt, sml, sml-rest, corresponding to normal writing, restful interface writing, parameter binding interface writing, schemaless interface writing, restful schemaless interface writing (provided by taosAdapter). Default value is taosc.
 
-- **-u/--user \<user>:**
-  Username for connecting to the TDengine server, default is root.
+- **-u/--user \<user>:** Username for connecting to the TDengine server, default is root.
 
-- **-U/--supplement-insert:**
-  Insert data without pre-creating database and tables, default is off.
+- **-U/--supplement-insert:** Insert data without pre-creating database and tables, default is off.
 
-- **-p/--password \<passwd>:**
-  Password for connecting to the TDengine server, default value is taosdata.
+- **-p/--password \<passwd>:** Password for connecting to the TDengine server, default value is taosdata.
 
-- **-o/--output \<file>:**
-  Path of the output file for results, default value is ./output.txt.
+- **-o/--output \<file>:** Path of the output file for results, default value is ./output.txt.
 
-- **-T/--thread \<threadNum>:**
-  Number of threads for inserting data, default is 8.
+- **-T/--thread \<threadNum>:** Number of threads for inserting data, default is 8.
 
-- **-B/--interlace-rows \<rowNum>:**
-  Enables interlaced insertion mode and specifies the number of rows to insert into each subtable at a time. Interlaced insertion mode means inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data is inserted. Default value is 0, meaning data is inserted into one subtable completely before moving to the next.
+- **-B/--interlace-rows \<rowNum>:** Enables interlaced insertion mode and specifies the number of rows to insert into each subtable at a time. Interlaced insertion mode means inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data is inserted. Default value is 0, meaning data is inserted into one subtable completely before moving to the next.
 
-- **-i/--insert-interval \<timeInterval>:**
-  Specifies the insertion interval for interlaced insertion mode, in ms, default value is 0. Only effective when `-B/--interlace-rows` is greater than 0. It means that the data insertion thread will wait for the time interval specified by this value after inserting interlaced records for each subtable before proceeding to the next round of writing.
+- **-i/--insert-interval \<timeInterval>:** Specifies the insertion interval for interlaced insertion mode, in ms, default value is 0. Only effective when `-B/--interlace-rows` is greater than 0. It means that the data insertion thread will wait for the time interval specified by this value after inserting interlaced records for each subtable before proceeding to the next round of writing.
 
-- **-r/--rec-per-req \<rowNum>:**
-  Number of data rows requested per TDengine write, default value is 30000.
+- **-r/--rec-per-req \<rowNum>:** Number of data rows requested per TDengine write, default value is 30000.
 
-- **-t/--tables \<tableNum>:**
-  Specifies the number of subtables, default is 10000.
+- **-t/--tables \<tableNum>:** Specifies the number of subtables, default is 10000.
 
-- **-s/--start-timestamp \<NUMBER>:**
-  Specify start timestamp to insert data for each child table
+- **-s/--start-timestamp \<NUMBER>:** Specify start timestamp to insert data for each child table
 
-- **-S/--timestampstep \<stepLength>:**
-  Timestamp step length for inserting data into each subtable, in ms, default value is 1.
+- **-S/--timestampstep \<stepLength>:** Timestamp step length for inserting data into each subtable, in ms, default value is 1.
 
-- **-n/--records \<recordNum>:**
-  Number of records to insert per subtable, default value is 10000.
+- **-n/--records \<recordNum>:** Number of records to insert per subtable, default value is 10000.
 
-- **-d/--database \<dbName>:**
-  Name of the database to use, default value is test.
+- **-d/--database \<dbName>:** Name of the database to use, default value is test.
 
-- **-b/--data-type \<colType>:**
-  Data column types for the supertable. If not used, the default is three data columns, types are FLOAT, INT, FLOAT.
+- **-b/--data-type \<colType>:** Data column types for the supertable. If not used, the default is three data columns, types are FLOAT, INT, FLOAT.
 
-- **-l/--columns \<colNum>:**
-  Total number of data columns for the supertable. If both this parameter and `-b/--data-type` are set, the final number of columns is the larger of the two. If the number specified by this parameter is greater than the number of columns specified by `-b/--data-type`, the unspecified column types default to INT, for example: `-l 5 -b float,double`, then the final columns are `FLOAT,DOUBLE,INT,INT,INT`. If the number of columns specified is less than or equal to the number specified by `-b/--data-type`, the result is the columns and types specified by `-b/--data-type`, for example: `-l 3 -b float,double,float,bigint`, then the final columns are `FLOAT,DOUBLE,FLOAT,BIGINT`.
+- **-l/--columns \<colNum>:** Total number of data columns for the supertable. If both this parameter and `-b/--data-type` are set, the final number of columns is the larger of the two. If the number specified by this parameter is greater than the number of columns specified by `-b/--data-type`, the unspecified column types default to INT, for example: `-l 5 -b float,double`, then the final columns are `FLOAT,DOUBLE,INT,INT,INT`. If the number of columns specified is less than or equal to the number specified by `-b/--data-type`, the result is the columns and types specified by `-b/--data-type`, for example: `-l 3 -b float,double,float,bigint`, then the final columns are `FLOAT,DOUBLE,FLOAT,BIGINT`.
 
-- **-L/--partial-col-num \<colNum>:**
-  Specifies that only some columns are written with data, while other columns are NULL. By default, data is written to all columns.
+- **-L/--partial-col-num \<colNum>:** Specifies that only some columns are written with data, while other columns are NULL. By default, data is written to all columns.
 
-- **-A/--tag-type \<tagType>:**
-  Tag column types for the supertable. `nchar` and `binary` types can set length simultaneously, for example:
+- **-A/--tag-type \<tagType>:** Tag column types for the supertable. `nchar` and `binary` types can set length simultaneously, for example:
 
 ```shell
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
@@ -134,55 +117,41 @@ Note: In some shells like bash, "()" needs to be escaped, so the command should 
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ```
 
-- **-w/--binwidth \<length>:**
-  The default length for `nchar` and `binary` types, default value is 64.
+- **-w/--binwidth \<length>:** The default length for `nchar` and `binary` types, default value is 64.
 
-- **-m/--table-prefix \<tablePrefix>:**
-  The prefix for the subtable names, default value is "d".
+- **-m/--table-prefix \<tablePrefix>:** The prefix for the subtable names, default value is "d".
 
-- **-E/--escape-character:**
-  A toggle parameter, specifies whether to use escape characters in supertable and subtable names. The default is not to use.
+- **-E/--escape-character:** A toggle parameter, specifies whether to use escape characters in supertable and subtable names. The default is not to use.
 
-- **-C/--chinese:**
-  A toggle parameter, specifies whether `nchar` and `binary` use Unicode Chinese characters. The default is not to use.
+- **-C/--chinese:** A toggle parameter, specifies whether `nchar` and `binary` use Unicode Chinese characters. The default is not to use.
 
-- **-N/--normal-table:**
-  A toggle parameter, specifies to only create basic tables, not supertables. Default is false. Only available when the insertion mode is taosc, stmt, or rest.
+- **-N/--normal-table:** A toggle parameter, specifies to only create basic tables, not supertables. Default is false. Only available when the insertion mode is taosc, stmt, or rest.
 
-- **-M/--random:**
-  A toggle parameter, data to be inserted are generated random values. Default is false. If this parameter is configured, the data to be inserted will be randomly generated. For numeric type tag/columns, the values will be random within the type's range. For NCHAR and BINARY type tag/columns, the values will be random strings within the specified length range.
+- **-M/--random:** A toggle parameter, data to be inserted are generated random values. Default is false. If this parameter is configured, the data to be inserted will be randomly generated. For numeric type tag/columns, the values will be random within the type's range. For NCHAR and BINARY type tag/columns, the values will be random strings within the specified length range.
 
-- **-x/--aggr-func:**
-  A toggle parameter, indicates to query aggregate functions after insertion. Default is false.
+- **-x/--aggr-func:** A toggle parameter, indicates to query aggregate functions after insertion. Default is false.
 
-- **-y/--answer-yes:**
-  A toggle parameter, requires user confirmation after prompt to continue. Default is false.
+- **-y/--answer-yes:** A toggle parameter, requires user confirmation after prompt to continue. Default is false.
 
-- **-O/--disorder \<Percentage>:**
-  Specifies the percentage probability of disorder data, with a range of [0,50]. Default is 0, meaning no disorder data.
+- **-O/--disorder \<Percentage>:** Specifies the percentage probability of disorder data, with a range of [0,50]. Default is 0, meaning no disorder data.
 
-- **-R/--disorder-range \<timeRange>:**
-  Specifies the timestamp fallback range for disorder data. The generated disorder timestamps are the timestamps that should be used in non-disorder situations minus a random value within this range. Only effective when the disorder data percentage specified by `-O/--disorder` is greater than 0.
+- **-R/--disorder-range \<timeRange>:** Specifies the timestamp fallback range for disorder data. The generated disorder timestamps are the timestamps that should be used in non-disorder situations minus a random value within this range. Only effective when the disorder data percentage specified by `-O/--disorder` is greater than 0.
 
-- **-F/--prepare_rand \<Num>:**
-  The number of unique values in the generated random data. If it is 1, it means all data are the same. Default value is 10000.
+- **-F/--prepare_rand \<Num>:** The number of unique values in the generated random data. If it is 1, it means all data are the same. Default value is 10000.
 
-- **-a/--replica \<replicaNum>:**
-  Specifies the number of replicas when creating the database, default value is 1.
+- **-a/--replica \<replicaNum>:** Specifies the number of replicas when creating the database, default value is 1.
 
 - **-k/--keep-trying \<NUMBER>:** Number of retries after failure, default is no retry. Requires version v3.0.9 or above.
 
 - **-z/--trying-interval \<NUMBER>:** Retry interval in milliseconds, effective only when retries are specified with -k. Requires version v3.0.9 or above.
 
 - **-Z/--connect-mode \<NUMBER>:** The connection method, with 0 indicating the use of native connection method, 1 indicating the use of WebSocket connection method, and default to native connection method.
-- **-v/--vgroups \<NUMBER>:**
-  Specifies the number of vgroups when creating the database, only valid for TDengine v3.0+.
 
-- **-V/--version:**
-  Displays version information and exits. Cannot be used with other parameters.
+- **-v/--vgroups \<NUMBER>:** Specifies the number of vgroups when creating the database, only valid for TDengine v3.0+.
 
-- **-?/--help:**
-  Displays help information and exits. Cannot be used with other parameters.
+- **-V/--version:** Displays version information and exits. Cannot be used with other parameters.
+
+- **-?/--help:** Displays help information and exits. Cannot be used with other parameters.
 
 ## Configuration File Parameters
 
@@ -211,6 +180,7 @@ In insertion scenarios, `filetype` must be set to `insert`. For this parameter a
 - **keep_trying:** Number of retries after failure, default is no retry. Requires version v3.0.9 or above.
 
 - **trying_interval:** Interval between retries in milliseconds, effective only when retries are specified in keep_trying. Requires version v3.0.9 or above.
+
 - **childtable_from and childtable_to:** Specifies the range of child tables to write to, the interval is [childtable_from, childtable_to).
 
 - **continue_if_fail:** Allows users to define behavior after failure
@@ -284,8 +254,11 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **tags_file:** Effective only when insert_mode is taosc, rest. The final value of the tag is related to childtable_count, if the tag data rows in the csv file are less than the given number of subtables, then the csv file data will be read in a loop until the childtable_count specified subtable number is generated; otherwise, only childtable_count rows of tag data will be read. Thus, the final number of subtables generated is the smaller of the two.
 
 - **primary_key:** Specifies whether the supertable has a composite primary key, values are 1 and 0, composite primary key columns can only be the second column of the supertable, after specifying the generation of composite primary keys, ensure that the second column meets the data type of composite primary keys, otherwise an error will occur
+
 - **repeat_ts_min:** Numeric type, when composite primary key is enabled, specifies the minimum number of records with the same timestamp to be generated, the number of records with the same timestamp is a random value within the range [repeat_ts_min, repeat_ts_max], when the minimum value equals the maximum value, it is a fixed number
+
 - **repeat_ts_max:** Numeric type, when composite primary key is enabled, specifies the maximum number of records with the same timestamp to be generated
+
 - **sqls:** Array of strings type, specifies the array of sql to be executed after the supertable is successfully created, the table name specified in sql must be prefixed with the database name, otherwise an unspecified database error will occur
 
 - **csv_file_prefix:** String type, sets the prefix for the names of the generated csv files. Default value is "data".
