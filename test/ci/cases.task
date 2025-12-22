@@ -280,6 +280,16 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_lastrow.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub1.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub2.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3a.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3b.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3c.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3d.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d.py
 ## 09-Having
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having.py
@@ -410,6 +420,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_info.py
 ## 07-Geometry
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/07-Geometry/test_fun_geo_basic.py
+## 08-Window
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_lag.py
 
 # 12-UDFs
 
@@ -1115,6 +1127,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts7662.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_32187.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_33225.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_c_test.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts4563.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32526.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32471.py

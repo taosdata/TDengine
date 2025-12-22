@@ -1552,7 +1552,7 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pT
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(tempTable->table.tableAlias, pTableAlias);
   } else {
-    taosRandStr(tempTable->table.tableAlias, 8);
+    taosRandStr(tempTable->table.tableAlias, 32);
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
     tstrncpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
@@ -1885,6 +1885,11 @@ _err:
 
 SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
+  if (isSubQueryNode(pStart) || isSubQueryNode(pEnd) || isSubQueryNode(pInterval)) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  
   if (NULL == pInterval) {
     if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
       return createInterpTimeAround(pCxt, pStart, NULL, pEnd);
@@ -1898,11 +1903,17 @@ _err:
 
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
+  nodesDestroyNode(pInterval);
   return NULL;
 }
 
 SNode* createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint) {
   CHECK_PARSER_STATUS(pCxt);
+  if (isSubQueryNode(pPoint)) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  
   return createOperatorNode(pCxt, OP_TYPE_EQUAL, createPrimaryKeyCol(pCxt, NULL), pPoint);
 _err:
   nodesDestroyNode(pPoint);

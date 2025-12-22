@@ -610,6 +610,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status fr
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED, "Memory pool not initialized")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH, "Alter minReservedMemorySize failed since no enough system available memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP,     "Duplicate timestamp not allowed in count/event/state window")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_NOT_FOUND,           "Subquery context not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_EXEC_ERROR,          "Subquery exec error")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -868,6 +870,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS,    "More than 1 column returned in subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS,    "More than 1 row returned in subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ,             "Not supported subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ,    "Current sql does not support subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE,       "Expr subquery not supported in current clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY,      "Expr subquery not supported in current query policy")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max length is 127 character")

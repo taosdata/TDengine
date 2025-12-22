@@ -1938,7 +1938,7 @@ rsma_name(A) ::= NK_ID(B).                                                      
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }
-//expr_or_subquery(A) ::= subquery(B).                                              { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
+expr_or_subquery(A) ::= subquery(B).                                              { A = B; }
 
 expression(A) ::= literal(B).                                                     { A = B; }
 expression(A) ::= pseudo_column(B).                                               { A = B; (void)setRawExprNodeIsPseudoColumn(pCxt, A, true); }

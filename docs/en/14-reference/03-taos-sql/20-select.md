@@ -527,7 +527,20 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::
 
-:::
+## Non-Correlated Scalar Subqueries
+
+A non-correlated scalar subquery is a type of independent executable subquery in SQL, with its core characteristic being that it returns only a single value (one row, one column), and the execution process is completely independent of any fields from the outer query. Any query statement that conforms to this characteristic can be used as a non-correlated scalar subquery. Non-correlated scalar subqueries can be used in any clause, function, or expression within a query statement, as long as it is syntactically defined as an expression. Non-correlated scalar subqueries can also be nested.
+
+Non-correlated scalar subqueries can independently compute the result first, and then substitute that result into the outer query as a filter condition or reference value. They are commonly used in scenarios involving filtering based on aggregate values (such as average, maximum) or combining results from multiple table queries. Non-correlated scalar subqueries have higher execution efficiency than correlated subqueries.
+
+Since version 3.4.0.0, TDengine TSDB has begun to support non-correlated scalar subqueries in query statements. Other statements (such as stream computations, subscriptions, DDL, DML, etc.) are not yet supported.
+
+Examples of non-correlated scalar subqueries appearing in SELECT and WHERE clauses are as follows:
+
+```sql
+SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
+SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+```
 
 ## UNION Clause
 

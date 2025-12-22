@@ -116,6 +116,20 @@ typedef struct SMinmaxResInfo {
   int16_t   type;
 } SMinmaxResInfo;
 
+typedef struct SLagInfo {
+  union {
+    struct {
+      int64_t v;
+      float   fv;
+      double  dv;
+      char*   str;
+    };
+    int64_t dec[2];  // for decimal types
+  };
+
+  bool nonnull;
+} SLagInfo;
+
 typedef struct SOldMinMaxResInfo {
   bool      assign;  // assign the first value or not
   int64_t   v;

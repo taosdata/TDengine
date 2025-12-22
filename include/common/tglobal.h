@@ -369,6 +369,7 @@ extern bool    tsAuthReq;
 extern int32_t tsAuthReqInterval;
 extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
+extern bool    tsSessionControl;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

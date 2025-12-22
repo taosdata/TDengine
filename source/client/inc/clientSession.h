@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#include "clientInt.h"
 #include "tdef.h"
 #include "tglobal.h"
 #include "tqueue.h"
@@ -44,14 +45,12 @@ typedef struct {
   sessUpdateLimitFn limitFn;
 } SSessionError;
 
-
-
 typedef struct SSessMetric {
   int32_t refCnt;
   int64_t accessTime;
   int64_t lastAccessTime;
 
-  int64_t value[SESSION_MAX_TYPE]; 
+  int64_t value[SESSION_MAX_TYPE];
   int64_t limit[SESSION_MAX_TYPE];
 
   TdThreadRwlock lock;
@@ -64,21 +63,22 @@ typedef struct {
 
 typedef struct SSessionMgt {
   TdThreadRwlock lock;
-  SHashObj* pSessMetricMap;
+  SHashObj*      pSessMetricMap;
+  int8_t         inited;
 } SSessionMgt;
 
 int32_t sessMgtInit();
 int32_t sessMgtUpdataLimit(char* user, ESessionType type, int32_t value);
 int32_t sessMgtGet(char* user, ESessionType type, int32_t* pValue);
-
-int32_t sessMgtUpdateUserMetric(char* user, SSessParam *pPara);
-
+int32_t sessMgtUpdateUserMetric(char* user, SSessParam* pPara);
 int32_t sessMgtCheckUser(char* user, ESessionType type);
-
 int32_t sessMgtRemoveUser(char* user);
+void    sessMgtDestroy();
 
-void sessMgtDestroy();
+int32_t sessMgtCheckConnStatus(char* user, SConnAccessInfo* pInfo);
 
+int32_t connCheckAndUpateMetric(int64_t connId);
+int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
 #ifdef __cplusplus
 }
 #endif
