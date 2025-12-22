@@ -78,7 +78,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
   char*   p = tableNameGetPosition(pTableName, TS_PATH_DELIMITER[0]);
 
   if (p != NULL) {  // db has been specified in sql string so we ignore current db path
-    // before dequote
+    // before dbname dequote
     int32_t dbLen = p - pTableName->z;
     if (dbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg2);
@@ -91,7 +91,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     strncpy(name, pTableName->z, dbLen);
     int32_t actualDbLen = strdequote(name);
 
-    // after dequote
+    // after dbname dequote
     if (actualDbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg2);
     }
@@ -104,23 +104,35 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
+    // before tbname dequote
     int32_t tbLen = pTableName->n - dbLen - 1;
     if (tbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg4);
     }
+    if (tbLen > TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
 
     char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
     strncpy(tbname, p + 1, tbLen);
-    /*tbLen = */ (void)strdequote(tbname);
+    int32_t actualTbLen = strdequote(tbname);
+
+    // after tbname dequote
+    if (actualTbLen <= 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg4);
+    }
+    if (actualTbLen >= TSDB_TABLE_NAME_LEN) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
 
     code = tNameFromString(pName, tbname, T_NAME_TABLE);
     if (code != 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   } else {  // get current DB name first, and then set it into path
-    // before dequote
+    // before tbname dequote
     int32_t tbLen = pTableName->n;
-    if (dbLen <= 0) {
+    if (tbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg4);
     }
 
@@ -130,8 +142,8 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
 
     char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
     strncpy(tbname, pTableName->z, tbLen);
-    int32_t actualTbLen = strdequote(name);
-    // after dequote
+    int32_t actualTbLen = strdequote(tbname);
+    // after tbname dequote
     if (actualTbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg4);
     }
