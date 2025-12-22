@@ -3997,11 +3997,11 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
     ++numOfElems;
   }
 
+_exit:
   for (int i = 0; i < lagColNum; ++i) {
     SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
     if (!pCtx) {
-      code = terrno;
-      goto _exit;
+      break;
     }
 
     SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
@@ -4013,10 +4013,11 @@ int32_t lagFunctionByRow(SArray* pCtxArray) {
       taosMemoryFree(pRes->str);
     }
 
-    pResInfo->numOfRes = numOfElems;
+    if (!code) {
+      pResInfo->numOfRes = numOfElems;
+    }
   }
 
-_exit:
   if (pRows) {
     taosArrayDestroy(pRows);
     pRows = NULL;
