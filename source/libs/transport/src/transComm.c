@@ -321,7 +321,7 @@ int32_t transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, int32_t* len) {
   static const int HEADSIZE = sizeof(STransMsgHead);
   int32_t          code = 0;
   SConnBuffer*     p = connBuf;
@@ -346,11 +346,12 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
       *buf = NULL;
       return code;
     }
+    *len = total;
   } else {
-    total = -1;
-    return TSDB_CODE_INVALID_MSG;
+    *len = -1;
+    code = TSDB_CODE_INVALID_MSG;
   }
-  return total;
+  return code;
 }
 
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
@@ -1769,7 +1770,7 @@ int32_t transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, int32_t* len) {
   static const int HEADSIZE = sizeof(STransMsgHead);
   int32_t          code = 0;
   SConnBuffer*     p = connBuf;
@@ -1788,9 +1789,10 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
     }
   } else {
     total = -1;
-    return TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
   }
-  return total;
+  *len = total;
+  return code;
 }
 
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {

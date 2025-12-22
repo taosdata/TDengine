@@ -661,10 +661,11 @@ void cliHandleResp(SCliConn* conn) {
   SCliReq* pReq = NULL;
 
   STransMsgHead* pHead = NULL;
-  int32_t        msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, 0);
-  if (msgLen < 0) {
+  int32_t        msgLen = 0;
+  code = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, 0, &msgLen);
+  if (code != 0) {
     taosMemoryFree(pHead);
-    tWarn("%s conn:%p, recv invalid packet", CONN_GET_INST_LABEL(conn), conn);
+    tWarn("%s conn:%p, recv invalid packet since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
     // TODO: notify cb
     code = pThrd->notifyExceptCb(pThrd, NULL, NULL);
     if (code != 0) {
