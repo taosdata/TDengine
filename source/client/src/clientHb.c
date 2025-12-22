@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "scheduler.h"
 #include "tglobal.h"
 #include "trpc.h"

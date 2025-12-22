@@ -437,6 +437,7 @@ int32_t sessionConnIdleTime = -1;
 int32_t sessionMaxConcurrency = -1;
 int32_t sessionMaxCallVnodeNum = -1;
 
+bool    tsSessionControl = 0;
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
 
@@ -762,6 +763,10 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxSQLLength", tsMaxSQLLength, 1024 * 1024, 64 * 1024 * 1024, CFG_SCOPE_CLIENT,
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "sessionControl", tsSessionControl, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT_LAZY, CFG_CATEGORY_LOCAL));
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1574,6 +1579,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsEnableSasl = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxSQLLength");
   tsMaxSQLLength = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sessionControl");
+  tsSessionControl = pItem->bval;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
