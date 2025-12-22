@@ -50,10 +50,6 @@ int32_t osDefaultInit() {
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
   (void)taosGetSystemTimezone(tsTimezoneStr);
-  code = initTimezoneInfo();
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
 
   taosGetSystemInfo();
 

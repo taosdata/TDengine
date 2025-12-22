@@ -89,6 +89,16 @@ int32_t cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const void *sourceStr) {
   }
 }
 
+int32_t cfgFinishLodadCfg() {
+  int32_t  code = 0;
+  code = initTimezoneInfo();
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to init timezone info since %s\n", tstrerror(code));
+    return code;
+  }
+  return code;
+}
+
 int32_t cfgLoadFromArray(SConfig *pCfg, SArray *pArgs) {
   int32_t size = taosArrayGetSize(pArgs);
   for (int32_t i = 0; i < size; ++i) {
@@ -199,6 +209,8 @@ void cfgCleanup(SConfig *pCfg) {
   taosArrayDestroy(pCfg->localArray);
   taosArrayDestroy(pCfg->globalArray);
   (void)taosThreadMutexDestroy(&pCfg->lock);
+
+  cleanupTimezoneInfo();
   taosMemoryFree(pCfg);
 }
 
