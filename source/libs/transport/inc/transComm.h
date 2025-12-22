@@ -336,8 +336,8 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, i
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
 
-int32_t transDoCrc(char* buf, int32_t len, int32_t* tgt);
-int32_t transDoCrcCheck(char* buf, int32_t len, int32_t tgt);
+int32_t transDoCrc(char* buf, int32_t len);
+int32_t transDoCrcCheck(char* buf, int32_t len);
 #endif
 
 #ifdef TD_ASTRA_RPC

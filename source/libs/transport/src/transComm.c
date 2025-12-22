@@ -339,7 +339,7 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, i
       return code;
     }
 
-    code = transDoCrcCheck(*buf, total, 0);
+    code = transDoCrcCheck(*buf, total);
     if (code != 0) {
       tError("failed to check crc for msg in buffer, total:%d since %s", total, tstrerror(code));
       taosMemoryFree(*buf);
@@ -661,7 +661,7 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   return ret;
 }
 
-int32_t transDoCrc(char* buf, int32_t len, int32_t* tgt) {
+int32_t transDoCrc(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
   pHead->magicNum = 0;
   int32_t chechSum = taosCalcChecksum(0, (const uint8_t*)buf, len);
@@ -669,7 +669,7 @@ int32_t transDoCrc(char* buf, int32_t len, int32_t* tgt) {
 
   return 0;
 }
-int32_t transDoCrcCheck(char* buf, int32_t len, int32_t tgt) {
+int32_t transDoCrcCheck(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
   uint32_t       checkSum = htonl(pHead->magicNum);
   pHead->magicNum = 0;

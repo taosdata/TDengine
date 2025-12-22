@@ -1724,7 +1724,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     }
     wb[j++] = uv_buf_init((char*)pHead, msgLen);
 
-    TAOS_UNUSED(transDoCrc((char*)pHead, msgLen, 0));
+    TAOS_UNUSED(transDoCrc((char*)pHead, msgLen));
     totalLen += msgLen;
 
     pCliMsg->seq = pConn->seq;
