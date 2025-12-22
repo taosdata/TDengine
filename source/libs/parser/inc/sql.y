@@ -457,8 +457,6 @@ priv_type(A) ::= KILL.                                                          
 priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
-priv_type(A) ::= ALTER DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_ALTER); }
-priv_type(A) ::= DROP DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_DROP); }
 priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
 priv_type(A) ::= FLUSH DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
@@ -468,7 +466,6 @@ priv_type(A) ::= ROLLUP DATABASE.                                               
 priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
 
-priv_type(A) ::= SHOW DATABASES.                                                  { A = PRIV_SET_TYPE(PRIV_SHOW_DATABASES); }
 priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
 priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }
 priv_type(A) ::= SHOW COMPACTS.                                                   { A = PRIV_SET_TYPE(PRIV_SHOW_COMPACTS); }
@@ -489,18 +486,10 @@ priv_type(A) ::= DROP INDEX.                                                    
 priv_type(A) ::= SHOW INDEXES.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_SHOW); }
 
 priv_type(A) ::= CREATE VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_CREATE); }
-priv_type(A) ::= DROP VIEW.                                                       { A = PRIV_SET_TYPE(PRIV_VIEW_DROP); }
-priv_type(A) ::= SHOW VIEWS.                                                      { A = PRIV_SET_TYPE(PRIV_VIEW_SHOW); }
-priv_type(A) ::= SHOW CREATE VIEW.                                                { A = PRIV_SET_TYPE(PRIV_VIEW_SHOW_CREATE); }
 priv_type(A) ::= SELECT VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_SELECT); }
 
 priv_type(A) ::= CREATE RSMA.                                                     { A = PRIV_SET_TYPE(PRIV_RSMA_CREATE); }
-priv_type(A) ::= ALTER RSMA.                                                      { A = PRIV_SET_TYPE(PRIV_RSMA_ALTER); }
-priv_type(A) ::= SHOW RSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_RSMA_SHOW); }
-priv_type(A) ::= SHOW CREATE RSMA.                                                { A = PRIV_SET_TYPE(PRIV_RSMA_SHOW_CREATE); }
 priv_type(A) ::= CREATE TSMA.                                                     { A = PRIV_SET_TYPE(PRIV_TSMA_CREATE); }
-priv_type(A) ::= DROP TSMA.                                                       { A = PRIV_SET_TYPE(PRIV_TSMA_DROP); }
-priv_type(A) ::= SHOW TSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_TSMA_SHOW); }
 
 priv_type(A) ::= CREATE MOUNT.                                                    { A = PRIV_SET_TYPE(PRIV_MOUNT_CREATE); }
 priv_type(A) ::= DROP MOUNT.                                                      { A = PRIV_SET_TYPE(PRIV_MOUNT_DROP); }
@@ -555,17 +544,10 @@ priv_type(A) ::= SHOW SYSTEM VARIABLES.                                         
 priv_type(A) ::= SHOW DEBUG VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW); }
 
 priv_type(A) ::= CREATE TOPIC.                                                    { A = PRIV_SET_TYPE(PRIV_TOPIC_CREATE); }
-priv_type(A) ::= DROP TOPIC.                                                      { A = PRIV_SET_TYPE(PRIV_TOPIC_DROP); }
-priv_type(A) ::= SHOW TOPICS.                                                     { A = PRIV_SET_TYPE(PRIV_TOPIC_SHOW); }
 priv_type(A) ::= SHOW CONSUMERS.                                                  { A = PRIV_SET_TYPE(PRIV_CONSUMER_SHOW); }
 priv_type(A) ::= SHOW SUBSCRIPTIONS.                                              { A = PRIV_SET_TYPE(PRIV_SUBSCRIPTION_SHOW); }
 
 priv_type(A) ::= CREATE STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_CREATE); }
-priv_type(A) ::= DROP STREAM.                                                     { A = PRIV_SET_TYPE(PRIV_STREAM_DROP); }
-priv_type(A) ::= SHOW STREAMS.                                                    { A = PRIV_SET_TYPE(PRIV_STREAM_SHOW); }
-priv_type(A) ::= START STREAM.                                                    { A = PRIV_SET_TYPE(PRIV_STREAM_START); }
-priv_type(A) ::= STOP STREAM.                                                     { A = PRIV_SET_TYPE(PRIV_STREAM_STOP); }
-priv_type(A) ::= RECALC STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_RECALC); }
 
 priv_type(A) ::= SHOW TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
 priv_type(A) ::= KILL TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
