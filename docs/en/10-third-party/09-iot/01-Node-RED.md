@@ -107,7 +107,7 @@ Steps:
   1. Select the 'function' node from the palette and drag it before 'td-writer' on the canvas.
   2. Double-click the node:
      - Name: 'write d0'.
-     - Select “Function” tab and enter:
+     - Select "Function" tab and enter:
 
      ```javascript
       // Generate random values
@@ -123,13 +123,13 @@ Steps:
 
   3. Drag an "inject" node before 'write d0'.
   4. Configure the inject node:
-     - Name: “inject1”.
+     - Name: "inject1".
      - Trigger: "Repeat".
      - Interval: 1 second.
   5. Repeat steps 1-4 for other devices (d1, d2).
 
 - **Add Output Monitor**
-  1. Drag a ‘debug’ node after 'td-writer'.
+  1. Drag a 'debug' node after 'td-writer'.
   2. Configure it:
      - Name: 'debug1'.
      - Node status: checked.
@@ -183,7 +183,7 @@ Steps:
      - Node status: checked.
      - Select 'Message count' from the drop-down list.
 
-4. Connect nodes sequentially → Click "Deploy".  
+4. Connect nodes sequentially and click "Deploy".  
 
 When the flow is successfully started:
 
@@ -228,7 +228,7 @@ The debug node visually displays the count of subscription messages pushed downs
 
 Steps:
 
-1. Manually create a subscription topic “topic_overload” using taos-CLI:
+1. Manually create a subscription topic "topic_overload" using taos-CLI:
 
    ``` sql
    create topic topic_overload as 
@@ -250,7 +250,7 @@ Steps:
      - Node status: checked.
      - Select 'Message count' from the drop-down list.
 
-4. Connect nodes sequentially → Click "Deploy".
+4. Connect nodes sequentially and click "Deploy".
 
 When operational:
 
