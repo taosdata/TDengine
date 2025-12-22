@@ -22,7 +22,7 @@ extern "C" {
 
 #include "syncInt.h"
 
-int32_t syncWriteCfgFile(SSyncNode *pNode, char *reason);
+int32_t syncWriteCfgFile(SSyncNode *pNode, const char *reason);
 int32_t syncReadCfgFile(SSyncNode *pNode);
 
 #ifdef __cplusplus

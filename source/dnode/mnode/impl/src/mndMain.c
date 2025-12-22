@@ -815,8 +815,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  mInfo("vgId:1, mnode options are set, to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pMnode->selfDnodeId,
-        pMnode->syncMgmt.numOfTotalReplicas);
+  mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
+        pOption->numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
 
   pMnode->deploy = pOption->deploy;

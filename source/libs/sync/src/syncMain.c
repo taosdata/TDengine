@@ -2116,10 +2116,10 @@ int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncI
     }
 
     // persist cfg
-    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode, "doconfig1"));
+    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode, "config_change_with_new_members"));
   } else {
     // persist cfg
-    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode, "doconfig2"));
+    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode, "config_change_no_new_members"));
     sNInfo(pSyncNode, "do not config change from %d to %d", oldConfig.totalReplicaNum, pNewConfig->totalReplicaNum);
   }
 
@@ -3513,7 +3513,7 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
 
   syncNodeLogConfigInfo(ths, &cfg, "after config change");
 
-  if ((code = syncWriteCfgFile(ths, "changeconfig")) != 0) {
+  if ((code = syncWriteCfgFile(ths, "apply_config_change_entry")) != 0) {
     sError("vgId:%d, failed to create sync cfg file", ths->vgId);
     TAOS_RETURN(code);
   };

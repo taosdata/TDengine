@@ -127,7 +127,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t syncWriteCfgFile(SSyncNode *pNode, char *reason) {
+int32_t syncWriteCfgFile(SSyncNode *pNode, const char *reason) {
   int32_t     code = 0, lino = 0;
   char       *buffer = NULL;
   SJson      *pJson = NULL;
