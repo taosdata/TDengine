@@ -68,9 +68,10 @@ static bool validateDbName(const char* db) { return stringLengthCheck(db, TSDB_D
 static char* getClusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
   char key[512] = {0};
   if (user == NULL) {
-    user = "";
+    (void)snprintf(key, sizeof(key), "%s:%s:%d", auth, ip, port);
+  } else {
+    (void)snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
   }
-  (void)snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
   return taosStrdup(key);
 }
 

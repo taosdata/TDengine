@@ -1573,7 +1573,7 @@ int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer
   (void)taosThreadMutexLock(&pTscObj->mutex);
 
   switch (info) {
-    case TSDB_CONNECTION_INFO_USER:
+    case TSDB_CONNECTION_INFO_USER: {
       int userLen = strlen(pTscObj->user);
       if (buffer == NULL || *len < userLen) {
         *len = userLen;
@@ -1583,8 +1583,9 @@ int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer
         (void)memcpy(buffer, pTscObj->user, userLen);
       }
       break;
+    }
 
-    case TSDB_CONNECTION_INFO_TOKEN:
+    case TSDB_CONNECTION_INFO_TOKEN: {
       int tokenLen = strlen(pTscObj->tokenName);
       if (tokenLen == 0) {
         *len = 0;
@@ -1596,6 +1597,7 @@ int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer
         (void)memcpy(buffer, pTscObj->tokenName, tokenLen);
       }
       break;
+    }
 
     default:
         TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);

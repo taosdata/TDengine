@@ -148,6 +148,31 @@ static bool tokenCacheExist(const char* token) {
 
 
 
+int32_t mndGetUserActiveToken(const char* user, char* token) {
+  (void)taosThreadRwlockRdlock(&tokenCache.rw);
+  int32_t now = (int32_t)taosGetTimestampSec();
+
+  void *pIter = taosHashIterate(tokenCache.tokens, NULL);
+  while (pIter) {
+    SCachedTokenInfo *ti = *(SCachedTokenInfo **)pIter;
+    if (ti != NULL && ti->enabled && ti->expireTime > now) {
+      if (taosStrcasecmp(ti->user, user) == 0) {
+        const void* key = taosHashGetKey(pIter, NULL);
+        tstrncpy(token, (const char*)key, TSDB_TOKEN_LEN);
+        taosThreadRwlockUnlock(&tokenCache.rw);
+        return 0;
+      }
+    }
+    pIter = taosHashIterate(tokenCache.tokens, pIter);
+  }
+
+  taosThreadRwlockUnlock(&tokenCache.rw);
+
+  return TSDB_CODE_MND_TOKEN_NOT_EXIST;
+}
+
+
+
 int32_t mndTokenCacheRebuild(SMnode *pMnode) {
   int32_t    code = 0, lino = 0;
   SSdb     *pSdb = pMnode->pSdb;
