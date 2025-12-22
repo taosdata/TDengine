@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from test_query_stablity import TestStablity as StabilityHelper
+from test_query_stability import TestStablity as StabilityHelper
 import time
 
 class TestStability1:
