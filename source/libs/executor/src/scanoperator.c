@@ -231,7 +231,7 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
     SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, pTableScanInfo->base.pdInfo.pExprSup->rowEntryInfoOffset);
 
     EFuncDataRequired reqStatus = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo);
-    if (reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD) {
+    if (reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD && !pSup1->pCtx[i].skipDynDataCheck) {
       notLoadBlock = false;
       break;
     }
@@ -1287,6 +1287,15 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     pInfo->cachedTagList = pParam->pTagList;
     pParam->pTagList = NULL;
     pInfo->cachedGroupId = pParam->groupid;
+    taosHashClear(pInfo->pIgnoreTables);
+
+    if (pInfo->base.pdInfo.pExprSup) {
+      SExprSupp* pSup = pInfo->base.pdInfo.pExprSup;
+      for (int32_t i = 0; i < pSup->numOfExprs; i++) {
+        SqlFunctionCtx ctx = pSup->pCtx[i];
+        ctx.skipDynDataCheck = false;
+      }
+    }
   }
 
   pOrgTbInfo = taosArrayGet(pInfo->pBatchColMap, pInfo->currentBatchIdx);
@@ -1327,7 +1336,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     taosArrayClear(pListInfo->pTableList);
 
     uint64_t      pUid = orgTable.me.uid;
-    STableKeyInfo info = {.groupId = 0, .uid = pUid};
+    STableKeyInfo info = {.groupId = pInfo->cachedGroupId, .uid = pUid};
     int32_t       tableIdx = 0;
     code = taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t));
     QUERY_CHECK_CODE(code, lino, _return);
@@ -1378,6 +1387,31 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 
     taosArrayRemoveDuplicate(pColArray, compareColIdPair, NULL);
     taosArrayRemoveDuplicate(pBlockColArray, compareColIdSlotIdPair, NULL);
+
+    if (pInfo->base.pdInfo.pExprSup) {
+      SExprSupp* pSup = pInfo->base.pdInfo.pExprSup;
+      for (int32_t i = 0; i < pSup->numOfExprs; i++) {
+        SqlFunctionCtx* ctx = &pSup->pCtx[i];
+        bool           needScan = false;
+        for (int32_t j = 0; j < ctx->numOfParams; j++) {
+          SFunctParam pParam = ctx->param[j];
+          for (int32_t k = 0; k < taosArrayGetSize(pColArray); k++) {
+            SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, k);
+            if (pParam.pCol && pParam.pCol->colId == pPair->vtbColId && pPair->vtbColId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+              needScan |= true;
+              break;
+            }
+          }
+        }
+        if (!needScan) {
+          ctx->skipDynDataCheck = true;
+        } else {
+          ctx->skipDynDataCheck = false;
+        }
+      }
+    }
+
+
   } else {
     pColArray = pInfo->lastColArray;
     pBlockColArray = pInfo->lastBlockColArray;

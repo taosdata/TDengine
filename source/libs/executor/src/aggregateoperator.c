@@ -137,7 +137,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
 
   pOperator->pPhyNode = pAggNode;
 
-  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN && !pAggNode->node.dynamicOp) {
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
     pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
