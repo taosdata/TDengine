@@ -100,14 +100,14 @@ If you want to compile taosAdapter or taosKeeper, you need to install Go 1.23 or
 ```bash
 sudo apt-get update
 sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
-  libsnappy-dev liblzma-dev zlib1g-dev pkg-config
+  libsnappy-dev liblzma-dev zlib1g-dev pkg-config libtool autoconf automake groff
 ```
 
 ### For CentOS 8
 
 ```bash
 sudo yum update
-yum install -y epel-release gcc gcc-c++ make cmake git perl dnf-plugins-core 
+yum install -y epel-release gcc gcc-c++ make cmake git perl dnf-plugins-core autoconf automake libtool groff 
 yum config-manager --set-enabled powertools
 yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatomic-static libstdc++-static 
 ```
