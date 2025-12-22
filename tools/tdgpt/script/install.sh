@@ -184,9 +184,11 @@ function kill_model_service() {
 }
 
 function install_main_path() {
-  #create install main dir and all sub dir
+  # only delete non-data/log/cfg files
   if [ ! -z "${install_main_dir}" ]; then
-    ${csudo}rm -rf ${install_main_dir} || :
+    find "${install_main_dir}" -mindepth 1 -maxdepth 1 \
+      ! -name 'data' ! -name 'log' ! -name 'cfg' \
+      -exec ${csudo}rm -rf {} +
   fi
 
   ${csudo}mkdir -p ${install_main_dir}
