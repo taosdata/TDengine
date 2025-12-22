@@ -895,10 +895,13 @@ function install_service_on_systemd() {
   fi
 
   if [ -f "${cfg_source_dir}/$1.service" ]; then
+    tmp_service_file="/tmp/${1}.service.$$"
+    cp "${cfg_source_dir}/$1.service" "$tmp_service_file"
     if [ "$1" == "taosd" ]; then
-      sed -i "s|/usr/local/taos/bin|${bin_dir}|g" "${cfg_source_dir}/$1.service"
+      sed -i "s|/usr/local/taos/bin|${bin_dir}|g" "$tmp_service_file"
     fi
-    ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+    cp "$tmp_service_file" "${service_config_dir}/" || :
+    rm -f "$tmp_service_file"
   fi
 
   # # set default malloc config for cluster(enterprise) and edge(community)
