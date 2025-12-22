@@ -6690,7 +6690,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = translateExprList(pCxt, pSelect->pOrderByList);
   }
 
-  if (!pSelect->pWindow && !hasAggFuncInList(pSelect->pProjectionList) &&
+  if (!pSelect->pGroupByList && !pSelect->pWindow && !hasAggFuncInList(pSelect->pProjectionList) &&
       hasAggFuncInList(pSelect->pOrderByList)) {
     return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
   }
