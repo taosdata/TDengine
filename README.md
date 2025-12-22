@@ -27,7 +27,6 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 
 # Table of Contents
 
-- [Table of Contents](#table-of-contents)
 - [1. Introduction](#1-introduction)
 - [2. Documentation](#2-documentation)
 - [3. Prerequisites](#3-prerequisites)
@@ -100,7 +99,7 @@ If you want to compile taosAdapter or taosKeeper, you need to install Go 1.23 or
 
 ### 3.1.1 For Ubuntu
 
-Substantial versions: 18.04, 20.04, 22.04
+Verified on Ubuntu 18.04, 20.04, 22.04.
 
 ```bash
 sudo apt-get update
@@ -110,11 +109,11 @@ sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
 
 ### 3.1.2 For CentOS
 
-Substantial version: 8
+Verified on CentOS 8.
 
 ```bash
 sudo yum update
-yum install -y epel-release gcc gcc-c++ make cmake git perl dnf-plugins-core autoconf automake libtool groff 
+yum install -y epel-release gcc gcc-c++ make cmake git perl dnf-plugins-core autoconf automake libtool groff
 yum config-manager --set-enabled powertools
 yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatomic-static libstdc++-static 
 ```
