@@ -62,6 +62,31 @@ export default {
               field: 'password',
               defaultValue: '',
               type: 'password'
+            },
+            {
+              label: '加密级别',
+              description: '设置连接的加密级别',
+              field: 'encryption',
+              defaultValue: 'Off',
+              type: 'select',
+              options: [
+                {
+                  label: 'Off',
+                  value: 'Off'
+                },
+                {
+                  label: 'On',
+                  value: 'On'
+                },
+                {
+                  label: 'NotSupported',
+                  value: 'NotSupported'
+                },
+                {
+                  label: 'Required',
+                  value: 'Required'
+                }
+              ]
             }
           ]
         }
@@ -115,6 +140,7 @@ export default {
               field: 'table',
               required: true,
               placeholder: 'Runtime.dbo.History',
+              defaultValue: 'Runtime.dbo.History',
               pattern: null,
               grid_two: false,
               type: 'select',
@@ -600,6 +626,7 @@ export default {
   parser: {
     display: 'Payload 转换',
     required: true,
+    editableSample: true,
     description: 'taosX 允许用户在数据库中指定数据模型，包括：指定表名称和超级表名，设置普通列和标签列等\n',
     fields: [
       {

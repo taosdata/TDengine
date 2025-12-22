@@ -1,17 +1,28 @@
-use std::{collections::BTreeMap, fmt::Display, path::Path, vec};
-
-use crate::{
-    config::{Td2LocalConfigBuilder, Td2LocalContext},
-    worker::{FileWriter, TaskProducer, Worker},
-};
 use anyhow::{Context, bail};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use taos::{taos_query::common::Describe, *};
-use taosx_core::utils::{parse_key_in_dsn, wait_for_upcoming};
+use async_compression::Level;
+use chrono::{DateTime, Utc};
+use dashmap::DashMap;
+use std::sync::Arc;
+use std::{
+    fmt::Debug,
+    path::{Path, PathBuf},
+    time::Duration,
+    vec,
+};
+use taos::*;
+use taosx_core::{
+    taoz::{RawType, ZFile},
+    utils::{parse_key_in_dsn, wait_for_upcoming},
+};
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+use crate::config::{Td2LocalConfigBuilder, Td2LocalContext};
+use crate::meta::{Schema, fetch_database_meta, fetch_tables_meta};
+use crate::worker::{TaskProducer, Worker};
+
 mod config;
+pub mod meta;
 mod worker;
 
 /// 基于 TDengine 查询的备份
@@ -22,49 +33,45 @@ pub async fn taos_to_local(
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     tracing::info!(
-        "taos_to_local start,id: {:?}, from: {} to: {}",
+        "taos_to_local started, task_id: {:?}, from: {}, to: {}",
         task_id,
         from,
         to
     );
 
-    // 解析参数
-    let config = Td2LocalConfigBuilder::new(task_id.clone(), from.clone(), to.clone()).build()?;
-    let context = Td2LocalContext::new(task_id.clone(), from.clone(), to.clone(), config.clone());
-    tracing::info!("taos_to_local context: {:#?}", context);
+    // parse Td2LocalConfig
+    let config = Td2LocalConfigBuilder::new(task_id.as_deref(), &from, &to)
+        .build()
+        .context("failed to parse taos_to_local configuration")?;
+    tracing::info!("taos_to_local config: {:#?}", config);
 
-    wait_for_upcoming(config.upcoming).await?;
-
-    // 执行任务
-    let cancel_cloned = cancel.clone();
-    tokio::select! {
-        _ = cancel.cancelled() => {
-            tracing::info!("taos_to_local: {:?} cancelled", task_id);
-        }
-        res = taos_to_local_impl(context, cancel_cloned) => {
-            if let Err(e) = res {
-                tracing::error!("taos_to_local: {:?} error: {:?}",task_id, e);
-            } else {
-                tracing::info!("taos_to_local: {:?} completed successfully", task_id);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-async fn taos_to_local_impl(
-    mut ctx: Td2LocalContext,
-    cancel: CancellationToken,
-) -> anyhow::Result<()> {
+    let mut ctx = Td2LocalContext {
+        task_id: task_id.clone(),
+        raw_from: from.clone(),
+        raw_to: to.clone(),
+        config: config.clone(),
+        source_pool: None,
+        server_version: None,
+        query_obj: None,
+        schema: None,
+    };
     // 建立连接池
     let pool = TaosBuilder::from_dsn(&ctx.raw_from)?
         .pool()
         .map_err(|e| anyhow::anyhow!("failed to build connect pool, cause: {:?}", e))?;
-    tracing::info!("taos_to_local: connect pool established");
-    ctx.pool = Some(pool.clone());
+    tracing::info!("taos_to_local connect pool established");
+    ctx.source_pool = Some(pool.clone());
 
+    // 获取源 TDengine 服务器版本
     let taos = pool.get().await?;
+    let server_version = taos
+        .server_version()
+        .await
+        .map(|s| s.to_string())
+        .context("failed to get server_version")?;
+    tracing::info!("taos_to_local source server version: {}", server_version);
+    ctx.server_version = Some(server_version);
+
     // 检查备份对象是否存在
     let query_obj = QueryObject::try_from_dsn(&ctx.raw_from)?;
     if !query_obj.exists(&taos).await? {
@@ -72,20 +79,25 @@ async fn taos_to_local_impl(
     }
     ctx.query_obj = Some(query_obj.clone());
 
+    // 等待 upcoming
+    if let Err(_e) = wait_for_upcoming(config.upcoming, cancel.clone()).await {
+        tracing::info!("taos_to_local cancelled before upcoming time");
+        return Ok(());
+    }
+
     // 获取备份对象的 schema
     let schema1 = query_obj.fetch_schema(&taos).await?;
     let backup_dir = ctx.config.backup_dir.clone();
-    write_schema_to_local(&schema1, &backup_dir, "schema.meta").await?;
+    write_schema_to_local(&schema1, &backup_dir, "schema.meta", ctx.config.pretty).await?;
     ctx.schema = Some(schema1.clone());
 
     if ctx.config.schema_only {
         tracing::info!("taos_to_local backup schema only, done.");
         return Ok(());
     }
-    // start file writer
-    let file = backup_dir.join("data.bin");
-    let file_writer = FileWriter::spawn(file, ctx.config.clone()).await?;
 
+    // 创建 ZWriter，用于写 ZFile 备份文件
+    let zwriter = ZWriter::new(&ctx)?;
     // start workers
     let worker_num = ctx.config.concurrency;
     let (tx, rx) = flume::bounded(worker_num);
@@ -95,15 +107,16 @@ async fn taos_to_local_impl(
             id as i32,
             ctx.clone(),
             rx.clone(),
-            file_writer.clone(),
+            zwriter.clone(),
             cancel.clone(),
         );
-        let handle = tokio::spawn(async move { worker.run().await });
+        let handle: tokio::task::JoinHandle<Result<(), anyhow::Error>> =
+            tokio::spawn(async move { worker.run().await });
         workers.push(handle);
     }
 
     // start task producer
-    let producer = TaskProducer::new(ctx, tx, cancel.clone());
+    let producer = TaskProducer::new(ctx.clone(), tx, cancel.clone());
     let producer_handle = tokio::spawn(async move { producer.run().await });
 
     // wait for producer finished
@@ -114,21 +127,228 @@ async fn taos_to_local_impl(
         let _ = handle.await;
     }
 
+    // 确保所有 ZFile 正常关闭并刷盘
+    zwriter.shutdown().await?;
+
     // 再次检查备份对象的 schema
     let schema2 = query_obj.fetch_schema(&taos).await?;
-    write_schema_to_local(&schema2, &backup_dir, "schema.meta.1").await?;
+    write_schema_to_local(&schema2, &backup_dir, "schema.meta.1", ctx.config.pretty).await?;
+
+    Ok(())
+}
+
+/// 为 taos-to-local 提供 ZFile 写入能力的轻量封装。
+///
+/// 设计目标：
+/// - 复用 taosx_core::taoz::ZFile，产出的备份文件可被 local-to-taos 直接识别。
+/// - 接口简单：当前版本先采用“单全局文件”模型，后续可以按库/表扩展 key。
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum ZKey {
+    /// 所有任务写入同一个 ZFile（简单模式）。
+    Global,
+}
+
+pub struct ZWriter {
+    /// taosx 的版本号，用于写入 ZFile 头部。
+    api_version: String,
+    /// 源 taosd 的版本号。
+    server_version: String,
+    /// 备份文件存放目录。
+    backup_dir: PathBuf,
+    /// 逻辑“topic”名称：对 taos-to-local 来说，可以用数据库名等替代。
+    topic: String,
+    /// 备份点时间戳。
+    ts: Option<DateTime<Utc>>,
+    /// 压缩级别。
+    compression_level: Level,
+    /// 单个文件的最大大小。
+    max_file_size: u64,
+    /// 写满后的移动目录（可选）。
+    move_to: Option<PathBuf>,
+    /// 写入超时时间。
+    timeout: Duration,
+    /// 管理不同逻辑 key 对应的 ZFile。
+    writers: DashMap<ZKey, Arc<Mutex<ZFile>>>,
+}
+
+impl Debug for ZWriter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZWriter")
+            .field("api_version", &self.api_version)
+            .field("server_version", &self.server_version)
+            .field("backup_dir", &self.backup_dir)
+            .field("topic", &self.topic)
+            .field("ts", &self.ts)
+            .field("compression_level", &self.compression_level)
+            .field("max_file_size", &self.max_file_size)
+            .field("move_to", &self.move_to)
+            .field("timeout", &self.timeout)
+            .finish()
+    }
+}
+
+impl ZWriter {
+    /// 基于上下文创建一个 ZWriter 实例。
+    pub fn new(ctx: &Td2LocalContext) -> anyhow::Result<std::sync::Arc<Self>> {
+        let cfg = &ctx.config;
+
+        let backup_dir = cfg.backup_dir.clone();
+        // 备份文件名称：database-timestamp-vgid-sequence
+        let topic = match &ctx.query_obj {
+            Some(QueryObject::Database(db)) => db.clone(),
+            Some(QueryObject::SuperTables((db, _))) => db.clone(),
+            Some(QueryObject::Select((db, ..))) => db.clone(),
+            None => "t2lbackup".to_string(), // 默认的文件 PREFIX
+        };
+        let api_version = crate::build::PKG_VERSION.to_owned();
+        let server_version = ctx.server_version.clone().unwrap_or_default();
+        // 以当前时间作为备份时间戳
+        let ts: Option<DateTime<Utc>> = Some(Utc::now());
+
+        Ok(std::sync::Arc::new(Self {
+            api_version,
+            server_version,
+            backup_dir,
+            topic,
+            ts,
+            compression_level: cfg.backup_comp_level,
+            max_file_size: cfg.backup_max_size,
+            move_to: None,
+            timeout: Duration::from_secs(60),
+            writers: DashMap::new(),
+        }))
+    }
+
+    /// 获取或为给定 key 创建一个 ZFile，并返回其可变引用锁。
+    async fn get_or_create_arc(&self, key: &ZKey) -> anyhow::Result<Arc<Mutex<ZFile>>> {
+        if let Some(entry) = self.writers.get(key) {
+            return Ok(entry.value().clone());
+        }
+        let zfile = ZFile::new(
+            &self.api_version,
+            &self.server_version,
+            &self.backup_dir,
+            (self.topic.as_str(), self.ts, 0, 0),
+            self.compression_level,
+            self.max_file_size,
+            self.move_to.clone(),
+            self.timeout,
+        )
+        .await?;
+        let arc = Arc::new(Mutex::new(zfile));
+        self.writers.insert(key.clone(), arc.clone());
+        Ok(arc)
+    }
+
+    /// 将一组原始块写入指定 key 对应的 ZFile。这里暂时只支持 Data 类型，后续可扩展 Meta/Raw。
+    pub async fn write_raw_blocks<I>(&self, key: &ZKey, blocks: I) -> anyhow::Result<()>
+    where
+        I: IntoIterator<Item = taos_query::common::RawData>,
+    {
+        let arc = self.get_or_create_arc(key).await?;
+        let mut zf = arc.lock().await;
+        for raw in blocks {
+            zf.write_raw(&raw, RawType::Data).await?;
+        }
+        zf.flush().await?;
+        Ok(())
+    }
+
+    /// 开始一个 Data(Vec<RawBlock>) 消息的写入（对应 ZMessage::Data），写头标记。
+    pub async fn start_raw_block(&self, key: &ZKey) -> anyhow::Result<()> {
+        let arc = self.get_or_create_arc(key).await?;
+        let mut zf = arc.lock().await;
+        zf.start_raw_block().await?;
+        Ok(())
+    }
+
+    /// 向当前 Data 序列写入一个 RawBlock。
+    pub async fn write_raw_block(&self, key: &ZKey, block: &RawBlock) -> anyhow::Result<()> {
+        let arc = self.get_or_create_arc(key).await?;
+        let mut zf = arc.lock().await;
+        zf.write_raw_block(block).await?;
+        Ok(())
+    }
+
+    /// 结束一个 Data(Vec<RawBlock>) 消息（写结束标记并做轮转检查）。
+    pub async fn finish_raw_block(&self, key: &ZKey) -> anyhow::Result<()> {
+        let arc = self.get_or_create_arc(key).await?;
+        let mut zf = arc.lock().await;
+        zf.finish_raw_block().await?;
+        zf.flush().await?;
+        Ok(())
+    }
+
+    /// 直接写入一批 RawBlock，内部自动包裹 start/finish，返回写入块数量。
+    pub async fn write_raw_block_sequence<I>(&self, key: &ZKey, blocks: I) -> anyhow::Result<usize>
+    where
+        I: IntoIterator<Item = RawBlock>,
+    {
+        let arc = self.get_or_create_arc(key).await?;
+        let mut zf = arc.lock().await;
+        zf.start_raw_block().await?;
+        let mut count = 0usize;
+        for b in blocks.into_iter() {
+            zf.write_raw_block(&b).await?;
+            count += 1;
+        }
+        zf.finish_raw_block().await?;
+        zf.flush().await?;
+        Ok(count)
+    }
+
+    /// 关闭所有打开的 ZFile，确保数据落盘并执行必要的 move_to。
+    pub async fn shutdown(&self) -> anyhow::Result<()> {
+        for entry in self.writers.iter() {
+            let mut file = entry.value().lock().await;
+            // 如果正在写 Data 段，这里假定调用方已经 finish；不再强制补一个空 Data。
+            file.flush().await?;
+            file.shutdown().await?;
+            file.move_to().await?;
+        }
+        Ok(())
+    }
+}
+
+// 将 Schema 序列化并写入本地文件
+async fn write_schema_to_local(
+    schema: &Schema,
+    dir: &Path,
+    name: &str,
+    pretty: bool,
+) -> anyhow::Result<()> {
+    // 创建目录
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .with_context(|| format!("failed to create directory: {}", dir.display()))?;
+
+    // 文件名，使用数据库名
+    let file = dir.join(name);
+
+    let context = if pretty {
+        serde_json::to_vec_pretty(schema)?
+    } else {
+        serde_json::to_vec(schema)?
+    };
+
+    tokio::fs::write(&file, context)
+        .await
+        .with_context(|| format!("failed to write schema to: {}", file.display()))?;
+
+    tracing::info!("write schema to {}", file.display());
 
     Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum QueryObject {
+pub enum QueryObject {
     Database(String),                   // 备份某个数据库
     SuperTables((String, Vec<String>)), // 备份某个数据库下的部分超级表
-    Select((String, String)),           // 备份某个数据库下 select 语句的查询结果
+    Select((String, String, String)), // 备份某个数据库下 select 语句的查询结果，第三个参数为结果表名
 }
 
 impl QueryObject {
+    // 从 dsn 解析出备份对象
     fn try_from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
         if dsn.subject.is_none() {
             bail!("dsn subject is required");
@@ -145,16 +365,19 @@ impl QueryObject {
         }
 
         let select: Option<String> = parse_key_in_dsn::<String>(dsn, "select")?;
-        if let Some(select) = select {
-            if select.trim().is_empty() {
+        let tbname: String =
+            parse_key_in_dsn::<String>(dsn, "select_name")?.unwrap_or_else(|| "result".to_string());
+        if let Some(sql) = select {
+            if sql.trim().is_empty() {
                 bail!("select cannot be empty if specified");
             }
-            return Ok(QueryObject::Select((db, select)));
+            return Ok(QueryObject::Select((db, sql, tbname)));
         }
 
         Ok(QueryObject::Database(db))
     }
 
+    // 检查备份对象在 TDengine 中是否存在
     async fn exists(&self, taos: &Taos) -> anyhow::Result<bool> {
         match self {
             QueryObject::Database(db) => {
@@ -178,7 +401,7 @@ impl QueryObject {
                 }
                 Ok(true)
             }
-            QueryObject::Select((db, select)) => {
+            QueryObject::Select((db, select, _tbname)) => {
                 let sql = format!("use `{db}`");
                 taos.exec(sql)
                     .await
@@ -193,9 +416,10 @@ impl QueryObject {
         }
     }
 
+    // 获取备份对象的 schema 信息
     async fn fetch_schema(&self, taos: &Taos) -> anyhow::Result<Schema> {
         let (db_meta, metas) = match self {
-            Self::Database(db) | Self::Select((db, _)) => {
+            Self::Database(db) | Self::Select((db, ..)) => {
                 // 整个数据库的 schema，包括：数据库，超级表，子表，普通表
                 let db_meta = fetch_database_meta(taos, db).await?;
                 let metas = fetch_tables_meta(taos, db, &[]).await?;
@@ -213,549 +437,9 @@ impl QueryObject {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Schema {
-    pub db_meta: DbMeta,
-    pub metas: Vec<MetaUnit>,
-}
-
-impl Schema {
-    pub fn stables(&self) -> Vec<String> {
-        let mut stables = vec![];
-        for m in &self.metas {
-            if let MetaUnit::Create(MetaCreate::Super {
-                table_name,
-                #[allow(unused)]
-                columns,
-                #[allow(unused)]
-                tags,
-            }) = m
-            {
-                stables.push(table_name.clone());
-            }
-        }
-        stables
-    }
-
-    pub async fn stable_count(&self, taos: &Taos, db: &str, stb: &str) -> anyhow::Result<i64> {
-        let sql = format!("SELECT COUNT(*) FROM `{db}`.`{stb}`");
-        let count: i64 = taos
-            .query_one(sql)
-            .await
-            .context(format!("failed to count stable '{stb}'"))?
-            .unwrap_or(0);
-        Ok(count)
-    }
-}
-
-async fn fetch_database_meta(taos: &Taos, db: &str) -> anyhow::Result<DbMeta> {
-    let sql = format!("SELECT * FROM information_schema.ins_databases WHERE name = '{db}'");
-    let db_meta: Option<DbMeta> = taos.query_one(sql).await.map_err(|e| {
-        anyhow::anyhow!(
-            "failed to fetch database meta from information_schema, cause: {:?}",
-            e
-        )
-    })?;
-    let db_meta = db_meta
-        .ok_or_else(|| anyhow::anyhow!("database '{}' not found in information_schema", db))?;
-
-    Ok(db_meta)
-}
-
-async fn fetch_tables_meta(
-    taos: &Taos,
-    db: &str,
-    stables: &[String],
-) -> anyhow::Result<Vec<MetaUnit>> {
-    taos.exec(format!("USE `{db}`")).await?;
-
-    let mut metas = vec![];
-    // 超级表
-    let stable_metas = fetch_stables_meta(taos, db, stables).await?;
-    metas.extend(stable_metas);
-
-    // 子表
-    let child_metas = fetch_ctables_meta(taos, db, stables).await?;
-    metas.extend(child_metas);
-
-    // 普通表
-    let normal_metas = fetch_ntables_meta(taos, db).await?;
-    metas.extend(normal_metas);
-
-    Ok(metas)
-}
-
-async fn fetch_stables_meta(
-    taos: &Taos,
-    db: &str,
-    stables: &[String],
-) -> anyhow::Result<Vec<MetaUnit>> {
-    let mut metas = vec![];
-
-    let sql = format!("SHOW `{db}`.stables");
-    tracing::debug!("fetch super tables meta sql: {}", sql);
-    let mut res = taos
-        .query(sql)
-        .await
-        .context("failed to fetch super tables meta")?;
-    let mut rows = res.deserialize::<String>();
-    while let Some(stb) = rows
-        .try_next()
-        .await
-        .context("failed to fetch super tables meta")?
-    {
-        // 过滤不需要的超级表
-        if !stables.is_empty() && !stables.contains(&stb) {
-            continue;
-        }
-
-        let describe = taos
-            .describe(&stb)
-            .await
-            .context(format!("failed to describe stable '{stb}'"))?;
-
-        let mut meta_unit = json!({
-            "type": "create",
-            "tableType": "super",
-            "tableName": stb,
-            "columns": [],
-            "tags": []
-        });
-
-        // fill columns' name and type
-        for col in describe.iter() {
-            let col_json = json!({
-                "name": col.field(),
-                "type": col.ty(),
-                "length": col.length(),
-                "compression": col.compression,
-            });
-            if col.is_tag() {
-                meta_unit["tags"].as_array_mut().unwrap().push(col_json);
-            } else {
-                meta_unit["columns"].as_array_mut().unwrap().push(col_json);
-            }
-        }
-
-        metas.push(serde_json::from_value(meta_unit)?);
-    }
-
-    Ok(metas)
-}
-
-async fn fetch_ctables_meta(
-    taos: &Taos,
-    db: &str,
-    stables: &[String],
-) -> anyhow::Result<Vec<MetaUnit>> {
-    // 缓存超级表的 Describe
-    let mut tag_cache: BTreeMap<String, Describe> = BTreeMap::new();
-    let sql = format!("SHOW `{db}`.stables");
-    tracing::debug!("fetch super tables for tag cache, sql: {}", sql);
-    let mut res = taos
-        .query(sql)
-        .await
-        .context("failed to fetch super tables for tag cache")?;
-    let mut rows = res.deserialize::<String>();
-    while let Some(stb) = rows
-        .try_next()
-        .await
-        .context("failed to fetch super tables for tag cache")?
-    {
-        // 过滤不需要的超级表
-        if !stables.is_empty() && !stables.contains(&stb) {
-            continue;
-        }
-        let describe = taos
-            .describe(&stb)
-            .await
-            .context(format!("failed to describe stable '{stb}' for tag cache"))?;
-        tag_cache.insert(stb.clone(), describe);
-    }
-
-    // 查所有子表的 schema
-    let mut ctb_meta_map: BTreeMap<String, Vec<(String, Value, Describe)>> = BTreeMap::new();
-    let sql = format!(
-        "SELECT stable_name,table_name FROM information_schema.ins_tables WHERE db_name = '{db}' AND type = 'CHILD_TABLE' ORDER BY stable_name,table_name"
-    );
-    tracing::debug!("fetch child tables meta, sql: {}", sql);
-    let mut res = taos
-        .query(sql)
-        .await
-        .context("failed to fetch child tables meta")?;
-    let mut rows = res.deserialize::<(String, String)>();
-    while let Some((stb, ctb)) = rows
-        .try_next()
-        .await
-        .context("failed to fetch child tables meta")?
-    {
-        // 过滤不需要的超级表
-        if !stables.is_empty() && !stables.contains(&stb) {
-            continue;
-        }
-
-        tracing::debug!(
-            "fetch child table meta, stable: {}, child table: {}",
-            stb,
-            ctb
-        );
-        let ctb_desc = tag_cache
-            .get(&stb)
-            .cloned()
-            .ok_or(anyhow::anyhow!("stable '{}' not found in tag cache", stb))?;
-
-        let mut meta_unit = json!({
-            "type": "create",
-            "tableType": "child",
-            "tableName": ctb,
-            "using": stb,
-            "tagNum": ctb_desc.iter().filter(|c| c.is_tag()).count(),
-            "tags": [],
-        });
-
-        // tag 列的类型
-        for col in ctb_desc.iter().filter(|c| c.is_tag()) {
-            let col_json = json!({
-                "name": col.field(),
-                "type": col.ty(),
-                "length": col.length(),
-            });
-            meta_unit["tags"].as_array_mut().unwrap().push(col_json);
-        }
-
-        if ctb_meta_map.contains_key(&stb) {
-            ctb_meta_map
-                .get_mut(&stb)
-                .unwrap()
-                .push((ctb, meta_unit, ctb_desc));
-        } else {
-            ctb_meta_map.insert(stb.clone(), vec![(ctb, meta_unit, ctb_desc)]);
-        }
-    }
-
-    // 查所有子表的 tag 值
-    let stable_names = ctb_meta_map.keys().cloned().collect::<Vec<_>>();
-    for stb in stable_names {
-        let stb_desc = taos.describe(&stb).await.context(format!(
-            "failed to describe stable '{stb}' to get tag value",
-        ))?;
-        let sql = format!(
-            "SELECT tags {},tbname FROM `{stb}` ORDER BY tbname",
-            stb_desc
-                .iter()
-                .filter(|c| c.is_tag())
-                .map(|c| c.field())
-                .join(",")
-        );
-        tracing::debug!("fetch child tables' tag values, sql: {}", sql);
-        let mut res = taos
-            .query(sql)
-            .await
-            .context("failed to fetch child tables tag values, query child tables")?;
-
-        let mut rows = res.rows();
-        let mut ctb_idx = 0;
-        while let Some(row) = rows
-            .try_next()
-            .await
-            .context("failed to fetch child tables tag values, iter child tables")?
-        {
-            let (_ctb, meta_unit, desc) = &mut ctb_meta_map.get_mut(&stb).unwrap()[ctb_idx];
-            // println!("stb: {}, meta_unit: {:?}, desc: {:?}", stb, meta_unit, desc);
-
-            for (tag_idx, (_name, val)) in row.enumerate() {
-                if tag_idx == desc.iter().filter(|c| c.is_tag()).count() {
-                    // 最后一个字段是 tbname
-                    break;
-                }
-
-                let tag_col = &mut meta_unit["tags"].as_array_mut().unwrap()[tag_idx];
-                tag_col["value"] = to_json_value(val);
-            }
-
-            ctb_idx += 1;
-        }
-    }
-
-    let mut metas = vec![];
-    for (_stb, ctbs) in ctb_meta_map {
-        for (_ctb, meta_unit, _desc) in ctbs {
-            let meta_unit =
-                serde_json::from_value(meta_unit).context("failed to serialize meta unit")?;
-            metas.push(meta_unit);
-        }
-    }
-
-    Ok(metas)
-}
-
-fn to_json_value(val: BorrowedValue) -> Value {
-    match val {
-        BorrowedValue::Null(_) => Value::Null,
-        BorrowedValue::Bool(b) => Value::Bool(b),
-        BorrowedValue::TinyInt(i) => Value::Number(i.into()),
-        BorrowedValue::SmallInt(i) => Value::Number(i.into()),
-        BorrowedValue::Int(i) => Value::Number(i.into()),
-        BorrowedValue::BigInt(i) => Value::Number(i.into()),
-        BorrowedValue::VarChar(s) => Value::String(s.to_string()),
-        BorrowedValue::Timestamp(ts) => Value::Number(ts.as_raw_i64().into()),
-        BorrowedValue::NChar(s) => Value::String(s.to_string()),
-        BorrowedValue::UTinyInt(i) => Value::Number(i.into()),
-        BorrowedValue::USmallInt(i) => Value::Number(i.into()),
-        BorrowedValue::UInt(i) => Value::Number(i.into()),
-        BorrowedValue::UBigInt(i) => Value::Number(i.into()),
-        BorrowedValue::Float(f) => serde_json::Number::from_f64(f as f64)
-            .map(Value::Number)
-            .unwrap_or(Value::Null),
-        BorrowedValue::Double(f) => serde_json::Number::from_f64(f)
-            .map(Value::Number)
-            .unwrap_or(Value::Null),
-        BorrowedValue::Json(s) => {
-            // s is Cow<'_, [u8]>; try to parse JSON from bytes, otherwise fall back to UTF-8 string
-            match serde_json::from_slice::<Value>(s.as_ref()) {
-                Ok(v) => v,
-                Err(_) => Value::String(String::from_utf8_lossy(s.as_ref()).into_owned()),
-            }
-        }
-        BorrowedValue::VarBinary(b) => {
-            Value::String(String::from_utf8_lossy(b.as_ref()).into_owned())
-        }
-        _ => unimplemented!("unsupported type: {:?}", val),
-    }
-}
-
-async fn fetch_ntables_meta(taos: &Taos, db: &str) -> anyhow::Result<Vec<MetaUnit>> {
-    let mut metas = vec![];
-    let sql = format!(
-        "SELECT table_name FROM information_schema.ins_tables WHERE db_name = '{db}' AND type = 'NORMAL_TABLE'"
-    );
-    let mut res = taos
-        .query(sql)
-        .await
-        .context("failed to fetch normal tables meta from information_schema")?;
-    let mut rows = res.deserialize::<String>();
-    while let Some(ntb) = rows
-        .try_next()
-        .await
-        .context("failed to fetch normal tables meta")?
-    {
-        let describe = taos
-            .describe(&ntb)
-            .await
-            .context(format!("failed to describe normal table '{ntb}'"))?;
-
-        let mut meta_unit = json!({
-            "type": "create",
-            "tableType": "normal",
-            "tableName": ntb,
-            "columns": [],
-            "tags": []
-        });
-        for col in describe.iter() {
-            let col_json = json!({
-                "name": col.field(),
-                "type": col.ty(),
-                "compression": col.compression,
-            });
-            meta_unit["columns"].as_array_mut().unwrap().push(col_json);
-        }
-
-        metas.push(serde_json::from_value(meta_unit)?);
-    }
-    Ok(metas)
-}
-
-/*         field              |          type          |   length    |        note        |
-=============================================================================================
- name                           | VARCHAR                |          64 |                    |
- create_time                    | TIMESTAMP              |           8 |                    |
- vgroups                        | INT                    |           4 |                    |
- ntables                        | BIGINT                 |           8 |                    |
- replica                        | TINYINT                |           1 |                    |
- strict                         | VARCHAR                |           4 |                    |
- duration                       | VARCHAR                |          10 |                    |
- keep                           | VARCHAR                |          32 |                    |
- buffer                         | INT                    |           4 |                    |
- pagesize                       | INT                    |           4 |                    |
- pages                          | INT                    |           4 |                    |
- minrows                        | INT                    |           4 |                    |
- maxrows                        | INT                    |           4 |                    |
- comp                           | TINYINT                |           1 |                    |
- precision                      | VARCHAR                |           2 |                    |
- status                         | VARCHAR                |          10 |                    |
- retentions                     | VARCHAR                |          60 |                    |
- single_stable                  | BOOL                   |           1 |                    |
- cachemodel                     | VARCHAR                |          11 |                    |
- cachesize                      | INT                    |           4 |                    |
- wal_level                      | TINYINT                |           1 |                    |
- wal_fsync_period               | INT                    |           4 |                    |
- wal_retention_period           | INT                    |           4 |                    |
- wal_retention_size             | BIGINT                 |           8 |                    |
- stt_trigger                    | SMALLINT               |           2 |                    |
- table_prefix                   | SMALLINT               |           2 |                    |
- table_suffix                   | SMALLINT               |           2 |                    |
- tsdb_pagesize                  | INT                    |           4 |                    |
- keep_time_offset               | INT                    |           4 |                    |
- ss_chunkpages                  | INT                    |           4 |                    |
- ss_keeplocal                   | VARCHAR                |          10 |                    |
- ss_compact                     | TINYINT                |           1 |                    |
- with_arbitrator                | TINYINT                |           1 |                    |
- encrypt_algorithm              | VARCHAR                |          16 |                    |
- compact_interval               | VARCHAR                |          12 |                    |
- compact_time_range             | VARCHAR                |          24 |                    |
- compact_time_offset            | VARCHAR                |           4 |                    |
-*/
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DbMeta {
-    pub name: String,
-    pub create_time: i64,   // TIMESTAMP(8)
-    pub ntables: i64,       // BIGINT(8)
-    pub strict: String,     // VARCHAR(4)
-    pub status: String,     // VARCHAR(10)
-    pub retentions: String, // VARCHAR(60)
-    /// ss_chunkpages is available since TDengine v3.3.8
-    pub ss_chunkpages: Option<i32>, // INT(4)
-    /// ss_keeplocal is available since TDengine v3.3.8
-    pub ss_keeplocal: Option<String>, // VARCHAR(10)
-    /// ss_compact is available since TDengine v3.3.8
-    pub ss_compact: Option<i8>, // TINYINT(1)
-    pub with_arbitrator: i8, // TINYINT(1)
-    pub encrypt_algorithm: String, // VARCHAR(16)
-    #[serde(flatten)]
-    pub opts: Option<DatabaseOptions>, // database options
-}
-
-impl Display for DbMeta {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CREATE DATABASE IF NOT EXISTS `{}`", self.name)?;
-
-        if let Some(o) = &self.opts {
-            write!(f, " BUFFER {}", o.buffer)?;
-            write!(f, " CACHESIZE {}", o.cachesize)?;
-            write!(f, " CACHEMODEL '{}'", o.cachemodel)?;
-            write!(f, " COMP {}", o.comp)?;
-            write!(f, " DURATION {}", o.duration)?;
-            write!(f, " WAL_FSYNC_PERIOD {}", o.wal_fsync_period)?;
-            write!(f, " MAXROWS {}", o.maxrows)?;
-            write!(f, " MINROWS {}", o.minrows)?;
-            write!(f, " STT_TRIGGER {}", o.stt_trigger)?;
-            write!(f, " KEEP {}", o.keep)?;
-            write!(f, " PAGES {}", o.pages)?;
-            write!(f, " PAGESIZE {}", o.pagesize)?;
-            write!(f, " PRECISION '{}'", o.precision)?;
-            write!(f, " REPLICA {}", o.replica)?;
-            write!(f, " WAL_LEVEL {}", o.wal_level)?;
-            write!(f, " VGROUPS {}", o.vgroups)?;
-            write!(f, " SINGLE_STABLE {}", if o.single_stable { 1 } else { 0 })?;
-            write!(f, " TABLE_PREFIX {}", o.table_prefix)?;
-            write!(f, " TABLE_SUFFIX {}", o.table_suffix)?;
-            write!(f, " TSDB_PAGESIZE {}", o.tsdb_pagesize)?;
-            write!(f, " WAL_RETENTION_PERIOD {}", o.wal_retention_period)?;
-            write!(f, " WAL_RETENTION_SIZE {}", o.wal_retention_size)?;
-            write!(f, " KEEP_TIME_OFFSET {}", o.keep_time_offset)?;
-            write!(f, " COMPACT_INTERVAL {}", o.compact_interval)?;
-            write!(f, " COMPACT_TIME_RANGE {}", o.compact_time_range)?;
-            write!(f, " COMPACT_TIME_OFFSET {}", o.compact_time_offset)?;
-        }
-
-        write!(f, " ENCRYPT_ALGORITHM '{}'", self.encrypt_algorithm)?;
-        if let Some(v) = self.ss_chunkpages {
-            write!(f, " SS_CHUNKPAGES {}", v)?;
-        }
-        if let Some(v) = &self.ss_keeplocal {
-            write!(f, " SS_KEEPLOCAL {}", v)?;
-        }
-        if let Some(v) = self.ss_compact {
-            write!(f, " SS_COMPACT {}", v)?;
-        }
-
-        Ok(())
-    }
-}
-
-/*
-database_option: {
-    VGROUPS value
-  | PRECISION {'ms' | 'us' | 'ns'}
-  | REPLICA value
-  | BUFFER value
-  | PAGES value
-  | PAGESIZE  value
-  | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
-  | CACHESIZE value
-  | COMP {0 | 1 | 2}
-  | DURATION value
-  | MAXROWS value
-  | MINROWS value
-  | KEEP value
-  | KEEP_TIME_OFFSET value
-  | STT_TRIGGER value
-  | SINGLE_STABLE {0 | 1}
-  | TABLE_PREFIX value
-  | TABLE_SUFFIX value
-  | DNODES value
-  | TSDB_PAGESIZE value
-  | WAL_LEVEL {1 | 2}
-  | WAL_FSYNC_PERIOD value
-  | WAL_RETENTION_PERIOD value
-  | WAL_RETENTION_SIZE value
-  | COMPACT_INTERVAL value
-  | COMPACT_TIME_RANGE value
-  | COMPACT_TIME_OFFSET value
-}
-*/
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseOptions {
-    vgroups: i32,
-    precision: String,
-    replica: i8,
-    buffer: i32,
-    pages: i32,
-    pagesize: i32,
-    cachemodel: String,
-    cachesize: i32,
-    comp: i8,
-    duration: String,
-    maxrows: i32,
-    minrows: i32,
-    keep: String,
-    keep_time_offset: i32,
-    stt_trigger: i16,
-    single_stable: bool,
-    table_prefix: i16,
-    table_suffix: i16,
-    // dnodes: Option<i32>, 这个参数在 information_schema.ins_databases 中没有
-    tsdb_pagesize: i32,
-    wal_level: i8,
-    wal_fsync_period: i32,
-    wal_retention_period: i32,
-    wal_retention_size: i64,
-    compact_interval: String,
-    compact_time_range: String,
-    compact_time_offset: String,
-}
-
-// 将 Schema 序列化并写入本地文件
-async fn write_schema_to_local(schema: &Schema, dir: &Path, name: &str) -> anyhow::Result<()> {
-    // 创建目录
-    tokio::fs::create_dir_all(&dir)
-        .await
-        .with_context(|| format!("failed to create directory: {}", dir.display()))?;
-
-    // 文件名，使用数据库名
-    let file = dir.join(name);
-    let content = serde_json::to_vec_pretty(schema)?;
-    tokio::fs::write(&file, content)
-        .await
-        .with_context(|| format!("failed to write schema to: {}", file.display()))?;
-
-    tracing::info!("write schema to {}", file.display());
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
+
     use taos::IntoDsn;
 
     use super::*;
@@ -782,7 +466,11 @@ mod tests {
         let obj = QueryObject::try_from_dsn(&dsn).unwrap();
         assert_eq!(
             obj,
-            QueryObject::Select(("test".to_string(), "select * from stb1".to_string()))
+            QueryObject::Select((
+                "test".to_string(),
+                "select * from stb1".to_string(),
+                "result".to_string()
+            ))
         );
 
         let dsn = "taos:///".into_dsn().unwrap();
@@ -791,13 +479,25 @@ mod tests {
         assert_eq!(res.err().unwrap().to_string(), "dsn subject is required");
     }
 
-    #[ignore]
     #[tokio::test]
-    async fn test_query_obj_exists() {
-        let dsn = "taos+ws://192.168.2.139:6041".into_dsn().unwrap();
-        let taos = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
+    async fn test_query_obj_exists_with_taos() {
+        let dsn = "taos:///";
 
-        let obj = QueryObject::Database("zyyang".to_string());
+        let taos = TaosBuilder::from_dsn(dsn.into_dsn().unwrap())
+            .unwrap()
+            .build()
+            .await
+            .unwrap();
+
+        taos.exec_many(vec![
+            "drop database if exists non_exist_db",
+            "create database if not exists db",
+            "create stable if not exists db.stb (ts timestamp, val int) tags(t int)",
+        ])
+        .await
+        .unwrap();
+
+        let obj = QueryObject::Database("db".to_string());
         let res = obj.exists(&taos).await.unwrap();
         assert!(res);
 
@@ -806,49 +506,24 @@ mod tests {
         assert!(!res);
 
         let obj = QueryObject::SuperTables((
-            "zyyang".to_string(),
+            "db".to_string(),
             vec!["stb1".to_string(), "stb2".to_string()],
         ));
         let res = obj.exists(&taos).await;
         assert!(res.is_err());
         assert_eq!(
             res.err().unwrap().to_string(),
-            "stable 'stb1' not exists in database 'zyyang'"
+            "stable 'stb1' not exists in database 'db'"
         );
 
-        let obj = QueryObject::Select(("zyyang".to_string(), "select * from stb".to_string()));
+        let obj = QueryObject::Select((
+            "db".to_string(),
+            "select * from stb".to_string(),
+            "result".to_string(),
+        ));
         let res = obj.exists(&taos).await.unwrap();
         assert!(res);
-    }
 
-    #[ignore]
-    #[tokio::test]
-    async fn test_fetch_database_meta() {
-        let dsn = "taos+ws://192.168.2.139:6041".into_dsn().unwrap();
-        let taos = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
-
-        taos.exec_many(vec!["CREATE DATABASE IF NOT EXISTS zyyang"])
-            .await
-            .unwrap();
-
-        let db_meta = fetch_database_meta(&taos, "zyyang").await.unwrap();
-        println!("db_meta: {:#?}", db_meta);
-        println!("create db sql: {}", db_meta);
-
-        let res = taos.exec(db_meta.to_string()).await;
-        assert!(res.is_ok());
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_fetch_table_meta() {
-        let dsn = "taos+ws://192.168.2.139:6041".into_dsn().unwrap();
-        let taos = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
-
-        let schema = fetch_tables_meta(&taos, "zyyang", &[]).await.unwrap();
-        schema.iter().for_each(|m| {
-            // println!("{:#?}", m);
-            println!("{m};");
-        });
+        taos.exec("drop database if exists db").await.unwrap();
     }
 }

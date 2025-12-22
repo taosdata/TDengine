@@ -14,7 +14,7 @@ import dts from 'vite-plugin-dts';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default {
-  base: '/',
+  base: './',
   resolve: {
     alias: {
       '@': './'

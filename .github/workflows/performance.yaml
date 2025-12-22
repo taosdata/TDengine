@@ -507,7 +507,7 @@ jobs:
           function post_to_feishu() {
             local text="$1"
             curl -X POST -H "Content-Type: application/json" \
-            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9 <<EOF
             {
                 "msg_type": "text",
                 "content": {

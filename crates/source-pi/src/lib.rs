@@ -104,8 +104,8 @@ pub async fn pi_to_taos(
         let _ = fs::copy(&config_path, path);
     }
 
-    let lush_model_config: Option<LushModelConfig> = if with_agent.is_none() {
-        let config = LushModelConfig::try_from(from.clone())?;
+    let lush_model_config = if with_agent.is_none() {
+        let config = Arc::new(LushModelConfig::try_from(from.clone())?);
         tracing::info!("Lush model config: {}", serde_json::to_string(&config)?);
         Some(config)
     } else {
@@ -556,6 +556,7 @@ pub fn parse_query_datasource_params(dsn: &Dsn) -> (&str, &str, &str) {
     let model = dsn
         .params
         .get("model")
+        .or(dsn.params.get("only-choose-one$"))
         .map(|s| s.as_str())
         .unwrap_or(SINGLE_COLUMN_MODEL);
     let is_af =

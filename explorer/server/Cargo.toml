@@ -6,7 +6,6 @@ description = "TDengine Explorer UI"
 
 [dependencies]
 actix-cors.workspace = true
-actix-embed = "0.1.0"
 actix-files.workspace = true
 actix-web.workspace = true
 actix-ws.workspace = true
@@ -31,7 +30,9 @@ tokio-util = { workspace = true, features = ["compat"] }
 tokio-stream = { workspace = true, features = ["net", "sync"] }
 log = { workspace = true, features = ["serde"] }
 http-auth-basic = "0.3"
-rust-embed = "6.8.1"
+rust-embed = { version = "8.9.0", default-features = false, features = ["actix", "mime-guess"] }
+# rust-embed-for-web = { version = "11.3.0" }
+actix-web-rust-embed-responder = { version = "2.3.0", default-features = false, features = ["support-rust-embed"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror.workspace = true
@@ -60,7 +61,6 @@ serde_with.workspace = true
 assert_cmd.workspace = true
 assert_fs.workspace = true
 regex.workspace = true
-
 mimalloc = { workspace = true, optional = true }
 futures.workspace = true
 pin-project-lite.workspace = true
@@ -69,6 +69,19 @@ sysinfo.workspace = true
 metrics.workspace = true
 taosx-metrics.workspace = true
 gethostname = "1"
+openidconnect = "3.5.0"
+actix-session = { version = "0.11.0", features = ["cookie-session"] }
+url = "2.5"
+uuid = { version = "1.19.0", features = ["v4", "serde"] }
+sha2 = "0.10"
+aes-gcm = "0.10"
+base64 = "0.22"
+urlencoding.workspace = true
+cbc = { version = "0.1.2", features = ["std"] }
+aes = "0.8.4"
+hkdf = "0.12.4"
+hmac = "0.12.1"
+mime_guess = "2.0.5"
 
 [dependencies.taos]
 workspace = true
@@ -79,6 +92,7 @@ shadow-rs = { workspace = true }
 [dev-dependencies]
 base64.workspace = true
 mockito = "1.6.1"
+serial_test = "3.0"
 
 [lints]
 workspace = true

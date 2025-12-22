@@ -135,8 +135,7 @@ export default {
             },
             {
               label: '重命名时间戳字段',
-              description:
-                '重命名从 OpenTSDB 写入 TDengine 的时间戳字段，默认是 "timestamp"。',
+              description: '重命名从 OpenTSDB 写入 TDengine 的时间戳字段，默认是 "timestamp"。',
               field: 'timestampFieldName',
               placeholder: '默认: timestamp',
               pattern: null,
@@ -147,8 +146,7 @@ export default {
             },
             {
               label: '重命名值字段',
-              description:
-                '重命名从 OpenTSDB 写入 TDengine 的值字段，默认是 "value"。',
+              description: '重命名从 OpenTSDB 写入 TDengine 的值字段，默认是 "value"。',
               field: 'valueFieldName',
               placeholder: '默认: value',
               pattern: null,
@@ -156,6 +154,18 @@ export default {
               type: 'input',
               min: 1,
               max: 30
+            },
+            {
+              label: '子表名表达式',
+              description:
+                '自定义子表名的表达式。例如：tb_${tag1}_${tag2}，表示子表名由 tag1 和 tag2 两个标签值组成，未指定则使用默认的子表命名规则。',
+              field: 'tableNamePattern',
+              placeholder: '请输入子表名表达式',
+              pattern: null,
+              grid_two: false,
+              type: 'input',
+              min: 1,
+              max: 200
             }
           ],
           hide: false

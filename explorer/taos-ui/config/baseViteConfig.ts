@@ -35,7 +35,7 @@ export function getBaseConfig(
   const lifecycle = process.env.npm_lifecycle_event;
   const { VITE_SERVICE_PORT = 8080 } = loadEnv(configEnv.mode, process.cwd()) as Record<string, string | number>;
   const baseConfig: UserConfig = {
-    base: '/',
+    base: './',
     resolve: {
       alias: {
         '@': resolve('src'),

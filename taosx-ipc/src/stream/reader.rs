@@ -13,7 +13,7 @@ use arrow::{
         Float16Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
         LargeBinaryArray, LargeStringArray, ListArray, StringArray, StructArray,
         TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -673,6 +673,18 @@ impl LushInsertAttrs {
 
     pub fn to_sql(&self, table_name: Option<&str>) -> Option<String> {
         if let Some(using) = self.using.as_ref() {
+            if self.tags.as_ref().is_none_or(|v| v.is_empty()) {
+                tracing::warn!(
+                    "Tags is empty for stable: {}, cannot generate create table sql",
+                    self.name
+                );
+                return None;
+            }
+            tracing::trace!(
+                "Generate create table sql for using: {}, attr: {:?}",
+                using,
+                self
+            );
             let tags = self.tags.as_ref().unwrap();
             let table = table_name.unwrap_or(&self.name);
             let names = tags.iter().map(|(name, _)| format!("`{name}`")).join(",");
@@ -1083,7 +1095,25 @@ impl LushMessageInsert {
         self.attrs.as_ref().map(|attr| attr.name.as_str())
     }
 
-    pub fn to_column_views(&self) -> Vec<ColumnView> {
+    // pub fn to_column_views(&self) -> Vec<ColumnView> {
+    //     let ty = self
+    //         .records
+    //         .record
+    //         .schema()
+    //         .fields()
+    //         .into_iter()
+    //         .map(|field| {
+    //             self.metadata
+    //                 .init()
+    //                 .and_then(|init| init.column_data_type(field.name()))
+    //                 .cloned()
+    //                 .unwrap_or_else(|| field.data_type().into())
+    //         })
+    //         .collect_vec();
+    //     parse_column_view_with_types(&self.records.record, &ty)
+    // }
+
+    pub fn to_column_views(&self, target_precision: Precision) -> Vec<ColumnView> {
         let ty = self
             .records
             .record
@@ -1098,7 +1128,7 @@ impl LushMessageInsert {
                     .unwrap_or_else(|| field.data_type().into())
             })
             .collect_vec();
-        parse_column_view_with_types(&self.records.record, &ty)
+        parse_column_view_with_types(&self.records.record, &ty, target_precision)
     }
 
     /// return true if the cell is TAOS_DELETE
@@ -1241,14 +1271,17 @@ impl LushMessageInsert {
         }
     }
 
-    pub fn to_column_views_group_by_tablename(&self) -> HashMap<Option<String>, Vec<ColumnView>> {
+    pub fn to_column_views_group_by_tablename(
+        &self,
+        precision: Precision,
+    ) -> HashMap<Option<String>, Vec<ColumnView>> {
         let mut index = None;
         for (i, f) in self.records.record.schema().fields().iter().enumerate() {
             if f.name() == __TABLE_NAME__ {
                 index = Some(i);
             }
         }
-        let data = self.to_column_views();
+        let data = self.to_column_views(precision);
         let mut map = HashMap::new();
         match index {
             None => {
@@ -1303,6 +1336,7 @@ impl LushMessageInsert {
 pub fn parse_column_view_with_types(
     record: &RecordBatch,
     metadata: &[IpcDataType],
+    precision: Precision,
 ) -> Vec<ColumnView> {
     // let records_schema = record.schema();
     // let fields = records_schema.fields();
@@ -1463,7 +1497,68 @@ pub fn parse_column_view_with_types(
                     }
                 }
                 DataType::Timestamp(u, _) => match u {
-                    arrow::datatypes::TimeUnit::Second => todo!(),
+                    arrow::datatypes::TimeUnit::Second => {
+                        let a = column
+                            .as_any()
+                            .downcast_ref::<TimestampSecondArray>()
+                            .unwrap();
+                        if a.null_count() == 0 {
+                            let v = a.values();
+                            match precision {
+                                Precision::Millisecond => ColumnView::from_millis_timestamp(
+                                    v.iter().map(|&x| x * 1_000).collect(),
+                                ),
+                                Precision::Microsecond => {
+                                    let v_converted = v.iter().map(|&x| x * 1_000_000).collect();
+                                    ColumnView::from_micros_timestamp(v_converted)
+                                }
+                                Precision::Nanosecond => {
+                                    let v_converted =
+                                        v.iter().map(|&x| x * 1_000_000_000).collect();
+                                    ColumnView::from_nanos_timestamp(v_converted)
+                                }
+                            }
+                        } else {
+                            match precision {
+                                Precision::Millisecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) * 1_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_millis_timestamp(values)
+                                }
+                                Precision::Microsecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) * 1_000_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_micros_timestamp(values)
+                                }
+                                Precision::Nanosecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) * 1_000_000_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_nanos_timestamp(values)
+                                }
+                            }
+                        }
+                    }
                     arrow::datatypes::TimeUnit::Millisecond => {
                         let a = column
                             .as_any()
@@ -1471,12 +1566,52 @@ pub fn parse_column_view_with_types(
                             .unwrap();
                         if a.null_count() == 0 {
                             let v = a.values();
-                            ColumnView::from_millis_timestamp(v.to_vec())
+                            match precision {
+                                Precision::Millisecond => {
+                                    ColumnView::from_millis_timestamp(v.to_vec())
+                                }
+                                Precision::Microsecond => {
+                                    let v_converted = v.iter().map(|&x| x * 1_000).collect();
+                                    ColumnView::from_micros_timestamp(v_converted)
+                                }
+                                Precision::Nanosecond => {
+                                    let v_converted = v.iter().map(|&x| x * 1_000_000).collect();
+                                    ColumnView::from_nanos_timestamp(v_converted)
+                                }
+                            }
                         } else {
-                            let values = (0..a.len())
-                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                                .collect();
-                            ColumnView::from_millis_timestamp(values)
+                            match precision {
+                                Precision::Millisecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                        .collect();
+                                    ColumnView::from_millis_timestamp(values)
+                                }
+                                Precision::Microsecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) * 1_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_micros_timestamp(values)
+                                }
+                                Precision::Nanosecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) * 1_000_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_nanos_timestamp(values)
+                                }
+                            }
                         }
                     }
                     arrow::datatypes::TimeUnit::Microsecond => {
@@ -1486,12 +1621,52 @@ pub fn parse_column_view_with_types(
                             .unwrap();
                         if a.null_count() == 0 {
                             let v = a.values();
-                            ColumnView::from_micros_timestamp(v.to_vec())
+                            match precision {
+                                Precision::Millisecond => {
+                                    let v_converted = v.iter().map(|&x| x / 1_000).collect();
+                                    ColumnView::from_millis_timestamp(v_converted)
+                                }
+                                Precision::Microsecond => {
+                                    ColumnView::from_micros_timestamp(v.to_vec())
+                                }
+                                Precision::Nanosecond => {
+                                    let v_converted = v.iter().map(|&x| x * 1_000).collect();
+                                    ColumnView::from_nanos_timestamp(v_converted)
+                                }
+                            }
                         } else {
-                            let values = (0..a.len())
-                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                                .collect();
-                            ColumnView::from_micros_timestamp(values)
+                            match precision {
+                                Precision::Millisecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) / 1_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_millis_timestamp(values)
+                                }
+                                Precision::Microsecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                        .collect();
+                                    ColumnView::from_micros_timestamp(values)
+                                }
+                                Precision::Nanosecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) * 1_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_nanos_timestamp(values)
+                                }
+                            }
                         }
                     }
                     arrow::datatypes::TimeUnit::Nanosecond => {
@@ -1501,12 +1676,53 @@ pub fn parse_column_view_with_types(
                             .unwrap();
                         if a.null_count() == 0 {
                             let v = a.values();
-                            ColumnView::from_nanos_timestamp(v.to_vec())
+                            match precision {
+                                Precision::Millisecond => {
+                                    let v_converted = v.iter().map(|&x| x / 1_000_000).collect();
+                                    ColumnView::from_millis_timestamp(v_converted)
+                                }
+                                Precision::Microsecond => {
+                                    let v_converted = v.iter().map(|&x| x / 1_000).collect();
+                                    ColumnView::from_micros_timestamp(v_converted)
+                                }
+                                Precision::Nanosecond => {
+                                    let v_converted = v.iter().copied().collect();
+                                    ColumnView::from_nanos_timestamp(v_converted)
+                                }
+                            }
                         } else {
-                            let values = (0..a.len())
-                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                                .collect();
-                            ColumnView::from_nanos_timestamp(values)
+                            match precision {
+                                Precision::Millisecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) / 1_000_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_millis_timestamp(values)
+                                }
+                                Precision::Microsecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| {
+                                            if a.is_null(i) {
+                                                None
+                                            } else {
+                                                Some(a.value(i) / 1_000)
+                                            }
+                                        })
+                                        .collect();
+                                    ColumnView::from_micros_timestamp(values)
+                                }
+                                Precision::Nanosecond => {
+                                    let values = (0..a.len())
+                                        .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                        .collect();
+                                    ColumnView::from_nanos_timestamp(values)
+                                }
+                            }
                         }
                     }
                 },
@@ -2106,32 +2322,41 @@ mod tests {
         file.read_to_end(&mut bytes)?;
         let zin = zstd::decode_all(bytes.as_slice())?;
 
-        let reader = IpcReader::new(zin.as_slice()).unwrap();
+        for precision in [
+            Precision::Millisecond,
+            Precision::Microsecond,
+            Precision::Nanosecond,
+        ] {
+            println!("--- precision: {:?} ---", precision);
 
-        dbg!(reader.metadata());
-        dbg!(&reader.schema);
+            let reader = IpcReader::new(zin.as_slice()).unwrap();
 
-        for records in reader {
-            let res = records.unwrap();
-            let record = res.as_any().downcast_ref::<LushMessage>().unwrap();
-            match record {
-                LushMessage::Insert(records) => {
-                    for record in records {
-                        let map_data = record.to_column_views();
-                        dbg!(&map_data);
+            dbg!(reader.metadata());
+            dbg!(&reader.schema);
 
-                        let columns = vec!["ts".to_string(), "c1".to_string()];
-                        let sqls = record.generate_insert_sql_from_tablename(&map_data, &columns);
-                        dbg!(&sqls);
+            for records in reader {
+                let res = records.unwrap();
+                let record = res.as_any().downcast_ref::<LushMessage>().unwrap();
+                match record {
+                    LushMessage::Insert(records) => {
+                        for record in records {
+                            let map_data = record.to_column_views(precision);
+                            dbg!(&map_data);
+
+                            let columns = vec!["ts".to_string(), "c1".to_string()];
+                            let sqls =
+                                record.generate_insert_sql_from_tablename(&map_data, &columns);
+                            dbg!(&sqls);
+                        }
                     }
-                }
-                LushMessage::Tables(tables, _) => {
-                    for record in tables {
-                        let map_data = record.to_sql(None);
-                        dbg!(&map_data);
+                    LushMessage::Tables(tables, _) => {
+                        for record in tables {
+                            let map_data = record.to_sql(None);
+                            dbg!(&map_data);
+                        }
                     }
+                    _ => (),
                 }
-                _ => (),
             }
         }
 

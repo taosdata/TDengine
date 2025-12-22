@@ -17,8 +17,9 @@ use crate::sink::point::model::{generate_tbname_from_pattern, SourceType};
 use crate::sink::point::model::{
     ColumnConfig, GeneratePointMappingBy, PointConfig, PointModelConfig, TableConfig,
 };
+use crate::sink::point::UpdateMode;
 use crate::utils::files::{get_encode, get_encode_from_buffer};
-use crate::utils::validate_table_column_name;
+use crate::utils::{parse_key_in_dsn, validate_table_column_name};
 use crate::{get_data_dir, utils};
 
 #[derive(Debug)]
@@ -141,17 +142,18 @@ impl CsvHeader {
 
 /// CsvParser is used to parse csv files and generate model config
 #[derive(Debug)]
-pub struct CsvParser {
+pub struct CsvParser<'a> {
     source_type: SourceType,
+    update_mode: Option<UpdateMode>,
     /// csv files could be file path or utf8 encoded string
     csv_files: Vec<String>,
     /// csv_origin 是原始的 DSN，其中的 csv_config_file 参数是 URL encoded 的 csv 内容
     csv_origin: Option<String>,
     /// csv_content: csv 文件的内容
-    csv_content: Option<String>,
+    csv_content: Option<&'a str>,
 }
 
-impl CsvParser {
+impl<'a> CsvParser<'a> {
     pub fn try_new(source_type: SourceType, csv_files: Vec<String>) -> anyhow::Result<Self> {
         if csv_files.is_empty() {
             bail!("csv_files is empty");
@@ -162,10 +164,11 @@ impl CsvParser {
             csv_files,
             csv_origin: None,
             csv_content: None,
+            update_mode: None,
         })
     }
 
-    pub fn try_from_content(source_type: SourceType, content: String) -> anyhow::Result<Self> {
+    pub fn try_from_content(source_type: SourceType, content: &'a str) -> anyhow::Result<Self> {
         if content.is_empty() {
             bail!("csv content is empty");
         }
@@ -175,6 +178,7 @@ impl CsvParser {
             csv_files: vec![],
             csv_origin: None,
             csv_content: Some(content),
+            update_mode: None,
         })
     }
 
@@ -196,11 +200,16 @@ impl CsvParser {
             bail!("opc csv config files is empty");
         }
 
+        let update_mode = parse_key_in_dsn::<String>(dsn, "update_mode")?
+            .map(|m| UpdateMode::from_str(m.as_str()))
+            .transpose()?;
+
         Ok(Self {
             source_type,
             csv_files,
             csv_origin: None,
             csv_content: None,
+            update_mode,
         })
     }
 
@@ -236,6 +245,7 @@ impl CsvParser {
             generate_rule: None,
             point_config_map,
             table_config_map,
+            update_mode: None, // 不支持动态点位更新
         })
     }
 
@@ -369,6 +379,7 @@ impl CsvParser {
             generate_rule,
             point_config_map,
             table_config_map,
+            update_mode: self.update_mode,
         })
     }
 

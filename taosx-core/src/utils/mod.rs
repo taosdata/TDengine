@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::{io::BufRead, path::Path, thread::JoinHandle};
 use taos::*;
+use tokio_util::sync::CancellationToken;
 
 pub mod breakpoints;
 pub mod cert;
@@ -500,17 +501,26 @@ pub fn contains_uppercase(s: &str) -> bool {
 }
 
 /// 如果当前时间比 upcoming 早，等待到 upcoming
-pub async fn wait_for_upcoming(upcoming: Option<DateTime<Utc>>) -> anyhow::Result<()> {
+/// 如果等待期间收到取消信号则立刻返回错误
+pub async fn wait_for_upcoming(
+    upcoming: Option<DateTime<Utc>>,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     if let Some(upcoming) = upcoming {
         let now = Utc::now();
         if now < upcoming {
             let duration = upcoming - now;
             tracing::info!("wait for upcoming: {}", upcoming);
-            tokio::time::sleep(duration.to_std().map_err(|err| {
+            let dur = duration.to_std().map_err(|err| {
                 anyhow::Error::from(err)
                     .context(format!("failed to convert: {:?} to std duration", duration))
-            })?)
-            .await;
+            })?;
+            tokio::select! {
+                _ = tokio::time::sleep(dur) => {},
+                _ = cancel.cancelled() => {
+                    anyhow::bail!("cancelled while waiting for upcoming");
+                }
+            }
         }
     }
     Ok(())
@@ -520,6 +530,8 @@ pub async fn wait_for_upcoming(upcoming: Option<DateTime<Utc>>) -> anyhow::Resul
 mod tests {
     use super::*;
     use chrono::Local;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_parse_bytes() {
@@ -723,24 +735,41 @@ mod tests {
 
     #[tokio::test]
     async fn test_wait_for_upcoming() {
+        let cancel = tokio_util::sync::CancellationToken::new();
+
         let now = Utc::now();
-        wait_for_upcoming(Some(now + chrono::Duration::seconds(2)))
+        wait_for_upcoming(Some(now + chrono::Duration::seconds(2)), cancel.clone())
             .await
             .unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 2);
 
         let now = Utc::now();
-        wait_for_upcoming(None).await.unwrap();
+        wait_for_upcoming(None, cancel.clone()).await.unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 0);
 
         let now = Utc::now();
-        wait_for_upcoming(Some(now - chrono::Duration::days(1)))
+        wait_for_upcoming(Some(now - chrono::Duration::days(1)), cancel.clone())
             .await
             .unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 0);
+
+        let now = Utc::now();
+        let cancel_clone = cancel.clone();
+        // 在 100ms 后触发取消
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            cancel_clone.cancel();
+        });
+        // 原计划等待 2s，但应在取消后尽快返回错误
+        let res = wait_for_upcoming(Some(now + chrono::Duration::seconds(2)), cancel).await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "cancelled while waiting for upcoming"
+        );
     }
 
     #[test]
@@ -810,5 +839,55 @@ mod tests {
             "invalid compression level: abc",
             format!("{}", level.err().unwrap())
         );
+    }
+
+    #[test]
+    fn test_mask_dsn_and_value_equals() {
+        let dsn = "taos://user:pass@localhost:6030/db?param=1"
+            .into_dsn()
+            .unwrap();
+        let masked = mask_dsn(&dsn);
+        assert!(masked.username.is_none());
+        assert!(masked.password.is_none());
+        assert!(masked.params.is_empty());
+        assert_eq!(masked.driver, dsn.driver);
+        assert_eq!(masked.addresses, dsn.addresses);
+
+        assert!(value_equals(&Value::Int(5), &Value::Int(5)));
+        assert!(value_equals(
+            &Value::VarChar("abc".into()),
+            &Value::NChar("abc".into())
+        ));
+        assert!(!value_equals(&Value::Int(1), &Value::BigInt(1)));
+    }
+
+    #[test]
+    fn test_get_string_content_from_param_value() -> anyhow::Result<()> {
+        let mut tmp = NamedTempFile::new()?;
+        writeln!(tmp, "file_line")?;
+        let param = format!("@{},inline", tmp.path().display());
+        let file_first = get_string_content_from_param_value(&param, false, true)?;
+        assert_eq!(Some("file_line".to_string()), file_first);
+
+        let param_inline = "alpha,beta";
+        let inline_only = get_string_content_from_param_value(param_inline, true, true)?;
+        assert_eq!(Some("alpha".to_string()), inline_only);
+
+        let none = get_string_content_from_param_value("", true, true)?;
+        assert!(none.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn test_replace_date_placeholder_and_validate() {
+        let dt = DateTime::parse_from_rfc3339("2021-12-03T12:34:56+00:00").unwrap();
+        let replaced = replace_date_placeholder("path/${Y}/${m}/${d}".to_string(), dt);
+        assert_eq!("path/2021/12/03", replaced);
+
+        assert!(validate_table_column_name("col", "valid_name").is_ok());
+        assert!(validate_table_column_name("col", "has.dot").is_err());
+        assert!(validate_table_column_name("col", "has`backtick").is_err());
+        let long_name = "a".repeat(193);
+        assert!(validate_table_column_name("col", &long_name).is_err());
     }
 }

@@ -1285,7 +1285,7 @@ impl Parser {
         &self,
         records: &RecordBatch,
         filter_ts: bool,
-        archive_tx: Option<Sender<ArchiveType>>,
+        archive_tx: Option<&Sender<ArchiveType>>,
     ) -> Result<Message, Error> {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self
@@ -1404,17 +1404,26 @@ impl Parser {
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             tracing::warn!("archive and skip the batch due to {err}");
-                            let mut err_vec = Vec::new();
-                            let mut err_timestamp_vec = Vec::new();
-                            for _ in 0..transformed_batch.num_rows() {
-                                err_vec.push(err.clone());
-                                err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
+                            let mut err_vec = vec![None; transformed_batch.num_rows()];
+                            if let Some(v) = err_vec.first_mut() {
+                                *v = Some(err.to_string());
+                            }
+                            if let Some(v) = err_vec.last_mut() {
+                                *v = Some(err.to_string());
+                            }
+                            let mut err_timestamp_vec = vec![0; transformed_batch.num_rows()];
+                            let now = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+                            if let Some(v) = err_timestamp_vec.first_mut() {
+                                *v = now;
+                            }
+                            if let Some(v) = err_timestamp_vec.last_mut() {
+                                *v = now;
                             }
                             archive_records_blocking(
                                 &transformed_batch,
                                 err_vec,
                                 err_timestamp_vec,
-                                archive_tx.clone(),
+                                archive_tx,
                             )
                             .context("archive field name error")?;
                             break 'table;
@@ -1551,13 +1560,14 @@ impl Parser {
 
             // 1. archive records
             if !archive_indices.is_empty() {
-                let mut archive_indices_vec = Vec::new();
-                let mut err_vec = Vec::new();
-                let mut err_timestamp_vec = Vec::new();
+                let mut archive_indices_vec = Vec::with_capacity(archive_indices.len());
+                let mut err_vec = Vec::with_capacity(archive_indices.len());
+                let mut err_timestamp_vec = Vec::with_capacity(archive_indices.len());
+                let now = Utc::now().timestamp_nanos_opt().unwrap_or_default();
                 archive_indices.iter().for_each(|(row, err)| {
                     archive_indices_vec.push(*row);
-                    err_vec.push(err.clone());
-                    err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
+                    err_vec.push(Some(err.clone()));
+                    err_timestamp_vec.push(now);
                 });
                 let archive_batches = archive_indices_vec
                     .iter()
@@ -1565,13 +1575,8 @@ impl Parser {
                     .collect_vec();
                 let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)
                     .context("concat archive batch error")?;
-                archive_records_blocking(
-                    &archive_batch,
-                    err_vec,
-                    err_timestamp_vec,
-                    archive_tx.clone(),
-                )
-                .context("archive abnormal batch error")?;
+                archive_records_blocking(&archive_batch, err_vec, err_timestamp_vec, archive_tx)
+                    .context("archive abnormal batch error")?;
             }
 
             let ts_field_name = table
@@ -1946,9 +1951,9 @@ fn generate_table_name(
 /// - err_timestamp_vec: the error timestamp vector
 pub async fn archive_records(
     batch: &RecordBatch,
-    err_vec: Vec<String>,
+    err_vec: Vec<Option<String>>,
     err_timestamp_vec: Vec<i64>,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let Some(archive_tx) = archive_tx else {
         return Ok(());
@@ -1972,9 +1977,9 @@ pub async fn archive_records(
 /// - err_timestamp_vec: the error timestamp vector
 pub fn archive_records_blocking(
     batch: &RecordBatch,
-    err_vec: Vec<String>,
+    err_vec: Vec<Option<String>>,
     err_timestamp_vec: Vec<i64>,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let Some(archive_tx) = archive_tx else {
         return Ok(());
@@ -1990,7 +1995,7 @@ pub fn archive_records_blocking(
 
 fn build_archive_batch(
     batch: &RecordBatch,
-    err_vec: Vec<String>,
+    err_vec: Vec<Option<String>>,
     err_timestamp_vec: Vec<i64>,
 ) -> anyhow::Result<Option<RecordBatch>> {
     if batch.num_rows() == 0 {
@@ -2002,11 +2007,11 @@ fn build_archive_batch(
     let mut columns_vec = batch.columns().to_vec();
 
     // add new fields and columns to record
-    let new_field_1 = Field::new("_taosx_error_", DataType::Utf8, false);
+    let new_field_1 = Field::new("_taosx_error_", DataType::Utf8, true);
     let new_field_2 = Field::new(
         "_taosx_error_timestamp_",
         DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, None),
-        false,
+        true,
     );
     let new_column_1 = Arc::new(StringArray::from(err_vec));
     let new_column_2 = Arc::new(TimestampNanosecondArray::from(err_timestamp_vec));
@@ -3463,7 +3468,7 @@ mod parser_tests {
         ]));
         let batch = RecordBatch::try_from_iter(vec![("ts", ts), ("payload", payload)])?;
 
-        let new_batch = parser.parse_message_from_records(&batch, true, Some(tx))?;
+        let new_batch = parser.parse_message_from_records(&batch, true, Some(&tx))?;
 
         // assert batch.size == 4
         match new_batch {
@@ -3568,7 +3573,7 @@ mod parser_tests {
         ])?;
         let (tx, _rx) = flume::bounded(10);
 
-        let message = parser.parse_message_from_records(&batch, false, Some(tx))?;
+        let message = parser.parse_message_from_records(&batch, false, Some(&tx))?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3743,7 +3748,7 @@ mod parser_tests {
         ])?;
         let (tx, _rx) = flume::bounded(10);
 
-        let message = parser.parse_message_from_records(&batch, false, Some(tx))?;
+        let message = parser.parse_message_from_records(&batch, false, Some(&tx))?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -4006,7 +4011,7 @@ mod parser_tests {
         ])?;
         let (tx, _rx) = flume::bounded(10);
 
-        let message = parser.parse_message_from_records(&batch, false, Some(tx))?;
+        let message = parser.parse_message_from_records(&batch, false, Some(&tx))?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -4971,7 +4976,7 @@ mod test {
         let (tx, _rx) = flume::bounded(10);
 
         let records = parser
-            .parse_message_from_records(&raw_data, false, Some(tx.clone()))
+            .parse_message_from_records(&raw_data, false, Some(&tx))
             .unwrap();
 
         if let super::Message::Records(records) = records {

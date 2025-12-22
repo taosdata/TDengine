@@ -10,7 +10,7 @@
             <el-form-item prop="msgbody">
               <el-input
                 v-model="msgForm.msgbody"
-                :disabled="!!supportTransform.supportSQL"
+                :disabled="!!supportTransform.supportSQL && !props.editableSample"
                 class="msgbody"
                 :placeholder="t('dataIn.transformer.msgbodytip')"
                 size="default"
@@ -19,46 +19,6 @@
               ></el-input>
             </el-form-item>
           </el-form>
-        </el-col>
-        <el-col v-if="sourceForm.type !== 'csv'" :span="7" style="padding-left: 8px">
-          <div class="flex-between">
-            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.dataLimit') }}</span>
-            <el-input-number
-              v-model="transformerState.limitOffset"
-              class="flex-1"
-              size="default"
-              :min="1"
-              :max="100"
-              controls-position="right"
-            ></el-input-number>
-          </div>
-          <div v-if="supportTransform.supportSQL" :class="['flex-between', 'mt5']">
-            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.timeout') }}</span>
-            <el-input-number
-              v-model="timeout"
-              class="flex-1"
-              size="default"
-              :min="1"
-              :max="600"
-              controls-position="right"
-            ></el-input-number>
-          </div>
-          <el-col name="second" :class="['mt5', 'msg-right']">
-            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
-              <template #content>
-                <span v-dompurify-html="t('common.communityTip')"></span>
-              </template>
-              <el-button
-                :type="dataInProps.isIdmp ? 'default' : 'primary'"
-                plain
-                size="default"
-                :loading="requesting"
-                :disabled="dataInProps.isCommunity"
-                @click="getMsgBody"
-                >{{ t('dataIn.transformer.msgbodytypes.retrieve') }}</el-button
-              >
-            </el-tooltip>
-          </el-col>
           <el-col v-if="!supportTransform.supportSQL" name="third" :class="['mt5', 'msg-right']">
             <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
               <template #content>
@@ -90,6 +50,67 @@
           <el-col v-if="!supportTransform.supportSQL" name="first" :class="['mt5', 'msg-right']">
             <el-button size="default" @click="clearMsgBody">{{ t('dataIn.transformer.msgbodytypes.type1') }}</el-button>
           </el-col>
+        </el-col>
+        <el-col v-if="sourceForm.type !== 'csv'" :span="7" style="padding-left: 8px">
+          <div class="flex-between">
+            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.dataLimit') }}</span>
+            <el-input-number
+              v-model="transformerState.limitOffset"
+              class="flex-1"
+              size="default"
+              :min="1"
+              :max="100"
+              controls-position="right"
+            ></el-input-number>
+          </div>
+          <div v-if="supportTransform.supportSQL" :class="['flex-between', 'mt5']">
+            <span style="display: inline-block; width: 126px">{{ t('dataIn.transformer.timeout') }}</span>
+            <el-input-number
+              v-model="timeout"
+              class="flex-1"
+              size="default"
+              :min="1"
+              :max="600"
+              controls-position="right"
+            ></el-input-number>
+          </div>
+          <div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              align-items: flex-end;
+              width: 100%;
+              margin-top: 12px;
+            "
+          >
+            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+              <template #content>
+                <span v-dompurify-html="t('common.communityTip')"></span>
+              </template>
+              <el-button
+                :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                plain
+                size="default"
+                :loading="requesting"
+                :disabled="dataInProps.isCommunity"
+                style="width: 100%; max-width: 260px; min-width: 160px"
+                @click="getMsgBody"
+                >{{ t('dataIn.transformer.msgbodytypes.retrieve') }}</el-button
+              >
+            </el-tooltip>
+            <el-button
+              v-if="props.editableSample"
+              :type="dataInProps.isIdmp ? 'default' : 'primary'"
+              plain
+              size="default"
+              :loading="requesting"
+              :disabled="dataInProps.isCommunity"
+              style="width: 100%; max-width: 260px; min-width: 160px"
+              @click="submitParse"
+              >{{ t('dataIn.transformer.msg_submit') }}</el-button
+            >
+          </div>
         </el-col>
       </el-row>
     </section>
@@ -251,7 +272,6 @@
           @select-column="changeColumnStatus"
           @set-extract-name="setExtractName"
           @change-extract-expr="changeExtractExpr"
-          @update-extract-columns="changeExtractColumns"
         ></ExtractSplit>
       </template>
       <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
@@ -381,7 +401,7 @@
           </el-tooltip>
         </div>
         <div v-if="tableData.length > 0" :key="refreshKey" class="table-detail">
-          <el-table :data="pageTableData" border style="width: 100%">
+          <el-table ref="mappingTable" :data="pageTableData" border style="width: 100%">
             <el-table-column prop="Name" show-overflow-tooltip label="Name" width="180px">
               <template #default="scope">
                 <div style="display: flex; align-items: end">
@@ -437,7 +457,6 @@
                       v-if="
                         scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'
                       "
-                      :key="Math.random()"
                       v-model="scope.row.Expression"
                       :placeholder="t('dataIn.transformer.coltip')"
                       :clearable="scope.row.exprname == 'mapping'"
@@ -445,6 +464,7 @@
                       filterable
                       class="mapping-rule-expression"
                       :multiple="scope.row.exprname != 'mapping'"
+                      @clear="onMappingExpressionCleared(scope.row)"
                     >
                       <el-option
                         v-for="val in mappingcolumns"
@@ -469,7 +489,10 @@
                       "
                       size="default"
                       :disabled="scope.row['exprname'] == 'generator'"
-                      @change="statisticCol"
+                      @change="
+                        statisticCol;
+                        relayout();
+                      "
                     ></el-input>
                     <!-- 第三列组件 -->
                     <el-input
@@ -606,6 +629,7 @@ const dataInProps = getDataInProps();
 
 const props = defineProps<{
   parserColumns: Record<string, any>[];
+  editableSample?: boolean;
 }>();
 const sourceParent = inject<ComponentInternalInstance>('sourceParent') as any;
 const exprformat = '${c1}-${c2}:${c3}';
@@ -659,6 +683,7 @@ const dialogForm = reactive({
 const showCreateDialog = ref<boolean>(false);
 const stableLists = ref<string[]>([]);
 const sruleFormRef = ref<FormInstance>();
+const mappingTable = ref();
 const sruleForm = reactive({
   s_name: ''
 });
@@ -711,6 +736,7 @@ watch(
   tableData,
   () => {
     statisticCol();
+    relayout();
   },
   {
     deep: true
@@ -826,7 +852,33 @@ function changeCurrentMapExpr(scope: Recordable) {
     if (scope.row.exprname == 'generator') {
       pageTableData.value[scope.$index].Expression = 'now';
     }
+    mappingTable.value?.doLayout?.();
   });
+}
+function relayout() {
+  nextTick(() => {
+    try {
+      mappingTable.value?.doLayout?.();
+    } catch (e) {
+      console.error('Failed to relayout mapping table:', e);
+    }
+  });
+}
+function onMappingExpressionCleared(row?: TableRow) {
+  // 清空 mapping/select 时，重置当前行的表达式和默认值，避免表格状态与布局不一致
+  if (row) {
+    row.Expression = '';
+    if (row.exprname === 'mapping') {
+      if (row.default !== undefined) {
+        row.default = '';
+      }
+      if (row.defaultValueError) {
+        row.defaultValueError = '';
+      }
+    }
+  }
+  // 重新计算表格布局，避免列宽错乱
+  relayout();
 }
 async function getMsgBody() {
   sruleFormRef.value?.clearValidate();
@@ -839,12 +891,10 @@ async function getMsgBody() {
   });
   async function onValid() {
     requesting.value = true;
-    const isSupportType = sourceForm.type == 'kafka' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya' || sourceForm.type == 'mqtt' || sourceForm.type == 'mongodb';
+    const supportedTypes = ['kafka', 'pulsar', 'pulsarTuya', 'mqtt', 'mongodb'];
+    const isSupportType = supportedTypes.includes(sourceForm.type);
     const params: Recordable = { dsn: sourceForm };
     params.dsn.sample_data_limit = transformerState.limitOffset;
-    // if (isSupportType) {
-    //   params.dsn.get_sample_timeout = 3;
-    // }
     const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
     if (result && Object.hasOwnProperty.call(result, 'code')) {
       ElMessage.error(result.message || result.desc);
@@ -873,12 +923,13 @@ async function getMsgBody() {
         ElMessage.success(type + t('dataIn.transformer.retrieveSuccTip', [result.input.length]));
       }
       result.input.map((item: Recordable) => {
-        msgForm.msgbody += item.payload + '\n';
         if (sourceForm.type === 'kafka') {
+          msgForm.msgbody += item.value + '\n';
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { value, ...rest } = item;
           msgForm.topicbody.push(rest);
         } else {
+          msgForm.msgbody += item.payload + '\n';
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { payload, ...rest } = item;
           msgForm.topicbody.push(rest);
@@ -1172,7 +1223,7 @@ async function handleParseResult(topParser: TopParseType) {
     );
   });
   columnsArr.value = (
-    (sourceForm.type == 'csv' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya')
+    sourceForm.type == 'csv' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya'
       ? result[0].fields
       : result[0].fields.filter((item: { name: string }) => {
           if (sourceForm.type == 'mqtt' && !defaultColsMap.mqtt.includes(item.name)) {
@@ -1292,6 +1343,7 @@ function setPageTableData() {
     (currentPage.value - 1) * pageSize.value,
     currentPage.value * pageSize.value
   );
+  relayout();
 }
 function onDefaultValueInput(name: any, val: string, range: number[]) {
   if (val === undefined || val.trim() === '') {
@@ -1341,12 +1393,14 @@ function setDefaultValueError(name: string, errorMsg: string) {
       item.defaultValueError = errorMsg;
     }
   });
+  relayout();
 }
 
 function handleCurrentChange(val: number) {
   currentPage.value = val;
   pageTableData.value.splice(0, Infinity);
   setPageTableData();
+  relayout();
 }
 
 //编辑回显数据--编辑状态不自动显示result table
@@ -1485,7 +1539,7 @@ function echoExtractData(mutate: Recordable[]) {
           new_field_name: item[1].new_field_name
         };
       }
-      if (item[1].json) {
+      if (item[1].json || item[1].json === '') {
         obj['jsonParams'] = {
           depth: item[1].depth,
           keep: item[1].keep,
@@ -1835,14 +1889,7 @@ function changeExtractExpr(colname: string, value: string) {
   const index = extractArr.value.findIndex((item: any) => item.columnname == colname);
   extractArr.value[index]['expression'] = value;
 }
-function changeExtractColumns(index: number, colList: Recordable[]) {
-  const currentColNames = new Set(extractArr.value[index].columns.map((item: any) => item.name));
-  colList.forEach(item => {
-    if (!currentColNames.has(item.name)) {
-      extractArr.value[index].columns.push(item);
-    }
-  });
-}
+
 //获取transformer的所有参数
 async function getTransformerParams() {
   await calculateMappingResult();
@@ -1898,7 +1945,7 @@ function changeColumnStatus(index: number, name: string) {
 provide('generateInput', generateInput);
 //输出input结果
 function generateInput() {
-  let demo_list;
+  let demo_list = [];
   try {
     if (parseruleForm.type == 'regex') {
       demo_list = msgForm.msgbody.split(/\n+/);
@@ -1926,7 +1973,7 @@ function generateInput() {
           if (item.name == 'payload') {
             inputobj['payload'] = msg;
           }
-        } else if (sourceForm.type == 'kafka' || sourceForm.type == 'mongodb' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya') {
+        } else if (['kafka', 'mongodb', 'pulsar', 'pulsarTuya'].includes(sourceForm.type)) {
           inputobj = inputobj ? inputobj : {};
           if (item.name == 'value') {
             inputobj['value'] = msg;
@@ -1944,6 +1991,12 @@ function generateInput() {
     const newItem = msgForm.topicbody[index];
     return { ...item, ...newItem };
   });
+
+  if (supportTransform.supportSQL) {
+    if (demo_list?.[0]) {
+      inputList = JSON.parse(demo_list[0])['input'];
+    }
+  }
 
   return inputList?.filter(v => JSON.stringify(v) !== '{}');
 }
@@ -2142,7 +2195,13 @@ function deleteFilter(key: number) {
   }).then(() => {
     const ind = filterArr.value.findIndex((val: Recordable) => val.key == key);
     filterArr.value.splice(ind, 1);
-    transformerState.transformerFilterParseData = null;
+    if (filterArr.value.length === 0) {
+      transformerState.transformerFilterParseData = null;
+    } else {
+      transformerState.transformerFilterParseData = {
+        filter: filterArr.value[0].expression || ''
+      };
+    }
 
     if (extractRef.value && extractRef.value.length > 0) {
       extractRef.value[extractRef.value.length - 1].submitExtract(true);
@@ -2187,8 +2246,6 @@ function deleteExtract(index: number, name: string) {
       }
     } else {
       transformerState.transformExtractParseData = null;
-      filterArr.value.splice(0, 1);
-      transformerState.transformerFilterParseData = null;
       if (filterArr.value.length > 0 && filterRef.value[0].isexecuted) {
         filterRef.value[0].submit();
       } else {

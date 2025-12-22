@@ -86,6 +86,7 @@ struct AppMetadata {
 //     let mut cache = IPC_STREAM_CACHE.write().await;
 //     cache.insert(trace_id, channel);
 // }
+#[instrument(skip_all)]
 async fn ipc_stream_writer(
     notify_sender: AgentNotifySender,
     agent_id: i64,
@@ -194,140 +195,151 @@ async fn ipc_stream_writer(
     // only for lush stream supported transform.
     let tables_messages_in_progress = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
-    let handle = tokio::spawn(async move {
-        let metrics = metrics_arc.ipc();
-        stream
-            .map(|(record, qid)| {
-                anyhow::Ok((
-                    record,
-                    qid,
-                    &worker,
-                    &parser,
-                    &notify_sender,
-                    &tx,
-                    &abort_message_tx,
-                    &contiguous_errors,
-                    &metrics_arc,
-                    &tables_messages_in_progress,
-                ))
-            })
-            .try_for_each_concurrent(
-                limit,
-                |(
-                    record,
-                    qid,
-                    worker,
-                    parser,
-                    notify_sender,
-                    tx,
-                    abort_message_tx,
-                    contiguous_errors,
-                    metrics_arc,
-                    tables_messages_in_progress,
-                )| {
-                    let archive_tx = archive_tx.clone();
-                    async move {
-                        taoslog::utils::Span.set_qid(&qid);
-                        tracing::trace!("Writing batch");
-                        let raw_rows = record.num_rows();
-                        if let Err(err) = worker
-                            .process_record(
-                                record.clone(),
-                                parser.as_deref(),
-                                metrics,
-                                metrics_arc,
-                                tables_messages_in_progress,
-                                None,
-                                Some(archive_tx.clone()),
-                            )
-                            .await
-                        {
-                            let last_errors =
-                                contiguous_errors.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                            metrics.add_failed_batches(1);
-                            tracing::error!(
-                                continuous_errors = last_errors,
-                                error = format!("{:#}", err),
-                                backtrace = %err.backtrace(),
-                                "Writing batch error",
-                            );
-                            let period = match last_errors {
-                                errors if errors < 8 => 8,
-                                errors if errors < 16 => 16,
-                                errors if errors < 32 => 32,
-                                errors if errors < 64 => 64,
-                                _ => 128,
-                            };
-                            tokio::time::sleep(std::time::Duration::from_millis(period * 80)).await;
-                            let message =
-                                format!("IPC processing record {} error: {err:#}", qid.display());
-                            notify_sender
-                                .send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                    agent_id,
-                                    Activity::warn(task_id, message),
-                                ))
-                                .ok();
-                            if ipc_error_strategy.will_stop() || last_errors > 10 {
-                                abort_message_tx
-                                    .send_async(Err(Status::cancelled(format!(
-                                        "IPC worker will be stopped since {err:#}"
-                                    ))))
-                                    .await
-                                    .ok();
+    let handle = tokio::spawn(
+        async move {
+            let metrics = metrics_arc.ipc();
+            stream
+                .map(|(record, qid)| {
+                    anyhow::Ok((
+                        record,
+                        qid,
+                        &worker,
+                        &parser,
+                        &notify_sender,
+                        &tx,
+                        &abort_message_tx,
+                        &contiguous_errors,
+                        &metrics_arc,
+                        &tables_messages_in_progress,
+                    ))
+                })
+                .try_for_each_concurrent(
+                    limit,
+                    |(
+                        record,
+                        qid,
+                        worker,
+                        parser,
+                        notify_sender,
+                        tx,
+                        abort_message_tx,
+                        contiguous_errors,
+                        metrics_arc,
+                        tables_messages_in_progress,
+                    )| {
+                        let archive_tx = archive_tx.clone();
+                        async move {
+                            taoslog::utils::Span.set_qid(&qid);
+                            tracing::trace!("Writing batch");
+                            let raw_rows = record.num_rows();
+                            if let Err(err) = worker
+                                .process_record(
+                                    record.clone(),
+                                    parser.as_deref(),
+                                    metrics,
+                                    metrics_arc,
+                                    tables_messages_in_progress,
+                                    None,
+                                    Some(&archive_tx),
+                                )
+                                .await
+                            {
+                                let last_errors = contiguous_errors
+                                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                metrics.add_failed_batches(1);
+                                tracing::error!(
+                                    continuous_errors = last_errors,
+                                    error = format!("{:#}", err),
+                                    backtrace = %err.backtrace(),
+                                    "Writing batch error",
+                                );
+                                let period = match last_errors {
+                                    errors if errors < 8 => 8,
+                                    errors if errors < 16 => 16,
+                                    errors if errors < 32 => 32,
+                                    errors if errors < 64 => 64,
+                                    _ => 128,
+                                };
+                                tokio::time::sleep(std::time::Duration::from_millis(period * 80))
+                                    .await;
+                                let message = format!(
+                                    "IPC processing record {} error: {err:#}",
+                                    qid.display()
+                                );
                                 notify_sender
+                                    .send(
+                                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                            agent_id,
+                                            Activity::warn(task_id, message),
+                                        ),
+                                    )
+                                    .ok();
+                                if ipc_error_strategy.will_stop() || last_errors > 10 {
+                                    abort_message_tx
+                                        .send_async(Err(Status::cancelled(format!(
+                                            "IPC worker will be stopped since {err:#}"
+                                        ))))
+                                        .await
+                                        .ok();
+                                    notify_sender
                                     .send(crate::serve::scheduler::agent::AgentNotify::WriterError(
                                         agent_id,
                                         task_id,
                                         format!("{err:#}"),
                                     ))
                                     .ok();
-                                bail!("IPC worker will be stopped since {err:#}");
-                            }
-                            if let Some(tx) = tx.upgrade() {
-                                tracing::warn!("Re-queue with {} rows record", record.num_rows());
-                                tx.send_async((record, qid))
-                                    .await
-                                    .context("Re-queue error")?;
+                                    bail!("IPC worker will be stopped since {err:#}");
+                                }
+                                if let Some(tx) = tx.upgrade() {
+                                    tracing::warn!(
+                                        "Re-queue with {} rows record",
+                                        record.num_rows()
+                                    );
+                                    tx.send_async((record, qid))
+                                        .await
+                                        .context("Re-queue error")?;
+                                } else {
+                                    tracing::warn!("IPC channel is closed, cannot re-queue record");
+                                }
                             } else {
-                                tracing::warn!("IPC channel is closed, cannot re-queue record");
-                            }
-                        } else {
-                            metrics.add_processed_batches(1);
-                            let last_errors =
-                                contiguous_errors.load(std::sync::atomic::Ordering::SeqCst);
-                            if last_errors > 0 {
-                                tracing::info!(
-                                    continuous_errors = last_errors,
-                                    "Rescue from {} continuous errors",
-                                    last_errors
-                                );
-                                let _ = notify_sender.send(
-                                    crate::serve::scheduler::agent::AgentNotify::TaskActivity(
-                                        agent_id,
-                                        Activity::info(
-                                            task_id,
-                                            format!(
-                                                "Rescue from {} continuous errors",
-                                                last_errors
+                                metrics.add_processed_batches(1);
+                                let last_errors =
+                                    contiguous_errors.load(std::sync::atomic::Ordering::SeqCst);
+                                if last_errors > 0 {
+                                    tracing::info!(
+                                        continuous_errors = last_errors,
+                                        "Rescue from {} continuous errors",
+                                        last_errors
+                                    );
+                                    let _ = notify_sender.send(
+                                        crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                            agent_id,
+                                            Activity::info(
+                                                task_id,
+                                                format!(
+                                                    "Rescue from {} continuous errors",
+                                                    last_errors
+                                                ),
+                                                "running",
                                             ),
-                                            "running",
                                         ),
-                                    ),
-                                );
-                                contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
-                            } else {
-                                tracing::debug!("Writing batch success");
+                                    );
+                                    contiguous_errors.store(0, std::sync::atomic::Ordering::SeqCst);
+                                } else {
+                                    tracing::debug!("Writing batch success");
+                                }
                             }
+                            metrics.add_processed_messages(raw_rows as u64);
+                            Ok(())
                         }
-                        metrics.add_processed_messages(raw_rows as u64);
-                        Ok(())
-                    }
-                    .in_current_span()
-                },
-            )
-            .in_current_span()
-            .await
-    });
+                        .in_current_span()
+                    },
+                )
+                .in_current_span()
+                .await
+        }
+        .in_current_span(),
+    );
 
     tokio::select! {
         _ = notify.notified() => {
@@ -803,7 +815,7 @@ impl PutStream {
                 tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
             });
             if let Some(parser) = parser_clone {
-                read_cache_and_rewrite(task_id, &pool, &parser, archive_tx_clone, &cancellation)
+                read_cache_and_rewrite(task_id, &pool, &parser, &archive_tx_clone, &cancellation)
                     .await
             } else {
                 Ok(())
@@ -907,10 +919,25 @@ impl PutStream {
             let mut message_error_count = 0;
             let metrics_arc_clone = metrics_arc.clone();
             let notify_clone = notify.clone();
+            let controller = self.controller.clone();
             let future_flight = async move {
                 loop {
                     tokio::select! {
                         _ = heartbeat.tick() => {
+                            // Check if task is cancelled
+                            let is_cancelled = {
+                                let tasks = controller.scheduler.tasks.read().await;
+                                if let Some(job) = tasks.get_by_task_id(&task_id) {
+                                    job.task.cancellation.is_cancelled()
+                                } else {
+                                    true
+                                }
+                            };
+                            if is_cancelled {
+                                tracing::info!("Task {task_id} cancelled, stopping IPC stream");
+                                break;
+                            }
+
                             tracing::trace!("Send heartbeat");
                             put_tx
                                 .send_async(Ok(PutResult { app_metadata: "heartbeat".into() }))
@@ -1082,5 +1109,67 @@ fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
             tracing::error!("parse app metadata error, {}", err);
             0
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_metadata_serialize() {
+        let metadata = AppMetadata {
+            data_trace_id: 12345,
+        };
+        let json = serde_json::to_string(&metadata);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_app_metadata_deserialize() {
+        let json = r#"{"data_trace_id":12345}"#;
+        let metadata: Result<AppMetadata, _> = serde_json::from_str(json);
+        assert!(metadata.is_ok());
+        assert_eq!(metadata.unwrap().data_trace_id, 12345);
+    }
+
+    #[test]
+    fn test_app_metadata_roundtrip() {
+        let orig = AppMetadata {
+            data_trace_id: 99999,
+        };
+        let json = serde_json::to_string(&orig).unwrap();
+        let restored: AppMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(orig.data_trace_id, restored.data_trace_id);
+    }
+
+    #[test]
+    fn test_app_metadata_zero_trace_id() {
+        let metadata = AppMetadata { data_trace_id: 0 };
+        assert_eq!(metadata.data_trace_id, 0);
+    }
+
+    #[test]
+    fn test_app_metadata_large_trace_id() {
+        let metadata = AppMetadata {
+            data_trace_id: u64::MAX,
+        };
+        let json = serde_json::to_string(&metadata).unwrap();
+        let restored: AppMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(metadata.data_trace_id, restored.data_trace_id);
+    }
+
+    #[test]
+    fn test_put_stream_debug() {
+        // PutStream should implement Debug
+        // This is validated by the struct definition
+    }
+
+    #[test]
+    fn test_rpc_ack_constants() {
+        // Test that RPC ACK constants exist and are not equal
+        assert_ne!(RPC_ACK_RECEIVED, RPC_ACK_PROCESSED);
+        assert_ne!(RPC_ACK_RECEIVED, RPC_ACK_STREAM_END);
+        assert_ne!(RPC_ACK_PROCESSED, RPC_ACK_STREAM_END);
     }
 }

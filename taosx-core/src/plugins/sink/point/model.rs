@@ -13,6 +13,7 @@ use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
 
 use crate::plugins::sink::point::csv::{CsvColumn, CsvHeader, CsvParser};
+use crate::sink::point::UpdateMode;
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::table_meta::{TableMeta, TableMetaQuerier, TableMetaQueryBuilder};
 use crate::utils::validate_table_column_name;
@@ -77,15 +78,12 @@ impl TryFrom<&str> for SourceType {
 /// generate_rule 用来处理未定义的点位，即：动态发现的点位
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PointModelConfig {
-    /// point model 对应的数据源类型
     #[serde(alias = "opc_type", alias = "sourceType", alias = "opcType")]
-    pub source_type: SourceType,
-    /// 生成点位映射规则的方式
-    pub generate_rule: Option<GeneratePointMappingBy>,
-    /// key: point_id, value: PointConfig
-    pub point_config_map: LinkedHashMap<String, PointConfig>,
-    /// key: point_id, value: TableConfig
-    pub table_config_map: LinkedHashMap<String, TableConfig>,
+    pub source_type: SourceType, // point model 对应的数据源类型
+    pub update_mode: Option<UpdateMode>, // OPC 点位更新模式：none/append/update
+    pub generate_rule: Option<GeneratePointMappingBy>, // 生成点位映射规则的方式
+    pub point_config_map: LinkedHashMap<String, PointConfig>, // key: point_id, value: PointConfig
+    pub table_config_map: LinkedHashMap<String, TableConfig>, // key: point_id, value: TableConfig
 }
 
 impl PointModelConfig {
@@ -196,6 +194,7 @@ impl PointModelConfig {
             let _ = seen.insert(stable.to_string());
         }
 
+        tracing::info!("generate {} stable create sqls", sqls.len());
         sqls
     }
 
@@ -214,6 +213,10 @@ impl PointModelConfig {
         let mut result: Vec<String> = Vec::new();
         let mut current: String = String::new();
         let mut has_segment_in_current = false;
+        // 统计成功生成的子表段（即有效点位）的数量
+        let mut point_count: usize = 0;
+        // 统计被跳过的点位数量
+        let mut skipped_count: usize = 0;
 
         for (pid, pcfg) in self.point_config_map.iter() {
             let tbname = pcfg.code.as_str();
@@ -221,11 +224,13 @@ impl PointModelConfig {
             // Preconditions: stable must exist and not be an expression; tag values must exist; table config must exist with tag configs.
             let stable = match pcfg.stable.as_deref() {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} stable is None, skipping", pid);
                     continue;
                 }
                 Some(stable) => {
                     if PointConfig::is_expr(self.source_type, "stable", stable) {
+                        skipped_count += 1;
                         tracing::warn!("point_id: {} stable is expression, skipping", pid);
                         continue;
                     }
@@ -235,6 +240,7 @@ impl PointModelConfig {
 
             let tag_values = match pcfg.tag_values.as_ref() {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} tag_values is None, skipping", pid);
                     continue;
                 }
@@ -242,6 +248,7 @@ impl PointModelConfig {
             };
             let tcfg = match self.table_config_map.get(pid) {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} not found in table_config_map, skipping", pid);
                     continue;
                 }
@@ -249,6 +256,7 @@ impl PointModelConfig {
             };
             let tags = match tcfg.tag_configs.as_ref() {
                 None => {
+                    skipped_count += 1;
                     tracing::warn!("point_id: {} tag_configs is None, skipping", pid);
                     continue;
                 }
@@ -279,6 +287,9 @@ impl PointModelConfig {
                 tbname, stable, tag_names, tag_vals
             );
 
+            // 记录一次有效点位
+            point_count += 1;
+
             if !has_segment_in_current {
                 current = format!("CREATE TABLE {}", segment);
                 has_segment_in_current = true;
@@ -299,6 +310,13 @@ impl PointModelConfig {
             result.push(current);
         }
 
+        // 在最后打印统计信息：点位计数、被跳过的点位数量和 SQL 条数
+        tracing::info!(
+            "generate {} child table create sqls, total points: {}, skipped points: {}",
+            result.len(),
+            point_count,
+            skipped_count
+        );
         result
     }
 
@@ -796,10 +814,37 @@ impl PointModelConfig {
         }
     }
 
+    pub fn need_transform(&self) -> bool {
+        match &self.generate_rule {
+            None | Some(GeneratePointMappingBy::Rule(_)) => false,
+            Some(GeneratePointMappingBy::Csv((_csv, _csv_origin))) => true,
+        }
+    }
+
     pub async fn transform_map(
         &self,
         columns: &[&str],
     ) -> anyhow::Result<HashMap<String, HashMap<String, ColumnConfig>>> {
+        // 如果 update_mode 为 None 或 update_mode=none，优先使用内存中的 table_config_map 构建 transform_map
+        if matches!(self.update_mode, None | Some(UpdateMode::None)) {
+            let mut result: HashMap<String, HashMap<String, ColumnConfig>> = HashMap::new();
+
+            for &col in columns {
+                let mut per_point: HashMap<String, ColumnConfig> = HashMap::new();
+                for (point_id, table_cfg) in &self.table_config_map {
+                    if let Some(col_cfg) = table_cfg.column_config(col) {
+                        per_point.insert(point_id.clone(), col_cfg.clone());
+                    }
+                }
+                if !per_point.is_empty() {
+                    result.insert(col.to_string(), per_point);
+                }
+            }
+            tracing::debug!("get transform map from table_config_map");
+            return Ok(result);
+        }
+
+        // table_config_map 为空：需要从 CSV 中解析（动态点位更新或首次加载）。
         match &self.generate_rule {
             None => Ok(HashMap::new()),
             Some(GeneratePointMappingBy::Rule(_rule)) => {
@@ -810,10 +855,12 @@ impl PointModelConfig {
             }
             Some(GeneratePointMappingBy::Csv((csv, csv_origin))) => match csv_origin {
                 None => {
+                    tracing::debug!("get transform map from csv files");
                     let rdr = CsvParser::open_csv_many(csv.clone()).await?;
                     CsvParser::parse_transform_map(self.source_type, rdr, columns).await
                 }
                 Some(csv_origin) => {
+                    tracing::debug!("get transform map from csv origin");
                     let rdr = CsvParser::open_csv_many(vec![format!("@{}", csv_origin)]).await?;
                     CsvParser::parse_transform_map(self.source_type, rdr, columns).await
                 }
@@ -821,13 +868,16 @@ impl PointModelConfig {
         }
     }
 
-    pub fn get_column_config_map_by_name(&self, col_name: &str) -> HashMap<String, ColumnConfig> {
-        let mut column_config_map = HashMap::new();
+    pub fn get_column_config_map_by_name<'a>(
+        &'a self,
+        col_name: &str,
+    ) -> HashMap<String, &'a ColumnConfig> {
+        let mut column_config_map: HashMap<String, &ColumnConfig> = HashMap::new();
 
         for (point_id, table_config) in &self.table_config_map {
-            let column_config = table_config.column_config(col_name);
-            if let Some(column_config) = column_config {
-                column_config_map.insert(point_id.clone(), column_config.clone());
+            if let Some(column_config) = table_config.column_config(col_name) {
+                // 仅保存引用，避免在热路径上克隆整个 ColumnConfig
+                column_config_map.insert(point_id.clone(), column_config);
             }
         }
 
@@ -2284,6 +2334,99 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         assert!(!PointConfig::is_expr(SourceType::OPCUA, "tbname", "tb123"));
     }
 
+    fn build_point_model_with_two_points() -> PointModelConfig {
+        let mut point_config_map = LinkedHashMap::new();
+        point_config_map.insert(
+            "p1".to_string(),
+            PointConfig {
+                row_index: 1,
+                code: "t1".to_string(),
+                stable: Some("opc_int".to_string()),
+                tag_values: Some(HashMap::from([("tag".to_string(), "1".to_string())])),
+                value_type: Some(IpcDataType::Int32),
+            },
+        );
+        point_config_map.insert(
+            "p2".to_string(),
+            PointConfig {
+                row_index: 2,
+                code: "t2".to_string(),
+                stable: Some("opc_int".to_string()),
+                tag_values: Some(HashMap::from([("tag".to_string(), "2".to_string())])),
+                value_type: Some(IpcDataType::Int32),
+            },
+        );
+
+        let column_configs = vec![
+            ColumnConfig {
+                name: ColumnConfig::ORIGINAL_TS.to_string(),
+                r#type: Some(Ty::Timestamp),
+                alias: Some("ts".to_string()),
+                transform: None,
+                is_primary_key: true,
+            },
+            ColumnConfig {
+                name: ColumnConfig::VALUE.to_string(),
+                r#type: Some(Ty::Int),
+                alias: Some("val".to_string()),
+                transform: None,
+                is_primary_key: false,
+            },
+            ColumnConfig {
+                name: ColumnConfig::QUALITY.to_string(),
+                r#type: Some(Ty::Int),
+                alias: Some("quality".to_string()),
+                transform: None,
+                is_primary_key: false,
+            },
+        ];
+        let tag_configs = vec![TagConfig {
+            name: "tag".to_string(),
+            r#type: IpcDataType::Int32,
+        }];
+        let table_cfg = TableConfig {
+            enabled: Some(1),
+            stable_prefix: None,
+            column_configs: column_configs.clone(),
+            tag_configs: Some(tag_configs.clone()),
+        };
+        let mut table_config_map = LinkedHashMap::new();
+        table_config_map.insert("p1".to_string(), table_cfg.clone());
+        table_config_map.insert("p2".to_string(), table_cfg);
+
+        PointModelConfig {
+            source_type: SourceType::OPCUA,
+            update_mode: None,
+            generate_rule: None,
+            point_config_map,
+            table_config_map,
+        }
+    }
+
+    #[test]
+    fn test_to_stable_sqls_single_stable() {
+        let config = build_point_model_with_two_points();
+        let sqls = config.to_stable_sqls();
+
+        assert_eq!(sqls.len(), 1);
+        let lower = sqls[0].to_lowercase();
+        assert!(lower.contains("create table if not exists `opc_int`"));
+        assert!(lower.contains("`ts` timestamp"));
+        assert!(lower.contains("`val` int"));
+        assert!(lower.contains("tags(`tag`"));
+    }
+
+    #[test]
+    fn test_to_table_sqls_combines_segments() {
+        let config = build_point_model_with_two_points();
+        let sqls = config.to_table_sqls();
+
+        assert_eq!(sqls.len(), 1);
+        let lower = sqls[0].to_lowercase();
+        assert!(lower.contains("create table if not exists `t1` using `opc_int` (`tag`) tags(1)"));
+        assert!(lower.contains("if not exists `t2` using `opc_int` (`tag`) tags(2)"));
+    }
+
     #[tokio::test]
     async fn test_parse_stable() {
         let header = CsvHeader::try_new(
@@ -2763,6 +2906,7 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         // given
         let cfg = PointModelConfig {
             source_type: SourceType::OPCDA,
+            update_mode: None,
             generate_rule: None,
             point_config_map: LinkedHashMap::new(),
             table_config_map: LinkedHashMap::new(),

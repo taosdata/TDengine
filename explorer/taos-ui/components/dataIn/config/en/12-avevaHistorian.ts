@@ -62,6 +62,31 @@ export default {
               field: 'password',
               defaultValue: '',
               type: 'password'
+            },
+            {
+              label: 'Encryption Level',
+              description: 'Set the encryption level for the connection',
+              field: 'encryption',
+              defaultValue: 'Off',
+              type: 'select',
+              options: [
+                {
+                  label: 'Off',
+                  value: 'Off'
+                },
+                {
+                  label: 'On',
+                  value: 'On'
+                },
+                {
+                  label: 'NotSupported',
+                  value: 'NotSupported'
+                },
+                {
+                  label: 'Required',
+                  value: 'Required'
+                }
+              ]
             }
           ]
         }
@@ -116,6 +141,7 @@ export default {
               field: 'table',
               required: true,
               placeholder: 'Runtime.dbo.History',
+              defaultValue: 'Runtime.dbo.History',
               pattern: null,
               grid_two: false,
               type: 'select',
@@ -608,6 +634,7 @@ export default {
   parser: {
     display: 'Payload Transformation',
     required: true,
+    editableSample: true,
     description:
       'taosX could let users to specify the data model in the database, for example, the table name pattern <br>\nand stable name pattern, field names as tags or field names as columns.\n',
     fields: [

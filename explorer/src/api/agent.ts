@@ -1,40 +1,43 @@
-import { request } from "@/utils/request.ts";
+import { request } from '@/utils/request.ts';
+import pathDetector from '@/utils/pathDetector';
+import store from '@/store';
 
 export function getAgentsData() {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
-    url: `/agents?cluster_id=${localStorage.getItem("local_clusterID")}&user_id=${localStorage.getItem("username")}`,
-    method: "get",
+    baseURL: pathDetector.getXApiBasePath(),
+    url: `/agents`,
+    method: 'get',
+    withCredentials: true
   });
 }
 export function addNewAgent(name) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents`,
-    method: "post",
+    method: 'post',
     data: {
-      cluster_id: localStorage.getItem("local_clusterID"),
-      dsn: localStorage.getItem("base_url"),
+      cluster_id: localStorage.getItem('local_clusterID'),
+      dsn: localStorage.getItem('base_url'),
       name,
-      user_id: localStorage.getItem("username"),
-    },
+      user_id: localStorage.getItem('username')
+    }
   });
 }
 
 export function deleteAgent(id) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents/${id}`,
-    method: "delete",
+    method: 'delete'
   });
 }
 
-export function editAgent(name,id) {
+export function editAgent(name, id) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents/${id}`,
-    method: "patch",
-    data:{
+    method: 'patch',
+    data: {
       name
     }
   });

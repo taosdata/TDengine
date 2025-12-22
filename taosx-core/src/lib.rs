@@ -111,3 +111,221 @@ pub use task_set::prelude::TaskNotify;
 
 pub type TaskNotifySender = flume::Sender<TaskNotify>;
 pub type TaskNotifyReceiver = flume::Receiver<TaskNotify>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{NaiveDate, Utc};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn create_license(expire: i64) -> ConnectorLicense {
+        ConnectorLicense {
+            r#type: Some("test".to_string()),
+            number: 1000,
+            speed: 100,
+            expire,
+            expire_time: None,
+        }
+    }
+
+    #[test]
+    fn test_is_expired_day_with_expired_license() {
+        // Create a license that expired 100 days ago
+        let days_since_epoch =
+            (Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days();
+        let license = create_license(days_since_epoch - 100);
+
+        assert!(license.is_expired_day(), "License should be expired");
+    }
+
+    #[test]
+    fn test_is_expired_day_with_valid_license() {
+        // Create a license that expires 100 days in the future
+        let days_since_epoch =
+            (Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days();
+        let license = create_license(days_since_epoch + 100);
+
+        assert!(!license.is_expired_day(), "License should not be expired");
+    }
+
+    #[test]
+    fn test_is_expired_day_boundary_today() {
+        // License expires exactly today
+        let days_since_epoch =
+            (Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days();
+        let license = create_license(days_since_epoch);
+
+        assert!(
+            !license.is_expired_day(),
+            "License expiring today should not be expired"
+        );
+    }
+
+    #[test]
+    fn test_is_expired_day_with_negative_expiry() {
+        // Negative expiry means never expires
+        let license = create_license(-1);
+
+        assert!(
+            !license.is_expired_day(),
+            "License with negative expiry should not be expired"
+        );
+    }
+
+    #[test]
+    fn test_expired_days_with_expired_license() {
+        let days_since_epoch =
+            (Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days();
+        let license = create_license(days_since_epoch - 50);
+
+        let expired = license.expired_days();
+        assert!(expired.is_some(), "Should return expired duration");
+        assert_eq!(
+            expired.unwrap().num_days(),
+            50,
+            "Should be expired for 50 days"
+        );
+    }
+
+    #[test]
+    fn test_expired_days_with_valid_license() {
+        let days_since_epoch =
+            (Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days();
+        let license = create_license(days_since_epoch + 50);
+
+        assert!(
+            license.expired_days().is_none(),
+            "Valid license should return None"
+        );
+    }
+
+    #[test]
+    fn test_expired_days_with_negative_expiry() {
+        let license = create_license(-1);
+
+        assert!(
+            license.expired_days().is_none(),
+            "Negative expiry should return None"
+        );
+    }
+
+    #[test]
+    fn test_is_expired_second_with_expired_license() {
+        // Create a license that expired 1 hour ago
+        let seconds_since_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let license = create_license((seconds_since_epoch - 3600) as i64);
+
+        assert!(license.is_expired_second(), "License should be expired");
+    }
+
+    #[test]
+    fn test_is_expired_second_with_valid_license() {
+        // Create a license that expires 1 hour in the future
+        let seconds_since_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let license = create_license((seconds_since_epoch + 3600) as i64);
+
+        assert!(
+            !license.is_expired_second(),
+            "License should not be expired"
+        );
+    }
+
+    #[test]
+    fn test_is_expired_second_boundary() {
+        // License expires right now
+        let seconds_since_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let license = create_license(seconds_since_epoch as i64);
+
+        assert!(
+            !license.is_expired_second(),
+            "License expiring now should not be expired"
+        );
+    }
+
+    #[test]
+    fn test_is_expired_second_with_negative_expiry() {
+        let license = create_license(-1);
+
+        assert!(
+            !license.is_expired_second(),
+            "License with negative expiry should not be expired"
+        );
+    }
+
+    #[test]
+    fn test_expired_seconds_with_expired_license() {
+        // Create a license that expired 3600 seconds (1 hour) ago
+        let seconds_since_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let license = create_license((seconds_since_epoch - 3600) as i64);
+
+        let expired = license.expired_seconds();
+        assert!(expired.is_some(), "Should return expired duration");
+
+        let duration = expired.unwrap();
+        // Allow some tolerance for test execution time
+        assert!(
+            duration.num_seconds() >= 3599 && duration.num_seconds() <= 3601,
+            "Should be expired for approximately 3600 seconds, got {}",
+            duration.num_seconds()
+        );
+    }
+
+    #[test]
+    fn test_expired_seconds_with_valid_license() {
+        let seconds_since_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let license = create_license((seconds_since_epoch + 3600) as i64);
+
+        assert!(
+            license.expired_seconds().is_none(),
+            "Valid license should return None"
+        );
+    }
+
+    #[test]
+    fn test_expired_seconds_with_negative_expiry() {
+        let license = create_license(-1);
+
+        assert!(
+            license.expired_seconds().is_none(),
+            "Negative expiry should return None"
+        );
+    }
+
+    #[test]
+    fn test_expired_seconds_with_zero_expiry() {
+        // Expiry at Unix epoch (timestamp 0)
+        let license = create_license(0);
+
+        let expired = license.expired_seconds();
+        assert!(
+            expired.is_some(),
+            "Should return expired duration for epoch"
+        );
+    }
+
+    #[test]
+    fn test_expired_seconds_with_far_future_timestamp() {
+        // Test with a timestamp far in the future (year 2100)
+        let license = create_license(4102444800); // Jan 1, 2100
+
+        assert!(
+            license.expired_seconds().is_none(),
+            "Far future license should return None"
+        );
+    }
+}

@@ -3,10 +3,17 @@ export interface TableRow {
   Type: string;
   exprname: string;
   maptype: [string, string];
-  Expression: string;
+  // 表达式在部分模式下（如 sum/join）会多选，使用数组承载
+  Expression: string | string[];
   PrimaryKey?: boolean;
   dataRange?: (bigint | number)[];
   dataType?: string;
+  // 映射默认值（不同类型控件可能传入字符串或数字）
+  default?: string | number | null;
+  // 默认值校验错误信息
+  defaultValueError?: string;
+  // join 模式下的附加参数
+  joinwith?: string;
 }
 
 export interface TransformerState {
@@ -63,9 +70,13 @@ export interface TransformExtractParseDataType {
 }
 
 export interface ParseType {
-  payload?: Recordable;
+  payload?: {
+    json?: string | string[] | Recordable[] | any;
+    [x: string]: any;
+  };
   value?: {
-    json?: string;
+    json?: string | string[] | Recordable[];
+    [x: string]: any;
   };
   [x: string]: any;
 }

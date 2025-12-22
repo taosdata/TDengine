@@ -57,13 +57,13 @@ instanceId = 16
 
 [monitor]
 # FQDN of taosKeeper service, no default value
-#fqdn = "localhost"
+fqdn = "localhost"
 
 # Port of taosKeeper service, default 6043
-#port = 6043
+port = 6043
 
 # How often to send metrics to taosKeeper, default every 10 seconds. Only value from 1 to 10 is valid.
-#interval = 10
+interval = 10
 
 # log configuration
 [log]

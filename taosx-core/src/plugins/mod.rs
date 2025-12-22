@@ -8,7 +8,6 @@ use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuil
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::Instrument;
-use tracing::Span;
 
 use crate::plugins::sink::point::model::PointModelConfig;
 use crate::runners::influxdb::influxdb_datasets;
@@ -127,8 +126,8 @@ pub async fn build_ipc(
     parser: Option<Parser>,
     to: &Dsn,
     connector: Option<&'static str>,
-    opc_model_config: Option<PointModelConfig>,
-    lush_model_config: Option<LushModelConfig>,
+    opc_model_config: Option<Arc<PointModelConfig>>,
+    lush_model_config: Option<Arc<LushModelConfig>>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
     _transferred: Option<Arc<Transferred>>,

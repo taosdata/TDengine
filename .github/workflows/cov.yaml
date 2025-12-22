@@ -1,0 +1,78 @@
+name: Code Coverage
+
+on:
+  # workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "3.0"
+
+env:
+  REPORT_BASE_URL: http://192.168.1.45:8787
+  GRANT_SSH: root@192.168.1.55
+  CARGO_OPTS: --locked
+  COVERAGE_THRESHOLD: 48.0 # Start at current level, gradually increase
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-test:
+    name: Code Coverage Test
+    runs-on: [self-hosted, linux, x64, app2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Code Coverage Test
+        run: |
+          cargo make test
+      - name: Artifact Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: taosx-coverage-report
+          path: target/llvm-cov-merged.lcov
+  upload-coverage:
+    needs: unit-test
+    name: Upload Coverage Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: taosx-coverage-report
+
+      - name: Check Coverage Threshold
+        run: |
+          # Install tools if needed
+          if ! command -v lcov &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y lcov
+          fi
+
+          # Calculate coverage from lcov file
+          lcov --summary llvm-cov-merged.lcov 2>&1 | tee coverage_summary.txt
+
+          # Extract line coverage percentage
+          COVERAGE=$(grep -oP 'lines......: \K[0-9.]+' coverage_summary.txt | head -1)
+
+          echo "Current coverage: ${COVERAGE}%"
+          echo "Required threshold: ${COVERAGE_THRESHOLD}%"
+
+          # Compare coverage to threshold
+          if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below threshold ${COVERAGE_THRESHOLD}%"
+            echo "Please add tests to maintain or improve coverage."
+            exit 1
+          else
+            echo "✅ Coverage ${COVERAGE}% meets or exceeds threshold ${COVERAGE_THRESHOLD}%"
+          fi
+        continue-on-error: false
+
+      - uses: actions/checkout@v4
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: llvm-cov-merged.lcov
+          fail_ci_if_error: true
+          verbose: true

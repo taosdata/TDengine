@@ -139,8 +139,7 @@ export default {
             },
             {
               label: 'Rename Timestamp Field',
-              description:
-                'Rename the timestamp field from OpenTSDB when writing to TDengine, default is "timestamp".',
+              description: 'Rename the timestamp field from OpenTSDB when writing to TDengine, default is "timestamp".',
               field: 'timestampFieldName',
               placeholder: 'Default: timestamp',
               pattern: null,
@@ -151,8 +150,7 @@ export default {
             },
             {
               label: 'Rename Value Field',
-              description:
-                'Rename the value field from OpenTSDB when writing to TDengine, default is "value".',
+              description: 'Rename the value field from OpenTSDB when writing to TDengine, default is "value".',
               field: 'valueFieldName',
               placeholder: 'Default: value',
               pattern: null,
@@ -160,6 +158,18 @@ export default {
               type: 'input',
               min: 1,
               max: 30
+            },
+            {
+              label: 'Subtable Name Pattern',
+              description:
+                'The expression to generate subtable names in TDengine. E.g., "tb_${tag1}_${tag2}", means the subtable name is composed of the values of tag1 and tag2. If not specified, the default subtable naming convention is used.',
+              field: 'tableNamePattern',
+              placeholder: 'Please enter the subtable name pattern',
+              pattern: null,
+              grid_two: false,
+              type: 'input',
+              min: 1,
+              max: 200
             }
           ],
           hide: false

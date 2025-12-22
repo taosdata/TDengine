@@ -1,11 +1,12 @@
 import { request } from '@/utils/request.ts';
 import { getLocalLang, decrypt } from '@/utils';
+import pathDetector from '@/utils/pathDetector';
 
 const language = getLocalLang();
 //获取backup列表
 export function getBackupList(id: string | number, type: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id}`,
     method: 'get'
   });
@@ -13,7 +14,7 @@ export function getBackupList(id: string | number, type: string) {
 
 export function getBackupHistory(id) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/backup/${id}/points`,
     method: 'get'
   });
@@ -22,7 +23,7 @@ export function getBackupHistory(id) {
 //添加backup
 // export function addBackupData(clusterID: string, data: Recordable) {
 //   return request({
-//     baseURL: import.meta.env.VITE_APP_X_API,
+//     baseURL: pathDetector.getXApiBasePath(),
 //     headers: {
 //       'Content-Type': 'application/json'
 //     },
@@ -35,7 +36,7 @@ export function getBackupHistory(id) {
 //编辑backup
 export function editBackup(id: string | number, data: Recordable) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}`,
     method: 'patch',
     data
@@ -45,7 +46,7 @@ export function editBackup(id: string | number, data: Recordable) {
 //删除backup
 export function deleteBackup(id: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}`,
     method: 'delete'
   });
@@ -64,7 +65,7 @@ export function restoreBackups(restoreData: any) {
   }
 
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks`,
     method: 'post',
     data: {
@@ -79,7 +80,7 @@ export function restoreBackups(restoreData: any) {
 //恢复backup
 export function restoreBackupData(clusterID: string, data: Recordable) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     headers: {
       'Content-Type': 'application/json'
     },
@@ -92,7 +93,7 @@ export function restoreBackupData(clusterID: string, data: Recordable) {
 //添加backup
 export function addBackupData(data) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     headers: {
       'Content-Type': 'application/json'
     },

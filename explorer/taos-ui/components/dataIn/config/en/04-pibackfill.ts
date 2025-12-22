@@ -83,9 +83,10 @@ export default {
       label: 'Data Model Configuration',
       description:
         'Use the default configuration, or download and modify it before uploading. Configure the entry points or elements, the data model for entry, data filtering conditions, and transformation rules.',
-      field: 'datasets',
+      field: 'model',
       type: 'tabs',
       multiple: false,
+      valueField: 'only-choose-one$',
       name: 'datasets',
       children: [
         {
@@ -214,7 +215,6 @@ export default {
           defaultValue: ''
         }
       ],
-      valueField: 'a7dcf55a-a4ea-483b-8980-2db60cd2d8d6',
       defaultValue: 'single-column'
     },
     {

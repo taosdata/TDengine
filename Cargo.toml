@@ -229,7 +229,7 @@ reclaim-memory = { path = "./crates/reclaim-memory" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "9eddb6e3"
+rev = "29b8215d"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]

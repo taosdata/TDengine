@@ -1,54 +1,18 @@
-use std::str::FromStr;
-
-use crate::runners::opc::config::PointsMode;
-use crate::runners::opc::OpcType;
-use crate::utils;
+use crate::{runners::opc::OpcType, sink::point::UpdateMode};
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
-/// 动态点位更新的模式
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum UpdateMode {
-    None,
-    Append,
-    Update,
-}
-
-impl FromStr for UpdateMode {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "none" => Ok(UpdateMode::None),
-            "append" => Ok(UpdateMode::Append),
-            "update" => Ok(UpdateMode::Update),
-            _ => Err(anyhow::anyhow!(
-                "invalid update mode: {}, must be none/append/update",
-                s
-            )),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsConfig {
-    // always 0
-    pub limit: usize,
-    /// 正则表达式，匹配 NodeId || BrowseName，兼容旧版本
-    pub regex: Option<String>,
-    /// 正则表达式，匹配 BrowseName
-    pub regex_name: Option<String>,
-    /// 正则表达式，匹配 NodeId
-    pub regex_id: Option<String>,
-    /// OPC UA 配置
-    pub ua: Option<PointsUaConfig>,
-    /// OPC DA 配置
-    pub da: Option<PointsDaConfig>,
+    pub limit: usize,               // always 0
+    pub regex: Option<String>,      // 正则表达式，匹配 NodeId || BrowseName，兼容旧版本
+    pub regex_name: Option<String>, // 正则表达式，匹配 BrowseName
+    pub regex_id: Option<String>,   // 正则表达式，匹配 NodeId
+    pub ua: Option<PointsUaConfig>, // OPC UA 配置
+    pub da: Option<PointsDaConfig>, // OPC DA 配置
 
-    /// 点位更新模式
-    pub update_mode: Option<UpdateMode>,
-    /// 点位更新间隔
-    pub update_interval: Option<usize>,
+    pub update_mode: Option<UpdateMode>, // 点位更新模式
+    pub update_interval: Option<usize>,  // 点位更新间隔
 }
 
 impl PointsConfig {
@@ -67,41 +31,20 @@ impl PointsConfig {
             OpcType::FAKE => (None, None),
         };
 
-        let points_mode = PointsMode::from_dsn(dsn)?;
-        let (update_mode, update_interval) = match points_mode {
-            PointsMode::ByCsv => {
-                match utils::parse_key_in_dsn::<String>(dsn, "update_mode")
-                    .ok()
-                    .flatten()
-                    .and_then(|s| s.parse::<UpdateMode>().ok())
-                {
-                    // default update_mode is append, default update_interval is 60 seconds
-                    None => (Some(UpdateMode::Append), Some(60usize)),
-                    Some(c) => (Some(c), None),
-                }
-            }
-            PointsMode::ByCommand => {
-                let update_mode = dsn
-                    .params
-                    .get("update_mode")
-                    .map(|v| v.parse::<UpdateMode>())
-                    .transpose()?;
-                let update_interval = dsn
-                    .params
-                    .get("update_interval")
-                    .map(|v| {
-                        v.parse::<usize>().map_err(|err| {
-                            anyhow::anyhow!(
-                                "invalid update_interval: {}, cause: {}",
-                                v,
-                                err.to_string()
-                            )
-                        })
-                    })
-                    .transpose()?;
-                (update_mode, update_interval)
-            }
-        };
+        let update_mode = dsn
+            .params
+            .get("update_mode")
+            .map(|v| v.parse::<UpdateMode>())
+            .transpose()?;
+        let update_interval = dsn
+            .params
+            .get("update_interval")
+            .map(|v| {
+                v.parse::<usize>().map_err(|err| {
+                    anyhow::anyhow!("invalid update_interval: {}, cause: {}", v, err.to_string())
+                })
+            })
+            .transpose()?;
 
         Ok(Self {
             regex: Self::parse_regex("pattern", dsn),
@@ -180,6 +123,8 @@ impl PointsDaConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -224,6 +169,18 @@ mod tests {
         assert_eq!(config.regex, None);
         assert_eq!(config.regex_id, Some("^(?!._Error.$)".to_string()));
         assert_eq!(config.regex_name, None);
+    }
+
+    #[test]
+    fn test_from_dsn_update_mode_and_interval() {
+        let dsn = Dsn::from_str("opcda://?update_mode=append&update_interval=60").unwrap();
+        let config = PointsConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.update_mode, Some(UpdateMode::Append));
+        assert_eq!(config.update_interval, Some(60));
+
+        let dsn = Dsn::from_str("opcda://?update_mode=update&update_interval=bad").unwrap();
+        let err = PointsConfig::from_dsn(&dsn).unwrap_err();
+        assert!(err.to_string().contains("invalid update_interval"));
     }
 
     #[test]

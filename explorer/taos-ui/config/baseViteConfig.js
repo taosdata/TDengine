@@ -26,7 +26,7 @@ export function getBaseConfig(configEnv, additionalScss, deployUrl, commonIcons,
   const lifecycle = process.env.npm_lifecycle_event;
   const { VITE_SERVICE_PORT = 8080 } = loadEnv(configEnv.mode, process.cwd());
   const baseConfig = {
-    base: '/',
+    base: './',
     resolve: {
       alias: {
         '@': resolve('src'),

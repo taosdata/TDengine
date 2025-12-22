@@ -98,7 +98,7 @@ pub async fn pulsar_to_taos(
     let cancel = upstream_cancel.child_token();
     let _drop_guard = cancel.clone().drop_guard();
     tracing::info!(
-        "pulsar task: {} start, from: {}, parser: {}, to: {}",
+        "pulsar_to_taos, detail params task_id: {}, from: {}, parser: {}, to: {}",
         task_id.unwrap_or(-1),
         from,
         serde_json::to_string(&parser)?,
@@ -264,8 +264,6 @@ pub async fn pulsar_to_taos(
             reset_metrics!();
         }
     }
-    // send an empty tuple
-    // stop the connector
     tracing::info!(task_id = task_id.unwrap_or(-1), "Pulsar task Done");
     // wait for completion
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -285,21 +283,22 @@ async fn execute(
 
     // create pulsar consumers
     let config = PulsarTaskConfig::from_dsn(&from)?;
-
     let batch_size = config.advanced_options.batch_size.unwrap_or(1000);
     let batch_timeout_ms = config.advanced_options.batch_timeout.unwrap_or(1000) as i64;
+    // split into sub tasks
+    let sub_tasks = SubTask::build_tasks(&config, &metrics_arc).await?;
+    let schema = Arc::new(build_schema());
+    let pending_batches: PendingBatches = Arc::new(scc::HashMap::new());
+    let global_last_message = Arc::new(RwLock::new(Instant::now()));
+
     tracing::info!(
         timeout = config.timeout,
         batch.size = batch_size,
         batch.timeout.ms = batch_timeout_ms,
+        parallel = parallel,
+        subtask.len = sub_tasks.len(),
         "Pulsar consumer configuration"
     );
-
-    // split into sub tasks
-    let sub_tasks = SubTask::build_tasks(config, &metrics_arc).await?;
-    let schema = Arc::new(build_schema());
-    let pending_batches: PendingBatches = Arc::new(scc::HashMap::new());
-    let global_last_message = Arc::new(RwLock::new(Instant::now()));
 
     let permits = Arc::new(tokio::sync::Semaphore::new(
         parallel.max(sub_tasks.len() * 4),

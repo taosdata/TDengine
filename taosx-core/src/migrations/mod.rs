@@ -428,8 +428,11 @@ pub async fn migrate(from: &Dsn, to: &Dsn, options: &Options) -> anyhow::Result<
 mod tests {
     use crate::utils::constants::VERSION_3_3_3;
     use itertools::Itertools;
+    use serde_json::json;
+    use std::fs;
     use std::str::FromStr;
     use taos::{AsyncQueryable, AsyncTBuilder, TaosBuilder};
+    use tempfile::TempDir;
 
     #[test]
     fn test_compare_version() {
@@ -463,6 +466,210 @@ mod tests {
         assert!(comparator.matches("3.1.1.0.alpha"));
         assert!(!comparator.matches("3.1.2.0"));
         assert!(!comparator.matches("3.1.0.0"));
+    }
+
+    #[test]
+    fn test_options_load_from_file_passwords_and_privileges_scoping() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("exported-privileges.json");
+        let export = json!({
+            "version": "3.3.4",
+            "users": [{
+                "name": "user1",
+                "super": 0,
+                "enable": 1,
+                "sysinfo": 1,
+                "createdb": 0,
+                "encrypted_pass": "pass",
+                "allowed_host": "127.0.0.1"
+            }],
+            "privileges": [{
+                "user_name": "user1",
+                "privilege": "read",
+                "db_name": "db1",
+                "table_name": "",
+                "condition": "",
+                "notes": ""
+            }]
+        });
+        fs::write(&file, export.to_string()).unwrap();
+
+        let options = super::Options::new(false, true, false);
+        let export = options.load_from_file(&file).unwrap();
+
+        assert!(
+            export.users.is_empty(),
+            "passwords disabled should clear users"
+        );
+        assert_eq!(export.privileges.len(), 1);
+        assert_eq!(export.privileges[0].user_name, "user1");
+    }
+
+    #[test]
+    fn test_options_load_from_file_whitelist_removed() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("exported-privileges.json");
+        let export = json!({
+            "version": "3.3.4",
+            "users": [{
+                "name": "user2",
+                "super": 0,
+                "enable": 1,
+                "sysinfo": 1,
+                "createdb": 0,
+                "encrypted_pass": "pass",
+                "allowed_host": "10.0.0.1,10.0.0.2"
+            }],
+            "privileges": []
+        });
+        fs::write(&file, export.to_string()).unwrap();
+
+        let options = super::Options::new(true, false, false);
+        let export = options.load_from_file(&file).unwrap();
+
+        assert_eq!(export.users.len(), 1);
+        assert!(
+            export.users[0].allowed_host.is_none(),
+            "whitelist disabled should strip allowed_host"
+        );
+        assert!(export.privileges.is_empty());
+    }
+
+    #[test]
+    fn test_apply_results_display_success() {
+        let results = super::ApplyResults {
+            success: super::ApplySuccess {
+                passwords: 2,
+                privileges: 1,
+            },
+            fails: None,
+        };
+
+        let formatted = format!("{}", results);
+        assert_eq!(formatted, "Success: 2 users imported successfully");
+    }
+
+    #[test]
+    fn test_apply_results_display_partial_fail() {
+        let results = super::ApplyResults {
+            success: super::ApplySuccess {
+                passwords: 1,
+                privileges: 0,
+            },
+            fails: Some(super::ApplyFails {
+                passwords: vec![super::ApplyFail::new("u1", "reason1")],
+                privileges: vec![super::ApplyFail::privilege("u2", "read on `db`", "denied")],
+            }),
+        };
+
+        let formatted = format!("{}", results);
+        let expected = concat!(
+            "Partially failed: 1 users imported successfully, 2 items failed: \n",
+            "- User `u1` import fails: reason1, \n",
+            "- User `u2` privilege `read on `db`` import fails: denied, \n"
+        );
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_options_default_values() {
+        let opts = super::Options::default();
+        assert!(opts.passwords);
+        assert!(opts.privileges);
+        assert!(opts.whitelist);
+    }
+
+    #[test]
+    fn test_export_patch_with_remove_passwords() {
+        let mut export: super::Export = serde_json::from_value(json!({
+            "version": "3.3.4",
+            "users": [{
+                "name": "u1",
+                "super": 0,
+                "enable": 1,
+                "sysinfo": 1,
+                "createdb": 0,
+                "encrypted_pass": "pass",
+                "allowed_host": "127.0.0.1"
+            }],
+            "privileges": [{
+                "user_name": "u1",
+                "privilege": "read",
+                "db_name": "db",
+                "table_name": "",
+                "condition": "",
+                "notes": ""
+            }]
+        }))
+        .unwrap();
+
+        let options = super::Options::new(false, true, true);
+        export.patch_with(&options);
+
+        assert!(export.users.is_empty(), "users should be cleared");
+        assert_eq!(export.privileges.len(), 1, "privileges remain intact");
+    }
+
+    #[test]
+    fn test_export_patch_with_remove_privileges() {
+        let mut export: super::Export = serde_json::from_value(json!({
+            "version": "3.3.4",
+            "users": [{
+                "name": "u1",
+                "super": 0,
+                "enable": 1,
+                "sysinfo": 1,
+                "createdb": 0,
+                "encrypted_pass": "pass",
+                "allowed_host": "127.0.0.1"
+            }],
+            "privileges": [{
+                "user_name": "u1",
+                "privilege": "read",
+                "db_name": "db",
+                "table_name": "",
+                "condition": "",
+                "notes": ""
+            }]
+        }))
+        .unwrap();
+
+        let options = super::Options::new(true, false, true);
+        export.patch_with(&options);
+
+        assert!(export.privileges.is_empty(), "privileges should be cleared");
+        assert_eq!(export.users.len(), 1, "users remain intact");
+    }
+
+    #[test]
+    fn test_export_patch_with_strip_whitelist() {
+        let mut export: super::Export = serde_json::from_value(json!({
+            "version": "3.3.4",
+            "users": [{
+                "name": "u1",
+                "super": 0,
+                "enable": 1,
+                "sysinfo": 1,
+                "createdb": 0,
+                "encrypted_pass": "pass",
+                "allowed_host": "10.0.0.1,10.0.0.2"
+            }],
+            "privileges": [{
+                "user_name": "u1",
+                "privilege": "read",
+                "db_name": "db",
+                "table_name": "",
+                "condition": "",
+                "notes": ""
+            }]
+        }))
+        .unwrap();
+
+        let options = super::Options::new(true, true, false);
+        export.patch_with(&options);
+
+        assert!(export.users[0].allowed_host.is_none(), "whitelist removed");
+        assert_eq!(export.privileges.len(), 1, "privileges remain intact");
     }
 
     // todo: open after TD-38169 fixed

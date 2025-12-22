@@ -446,6 +446,24 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
+    #[test]
+    fn test_postgres_id_matches_validation() {
+        assert_eq!(POSTGRES_ID, "postgres");
+        assert_eq!(POSTGRES_NAME, "Postgres");
+    }
+
+    #[tokio::test]
+    async fn test_is_valid_invalid_dsn() {
+        let dsn = Dsn::from_str("invalid://dsn").unwrap();
+        let result = is_valid(&dsn).await;
+        assert!(!result.valid);
+        assert_eq!(result.data_source, POSTGRES_ID);
+    }
+
+    // Note: Detailed generate_json_value tests removed as they require actual sqlx types
+    // and complex setup. The generate_json_value function is tested through integration tests.
+    // Tests for specific data types should be added as integration tests with actual DB connections.
+
     async fn test_create_database() {
         let dsn =
             Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/postgres").unwrap();

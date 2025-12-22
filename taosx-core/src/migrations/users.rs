@@ -89,6 +89,148 @@ mod tests {
     use super::*;
     use taos::{AsyncTBuilder, TaosBuilder};
 
+    #[test]
+    fn test_to_sqls_basic_user() {
+        let user = User {
+            name: "testuser".to_string(),
+            is_super: 0,
+            enable: 1,
+            sysinfo: 1,
+            createdb: 0,
+            encrypted_pass: "encrypted123".to_string(),
+            allowed_host: None,
+        };
+
+        let sqls = user.to_sqls(false);
+        assert_eq!(sqls.len(), 1);
+        assert_eq!(
+            sqls[0],
+            "CREATE USER `testuser` PASS 'encrypted123' SYSINFO 1 CREATEDB 0 IS_IMPORT 1"
+        );
+    }
+
+    #[test]
+    fn test_to_sqls_super_user() {
+        let user = User {
+            name: "adminuser".to_string(),
+            is_super: 1,
+            enable: 1,
+            sysinfo: 1,
+            createdb: 1,
+            encrypted_pass: "pass456".to_string(),
+            allowed_host: None,
+        };
+
+        let sqls = user.to_sqls(false);
+        assert_eq!(sqls.len(), 2);
+        assert!(sqls[0].contains("CREATE USER `adminuser`"));
+        assert_eq!(sqls[1], "ALTER USER `adminuser` SUPER 1");
+    }
+
+    #[test]
+    fn test_to_sqls_disabled_user() {
+        let user = User {
+            name: "disabled".to_string(),
+            is_super: 0,
+            enable: 0,
+            sysinfo: 0,
+            createdb: 0,
+            encrypted_pass: "pass789".to_string(),
+            allowed_host: None,
+        };
+
+        let sqls = user.to_sqls(false);
+        assert_eq!(sqls.len(), 2);
+        assert!(sqls[0].contains("CREATE USER `disabled`"));
+        assert_eq!(sqls[1], "ALTER USER `disabled` ENABLE 0");
+    }
+
+    #[test]
+    fn test_to_sqls_super_disabled_user() {
+        let user = User {
+            name: "superdisabled".to_string(),
+            is_super: 1,
+            enable: 0,
+            sysinfo: 1,
+            createdb: 1,
+            encrypted_pass: "passabc".to_string(),
+            allowed_host: None,
+        };
+
+        let sqls = user.to_sqls(false);
+        assert_eq!(sqls.len(), 3);
+        assert!(sqls[0].contains("CREATE USER `superdisabled`"));
+        assert_eq!(sqls[1], "ALTER USER `superdisabled` SUPER 1");
+        assert_eq!(sqls[2], "ALTER USER `superdisabled` ENABLE 0");
+    }
+
+    #[test]
+    fn test_to_sqls_with_whitelist_single_host() {
+        let user = User {
+            name: "whitelistuser".to_string(),
+            is_super: 0,
+            enable: 1,
+            sysinfo: 1,
+            createdb: 0,
+            encrypted_pass: "pass000".to_string(),
+            allowed_host: Some("192.168.1.1".to_string()),
+        };
+
+        let sqls = user.to_sqls(true);
+        assert_eq!(sqls.len(), 1);
+        assert!(sqls[0].contains("HOST '192.168.1.1'"));
+    }
+
+    #[test]
+    fn test_to_sqls_with_whitelist_multiple_hosts() {
+        let user = User {
+            name: "multihost".to_string(),
+            is_super: 0,
+            enable: 1,
+            sysinfo: 1,
+            createdb: 0,
+            encrypted_pass: "passmulti".to_string(),
+            allowed_host: Some("192.168.1.1,192.168.1.2,10.0.0.1".to_string()),
+        };
+
+        let sqls = user.to_sqls(true);
+        assert_eq!(sqls.len(), 1);
+        assert!(sqls[0].contains("HOST '192.168.1.1','192.168.1.2','10.0.0.1'"));
+    }
+
+    #[test]
+    fn test_to_sqls_without_whitelist_ignores_host() {
+        let user = User {
+            name: "nohostuser".to_string(),
+            is_super: 0,
+            enable: 1,
+            sysinfo: 1,
+            createdb: 0,
+            encrypted_pass: "passnohost".to_string(),
+            allowed_host: Some("192.168.1.1".to_string()),
+        };
+
+        let sqls = user.to_sqls(false);
+        assert_eq!(sqls.len(), 1);
+        assert!(!sqls[0].contains("HOST"));
+    }
+
+    #[test]
+    fn test_to_sql_drop() {
+        let user = User {
+            name: "dropme".to_string(),
+            is_super: 0,
+            enable: 1,
+            sysinfo: 1,
+            createdb: 0,
+            encrypted_pass: "passdrop".to_string(),
+            allowed_host: None,
+        };
+
+        let drop_sql = user.to_sql_drop();
+        assert_eq!(drop_sql, "DROP USER `dropme`");
+    }
+
     // todo: open after TD-38169 fixed
     #[ignore]
     #[tokio::test]

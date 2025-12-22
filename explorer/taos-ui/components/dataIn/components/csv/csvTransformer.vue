@@ -413,15 +413,14 @@ function handleRemove(_file: any, filelist: []) {
 }
 
 function handleSuccess(_response: any, _file: any, fileList: []) {
-  if (fileList.length > 2) {
-    fileList.splice(fileList.length - 1, 1);
-  }
-
   state.fileList = fileList;
   state.showfiletip = false;
   localData.upload_csv_file.file_url = dataInProps.isCloud
     ? _response.data.join(',')
-    : fileList.map((item: any) => item.response[0]).join(',');
+    : fileList
+      .filter((item: any) => item.response)
+      .map((item: any) => item.response[0])
+      .join(',');
 }
 function csvFileInputOK() {
   if (localData.currentTab == 'upload_csv_file' && state.fileList.length == 0) {

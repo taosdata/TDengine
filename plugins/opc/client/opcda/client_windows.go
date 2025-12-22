@@ -42,6 +42,12 @@ type DAClient struct {
 	changeChan chan *changeData
 
 	containsBad bool
+
+	ReconnectTimes              int
+	AddTagRetryTimes            int
+	ReconnectInterval           time.Duration
+	AddTagRetryInterval         time.Duration
+	FailedReadsToForceReconnect int
 }
 
 type TagInfo struct {
@@ -52,10 +58,15 @@ type TagInfo struct {
 func NewDAClient(ctx context.Context, connectConfig config.DaConnectConfig, index int, logger *logrus.Entry) (*DAClient, error) {
 	opcLogger := logger.WithField("opcType", "da").WithField("id", index)
 	c := &DAClient{
-		ctx:    ctx,
-		server: connectConfig.Server,
-		nodes:  connectConfig.Nodes,
-		logger: opcLogger,
+		ctx:                         ctx,
+		server:                      connectConfig.Server,
+		nodes:                       connectConfig.Nodes,
+		logger:                      opcLogger,
+		ReconnectTimes:              connectConfig.ReconnectTimes,
+		AddTagRetryTimes:            connectConfig.AddTagRetryTimes,
+		ReconnectInterval:           time.Duration(connectConfig.ReconnectInterval) * time.Millisecond,
+		AddTagRetryInterval:         time.Duration(connectConfig.AddTagRetryInterval) * time.Millisecond,
+		FailedReadsToForceReconnect: connectConfig.FailedReadsToForceReconnect,
 	}
 	return c, nil
 }
@@ -63,7 +74,30 @@ func NewDAClient(ctx context.Context, connectConfig config.DaConnectConfig, inde
 func (c *DAClient) Connect() error {
 	c.logger.Info("opcda start to connect")
 	var err error
-	c.conn, err = opc.NewConnection(c.server, c.nodes, []string{})
+	connConfig := opc.DefaultConnectionConfig()
+	if c.ReconnectTimes > 0 {
+		connConfig.ReconnectTimes = c.ReconnectTimes
+	}
+	if c.ReconnectInterval > 0 {
+		connConfig.ReconnectInterval = c.ReconnectInterval
+	}
+	if c.AddTagRetryTimes > 0 {
+		connConfig.AddTagRetryTimes = c.AddTagRetryTimes
+	}
+	if c.AddTagRetryInterval > 0 {
+		connConfig.AddTagRetryInterval = c.AddTagRetryInterval
+	}
+	if c.FailedReadsToForceReconnect > 0 {
+		connConfig.FailedReadsToForceReconnect = c.FailedReadsToForceReconnect
+	}
+	c.logger.Infof("opcda connect with reconnect_times:%d,reconnect_interval:%s,add_tag_retry_times:%d,add_tag_retry_interval:%s,failed_reads_to_force_reconnect:%d",
+		connConfig.ReconnectTimes,
+		connConfig.ReconnectInterval,
+		connConfig.AddTagRetryTimes,
+		connConfig.AddTagRetryInterval,
+		connConfig.FailedReadsToForceReconnect,
+	)
+	c.conn, err = opc.NewConnection(c.server, c.nodes, []string{}, connConfig, c.logger)
 	if err != nil {
 		c.logger.WithError(err).Error("opcda connect error")
 		return err
@@ -172,7 +206,7 @@ func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.
 			}
 		}
 	}()
-	c.logger.Info("opcda collect success")
+	c.logger.Infof("opcda collect success, total tags: %d, added tags: %d, add failed tags: %d", len(c.tags), addedCount, len(c.tags)-addedCount)
 	return nil
 }
 
@@ -286,7 +320,7 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		}
 	}
 
-	tree, err := opc.CreateBrowser(c.server, c.nodes)
+	tree, err := opc.CreateBrowser(c.server, c.nodes, c.logger)
 	if err != nil {
 		return nil, fmt.Errorf("get all tags error. create browser error %v", err)
 	}

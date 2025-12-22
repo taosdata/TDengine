@@ -35,19 +35,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-embed"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c98712e024dd57b911850c78d6fc5277e8be54afcdef70d6f4b628812c07dcf7"
-dependencies = [
- "actix-web",
- "futures-core",
- "hex",
- "mime_guess",
- "rust-embed 6.8.1",
-]
-
-[[package]]
 name = "actix-files"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -211,6 +198,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-session"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "400c27fd4cdbe0082b7bbd29ac44a3070cbda1b2114138dc106ba39fe2f90dff"
+dependencies = [
+ "actix-service",
+ "actix-utils",
+ "actix-web",
+ "anyhow",
+ "derive_more 2.0.1",
+ "rand 0.9.1",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "actix-tls"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,6 +299,23 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.104",
+]
+
+[[package]]
+name = "actix-web-rust-embed-responder"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c13f506cf23af2c79505d155ebd2724677761cf0aa4b636a3c011a2b1e60a358"
+dependencies = [
+ "actix-web",
+ "base64 0.22.1",
+ "brotli",
+ "chrono",
+ "flate2",
+ "futures-core",
+ "lazy_static",
+ "regex",
+ "rust-embed",
 ]
 
 [[package]]
@@ -1561,6 +1582,12 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
+
+[[package]]
+name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
@@ -1987,11 +2014,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
-name = "cc"
-version = "1.2.29"
+name = "cbc"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c1599538de2394445747c8cf7935946e3cc27e9625f889d979bfb2aaf569362"
+checksum = "26b52a9543ae338f279b96b0b9fed9c8093744685043739079ce85cd58f289a6"
 dependencies = [
+ "cipher",
+]
+
+[[package]]
+name = "cc"
+version = "1.2.47"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd405d82c84ff7f35739f175f67d8b9fb7687a0e84ccdc78bd3568839827cf07"
+dependencies = [
+ "find-msvc-tools",
  "jobserver",
  "libc",
  "shlex",
@@ -2353,7 +2390,14 @@ version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e859cd57d0710d9e06c381b550c06e76992472a8c6d527aecd2fc673dcc231fb"
 dependencies = [
+ "aes-gcm",
+ "base64 0.20.0",
+ "hkdf",
+ "hmac",
  "percent-encoding",
+ "rand 0.8.5",
+ "sha2",
+ "subtle",
  "time",
  "version_check",
 ]
@@ -3452,6 +3496,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "find-msvc-tools"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a3076410a55c90011c298b04d0cfa770b00fa04e1e3c97d3f6c9de105a03844"
+
+[[package]]
 name = "fixedbitset"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3642,8 +3692,10 @@ version = "1.11.0"
 dependencies = [
  "anyhow",
  "futures",
+ "futures-test",
  "pin-project-lite",
  "tokio",
+ "tokio-test",
 ]
 
 [[package]]
@@ -3698,6 +3750,22 @@ name = "futures-task"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f90f7dce0722e95104fcb095585910c0977252f286e354b5e3bd38902cd99988"
+
+[[package]]
+name = "futures-test"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5961fb6311645f46e2cdc2964a8bfae6743fd72315eaec181a71ae3eb2467113"
+dependencies = [
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-macro",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "pin-project",
+]
 
 [[package]]
 name = "futures-util"
@@ -5338,7 +5406,7 @@ checksum = "ae960838283323069879657ca3de837e9f7bbb4c7bf6ea7f1b290d5e9476d2e0"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=9eddb6e3#9eddb6e3fca9e1ea0e652850344f8c163a3764e7"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=29b8215d#29b8215d5cb8385244a49d4b5f4b59ff65ee56f2"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -5914,6 +5982,26 @@ dependencies = [
 
 [[package]]
 name = "oauth2"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c38841cdd844847e3e7c8d29cef9dcfed8877f8f56f9071f77843ecf3baf937f"
+dependencies = [
+ "base64 0.13.1",
+ "chrono",
+ "getrandom 0.2.16",
+ "http 0.2.12",
+ "rand 0.8.5",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "sha2",
+ "thiserror 1.0.69",
+ "url",
+]
+
+[[package]]
+name = "oauth2"
 version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
@@ -6027,6 +6115,38 @@ dependencies = [
 
 [[package]]
 name = "openidconnect"
+version = "3.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f47e80a9cfae4462dd29c41e987edd228971d6565553fbc14b8a11e666d91590"
+dependencies = [
+ "base64 0.13.1",
+ "chrono",
+ "dyn-clone",
+ "ed25519-dalek",
+ "hmac",
+ "http 0.2.12",
+ "itertools 0.10.5",
+ "log",
+ "oauth2 4.4.2",
+ "p256",
+ "p384",
+ "rand 0.8.5",
+ "rsa",
+ "serde",
+ "serde-value",
+ "serde_derive",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_plain",
+ "serde_with",
+ "sha2",
+ "subtle",
+ "thiserror 1.0.69",
+ "url",
+]
+
+[[package]]
+name = "openidconnect"
 version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d8c6709ba2ea764bbed26bce1adf3c10517113ddea6f2d4196e4851757ef2b2"
@@ -6039,7 +6159,7 @@ dependencies = [
  "http 1.3.1",
  "itertools 0.10.5",
  "log",
- "oauth2",
+ "oauth2 5.0.0",
  "p256",
  "p384",
  "rand 0.8.5",
@@ -7075,8 +7195,8 @@ dependencies = [
  "lz4",
  "native-tls",
  "nom",
- "oauth2",
- "openidconnect",
+ "oauth2 5.0.0",
+ "openidconnect 4.0.1",
  "pem",
  "prost 0.13.5",
  "prost-build",
@@ -7852,68 +7972,37 @@ dependencies = [
 
 [[package]]
 name = "rust-embed"
-version = "6.8.1"
+version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a36224c3276f8c4ebc8c20f158eca7ca4359c8db89991c4925132aaaf6702661"
+checksum = "947d7f3fad52b283d261c4c99a084937e2fe492248cb9a68a8435a861b8798ca"
 dependencies = [
- "rust-embed-impl 6.8.1",
- "rust-embed-utils 7.8.1",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed"
-version = "8.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "025908b8682a26ba8d12f6f2d66b987584a4a87bc024abc5bbc12553a8cd178a"
-dependencies = [
- "rust-embed-impl 8.7.2",
- "rust-embed-utils 8.7.2",
+ "actix-web",
+ "mime_guess",
+ "rust-embed-impl",
+ "rust-embed-utils",
  "walkdir",
 ]
 
 [[package]]
 name = "rust-embed-impl"
-version = "6.8.1"
+version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49b94b81e5b2c284684141a2fb9e2a31be90638caf040bf9afbc5a0416afe1ac"
+checksum = "5fa2c8c9e8711e10f9c4fd2d64317ef13feaab820a4c51541f1a8c8e2e851ab2"
 dependencies = [
  "proc-macro2",
  "quote",
- "rust-embed-utils 7.8.1",
- "syn 2.0.104",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-impl"
-version = "8.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6065f1a4392b71819ec1ea1df1120673418bf386f50de1d6f54204d836d4349c"
-dependencies = [
- "proc-macro2",
- "quote",
- "rust-embed-utils 8.7.2",
+ "rust-embed-utils",
  "syn 2.0.104",
  "walkdir",
 ]
 
 [[package]]
 name = "rust-embed-utils"
-version = "7.8.1"
+version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d38ff6bf570dc3bb7100fce9f7b60c33fa71d80e88da3f2580df4ff2bdded74"
+checksum = "60b161f275cb337fe0a44d924a5f4df0ed69c2c39519858f931ce61c779d3475"
 dependencies = [
- "sha2",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-utils"
-version = "8.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6cc0c81648b20b70c491ff8cce00c1c3b223bb8ed2b5d41f0e54c6c4c0a3594"
-dependencies = [
+ "mime_guess",
  "sha2",
  "walkdir",
 ]
@@ -8318,10 +8407,11 @@ checksum = "1bc711410fbe7399f390ca1c3b60ad0f53f80e95c5eb935e52268a0e2cd49acc"
 
 [[package]]
 name = "serde"
-version = "1.0.219"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
+ "serde_core",
  "serde_derive",
 ]
 
@@ -8360,10 +8450,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_derive"
-version = "1.0.219"
+name = "serde_core"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
+checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8555,6 +8654,31 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "serial_test"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b258109f244e1d6891bf1053a55d63a5cd4f8f4c30cf9a1280989f80e7a1fa9"
+dependencies = [
+ "futures",
+ "log",
+ "once_cell",
+ "parking_lot 0.12.4",
+ "scc",
+ "serial_test_derive",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d69265a08751de7844521fd15003ae0a888e035773ba05695c5c759a6f89eef"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.104",
 ]
 
 [[package]]
@@ -8996,6 +9120,7 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "csv-async",
+ "faststr",
  "flume",
  "futures-util",
  "kinghistorian-sys",
@@ -9724,7 +9849,7 @@ checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=9eddb6e3#9eddb6e3fca9e1ea0e652850344f8c163a3764e7"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=29b8215d#29b8215d5cb8385244a49d4b5f4b59ff65ee56f2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -9740,7 +9865,7 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=9eddb6e3#9eddb6e3fca9e1ea0e652850344f8c163a3764e7"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=29b8215d#29b8215d5cb8385244a49d4b5f4b59ff65ee56f2"
 dependencies = [
  "anyhow",
  "derive_more 1.0.0",
@@ -9755,10 +9880,13 @@ name = "taos-explorer"
 version = "1.10.0"
 dependencies = [
  "actix-cors",
- "actix-embed",
  "actix-files",
+ "actix-session",
  "actix-web",
+ "actix-web-rust-embed-responder",
  "actix-ws",
+ "aes",
+ "aes-gcm",
  "anyhow",
  "assert_cmd",
  "assert_fs",
@@ -9768,6 +9896,7 @@ dependencies = [
  "bitfield",
  "bytes",
  "captcha",
+ "cbc",
  "chrono",
  "chrono-tz",
  "clap",
@@ -9780,25 +9909,31 @@ dependencies = [
  "geos",
  "gethostname",
  "hex",
+ "hkdf",
+ "hmac",
  "http 0.2.12",
  "http-auth-basic",
  "lazy_static",
  "log",
  "metrics",
  "mimalloc",
+ "mime_guess",
  "mockito",
+ "openidconnect 3.5.0",
  "pin-project-lite",
  "rand 0.8.5",
  "regex",
  "reqwest 0.11.27",
- "rust-embed 6.8.1",
+ "rust-embed",
  "rustls 0.23.29",
  "rustls-pemfile 2.2.0",
  "scc",
  "serde",
  "serde_json",
  "serde_with",
+ "serial_test",
  "sha1",
+ "sha2",
  "shadow-rs 0.38.1",
  "sqlx",
  "sysinfo",
@@ -9813,12 +9948,15 @@ dependencies = [
  "tracing",
  "tracing-actix-web",
  "tracing-subscriber",
+ "url",
+ "urlencoding",
+ "uuid",
 ]
 
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=9eddb6e3#9eddb6e3fca9e1ea0e652850344f8c163a3764e7"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=29b8215d#29b8215d5cb8385244a49d4b5f4b59ff65ee56f2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9828,7 +9966,7 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=9eddb6e3#9eddb6e3fca9e1ea0e652850344f8c163a3764e7"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=29b8215d#29b8215d5cb8385244a49d4b5f4b59ff65ee56f2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9854,7 +9992,7 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=9eddb6e3#9eddb6e3fca9e1ea0e652850344f8c163a3764e7"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=29b8215d#29b8215d5cb8385244a49d4b5f4b59ff65ee56f2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9904,6 +10042,7 @@ dependencies = [
  "async-compression",
  "bytes",
  "chrono",
+ "dashmap 6.1.0",
  "deadpool",
  "flume",
  "serde",
@@ -9921,7 +10060,7 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=9eddb6e3#9eddb6e3fca9e1ea0e652850344f8c163a3764e7"
+source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=29b8215d#29b8215d5cb8385244a49d4b5f4b59ff65ee56f2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10856,6 +10995,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-test"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2468baabc3311435b55dd935f702f42cd1b8abb7e754fb7dfb16bd36aa88f9f7"
+dependencies = [
+ "async-stream",
+ "bytes",
+ "futures-core",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "tokio-tungstenite"
 version = "0.23.1"
 source = "git+https://github.com/taosdata/tokio-tungstenite.git?rev=3420353#3420353b475ed1162c248cab51cd314e103bb48a"
@@ -11450,7 +11602,7 @@ dependencies = [
  "mime_guess",
  "regex",
  "reqwest 0.12.22",
- "rust-embed 8.7.2",
+ "rust-embed",
  "serde",
  "serde_json",
  "url",
@@ -11467,23 +11619,23 @@ checksum = "e2eebbbfe4093922c2b6734d7c679ebfebd704a0d7e56dfcb0d05818ce28977d"
 
 [[package]]
 name = "uuid"
-version = "1.17.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cf4199d1e5d15ddd86a694e4d0dffa9c323ce759fea589f00fef9d81cc1931d"
+checksum = "e2e054861b4bd027cd373e18e8d8d8e6548085000e41290d95ce0c373a654b4a"
 dependencies = [
  "getrandom 0.3.3",
  "js-sys",
  "rand 0.9.1",
- "serde",
+ "serde_core",
  "uuid-macro-internal",
  "wasm-bindgen",
 ]
 
 [[package]]
 name = "uuid-macro-internal"
-version = "1.17.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26b682e8c381995ea03130e381928e0e005b7c9eb483c6c8682f50e07b33c2b7"
+checksum = "39d11901c36b3650df7acb0f9ebe624f35b5ac4e1922ecd3c57f444648429594"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -27,4 +27,5 @@ public class TaskConfig {
     private String logLevel = "info";
     private String timestampFieldName = "timestamp";
     private String valueFieldName = "value";
+    private String tableNamePattern;
 }

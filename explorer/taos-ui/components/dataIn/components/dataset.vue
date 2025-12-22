@@ -62,9 +62,6 @@
           </div>
         </a>
       </el-tooltip>
-      <el-button v-if="isShowAddOpcPoint" type="primary" size="small" class="ml15" @click="handleOpcPoint">{{
-        t('dataIn.addOpcPoint')
-      }}</el-button>
       <el-button
         v-if="isShowAddOpcPoint"
         :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -268,6 +265,7 @@ import { downloadByData, downloadByUrl } from 'utils/files';
 import { isEn } from 'config';
 import useSearchPoint from '../model/useSearchPoint';
 import { t } from 'locales';
+import { cloneDeep } from 'lodash-es';
 import {
   currentPageType,
   sourceForm,
@@ -371,21 +369,42 @@ const isOpc = computed(() => ['opcua', 'opcda'].includes(sourceForm.type));
 const isOpcUa = computed(() => ['opcua'].includes(sourceForm.type));
 const isKinghist = computed(() => sourceForm.type === 'kinghist');
 const agentId = computed(() => sourceForm.agent);
+// 统一获取 update_mode：不同数据源/语言包下分组字段名可能不同
+const updateMode = computed<string | undefined>(() => {
+  try {
+    const ga = (sourceForm as any)?.data?.groups_after;
+    if (!ga || typeof ga !== 'object') return undefined;
+    // 常规 key
+    if (ga.collect_options && typeof ga.collect_options === 'object') {
+      return ga.collect_options.update_mode as string;
+    }
+    // 兜底：在 groups_after 下寻找包含 update_mode 的对象
+    for (const key of Object.keys(ga)) {
+      const v = ga[key];
+      if (v && typeof v === 'object' && 'update_mode' in v) {
+        return (v as any).update_mode as string;
+      }
+    }
+  } catch (_e) {
+    // ignore
+  }
+  return undefined;
+});
 const namespaceList = computed(() => {
   const { namespaces = [] } = connectivityCheckResult.value;
-  const list: Recordable[] = [];
-  namespaces.map((item, index) => {
-    if (index > 0) {
-      list.push({ label: item, value: index });
-    }
-  });
-  return list;
+  return namespaces.map((item, index) => ({ label: item, value: index }));
 });
 
 const isShowAddOpcPoint = computed(() => {
   // 重新上传了一个 csv,此时的任务还没有提交，因此csv没有生效，所有也不应该显示增加点位按钮
   return (
-    isOpc.value && oldValue.value && props.modelValue != '*' && props.modelValue === oldValue.value && isEdit.value
+    isOpc.value &&
+    oldValue.value &&
+    props.modelValue != '*' &&
+    props.modelValue === oldValue.value &&
+    isEdit.value &&
+    // 当“点位更新模式”为 none 时，不显示“增加数据点位”按钮
+    (updateMode.value ?? 'none') !== 'none'
   );
 });
 
@@ -443,8 +462,25 @@ async function submit() {
       ? info.namespaces.map(v => String(v)).join(',')
       : (info.namespaces as unknown as string) || '';
 
+    const fromJson: any = cloneDeep(sourceForm);
+    // Keep previous behavior: merge filter fields at top-level
+    fromJson.root = info.root;
+    fromJson.namespaces = namespaces;
+    fromJson.pattern = info.pattern;
+    // Critical fix: when downloading OPC points, ignore csv_config_file to force pulling from OPC server
+    if (['opcua', 'opcda'].includes(fromJson.type) && fromJson.data) {
+      // flat location (older structure)
+      delete fromJson.data.csv_config_file;
+      delete fromJson.data.csv_config_file_origin;
+      // nested under datasets (current structure)
+      if (fromJson.data.datasets && typeof fromJson.data.datasets === 'object') {
+        delete fromJson.data.datasets.csv_config_file;
+        delete fromJson.data.datasets.csv_config_file_origin;
+      }
+    }
+
     const params: Recordable = {
-      from_json: { ...sourceForm, ...info, namespaces },
+      from_json: fromJson,
       categories: category.value
     };
 

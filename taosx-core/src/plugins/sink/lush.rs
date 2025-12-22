@@ -147,6 +147,7 @@ impl TryFrom<Dsn> for LushModelConfig {
                 let model: PiModelType = dsn
                     .params
                     .get("model")
+                    .or(dsn.params.get("only-choose-one$"))
                     .ok_or(anyhow!("Not found model in DSN params"))?
                     .as_str()
                     .try_into()?;
@@ -285,7 +286,7 @@ pub fn join_record_batch(tags_record: &RecordBatch, values_record: &RecordBatch)
 pub fn create_tags_record(
     name_of_table_id_column: &str,
     table_id_column: &StringArray,
-    table_cache: Arc<TableTagCache>,
+    table_cache: &TableTagCache,
 ) -> anyhow::Result<RecordBatch> {
     // 同一个超级表的 tag 列是相同的，只需遍历第一个表的 tags
     let mut fields: Vec<Field> = Vec::new();
@@ -432,7 +433,7 @@ pub async fn write(
     table_id_column: &str,
     breakpoints_db: Option<BreakpointDb>,
     parser: &Parser,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
     let timeout = parser
@@ -461,9 +462,7 @@ pub async fn write(
                                 .concat_batches()
                                 .context("lush concat db connection error")?
                             {
-                                if let Err(e) =
-                                    process_archive(&err, &batch, archive_tx.clone()).await
-                                {
+                                if let Err(e) = process_archive(&err, &batch, archive_tx).await {
                                     tracing::error!("archive error: {e:#}");
                                 }
                             }
@@ -473,8 +472,7 @@ pub async fn write(
                         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                         Ok((HandlingResult::Retry, _)) => {
                             for m in messages {
-                                if let Err(e) = process_cache(&m.records, archive_tx.clone()).await
-                                {
+                                if let Err(e) = process_cache(&m.records, archive_tx).await {
                                     tracing::error!("cache error: {e:#}");
                                 }
                             }
@@ -556,7 +554,7 @@ pub async fn write(
                                         .context("lush concat table not exist error")?
                                     {
                                         if let Err(e) =
-                                            process_archive(&err, &batch, archive_tx.clone()).await
+                                            process_archive(&err, &batch, archive_tx).await
                                         {
                                             tracing::error!("archive error: {e:#}");
                                         }
@@ -670,7 +668,7 @@ pub async fn write(
                                 field,
                                 &records.batches,
                                 &err,
-                                archive_tx.clone(),
+                                archive_tx,
                             )
                             .await?;
                         }
@@ -696,8 +694,7 @@ pub async fn write(
                             .concat_batches()
                             .context("lush concat db connection error")?
                         {
-                            if let Err(e) = process_archive(&err, &batch, archive_tx.clone()).await
-                            {
+                            if let Err(e) = process_archive(&err, &batch, archive_tx).await {
                                 tracing::error!("archive error: {e:#}");
                             }
                         }
@@ -708,7 +705,7 @@ pub async fn write(
                     Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                     Ok((HandlingResult::Retry, _)) => {
                         for batch in records.batches {
-                            if let Err(e) = process_cache(&batch, archive_tx.clone()).await {
+                            if let Err(e) = process_cache(&batch, archive_tx).await {
                                 tracing::error!("cache error: {e:#}");
                             }
                         }
@@ -741,7 +738,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &WriteError,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     // get the length of the field
     let desc = taos.as_ref().unwrap().describe(stable).await;
@@ -838,7 +835,7 @@ async fn handle_field_length_overflow_and_rewrite(
             .concat_batches()
             .context("concat archive field length overflow error")?
         {
-            if let Err(e) = process_archive(&err_msg, &batch, archive_tx.clone()).await {
+            if let Err(e) = process_archive(&err_msg, &batch, archive_tx).await {
                 tracing::error!("archive error: {e:#}");
             }
         }
@@ -1443,12 +1440,12 @@ fn truncate_sql_in_log_message(sql: &str) -> &str {
 #[instrument(skip_all)]
 pub fn get_table_name_from_table_id(
     table_id: &str,
-    table_cache: Arc<TableTagCache>,
-    lush_model_config: Arc<LushModelConfig>,
+    table_cache: &TableTagCache,
+    lush_model_config: &LushModelConfig,
 ) -> Option<String> {
     let table_id_column = StringArray::from(vec![table_id]);
     let tags_records: Result<RecordBatch, anyhow::Error> =
-        create_tags_record("element_id", &table_id_column, table_cache.clone());
+        create_tags_record("element_id", &table_id_column, table_cache);
     if let Err(err) = tags_records {
         tracing::error!("{err:#}");
         return None;
@@ -1607,7 +1604,7 @@ mod tests {
         let messages = builder.build();
         let (tx, _rx) = flume::bounded(10);
 
-        if let Err(e) = process_archive("error", &messages[0].records, Some(tx)).await {
+        if let Err(e) = process_archive("error", &messages[0].records, Some(&tx)).await {
             dbg!(e);
         }
     }

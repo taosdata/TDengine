@@ -466,18 +466,19 @@ export default {
               label: 'Collect Interval',
               description: 'Collect data interval in second',
               field: 'interval',
-              placeholder: '',
-              defaultValue: '10',
+              placeholder: '10',
+              defaultValue: 10,
+              value: 10,
               pattern: null,
               grid_two: false,
               type: 'number',
               min: 1,
-              displayDependsOn: [
-                // 'datasets/currentTab',
-                'groups_after/collect_options/collect_mode'
-              ], // 代表层级
+              requiredDependsOn: ['groups_after/collect_options/collect_mode'],
+              requiredDependsOnValues: {
+                collect_mode: ['observe']
+              },
+              displayDependsOn: ['groups_after/collect_options/collect_mode'], // 代表层级
               displayDependsOnValues: {
-                // 'currentTab': ['select_all_points'],
                 collect_mode: ['observe']
               }
             },
@@ -486,17 +487,14 @@ export default {
               description: 'Timeout for a request to endpoint in seconds',
               field: 'request_timeout',
               placeholder: '10',
-              defaultValue: '1',
+              defaultValue: 10,
+              value: 10,
               pattern: null,
               grid_two: false,
               type: 'number',
               min: 1,
-              displayDependsOn: [
-                // 'datasets/currentTab',
-                'groups_after/collect_options/collect_mode'
-              ], // 代表层级
+              displayDependsOn: ['groups_after/collect_options/collect_mode'], // 代表层级
               displayDependsOnValues: {
-                // 'currentTab': ['select_all_points'],
                 collect_mode: ['observe']
               }
             },
@@ -527,10 +525,6 @@ export default {
               meta: {
                 allowCreate: true,
                 filterable: true
-              },
-              displayDependsOn: ['datasets/currentTab'], // 代表层级
-              displayDependsOnValues: {
-                currentTab: ['select_all_points']
               }
             },
             {
@@ -543,11 +537,7 @@ export default {
               grid_two: false,
               type: 'number',
               min: 60,
-              max: 2147483647,
-              displayDependsOn: ['datasets/currentTab'], // 代表层级
-              displayDependsOnValues: {
-                currentTab: ['select_all_points']
-              }
+              max: 2147483647
             }
           ],
           hide: false

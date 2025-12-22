@@ -574,6 +574,7 @@ export TARGET_DIR=$PWD/target/${PLATFORM}
 mkdir -p $TARGET_DIR
 docker run --platform $PLATFORM --rm \
   -v .:/app \
+  -e VER_NUMBER=${VER_NUMBER} \
   -v $HOME/.cargo/registry:/root/.cargo/registry \
   -v $HOME/.cargo/git:/root/.cargo/git \
   -v $TARGET_DIR:/app/target \
@@ -632,6 +633,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v "$TARGET_DIR":/app/target \
       -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
+      -e VER_NUMBER=${VER_NUMBER} \
       taosx/dev:${RUST_VERSION} \
       cargo build --profile "${BUILD_PROFILE}" ${EXTRAS}
     ;;
@@ -1154,6 +1156,9 @@ dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
 args = [
   "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov-taosx.lcov",
   "nextest",
   "--workspace",
   "--no-fail-fast",
@@ -1168,11 +1173,13 @@ dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
 args = [
   "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov-explorer.lcov",
   "nextest",
   "-p",
   "taos-explorer",
   "--no-fail-fast",
-  "--html",
 ]
 [tasks.test-ci]
 command = "cargo"
@@ -1189,7 +1196,20 @@ args = [
 ]
 
 [tasks.test]
-dependencies = ["test-without-explorer", "test-explorer"]
+dependencies = ["test-without-explorer", "test-explorer", "install-lcov"]
+script = """
+# merge coverage data
+lcov --add-tracefile target/llvm-cov-taosx.lcov --add-tracefile target/llvm-cov-explorer.lcov --output-file target/llvm-cov-merged.lcov
+# covert absolute path to relative path
+sed -i 's#SF:.*taosx/#SF:#' target/llvm-cov-merged.lcov
+
+# 1. remove third-party crates: tokio-cron-scheduler, rust-sasl
+# 2. remove windows only data sources including PI and KingHistorian
+#lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'crates/source-pi/*' 'crates/source-kinghistorian/*'
+
+# make output clean
+#mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
+"""
 
 [tasks.install-locally]
 dependencies = ["install-plugins", "install-agent"]
@@ -1204,3 +1224,18 @@ install_crate = { crate_name = "typos-cli", binary = "typos", test_arg = "--vers
 [tasks.typos]
 dependencies = ["install-typos"]
 command = "typos"
+
+[tasks.install-lcov.linux]
+script = """
+lcov --version || sudo apt-get install -y lcov ||sudo yum install -y lcov
+"""
+
+[tasks.install-lcov.windows]
+script = """
+lcov --version || choco install -y lcov
+"""
+
+[tasks.install-lcov.mac]
+script = """
+lcov --version || brew install lcov
+"""

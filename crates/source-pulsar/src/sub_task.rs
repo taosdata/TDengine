@@ -20,12 +20,12 @@ pub struct SubTask {
 
 impl SubTask {
     pub async fn build_tasks(
-        config: PulsarTaskConfig,
+        config: &PulsarTaskConfig,
         metrics: &Arc<CoreMetrics>,
     ) -> anyhow::Result<Vec<Self>> {
         let mut topics = vec![];
         for topic in config.topics.iter() {
-            topics.extend(split_topics(&config, topic).await?);
+            topics.extend(split_topics(config, topic).await?);
         }
 
         metrics
@@ -38,7 +38,7 @@ impl SubTask {
             _ => topics.len(),
         };
 
-        let config = Arc::new(config);
+        let config = Arc::new(config.clone());
         let topics = Arc::new(topics);
 
         for i in 0..concurrency {

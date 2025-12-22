@@ -1321,7 +1321,7 @@ pub async fn tmq_to_td(
         .or(from.remove("num.of.consumers"))
         .and_then(|s| s.parse().ok())
         .unwrap_or(0); // 0 means auto
-    let strategy = from
+    let mut strategy = from
         .remove("prefer")
         .map(|s| s.into())
         .unwrap_or_else(WriteStrategy::from_env);
@@ -1393,18 +1393,6 @@ pub async fn tmq_to_td(
             }
         })
         .unwrap_or(false);
-    let mut options = WriteOptions {
-        with_meta_delete,
-        with_meta_drop,
-        strategy,
-        concurrency,
-        commit_chunk_size,
-        commit_interval_ms,
-        max_polling_timeout,
-        actions: Arc::new(actions.to_owned()),
-        mid: Arc::new(AtomicUsize::new(0)),
-    };
-
     let version = builder.server_version().await?.to_owned();
     tracing::debug!("Source version: {version}");
 
@@ -1442,6 +1430,12 @@ pub async fn tmq_to_td(
                 "Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported."
             );
         }
+        if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
+            tracing::debug!(
+                "From {source_version} to {target_version}, use block mode by default."
+            );
+            strategy = WriteStrategy::Block;
+        }
 
         // @huolinhe: Keep the code here, it's dangerous if source schema changes.
         // Jira: [TS-6672](https://jira.taosdata.com:18080/browse/TS-6672)
@@ -1461,6 +1455,18 @@ pub async fn tmq_to_td(
             }
         }
     }
+
+    let mut options = WriteOptions {
+        with_meta_delete,
+        with_meta_drop,
+        concurrency,
+        strategy,
+        commit_chunk_size,
+        commit_interval_ms,
+        max_polling_timeout,
+        actions: Arc::new(actions.to_owned()),
+        mid: Arc::new(AtomicUsize::new(0)),
+    };
 
     let source_pool = TaosBuilder::from_dsn(&from)?.pool()?;
     let target_pool = target_builder.pool()?;
