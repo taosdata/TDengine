@@ -3038,6 +3038,37 @@ IRATE(expr)
 
 **Applicable to**: Tables and supertables.
 
+### LAG
+
+```sql
+LAG(expr)
+```
+
+**Function Description**: Replace the nulls with the previous nonnull value, and keep it null if all previous ones are null.
+
+**Return Result Type**: Same as the input type.
+
+**Applicable Data Types**: Numeric types, String types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- Support +, -, *, / operations, such as lag(col1) + lag(col2);
+
+**Example**:
+
+```sql
+taos> select _rowts,f1,f2,lag(f1),lag(f2),lag(f1)*lag(f2) from db.tb;
+         _rowts          |     f1      |       f2       |   lag(f1)   |   lag(f2)     | lag(f1)*lag(f2) |
+========================================================================================================
+ 2025-12-02 01:01:01.000 |           1 |       2.000000 |           1 |      2.000000 |        2.000000 |
+ 2025-12-02 01:01:02.000 |        NULL |       4.000000 |           1 |      4.000000 |        4.000000 |
+ 2025-12-02 01:01:03.000 |           5 |           NULL |           5 |      4.000000 |       20.000000 |
+ 2025-12-02 01:01:04.000 |           7 |       8.000000 |           7 |      8.000000 |       56.000000 |
+Query OK, 4 row(s) in set (56.155269s)
+```
+
 ### MAVG
 
 ```sql
