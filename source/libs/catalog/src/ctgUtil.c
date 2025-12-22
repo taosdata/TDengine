@@ -2340,16 +2340,21 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
-  SPrivInfo* privInfo = privInfoGet(pReq->type);
+  SPrivInfo* privInfo = privInfoGet(pReq->privType);
   if (!privInfo) {
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
   if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
-    if (PRIV_HAS(&pInfo->sysPrivs, pReq->type)) {
+    if (PRIV_HAS(&pInfo->sysPrivs, pReq->privType)) {
       pRes->pass[AUTH_RES_BASIC] = true;
     }
     return TSDB_CODE_SUCCESS;
-  } else if (PRIV_CATEGORY_OBJECT == privInfo->category) {
+  } else if (PRIV_CATEGORY_OBJECT == privInfo->category || pReq->objType > 0) {
+    // reset objType for PRIV_CATEGORY_COMMON
+    if (privInfo->objType <= 0) {
+      privInfo->objType = pReq->objType;
+      privInfo->objLevel = privObjGetLevel(privInfo->objType);
+    }
     if (pReq->tbName.type == TSDB_DB_NAME_T) {
       if (privHasObjPrivilegeRec(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, privInfo)) {
         pRes->pass[AUTH_RES_BASIC] = true;
@@ -2358,9 +2363,9 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       return TSDB_CODE_SUCCESS;
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
-      req->singleType = pReq->type;
+      req->singleType = pReq->privType;
       req->privInfo = privInfo;
-      switch (pReq->type) {
+      switch (pReq->privType) {
         case PRIV_TBL_UPDATE: {  // support tag condition
           // N/A: no update clause, update is done by insert clause
           break;
@@ -2389,9 +2394,9 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           }
           break;
         }
-        case PRIV_TBL_ALTER:
-        case PRIV_TBL_DROP:
-        case PRIV_TBL_SHOW_CREATE: {
+        case PRIV_CM_ALTER:
+        case PRIV_CM_DROP:
+        case PRIV_CM_SHOW_CREATE: {
           // don't support tag condition
           CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
           if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
@@ -2399,7 +2404,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           }
           break;
         }
-        case PRIV_TBL_SHOW: {  // don't support tag condition
+        case PRIV_CM_SHOW: {  // don't support tag condition
           // N/A: check in server for stb, check when filter result for ctb
           break;
         }
@@ -2504,7 +2509,7 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
   }
   int32_t len = strlen(viewFName) + 1;
 
-  switch (pReq->type) {
+  switch (pReq->privType) {
     case PRIV_VIEW_SELECT: {
       char* value = taosHashGet(pInfo->readViews, viewFName, len);
       if (NULL != value) {

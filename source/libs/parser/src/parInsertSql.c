@@ -2035,7 +2035,8 @@ static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpS
 static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* pInfo) {
   snprintf(pInfo->user, sizeof(pInfo->user), "%s", pCxt->pUser);
   memcpy(&pInfo->tbName, pTbName, sizeof(SName));
-  pInfo->type = PRIV_TBL_INSERT;
+  pInfo->privType = PRIV_TBL_INSERT;
+  pInfo->objType = PRIV_OBJ_TBL;
 }
 
 static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, SNode** pTagCond) {
@@ -4571,7 +4572,7 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
     return terrno;
   }
 
-  SUserAuthInfo userAuth = {.type = PRIV_TBL_INSERT};
+  SUserAuthInfo userAuth = {.privType = PRIV_TBL_INSERT, .objType = PRIV_OBJ_TBL};
   snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
   memcpy(&userAuth.tbName, pName, sizeof(SName));
   if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {

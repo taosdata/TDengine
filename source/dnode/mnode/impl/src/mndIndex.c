@@ -513,7 +513,8 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
   // already check select table/create index privileges in parser
   const char *owner = pDb->owner[0] != 0 ? pDb->owner : pDb->createUser;
-  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, owner, pDb->name, NULL), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, owner, pDb->name, NULL), NULL,
+                  _OVER);
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
 
   code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb);
@@ -593,8 +594,9 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
   if (!privInfo) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, NULL, pDb ? pDb->name : objFName,
-                                           privInfo->objLevel == 0 ? NULL : "*"));  // 1.*.*
+  showAll =
+      (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, NULL, pDb ? pDb->name : objFName,
+                                     privInfo->objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
@@ -615,7 +617,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
         goto _OVER;
       }
       char *owner = pIdx->owner[0] != 0 ? pIdx->owner : pIdx->createUser;
-      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, owner, pIdx->db,
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, owner, pIdx->db,
                                    privInfo->objLevel == 0 ? NULL : idxName.tname)) {  // 1.db1.idx1
         sdbRelease(pSdb, pIdx);
         continue;
@@ -944,8 +946,9 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
   const char *owner = pIdx->owner[0] != 0 ? pIdx->owner : pIdx->createUser;
-  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_RSMA_DROP, owner, pIdx->db, pIdx->name), NULL,
-                  _OVER);
+  TAOS_CHECK_GOTO(
+      mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_RSMA_DROP, PRIV_OBJ_RSMA, owner, pIdx->db, pIdx->name), NULL,
+      _OVER);
 
   code = mndDropIdx(pMnode, pReq, pDb, pIdx);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

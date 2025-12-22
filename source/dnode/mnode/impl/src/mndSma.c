@@ -1219,10 +1219,12 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
 
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
   char *owner = pDb->owner[0] ? pDb->owner : pDb->createUser;
-  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_DB_USE, owner, name.acctId, name.dbname, NULL))) {
+  if ((code =
+           mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_DB_USE, PRIV_OBJ_DB, owner, name.acctId, name.dbname, NULL))) {
     goto _OVER;
   }
-  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_TBL_CREATE, owner, name.acctId, name.dbname, NULL))) {
+  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, owner, name.acctId, name.dbname,
+                                      NULL))) {
     goto _OVER;
   }
 
@@ -1394,7 +1396,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
   // }
   if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) goto _OVER;
   const char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
-  if ((code = mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TSMA_DROP, owner, pSma->db, pSma->name))) {
+  if ((code = mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TSMA_DROP, PRIV_OBJ_TSMA, owner, pSma->db, pSma->name))) {
     goto _OVER;
   }
 
@@ -1459,10 +1461,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     TAOS_CHECK_EXIT(terrno);
   }
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, NULL, objFName,
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, NULL, objFName,
                                           privInfo->objLevel == 0 ? NULL : "*"));
   if (!showAll && pShow->db[0] != 0) {
-    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_TSMA_SHOW, pUser->name, pShow->db,
+    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, pUser->name, pShow->db,
                                             privInfo->objLevel == 0 ? NULL : "*"));
   }
 
@@ -1492,7 +1494,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     if (!showAll) {
       (void)snprintf(objFName, sizeof(objFName), "%s", pSma->db);
       char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
-      if (mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TSMA_SHOW, owner, objFName,
+      if (mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TSMA_SHOW, PRIV_OBJ_TSMA, owner, objFName,
                                    privInfo->objLevel == 0 ? NULL : n.tname)) {  // 1.db1.tsma1
         sdbRelease(pSdb, pSma);
         if (pSrcDb) mndReleaseDb(pMnode, pSrcDb);

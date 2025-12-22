@@ -56,18 +56,18 @@ extern "C" {
     }                                               \
   } while (0)
 
-#define MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(user, privType, owner, LABEL)                  \
-  do {                                                                                  \
-    code = mndAcquireUser(pMnode, (user), &pUser);                                      \
-    if (pUser == NULL) goto LABEL;                                                      \
-    SPrivInfo *privInfo = privInfoGet(privType);                                        \
-    if (!privInfo) {                                                                    \
-      code = terrno;                                                                    \
-      goto LABEL;                                                                       \
-    }                                                                                   \
-    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);                  \
-    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, privType, (owner), objFName, \
-                                            privInfo->objLevel == 0 ? NULL : "*"));     \
+#define MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(user, privType, objType, owner, LABEL)                  \
+  do {                                                                                           \
+    code = mndAcquireUser(pMnode, (user), &pUser);                                               \
+    if (pUser == NULL) goto LABEL;                                                               \
+    SPrivInfo *privInfo = privInfoGet(privType);                                                 \
+    if (!privInfo) {                                                                             \
+      code = terrno;                                                                             \
+      goto LABEL;                                                                                \
+    }                                                                                            \
+    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);                           \
+    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, privType, objType, (owner), objFName, \
+                                            privInfo->objLevel == 0 ? NULL : "*"));              \
   } while (0)
 
 // N.B. don't add do {}while(0) for MND_SHOW_CHECK_DB_PRIVILEGE since it contains continue statement

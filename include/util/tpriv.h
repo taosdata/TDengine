@@ -43,18 +43,18 @@ extern "C" {
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
-  PRIV_COMMON_ALL = 0,          // ALL PRIVILEGES
-  PRIV_COMMON_READ = 1,         // READ PRIVILEGE
-  PRIV_COMMON_WRITE = 2,        // WRITE PRIVILEGE
-  PRIV_COMMON_ALTER = 3,        // ALTER PRIVILEGE
-  PRIV_COMMON_DROP = 4,         // DROP PRIVILEGE
-  PRIV_COMMON_SHOW = 5,         // SHOW PRIVILEGE
-  PRIV_COMMON_SHOW_CREATE = 6,  // SHOW CREATE PRIVILEGE
-  PRIV_COMMON_START = 7,        // START PRIVILEGE
-  PRIV_COMMON_STOP = 8,         // STOP PRIVILEGE
-  PRIV_COMMON_RECALC = 9,       // RECALC PRIVILEGE
-  PRIV_COMMON_KILL = 10,        // KILL PRIVILEGE
-  PRIV_COMMON_MAX = 29,         // MAX COMMON PRIVILEGE
+  PRIV_CM_ALL = 0,          // ALL PRIVILEGES
+  PRIV_CM_READ = 1,         // READ PRIVILEGE
+  PRIV_CM_WRITE = 2,        // WRITE PRIVILEGE
+  PRIV_CM_ALTER = 3,        // ALTER PRIVILEGE
+  PRIV_CM_DROP = 4,         // DROP PRIVILEGE
+  PRIV_CM_SHOW = 5,         // SHOW PRIVILEGE
+  PRIV_CM_SHOW_CREATE = 6,  // SHOW CREATE PRIVILEGE
+  PRIV_CM_START = 7,        // START PRIVILEGE
+  PRIV_CM_STOP = 8,         // STOP PRIVILEGE
+  PRIV_CM_RECALC = 9,       // RECALC PRIVILEGE
+  PRIV_CM_KILL = 10,        // KILL PRIVILEGE
+  PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,     // CREATE DATABASE
   PRIV_DB_ALTER,           // ALTER DATABASE
@@ -85,15 +85,15 @@ typedef enum {
   PRIV_SHOW_SSMIGRATES = 66,  // SHOW SSMIGRATES
 
   // ==================== Table Privileges(50-69)  ================
-  PRIV_TBL_CREATE = 70,       // CREATE TABLE
-  PRIV_TBL_DROP = 71,         // DROP TABLE
-  PRIV_TBL_ALTER = 72,        // ALTER TABLE
-  PRIV_TBL_SHOW = 73,         // SHOW TABLES
-  PRIV_TBL_SHOW_CREATE = 74,  // SHOW CREATE TABLE
-  PRIV_TBL_SELECT = 75,       // SELECT TABLE
-  PRIV_TBL_INSERT = 76,       // INSERT TABLE
-  PRIV_TBL_UPDATE = 77,       // UPDATE TABLE(reserved)
-  PRIV_TBL_DELETE = 78,       // DELETE TABLE
+  PRIV_TBL_CREATE = 70,  // CREATE TABLE
+  // PRIV_TBL_DROP = 71,         // DROP TABLE
+  // PRIV_TBL_ALTER = 72,        // ALTER TABLE
+  // PRIV_TBL_SHOW = 73,         // SHOW TABLES
+  // PRIV_TBL_SHOW_CREATE = 74,  // SHOW CREATE TABLE
+  PRIV_TBL_SELECT = 75,  // SELECT TABLE
+  PRIV_TBL_INSERT = 76,  // INSERT TABLE
+  PRIV_TBL_UPDATE = 77,  // UPDATE TABLE(reserved)
+  PRIV_TBL_DELETE = 78,  // DELETE TABLE
 
   // ==================== Other Privileges ================
   // function management
@@ -284,9 +284,9 @@ typedef enum {
   PRIV_OBJ_CLUSTER = 0,
   PRIV_OBJ_NODE = 1,
   PRIV_OBJ_DB = 2,
-  PRIV_OBJ_TABLE = 3,
-  PRIV_OBJ_FUNCTION = 4,
-  PRIV_OBJ_INDEX = 5,
+  PRIV_OBJ_TBL = 3,
+  PRIV_OBJ_FUNC = 4,
+  PRIV_OBJ_IDX = 5,
   PRIV_OBJ_VIEW = 6,
   PRIV_OBJ_USER = 7,
   PRIV_OBJ_ROLE = 8,

@@ -1974,7 +1974,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     }
     char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
     (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-    if ((code = mndCheckSysObjPrivilege(pMnode, pUser, PRIV_DB_DROP, NULL, objFName, NULL))) {
+    if ((code = mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_DB, NULL, objFName, NULL))) {
       goto _OVER;
     }
   }
@@ -3230,7 +3230,8 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   bool sysinfo = pUser->sysInfo;
   char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-  bool showAnyDb = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_SHOW_DATABASES, NULL, objFName, NULL));
+  bool showAnyDb =
+      (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_SHOW_DATABASES, PRIV_OBJ_DB, NULL, objFName, NULL));
 
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {

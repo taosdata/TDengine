@@ -728,9 +728,9 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 }
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, EPrivType type,
-                                char* pStr, bool isView) {
+                                EPrivObjType objType, char* pStr) {
   return snprintf(pStr, USER_AUTH_KEY_MAX_LEN, "`%s`*%d*`%s`*`%s`*%d*%d", pUser, acctId,
-                  (pDb && pDb[0] != 0) ? pDb : "", (pTable && pTable[0] != 0) ? pTable : "", type, isView);
+                  (pDb && pDb[0] != 0) ? pDb : "", (pTable && pTable[0] != 0) ? pTable : "", type, objType);
 }
 
 static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
@@ -785,7 +785,7 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen
 }
 
 static int32_t stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
-  char* p = NULL;
+  char*   p = NULL;
   int32_t code = getBackQuotedStringFromAuthStr(pStr, pUserAuth->user, TSDB_USER_LEN, &p);
   if (code == TSDB_CODE_SUCCESS) {
     pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
@@ -800,8 +800,8 @@ static int32_t stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pU
     } else {
       pUserAuth->tbName.type = TSDB_DB_NAME_T;
     }
-    pUserAuth->type = getIntegerFromAuthStr(p, &p);
-    pUserAuth->isView = getIntegerFromAuthStr(p, &p);
+    pUserAuth->privType = getIntegerFromAuthStr(p, &p);
+    pUserAuth->objType = getIntegerFromAuthStr(p, &p);
   }
   return code;
 }
@@ -1087,7 +1087,7 @@ static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUse
     SUserAuthInfo* pUser = taosArrayGet(pUserAuthReq, i);
     char           key[USER_AUTH_KEY_MAX_LEN] = {0};
     int32_t        len = userAuthToString(pUser->tbName.acctId, pUser->user, pUser->tbName.dbname, pUser->tbName.tname,
-                                          pUser->type, key, pUser->isView);
+                                          pUser->privType, pUser->objType, key);
     if (TSDB_CODE_SUCCESS != putMetaDataToHash(key, len, pUserAuthData, i, pUserAuth)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1405,24 +1405,24 @@ static int32_t reserveUserAuthInCacheImpl(const char* pKey, int32_t len, SParseM
   return taosHashPut(pMetaCache->pUserAuth, pKey, len, &nullPointer, POINTER_BYTES);
 }
 
-int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, EPrivType type,
+int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, EPrivType privType, EPrivObjType objType,
                                SParseMetaCache* pMetaCache) {
   char    key[USER_AUTH_KEY_MAX_LEN] = {0};
-  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key, false);
+  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, privType, objType, key);
   return reserveUserAuthInCacheImpl(key, len, pMetaCache);
 }
 
 int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable,
-                                   EPrivType type, SParseMetaCache* pMetaCache) {
+                                   EPrivType privType, EPrivObjType objType, SParseMetaCache* pMetaCache) {
   char    key[USER_AUTH_KEY_MAX_LEN] = {0};
-  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key, true);
+  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, privType, objType, key);
   return reserveUserAuthInCacheImpl(key, len, pMetaCache);
 }
 
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, SUserAuthInfo* pAuthReq, SUserAuthRes* pAuthRes) {
   char          key[USER_AUTH_KEY_MAX_LEN] = {0};
   int32_t       len = userAuthToString(pAuthReq->tbName.acctId, pAuthReq->user, pAuthReq->tbName.dbname,
-                                       pAuthReq->tbName.tname, pAuthReq->type, key, pAuthReq->isView);
+                                       pAuthReq->tbName.tname, pAuthReq->privType, pAuthReq->objType, key);
   SUserAuthRes* pAuth = NULL;
   int32_t       code = getMetaDataFromHash(key, len, pMetaCache->pUserAuth, (void**)&pAuth);
   if (TSDB_CODE_SUCCESS == code) {

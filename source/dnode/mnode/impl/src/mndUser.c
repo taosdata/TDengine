@@ -55,10 +55,10 @@
 #define ALTER_USER_ADD_PRIVS(_type) ((_type) == TSDB_ALTER_USER_ADD_PRIVILEGES)
 #define ALTER_USER_DEL_PRIVS(_type) ((_type) == TSDB_ALTER_USER_DEL_PRIVILEGES)
 
-#define ALTER_USER_ALL_PRIV(_priv)       (PRIV_HAS((_priv), PRIV_COMMON_ALL))
-#define ALTER_USER_READ_PRIV(_priv)      (PRIV_HAS((_priv), PRIV_COMMON_READ) || PRIV_HAS((_priv), PRIV_COMMON_ALL))
-#define ALTER_USER_WRITE_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_COMMON_WRITE) || PRIV_HAS((_priv), PRIV_COMMON_ALL))
-#define ALTER_USER_ALTER_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_COMMON_ALTER) || PRIV_HAS((_priv), PRIV_COMMON_ALL))
+#define ALTER_USER_ALL_PRIV(_priv)       (PRIV_HAS((_priv), PRIV_CM_ALL))
+#define ALTER_USER_READ_PRIV(_priv)      (PRIV_HAS((_priv), PRIV_CM_READ) || PRIV_HAS((_priv), PRIV_CM_ALL))
+#define ALTER_USER_WRITE_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_CM_WRITE) || PRIV_HAS((_priv), PRIV_CM_ALL))
+#define ALTER_USER_ALTER_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_CM_ALTER) || PRIV_HAS((_priv), PRIV_CM_ALL))
 #define ALTER_USER_SUBSCRIBE_PRIV(_priv) (PRIV_HAS((_priv), PRIV_TOPIC_SUBSCRIBE))
 
 #define ALTER_USER_TARGET_DB(_tbname) (0 == (_tbname)[0])
@@ -2895,7 +2895,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.isImport != 1) {
     // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_CREATE, NULL, NULL, NULL), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_CREATE, 0, NULL, NULL, NULL), &lino, _OVER);
   } else if (strcmp(pReq->info.conn.user, "root") != 0) {
     mError("The operation is not permitted to create user:%s", pReq->info.conn.user);
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
@@ -4104,7 +4104,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   }
 
   // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, NULL, NULL, NULL), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, 0, NULL, NULL, NULL), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndDropUser(pMnode, pReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

@@ -402,7 +402,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj));
   const char *owner = pDb->owner[0] != 0 ? pDb->owner : pDb->createUser;
   if (pDb) {
-    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, owner, pDb->name, NULL));
+    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, owner, pDb->name, NULL));
   }
 
   topicObj.createTime = taosGetTimestampMs();
@@ -425,7 +425,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     MND_TMQ_NULL_CHECK(pStb);
     char stbName[TSDB_TABLE_NAME_LEN] = {0};
     mndExtractTbNameFromStbFullName(pStb->name, stbName, TSDB_TABLE_NAME_LEN);
-    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE,
+    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_TBL,
                                                   pStb->owner[0] != 0 ? pStb->owner : pStb->createUser, pDb->name,
                                                   stbName));
     topicObj.stbUid = pStb->uid;
@@ -433,7 +433,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__DB) {
-    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, owner, pDb->name, "*"));
+    MND_TMQ_RETURN_CHECK(
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_TBL, owner, pDb->name, "*"));
   } else if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
     // TODO: check privilege on table
   }
@@ -803,9 +804,11 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
   // MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));
-  MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, pTopic->db, NULL, NULL));
+  MND_TMQ_RETURN_CHECK(
+      mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL, NULL));
   const char *owner = pTopic->owner[0] != 0 ? pTopic->owner : pTopic->createUser;
-  MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_DROP, owner, pTopic->db, name.tname));
+  MND_TMQ_RETURN_CHECK(
+      mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_DROP, PRIV_OBJ_TOPIC, owner, pTopic->db, name.tname));
   MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropTopic(pMnode, pTrans, pReq, pTopic));
@@ -1027,7 +1030,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   if (!privInfo) {
     MND_TMQ_RETURN_CHECK(terrno);
   }
-  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_TOPIC_SHOW, NULL, objFName,
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, NULL, objFName,
                                           privInfo->objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   PRINT_LOG_START
@@ -1038,7 +1041,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     if (!showAll) {
       char *owner = pTopic->owner[0] != 0 ? pTopic->owner : pTopic->createUser;
-      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_SHOW, owner, pTopic->db,
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_SHOW, PRIV_OBJ_TOPIC, owner, pTopic->db,
                                    privInfo->objLevel == 0 ? NULL : pTopic->name)) {  // 1.db1.topic1
         sdbRelease(pSdb, pTopic);
         continue;

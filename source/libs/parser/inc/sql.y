@@ -382,19 +382,19 @@ cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                
 cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
 /*cmd ::= GRANT ALL priv_level_opt(B) with_clause_opt(D) TO user_name(C).           {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_COMMON_ALL);
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
                                                                                     pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= REVOKE ALL  priv_level_opt(B) with_clause_opt(D)  FROM user_name(C).      {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_COMMON_ALL);
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
                                                                                     pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= GRANT ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) TO user_name(C). {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_COMMON_ALL);
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
                                                                                     pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }
 cmd ::= REVOKE ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) FROM user_name(C). {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_COMMON_ALL);
+                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
                                                                                     pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
                                                                                   }*/
 cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
@@ -445,16 +445,16 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
                                                                                     }
 
                                                                                   }
-priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_COMMON_READ); }
-priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_COMMON_WRITE); }
-priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_COMMON_ALTER); }
-priv_type(A) ::= DROP.                                                            { A = PRIV_SET_TYPE(PRIV_COMMON_DROP); }
-priv_type(A) ::= SHOW.                                                            { A = PRIV_SET_TYPE(PRIV_COMMON_SHOW); }
-priv_type(A) ::= SHOW CREATE.                                                     { A = PRIV_SET_TYPE(PRIV_COMMON_SHOW_CREATE); }
-priv_type(A) ::= START.                                                           { A = PRIV_SET_TYPE(PRIV_COMMON_START); }
-priv_type(A) ::= STOP.                                                            { A = PRIV_SET_TYPE(PRIV_COMMON_STOP); }
-priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_COMMON_KILL); }
-priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_COMMON_RECALC); }
+priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_CM_READ); }
+priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_CM_WRITE); }
+priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
+priv_type(A) ::= DROP.                                                            { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW.                                                            { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
+priv_type(A) ::= SHOW CREATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= START.                                                           { A = PRIV_SET_TYPE(PRIV_CM_START); }
+priv_type(A) ::= STOP.                                                            { A = PRIV_SET_TYPE(PRIV_CM_STOP); }
+priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_CM_KILL); }
+priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
 priv_type(A) ::= ALTER DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_ALTER); }
@@ -477,10 +477,6 @@ priv_type(A) ::= SHOW SCANS.                                                    
 priv_type(A) ::= SHOW SSMIGRATES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_SSMIGRATES); }
 
 priv_type(A) ::= CREATE TABLE.                                                    { A = PRIV_SET_TYPE(PRIV_TBL_CREATE); }
-priv_type(A) ::= DROP TABLE.                                                      { A = PRIV_SET_TYPE(PRIV_TBL_DROP); }
-priv_type(A) ::= ALTER TABLE.                                                     { A = PRIV_SET_TYPE(PRIV_TBL_ALTER); }
-priv_type(A) ::= SHOW TABLES.                                                     { A = PRIV_SET_TYPE(PRIV_TBL_SHOW); }
-priv_type(A) ::= SHOW CREATE TABLE.                                               { A = PRIV_SET_TYPE(PRIV_TBL_SHOW_CREATE); }
 
 priv_type(A) ::= priv_type_tbl_dml(B).                                            { A = B; }
 
@@ -618,11 +614,11 @@ priv_type_tbl_dml(A) ::= DELETE.                                                
                                                                                     }
                                                                                   }
 priv_level_opt(A) ::= .                                                           { A.first = nil_token; A.second = nil_token; A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; }
-priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_TABLE; }
+priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_TBL; }
 priv_level_opt(A) ::= ON DATABASE priv_level(B).                                  { A = B; A.objType = PRIV_OBJ_DB; }
-priv_level_opt(A) ::= ON TABLE priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TABLE; }
+priv_level_opt(A) ::= ON TABLE priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TBL; }
 priv_level_opt(A) ::= ON VIEW priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_VIEW; }
-priv_level_opt(A) ::= ON INDEX priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_INDEX; }
+priv_level_opt(A) ::= ON INDEX priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_IDX; }
 priv_level_opt(A) ::= ON TOPIC priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TOPIC; }
 priv_level_opt(A) ::= ON STREAM priv_level(B).                                    { A = B; A.objType = PRIV_OBJ_STREAM; }
 priv_level_opt(A) ::= ON RSMA priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_RSMA; }
