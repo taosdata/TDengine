@@ -21,7 +21,7 @@ export default {
       s3Region: 'S3 Region',
       s3ObjectPrefix: 'Object Prefix',
       backupRetentionPeriod: '本地保留时间',
-      backupRetentionSize: '本地保留数量',
+      backupRetentionSize: '本地保留数量'
     },
     validateS3Failed: '校验 S3 失败，请检查 taosx 服务正常且能够连通 S3 服务',
     compressionLevel: {
@@ -66,11 +66,13 @@ export default {
     username: '用户名称',
     password: '密码',
     sysinfo: 'SYSINFO',
-    sysinfoTip: '表示该用户是否能够查看系统信息。1 表示可以查看，0 表示无权查看。系统信息包括服务配置、dnode、vnode、存储等信息。',
+    sysinfoTip:
+      '表示该用户是否能够查看系统信息。1 表示可以查看，0 表示无权查看。系统信息包括服务配置、dnode、vnode、存储等信息。',
     createdb: 'CREATEDB',
     createdbTip: '表示该用户是否能够创建数据库。1 表示可以创建，0 表示无权创建。',
     allowed_host: 'ALLOWED_HOST',
-    allowed_hostTip: '表示该用户可以从哪些 IP 地址访问 TDengine 服务。多个 IP 地址用逗号分隔。数据库默认会添加 127.0.0.1/32。',
+    allowed_hostTip:
+      '表示该用户可以从哪些 IP 地址访问 TDengine 服务。多个 IP 地址用逗号分隔。数据库默认会添加 127.0.0.1/32。',
     subscription: '主题',
     subscribe: '订阅',
     createbackup: '创建新备份',
@@ -114,6 +116,22 @@ export default {
     fail3: '请检查失败原因',
     formatError: '格式错误。示例: http://localhost:6041、http://127.0.0.1:6041',
     createNewUserSucTip: '创建用户成功',
-    passwordEditTip: "不更新密码时请置空"
+    passwordEditTip: '不更新密码时请置空',
+    oauth2: {
+      title: 'OAuth 2.0 用户管理',
+      communityHint: '社区版功能仅用于演示',
+      syncDesc: '从已配置的 OAuth 提供商（如 /sso/oauth2.0/getUsers）同步用户到 Explorer 映射，此操作幂等。',
+      syncing: '正在同步…',
+      syncNow: '立即同步用户',
+      imported: '新增',
+      updated: '更新',
+      skipped: '跳过',
+      message: '消息',
+      syncConfirm: '现在从 OAuth 提供商同步用户？',
+      pleaseInputPassword: '请输入密码',
+      syncCompleted: '用户同步完成',
+      syncFailed: '同步失败',
+      existingUsers: 'OAuth 用户列表'
+    }
   }
 };

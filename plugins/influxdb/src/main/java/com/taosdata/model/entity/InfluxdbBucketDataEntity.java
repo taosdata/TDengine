@@ -7,6 +7,7 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * influxdb data实体类
@@ -24,6 +25,7 @@ public class InfluxdbBucketDataEntity implements Cloneable {
     private Instant time;
     private String field;
     private Object value;
+    //use TreeMap
     private Map<String, Object> tags;
 
     @Override
@@ -35,7 +37,7 @@ public class InfluxdbBucketDataEntity implements Cloneable {
     @Override
     public InfluxdbBucketDataEntity clone() throws CloneNotSupportedException {
         InfluxdbBucketDataEntity clone = (InfluxdbBucketDataEntity) super.clone();
-        clone.tags = new HashMap<>();
+        clone.tags = new TreeMap<>();
         clone.tags.putAll(this.tags);
         return clone;
     }

@@ -83,9 +83,10 @@ export default {
       label: '数据模型配置',
       description:
         '使用默认配置，或者下载并修改后上传。配置入库的点位或者元素，入库的数据模型、数据过滤条件和变换规则。',
-      field: 'datasets',
+      field: 'model',
       type: 'tabs',
       multiple: false,
+      valueField: 'only-choose-one$',
       name: 'datasets',
       children: [
         {
@@ -203,7 +204,6 @@ export default {
           }
         }
       ],
-      valueField: '667ad1c7-527b-4052-a586-772db76f0145',
       defaultValue: 'single-column'
     },
     {

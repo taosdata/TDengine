@@ -346,6 +346,9 @@ async fn validate_source_influxdb(
         .arg("-version")
         .output()
         .await
+        .inspect_err(|error| {
+            tracing::error!("Get JDK version error: {:?}", error);
+        })
         .context("Get JDK version error")?;
     // http 客户端
     let client = reqwest::Client::new();
@@ -383,7 +386,7 @@ async fn validate_source_influxdb(
     // 请求成功
     if let Ok(response) = result {
         let status = response.status().as_u16();
-        let headers = response.headers();
+        let headers = response.headers().clone();
         if status == 200 {
             // 获取版本
             let x_build = headers.get("x-influxdb-build");
@@ -417,16 +420,28 @@ async fn validate_source_influxdb(
         } else {
             let error_code = headers
                 .get("x-platform-error-code")
-                .unwrap()
-                .to_str()
-                .unwrap();
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("unknown error code");
+            tracing::error!(
+                "InfluxDB platform error: {}, status: {}",
+                error_code,
+                status
+            );
+            let text = response.text().await.ok();
+            let message = match text {
+                Some(t) => format!(
+                    "InfluxDB returned error: {}, status code {}, message: {}",
+                    error_code, status, t
+                ),
+                None => format!("InfluxDB returned status code {}", status),
+            };
             // 组装结果
             Ok(DataSourceValidation {
                 valid: false,
                 support: false,
                 data_source: String::from("influxdb"),
                 version: None,
-                message: Some(error_code.to_string()),
+                message: Some(message),
                 namespaces: None,
             })
         }
@@ -463,6 +478,26 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_localhost() {
+        let token = std::env::var("INFLUX_TOKEN").unwrap_or_default();
+        let org = std::env::var("INFLUX_ORG").unwrap_or_default();
+        if token.is_empty() || org.is_empty() {
+            return;
+        }
+        let dsn = Dsn::from_str(&format!(
+            "influxdb://localhost:8086/?version=2.7&orgId={}&token={}",
+            org, token
+        ))
+        .unwrap();
+        let validation = is_valid(&dsn).await;
+        dbg!(&validation);
+        assert!(validation.valid);
+        assert!(validation.support);
+        assert_eq!("influxdb", validation.data_source);
+    }
 
     #[tokio::test]
     #[ignore]

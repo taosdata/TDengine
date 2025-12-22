@@ -1,4 +1,4 @@
-name: Testing coverage on branch 3.0
+name: Testing coverage on branch main
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ env:
   RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
-  DIR_PATH_3_0: "3.0"
+  DIR_PATH_3_0: "main"
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   REPORT_BASE_URL: http://192.168.1.45:8788
   COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx

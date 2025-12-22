@@ -5,10 +5,12 @@ import com.taosdata.caches.MetricDataCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
+import com.taosdata.config.TaskConfig;
 import com.taosdata.model.entity.OpentsdbDataEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.NettyClient;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.TableNameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,8 @@ public class PushPrepareThread implements Runnable {
      * 性能配置
      */
     private PerformanceConfig performanceConfig = ApplicationContextProvider.getBean(PerformanceConfig.class);
+
+    private TaskConfig taskConfig = ApplicationContextProvider.getBean(TaskConfig.class);
 
     /**
      * Socket客户端
@@ -197,6 +201,8 @@ public class PushPrepareThread implements Runnable {
 
     /**
      * 根据Metric与Tags生成表名
+     * 支持通过 tableNamePattern 配置来自定义子表名称格式
+     * 例如：tableNamePattern = "tb_${cpu.util}_${test1}"
      *
      * @param opentsdbDataEntity
      */
@@ -205,18 +211,13 @@ public class PushPrepareThread implements Runnable {
         String metric = opentsdbDataEntity.getMetric();
         // Tags
         Map<String, Object> tags = opentsdbDataEntity.getTags();
-        // 判断tags是否存在
-        if (tags == null || tags.isEmpty()) {
-            // 仅拼接下划线
-            opentsdbDataEntity.setTable(metric + "_");
-        } else {
-            // 拼接Metric
-            String tableName = metric;
-            // 遍历拼接
-            for (Object tag : tags.values()) {
-                tableName += "_" + tag;
-            }
-            opentsdbDataEntity.setTable(tableName);
-        }
+        // 获取表名模板
+        String tableNamePattern = taskConfig.getTableNamePattern();
+
+        // 使用工具类生成表名
+        String tableName = TableNameUtils.generateTableName(tableNamePattern, metric, tags);
+
+        // 设置表名
+        opentsdbDataEntity.setTable(tableName);
     }
 }

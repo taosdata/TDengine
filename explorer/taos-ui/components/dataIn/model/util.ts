@@ -332,6 +332,9 @@ function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: an
   }
 
   if (data['only-choose-one$'] && typeof data[data['only-choose-one$']] === 'object') {
+    if (parentKey === 'model' && fromData['model'] === undefined) {
+      fromData['model'] = data['only-choose-one$'];
+    }
     mergeToFromData(data[data['only-choose-one$']], fromData, fullNameMap, data['only-choose-one$']);
     return;
   }

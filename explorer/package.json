@@ -11,10 +11,12 @@
     "build:bin": "node version.cjs && node scripts/oem.cjs && cargo build --release -p taos-explorer",
     "preview": "vite preview",
     "lint": "eslint --fix --ext  .js,.vue src",
+    "test": "vitest run src/**/*.test.ts",
     "prepare": "husky install"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
+    "@juanelas/aes-gcm": "^1.1.0",
     "@tdengine/websocket": "link:./taos-connector-node/WebSocket",
     "@unocss/reset": "^0.61.3",
     "@vueuse/core": "^10.11.0",
@@ -70,6 +72,7 @@
     "@vitejs/plugin-legacy": "^5.4.1",
     "@vitejs/plugin-vue": "^5.0.5",
     "@vitejs/plugin-vue-jsx": "^4.1.1",
+    "@vitest/browser": "^4.0.14",
     "@vitest/coverage-v8": "^1.6.0",
     "@volar/typescript": "^2",
     "@vue/eslint-config-prettier": "^9.0.0",
@@ -88,6 +91,7 @@
     "eslint-plugin-promise": "6.0.0",
     "eslint-plugin-vue": "^9.27.0",
     "gifsicle": "^7.0.0",
+    "happy-dom": "^20.0.11",
     "husky": "^9.1.5",
     "imagemin-gifsicle": "^7.0.0",
     "imagemin-mozjpeg": "^10.0.0",

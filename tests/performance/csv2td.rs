@@ -682,7 +682,7 @@ mod tests {
     #[tokio::test]
     async fn test_simulate_write_csv() {
         // given
-        let csv_dir = Path::new("./tttt");
+        let csv_dir = tempdir().unwrap();
         let f = CSV2TDFactors {
             taosd_factors: TaosdFactors {
                 host: "127.0.0.1".to_string(),
@@ -702,11 +702,11 @@ mod tests {
         };
 
         // when
-        let m = simulate_write_csv(csv_dir, &f).await.unwrap();
+        let m = simulate_write_csv(csv_dir.as_ref(), &f).await.unwrap();
         println!("metrics: {:?}", m);
 
         // then
-        let csv_files = std::fs::read_dir(csv_dir)
+        let csv_files = std::fs::read_dir(csv_dir.as_ref())
             .unwrap()
             .filter_map(|e| {
                 let p = e.unwrap().path();

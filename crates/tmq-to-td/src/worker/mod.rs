@@ -692,6 +692,10 @@ impl Worker {
                 meta_changed = true;
             }
         }
+
+        if self.options.strategy.by_block() {
+            meta_changed = true;
+        }
         Ok(meta_changed)
     }
 

@@ -30,7 +30,7 @@ export default ({ mode }: { mode: any }) => {
   const env = loadEnv(mode, process.cwd());
   const lifecycle = process.env.npm_lifecycle_event;
   return defineConfig({
-    base: '/',
+    base: './',
     resolve: {
       alias: {
         // 配置别名
@@ -193,6 +193,15 @@ export default ({ mode }: { mode: any }) => {
             return 'assets/[name]-[hash].[ext]';
           }
         }
+      }
+    },
+    test: {
+      environment: 'happy-dom',
+      globals: true,
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html'],
+        exclude: ['node_modules/', 'node-connector-node/', 'taos-ui/']
       }
     }
   });

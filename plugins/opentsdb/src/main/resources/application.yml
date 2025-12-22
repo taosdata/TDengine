@@ -29,6 +29,11 @@ task:
   endTime:
   # logLevel: trace/debug/info/warn/error
   logLevel: info
+  # tableNamePattern: custom pattern for subtable naming
+  # Use ${variable} to reference tag values or ${metric} for metric name
+  # Example: tb_${cpu.util}_${test1} will generate subtable name like: tb_80_value1
+  # If not specified, default naming will be used: metric_tagValue1_tagValue2_...
+  # tableNamePattern:
 
 #performance parameters
 performance:

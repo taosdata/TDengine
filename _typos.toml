@@ -4,6 +4,7 @@ optin = "optin"
 ba = "ba"
 testng = "testng"
 mosquitto = "mosquitto"
+hashi = "hashi" # for HashiCorp
 
 [type.csv]
 extend-glob = ["*.csv"]

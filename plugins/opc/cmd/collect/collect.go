@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +63,7 @@ func collect() {
 		enablePprof()
 	}
 	var opcClient client.OPCClient
-	wc, err := watcher.NewWatcher(log.GetLogger("watcher"), func(file string) {
+	wc, err := watcher.NewWatcher(log.GetLogger("watcher"), func(file string, logger *logrus.Entry) {
 		if opcClient != nil {
 			newMD5 := getMD5(configPath)
 			if lastMD5 == newMD5 {

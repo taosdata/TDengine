@@ -357,8 +357,25 @@ export default {
           "defaultValue": "30s"
         },
         {
+          "field": "cache.keep_days",
+          "label": "临时存储保留天数",
+          "type": "composeAppend",
+          "options": [
+            {
+              "value": "d",
+              "label": "天"
+            }
+          ],
+          "min": 0,
+          "max": 65535,
+          "description": "配置以上操作配置为 缓存 时，缓存文件的最大保留时长。默认 30 天。配置为 0 表示默认值。",
+          "required": false,
+          "placeholder": "输入非负整数，0 表示默认值30d",
+          "defaultValue": "30d"
+        },
+        {
           "field": "cache.max_size",
-          "label": "临时存储可用空间",
+          "label": "临时存储文件大小",
           "type": "composeAppend",
           "options": [
             {
@@ -373,10 +390,20 @@ export default {
           "min": 0,
           "max": 65535,
           "description":
-            "启用时，需配置允许占用的磁盘空间，最小为 1G，最大为 65535 G，配置为 0 表示无限制。默认无限制。默认路径是 ： $DATA_DIR/tasks/:id/cache",
+            "单个缓存文件的大小，默认为 1G，最大为 65535G，配置为 0 表示使用默认值。默认路径是 ： $DATA_DIR/tasks/:id/cache",
           "required": false,
-          "placeholder": "输入范围为[1,65535]整数",
+          "placeholder": "输入范围为[0,65535]整数",
           "defaultValue": "1GB"
+        },
+        {
+          "field": "cache.rotate_count",
+          "label": "临时存储文件个数",
+          "type": "number",
+          "min": 0,
+          "max": 65535,
+          "description": "临时存储文件的个数，默认值为 100。配置为 0 表示使用默认值。",
+          "required": false,
+          "defaultValue": 100
         },
         {
           "field": "cache.location",
@@ -415,14 +442,14 @@ export default {
           ],
           "min": 0,
           "max": 65535,
-          "description": "配置以上操作配置为 归档 时，归档文件的最大保留时长。默认 30 天。配置为 0 表示无限制。",
+          "description": "配置以上操作配置为 归档 时，归档文件的最大保留时长。默认 30 天。配置为 0 表示使用默认值。",
           "required": false,
-          "placeholder": "输入非负整数，0 表示无限制",
+          "placeholder": "输入非负整数，0 表示默认值30d",
           "defaultValue": "30d"
         },
         {
           "field": "archive.max_size",
-          "label": "归档数据可用空间",
+          "label": "归档数据文件大小",
           "type": "composeAppend",
           "options": [
             {
@@ -437,10 +464,20 @@ export default {
           "min": 0,
           "max": 65535,
           "description":
-            "归档文件的最大可用磁盘空间，最小为 1G，最大为 65535G，配置为 0 表示无限制。默认无限制。默认路径：$DATA_DIR/tasks/:id/archived",
+            "单个归档文件的大小，默认为 1G，最大为 65535G，配置为 0 表示使用默认值。默认路径：$DATA_DIR/tasks/:id/archived",
           "required": false,
-          "placeholder": "输入范围为[1,65535]整数",
+          "placeholder": "输入范围为[0,65535]整数",
           "defaultValue": "1GB"
+        },
+        {
+          "field": "archive.rotate_count",
+          "label": "归档数据文件个数",
+          "type": "number",
+          "min": 0,
+          "max": 65535,
+          "description": "归档文件的个数，默认值为 100。配置为 0 表示使用默认值。",
+          "required": false,
+          "defaultValue": 100
         },
         {
           "field": "archive.location",

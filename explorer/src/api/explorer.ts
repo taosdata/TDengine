@@ -2,19 +2,22 @@ import { request } from '@/utils/request.ts';
 import JSONbig from 'json-bigint';
 import { compHeadAndData, getLocalTimezone } from '@/utils';
 import { stringify } from 'qs';
+import pathDetector from '@/utils/pathDetector';
+
+const apiPath = pathDetector.getApiBasePath();
 export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
   return request({
-    baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: `/api/-/rest/sql?tz=${getLocalTimezone()}`,
+    baseURL: apiPath,
+    url: `/rest/sql?tz=${getLocalTimezone()}`,
     method: 'post',
     headers: {
       'Content-Type': 'text/plain'
     },
     transformResponse: [
-      function (data, headers) {
-        console.log(headers);
+      function (data, _headers) {
+        // console.log('SQL response headers:', headers.toJSON());
         try {
-          console.log('Got response', data);
+          // console.log('SQL response data', data);
           return JSONbig.parse(data);
         } catch (error) {
           return data;
@@ -37,8 +40,8 @@ export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
 
 export function executeDBOperations(sql: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: `/api/-/rest/sql?tz=${getLocalTimezone()}`,
+    baseURL: apiPath,
+    url: `/rest/sql?tz=${getLocalTimezone()}`,
     method: 'post',
     headers: {
       'Content-Type': 'text/plain'
@@ -91,8 +94,8 @@ export async function getPaginationData(
 // 通过token执行sql
 export function executeSQLByToken(sql: string, token: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: `/api/-/rest/sql/token/${token}`,
+    baseURL: apiPath,
+    url: `/rest/sql/token/${token}`,
     method: 'post',
     headers: {
       'Content-Type': 'text/plain'
@@ -115,7 +118,7 @@ export function executeSQLByToken(sql: string, token: string) {
 // 获取个人/共享收藏列表
 export function getFavorites(data: Recordable) {
   return request({
-    baseURL: import.meta.env.VITE_APP_EXPLORER_API,
+    baseURL: apiPath,
     url: `/favorites/sql?${stringify(data)}`,
     method: 'get',
     headers: {
@@ -127,7 +130,7 @@ export function getFavorites(data: Recordable) {
 // 添加个人/共享收藏
 export function addFavorite(data: Recordable) {
   return request({
-    baseURL: import.meta.env.VITE_APP_EXPLORER_API,
+    baseURL: apiPath,
     url: '/favorites/sql',
     method: 'post',
     data
@@ -137,7 +140,7 @@ export function addFavorite(data: Recordable) {
 // 删除个人/共享收藏
 export function delFavorite(id: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_EXPLORER_API,
+    baseURL: apiPath,
     url: '/favorites/sql/' + id,
     method: 'delete'
   });
@@ -146,7 +149,7 @@ export function delFavorite(id: string | number) {
 // 添加/取消/共享收藏 修改描述
 export function manageFavorite(id: string | number, data: Recordable) {
   return request({
-    baseURL: import.meta.env.VITE_APP_EXPLORER_API,
+    baseURL: apiPath,
     url: '/favorites/sql/' + id,
     method: 'patch',
     data

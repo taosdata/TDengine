@@ -2,6 +2,7 @@
 import Modal from '@/components/updateModal.vue';
 import { createApp } from 'vue';
 import i18n from '@/lang/index.ts';
+import pathDetector from '@/utils/pathDetector';
 
 let time = 0; // 计算轮询次数
 let version = ''; // 缓存的版本号
@@ -18,7 +19,16 @@ const timerFunction = async () => {
     return (timer = null);
   }
   // fetch 部署后同层级的version文件 并且加上时间戳参数 防止去访问本地硬盘的缓存
-  const res = await fetch(`/version.txt?v=${new Date().getTime().toString()}`)
+  const basePath = pathDetector.detectBasePath();
+  let baseUrl = '/';
+  if (process.env.NODE_ENV === 'development') {
+    // 开发环境使用代理
+    baseUrl = '/';
+  } else {
+    // 生产环境动态检测
+    baseUrl = basePath === '/' ? '/' : `${basePath}`;
+  }
+  const res = await fetch(`${baseUrl}version.txt?v=${new Date().getTime().toString()}`)
     .then(res => {
       return res.json();
     })

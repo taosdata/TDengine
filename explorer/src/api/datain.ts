@@ -1,12 +1,20 @@
 import { request } from '@/utils/request.ts';
 import JSONbig from 'json-bigint';
 import { getLocalTimezone, getLocalLang } from '@/utils';
+import pathDetector from '@/utils/pathDetector';
 
 const language = getLocalLang();
 export function getTask(type: string) {
   const id = localStorage.getItem('local_clusterID');
+  if (!id) {
+    return request({
+      baseURL: pathDetector.getXApiBasePath(),
+      url: `/tasks?lang=${language}&detail=true&labels=type::${type}`,
+      method: 'get'
+    });
+  }
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id}`,
     method: 'get'
   });
@@ -14,8 +22,15 @@ export function getTask(type: string) {
 
 export function getRunningTask() {
   const id = localStorage.getItem('local_clusterID');
+  if (!id) {
+    return request({
+      baseURL: pathDetector.getXApiBasePath(),
+      url: `/tasks?lang=${language}&detail=true&labels=type::datain&in_scheduler=true`,
+      method: 'get'
+    });
+  }
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks?lang=${language}&detail=true&labels=type::datain,cluster-id::${id}&in_scheduler=true`,
     method: 'get'
   });
@@ -23,7 +38,7 @@ export function getRunningTask() {
 
 export function getUIData() {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in?lang=${language}`,
     method: 'get'
   });
@@ -31,7 +46,7 @@ export function getUIData() {
 
 export function generatePIDefaultConfigFile(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/download/pi_default_config`,
     method: 'post',
     data
@@ -40,7 +55,7 @@ export function generatePIDefaultConfigFile(data: Record<string, any>) {
 
 export function AddSource(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: '/tasks',
     method: 'post',
     headers: {
@@ -52,7 +67,7 @@ export function AddSource(data: Record<string, any>) {
 
 export function EditSource(data: Record<string, any>, id: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}`,
     method: 'patch',
     headers: {
@@ -64,7 +79,7 @@ export function EditSource(data: Record<string, any>, id: string | number) {
 //获取ua的nodes或者da的tags
 export function getUaAndDaData(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/sets`,
     method: 'post',
     headers: {
@@ -79,7 +94,7 @@ export function getUaAndDaData(data: Record<string, any>) {
 
 export function loadTaskDetail(id: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}?detail=true&lang=${language}`,
     method: 'get',
     headers: {
@@ -95,7 +110,7 @@ export async function refreshTask(id: string | number) {
 
 export function skip2Latest(id: string | number, _recovery: boolean) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/kafka/${id}/seek_to_end`,
     method: 'post',
     headers: {
@@ -106,7 +121,7 @@ export function skip2Latest(id: string | number, _recovery: boolean) {
 
 export function uploadFile() {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/upload`,
     method: 'post',
     headers: {
@@ -117,7 +132,7 @@ export function uploadFile() {
 
 export function getCSVColumns(path: string, type: string, other?: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/filemeta?file_path=${path}&file_type=${type}${other ? '&' + other : ''}`,
     method: 'get',
     headers: {
@@ -128,7 +143,7 @@ export function getCSVColumns(path: string, type: string, other?: string) {
 
 export function getAgentActivities(agentId: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/agents/${agentId}/activities`,
     method: 'get'
   });
@@ -136,7 +151,7 @@ export function getAgentActivities(agentId: string | number) {
 
 export function getTaskActivities(taskId: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${taskId}/activities`,
     method: 'get'
   });
@@ -144,7 +159,7 @@ export function getTaskActivities(taskId: string | number) {
 
 export function getMetrics(taskId: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${taskId}/metrics`,
     method: 'get'
   });
@@ -152,7 +167,7 @@ export function getMetrics(taskId: string | number) {
 
 export function validateTask(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: '/ds/in/validate',
     method: 'post',
     data
@@ -171,7 +186,7 @@ export function validateTask(data: Record<string, any>) {
 
 export function getFileStream(filepath: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/download?file_path=${filepath}`,
     method: 'get',
     responseType: 'blob'
@@ -180,7 +195,7 @@ export function getFileStream(filepath: string) {
 
 export function downloadAllNodes(data: string, agentid?: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/download/all_data_sets?from=${data}` + (agentid ? `&via=${agentid}` : ''),
     method: 'get',
     responseType: 'blob'
@@ -211,7 +226,7 @@ export function checkParseData(data: any) {
 
 export function getParser(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/transform/sample/flat?tz=${getLocalTimezone()}`,
     method: 'post',
     transformResponse: [
@@ -228,7 +243,7 @@ export function getParser(data: Record<string, any>) {
 }
 export function getMetricsDesc() {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/metrics/description?lang=${language}`,
     method: 'get'
   });
@@ -236,7 +251,7 @@ export function getMetricsDesc() {
 
 export function getSampleDataMsgbody(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/sample`,
     method: 'post',
     data,
@@ -254,7 +269,7 @@ export function getSampleDataMsgbody(data: Record<string, any>) {
 
 export function listParserPlugins() {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/transform/parser/plugins`,
     method: 'get'
   });
@@ -263,7 +278,7 @@ export function listParserPlugins() {
 // 用模版的方式创建超级表的预览api
 export function getStableParser(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/transform/sample/flat/s_model/preview?tz=${getLocalTimezone()}`,
     method: 'post',
     transformResponse: [
@@ -282,7 +297,7 @@ export function getStableParser(data: Record<string, any>) {
 // opc：提交数据点位模版文件下载请求，获取 ticket
 export function getTicket(data: Recordable) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/file/download/task`,
     method: 'post',
     data
@@ -292,7 +307,7 @@ export function getTicket(data: Recordable) {
 // opc：检查数据点位模版文件是否准备好
 export function checkReadyFile(ticket: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/file/are/you/ready?ticket=${ticket}`,
     method: 'get'
   });
@@ -301,7 +316,7 @@ export function checkReadyFile(ticket: string) {
 // opc：下载数据点位模版csv文件
 export function downloadOpcPointFile(ticket: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/file/async?ticket=${ticket}`,
     method: 'get',
     responseType: 'blob'
@@ -336,7 +351,7 @@ export function getPointOptions(data: Record<string, any>) {
   }
 
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/options`,
     method: 'post',
     headers: {
@@ -354,7 +369,7 @@ export function getPointOptions(data: Record<string, any>) {
  */
 export function getDatasets(ticket: string, page: number, pageSize: number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/data/page?ticket=${ticket}&page=${page}&page_size=${pageSize}`,
     method: 'get'
   });
@@ -363,7 +378,7 @@ export function getDatasets(ticket: string, page: number, pageSize: number) {
 // 下载 csv 空模版
 export function getCsvEmptyTemplate(driver: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/file/template?driver=${driver}&lang=${language}`,
     method: 'get',
     responseType: 'blob'
@@ -373,7 +388,7 @@ export function getCsvEmptyTemplate(driver: string) {
 // 获取表同步进度
 export function getTableProgress(id: string | number, params: string) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}/table_progress?${params}`,
     method: 'get',
     transformResponse: [
@@ -391,7 +406,7 @@ export function getTableProgress(id: string | number, params: string) {
 //  获取 vgroup 消费进度
 export function getVgroupProgress(id: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/${id}/vgroup_progress`,
     method: 'get'
   });
@@ -399,7 +414,7 @@ export function getVgroupProgress(id: string | number) {
 // 校验 opc 点位合法性
 export function validOpcFile(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/file/is_valid`,
     data,
     method: 'post'
@@ -409,7 +424,7 @@ export function validOpcFile(data: Record<string, any>) {
 // 批量启动任务
 export function batchStartTask(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/start`,
     method: 'post',
     data
@@ -418,7 +433,7 @@ export function batchStartTask(data: Record<string, any>) {
 // 批量停止任务
 export function batchStopTask(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/stop`,
     method: 'post',
     data
@@ -427,7 +442,7 @@ export function batchStopTask(data: Record<string, any>) {
 // 批量删除任务
 export function batchDelTask(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/delete`,
     method: 'post',
     data
@@ -436,7 +451,7 @@ export function batchDelTask(data: Record<string, any>) {
 
 export function batchExportTask(ids: number[]) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/export?ids=${ids.join(',')}`,
     method: 'get',
     responseType: 'blob'
@@ -445,7 +460,7 @@ export function batchExportTask(ids: number[]) {
 
 export function importTask(data: Recordable) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/tasks/import`,
     method: 'post',
     data
@@ -455,7 +470,7 @@ export function importTask(data: Recordable) {
 // 增加点位
 export function addOpcPoint(data: Record<string, any>) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/opc/csv/points`,
     method: 'post',
     data
@@ -465,7 +480,7 @@ export function addOpcPoint(data: Record<string, any>) {
 // 查看点位配置csv Header
 export function getOpcCsvHeader(taskId: string | number) {
   return request({
-    baseURL: import.meta.env.VITE_APP_X_API,
+    baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/opc/csv/points/header?task_id=${taskId}`,
     method: 'get'
   });

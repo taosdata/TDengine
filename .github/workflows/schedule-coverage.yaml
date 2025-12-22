@@ -12,6 +12,6 @@ jobs:
       - name: run job action
         uses: benc-uk/workflow-dispatch@v1.1
         with:
-          workflow: Testing coverage on branch 3.0     # 触发另一个工作流 Workflow on Specific Branch
+          workflow: Testing coverage on branch main     # 触发另一个工作流 Workflow on Specific Branch
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: refs/heads/3.0                      # 指定该工作流执行的分支为3.0分支
+          ref: refs/heads/main                      # 指定该工作流执行的分支为3.0分支

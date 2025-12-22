@@ -52,7 +52,7 @@ namespace TDPIConnector.Core
             deleteSender.SetBackfill(backfill);
         }
 
-        public void OnAFElementEventBatch(ref List<AFDataPipeEventWrapper> allEvents)
+        public async Task OnAFElementEventBatch(List<AFDataPipeEventWrapper> allEvents)
         {
             OnAFEventReceivedListSuccess(this, allEvents.Take(100).ToList());
             log.Debug($"AFElementEventBatch:{allEvents.Count}");
@@ -277,7 +277,8 @@ namespace TDPIConnector.Core
                     // 处理其它事件, 理论不应该走到这里，如果走到这里，需要检查代码逻辑
                     log.Warn($"DataPipeEvent-{action}:ignored");
                 }
-                catch (InvalidOperationException oe) { 
+                catch (InvalidOperationException oe)
+                {
                     log.Warn($"Process DataPipeEvent Warn: {oe.Message}");
                 }
                 catch (Exception e)
@@ -287,15 +288,15 @@ namespace TDPIConnector.Core
             }
             try
             {
-                tdEngineProxy.InsertValuesForAFElements(stables, columnNames).Wait();
+                await tdEngineProxy.InsertValuesForAFElements(stables, columnNames);
             }
             catch (Exception e)
             {
-                throw e.InnerException;
+                throw e.InnerException ?? e;
             }
         }
 
-        public void OnAFElementEvents()
+        public async Task OnAFElementEvents()
         {
             if (StandbyManager.Instance.StandByModeEnabled)
             {
@@ -312,8 +313,9 @@ namespace TDPIConnector.Core
                 }
                 if (allEvents.Count >= 10000)
                 {
-                    OnAFElementEventBatch(ref allEvents);
+                    var batch = allEvents.ToList();
                     allEvents.Clear();
+                    await OnAFElementEventBatch(batch);
                 }
             }
             if (allEvents.Count == 0)
@@ -321,8 +323,9 @@ namespace TDPIConnector.Core
                 return;
             }
 
-            OnAFElementEventBatch(ref allEvents);
+            var finalBatch = allEvents.ToList();
             allEvents.Clear();
+            await OnAFElementEventBatch(finalBatch);
         }
 
         public void OnPIPointEvents()
@@ -366,7 +369,7 @@ namespace TDPIConnector.Core
                 }
                 catch (Exception e)
                 {
-                    throw e.InnerException;
+                    throw e.InnerException ?? e;
                 }
             }
             allEvents.Clear();
@@ -411,15 +414,17 @@ namespace TDPIConnector.Core
         );
         private readonly TDEngineProxy tdProxy;
         private BackfillManager backfillManager;
+        private Task sendTask;
+        private readonly object sendLock = new object();
 
         public Dictionary<string, RangeDelete> timeRangesToDelete = new Dictionary<
             string,
             RangeDelete
         >
         {
-            }; // key: string elementName;
+        }; // key: string elementName;
         private readonly Object stLock = new Object();
-        public DateTime LastUpdataTime;
+        public DateTime LastUpdateTime;
         public bool startBackfill = false;
 
         public RangeDeleteEventsSender(TDEngineProxy tdProxy, BackfillManager backfillManager)
@@ -454,25 +459,79 @@ namespace TDPIConnector.Core
                     var range = new RangeDelete(element, stableName, startTime, endTime);
                     timeRangesToDelete.Add(elementId, range);
                 }
-                LastUpdataTime = DateTime.Now;
+                LastUpdateTime = DateTime.Now;
+
                 if (!startBackfill)
                 {
                     startBackfill = true;
-                    Task task = Task.Run(async () =>
+                    lock (sendLock)
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(5));
-                        Send();
-                    });
+                        if (sendTask == null)
+                        {
+                            sendTask = SendAsync();
+                        }
+                    }
                 }
             }
             return;
         }
 
+        private async Task SendAsync()
+        {
+            try
+            {
+                while (true)
+                {
+                    // 等待直到“30秒无更新”的窗口到达
+                    var deadline = LastUpdateTime.AddSeconds(30);
+                    var now = DateTime.Now;
+                    if (now < deadline)
+                    {
+                        var delay = deadline - now;
+                        await Task.Delay(delay).ConfigureAwait(false);
+                    }
+
+                    lock (stLock)
+                    {
+                        foreach (var kv in timeRangesToDelete)
+                        {
+                            string elementId = kv.Key;
+                            string elementName = kv.Value.element.Name;
+                            string superTableName = kv.Value.StableName;
+                            string startTime = kv.Value.StartTime.FormatUtcTime();
+                            string endTime = kv.Value.EndTime.FormatUtcTime();
+                            tdProxy.DeleteByTimeRange(superTableName, elementId, startTime, endTime);
+                            log.Info($"Delete:{superTableName}:{elementName}_{elementId}:{kv.Value.StartTime.LocalTime}-{kv.Value.EndTime.LocalTime}");
+                        }
+                    }
+
+                    await Task.Delay(1000); // 小延迟
+                    Backfill();
+
+                    lock (stLock)
+                    {
+                        startBackfill = false;
+                        timeRangesToDelete.Clear();
+                    }
+                    break; // 完成一次发送周期后退出
+                }
+            }
+            finally
+            {
+                lock (sendLock)
+                {
+                    sendTask = null; // 允许下次再创建
+                }
+            }
+        }
+
+        // 不再使用同步 Send
+        /*
         public void Send()
         {
             while (true)
             {
-                if (DateTime.Now < LastUpdataTime.AddSeconds(30))
+                if (DateTime.Now < LastUpdateTime.AddSeconds(30))
                 {
                     Thread.Sleep(1000);
                     continue;
@@ -498,6 +557,7 @@ namespace TDPIConnector.Core
                 break;
             }
         }
+        */
 
         public void Backfill()
         {

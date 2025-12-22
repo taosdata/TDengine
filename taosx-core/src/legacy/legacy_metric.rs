@@ -166,3 +166,75 @@ impl From<LegacyToTaosMetrics> for CoreMetrics {
         CoreMetrics::Legacy(val)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    fn sample_metrics() -> LegacyToTaosMetrics {
+        LegacyToTaosMetrics::new("stable".to_string(), 42, Some("task".to_string()))
+    }
+
+    #[test]
+    fn test_add_counters_and_totals() {
+        let metrics = sample_metrics();
+        metrics.add_success_blocks(5);
+        metrics.add_updated_tags(3);
+        metrics.add_created_tables(2);
+        metrics.add_finished_tables(7);
+
+        assert_eq!(metrics.success_blocks.load(SeqCst), 5);
+        assert_eq!(metrics.total_success_blocks.load(SeqCst), 5);
+        assert_eq!(metrics.updated_tags.load(SeqCst), 3);
+        assert_eq!(metrics.total_updated_tags.load(SeqCst), 3);
+        assert_eq!(metrics.created_tables.load(SeqCst), 2);
+        assert_eq!(metrics.total_created_tables.load(SeqCst), 2);
+        assert_eq!(metrics.finished_tables(), 7);
+        assert_eq!(metrics.total_finished_tables.load(SeqCst), 7);
+    }
+
+    #[test]
+    fn test_reset_clears_run_metrics_only() {
+        let metrics = sample_metrics();
+        metrics.add_success_blocks(5);
+        metrics.add_updated_tags(3);
+        metrics.add_created_tables(2);
+        metrics.add_finished_tables(4);
+        metrics.add_written_rows(10);
+        metrics.add_written_points(20);
+
+        metrics.reset();
+
+        assert_eq!(metrics.success_blocks.load(SeqCst), 0);
+        assert_eq!(metrics.updated_tags.load(SeqCst), 0);
+        assert_eq!(metrics.created_tables.load(SeqCst), 0);
+        assert_eq!(metrics.finished_tables(), 0);
+        assert_eq!(metrics.written_rows(), 0);
+        assert_eq!(metrics.written_points(), 0);
+        // totals remain
+        assert_eq!(metrics.total_success_blocks.load(SeqCst), 5);
+        assert_eq!(metrics.total_updated_tags.load(SeqCst), 3);
+        assert_eq!(metrics.total_created_tables.load(SeqCst), 2);
+        assert_eq!(metrics.total_finished_tables.load(SeqCst), 4);
+    }
+
+    #[test]
+    fn test_serde_roundtrip() {
+        let metrics = sample_metrics();
+        metrics.add_success_blocks(1);
+        metrics.add_created_tables(2);
+        metrics.add_updated_tags(3);
+        metrics.add_finished_tables(4);
+
+        let json = serde_json::to_string(&metrics).unwrap();
+        let decoded = LegacyToTaosMetrics::from_json(&json).unwrap();
+
+        assert_eq!(decoded.total_success_blocks.load(SeqCst), 1);
+        assert_eq!(decoded.total_created_tables.load(SeqCst), 2);
+        assert_eq!(decoded.total_updated_tags.load(SeqCst), 3);
+        assert_eq!(decoded.total_finished_tables.load(SeqCst), 4);
+        assert_eq!(decoded.com.task_id, metrics.com.task_id);
+        assert_eq!(decoded.com.stable, metrics.com.stable);
+    }
+}

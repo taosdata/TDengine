@@ -590,6 +590,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 "csv" => "csv",
                 "orc" => "orc",
                 "pulsar" | "pulsarTuya" => "pulsar",
+                "kinghist" | "kingHistorian" => "kinghist",
                 connector => {
                     bail!("The current connector {connector} is not supported by license.");
                 }

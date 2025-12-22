@@ -1,25 +1,29 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
+use actix_web::CustomizeResponder;
+use actix_web_rust_embed_responder::{EmbedResponse, IntoResponse};
 use anyhow::Context;
 use chrono::{SecondsFormat, TimeZone};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use deadpool::managed::{Object, PoolError};
 use faststr::FastStr;
-use favorites::FavoritesSql;
+use favorites::Storage;
 use futures_util::StreamExt;
 use geos::{Geom, Geometry};
 use http::{HeaderMap, HeaderValue, StatusCode};
-use http_auth_basic::Credentials;
 use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
 use serde_with::{serde_as, FromInto};
 use std::{
+    borrow::Cow,
     collections::HashMap,
+    ffi::OsString,
     fmt::Display,
     fs::File,
     io::{BufReader, Read},
+    ops::Deref,
     path::PathBuf,
     str::FromStr,
     sync::{LazyLock, OnceLock},
@@ -32,21 +36,21 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use tracing_actix_web::TracingLogger;
 
-use actix_embed::Embed;
 use actix_web::{
     body::BoxBody,
     dev::{fn_service, ServiceRequest, ServiceResponse},
     error,
-    http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
+    http::header::X_FORWARDED_FOR,
     middleware::Compress,
+    route,
     web::{self, Query},
     App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
 };
 use anyhow::bail;
-use awc::Client as AwcClient;
+use awc::{cookie::Cookie, Client as AwcClient};
 use clap::Parser;
 use qid::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
-use rust_embed::RustEmbed;
+use rust_embed::{EmbeddedFile, RustEmbed};
 use serde::{Deserialize, Serialize};
 use taoslog::{
     layer::TaosLayer,
@@ -64,10 +68,15 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
+use crate::{oauth::SessionManager, security::SecurityConfig};
+
 mod favorites;
 mod monitor;
+mod oauth;
 mod qid;
+mod security;
 mod sql;
+mod utils;
 mod verification;
 
 #[cfg(feature = "mimalloc")]
@@ -165,7 +174,9 @@ async fn main() -> anyhow::Result<()> {
 
     let mut file_path = std::path::Path::new(&path).join("explorer.toml");
 
-    if let Ok(config) = ConfigPath::try_parse() {
+    if let Ok(config) = ConfigPath::try_parse().inspect_err(|err| {
+        eprintln!("Failed to parse config path: {:?}", err);
+    }) {
         if let Some(value) = config.config_file {
             file_path = value;
         }
@@ -314,18 +325,73 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     };
-    let favorites = FavoritesSql::new(&data_dir).await?;
+    let favorites = Storage::new(&data_dir).await?;
+
+    // Load OAuth config from environment variables if present
+    if let Some(oauth_config) = args.oauth.as_mut() {
+        oauth_config.update_by_env();
+
+        // Validate OAuth configuration
+        if let Err(e) = oauth_config.validate() {
+            tracing::error!("OAuth configuration validation failed: {}", e);
+            anyhow::bail!("OAuth configuration error: {}", e);
+        }
+        if oauth_config.enabled {
+            tracing::info!("OAuth 2.0/OIDC authentication is enabled");
+            tracing::info!("OAuth provider: {}", oauth_config.provider);
+            tracing::info!("OAuth issuer: {}", oauth_config.oidc.issuer_url);
+        }
+    }
+    // Initialize OAuth components if enabled
+    let oauth_client = if args.oauth.as_ref().is_some_and(|c| c.enabled) {
+        let oauth_config = args.oauth.as_ref().unwrap();
+        match oauth::OAuthClientEnum::new(oauth_config.clone()).await {
+            Ok(client) => {
+                tracing::info!(
+                    "OAuth client initialized successfully (provider: {})",
+                    oauth_config.provider
+                );
+                Some(client)
+            }
+            Err(e) => {
+                tracing::error!("Failed to initialize OAuth client: {}", e);
+                anyhow::bail!("OAuth initialization failed: {}", e);
+            }
+        }
+    } else {
+        None
+    };
+
+    let session_manager = oauth::SessionManager::new(
+        app_args.deref().clone(),
+        favorites.pool.clone(),
+        args.security.load_encryption_key(),
+    );
+    args.session_manager = Some(session_manager.clone());
 
     args.data_dir = Some(data_dir);
 
     print_config_values(&args);
 
+    // Start background session cleanup task if OAuth is enabled
+    let session_mgr_clone = session_manager.clone();
+    tokio::spawn(async move {
+        tracing::info!("OAuth session cleanup task started (runs every hour)");
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600)); // Run every hour
+        loop {
+            interval.tick().await;
+            if let Err(e) = session_mgr_clone.cleanup_expired_sessions().await {
+                tracing::error!("Failed to cleanup expired OAuth sessions: {}", e);
+            }
+        }
+    });
     let server = HttpServer::new(move || {
         let cors = if cors {
             Cors::default()
                 .allow_any_origin()
                 .allow_any_method()
                 .allow_any_header()
+                .supports_credentials()
         } else {
             Cors::default()
                 .allowed_origin_fn(|origin, req_head| {
@@ -337,8 +403,10 @@ async fn main() -> anyhow::Result<()> {
                 })
                 .allow_any_method()
                 .allow_any_header()
+                .supports_credentials()
                 .max_age(3600)
         };
+        let oauth_config = args.oauth.as_ref().cloned();
         let app = App::new()
             .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
             .wrap(cors)
@@ -352,11 +420,65 @@ async fn main() -> anyhow::Result<()> {
             ))
             .app_data(app_args.clone())
             .app_data(web::Data::new(favorites.clone()))
+            .app_data(web::Data::new(session_manager.clone()))
             // .route("/", web::get().to(index))
             .route("/api/-/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/login", web::to(login))
+            .configure(|cfg| {
+                // Register OAuth routes if enabled
+                if oauth_client.is_some() {
+                    cfg.app_data(web::Data::new(oauth_client.clone().unwrap()))
+                        .app_data(web::Data::new(oauth_config.unwrap_or_default()))
+                        .route(
+                            "/api/-/oauth/status",
+                            web::get().to(oauth::handlers::oauth_status),
+                        )
+                        .route(
+                            "/api/-/oauth/authorize",
+                            web::get().to(oauth::handlers::oauth_authorize),
+                        )
+                        .route(
+                            "/api/-/oauth/callback",
+                            web::get().to(oauth::handlers::oauth_callback),
+                        )
+                        .route(
+                            "/api/-/oauth/bind",
+                            web::post().to(oauth::handlers::oauth_bind),
+                        )
+                        .route("/api/-/oauth/me", web::get().to(oauth::handlers::oauth_me))
+                        .route(
+                            "/api/-/oauth/logout",
+                            web::post().to(oauth::handlers::oauth_logout),
+                        )
+                        .route(
+                            "/api/-/oauth/users",
+                            web::get().to(oauth::handlers::oauth_exist_users),
+                        )
+                        .route(
+                            "/api/-/oauth/revoke",
+                            web::post().to(oauth::handlers::oauth_revoke),
+                        )
+                        .route(
+                            "/api/-/oauth/fetch-users",
+                            web::post().to(oauth::handlers::oauth_fetch_users),
+                        )
+                        .route(
+                            "/api/-/oauth/sync-users",
+                            web::post().to(oauth::handlers::oauth_sync_users),
+                        );
+                } else {
+                    cfg.route(
+                        "/api/-/oauth/{path:.*}",
+                        web::to(oauth::handlers::oauth_disabled),
+                    );
+                }
+            })
+            .route(
+                "/api/-/generate-token",
+                web::get().to(oauth::handlers::self_provided_token),
+            )
             .route("/api/-/import", web::to(import))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
@@ -391,38 +513,6 @@ async fn main() -> anyhow::Result<()> {
             .route(
                 "/api/-/favorites/sql/{id}",
                 web::patch().to(favorites::update_favorites_sql),
-            )
-            .service(web::redirect("/docs", "/docs/"))
-            .service(
-                Embed::new("/docs/", &StaticAssets)
-                    .index_file("index.html")
-                    .fallback_handler(|_: &_| {
-                        if let Some(embed) = StaticAssets::get("docs/index.html") {
-                            HttpResponse::Ok()
-                                .content_type(ContentType::html())
-                                .body(embed.data)
-                        } else {
-                            HttpResponse::NotFound()
-                                .content_type(ContentType::html())
-                                .body("404 Not Found")
-                        }
-                    }),
-            )
-            .service(web::redirect("/docs-en", "/docs-en/"))
-            .service(
-                Embed::new("/docs-en/", &StaticAssets)
-                    .index_file("index.html")
-                    .fallback_handler(|_: &_| {
-                        if let Some(embed) = StaticAssets::get("docs-en/index.html") {
-                            HttpResponse::Ok()
-                                .content_type(ContentType::html())
-                                .body(embed.data)
-                        } else {
-                            HttpResponse::NotFound()
-                                .content_type(ContentType::html())
-                                .body("404 Not Found")
-                        }
-                    }),
             );
 
         if let Some(assets) = args.assets.clone() {
@@ -444,21 +534,11 @@ async fn main() -> anyhow::Result<()> {
                     .show_files_listing(),
             )
         } else {
-            app.service(
-                Embed::new("/", &StaticAssets)
-                    .index_file("index.html")
-                    .fallback_handler(|_: &_| {
-                        if let Some(embed) = StaticAssets::get("index.html") {
-                            HttpResponse::Ok()
-                                .content_type(ContentType::html())
-                                .body(embed.data)
-                        } else {
-                            HttpResponse::NotFound()
-                                .content_type(ContentType::html())
-                                .body("404 Not Found")
-                        }
-                    }),
-            )
+            app.service(web::redirect("/docs", "/docs/"))
+                .service(docs_assets)
+                .service(web::redirect("/docs-en", "/docs-en/"))
+                .service(docs_en_assets)
+                .service(static_assets)
         }
     });
 
@@ -764,7 +844,7 @@ async fn send_verification_code(
 
 #[instrument(skip_all)]
 async fn check_verification_code(
-    db: web::Data<FavoritesSql>,
+    db: web::Data<Storage>,
     args: web::Data<Args>,
     body: web::Json<VerificationReqBody>,
 ) -> impl Responder {
@@ -957,14 +1037,15 @@ async fn renew_license(
     req: HttpRequest,
     body: web::Json<RenewLicense>,
 ) -> impl Responder {
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or_default();
-    match args.renew(header, &body).await {
-        Ok(ok) => HttpResponse::Ok().json(ok),
-        Err(err) => HttpResponse::InternalServerError().json(err),
+    let auth = oauth::middleware::extract_auth_from_request(&req)
+        .await
+        .and_then(|auth| auth.ok_or_else(|| "No credentials found in header".to_string()));
+    match auth {
+        Ok(auth) => match args.renew(&auth, &body).await {
+            Ok(ok) => HttpResponse::Ok().json(ok),
+            Err(err) => HttpResponse::InternalServerError().json(err),
+        },
+        Err(err) => HttpResponse::Unauthorized().json(R::<()>::fail(401, err)),
     }
 }
 
@@ -1171,47 +1252,52 @@ async fn modify_password(
     _path: web::Path<String>,
     req: HttpRequest,
     payload: web::Payload,
-    username: web::Path<String>,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or_default();
+    let auth = oauth::middleware::extract_auth_from_request(&req)
+        .await
+        .and_then(|auth| auth.ok_or_else(|| "No credentials found in headers".to_string()));
+    match auth {
+        Ok(auth) => {
+            let sql = get_body_from_payload(payload).await.unwrap();
+            let tz = query.get("tz");
 
-    let sql = get_body_from_payload(payload).await.unwrap();
-    let tz = query.get("tz");
+            match args.query(&auth, &sql, tz).await {
+                Ok(ok) => {
+                    // 清除 username 对应的 user_pool
+                    let _ = args.build_dsn(&auth).map(|dsn| {
+                        clear_pool(&dsn, auth.username.to_string());
+                    });
 
-    match args.query(header, &sql, tz).await {
-        Ok(ok) => {
-            // 清除 username 对应的 user_pool
-            let _ = args.build_dsn(header).map(|dsn| {
-                clear_pool(&dsn, username.to_string());
-            });
-
-            HttpResponse::Ok().json(ok)
+                    HttpResponse::Ok().json(ok)
+                }
+                Err(err) => HttpResponse::InternalServerError().json(err),
+            }
         }
-        Err(err) => HttpResponse::InternalServerError().json(err),
+        Err(err) => {
+            return HttpResponse::Unauthorized().json(RestErrResponse::new(err));
+        }
     }
 }
 
 #[instrument(skip_all)]
 async fn login(
-    db: web::Data<FavoritesSql>,
+    db: web::Data<Storage>,
     args: web::Data<Args>,
     req: HttpRequest,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or_default();
+    let auth = oauth::middleware::extract_auth_from_request(&req)
+        .await
+        .and_then(|auth| auth.ok_or_else(|| "No credentials found in headers".to_string()));
+    if auth.is_err() {
+        return HttpResponse::Unauthorized().json(RestErrResponse::new(auth.err().unwrap()));
+    }
+    let auth = auth.unwrap();
 
     let tz = query.get("tz");
     let sql = "select server_version()";
-    match args.query(header, sql, tz).await {
+    match args.query(&auth, sql, tz).await {
         Ok(mut ok) => {
             let mut resp = HttpResponseBuilder::new(StatusCode::OK);
             if *EXPLORER_SKIP_REGISTER {
@@ -1237,21 +1323,22 @@ async fn login(
 
 #[instrument(skip_all)]
 async fn rest_proxy(
-    db: web::Data<FavoritesSql>,
+    db: web::Data<Storage>,
     args: web::Data<Args>,
     req: HttpRequest,
     payload: web::Payload,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or_default();
-
+    let auth = oauth::middleware::extract_auth_from_request(&req)
+        .await
+        .and_then(|auth| auth.ok_or_else(|| "No credentials found in headers".to_string()));
+    if auth.is_err() {
+        return HttpResponse::Unauthorized().json(RestErrResponse::new(auth.err().unwrap()));
+    }
+    let auth = auth.unwrap();
     let sql = get_body_from_payload(payload).await.unwrap();
     let tz = query.get("tz");
-    match args.query(header, &sql, tz).await {
+    match args.query(&auth, &sql, tz).await {
         Ok(ok) => {
             let mut resp = HttpResponseBuilder::new(StatusCode::OK);
             if db.is_registered().await {
@@ -1310,16 +1397,15 @@ async fn import(
     if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().body("taosX API is required"));
     }
-    let header = req
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok());
-    if header.is_none() {
-        return Ok(HttpResponse::Unauthorized().body("Authorization header not found"));
+    let auth = oauth::middleware::extract_auth_from_request(&req)
+        .await
+        .and_then(|auth| auth.ok_or_else(|| "No credentials found in headers".to_string()));
+    if auth.is_err() {
+        return Err(RestErrResponse::new(auth.err().unwrap()));
     }
-    let header = header.unwrap();
+    let auth = auth.unwrap();
     let tz = query.get("tz");
-    match args.query(header, "select server_status()", tz).await {
+    match args.query(&auth, "select server_status()", tz).await {
         Ok(ok) => {
             if ok.code != Code::SUCCESS {
                 return Ok(HttpResponse::InternalServerError().json(ok));
@@ -1327,7 +1413,7 @@ async fn import(
         }
         Err(err) => return Err(RestErrResponse::new(err)),
     }
-    let dsn = args.build_dsn(header)?;
+    let dsn = args.build_dsn(&auth)?;
 
     let migrate = serde_json::json!(
         {
@@ -1514,6 +1600,128 @@ async fn x_api_doc(
 #[folder = "../dist/"]
 struct StaticAssets;
 
+/// Serve static assets with a prefix.
+///
+/// Each prefix is treated as a root path by responding with `index.html`.
+///
+/// In Explorer, this is used to serve the static assets for the UI and docs, including:
+/// - ""
+/// - "docs/"
+/// - "docs-en/"
+async fn static_assets_with_prefix(
+    prefix: &str,
+    path: &str,
+) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+    const COOKIE_ROUTE: &str = "route";
+    // Treat path as a route by responding with `index.html`.
+    //
+    // Examples:
+    // - ""
+    // - "/about"
+    // - "/about/"
+    // - "/dataIn/task"
+    if path.is_empty()
+        || path.ends_with('/')
+        || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
+    {
+        let index = format!("{prefix}index.html");
+        let cookie = Cookie::build(
+            COOKIE_ROUTE,
+            if path.is_empty() {
+                Cow::Borrowed(prefix)
+            } else {
+                Cow::Owned(format!("{prefix}{path}"))
+            },
+        )
+        .path("/")
+        .finish();
+        tracing::info!("SPA route to {path}");
+        return StaticAssets::get(&index)
+            .into_response()
+            .customize()
+            .add_cookie(&cookie);
+    }
+    let path = format!("{prefix}{path}");
+    if let Some(file) = StaticAssets::get(&path) {
+        file.into_response().customize()
+    } else {
+        path.char_indices()
+            .filter(|&(_, c)| c == '/')
+            .filter_map(|(i, _)| {
+                let part = &path[i + 1..];
+                StaticAssets::get(part)
+            })
+            .next()
+            .into_response()
+            .customize()
+    }
+}
+/// For docs.
+#[route("/docs/{path:.*}", method = "GET", method = "HEAD")]
+async fn docs_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+    static_assets_with_prefix("docs/", path.as_str()).await
+}
+/// For docs.
+#[route("/docs-en/{path:.*}", method = "GET", method = "HEAD")]
+#[instrument(skip_all, fields(path = path.as_str()))]
+async fn docs_en_assets(
+    path: web::Path<String>,
+) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+    static_assets_with_prefix("docs-en/", path.as_str()).await
+}
+
+/// For static assets as a SPA website.
+#[route("/{path:.*}", method = "GET", method = "HEAD")]
+async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
+    const COOKIE_ROUTE: &str = "route";
+    let path = path.as_str();
+    // Treat path as a route by responding with `index.html`.
+    //
+    // Examples:
+    // - ""
+    // - "/about"
+    // - "/about/"
+    // - "/dataIn/task"
+    if path.is_empty()
+        || path.ends_with('/')
+        || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
+    {
+        let index = "index.html";
+        let cookie = Cookie::build(COOKIE_ROUTE, if path.is_empty() { "/" } else { path })
+            .path("/")
+            .finish();
+        tracing::info!("SPA route to {path}");
+        return StaticAssets::get(index)
+            .into_response()
+            .customize()
+            .add_cookie(&cookie);
+    }
+    tracing::info!("path: {path}");
+    if let Some(file) = StaticAssets::get(path) {
+        if path.ends_with(".js") {
+            return file
+                .into_response()
+                .customize()
+                .append_header(("Content-Type", "application/javascript"));
+        }
+        // guess mime type from path
+        let mime = mime_guess::from_path(path).first_or_octet_stream();
+        file.into_response()
+            .customize()
+            .append_header(("Content-Type", mime.essence_str()))
+    } else {
+        path.char_indices()
+            .filter(|&(_, c)| c == '/')
+            .filter_map(|(i, _)| {
+                let part = &path[i + 1..];
+                StaticAssets::get(part)
+            })
+            .next()
+            .into_response()
+            .customize()
+    }
+}
+
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 struct Profile {
     /// Cluster endpoint. Use taosAdapter endpoint like `http://192.168.0.201:16041`.
@@ -1553,10 +1761,14 @@ struct GrafanaConfig {
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
+#[clap(trailing_var_arg = true)]
 struct ConfigPath {
     /// Configuration file
-    #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
+    #[clap(short = 'C', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
     config_file: Option<PathBuf>,
+
+    #[clap(allow_hyphen_values = true)]
+    raw_args: Vec<OsString>,
 }
 
 shadow_rs::shadow!(build);
@@ -1651,6 +1863,17 @@ struct Args {
     #[clap(flatten)]
     #[serde(default)]
     monitor: monitor::MonitorCfg,
+
+    #[clap(skip)]
+    oauth: Option<oauth::OAuthConfig>,
+
+    #[clap(flatten)]
+    #[serde(default)]
+    security: SecurityConfig,
+
+    #[clap(skip)]
+    #[serde(skip)]
+    session_manager: Option<SessionManager>,
 }
 
 #[serde_as]
@@ -1781,9 +2004,12 @@ struct Ssl {
 }
 
 impl Args {
-    fn build_dsn(&self, auth: &str) -> Result<Dsn, RestErrResponse> {
-        let credentials =
-            Credentials::from_header(auth.to_string()).map_err(RestErrResponse::new)?;
+    fn build_dsn(&self, auth: &oauth::middleware::TsdbCredential) -> Result<Dsn, RestErrResponse> {
+        tracing::debug!(
+            auth = auth.auth_type.as_str(),
+            "Building DSN from auth header: {}",
+            auth
+        );
         let mut dsn: Dsn = self
             .profile
             .cluster
@@ -1791,8 +2017,8 @@ impl Args {
             .unwrap_or("taos://localhost:6030")
             .parse()
             .map_err(RestErrResponse::new)?;
-        dsn.username = Some(credentials.user_id);
-        dsn.password = Some(credentials.password);
+        dsn.username = Some(auth.username.clone());
+        dsn.password = Some(auth.password.clone());
         Ok(dsn)
     }
 
@@ -1879,11 +2105,11 @@ impl Args {
 
     async fn query(
         &self,
-        header: &str,
+        auth: &oauth::middleware::TsdbCredential,
         sql: &str,
         tz: Option<&String>,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        let dsn = self.build_dsn(header)?;
+        let dsn = self.build_dsn(auth)?;
         let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
         qid.add_sequence_id();
         self.query_inner(&dsn, sql, tz, qid.get()).await
@@ -1909,10 +2135,10 @@ impl Args {
 
     async fn renew(
         &self,
-        header: &str,
+        auth: &oauth::middleware::TsdbCredential,
         license: &RenewLicense,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        let dsn = self.build_dsn(header)?;
+        let dsn = self.build_dsn(auth)?;
         let conn = get_connection(&dsn).await.map_err(RestErrResponse::new)?;
         // server version
         let server_version = conn.server_version().await;
@@ -2288,7 +2514,12 @@ certificate_key = "tests/assets/cert-key.pem"
         };
 
         // 默认用户名密码：root:taosdata
-        let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
+        let credential = oauth::middleware::TsdbCredential {
+            auth_type: oauth::middleware::AuthType::Basic,
+            username: "root".to_string(),
+            password: "taosdata".to_string(),
+        };
+        let dsn = args.build_dsn(&credential).unwrap();
 
         // 清除旧数据
         let sql = "select * from `test_explorer`";
@@ -2315,7 +2546,12 @@ certificate_key = "tests/assets/cert-key.pem"
         };
 
         // 默认用户名密码：root:taosdata
-        let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
+        let credential = oauth::middleware::TsdbCredential {
+            auth_type: oauth::middleware::AuthType::Basic,
+            username: "root".to_string(),
+            password: "taosdata".to_string(),
+        };
+        let dsn = args.build_dsn(&credential).unwrap();
 
         // 清除旧数据
         let sql = "DROP DATABASE IF EXISTS `test_ts_seconds_format`";
@@ -2420,7 +2656,12 @@ certificate_key = "tests/assets/cert-key.pem"
         };
 
         // 默认用户名密码：root:taosdata
-        let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
+        let credential = oauth::middleware::TsdbCredential {
+            auth_type: oauth::middleware::AuthType::Basic,
+            username: "root".to_string(),
+            password: "taosdata".to_string(),
+        };
+        let dsn = args.build_dsn(&credential).unwrap();
 
         // 清除旧数据
         let sql = "DROP DATABASE IF EXISTS `test_explorer`";
@@ -2487,16 +2728,20 @@ certificate_key = "tests/assets/cert-key.pem"
         assert_eq!(args.monitor_port, 6043);
         assert_eq!(args.monitor_interval, 10);
 
-        std::env::set_var("MONITOR_FQDN", "fake1");
-        std::env::set_var("MONITOR_PORT", "6044");
-        std::env::set_var("MONITOR_INTERVAL", "5");
+        unsafe {
+            std::env::set_var("MONITOR_FQDN", "fake1");
+            std::env::set_var("MONITOR_PORT", "6044");
+            std::env::set_var("MONITOR_INTERVAL", "5");
+        }
         let args = Args::parse_from(["explorer"]).monitor;
         assert_eq!(args.monitor_fqdn, Some("fake1".to_string()));
         assert_eq!(args.monitor_port, 6044);
         assert_eq!(args.monitor_interval, 5);
-        std::env::remove_var("MONITOR_FQDN");
-        std::env::remove_var("MONITOR_PORT");
-        std::env::remove_var("MONITOR_INTERVAL");
+        unsafe {
+            std::env::remove_var("MONITOR_FQDN");
+            std::env::remove_var("MONITOR_PORT");
+            std::env::remove_var("MONITOR_INTERVAL");
+        }
 
         let args = Args::parse_from([
             "explorer",

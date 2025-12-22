@@ -57,13 +57,17 @@ fn ipc_test<R: Read, W: Write>(
         builder.build().unwrap()
     });
 
+    let target_precision = Precision::Millisecond;
+
     // let (reader, writer) = stream.pair();
     // stream.set_nonblocking(true).unwrap();
 
     let metadata = ipc_reader.metadata();
     dbg!(metadata);
     match metadata.stream_type() {
-        StreamType::Lush => handle_lush_message(ipc_reader, taos, ipc_ack_writer)?,
+        StreamType::Lush => {
+            handle_lush_message(ipc_reader, taos, target_precision, ipc_ack_writer)?
+        }
         StreamType::Point => handle_point_message(ipc_reader, taos, ipc_ack_writer)?,
         StreamType::Flat => handle_flat_message(ipc_reader, taos, ipc_ack_writer)?,
         _ => todo!(),
@@ -152,6 +156,7 @@ fn handle_flat_message<R: Read, W: Write>(
 fn handle_lush_message<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     taos: Taos,
+    target_precision: Precision,
     mut ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
     let _rt = Runtime::new().unwrap();
@@ -187,7 +192,7 @@ fn handle_lush_message<R: Read, W: Write>(
                 for record in record {
                     records += record.num_rows();
                     // let data = record.to_column_views();
-                    let map_data = record.to_column_views_group_by_tablename();
+                    let map_data = record.to_column_views_group_by_tablename(target_precision);
                     dbg!(&map_data);
                     for (k, data_vec) in &map_data {
                         let table_name = k.as_deref().or(record.table());

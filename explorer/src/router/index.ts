@@ -1,9 +1,10 @@
+import pathDetector from '@/utils/pathDetector';
 import { createRouter, createWebHistory } from 'vue-router';
 
 const layoutCommonChildren = [
   {
     path: '',
-    redirect: 'login',
+    redirect: '/login',
     name: 'layout-child'
   },
 
@@ -191,11 +192,17 @@ const constantRoutes = [
     path: '/register',
     name: 'Register',
     component: () => import('@/views/0_login/register.vue')
+  },
+  {
+    path: '/oauth/callback',
+    name: 'OAuthCallback',
+    component: () => import('@/views/oauth-callback/index.vue')
   }
 ];
 
+const basePath = pathDetector.detectBasePath();
 const router = createRouter({
-  history: createWebHistory('/'),
+  history: createWebHistory(basePath),
   routes: constantRoutes
 });
 

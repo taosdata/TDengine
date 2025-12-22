@@ -189,13 +189,17 @@ async fn test_sync_stable_with_taos() -> anyhow::Result<()> {
     assert_eq!(tbname_dst.len(), 1);
     assert_eq!(tbname_dst[0], format!("t{table_idx}"));
 
-    // clean
-    taos.exec_many(vec![
-        format!("DROP TOPIC IF EXISTS force `{TOPIC}`"),
-        format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
-        format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
-    ])
-    .await?;
+    // Ignore error for clean.
+    let _ = taos
+        .exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force `{TOPIC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+        ])
+        .await
+        .inspect_err(|err| {
+            eprintln!("Error: {err:?}");
+        });
 
     Ok(())
 }

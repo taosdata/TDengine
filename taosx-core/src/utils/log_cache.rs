@@ -31,3 +31,30 @@ impl LogCache {
 }
 
 unsafe impl std::marker::Send for LogCache {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trims_to_capacity() {
+        let cache = LogCache::new(2);
+        cache.push("first".to_string());
+        cache.push("second".to_string());
+        cache.push("third".to_string());
+
+        let contents = cache.get();
+        assert_eq!(contents, "secondthird");
+    }
+
+    #[test]
+    fn get_returns_all_in_order() {
+        let cache = LogCache::new(3);
+        cache.push("a".into());
+        cache.push("b".into());
+        cache.push("c".into());
+
+        let contents = cache.get();
+        assert_eq!(contents, "abc");
+    }
+}

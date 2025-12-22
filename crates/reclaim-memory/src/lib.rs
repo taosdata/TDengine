@@ -45,6 +45,7 @@ pub fn reclaim_memory(force: bool) {
     #[cfg(not(feature = "mimalloc"))]
     {
         let _ = force;
+        #[cfg(any(all(target_os = "linux", target_env = "gnu"), target_os = "android"))]
         let _ = unsafe { libc::malloc_trim(0) };
     }
     #[cfg(feature = "mimalloc")]

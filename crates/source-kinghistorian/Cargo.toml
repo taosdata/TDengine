@@ -8,6 +8,7 @@ rust-version.workspace = true
 kinghistorian-sys = { path = "./kinghistorian-sys" }
 anyhow.workspace = true
 chrono.workspace = true
+faststr.workspace = true
 taosx-core.workspace = true
 taosx-ipc.workspace = true
 serde.workspace = true

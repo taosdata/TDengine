@@ -1,5 +1,6 @@
 use anyhow::Ok;
 use chrono::{DateTime, Local};
+use faststr::FastStr;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, time::Duration};
 use taos::Dsn;
@@ -9,11 +10,13 @@ use taosx_core::utils::{parse_duration_in_dsn, parse_key_in_dsn, parse_local_dat
 pub struct KingHistConfig {
     pub connect: KingHistConnectConfig, // KingHistorian 连接配置
     pub csv_path: Option<PathBuf>,      // csv 配置文件路径
-    pub csv_content: String,            // csv 配置文件内容
+    pub csv_content: Option<FastStr>,   // csv 配置文件内容
     pub mode: KingHistMode,             // history or realtime
     #[serde(flatten)]
     pub query_criteria: Option<HistQueryCriteria>, // KingHistorian 查询条件，mode 为 History 时有效
     pub min_elapsed: Option<usize>,     // KingHistorian 订阅时的最小间隔时间，单位毫秒
+    pub max_retries: usize,             // 最大重试次数
+    pub retry_interval_sec: usize,      // 重试间隔时间，单位秒
 }
 
 impl std::fmt::Debug for KingHistConfig {
@@ -33,6 +36,8 @@ impl std::fmt::Debug for KingHistConfig {
         if let Some(ref min_elapsed) = self.min_elapsed {
             ds.field("min_elapsed", min_elapsed);
         }
+        ds.field("max_retries", &self.max_retries)
+            .field("retry_interval", &self.retry_interval_sec);
         ds.finish()
     }
 }
@@ -46,6 +51,10 @@ impl KingHistConfig {
         let connect = KingHistConnectConfig::try_from(dsn)?;
         // csv config
         let (csv_path, csv_content) = crate::csv::parse_csv(dsn)?;
+        // max_retries
+        let max_retries = parse_key_in_dsn::<usize>(dsn, "max_retries")?.unwrap_or(10);
+        // retry_interval
+        let retry_interval_sec = parse_key_in_dsn::<usize>(dsn, "retry_interval")?.unwrap_or(5);
         // mode
         let mode = parse_key_in_dsn::<String>(dsn, "mode")?
             .map(|m| KingHistMode::try_from(m.as_str()))
@@ -62,6 +71,8 @@ impl KingHistConfig {
                     mode,
                     query_criteria: Some(history),
                     min_elapsed: None,
+                    max_retries,
+                    retry_interval_sec,
                 })
             }
             KingHistMode::RealTime => {
@@ -73,6 +84,8 @@ impl KingHistConfig {
                     mode,
                     query_criteria: None,
                     min_elapsed: Some(min_elapsed),
+                    max_retries,
+                    retry_interval_sec,
                 })
             }
         }
@@ -81,10 +94,11 @@ impl KingHistConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KingHistConnectConfig {
-    pub host: String,     // kinghistorian 主机地址
-    pub port: u16,        // kinghistorian 端口
-    pub username: String, // kinghistorian 用户名
-    pub password: String, // kinghistorian 密码
+    pub host: String,            // kinghistorian 主机地址
+    pub port: u16,               // kinghistorian 端口
+    pub username: String,        // kinghistorian 用户名
+    pub password: String,        // kinghistorian 密码
+    pub timeout_ms: Option<u32>, // kinghistorian 的连接超时，单位毫秒
 }
 
 impl TryFrom<&Dsn> for KingHistConnectConfig {
@@ -112,11 +126,13 @@ impl TryFrom<&Dsn> for KingHistConnectConfig {
             .as_deref()
             .ok_or_else(|| anyhow::anyhow!("invalid dsn (missing password): {}", dsn))?
             .to_string();
+        let timeout_ms = parse_key_in_dsn::<u32>(dsn, "conn_timeout")?.map(|sec| sec * 1000);
         Ok(Self {
             host,
             port,
             username,
             password,
+            timeout_ms,
         })
     }
 }
@@ -175,13 +191,16 @@ mod tests {
 
     #[test]
     fn test_kinghist_config_from_dsn() {
-        let csv_path = concat!(env!("CARGO_MANIFEST_DIR"), "/example/kinghist.csv");
-
-        let dsn: Dsn = format!("kinghist://sa:sa@127.0.0.1:5678?csv_config_file=@{}&mode=history&start=2023-10-01T00:00:00Z&end=2023-10-02T00:00:00Z&time_range=1h&restro=10m&interval=500", csv_path)
+        // given
+        let dsn: Dsn = "kinghist://sa:sa@127.0.0.1:5678?conn_timeout=5&mode=history&start=2023-10-01T00:00:00Z&end=2023-10-02T00:00:00Z&time_range=1h&restro=10m&interval=500"
             .into_dsn().unwrap();
+
+        // when
         let config = KingHistConfig::try_from_dsn(&dsn).unwrap();
-        dbg!(&config);
+
+        // then
         assert_eq!(config.mode, KingHistMode::History);
+        assert_eq!(config.connect.timeout_ms, Some(5000));
         let history = config.query_criteria.unwrap();
         assert_eq!(history.interval, 500);
         assert_eq!(history.time_range, Duration::from_secs(3600));

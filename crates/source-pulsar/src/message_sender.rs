@@ -240,12 +240,12 @@ impl<'a> MessagesSender<'a> {
         let elapsed = start.elapsed();
         if elapsed > self.max_acquire_elapsed {
             self.max_acquire_elapsed = elapsed;
-            tracing::info!("acquire permit elapsed: {elapsed:?}");
+            tracing::info!("send_batch acquire permit elapsed: {elapsed:?}");
         }
         let permit = permit.context("get permit error")?;
         debug_assert!(
             self.value.len() > 0,
-            "value length should be greater than 0"
+            "send_batch value length should be greater than 0"
         );
         let mut batch = RecordBatch::try_new(
             self.schema.clone(),

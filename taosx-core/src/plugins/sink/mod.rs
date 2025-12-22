@@ -1,32 +1,27 @@
 use anyhow::{anyhow, bail, Context};
 use archive::utils::files::read_parquet_file;
 use archive::{get_rewrite_files, Archive, ArchiveConsumer, ArchiveType, Cache};
-use arrow::array::{Array, StringArray, UInt8Array};
-use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
+use arrow::array::{Array, StringArray};
+use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_compute_ext::RecordBatchExt;
-use arrow_flight::{flight_service_client::FlightServiceClient, FlightClient};
 use arrow_schema::ArrowError;
 use async_backtrace::framed;
-use bytes::Bytes;
 use chrono::{TimeDelta, Utc};
 use dashmap::DashMap;
-use deadpool::managed::{PoolError, TimeoutType};
+use deadpool::managed::{Object, PoolError, TimeoutType};
 use faststr::FastStr;
 use flume::Sender;
 use futures::future::Either;
 use futures_ext::OptionFuture;
 use futures_util::{Sink, Stream, StreamExt};
 use persist::{get_stream, PersistComponent, PersistComponents};
-use ring_channel::{ring_channel, RingReceiver};
 use serde_json::json;
 use std::net::{Ipv4Addr, SocketAddrV4};
-use std::ops::Mul;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::LazyLock;
 use std::{
     any::Any,
-    cell::Cell,
     collections::{HashMap, HashSet},
     io::{Read, Write},
     iter::zip,
@@ -35,6 +30,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
+use taos::Precision;
 use taos::{
     taos_query::{common::Describe, Manager},
     Itertools, Taos, TaosPool, Value,
@@ -43,12 +39,10 @@ use taoslog::utils::QidMetadataGetter;
 use taoslog::QidManager;
 use taosx_ipc::{prelude::*, stream::point::PointMessage};
 use tokio::sync::{Mutex, Notify, OnceCell};
-use tonic::transport::ClientTlsConfig;
-use tonic::{codec::CompressionEncoding, transport::Channel};
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::core_metrics::{get_metrics, get_metrics_arc_from_i64, get_metrics_arc_or};
+use crate::core_metrics::{get_metrics_arc_from_i64, get_metrics_arc_or};
 use crate::core_metrics::{CoreMetrics, TaskMetrics};
 use crate::plugins::runners::opc::config::OPCConfig;
 use crate::plugins::sink::point::model::PointModelConfig;
@@ -60,7 +54,6 @@ use crate::sink::flat::handle_sql_too_long;
 use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
-use crate::AGENT_COMPRESSION;
 use crate::{ConnectorLicense, Parser, Transferred};
 
 use self::point::handle_transform;
@@ -76,6 +69,8 @@ use self::{
 
 pub mod flat;
 pub mod ipc_metric;
+mod ipc_pipeline;
+mod ipc_transport;
 pub mod lush;
 pub mod persist;
 pub mod point;
@@ -156,8 +151,8 @@ async fn ipc_tcp_forward(
     stream: std::net::TcpStream, // socket2::Socket,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    batch_counter: BatchCounter,
-    config: Option<PointModelConfig>,
+    batch_counter: Arc<BatchCounter>,
+    config: Option<Arc<PointModelConfig>>,
     persist_components: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
     let reader_stream = stream
@@ -225,483 +220,29 @@ async fn ipc_tcp_forward(
     .await
 }
 
+#[instrument(skip_all)]
 pub async fn ipc_forward(
     input_stream: flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>,
     ack_tx: Option<flume::Sender<LushAck>>,
     schema: Arc<Schema>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    batch_counter: BatchCounter,
-    config: Option<PointModelConfig>,
+    batch_counter: Arc<BatchCounter>,
+    config: Option<Arc<PointModelConfig>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
-    let (task_id, remote, token) = with_agent;
-    use md5;
-    tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
-    use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
-    use futures::StreamExt;
-
-    let mut schema = schema.as_ref().clone();
-    if let Some(config) = config.as_ref() {
-        schema.metadata.insert(
-            "config".to_string(),
-            serde_json::to_string(&config).unwrap(),
-        );
-    }
-    let schema: Arc<Schema> = Arc::new(schema);
-
-    info!("Reading batches");
-
-    let metrics = get_metrics(task_id).await;
-
-    let (tables_cache_tx, tables_cache_rx) =
-        ring_channel(crate::global::agent_in_memory_cache_capacity());
-
-    let mut cause_error = None;
-    const MAX_LAST_RETRIES: usize = 10; // allow 5 times retry in last 2 minutes;
-    const RETRY_DELAY: Duration = Duration::from_secs(5);
-    let mut last_retries: usize = 0;
-    let mut last_retry_time = std::time::Instant::now();
-    let last_retry_interval = Duration::from_secs(60 * 2);
-    macro_rules! last_retry_tick {
-        () => {
-            #[allow(unused_assignments)]
-            if last_retry_time.elapsed() <= last_retry_interval {
-                last_retries += 1;
-                tokio::time::sleep(RETRY_DELAY).await;
-            } else {
-                tracing::info!("Last retry has been 2m past, re-calc retries num");
-                last_retries = 1;
-                tokio::time::sleep(RETRY_DELAY).await;
-                last_retry_time = std::time::Instant::now();
-            }
-        };
-    }
-    fn retain_tables_cache(table_cache_rx: &RingReceiver<RecordBatch>) -> Vec<RecordBatch> {
-        let mut vec = Vec::with_capacity(50);
-        while let Ok(i) = table_cache_rx.try_recv() {
-            vec.push(i);
-        }
-        vec
-    }
-
-    let retry_forever = persist_component.is_some();
-
-    let task_token = cancel.child_token();
-    let mut persist_tasks = None;
-
-    macro_rules! wait_for_tasks_exit {
-        ($token: expr) => {
-            if let Some(mut tasks) = persist_tasks.take() {
-                $token.cancel();
-                while let Some(res) = tasks.join_next().await {
-                    match res {
-                        Ok(Ok(_)) => {}
-                        Ok(Err(e)) => {
-                            tracing::error!("persist task exited with error: {e:#}");
-                        }
-                        Err(e) => {
-                            tracing::error!("persist task panicked: {e}")
-                        }
-                    }
-                }
-            }
-        };
-    }
-
-    'start: loop {
-        let tables_cache_tx = tables_cache_tx.clone();
-        let cur_span = Span::current();
-        let cur_span_in_map_err = cur_span.clone();
-        let is_lush = schema
-            .metadata
-            .get("schema")
-            .map(|v| v == "lush")
-            .unwrap_or(false);
-        fn is_tables_record(record: &RecordBatch) -> bool {
-            let v = record
-                .column_by_name("__type__")
-                .expect("the lush message stream should contains __type__ field")
-                .as_any()
-                .downcast_ref::<UInt8Array>()
-                .unwrap();
-            let v: LushMessageType = unsafe { std::mem::transmute(v.value(0)) };
-            matches!(v, LushMessageType::Children)
-        }
-        let retained_tables = retain_tables_cache(&tables_cache_rx);
-
-        let task_token = task_token.child_token();
-        let ipc_stream = match persist_component.clone() {
-            None => {
-                // 默认行为，直接返回 ack = success 给上游数据源
-                let (tx, rx) = flume::bounded(64);
-                let ack_tx = ack_tx.clone();
-                let mut input_stream = input_stream.clone();
-                tokio::spawn(async move {
-                    let mut max_elapsed = Duration::ZERO;
-                    while let Some(batch) = input_stream.next().await {
-                        if let Some(ack_tx) = ack_tx.as_ref() {
-                            let meta = batch
-                                .as_ref()
-                                .map(|b| {
-                                    serde_json::Map::from_iter(
-                                        b.schema_ref()
-                                            .metadata()
-                                            .iter()
-                                            .map(|(k, v)| (k.clone(), json!(v))),
-                                    )
-                                })
-                                .map(serde_json::Value::from)
-                                .ok();
-                            let mut ack = LushAck::ok();
-                            ack.context = meta.map(|v| v.to_string());
-                            if ack_tx.send_async(ack).await.is_err() {
-                                return;
-                            }
-                        }
-                        let start = tokio::time::Instant::now();
-                        if tx.send_async(batch).await.is_err() {
-                            return;
-                        }
-                        let elapsed = start.elapsed();
-                        if elapsed > max_elapsed {
-                            max_elapsed = elapsed;
-                            tracing::info!("agent input stream send batch cost: {elapsed:?}");
-                        }
-                    }
-                });
-                Either::Left(rx.into_stream())
-            }
-            Some(component) => {
-                let input_stream = input_stream.clone();
-                let metrics = component
-                    .config
-                    .record_metrics
-                    .then_some(metrics.clone())
-                    .flatten();
-                let mut tasks = tokio::task::JoinSet::new();
-                let persist_rx = get_stream(
-                    component,
-                    input_stream,
-                    ack_tx.clone().expect("ack_tx not found"),
-                    &task_token,
-                    metrics,
-                    &mut tasks,
-                    true,
-                )?;
-                persist_tasks = Some(tasks);
-                Either::Right(persist_rx.into_stream())
-            }
-        };
-        let data_stream =
-            futures::stream::iter(retained_tables.into_iter().map(|batch| (Ok(batch), None)))
-                .chain({
-                    match ipc_stream {
-                        Either::Left(stream) => Either::Left(stream.map(|batch| (batch, None))),
-                        Either::Right(stream) => Either::Right(stream),
-                    }
-                })
-                .map(move |(batch, mut ack_wait_tx)| {
-                    if let Some(ack_tx) = ack_wait_tx.take() {
-                        let meta = batch
-                            .as_ref()
-                            .map(|b| {
-                                serde_json::Map::from_iter(
-                                    b.schema_ref()
-                                        .metadata()
-                                        .iter()
-                                        .map(|(k, v)| (k.clone(), json!(v))),
-                                )
-                            })
-                            .map(serde_json::Value::from)
-                            .ok();
-                        let mut ack = LushAck::ok();
-                        ack.context = meta.map(|v| v.to_string());
-                        ack_tx.send(ack).ok();
-                    }
-
-                    match batch {
-                        Ok(batch) => {
-                            if is_lush && is_tables_record(&batch) {
-                                let _ = tables_cache_tx.send(batch.clone());
-                            }
-                            Ok(batch)
-                        }
-                        Err(err) => {
-                            cur_span_in_map_err.in_scope(|| {
-                                warn!(error = ?err, "IPC reading error: {err:#}");
-                            });
-                            Err(FlightError::from(err))
-                        }
-                    }
-                });
-
-        if !retry_forever && last_retries > MAX_LAST_RETRIES {
-            tracing::warn!(
-                "There're {} retries happened in 2m, break now",
-                last_retries
-            );
-            if let Some(err) = cause_error {
-                tracing::error!(error = ?err, "schema: {:?}", schema);
-                let stream = data_stream.take(3);
-
-                stream
-                    .for_each(|data| {
-                        tracing::warn!(error = ?err, "data: {:?}", data);
-                        futures::future::ready(())
-                    })
-                    .await;
-                return Err(err);
-            }
-        } else if last_retries > 0 {
-            tracing::error!(error = ?cause_error, retries = last_retries, "Retry connections");
-        }
-
-        let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
-        // debug_assert!(qid.task_id() > 0);
-        let cur_batch_number = batch_counter.next().await?;
-        qid.set_batch_id(cur_batch_number);
-        let data = FlightDataEncoderBuilder::new()
-            .with_schema(schema.clone())
-            .with_options(
-                IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
-            )
-            .build(data_stream)
-            .map({
-                let qid = qid.clone();
-                move |v| {
-                    v.map(|message| {
-                        message.with_app_metadata(Bytes::copy_from_slice(
-                            MessageMetadata::new(qid.get()).as_bytes(),
-                        ))
-                    })
-                }
-            });
-
-        const MAX_RETRIES: usize = 500;
-        const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(30);
-        let mut retries = 0;
-        let mut retry_interval = Duration::from_secs(3);
-        let channel = loop {
-            match try_establish_channel(remote.clone()).await {
-                Ok(channel) => {
-                    tracing::info!("connect to {remote} successfully!");
-                    break channel;
-                }
-                Err(err) => {
-                    retries += 1;
-                    tracing::error!("Failed to establish connection: {}. Retrying...", err);
-                    if !retry_forever && retries >= MAX_RETRIES {
-                        tracing::error!("Max retries reached. Exiting...");
-                        return Err(err);
-                    }
-                    if tokio::time::timeout(retry_interval, cancel.cancelled())
-                        .await
-                        .is_ok()
-                    {
-                        break 'start;
-                    }
-                    retry_interval = retry_interval.mul(2).min(MAX_RETRY_INTERVAL);
-                }
-            }
-        };
-        let alive = std::time::Instant::now();
-
-        let mut client;
-        let client_inner = FlightServiceClient::new(channel)
-            .max_decoding_message_size(usize::MAX)
-            .max_encoding_message_size(usize::MAX);
-        if *(AGENT_COMPRESSION.get().unwrap_or(&false)) {
-            client = FlightClient::new_from_inner(
-                client_inner.send_compressed(CompressionEncoding::Gzip),
-            );
-        } else {
-            client = FlightClient::new_from_inner(client_inner);
-        }
-        client
-            .add_header("x-task-id", &task_id.to_string())
-            .context("Add header error")?;
-        client
-            .add_header("x-token", &token)
-            .context("Add header error")?;
-        client
-            .add_header("x-version", crate::build::PKG_VERSION)
-            .context("Add header error")?;
-        client
-            .add_header(
-                taoslog::utils::QID_HEADER_KEY,
-                &format!("{}", qid.display()),
-            )
-            .context("Add header error")?;
-        tracing::info!("add qid str {}", qid.display());
-        let cur_span_in_map_error = Span::current();
-        if let Err(err) = client
-            .handshake(Bytes::from(token.as_bytes().to_vec()))
-            .await
-            .map_err(move |err| match err {
-                FlightError::Tonic(status) => {
-                    let _entered = cur_span_in_map_error.enter();
-                    tracing::error!(
-                        error.code = %status.code(),
-                        error.message = %status.message(),
-                        error.metadata = ?status.metadata(),
-                        "gRPC handshake error: {}", status
-                    );
-                    anyhow::anyhow!("gRPC handshake error: {}", status.message())
-                }
-                err => anyhow::anyhow!("Handshake error: {err:#}"),
-            })
-        {
-            last_retry_tick!();
-            cause_error.replace(err);
-            wait_for_tasks_exit!(task_token);
-            continue 'start;
-        }
-        info!("Handshake done");
-        // dbg!(res);
-        info!("Do putting");
-        let mut stream = match client.do_put(data).await.map_err(move |err| match err {
-            FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
-            FlightError::Tonic(status) => {
-                anyhow::anyhow!("RPC client error: {}. Details: {:?}", status, status)
-            }
-            err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
-        }) {
-            Ok(stream) => stream,
-            Err(err) => {
-                tracing::warn!("Try putting stream error: {:#}", err);
-                last_retry_tick!();
-                cause_error.replace(err);
-                wait_for_tasks_exit!(task_token);
-                continue 'start;
-            }
-        };
-        info!("Get putting stream response");
-
-        let mut _msg_processed = 0;
-        loop {
-            let put_result = tokio::select! {
-                _ = cancel.cancelled() => {
-                    tracing::debug!("cancel IPC worker");
-                    info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
-                    break 'start;
-                },
-                put_result = stream.next() => {
-                    put_result
-                }
-            };
-            if let Some(res) = put_result {
-                let rsp = res;
-                match rsp {
-                    Ok(rsp) => {
-                        tracing::trace!("Response ok");
-                        use zerocopy::FromBytes;
-                        if let Ok(metadata) = MessageMetadata::ref_from_bytes(&rsp.app_metadata) {
-                            let ack = metadata.ack();
-                            let count = metadata.count;
-                            match ack {
-                                RPC_ACK_PROCESSED => {
-                                    trace!(alive = ?alive.elapsed(),  "Processed received: {count}");
-                                    _msg_processed += count;
-                                }
-                                RPC_ACK_DROPPED => {
-                                    trace!(alive = ?alive.elapsed(),  "Dropped received: {count}");
-                                }
-                                RPC_ACK_STREAM_END => {
-                                    debug!(alive = ?alive.elapsed(), "Stream end received");
-                                    break 'start;
-                                }
-                                RPC_ACK_DECODE_ERROR => {
-                                    warn!(alive = ?alive.elapsed(), "Decode error received at {count}");
-                                }
-                                _ => {}
-                            }
-                        } else {
-                            _msg_processed += 1;
-                        }
-                    }
-                    Err(err) => {
-                        match &err {
-                            FlightError::Tonic(status) => {
-                                if status
-                                    .message()
-                                    .contains("stream closed because of a broken pipe")
-                                    || status.message() == "ExternalError(Disconnected)"
-                                    || status.message().contains("connection reset")
-                                    || status.message().contains("connection closed")
-                                    || status.message().contains("h2 protocol error")
-                                {
-                                    tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    cause_error.replace(anyhow::anyhow!(
-                                        "gRPC put stream disconnected: {err:#}, DTID={}",
-                                        qid.display()
-                                    ));
-                                    last_retry_tick!();
-                                    wait_for_tasks_exit!(task_token);
-                                    continue 'start;
-                                }
-
-                                tracing::error!(alive = ?alive.elapsed(), source = status.message(), "Tonic error: {status}");
-                                return Err(err).context(format!(
-                                    "Got server response with error, DTID={}",
-                                    qid.display()
-                                ));
-                            }
-                            FlightError::Arrow(arrow) => {
-                                let err_msg = format!("{err:#}");
-                                if err_msg.contains("os error 10054")
-                                    || err_msg.contains("os error 10053")
-                                {
-                                    warn!("ConnectionReset or ConnectionAborted, consider as success: {}", err_msg);
-                                    break 'start;
-                                }
-                                tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");
-                                return Err(err).context(format!(
-                                    "Got server response with arrow error, DTID={}",
-                                    qid.display()
-                                ));
-                            }
-                            _ => {
-                                tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
-                                return Err(err).context(format!(
-                                    "Got server response with error, DTID={}",
-                                    qid.display()
-                                ));
-                            }
-                        }
-                    }
-                }
-            } else {
-                info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
-                break 'start;
-            }
-        }
-    }
-
-    wait_for_tasks_exit!(task_token);
-
-    Ok(())
-}
-
-async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
-    let mut endpoint = tonic::transport::Endpoint::try_from(remote)?
-        .keep_alive_while_idle(true)
-        .keep_alive_timeout(Duration::from_secs(300))
-        .http2_keep_alive_interval(Duration::from_secs(39))
-        .tcp_keepalive(Some(Duration::from_secs(7200))); // keep alive for 2 hours
-
-    if let Some(ca) = crate::global::get_agent_client_ca() {
-        endpoint = endpoint
-            .tls_config(
-                ClientTlsConfig::new()
-                    .ca_certificate(ca)
-                    .with_enabled_roots(),
-            )
-            .context("Unable to create TLS config for endpoint")?;
-    }
-    let channel = endpoint.connect().await?;
-    Ok(channel)
+    crate::plugins::sink::ipc_pipeline::IpcSinkPipeline::new(
+        input_stream,
+        ack_tx,
+        schema,
+        cancel,
+        with_agent,
+        batch_counter,
+        config,
+        persist_component,
+    )
+    .run()
+    .await
 }
 
 #[framed]
@@ -709,13 +250,13 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
 async fn ipc_tcp_read(
     pool: TaosPool,
     stream: std::net::TcpStream, //socket2::Socket,
-    opc_model_config: Option<PointModelConfig>,
-    lush_model_config: Option<LushModelConfig>,
+    opc_model_config: Option<&PointModelConfig>,
+    lush_model_config: Option<&LushModelConfig>,
     cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
     task_id: Option<i64>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
     breakpoint_db: Option<BreakpointDb>,
@@ -810,6 +351,7 @@ async fn consume_lush_record(
     task: Option<i64>,
     metrics: &IpcMetrics,
     breakpoint_db: Option<BreakpointDb>,
+    target_precision: Precision,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode");
@@ -1001,7 +543,7 @@ async fn consume_lush_record(
                 }
                 *count += record.num_rows();
                 metrics.add_processed_rows(record.num_rows() as u64);
-                let data = record.to_column_views();
+                let data = record.to_column_views(target_precision);
                 let cols = columns.len();
                 // RawBlock
                 // taos.write_raw_block()
@@ -1186,10 +728,10 @@ async fn consume_lush_record_with_transform(
     record: LushMessage,
     count: &mut usize,
     metrics_arc: &Arc<CoreMetrics>,
-    lush_model_config: Arc<LushModelConfig>,
+    lush_model_config: &LushModelConfig,
     table_cache: Arc<TableTagCache>,
     breakpoint_db: Option<BreakpointDb>,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode with transform");
@@ -1199,10 +741,12 @@ async fn consume_lush_record_with_transform(
         LushMessage::Control(message) => match message {
             taosx_ipc::stream::lush::LushMessageControl::DELETE(msg) => {
                 let table_id = msg.table_id();
-                let table_name = lush::get_table_name_from_table_id(
+                let table_name =
+                    lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(
                     table_id,
-                    table_cache.clone(),
-                    lush_model_config.clone(),
+                    table_name,
+                    "consuming LushMessage::Control::DELETE",
                 );
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
@@ -1214,10 +758,12 @@ async fn consume_lush_record_with_transform(
             }
             taosx_ipc::stream::lush::LushMessageControl::ALTER(msg) => {
                 let table_id = msg.table_id();
-                let table_name = lush::get_table_name_from_table_id(
+                let table_name =
+                    lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(
                     table_id,
-                    table_cache.clone(),
-                    lush_model_config.clone(),
+                    table_name,
+                    "consuming LushMessage::Control::ALTER",
                 );
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
@@ -1230,11 +776,9 @@ async fn consume_lush_record_with_transform(
             }
             taosx_ipc::stream::lush::LushMessageControl::DROP(msg) => {
                 let table_id = msg.table_id();
-                let table_name = lush::get_table_name_from_table_id(
-                    table_id,
-                    table_cache.clone(),
-                    lush_model_config.clone(),
-                );
+                let table_name =
+                    lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(table_id, table_name, "consuming LushMessage::Control::DROP",);
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
                     return Ok(());
@@ -1245,10 +789,12 @@ async fn consume_lush_record_with_transform(
             }
             taosx_ipc::stream::lush::LushMessageControl::INSERT(msg) => {
                 let table_id = msg.table_id();
-                let table_name = lush::get_table_name_from_table_id(
+                let table_name =
+                    lush::get_table_name_from_table_id(table_id, &table_cache, lush_model_config);
+                tracing::debug!(
                     table_id,
-                    table_cache.clone(),
-                    lush_model_config.clone(),
+                    table_name,
+                    "consuming LushMessage::Control::INSERT",
                 );
                 if table_name.is_none() {
                     tracing::error!("Can't get table_name from table_id: {}", table_id);
@@ -1261,7 +807,7 @@ async fn consume_lush_record_with_transform(
         },
         LushMessage::Tables(tables, full_record) => {
             tracing::debug!(
-                "Got tables: {}",
+                "consuming LushMessage::Tables, tables: {}",
                 tables.iter().map(|t| t.table_name()).join(",")
             );
             // 默认超级表名(transform 前)
@@ -1279,16 +825,14 @@ async fn consume_lush_record_with_transform(
             let super_table = super_table.to_owned();
             // 缓存子表 tag 值
             for table in tables {
-                table_cache
-                    .insert_async(table.table_name().to_owned(), table)
-                    .await;
+                table_cache.insert(table.table_name().to_owned(), table);
             }
             if full_record.is_none() {
                 tracing::error!("Lush message tables should contains full_record");
                 return Ok(());
             }
             let full_record = full_record.unwrap();
-            // 获取 tranfrom::Parser
+            // 获取 transform::Parser
             let parser: &transform::Parser = lush_model_config
                 .super_table_parsers
                 .get(super_table.as_str())
@@ -1299,6 +843,7 @@ async fn consume_lush_record_with_transform(
                     )
                 })?;
             // 创建超级表
+            tracing::debug!("Creating super table: {}", super_table);
             let super_table_sql = lush_model_config
                 .super_table_sqls
                 .get(super_table.as_str())
@@ -1317,9 +862,10 @@ async fn consume_lush_record_with_transform(
                 metrics_arc.ipc(),
             )
             .await;
+            tracing::debug!("Created super table: {}", super_table);
             // transform tables 消息
             let message: transform::Message = parser
-                .parse_message_from_records(&full_record, false, archive_tx.clone())
+                .parse_message_from_records(&full_record, false, archive_tx)
                 .with_context(|| {
                     format!(
                         "failed to transform Tables message, super table: {}",
@@ -1341,7 +887,6 @@ async fn consume_lush_record_with_transform(
         LushMessage::Insert(record) => {
             let pool = pool.clone();
             let metrics_arc = metrics_arc.clone();
-            use rayon::prelude::*;
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
             let handle = tokio::spawn(async move {
@@ -1356,136 +901,168 @@ async fn consume_lush_record_with_transform(
                 anyhow::Ok(count)
             });
             let span = tracing::Span::current();
-            tokio::task::spawn_blocking(move || {
-                record.into_par_iter().try_for_each_with(tx, |tx, record| {
-                    let _enter = span.enter();
-                    let num_rows = record.num_rows();
-                    if num_rows == 0 {
-                        tracing::debug!("No data in record");
-                        return anyhow::Ok(());
-                    }
-                    let timer = std::time::Instant::now();
-                    let name_of_table_id_column = lush_model_config.table_id_column.as_str();
-                    // 只包含普通列的值
-                    let values_records: &RecordBatch = record.record();
-                    let table_id_column: &Arc<dyn Array> = values_records
-                        .column_by_name(name_of_table_id_column)
-                        .ok_or_else(|| anyhow!("table_name_column not found"))?;
-                    let table_id_column: &StringArray = table_id_column
-                        .as_any()
-                        .downcast_ref::<StringArray>()
-                        .unwrap();
-                    // 只包含 tag 列的值
-                    let tags_records: Result<RecordBatch, anyhow::Error> =
-                        lush::create_tags_record(name_of_table_id_column, table_id_column, table_cache.clone());
-                    if let Err(err) = tags_records {
-                        tracing::error!("{err:#}");
-                        return Ok(());
-                        // continue;
-                    }
-                    let tags_records: RecordBatch = tags_records.unwrap();
-                    // 左右合并 RecordBatch
-                    let combined_records: RecordBatch = tags_records.concat_by_columns(values_records).unwrap();
-                    // 类型转换
-                    let parsed_records: RecordBatch = combined_records;
 
-                    // 按超级表名分组
-                    // let grouped_batches: LinkedHashMap<String, RecordBatch> =
-                    //     lush::group_by_super_table_name(
-                    //         &parsed_records,
-                    //         name_of_table_name_column,
-                    //         &lush_model_config.super_table_name_mapping,
-                    //     );
+            tracing::debug!(
+                "consuming LushMessage::Insert, record count: {}",
+                record.len()
+            );
+            for record in record {
+                let _enter = span.enter();
+                let num_rows = record.num_rows();
+                if num_rows == 0 {
+                    tracing::debug!("No data in record");
+                    continue;
+                }
+                let timer = std::time::Instant::now();
+                // 只包含普通列的值
+                let values_records: &RecordBatch = record.record();
 
-                    // 性能优化，多列模型无需按超级表分组
-                    // let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
-                    let prepare_elapsed = timer.elapsed();
-                    let skip_null = lush_model_config.skip_null;
-                    // for (default_super_table, record_batch) in grouped_batches {
-                    let timer = std::time::Instant::now();
-                    let record_batch = parsed_records;
-                    let default_super_table = record_batch
-                        .column_by_name("_using")
-                        .unwrap()
-                        .as_any()
-                        .downcast_ref::<StringArray>()
-                        .unwrap()
-                        .value(0);
-                    let super_table = lush_model_config
-                        .super_table_name_mapping
-                        .get(default_super_table);
-                    if super_table.is_none() {
-                        tracing::error!(
+                let name_of_table_id_column = &lush_model_config.table_id_column;
+                let table_id_column: &Arc<dyn Array> = values_records
+                    .column_by_name(name_of_table_id_column)
+                    .ok_or_else(|| anyhow!("table_name_column not found"))?;
+                let table_id_column: &StringArray = table_id_column
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .unwrap();
+                {
+                    let total_rows = table_id_column.len();
+                    // 去重
+                    let mut uniq = HashSet::new();
+                    for i in 0..total_rows {
+                        if table_id_column.is_valid(i) {
+                            uniq.insert(table_id_column.value(i));
+                        }
+                    }
+                    let mut sample = uniq.iter().take(10).cloned().collect::<Vec<&str>>();
+                    sample.sort();
+                    tracing::debug!(
+                        "handle LushMessageInsert, table_id: {}, rows={}, distinct={}, sample={:?}",
+                        name_of_table_id_column,
+                        total_rows,
+                        uniq.len(),
+                        sample.join(",")
+                    );
+                }
+
+                // 只包含 tag 列的值
+                let tags_records: Result<RecordBatch, anyhow::Error> = lush::create_tags_record(
+                    name_of_table_id_column,
+                    table_id_column,
+                    &table_cache,
+                );
+                if let Err(err) = tags_records {
+                    tracing::error!("{err:#}");
+                    continue;
+                }
+                let tags_records: RecordBatch = tags_records.unwrap();
+                // 左右合并 RecordBatch
+                let combined_records: RecordBatch =
+                    tags_records.concat_by_columns(values_records).unwrap();
+                // 类型转换
+                let parsed_records: RecordBatch = combined_records;
+
+                // 按超级表名分组
+                // let grouped_batches: LinkedHashMap<String, RecordBatch> =
+                //     lush::group_by_super_table_name(
+                //         &parsed_records,
+                //         name_of_table_name_column,
+                //         &lush_model_config.super_table_name_mapping,
+                //     );
+
+                // 性能优化，多列模型无需按超级表分组
+                // let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
+                let prepare_elapsed = timer.elapsed();
+                let skip_null = lush_model_config.skip_null;
+                // for (default_super_table, record_batch) in grouped_batches {
+                let timer = std::time::Instant::now();
+                let record_batch = parsed_records;
+                // 用 record_batch 的第一行的 _using 列值作为默认超级表名
+                let default_super_table = record_batch
+                    .column_by_name("_using")
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<StringArray>()
+                    .unwrap()
+                    .value(0);
+                let super_table = lush_model_config
+                    .super_table_name_mapping
+                    .get(default_super_table);
+                if super_table.is_none() {
+                    tracing::error!(
                         "default_super_table {} not found in super_table_name_mapping",
                         default_super_table
                     );
-                        return Ok(());
-                        // continue;
-                    }
-                    let super_table = super_table.unwrap();
-                    let parser: &transform::Parser = lush_model_config
-                        .super_table_parsers
-                        .get(super_table.as_str())
-                        .ok_or_else(|| {
-                            anyhow!(
+                    continue;
+                }
+                let super_table = super_table.unwrap();
+                let parser: &transform::Parser = lush_model_config
+                    .super_table_parsers
+                    .get(super_table.as_str())
+                    .ok_or_else(|| {
+                        anyhow!(
                             "super table {} not found in model_config.super_table_parsers",
                             super_table
                         )
-                        })?;
-                    let message: transform::Message =
-                        parser.parse_message_from_records(&record_batch, true, archive_tx.clone()).with_context(|| {
-                            format!("transform failed for super table: {}", super_table)
-                        })?;
+                    })?;
+                let message: transform::Message = parser
+                    .parse_message_from_records(&record_batch, true, archive_tx)
+                    .with_context(|| {
+                        format!("transform failed for super table: {}", super_table)
+                    })?;
+                let transform_elapsed = timer.elapsed();
 
-                    let transform_elapsed = timer.elapsed();
-                    if let crate::plugins::transform::Message::Records(message) = message {
-                        if message.is_empty() {
-                            return Ok(());
-                        }
-                        let table_count = message.len();
-                        let pool = pool.clone();
-                        let super_table = super_table.clone();
-                        let metrics_ref = metrics_arc.clone();
-                        let breakpoints = breakpoint_db.clone();
-                        let table_id_column_name = name_of_table_id_column.to_string();
-                        let parser = parser.clone();
-                        let archive_tx = archive_tx.clone();
-                        if let Err(err) = tx.send(async move {
-                            let metrics = metrics_ref.ipc();
-                            lush::write(
-                                &pool,
-                                super_table.as_str(),
-                                taos::Precision::Millisecond,
-                                message,
-                                metrics,
-                                skip_null,
-                                table_id_column_name.as_str(),
-                                breakpoints,
-                                &parser,
-                                archive_tx.clone(),
-                            ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
-                                tracing::info!(
-                            "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
+                if let crate::plugins::transform::Message::Records(message) = message {
+                    if message.is_empty() {
+                        tracing::debug!(
                             super_table,
-                            table_count,
-                            written_rows,
-                            prepare_elapsed.as_millis(),
-                            transform_elapsed.as_millis(),
-                            gen_sql_time.as_millis(),
-                            write_time.as_millis(),
+                            name_of_table_id_column,
+                            "no data after transform, skip",
                         );
-                                metrics.add_processed_rows(num_rows as u64);
-                                num_rows
-                            })
-                        }.in_current_span()) {
-                            tracing::error!("send to tx error: {err:#}");
-                            bail!("Send future error: {err:#}");
-                        }
+                        continue;
                     }
-                    anyhow::Ok(())
-                })
-            }).await.context("Spawn blocking transform lush records inserts")??;
-
+                    let table_count = message.len();
+                    let pool = pool.clone();
+                    let super_table = super_table.clone();
+                    let metrics_ref = metrics_arc.clone();
+                    let breakpoints = breakpoint_db.clone();
+                    let table_id_column_name = name_of_table_id_column.to_string();
+                    let parser = parser.clone();
+                    let archive_tx = archive_tx.cloned();
+                    if let Err(err) = tx.send(async move {
+                        let metrics = metrics_ref.ipc();
+                        lush::write(
+                            &pool,
+                            super_table.as_str(),
+                            taos::Precision::Millisecond,
+                            message,
+                            metrics,
+                            skip_null,
+                            table_id_column_name.as_str(),
+                            breakpoints,
+                            &parser,
+                            archive_tx.as_ref(),
+                        ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
+                            tracing::debug!(
+                                "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
+                                super_table,
+                                table_count,
+                                written_rows,
+                                prepare_elapsed.as_millis(),
+                                transform_elapsed.as_millis(),
+                                gen_sql_time.as_millis(),
+                                write_time.as_millis(),
+                            );
+                            metrics.add_processed_rows(num_rows as u64);
+                            num_rows
+                        })
+                    }.in_current_span()) {
+                        tracing::error!("send to tx error: {err:#}");
+                        bail!("Send future error: {err:#}");
+                    }
+                }
+            }
+            drop(tx);
             *count += handle.await??;
         }
     }
@@ -1542,8 +1119,8 @@ pub async fn handle_point_message_init(
     }
 
     let sqls = config.to_create_table_sqls();
-    for sql in sqls {
-        match taos.exec(&sql).await {
+    for sql in &sqls {
+        match taos.exec(sql).await {
             Ok(_) => {}
             Err(err) => {
                 tracing::warn!(
@@ -1552,6 +1129,7 @@ pub async fn handle_point_message_init(
             }
         }
     }
+    tracing::info!("point message init done");
 
     Ok(())
 }
@@ -1575,13 +1153,17 @@ async fn consume_point_record(
 
     let mut points = 0;
     let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+
+    let need_transform = config.need_transform();
+
     for message in record.records() {
-        let message = handle_transform(message, config).await?;
-
         let message_rows = message.record().num_rows() as u64;
-
-        let (stable_insert_map, child_table_create_sql_map) =
-            point_records_to_sql(message, config, target_precision).await?;
+        let (stable_insert_map, child_table_create_sql_map) = if need_transform {
+            let transformed_msg = handle_transform(message, config).await?;
+            point_records_to_sql(&transformed_msg, config, target_precision).await?
+        } else {
+            point_records_to_sql(message, config, target_precision).await?
+        };
 
         for (stable_name, sql_vec) in stable_insert_map {
             for sql_insertion in sql_vec {
@@ -1621,14 +1203,15 @@ async fn consume_point_record(
                             break 'outer;
                         }
                         Err(err) => {
-                            let errstr = format!("{err:#}");
+                            let code: i32 = err.code().into();
                             tracing::warn!(
                                 sql = sql_insertion.sql,
-                                error = errstr,
+                                code,
+                                error = ?err,
                                 "Insert point record error",
                             );
 
-                            if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
+                            if code == 0x2603 || code == 0x0200 {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2603: the table does not exist
                                 // 0x0200: stmt bind param does not support normal value in sql
@@ -1762,11 +1345,13 @@ async fn consume_point_record(
                                         }
                                     }
                                 }
-                            } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
+                            } else if code == 0x2602 || code == 0x263F {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2602: invalid column
                                 // 0x263F: invalid columns number
-                                for column_config in &sql_insertion.point_insertion.column_configs {
+                                for column_config in
+                                    sql_insertion.point_insertion.column_configs.as_ref().iter()
+                                {
                                     // alter stable column not supported by taosd
                                     let desc = taos.as_ref().unwrap().describe(&stable_name).await;
                                     let desc = match desc {
@@ -1860,6 +1445,7 @@ async fn consume_point_record(
                                     let desc =
                                         taos.as_ref().unwrap().describe(&stable_name).await?;
                                     let fields = tag_configs
+                                        .as_ref()
                                         .iter()
                                         .map(|config| (config.name.clone(), config.r#type.clone()))
                                         .collect_vec();
@@ -1909,7 +1495,7 @@ async fn consume_point_record(
                                 }
                                 retry += 1;
                                 continue 'outer;
-                            } else if errstr.contains("[0x2653]") {
+                            } else if code == 0x2653 {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2653: value too long for column/tag
                                 let desc = taos
@@ -1941,7 +1527,7 @@ async fn consume_point_record(
                                 if let Some(tag_configs) =
                                     &sql_insertion.point_insertion.tag_configs
                                 {
-                                    for tag_conf in tag_configs {
+                                    for tag_conf in tag_configs.as_ref().iter() {
                                         tags_for_diff
                                             .push((tag_conf.name.clone(), tag_conf.r#type.clone()));
                                     }
@@ -1989,13 +1575,7 @@ async fn consume_point_record(
                                 }
                                 retry += 1;
                                 continue 'outer;
-                            } else if errstr.contains("[0xE000]")
-                                || errstr.contains("[0xE001]")
-                                || errstr.contains("[0xE002]")
-                                || errstr.contains("[0xE003]")
-                                || errstr.contains("[0xE004]")
-                                || errstr.contains("[0x000B]")
-                            {
+                            } else if (0xE000..=0xE004).contains(&code) || code == 0x000B {
                                 // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0xE000: dsn error
                                 // 0xE001: internal error
@@ -2048,7 +1628,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     macro_rules! metrics_failed {
         ($rows:expr, $cols:expr) => {
@@ -2107,7 +1687,7 @@ async fn consume_flat_record(
                                     &parser.global().process_on_abnormal.database_not_exist,
                                 ),
                                 batch,
-                                archive_tx.clone(),
+                                archive_tx,
                             )
                             .await?;
                             tokio::time::sleep(Duration::from_millis(sleep)).await;
@@ -2131,7 +1711,7 @@ async fn consume_flat_record(
                                     .database_connection_error,
                             ),
                             batch,
-                            archive_tx.clone(),
+                            archive_tx,
                         )
                         .await?;
                     }
@@ -2150,13 +1730,15 @@ async fn consume_flat_record(
     }
 
     let instant = std::time::Instant::now();
-    let batch = tokio::task::spawn_blocking({
-        let parser = parser.clone();
-        let batch = batch.clone();
-        let archive_tx = archive_tx.clone();
-        move || parser.parse_message_from_records(&batch, true, archive_tx)
+
+    let archive_tx_cloned = archive_tx.cloned();
+    let batch_cloned = batch.clone();
+    let parser_cloned = parser.clone();
+    let batch = tokio::task::spawn_blocking(move || {
+        parser_cloned.parse_message_from_records(&batch_cloned, true, archive_tx_cloned.as_ref())
     })
-    .await?
+    .await
+    .context("Transformer parse spawned error")?
     .context("Transformer parse error")?;
 
     if tracing::event_enabled!(tracing::Level::TRACE) {
@@ -2188,7 +1770,7 @@ async fn consume_flat_record(
                     notifier,
                     cancel,
                     parser.global(),
-                    archive_tx.clone(),
+                    archive_tx,
                 )
                 .in_current_span()
                 .await
@@ -2204,7 +1786,7 @@ async fn consume_flat_record(
                     notifier,
                     cancel,
                     parser.global(),
-                    archive_tx.clone(),
+                    archive_tx,
                 )
                 .in_current_span()
                 .await
@@ -2261,7 +1843,7 @@ async fn consume_flat_record(
                                 notifier,
                                 cancel,
                                 parser.global(),
-                                archive_tx.clone(),
+                                archive_tx,
                             )
                             .in_current_span()
                             .await
@@ -2277,7 +1859,7 @@ async fn consume_flat_record(
                                 notifier,
                                 cancel,
                                 parser.global(),
-                                archive_tx.clone(),
+                                archive_tx,
                             )
                             .in_current_span()
                             .await
@@ -2294,7 +1876,7 @@ async fn consume_flat_record(
                             notifier,
                             cancel,
                             parser,
-                            archive_tx.clone(),
+                            archive_tx,
                             &mut qid,
                             &mut max_lengths,
                         )
@@ -2316,7 +1898,7 @@ async fn consume_flat_record(
 async fn handle_flat_abnormal<'a>(
     abnormal_stragy: ProcessOnAbnormalEnum<'a>,
     batch: &RecordBatch,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     match abnormal_stragy {
         ProcessOnAbnormalEnum::DatabaseConnectionError(database_connection_error) => {
@@ -2325,7 +1907,7 @@ async fn handle_flat_abnormal<'a>(
             {
                 Ok((HandlingResult::Skip, _)) => Ok(()),
                 Ok((HandlingResult::Archive, err)) => {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
+                    if let Err(e) = process_archive(&err, batch, archive_tx).await {
                         tracing::error!("archive error: {e:#}");
                     }
                     Ok(())
@@ -2333,7 +1915,7 @@ async fn handle_flat_abnormal<'a>(
                 Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                 Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                 Ok((HandlingResult::Retry, _)) => {
-                    if let Err(e) = process_cache(batch, archive_tx.clone()).await {
+                    if let Err(e) = process_cache(batch, archive_tx).await {
                         tracing::error!("cache error: {e:#}");
                     }
                     Ok(())
@@ -2344,7 +1926,7 @@ async fn handle_flat_abnormal<'a>(
         ProcessOnAbnormalEnum::DatabaseNotExist(handling_strategy) => {
             match handling_strategy.handle("Database not exist".to_string()) {
                 Ok((HandlingResult::Archive, err)) => {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
+                    if let Err(e) = process_archive(&err, batch, archive_tx).await {
                         tracing::error!("archive error: {e:#}");
                     }
                     Ok(())
@@ -2362,7 +1944,7 @@ async fn handle_flat_abnormal<'a>(
 
 async fn process_cache(
     batch: &RecordBatch,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let Some(archive_tx) = archive_tx else {
         return Ok(());
@@ -2379,18 +1961,25 @@ async fn process_cache(
 async fn process_archive(
     err: &str,
     batch: &RecordBatch,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
-    let err_vec = vec![err.to_string(); batch.num_rows()];
-    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-    archive_records(
-        batch,
-        err_vec.clone(),
-        err_timestamp_vec.clone(),
-        archive_tx.clone(),
-    )
-    .await
+    let mut err_vec = vec![None; batch.num_rows()];
+    if let Some(v) = err_vec.first_mut() {
+        *v = Some(err.to_string());
+    }
+    if let Some(v) = err_vec.last_mut() {
+        *v = Some(err.to_string());
+    }
+    let mut err_timestamp_vec = vec![0; batch.num_rows()];
+    let now = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    if let Some(v) = err_timestamp_vec.first_mut() {
+        *v = now;
+    }
+    if let Some(v) = err_timestamp_vec.last_mut() {
+        *v = now;
+    }
+    archive_records(batch, err_vec, err_timestamp_vec, archive_tx).await
 }
 
 #[instrument(skip_all)]
@@ -2398,14 +1987,15 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
-    lush_model_config: Option<LushModelConfig>,
+    lush_model_config: Option<&LushModelConfig>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
     breakpoint_db: Option<BreakpointDb>,
+    target_precision: Precision,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2418,7 +2008,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     let mut stream = ipc_reader.into_stream();
 
     let acks: AtomicUsize = AtomicUsize::new(0);
-    let lush_model_config = lush_model_config.map(Arc::new);
 
     // TODO: 使用 scheduler 中的 lush_table_cache
     let lush_table_cache = Arc::new(TableTagCache::new());
@@ -2439,7 +2028,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         })
         .unwrap();
         let last = count;
-        let result = if let Some(lush_model_config) = lush_model_config.clone() {
+        let result = if let Some(lush_model_config) = lush_model_config {
             consume_lush_record_with_transform(
                 pool,
                 record,
@@ -2448,7 +2037,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 lush_model_config,
                 lush_table_cache.clone(),
                 breakpoint_db.clone(),
-                archive_tx.clone(),
+                archive_tx,
             )
             .await
         } else {
@@ -2461,6 +2050,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 task_id,
                 metrics,
                 breakpoint_db.clone(),
+                target_precision,
             )
             .await
         };
@@ -2521,26 +2111,26 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
-    config: Option<PointModelConfig>,
+    config: Option<&PointModelConfig>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
     _ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     persist_component: Option<PersistComponent>,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
 
     #[derive(Clone)]
-    struct WriterContext {
+    struct WriterContext<'a> {
         pool: TaosPool,
-        config: Option<Arc<PointModelConfig>>,
+        config: Option<&'a PointModelConfig>,
         target_precision: taos::Precision,
     }
 
     async fn parse(
-        context: WriterContext,
+        context: WriterContext<'_>,
         record: Result<RecordBatch, arrow::error::ArrowError>,
         metrics: &IpcMetrics,
     ) -> anyhow::Result<usize> {
@@ -2568,7 +2158,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
 
     let context = WriterContext {
         pool: pool.clone(),
-        config: config.map(Arc::new),
+        config,
         target_precision,
     };
 
@@ -2609,7 +2199,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
             let metrics_arc_clone = metrics_arc.clone();
             async move {
                 if let Some(batch_counter) = batch_counter {
-                    let batch_number = batch_counter.next().await.unwrap_or_default();
+                    let batch_number = batch_counter.next();
                     qid.set_batch_id(batch_number);
                 }
                 let metrics = metrics_arc_clone.ipc();
@@ -2686,8 +2276,8 @@ async fn ipc_flat_stream_worker(
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
-    archive_tx: Option<Sender<ArchiveType>>,
+    batch_counter: Option<Arc<BatchCounter>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
@@ -2723,7 +2313,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
-                archive_tx.clone(),
+                archive_tx,
             )
             .await
         }
@@ -2739,7 +2329,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
-                archive_tx.clone(),
+                archive_tx,
             )
             .await
         }
@@ -2755,7 +2345,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
-                archive_tx.clone(),
+                archive_tx,
             )
             .await
         }
@@ -2774,8 +2364,8 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
-    batch_counter: Option<BatchCounter>,
-    archive_tx: Option<Sender<ArchiveType>>,
+    batch_counter: Option<Arc<BatchCounter>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_raw_stream_with_capycity(
@@ -2804,7 +2394,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
         ipc_error_strategy,
         metrics_arc,
         batch_counter,
-        archive_tx.clone(),
+        archive_tx,
         persist_component,
     )
     .in_current_span()
@@ -2935,13 +2525,13 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
-    opc_model_config: Option<PointModelConfig>,
-    lush_model_config: Option<LushModelConfig>,
+    opc_model_config: Option<&PointModelConfig>,
+    lush_model_config: Option<&LushModelConfig>,
     cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&str>,
     task_id: Option<i64>,
-    batch_counter: Option<BatchCounter>,
+    batch_counter: Option<Arc<BatchCounter>>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
     breakpoint_db: Option<BreakpointDb>,
@@ -3012,7 +2602,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 task_id.unwrap(),
                 &pool_clone,
                 &parser,
-                archive_tx,
+                &archive_tx,
                 &cancel_clone,
             )
             .await
@@ -3057,7 +2647,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         }
     }
     // handle point message init
-    if let Some(opc_model_config) = &opc_model_config {
+    if let Some(opc_model_config) = opc_model_config {
         handle_point_message_init(opc_model_config, &taos).await?;
     }
 
@@ -3093,7 +2683,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 ipc_error_strategy,
                 metrics_arc_clone.clone(),
                 batch_counter,
-                archive_tx.clone(),
+                archive_tx.as_ref(),
                 persist_component,
             )
             .await
@@ -3110,8 +2700,9 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 ipc_error_strategy,
                 metrics,
                 &metrics_arc_clone,
-                archive_tx.clone(),
+                archive_tx.as_ref(),
                 breakpoint_db,
+                target_precision,
             )
             .await
             .inspect_err(|err| {
@@ -3239,14 +2830,10 @@ pub struct IpcStreamWorker {
     breakpoint_db: Option<BreakpointDb>,
     license: Option<Arc<ConnectorLicense>>,
     transferred: Option<Arc<Transferred>>,
-    taos: Cell<Option<deadpool::managed::Object<Manager<TaosBuilder>>>>,
     target_precision: taos::Precision,
     span: tracing::Span,
     cancel: CancellationToken,
 }
-
-unsafe impl Send for IpcStreamWorker {}
-unsafe impl Sync for IpcStreamWorker {}
 
 impl Clone for IpcStreamWorker {
     fn clone(&self) -> Self {
@@ -3264,7 +2851,6 @@ impl Clone for IpcStreamWorker {
             license: self.license.clone(),
             transferred: self.transferred.clone(),
             span: self.span.clone(),
-            taos: Cell::new(None),
             target_precision: self.target_precision,
             cancel: self.cancel.clone(),
         }
@@ -3321,7 +2907,6 @@ impl IpcStreamWorker {
             breakpoint_db,
             license: license.map(Arc::new),
             transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
-            taos: Cell::new(Some(taos)),
             target_precision,
             span,
             cancel,
@@ -3345,12 +2930,8 @@ impl IpcStreamWorker {
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
         notifier: Option<&crate::TaskNotifySender>,
-        archive_tx: Option<Sender<ArchiveType>>,
+        archive_tx: Option<&Sender<ArchiveType>>,
     ) -> anyhow::Result<usize> {
-        let taos = unsafe { &mut *self.taos.as_ptr() };
-        if taos.is_none() {
-            *taos = Some(self.pool.get().await?);
-        }
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
                 todo!()
@@ -3370,7 +2951,7 @@ impl IpcStreamWorker {
                     self.target_precision,
                     metrics,
                     notifier,
-                    archive_tx.clone(),
+                    archive_tx,
                 )
                 .await?;
                 Ok(count)
@@ -3384,14 +2965,13 @@ impl IpcStreamWorker {
                     .collect_vec();
                 let message = self.parser.parse(record)?;
                 let mut count = 0;
-
                 let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
+                tracing::debug!("processing LushMessage, len: {}", record.nrows());
                 let task = self.task;
                 let lush_model_config = self.lush_model_config.get();
-
                 if let Some(lush_model_config) = lush_model_config {
                     let is_tables = record.is_tables();
                     if is_tables {
@@ -3413,10 +2993,10 @@ impl IpcStreamWorker {
                         record,
                         &mut count,
                         metrics_arc,
-                        lush_model_config.clone(),
+                        lush_model_config,
                         table_tag_cache,
                         self.breakpoint_db.clone(),
-                        archive_tx.clone(),
+                        archive_tx,
                     )
                     .await;
                     if is_tables {
@@ -3424,16 +3004,17 @@ impl IpcStreamWorker {
                     }
                     res?;
                 } else {
-                    // let mut taos = Some(self.pool.get().await?);
+                    let mut taos = Some(self.pool.get().await?);
                     consume_lush_record(
                         &self.pool,
-                        taos,
+                        &mut taos,
                         record,
                         &columns,
                         &mut count,
                         task,
                         metrics,
                         self.breakpoint_db.clone(),
+                        self.target_precision,
                     )
                     .await?;
                 }
@@ -3446,10 +3027,11 @@ impl IpcStreamWorker {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .unwrap();
-                let mut taos = Some(self.pool.get().await?);
+                let taos = get_taos_with_retry(&self.pool, 5, Duration::from_secs(2)).await?;
+                // let mut taos = Some(self.pool.get().await?);
                 let _n = consume_point_record(
                     &self.pool,
-                    &mut taos,
+                    &mut Some(taos),
                     &record,
                     &mut count,
                     self.opc_table_config
@@ -3472,11 +3054,42 @@ impl IpcStreamWorker {
     }
 }
 
+async fn get_taos_with_retry(
+    pool: &TaosPool,
+    max_retries: usize,
+    retry_delay: Duration,
+) -> anyhow::Result<Object<Manager<TaosBuilder>>> {
+    let mut attempts = 0;
+    loop {
+        match pool.get().await {
+            Ok(taos) => return Ok(taos),
+            Err(e) => {
+                attempts += 1;
+                if attempts >= max_retries {
+                    return Err(anyhow::anyhow!(
+                        "Failed to get taos connection after {} attempts: {}",
+                        max_retries,
+                        e
+                    ));
+                }
+                tracing::warn!(
+                    "Failed to get taos connection (attempt {}/{}): {}. Retrying in {:?}",
+                    attempts,
+                    max_retries,
+                    e,
+                    retry_delay
+                );
+                tokio::time::sleep(retry_delay).await;
+            }
+        }
+    }
+}
+
 pub async fn listen_tcp_socket_with_agent(
     socket: Option<impl AsRef<str>>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-    config: Option<PointModelConfig>,
+    config: Option<Arc<PointModelConfig>>,
     persist_config: Option<PersistConfig>,
 ) -> anyhow::Result<(IpcHandler, SocketAddr)> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
@@ -3689,8 +3302,8 @@ impl IpcHandler {
 pub async fn listen_tcp_socket(
     target: TaosPool,
     socket: Option<impl AsRef<str>>,
-    opc_model_config: Option<PointModelConfig>,
-    lush_model_config: Option<LushModelConfig>,
+    opc_model_config: Option<Arc<PointModelConfig>>,
+    lush_model_config: Option<Arc<LushModelConfig>>,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     parser: Option<Parser>,
@@ -3744,9 +3357,9 @@ pub async fn listen_tcp_socket(
                 let se = sender.clone();
                 let cancel = cancel.clone();
 
-                let pool = target.clone();
-                let opc_model_config = opc_model_config.clone();
-                let lush_model_config = lush_model_config.clone();
+                    let pool = target.clone();
+                    let opc_model_config = opc_model_config.clone();
+                    let lush_model_config = lush_model_config.clone();
                 let parser = parser.clone();
                 let notifier = notifier.clone();
                 let notify = notified.clone();
@@ -3757,6 +3370,9 @@ pub async fn listen_tcp_socket(
                     // let dsn: Dsn = "taos:///db2".parse().unwrap();
                     // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
                     info!("Spawned IPC reader");
+
+                    let opc_model_config = opc_model_config.as_deref();
+                    let lush_model_config = lush_model_config.as_deref();
                     let cancel2 = cancel.clone();
                     let res = ipc_tcp_read(
                         pool,
@@ -3991,7 +3607,7 @@ pub async fn channel_based_transformer(
 
         match (parser_clone, task_id, archive_tx_clone) {
             (Some(parser), Some(task_id), Some(archive_tx)) => {
-                read_cache_and_rewrite(task_id, &pool_clone, &parser, archive_tx, &cancel_clone)
+                read_cache_and_rewrite(task_id, &pool_clone, &parser, &archive_tx, &cancel_clone)
                     .await
             }
             _ => Ok(()),
@@ -4043,7 +3659,7 @@ pub async fn channel_based_transformer(
                         ipc_error_strategy,
                         metrics,
                         batch_counter,
-                        archive_tx.clone(),
+                        archive_tx.as_ref(),
                         None,
                     )
                     .in_current_span()
@@ -4074,7 +3690,7 @@ pub async fn read_cache_and_rewrite(
     task_id: i64,
     pool: &TaosPool,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: &Sender<ArchiveType>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let cache_path = parser.global().process_on_abnormal.cache.location.clone();
@@ -4096,7 +3712,7 @@ pub async fn read_cache_and_rewrite(
                         }
                     };
                     //get all cached files at current time point
-                    let files = match get_rewrite_files(archive_tx.clone()).await {
+                    let files = match get_rewrite_files(archive_tx).await {
                         Ok(files) => files,
                         Err(e) => {
                             tracing::error!("get rewrite files error, e: {e:#}");
@@ -4112,7 +3728,7 @@ pub async fn read_cache_and_rewrite(
                             target_precision,
                             metrics,
                             parser,
-                            Some(archive_tx.clone()),
+                            Some(archive_tx),
                             cancel,
                         ).await {
                             Ok(_) => {
@@ -4138,12 +3754,12 @@ async fn read_file_and_rewrite(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     parser: &Parser,
-    archive_tx: Option<Sender<ArchiveType>>,
+    archive_tx: Option<&Sender<ArchiveType>>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let batches = read_parquet_file(file.clone())?;
     for batch in batches {
-        let message = parser.parse_message_from_records(&batch, true, archive_tx.clone())?;
+        let message = parser.parse_message_from_records(&batch, true, archive_tx)?;
         let messages = match message {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -4159,7 +3775,7 @@ async fn read_file_and_rewrite(
             None,
             cancel,
             parser.global(),
-            archive_tx.clone(),
+            archive_tx,
         )
         .await?;
     }
@@ -4233,6 +3849,7 @@ mod tests {
             generate_rule: None,
             point_config_map,
             table_config_map,
+            update_mode: None,
         };
         let taos = TaosBuilder::from_dsn(format!("{}/{}", &dsn, &db))
             .unwrap()
@@ -4316,10 +3933,10 @@ mod tests {
                 &parser.global().process_on_abnormal.database_not_exist,
             ),
             &batch,
-            Some(archive_tx.clone()),
+            Some(&archive_tx),
         )
         .await?;
-        let rs = rx.recv();
+        let rs = rx.recv_async().await;
         dbg!(&rs);
         assert!(rs.is_ok());
 
@@ -4336,7 +3953,7 @@ mod tests {
                 &parser.global().process_on_abnormal.database_not_exist,
             ),
             &batch,
-            Some(archive_tx.clone()),
+            Some(&archive_tx),
         )
         .await;
         assert!(rs.is_err());
@@ -4366,7 +3983,7 @@ mod tests {
                     .database_connection_error,
             ),
             &batch,
-            Some(cache_tx.clone()),
+            Some(&cache_tx),
         )
         .await?;
         let rs = rx.recv();
@@ -4389,7 +4006,7 @@ mod tests {
                     .database_connection_error,
             ),
             &batch,
-            Some(cache_tx.clone()),
+            Some(&cache_tx),
         )
         .await;
         dbg!(&rs);

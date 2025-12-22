@@ -10,6 +10,7 @@ using TDPIConnector.Core.Tasks;
 using System.Threading;
 using TDPIConnector.TDEngine.Models;
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace TDPIConnector.Core
 {
@@ -34,12 +35,16 @@ namespace TDPIConnector.Core
         private EventsSender eventsSender;
         private EventsSenderTask eventsSenderTask;
         BackfillManager backfillManager;
-
+        private Task pointsBackfillTask;
+        private readonly ManualResetEventSlim _serviceStop = new ManualResetEventSlim(false);
+        // 防止在服务模式下重复触发 Stop
+        private int _serviceStopping = 0; // 0:not stopping, 1:stopping
         public AppService()
         {
         }
 
-        public void InitializePIConnections() {
+        public void InitializePIConnections()
+        {
             if (!string.IsNullOrEmpty(AppSettings.tomlConfig.PISystemName))
             {
                 piSystemManager = new PISystemManager(AppSettings.tomlConfig.PISystemName);
@@ -90,10 +95,11 @@ namespace TDPIConnector.Core
             catch (Exception e)
             {
                 log.Fatal("panic: error starting the application. Connect Agent failed!", e);
-                throw e;
+                throw;
             }
         }
-        public void InitializeConnections() {
+        public void InitializeConnections()
+        {
             InitializePIConnections();
             InitializeTaosConnections();
             InitObserver();
@@ -105,16 +111,17 @@ namespace TDPIConnector.Core
             pointModeObserver = new PointModeObserver(eventsSender);
             elementModeObserver = new ElementModeObserver(eventsSender);
         }
-        public async void Start()
+        public async Task Start()
         {
             TDEngineClient.OnlyTestConnector = AppSettings.tomlConfig.OnlyTestConnector;
             // 初始化连接，并初始化 Observer
             InitializeConnections();
             // 启动 backfill 任务，一旦有 ElementBackfillTask 添加到队列，就会开始执行
-            backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
-            eventsSender.SetBackfill(backfillManager);
-
             tablesCreator = new TablesCreator(piSystemManager, piServerManager, tdEngineProxy);
+            backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy, tablesCreator);
+            // 关联 backfill 到已存在的 EventsSender
+            eventsSender.SetBackfill(backfillManager);
+            // 初始化器
             initializer = new Initializer(ref piSystemManager, ref piServerManager, ref tdEngineProxy, ref elementModeObserver, ref eventsSender, ref backfillManager);
 
             if (piServerManager != null)
@@ -122,7 +129,6 @@ namespace TDPIConnector.Core
                 try
                 {
                     piPoints = await tablesCreator.GetPIPointTables(AppSettings.tomlConfig.TDDataBase);
-                    // piPoints = await tablesCreator.CreatePIPointTables(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName);
                     log.Info($"TDengine PI Point tables ({piPoints.Count}) has been created.");
                 }
                 catch (Exception e)
@@ -152,24 +158,83 @@ namespace TDPIConnector.Core
                 }
                 log.Info("InitAFModeTask finished.");
             }
-            
+
             if (piPoints != null && piPoints.Count > 0)
             {
                 // 启动单列模式的数据处理流程
-                StartDataPipe();
+                if (!AppSettings.tomlConfig.ForBackfill)
+                {
+                    StartDataPipe();
+                    standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
+                    standByModeTask.Start();
+                }
+
+                // 启动点位回填任务
                 StartBackfillPiPoints();
-                standByModeTask = new StandByModeTask(this, piServerManager, tdEngineProxy);
-                standByModeTask.Start();
                 log.Info("Started");
             }
         }
-        public void Wait() {
+        public void Wait()
+        {
+            // windows service 模式下
+            if (!Environment.UserInteractive)
+            {
+                log.Info("Running as Windows Service, blocking until Stop is called.");
+                _serviceStop.Wait();
+                return;
+            }
+
             if (AppSettings.tomlConfig.ForBackfill)
             {
+                // 确保不再有后台任务阻塞退出
+                if (standByModeTask != null)
+                {
+                    log.Info("Stopping StandByModeTask...");
+                    standByModeTask.Stop();
+                    standByModeTask = null;
+                    log.Info("StandByModeTask stopped.");
+                }
+                log.Info("Stopping data pipes...");
+                StopDataPipe();
+                log.Info("Data pipes stopped.");
+
+                // 先等待点位回填任务完成
+                if (pointsBackfillTask != null)
+                {
+                    try
+                    {
+                        log.Info("Waiting pointsBackfillTask to complete...");
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        pointsBackfillTask.Wait();
+                        sw.Stop();
+                        log.Info($"pointsBackfillTask completed in {sw.ElapsedMilliseconds} ms.");
+                    }
+                    catch (AggregateException ae)
+                    {
+                        log.Error("pointsBackfillTask.Wait() error", ae);
+                    }
+                }
+                else
+                {
+                    log.Warn("pointsBackfillTask is null, skipping wait.");
+                }
+
+                log.Info("Stopping adding new backfill tasks.");
+                backfillManager.GetBackfill().StopAddTask();
+                log.Info("StopAddTask invoked.");
+
+                log.Info("Waiting backfill tasks to finish.");
+                var sw2 = System.Diagnostics.Stopwatch.StartNew();
                 backfillManager.GetBackfill().WaitTask();
+                sw2.Stop();
+                log.Info($"WaitTask returned after {sw2.ElapsedMilliseconds} ms.");
+
                 log.Info("PI Connector finished backfill task and will quit.");
+                return;
             }
-            else {
+            else
+            {
+                log.Info("Wait() enter non-backfill interactive branch");
                 backfillManager.GetBackfill().StopAddTask();
                 while (true)
                 {
@@ -181,6 +246,7 @@ namespace TDPIConnector.Core
                     }
                     else
                     {
+                        log.Info($"Console input: '{str}', sleeping 5 seconds.");
                         Thread.Sleep(5000);
                     }
                 }
@@ -188,7 +254,8 @@ namespace TDPIConnector.Core
         }
         private void StartTemplateObserve()
         {
-            if (piSystemManager == null) {
+            if (piSystemManager == null)
+            {
                 log.Info("Working on only point mode.");
                 return;
             }
@@ -207,12 +274,20 @@ namespace TDPIConnector.Core
         // 这个方法不会被调用。暂不处理模板变化事件
         public async void elementTemplateEventHandle(AFElementTemplateWrapper template)
         {
-            var hasNewAttribute = await tablesCreator.CreateOrUpdateSuperTables(AppSettings.tomlConfig.TDDataBase, template);
-            if (hasNewAttribute)
+            try
             {
-                log.Info($"New attribute found in template {template.Name}, we can not handle this event properly now.");
-                ReStartDataPipe();
+                var hasNewAttribute = await tablesCreator.CreateOrUpdateSuperTables(AppSettings.tomlConfig.TDDataBase, template);
+                if (hasNewAttribute)
+                {
+                    log.Info($"New attribute found in template {template.Name}, we can not handle this event properly now.");
+                    ReStartDataPipe();
+                }
             }
+            catch (Exception e)
+            {
+                log.Error($"Error handling template event for template {template.Name}.", e);
+            }
+
         }
 
         // 单列模式 backfill，包括 AF 单列和 Archive 单列
@@ -225,7 +300,7 @@ namespace TDPIConnector.Core
                 {
                     DateTimeOffset startTime = config.BackfillStartTime;
                     DateTimeOffset endTime = config.BackfillEndTime;
-                    if (startTime == null || endTime == null)
+                    if (startTime == default || endTime == default)
                     {
                         log.Info($"Backfill start time or end time is not set, will exit.");
                         return;
@@ -241,9 +316,9 @@ namespace TDPIConnector.Core
                         BackfillPIPoints(startTime.DateTime, endTime.DateTime);
                         log.Info($"Backfill started successfully.");
                     }
-
                 }
-                else { 
+                else
+                {
                     if (config.MaxBackfillRangeDays > 0)
                     {
                         log.Info($"Backfill range is set to {config.MaxBackfillRangeDays} minutes.");
@@ -257,7 +332,7 @@ namespace TDPIConnector.Core
                     {
                         log.Info($"Backfill is not enabled.");
                     }
-                
+
                 }
             }
             catch (Exception e)
@@ -269,7 +344,51 @@ namespace TDPIConnector.Core
 
         private void BackfillPIPoints(DateTime backfillStartTime, DateTime backfillEndTime)
         {
+            pointsBackfillTask =
                 backfillManager.BackfillPIPointsFromService(AppSettings.tomlConfig.TDDataBase, piPoints, backfillStartTime, backfillEndTime);
+
+            // 服务模式下，PI 点位回填完成后停止服务以退出
+            if (!Environment.UserInteractive && AppSettings.tomlConfig.ForBackfill)
+            {
+                pointsBackfillTask.ContinueWith((t) =>
+                {
+                    if (System.Threading.Interlocked.Exchange(ref _serviceStopping, 1) == 1)
+                    {
+                        log.Warn("Service is already stopping, skipping repeated Stop call.");
+                        return;
+                    }
+
+                    if (t.IsFaulted)
+                    {
+                        log.Error("Points backfill task failed in service mode.", t.Exception);
+                    }
+                    else
+                    {
+                        log.Info("Points backfill task completed successfully in service mode, stopping the service.");
+                    }
+
+                    try
+                    {
+                        if (backfillManager != null)
+                        {
+                            log.Info("Service mode: StopAddTask and WaitTask before Stop.");
+                            backfillManager.GetBackfill().StopAddTask();
+                            backfillManager.GetBackfill().WaitTask();
+                        }
+                        else
+                        {
+                            log.Warn("Service mode: backfillManager is null, skipping StopAddTask and WaitTask.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Warn("Service mode: WaitTask error, continue to Stop.", ex);
+                    }
+
+                    log.Info("Service mode: Backfill finished, stopping the service.");
+                    Stop(); // 触发 _serviceStop.Set()，使 Wait 方法退出
+                }, TaskScheduler.Default);
+            }
         }
 
         public void StartDataPipe()
@@ -313,6 +432,7 @@ namespace TDPIConnector.Core
         }
         public void Stop()
         {
+            System.Threading.Interlocked.Exchange(ref _serviceStopping, 1);
             if (standByModeTask != null)
             {
                 standByModeTask.Stop();
@@ -326,7 +446,12 @@ namespace TDPIConnector.Core
             {
                 piSystemManager.Dispose();
             }
-            tdEngineProxy.Dispose();
+            if (tdEngineProxy != null)
+            {
+                tdEngineProxy.Dispose();
+            }
+            // 通知 Wait 方法退出
+            _serviceStop.Set();
         }
         public void ReStartDataPipe()
         {
@@ -341,17 +466,20 @@ namespace TDPIConnector.Core
             StartBackfillPiPoints();
             log.Debug("Checking PI Data Archive connection: SUCCESS");
         }
-        public void PrintPIInfo(ScanMode scanMode, string filter, FilterMode filterMode) {
+        public void PrintPIInfo(ScanMode scanMode, string filter, FilterMode filterMode)
+        {
             //startWebService();
             //InitMonitoring();
-            try {
+            try
+            {
                 InitializePIConnections();
                 var scanner = new PIInfoScanner(piServerManager, piSystemManager);
                 string info = scanner.GetInfo(scanMode, filter, filterMode);
                 Console.OutputEncoding = Encoding.UTF8;
                 Console.WriteLine(info);
                 log.Debug(info);
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 log.Error(e.Message);
@@ -389,7 +517,8 @@ namespace TDPIConnector.Core
             {
                 Console.WriteLine("Client SDK Version " + PISystemManager.GetPISDKInfo());
             }
-            catch(Exception) {
+            catch (Exception)
+            {
                 Console.WriteLine("PI Client SDK Not Found!");
             }
         }

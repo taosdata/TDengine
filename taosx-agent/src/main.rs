@@ -982,6 +982,13 @@ fn main() -> anyhow::Result<()> {
 
     tracing::info!("Start");
 
+    // Set a panic hook
+    std::panic::set_hook(Box::new(|info| {
+        // 正常打印 backtrace, 需要设置环境变量: RUST_BACKTRACE=1
+        let backtrace = std::backtrace::Backtrace::capture();
+        tracing::error!("panic occurred. {} {}", info, backtrace);
+    }));
+
     // Register KingHistorian datasets lister to avoid taosx-core <-> kinghistorian circular deps
     // Safe to call once; subsequent calls are ignored by OnceLock
     #[allow(clippy::redundant_closure)]

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/apache/arrow/go/v14/arrow"
 	"github.com/apache/arrow/go/v14/arrow/array"
@@ -56,6 +57,7 @@ func handle(conn *net.TCPConn) {
 	for {
 		if reader.Next() {
 			r := reader.Record()
+			fmt.Println(time.Now(), r.NumRows())
 			r.Release()
 			err = writer.Write(record)
 			if err != nil {

@@ -108,7 +108,7 @@ pub async fn poll_message(
     let batch_size = batch_size.max(MAX_READY_CHUNK_SIZE);
 
     loop {
-        tracing::trace!("Pulsar consumer-{} polling by ready trunks", index);
+        tracing::trace!("Pulsar consumer-{} is going to poll trunks", index);
         tokio::select! {
             biased;
             _ = aborted.cancelled() => {
@@ -125,7 +125,6 @@ pub async fn poll_message(
                             max_ack_elapsed = elapsed;
                             tracing::info!("ack elapsed: {elapsed:?}");
                         }
-                        // let mut assignment = None;
                         let mut ack_batch_size = 0;
                         // 确认机制
                         for PendingState { topic, partition, ledger_id, entry_id , batch_size} in offsets {
@@ -135,19 +134,24 @@ pub async fn poll_message(
                                 entry_id,
                                 ..Default::default()
                             };
-                            let Err(err) = consumer.cumulative_ack_with_id(&topic, message_id).await else {
-                                tracing::warn!(pulsar.last_ledger_id = ledger_id, pulsar.last_entry_id = entry_id, pulsar.batch_size = ack_batch_size, "Pulsar no offsets ack");
+                            if let Err(err) = consumer.cumulative_ack_with_id(&topic, message_id).await {
+                                tracing::warn!(
+                                    topic,
+                                    partition,
+                                    ledger_id,
+                                    entry_id,
+                                    error = %err,
+                                    "pulsar cumulative ack offset error",
+                                );
                                 continue;
                             };
                             tracing::debug!(
-                                cause = %err,
                                 topic,
                                 partition,
                                 ledger_id,
                                 entry_id,
-                                "pulsar cumulative ack offset error in topic {} partition {}",
-                                topic,
-                                partition,
+                                ack_batch_size,
+                                "Pulsar ack offsets success",
                             );
                         }
                         metrics.ipc().add_extra_metric(&METRIC_MSG_ACKS, ack_batch_size as u64);
@@ -167,8 +171,8 @@ pub async fn poll_message(
                 let msg = match msg {
                     Ok(msg) => msg,
                     Err(_) => {
+                        tracing::trace!("Timeout reached, chunk.is_empty: {}, chunk.len: {}", chunk.is_empty(), chunk.len());
                         if chunk.is_empty() {
-                            tracing::trace!("Empty chunk, clean pending batches and go next polling");
                             match sender.send(&mut pending_futs, aborted).in_current_span().await? {
                                 ExitStatus::Timeout => {
                                     tracing::info!("Pulsar consumer-{} polling timeout", index);
@@ -244,7 +248,6 @@ pub async fn poll_message(
 
                         // It will be handled by next consuming.
                         let _ = notify.send_async(TaskNotify::warn(format!("failed to polling from Pulsar, cause: {:#}", e))).await;
-                        tracing::error!("failed to polling from Pulsar, cause: {:#}", e);
                         anyhow::bail!("failed to polling from Pulsar, cause: {:#}", e);
                     }
                     None => {
@@ -264,14 +267,13 @@ pub async fn poll_message(
                                         last_message = Instant::now();
                                         *global_last_message.write() = Instant::now();
                                     } else {
-                                        tracing::error!("Consumer {index} has no messages received in {elapsed:?}");
                                         anyhow::bail!("Consumer {index} has no messages received in {elapsed:?}");
                                     }
                                 }
                                 tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
                             }
                             ExitStatus::Timeout => {
-                                tracing::info!("None messages received, consumer polling timeout");
+                                tracing::info!("None messages received, consumer {index} polling timeout");
                                 if global_last_message.read().elapsed() >= timeout_duration {
                                     return Ok(ExitStatus::Timeout)
                                 }
@@ -283,7 +285,7 @@ pub async fn poll_message(
                                 tokio::time::sleep(Duration::from_millis(backoff * 100)).await;
                             }
                             ExitStatus::Aborted => {
-                                tracing::info!("None messages received, exiting with consumer aborted");
+                                tracing::info!("None messages received, exiting with consumer {index} aborted");
                                 return Ok(ExitStatus::Aborted);
                             }
                             ExitStatus::Finished => {

@@ -391,6 +391,7 @@ export default {
     msgbody: 'Sample Message Body',
     msgbodytip:
       'You can input payload sample directly, or click one of the buttons on the right side to get payload from the server or by uploading a file. Please be aware that the default limit of payload sample is 5 lines, you can modify the configuration but the hard limit of payload sample is 100 lines.​',
+    msg_submit: 'Submit',
     searchSResult: 'Press the enter key to query after completion',
     tablenametip: 'Please enter the table name ',
     mapcalculate: 'Please calculate mapping first',

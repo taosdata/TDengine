@@ -1,0 +1,41 @@
+# Example configuration for Custom OAuth 2.0 SSO
+# This configuration is for the customized OAuth service documented in docs/custom-oauth.md
+
+[oauth]
+enabled = true
+provider = "custom"  # Use "custom" for custom OAuth, "oidc" for standard OpenID Connect
+
+# Provider display name (shown on login button)
+[oauth.provider_display_name]
+en = "Company SSO"  # English name
+zh = "公司单点登录"  # Chinese name
+
+# Custom OAuth 2.0 configuration
+[oauth.custom]
+# OAuth 2.0 client credentials (obtained from your OAuth provider)
+client_id = "your_client_id_here"
+client_secret = "your_client_secret_here"
+
+# Custom OAuth endpoints
+authorize_url = "http://192.168.1.1/sso/oauth2.0/authorize"
+token_url = "http://192.168.1.1/sso/oauth2.0/accessToken"
+profile_url = "http://192.168.1.1/sso/oauth2.0/profile"
+
+# Redirect URI (must match what's registered with your OAuth provider)
+redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping (optional, for extracting user info from profile response)
+[oauth.user_mapping]
+username = "username"
+email = "email"
+roles = "attributes.roles[].role_name"
+
+# Example environment variable configuration:
+# export EXPLORER_OAUTH_ENABLED=true
+# export EXPLORER_OAUTH_PROVIDER=custom
+# export EXPLORER_OAUTH_CLIENT_ID=your_client_id_here
+# export EXPLORER_OAUTH_CLIENT_SECRET=your_client_secret_here
+# export EXPLORER_OAUTH_CUSTOM_AUTHORIZE_URL=http://192.168.1.1/sso/oauth2.0/authorize
+# export EXPLORER_OAUTH_CUSTOM_TOKEN_URL=http://192.168.1.1/sso/oauth2.0/accessToken
+# export EXPLORER_OAUTH_CUSTOM_PROFILE_URL=http://192.168.1.1/sso/oauth2.0/profile
+# export EXPLORER_OAUTH_REDIRECT_URI=http://localhost:6060/api/-/oauth/callback
