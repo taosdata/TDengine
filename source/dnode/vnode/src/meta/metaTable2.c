@@ -1353,10 +1353,10 @@ static bool checkSameTag(uint32_t nTagVal, uint8_t* pTagVal, bool isNull, STagVa
       return true;
     }
   } else {
-    if (value.i64 == *(int64_t *)pTagVal) {
-      metaWarn("%s warn at %s:%d same tag int", __func__, __FILE__, __LINE__);
+    if (memcmp(&value.i64, pTagVal, nTagVal) == 0) {
+      metaWarn("%s warn at %s:%d same tag fixed", __func__, __FILE__, __LINE__);
+      return true;
     }
-    return true;
   }
   return false;
 }
