@@ -605,7 +605,7 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  return (pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {

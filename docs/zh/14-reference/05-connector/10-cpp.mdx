@@ -211,6 +211,53 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     - port：[入参] taosd 程序监听的端口。
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
 
+- `void taos_set_option(OPTIONS *options, const char *key, const char *value)`
+
+  - **接口说明**：向 OPTIONS 结构体中添加一个连接配置项（键值对）。该函数用于构建连接配置，配置项将在调用 `taos_connect_with()` 时生效。
+  - **参数说明**：
+    - `options`：[入参] 指向一个有效的 OPTIONS 结构体指针，用于存储连接配置项。
+    - `key`：[入参] 配置项的键名（字符串），支持的键名见下表。
+    - `value`：[入参] 配置项的值（字符串），与 `key` 对应的具体配置内容。
+  - **返回值**：无。
+  - **支持的配置项**：
+
+    | 键名                | 适用连接方式        | 说明                                                                                    |
+    |---------------------|-------------------|----------------------------------------------------------------------------------------|
+    | ip                | Native/WebSocket  | TDengine 集群中任一节点的 FQDN 或 IP 地址                                                   |
+    | user              | Native/WebSocket  | 用户名                                                                                   |
+    | pass              | Native/WebSocket  | 密码                                                                                     |
+    | db                | Native/WebSocket  | 数据库名称                                                                                |
+    | port              | Native/WebSocket  | 服务端口号。Native 连接默认端口为 6030，WebSocket 连接默认端口为 6041。                         |
+    | charset           | Native            | 字符集                                                                                   |
+    | timezone          | Native/WebSocket  | 时区                                                                                     |
+    | userIp            | Native/WebSocket  | 用户 IP 地址                                                                              |
+    | userApp           | Native/WebSocket  | 用户 APP 名称                                                                             |
+    | connectorInfo     | Native            | 连接器信息                                                                                |
+    | adapterList       | WebSocket         | taosAdapter 地址列表，用于负载均衡和故障转移。多个地址使用英文逗号分隔，格式为 `host1:port1,host2:port2,...`。优先级高于 `ip` 参数。 |
+    | compression       | WebSocket         | 数据压缩开关。0：禁用，1：启用。默认值为 0。                                                    |
+    | connRetries       | WebSocket         | 连接失败时的最大重试次数。默认值为 5。                                                         |
+    | retryBackoffMs    | WebSocket         | 连接失败时的初始等待时间（毫秒）。此值会随着连续失败而指数增长，直到达到最大等待时间。默认值为 200。      |
+    | retryBackoffMaxMs | WebSocket         | 连接失败时的最大等待时间（毫秒）。默认值为 2000。                                                |
+    | token             | WebSocket         | 云服务认证 token                                                                           |
+    | wsTlsMode         | WebSocket         | TLS 加密模式：<br/> - 0：禁用 TLS 加密。若服务端启用 TLS，客户端会自动升级连接。<br/> - 1：启用 TLS 加密，但不验证服务端证书。<br/> - 2：启用 TLS 加密，验证服务端证书，但不验证主机名。<br/> - 3：启用 TLS 加密，验证服务端证书及主机名（服务端证书需包含 SAN，CN 会被忽略）。<br/> 默认值为 0。 |
+    | wsTlsVersion      | WebSocket         | TLS 协议版本列表，多个版本使用英文逗号分隔。可选值：TLSv1.2、TLSv1.3。默认值为 TLSv1.3。            |
+    | wsTlsCa           | WebSocket         | 客户端用于验证服务端证书的 CA 证书文件路径或 PEM 格式的证书内容。该证书应为签发服务端证书的 CA 证书。    |
+
+  - **注意事项**：
+    - OPTIONS 结构体最多支持 256 个配置项
+    - 配置项的键名区分大小写
+    - 相同键名多次设置时，后面的值会覆盖前面的值
+    - WebSocket 连接专有配置项在 Native 连接方式下会被忽略，反之亦然
+  - **支持版本**：`v3.3.8.12` 及以上
+
+- `TAOS *taos_connect_with(const OPTIONS *options)`
+
+  - **接口说明**：使用 OPTIONS 结构体中的连接配置项创建数据库连接，并初始化连接上下文。
+  - **参数说明**：
+    - `options`：[入参] 指向一个有效的 OPTIONS 结构体指针，包含通过 `taos_set_option()` 添加的连接配置项。如果为 NULL 或配置项为空，将使用默认连接参数。
+  - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
+  - **支持版本**：`v3.3.8.12` 及以上
+
 - `char *taos_get_server_info(TAOS *taos)`
 
   - **接口说明**：获取服务端版本信息。
