@@ -1487,8 +1487,8 @@ int32_t buildOperatorStepDoneNotifyParam(SOperatorParam** ppRes,
   return code;
 _end:
   qError("%s failed at line %d, failed to build operator step done notify "
-         "param, opType:%d, ts:%ld, since:%s", __func__, lino, opType, ts,
-         tstrerror(code));
+         "param, opType:%d, ts:%" PRIu64 ", since:%s", __func__, lino, opType,
+         ts, tstrerror(code));
   freeOperatorParam(pParam, OP_NOTIFY_PARAM);
   return code;
 }

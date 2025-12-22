@@ -55,11 +55,6 @@ class TestInterpFill:
         tdSql.execute("create stable if not exists test.ts5941(ts timestamp, c1 int, c2 int) tags (t1 varchar(30));")
         tdSql.execute("create table if not exists test.ts5941_child using test.ts5941 tags ('testts5941');")
 
-        tdSql.execute("create table if not exists ntb (ts timestamp, c1 int)")
-        tdSql.execute("create table if not exists stb (ts timestamp, c1 int) tags (gid int)")
-        tdSql.execute("create table if not exists ctb1 using stb tags (1)")
-        tdSql.execute("create table if not exists ctb2 using stb tags (2)")
-
         tdLog.printNoPrefix("==========step2:insert data")
 
         tdSql.execute(f"insert into test.td32727 values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar', 5, 5, 5, 5)")
@@ -79,6 +74,11 @@ class TestInterpFill:
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:05', 5, 5)")
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:10', 10, 10)")
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:15', 15, 15)")
+
+        tdSql.execute("create table if not exists ntb (ts timestamp, c1 int)")
+        tdSql.execute("create table if not exists stb (ts timestamp, c1 int) tags (gid int)")
+        tdSql.execute("create table if not exists ctb1 using stb tags (1)")
+        tdSql.execute("create table if not exists ctb2 using stb tags (2)")
 
         tdSql.execute("""
             insert into ntb values
@@ -693,12 +693,13 @@ class TestInterpFill:
     def test_interp_fill_ignore_null(self):
         """Interp query fill with non-null values
 
-        1. testing fill(prev/next) try to fill nulls with non-null values only
+        1. testing fill(prev/next/near/linear) filling nulls 
+           with non-null values
         
         Catalog:
             - Query:Interp
 
-        Since: v3.3.6.34
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -713,3 +714,22 @@ class TestInterpFill:
         self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+
+    def test_interp_fill_ignore_null_stream(self):
+        """Interp query fill with non-null values in stream
+
+        1. testing fill(prev/next/near/linear) filling nulls 
+           with non-null values in stream
+        
+        Catalog:
+            - Stream:Interp
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-12-12 Tony Zhang created
+
+        """
+        pass

@@ -7405,6 +7405,7 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
   @brief Mark the current step done, so next step will be triggered.
   @param pReader the reader to mark the step done
   @param notifyTs the timestamp to notify, used to determine whether  
+         to mark the current step as done
 */
 int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
   if (pReader == NULL) {

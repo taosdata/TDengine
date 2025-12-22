@@ -895,21 +895,21 @@ static void saveBlockStatus(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBl
 
 /*
   @brief create the notify parameter and notify the downstream operator
-  @param pDownOptr the downstream operator info
-  @param pInput the input parameter for the notify function
+  @param pOperator the operator info
+  @param notifyTs the timestamp to notify
   @return the code of the operation
 */
-static int32_t timeSliceOptrNotifyDownstream(SOperatorInfo* pDownOptr,
+static int32_t timeSliceOptrNotifyDownstream(SOperatorInfo* pOperator,
                                              int64_t notifyTs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SOperatorParam* pNotifyParam = NULL;
-  if (pDownOptr != NULL && pDownOptr->fpSet.notifyFn != NULL) {
+  if (pOperator != NULL && pOperator->fpSet.notifyFn != NULL) {
     code = buildOperatorStepDoneNotifyParam(&pNotifyParam,
-                                            pDownOptr->operatorType, notifyTs);
+                                            pOperator->operatorType, notifyTs);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = pDownOptr->fpSet.notifyFn(pDownOptr, pNotifyParam);
+    code = pOperator->fpSet.notifyFn(pOperator, pNotifyParam);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -935,7 +935,6 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
   bool         notified = false;
-  SOperatorParam* pNotifyParam = NULL;
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock,
                                          pSliceInfo->tsCol.slotId);
@@ -954,9 +953,9 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
       continue;
     }
 
-    if (!notified && (ts < pSliceInfo->win.ekey || ts > pSliceInfo->win.skey)) {
+    if (!notified && (ts < pSliceInfo->win.skey || ts > pSliceInfo->win.ekey)) {
       /*
-        When downstream contains table scan operator, it may do prev/next
+        When downstream contains table scan operator, it may do PREV/NEXT
         scan to fill(prev/next/linear/near) the first/last row. To reduce 
         the overhead, notify it only once when the first valid row comes.
       */
